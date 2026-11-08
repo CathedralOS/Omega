@@ -1,30 +1,9 @@
-# Chapter 14: Traits And Runtime Machine Values
+# Chapter 14: Traits and runtime machine values
 
-Traits name required machine surfaces. This chapter teaches their use; the
-[named-conformance specification](../spec/language/conformances.md) owns the
-complete declaration and selection rules.
+A trait groups operations a caller needs. A named conformance supplies those
+operations for particular type arguments. Start with an increment operation:
 
-The core pieces are:
-
-- `data` names state.
-- `machine` names behavior over state.
-- A machine signature is already a stable callable contract.
-
-A trait is therefore a way to name one machine requirement or a bundle of
-machine requirements.
-
-## Core Model
-
-A trait is a contract over machines. A named implementation satisfies it;
-data does not. Data types are ordinary trait arguments and machines receive
-all data explicitly. The [data/code decision](../spec/language/conformances.md#data-and-code-are-independent)
-retires `Self`, data-subject conformances and data-attached dynamic objects.
-The examples below specify the destination model; compiler migration is tracked
-on the [execution board](../../TASKS.md), not provided as a compatibility dialect.
-
-Carrier endpoints below use the ratified ordinary core
-[integer API](../spec/language/numeric_values.md#core-integer-and-float-apis);
-`CORE-INTEGER-FLOAT-APIS` retains its library/compiler implementation work.
+## Declare a trait and its implementation
 
 ```omega
 trait Incrementable<T> {
@@ -44,7 +23,7 @@ SaturatingIncrement satisfies Incrementable<Counter>
 {
     machine increment(counter: &mut Counter) {
         transition counter.value < integer::max<i32>() {
-            true -> bump(&mut counter)
+            true -> bump(counter)
             _ -> saturated()
         }
 
@@ -85,9 +64,9 @@ conformance binds the complete machine surface; Omega never
 assembles one conformance by searching ambient machines.
 
 ```omega
-data Card { power: u32; cost: u32; }
+public data Card { power: u32; cost: u32; }
 
-trait Ranked<T> {
+public trait Ranked<T> {
     machine before(card: &T, other: &T) -> bool;
     machine rank_value(card: &T) -> u32;
 }
@@ -115,130 +94,29 @@ CostOrder satisfies Ranked<Card>
 }
 ```
 
-The `public` on `PowerOrder` makes that conformance available to direct dependent
-packages. `CostOrder` stays package-private even if `Card` and `Ranked` are public.
-Consumers may select a public conformance without naming its private realization
-machines. Receiving a machine value carrying private evidence does not grant
-permission to name or reselect that evidence.
+`PowerOrder` compares power; `CostOrder` compares cost. The caller selects one
+by name. `public` makes a conformance available to dependent packages.
 
-Each requirement overload, including inherited requirements, has one exact row.
-A member body, explicit machine reference, default body, or authorized synthesis
-fills that row. Missing rows reject; similarly named ambient machines do not
-fill them. The [complete-row contract](../spec/language/conformances.md#complete-row-identity)
-defines overload identity and default instantiation.
-
-A generic conformance owns its binder telescope on its declared name:
+For example, a generic `comes_first` uses the selected comparison:
 
 ```omega
-SequenceEncoding<Element, Message> satisfies WireEncodable<Vec<Element>, Message>
-{
-    machine to_wire(items: &Vec<Element>, out: &mut Message) {
-        // ...
-    }
-}
-```
-
-A conformance targeting a lifetime-parameterized trait writes that complete
-trait application explicitly:
-
-```omega
-public trait Reads<'view, Item> {
-    machine read(value: &'view Item);
+machine comes_first<T, Order satisfies Ranked<T>>(left: &T, right: &T) -> bool {
+    Order::before(left, right)
 }
 
-public BufferReads<'scope, Item> satisfies Reads<'scope, Item>
-{
-    // ...
-}
+let by_power: bool = comes_first<Card, PowerOrder>(&left, &right);
+let by_cost: bool = comes_first<Card, CostOrder>(&left, &right);
 ```
 
-The declaration supplies every trait lifetime explicitly from its own binders;
-renaming a binder preserves identity, while choosing a different binder changes
-it. This mapping also specializes inherited requirements.
+Each conformance supplies every required member, either with a body, a trait
+default, or eligible synthesis. It can call ordinary shared helpers. All members
+must meet the trait's contracts, including laws that relate the operations.
 
-One concrete family member is selected by applying that name inside the
-enclosing machine's static telescope:
-
-```omega
-send_all<
-    u8,
-    PlayerMessage,
-    SequenceEncoding<u8, PlayerMessage>
->(&items);
-```
-
-The inner angle brackets apply the conformance's own static parameters. Supply
-every type, const, and static-machine argument explicitly; the expected trait
-checks the application but does not infer it. Only lifetime arguments may be
-elided at a later application, and only when borrow constraints determine one
-unique complete mapping. Declaration-site lifetime arguments are never elided.
-See [declaration and selection](../spec/language/conformances.md#declaration-and-selection)
-for exact lifetime identity and compatibility rules.
-
-A proof-only implementation uses the same named map as an executable
-implementation. Neither has a data subject or creates a runtime instance. See
-[proof projection](#proof-projection-and-carrierless-evidence) below.
-
-To reuse an existing machine, declare the member normally and call the shared
-machine. For example, inside a `Ranked<Card>` implementation:
-
-```omega
-machine rank_value(card: &Card) -> u32 {
-    Card::stable_rank_value(card)
-}
-```
-
-This uses ordinary call checking. The member must satisfy the requirement's
-complete contract, including any laws, effects and ownership obligations.
-Inlining can remove the extra call but does not merge the two machines'
-semantic identities or erase a foreign helper's trust dependency. There is no
-separate assignment syntax for binding a requirement to an existing machine.
-
-The member signature and, where needed, an exact `satisfies` edge identify the
-requirement overload. A signature-free requirement path used elsewhere must
-resolve uniquely; if it does not, give requirements used there distinct names.
-
-Selection happens where concrete code meets an abstract requirement. Every
-whole-trait implementation has a package-scoped name, and every use passes that
-evidence explicitly. A generic evidence binder uses the same right-hand
-grammar as a concrete declaration, without a body:
-
-```omega
-machine sort<Element, Order satisfies Ranked<Element>>(
-    cards: &mut [Element]
-)
-{
-    // Calls dispatch through Order's closed requirement map.
-}
-
-sort<Card, PowerOrder>(&mut cards);
-```
-
-Static bounds select named evidence. Runtime machine fields select exact members
-under their callable contracts; they do not implicitly select an entire trait. There is no
-unique-visible selection, specificity priority, or default conformance.
-Overlapping blanket and specialized conformances may coexist because neither
-competes to be chosen. Naming and passing one conformance selects its coherent
-set of requirements and every law relating those requirements.
-
-Operators, indexing, and cleanup have no place to pass another conformance.
-They cannot search ambient implementations; their meaning must already follow
-from the operand type, qualification, an explicit static selection, or a sealed
-language route.
-
-A trait requirement may take several ordinary owned arguments and return one:
-
-```omega
-trait Additive<T> {
-    machine add(a: T, b: T) -> T;
-}
-```
-
-A whole conformance proves its requirements' contracts member by member.
-An independent machine may instead satisfy just one requirement, as described
-under [exact realization](#exact-requirement-realization). That narrower claim
-cannot supply a whole-trait bound. Its exact named machine can separately be
-stored under a compatible runtime callable contract.
+A generic conformance puts parameters on its name, such as
+`SequenceEncoding<Element, Message> satisfies WireEncodable<Vec<Element>, Message>`.
+Select a concrete application such as `SequenceEncoding<u8, PlayerMessage>`.
+See [conformance declarations](../spec/language/conformances.md#declaration-and-selection)
+for lifetime parameters and complete member matching.
 
 ### Domain establishment requirements
 
@@ -259,32 +137,19 @@ ReservationAccess satisfies AccessPolicy {
 }
 ```
 
-A machine satisfying `Issues::issue` may establish `Reservation::Issued` at
-that requirement's exact qualified result. An exact qualified explicit
-parameter is also an authorized subject, but is introduced only when the
-requirement is invoked as an installed external root; at an ordinary call it
-remains a caller precondition. It must also prove every predicate in the
-domain's `requires` clause. A look-alike trait establishes nothing because the
-domain does not name it.
+The access policy names `Issues::issue` as an authorized route for establishing
+the qualification. An implementation must still prove the domain's predicates.
+The domain owner chooses which exact machines or requirements can issue it;
+visibility controls who can call or implement those routes. See
+[domain access policies](chapter_8_domains.md#read-and-write-authority).
 
-Trait visibility governs who may implement the route, machine visibility who
-may invoke it, and boundary routes additionally require provider admission.
-A public domain may authorize a private trait requirement without publishing it
-for outside conformance. It may instead name an exact concrete machine, public
-or private; that authorizes only the named machine, not other conformers.
-Private issuer identities remain verification metadata, not consumer access.
-No sealed-trait feature or artificial trait is required for a single issuer.
-The domain owner has no ambient minting privilege. The
-[establishment contract](../spec/resources/authority.md#establishment-routes)
-owns these distinctions.
-
-## Exact Requirement Realization
+## Exact requirement realization
 
 An independent provider or adapter binds one exact requirement through
 post-signature metadata on the machine.
 
 ```omega
-machine Player::draw(
+machine draw_player(
     player: &Player,
     canvas: &mut Canvas
 ) satisfies Drawable<Player>::draw {
@@ -292,31 +157,14 @@ machine Player::draw(
 }
 ```
 
-This keeps machine identity clean:
+`draw_player` implements the single `Drawable<Player>::draw` requirement. This
+checks that member's signature and contract; a generic bound on the whole
+`Drawable<Player>` trait still needs a complete conformance.
 
-- `Player::draw` is still the machine.
-- `Drawable<Player>::draw` is the exact trait requirement it satisfies.
-- `Player` is the explicit argument to the trait's declared type parameter.
-- The compiler checks that the params, return type, service reach, direct
-  synchronous invocation ceiling, and obligations match the trait requirement.
+Foreign native supply is selected through Build. See [Chapter 19](chapter_19_capabilities_effects_boundaries.md)
+for adapters and admission.
 
-A lifetime-parameterized target names every trait lifetime explicitly from the
-realizing machine's binders, for example `satisfies Reads<'scope, Item>::read`.
-The mapping substitutes through the inherited signature and contracts. See
-[exact-edge identity](../spec/build/foreign_bindings.md) for its distinction
-from the public conformance telescope.
-
-The `satisfies` clause follows the signature and precedes termination, contracts,
-and the checked body. Irreducible native backing instead uses a package-local
-`Build::bind<Requirement>(builder, target, locator)` row; no per-symbol bodyless
-realization or source `via` clause is declared. The locator's byte lengths are
-inferred from its ordinary values. Native supply retains the requirement's full
-contract and needs foreign admission; the binding payload proves no behavior.
-Neither exact satisfaction nor native binding creates a whole conformance.
-See [Build-owned native binding](../spec/build/foreign_bindings.md#build-owned-native-binding)
-for the accepted form and its remaining implementation work.
-
-## Individual Machine Requirements
+## Individual machine requirements
 
 A local generic requirement may need only one exact machine signature rather
 than a reusable trait name. A static machine binder states that structural
@@ -325,14 +173,14 @@ from an anonymous member requirement such as `requires machine T::member(...)`,
 which is not a supported source form. See
 [static machine binders](../spec/language/generics.md#static-machine-binder-categories).
 
-## Operator Requirements
+## Operator requirements
 
 An operator may be a named trait requirement. The trait owns the fixed token
 binding; a conformance supplies the requirement implementation and cannot
 rebind that token:
 
 ```omega
-trait Ranked<T> {
+public trait Ranked<T> {
     machine < compare(left: T, right: T) -> bool;
 }
 ```
@@ -402,11 +250,11 @@ For core types such as `Slice`, that operator still has a visible signature and
 contract, even when the implementation is bound to a boundary compiler/runtime
 primitive below the public core surface.
 
-Domain-sensitive operator resolution is a layer above this. A proved domain may
-select an operator meaning only when the domain context makes the result unique.
-That belongs to the domains/proof model, not to runtime trait dispatch.
+Declared operand qualifications can also select domain-specific operators.
+Flow-established membership alone never changes the operator. See
+[domain operators](chapter_8_domains.md#select-operators-through-domains).
 
-## Trait Bundles
+## Trait bundles
 
 When a surface is reused, give it a name.
 
@@ -430,10 +278,9 @@ machine Metrics::sample<T, Counters satisfies CounterLike<T>>(
 }
 ```
 
-The trait still does not own the machines. It only names the required machine
-set.
+The selected conformance supplies this family of operations together.
 
-## Trait Composition
+## Trait composition
 
 Traits may bundle other traits.
 
@@ -498,9 +345,8 @@ name or helper body, determines the boundary contract.
 See [calling plans](../spec/build/calling_plans.md) for the closed plan vocabulary,
 validation, and the separate evidence that emitted code honors the plan.
 
-This avoids making traits magic. They are named requirement sets.
 
-## Versioned Data
+## Versioned data
 
 Traits fit versioned data because machine signatures are already the stable
 surface.
@@ -524,7 +370,7 @@ The migration machine remains ordinary Omega behavior. The trait only lets a
 format or replacement package say, "this upgrade surface exists." There are no
 era-qualified type paths or builtin version containers.
 
-## Wire Protocols
+## Wire protocols
 
 Wire protocols can use the same model.
 
@@ -538,9 +384,8 @@ trait WireWritable<Value, Message> {
 }
 ```
 
-This avoids adding mandatory `encode`, `decode`, or `migrate` keywords for
-every protocol transform. The transform is a machine. A trait can name the
-expected transform surface when a framework or checker needs one.
+A protocol framework can accept these traits to select its encode and decode
+operations. Each selected machine proves the requirement's contract.
 
 ## Dispatch
 
@@ -559,10 +404,8 @@ machine Metrics::sample<T, Counters satisfies CounterLike<T>>(
 }
 ```
 
-Static selection can specialize the consumer. Runtime selection instead stores
-a named machine under a callable contract. The `dyn` keyword and all its forms
-are retired. The following examples specify the ratified replacement; compiler
-delivery is tracked in the [migration plan](../drafts/designs/machine_values_some.md).
+Static selection can specialize the consumer. For runtime selection, store a
+named machine in a field with the callable contract the consumer needs.
 
 <a id="local-dynamic-values"></a>
 
@@ -621,10 +464,9 @@ requires output.len > 0
 machine read_toggle(state: &mut Toggle, output: &mut [u8]) -> u64
 requires output.len > 0
 {
-    transition state.high {
-        true -> { output[0] = 1; state.high = false; }
-        false -> { output[0] = 0; state.high = true; }
-    }
+    let byte: u8 = match state.high { true -> 1 false -> 0 };
+    output[0] = byte;
+    state.high = !state.high;
     1
 }
 
@@ -635,16 +477,16 @@ requires output.len > 0
 }
 
 machine example() {
-    let mut constant = Constant { byte: 42 };
-    let mut toggle = Toggle { high: true };
+    let mut constant: Constant = Constant { byte: 42 };
+    let mut toggle: Toggle = Toggle { high: true };
     let mut readers: [Reader; 2] = [
         Reader { state: &mut constant, read: read_constant },
         Reader { state: &mut toggle, read: read_toggle },
     ];
     let mut buffer: [u8; 1] = [0];
-    let first = read_one(&mut readers[0], &mut buffer);
-    let second = read_one(&mut readers[1], &mut buffer);
-    let third = read_one(&mut readers[1], &mut buffer);
+    let first: u64 = read_one(&mut readers[0], &mut buffer);
+    let second: u64 = read_one(&mut readers[1], &mut buffer);
+    let third: u64 = read_one(&mut readers[1], &mut buffer);
 }
 ```
 
@@ -660,50 +502,36 @@ to its own local behind, and mutable references cannot be copied. Removing a
 reader moves its loan with it; consuming it releases access only when no
 dependent loan survives.
 
-V1 packages sized borrowed state with uniform fields. It does not allocate an
-unknown-layout `S` inline, supply implicit boxes, or create runtime type tests.
-You can return a complete `Reader`, but cannot return its unknown `&S` outside
-the opening without repackaging. Concrete returned borrows retain normal lifetime
-obligations. Replacing a reader cannot preserve stale projections of its old type.
+Store the state behind a borrow so every `Reader` has a uniform representation.
+You can return a complete reader, but its unknown state type stays inside the
+package. Replacing a reader also ends the validity of projections from its old
+state. See [some packages](../spec/language/some_packages.md).
 
 <a id="dynamic-surface"></a>
 
 ### Static and runtime choices
 
-`machine F` generic binders still select a machine statically. Machine-valued
-fields select behavior at runtime. `some S` packages related data fields; it
-does not replace generic checking or require a trait. The baseline uses indirect
-descriptors; closed-world devirtualization is an optimization, not a mandatory
-derived sum of every implementation.
+Use a `machine F` parameter when the caller chooses behavior at compile time.
+Use a machine-valued field when the program chooses it at runtime. Add `some S`
+when one record must keep an unknown state type paired with its operations.
 
-Unrestricted generic virtual methods remain unsupported. Close static arguments
-before constructing a machine value; explicit finite value families retain their
-declared coverage. See [machine values](../spec/language/machine_values.md),
-[some packages](../spec/language/some_packages.md) and
-[callable dispatch](../spec/terminal-psi/dynamic_dispatch.md).
+Static selection permits specialization. Runtime machine values use indirect
+calls unless optimization can resolve the target. See [machine values](../spec/language/machine_values.md)
+for callable contracts and representation.
 
 <a id="proof-projection-and-carrierless-evidence"></a>
 
 ### Proof projection and implementation evidence
 
-Traits group mathematical operations, witness values/functions, and laws
-expressed through ordinary machine contracts. Named conformances supply the
-complete bundle. A law contributes a checked contract, not a runtime dispatch
-slot. A proof-only bundle contributes no runtime instance or table merely
-because its interface is used in a proof.
+A trait may group mathematical operations, witnesses and theorem requirements.
+A conformance proves its laws for those selected operations. Theorems supply
+facts without runtime dispatch slots.
 
-Consumers rely on the declared laws and exact selected bundle, not on private
-implementation facts. Repeated projection preserves witness identity;
-equal conclusions do not identify different witnesses. Erased Type witnesses
-retain ordinary multiplicity and validity scope.
-
-General predicate parameters, logical binders, and noncomputable mathematical
-values remain to be specified. A Boolean accessor is appropriate for a
-decidable property but cannot replace an arbitrary mathematical predicate.
-See [chapter 10](chapter_10_compile_time_proofs.md#contracts-and-evidence-bundles)
-and the [mathematical proof contract](../spec/proofs/contracts.md).
-General bundle implementation remains tracked by `PROOF-CONTRACT-MIGRATION`
-on the [execution board](../../TASKS.md); these rules do not claim full support.
+Clients use the declared laws; implementation-private facts are available only
+where their checked evidence is supplied. Distinct witness functions do not
+become identical merely because they prove the same conclusion. See
+[compile-time proofs](chapter_10_compile_time_proofs.md) for identity, erased
+evidence and mathematical function parameters.
 
 ### Operational envelopes
 
@@ -793,7 +621,7 @@ suspends
     suspend LoggingService::write(text);
 }
 
-let logger = LoggerOps { write: component_write };
+let logger: LoggerOps = LoggerOps { write: component_write };
 ```
 
 Calling the stored proxy still passes `&proxy` explicitly. The proxy crosses
@@ -802,7 +630,7 @@ remain replacement dependencies even though no global witness roster affects
 their layout. Pausing execution alone does not authorize unloading their code
 or reinterpreting their state.
 
-## Contracts And Reach
+## Contracts and reach
 
 A trait can require more than machine names. Its requirements publish the facts
 that make those machines safe to use through ordinary contracts. There is no
@@ -815,8 +643,7 @@ For example, an accessor-based counter interface can require a nonnegative
 returned count. A satisfier must prove the accessor's contract from its own
 representation. An arbitrary nondecidable validity condition uses a
 [mathematical predicate parameter](../spec/proofs/mathematical_bindings.md), not
-an implicitly substituted Boolean decider. Checking that general route remains
-implementation work.
+an implicitly substituted Boolean decider.
 
 A satisfying machine proves the inherited contract on every applicable result
 path. It may expose stronger facts to direct callers but cannot weaken the
@@ -836,17 +663,35 @@ machines. `reaches` names reachable boundary traits such as `Readable` or
 before returning; `suspends`, `blocks`, and `crashes` publish operational possibilities. An
 ordinary trait is not a service identity. Boundary traits may be named in
 `reaches`, but calling their requirements contributes only the explicitly
-declared row, not the containing trait's name. Omission on a trait requirement
-means an empty service row,
-never-suspends, never-blocks, or no route for the omitted crash cause on the
-corresponding axis.
+declared row, not the containing trait's name. Boundary requirements always
+declare reach. On an ordinary trait requirement, omission forwards the selected
+implementation's reach; bare `reaches` requires an empty row.
+
+This also works when a generic selects a whole named implementation:
+
+```omega
+trait Step<T> {
+    machine apply(item: &mut T);
+}
+
+machine visit<T, S satisfies Step<T>>(item: &mut T) {
+    S::apply(item);
+}
+```
+
+`visit` reaches whatever the selected `S::apply` reaches. Each member has its own
+row, so calling one operation does not add the services of every other member.
+
+Suspension, blocking and crashes keep their separate defaults: an omitted clause
+on a requirement forbids that behavior. Opening service reach does not permit
+a callback to park, block or crash.
 
 Calls through the requirement acknowledge its statically retained operational
 envelope with `suspend` and `block`. A concrete or transparent refinement that
 removes one possibility makes its marker optional; retaining it creates no
 effect or warning. The base trait's published contract remains unchanged.
 
-## Trait Parameters And Related Types
+## Trait parameters and related types
 
 Some traits need to mention a related type.
 
@@ -895,7 +740,7 @@ Use explicit trait parameters for related types. Associated type slots,
 associated constants, higher-kinded types, and type families are not part of
 this trait surface.
 
-## Trait Machine Bodies
+## Trait machine bodies
 
 A trait machine with a body supplies the fallback implementation. Body presence
 is the marker; Omega has no `default` keyword.
@@ -933,7 +778,7 @@ Prefer ordinary library machines when behavior is reusable without access to
 trait-member generation or a selected implementation's other rows. Default
 instantiation always uses the selected conformance's member map.
 
-## Synthesized Core Traits
+## Synthesized core traits
 
 A closed set of core traits supports compiler synthesis. An empty named
 `Equatable` conformance requests structural equality:
@@ -983,16 +828,3 @@ conformances and do not compete for operator syntax.
 See [core equality acquisition](../spec/language/conformances.md#core-equality-acquisition)
 for the complete rule, and [quotients](../spec/proofs/quotients.md) for selecting
 mathematical relations and representative-independent operations.
-
-## What Traits Are Not
-
-Traits should not become:
-
-- Hidden fields.
-- Inherited state.
-- A method namespace separate from machines.
-- A place where behavior lives instead of machines.
-- A workaround for unclear machine signatures.
-
-If the behavior is real, it should be a machine. If a group of machines forms a
-reusable contract, that group can be a trait.

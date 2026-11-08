@@ -1,6 +1,14 @@
-//! Exact native descriptor I/O entry identities shared by admission and guards.
-//! Symbol text alone is insufficient: the normalized target, library identity,
-//! entry mechanism and ABI remain part of the offered implementation.
+/*
+We recognize exact native descriptor I/O entry identities (`DescriptorAbi`,
+`DescriptorOperation`) shared by admission and host execution guards.
+
+Symbol text alone is insufficient: we match the normalized target profile,
+library/object identity (`libSystem.B.dylib`, `msvcrt.dll`, versioned
+`libc.so.6`), or Linux syscall number. The modeled adapter separately requires
+finite input or buffered output. Recognizing an entry supplies no environment
+or permission to execute it through an unmodeled worker.
+*/
+
 use target::{ForeignLocatorCandidate, NormalizedForeignLocator, TargetProfile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -8,6 +16,7 @@ pub enum DescriptorOperation {
     Read,
     Write,
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DescriptorAbi {
     WindowsCrt,
@@ -25,8 +34,6 @@ pub fn descriptor_import(
     descriptor_import_identity(locator)
 }
 
-/// Recognize the exact descriptor operation independently of whether the host
-/// adapter offers its environment. This is not permission to execute it.
 pub fn descriptor_import_identity(
     locator: &NormalizedForeignLocator,
 ) -> Option<(DescriptorAbi, DescriptorOperation)> {

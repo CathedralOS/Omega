@@ -587,7 +587,7 @@ mod tests {
         let mut aliases = HandleAliases::default();
         aliases
             .write_complete_word(
-                original.clone(),
+                original,
                 word,
                 HandleWordAliases::acquired(word, acquired).unwrap(),
             )
@@ -605,7 +605,7 @@ mod tests {
         let narrow = aliases.stored_word(&copied, integer(IntegerSign::Unsigned, 32));
         assert!(narrow.represented_as(word).exact_handle().is_err());
         assert_eq!(narrow.dependencies(), &BTreeSet::from([acquired]));
-        aliases.write_region(destination.clone(), BTreeSet::from([HandleInstance(1)]));
+        aliases.write_region(destination, BTreeSet::from([HandleInstance(1)]));
         assert!(aliases.stored_word(&copied, word).exact_handle().is_err());
         assert_eq!(
             aliases.stored_dependencies(&destination),
@@ -625,7 +625,7 @@ mod tests {
         let mut initial = HandleAliases::default();
         initial
             .write_complete_word(
-                home.clone(),
+                home,
                 word,
                 HandleWordAliases::acquired(word, HandleInstance(0)).unwrap(),
             )
@@ -635,11 +635,11 @@ mod tests {
         // full replacement from writing only part of this captured U64 home.
         assert!(
             partial
-                .write_complete_word(home.clone(), word, HandleWordAliases::untracked(narrow))
+                .write_complete_word(home, word, HandleWordAliases::untracked(narrow))
                 .is_err()
         );
         assert_eq!(partial, initial);
-        partial.write_partial_word(home.clone(), &HandleWordAliases::untracked(narrow));
+        partial.write_partial_word(home, &HandleWordAliases::untracked(narrow));
         assert!(partial.stored_word(&home, word).exact_handle().is_err());
         assert_eq!(
             partial.stored_dependencies(&home),
@@ -647,7 +647,7 @@ mod tests {
         );
         let mut child_write = initial.clone();
         child_write
-            .write_complete_word(child.clone(), narrow, HandleWordAliases::untracked(narrow))
+            .write_complete_word(child, narrow, HandleWordAliases::untracked(narrow))
             .unwrap();
         assert!(child_write.stored_word(&home, word).exact_handle().is_err());
         assert_eq!(
@@ -687,14 +687,14 @@ mod tests {
         assert!(HandleStorageRange::new(home.backing(), u64::MAX, 1).is_err());
 
         let mut possible = initial.clone();
-        possible.write_region(home.clone(), BTreeSet::new());
+        possible.write_region(home, BTreeSet::new());
         assert!(possible.stored_word(&home, word).exact_handle().is_err());
         assert_eq!(
             possible.stored_dependencies(&home),
             BTreeSet::from([HandleInstance(0)])
         );
         possible
-            .write_complete_word(home.clone(), word, HandleWordAliases::untracked(word))
+            .write_complete_word(home, word, HandleWordAliases::untracked(word))
             .unwrap();
         assert!(possible.stored_dependencies(&home).is_empty());
     }

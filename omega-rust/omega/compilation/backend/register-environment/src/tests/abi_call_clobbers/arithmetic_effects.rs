@@ -1,3 +1,10 @@
+/*
+We verify that the machine-effect catalog declares the exact operand access,
+condition-code custody, clobber sets, trap behavior, and applicability windows
+for every selected arithmetic, bitwise, comparison, and boolean-materialization
+rule across all supported targets, and rejects per-fact corruptions.
+*/
+
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_storage_free, baseline_target_register_environment, binds_catalog_provenance,
@@ -13,12 +20,6 @@ use selected_instructions::{
     MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
-/// Every selected arithmetic rule key with the semantic families the effect
-/// catalog must declare for it. The sweep is keyed off the validated
-/// environment's selection, never off the effect producer's own roster;
-/// shared keys carry one declaration per declared semantic — the Boolean
-/// materializations, the copy/normalization forms, and the add/subtract
-/// realization families.
 fn selected_arithmetic_rules(
     environment: &crate::ValidatedTargetRegisterEnvironment,
 ) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
@@ -66,10 +67,6 @@ fn selected_arithmetic_rules(
             Some(keys.subtract_i64_immediate),
             &[ExactSubtractI64Immediate][..],
         ),
-        // Operand shape, not width, selects the saturating rows: unsigned
-        // subtract and the u64 add saturate on the carry flag in three
-        // operands, unsigned divide shares the exact unsigned divide row,
-        // and every other carrier clamps through an early-clobber scratch.
         (
             Some(keys.saturating_subtract_unsigned),
             &[
@@ -93,8 +90,6 @@ fn selected_arithmetic_rules(
                 SaturatingDivide(SaturatingCarrier::U64),
             ][..],
         ),
-        // Saturating remainder shares the ordinary remainder rows: the
-        // mathematical remainder already lies inside its carrier.
         (
             Some(keys.remainder_u64),
             &[
@@ -144,8 +139,6 @@ fn selected_arithmetic_rules(
                 SaturatingDivide(SaturatingCarrier::I64),
             ][..],
         ),
-        // Every saturating multiply but u64 shares the clamped four-operand
-        // shape; u64 needs the full product's high half.
         (
             Some(keys.saturating_multiply_clamped),
             &[
@@ -174,10 +167,6 @@ fn selected_arithmetic_rules(
     .collect()
 }
 
-/// Where the architecture's condition-code view sits in one rule's custody:
-/// the Boolean materializations read it, the compares and the AArch64
-/// saturating forms define it, and the x86-64 flag-writing realizations
-/// clobber it.
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum FlagsCustody {
     #[default]
@@ -187,11 +176,6 @@ enum FlagsCustody {
     Clobber,
 }
 
-/// The declared arithmetic contract for one selected semantic on one ISA:
-/// the constraint row's operand access pattern, its float-class and
-/// early-clobber positions, any ABI-pinned operand views, its condition-code
-/// and extra clobber custody, the encoded trap surface, and each admitted
-/// alternative's applicability, size knowledge, and external operand custody.
 struct ArithmeticContract {
     accesses: &'static [RegisterOperandAccess],
     float_operands: &'static [u16],
@@ -228,20 +212,11 @@ struct AlternativeContract {
     writes: &'static [u16],
 }
 
-/// When one alternative applies. Post-allocation legality chooses among the
-/// admitted windows; an optimization-selected form is chosen only by the
-/// named post-allocation rule, after that rule proves its own guard, so the
-/// form may clobber the condition codes the shared row leaves alone.
 enum ExpectedApplicability {
     Window(MachineAlternativeApplicability),
-    /// Selected only by the post-allocation optimization with this exact
-    /// registry name, after proving the condition codes dead.
     OptimizationClobberingFlags(&'static str),
 }
 
-/// The four alias windows a two-input, one-result form can realize: both
-/// inputs share the result view, one input shares it while the other stays
-/// distinct, or neither does.
 const RESULT_ALIASES_BOTH: MachineAlternativeApplicability =
     MachineAlternativeApplicability::ResultAliasesOperands {
         result: 2,
@@ -267,9 +242,6 @@ const RESULT_ALIASES_NEITHER: MachineAlternativeApplicability =
         right: 1,
     };
 
-/// One alias-dependent alternative in one of those windows: the encoded size it
-/// resolves to, and the operand positions it reads. Every member of the
-/// alias-safe realization family writes the result operand and nothing else.
 fn result_alternative(
     applicability: MachineAlternativeApplicability,
     size: u16,
@@ -283,9 +255,6 @@ fn result_alternative(
     }
 }
 
-/// The declared size knowledge for one selected arithmetic semantic on each
-/// ISA: the x86-64 encoder-resolved envelopes and multi-instruction forms,
-/// and the fixed-width AArch64 encodings.
 fn expected_size(
     semantic: MachineSemanticKind,
     architecture: Architecture,
@@ -311,10 +280,6 @@ fn expected_size(
             Float32ToBits | BitsToFloat32 => resolved(4, 5),
             Float64ToBits | BitsToFloat64 => MachineSizeKnowledge::ExactBytes(5),
             WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(17),
-            // mov/add plus movabs/cmp/cmov per clamped bound (17 each); the
-            // i64 forms derive the saturated value with mov/not/sar/btc (15)
-            // before mov/add/cmovo (10); the i64 divide guards MIN / -1 with
-            // cmp/sbb/or/neg/lea/cmovo (21) before cqo/idiv (5).
             SaturatingAdd(SaturatingCarrier::U64) => MachineSizeKnowledge::ExactBytes(19),
             SaturatingAdd(SaturatingCarrier::I64) | SaturatingSubtract(SaturatingCarrier::I64) => {
                 MachineSizeKnowledge::ExactBytes(25)
@@ -329,15 +294,10 @@ fn expected_size(
                 MachineSizeKnowledge::ExactBytes(22)
             }
             SaturatingDivide(_) => MachineSizeKnowledge::ExactBytes(3),
-            // Signed remainder is cqo + idiv + the mov out of RDX; unsigned
-            // remainder is xor-edx + div + the same move.
             SaturatingRemainder(carrier) if carrier.is_signed() => {
                 MachineSizeKnowledge::ExactBytes(17)
             }
             SaturatingRemainder(_) => MachineSizeKnowledge::ExactBytes(9),
-            // mov/imul (7) plus the clamps; the i64 form derives the
-            // saturated value with mov/xor/not/sar/btc (18) before
-            // mov/imul/cmovo (11); u64 is mul/sbb/or on RAX:RDX.
             SaturatingMultiply(SaturatingCarrier::U64) => MachineSizeKnowledge::ExactBytes(9),
             SaturatingMultiply(SaturatingCarrier::I64) => MachineSizeKnowledge::ExactBytes(29),
             SaturatingMultiply(carrier) if carrier.is_signed() => {
@@ -356,10 +316,6 @@ fn expected_size(
         Architecture::Aarch64 => match semantic {
             MaterializeI64 => resolved(4, 16),
             WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
-            // One arithmetic word plus mov/cmp/csel per clamped bound; the
-            // i64 add and subtract use asr/eor/adds/csel; the i64 divide uses
-            // sdiv/mov/cmp/ccmn/mov/csel; the flag-select u64 add and every
-            // unsigned subtract are two words; unsigned divide is one.
             SaturatingAdd(SaturatingCarrier::U64) => MachineSizeKnowledge::ExactBytes(8),
             SaturatingAdd(SaturatingCarrier::I64) | SaturatingSubtract(SaturatingCarrier::I64) => {
                 MachineSizeKnowledge::ExactBytes(16)
@@ -374,10 +330,7 @@ fn expected_size(
                 MachineSizeKnowledge::ExactBytes(16)
             }
             SaturatingDivide(_) => MachineSizeKnowledge::ExactBytes(4),
-            // Divide plus MSUB: two words like the ordinary remainder row.
             SaturatingRemainder(_) => MachineSizeKnowledge::ExactBytes(8),
-            // `mul` plus mov/cmp/csel per clamped bound; the 64-bit carriers
-            // compare the SMULH/UMULH high half.
             SaturatingMultiply(SaturatingCarrier::U64) => MachineSizeKnowledge::ExactBytes(16),
             SaturatingMultiply(SaturatingCarrier::I64) => MachineSizeKnowledge::ExactBytes(24),
             SaturatingMultiply(carrier) if carrier.is_signed() => {
@@ -389,22 +342,14 @@ fn expected_size(
     }
 }
 
-/// Flag custody on one rule's ISA: every x86-64 form in this table clobbers
-/// the condition codes, and the AArch64 form states its own custody.
 const fn flag_custody(x86: bool, aarch64: FlagsCustody) -> FlagsCustody {
     if x86 { FlagsCustody::Clobber } else { aarch64 }
 }
 
-/// The value one ISA states where the two arms differ only in that value.
 fn either<T>(x86: bool, x86_value: T, aarch64_value: T) -> T {
     if x86 { x86_value } else { aarch64_value }
 }
 
-/// The declared arithmetic contract one selected semantic must carry on each
-/// ISA. The two ISAs share operand shapes but own different flag custody:
-/// x86-64 realizes flag-writing forms as clobbers and pins the divide and
-/// remainder rows to `rax`/`rdx`, while AArch64 names `nzcv` definitions on
-/// the compares and saturating forms and leaves everything else allocatable.
 fn arithmetic_contract(
     semantic: MachineSemanticKind,
     architecture: Architecture,
@@ -421,8 +366,6 @@ fn arithmetic_contract(
         }]
     };
     match semantic {
-        // x86-64 also declares the three-byte `xor r64, r64` zero idiom,
-        // which only the post-allocation zero-materialization rule selects.
         MaterializeI64 => ArithmeticContract::plain(&[Def], {
             let mut alternatives = one(&[], &[0]);
             if x86 {
@@ -469,9 +412,6 @@ fn arithmetic_contract(
             flags: flag_custody(x86, FlagsCustody::None),
             alternatives: if x86 {
                 vec![
-                    // The alias-safe realization family: `xor` when both
-                    // inputs share the result view, `sub` against the left or
-                    // right input, and `mov; sub` when the result is distinct.
                     result_alternative(RESULT_ALIASES_BOTH, 3, &[]),
                     result_alternative(RESULT_ALIASES_LEFT, 3, &[0, 1]),
                     result_alternative(RESULT_ALIASES_RIGHT, 6, &[0, 1]),
@@ -482,9 +422,6 @@ fn arithmetic_contract(
             },
             ..ArithmeticContract::plain(&[Use, Use, Def], Vec::new())
         },
-        // `imul` reads its in-place destination input even when every operand
-        // shares one view, so the fully-aliased variant still reads both
-        // logical operands — unlike the `xor`-realized subtract.
         ExactMultiplyI64 => ArithmeticContract {
             flags: flag_custody(x86, FlagsCustody::None),
             alternatives: if x86 {
@@ -527,10 +464,6 @@ fn arithmetic_contract(
                 Vec::new(),
             )
         },
-        // x86-64 pins the divisor to RCX — a fixed view disjoint from RAX and
-        // RDX — so the realized form may zero RDX before reading the divisor;
-        // the RDX scratch is an ordinary late definition rather than a fixed
-        // early clobber.
         WrappingRemainderI64 => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2] },
             fixed_views: either(x86, &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")], &[]),
@@ -542,10 +475,6 @@ fn arithmetic_contract(
                 Vec::new(),
             )
         },
-        // Saturating remainder rides the shared remainder rows: x86-64 pins
-        // the divisor to RCX and defines RDX as the quotient-side scratch;
-        // AArch64 divides then recovers the remainder through MSUB under an
-        // early-clobber result.
         SaturatingRemainder(_) => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2] },
             fixed_views: either(x86, &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")], &[]),
@@ -557,19 +486,11 @@ fn arithmetic_contract(
                 Vec::new(),
             )
         },
-        // The clamped saturating forms (every add but u64, every signed
-        // subtract) clamp through an early-clobber bound scratch; x86-64
-        // additionally accumulates in an early-clobber result.
         SaturatingAdd(_) | SaturatingSubtract(_) => ArithmeticContract {
             early_clobbers: &[2, 3],
             flags: flag_custody(x86, FlagsCustody::Def),
             ..ArithmeticContract::plain(&[Use, Use, Def, Def], one(&[0, 1], &[2, 3]))
         },
-        // x86-64 keeps the unsigned-division operand shape (an explicit RDX
-        // input that CQO discards and the clamp reuses); AArch64 clamps through
-        // an early-clobber scratch beside an early-clobber result.
-        // Signed division: x86-64 pins it to `rax`/`rdx` like unsigned
-        // division; AArch64 clamps or guards through the bound scratch.
         SaturatingDivide(_) => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2, 3] },
             fixed_views: either(x86, &[(0, "rax"), (2, "rax"), (3, "rdx")], &[]),
@@ -590,16 +511,11 @@ fn arithmetic_contract(
                 Vec::new(),
             )
         },
-        // x86-64 u64 multiplication is MUL on the unsigned remainder's fixed
-        // RAX/RCX/RAX/RDX row, which never faults; AArch64 keeps the clamped
-        // early-clobber shape for UMULH.
         SaturatingMultiply(SaturatingCarrier::U64) if x86 => ArithmeticContract {
             fixed_views: &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")],
             flags: FlagsCustody::Clobber,
             ..ArithmeticContract::plain(&[Use, Use, Def, Def], one(&[0, 1], &[2, 3]))
         },
-        // Every other multiply accumulates in an early-clobber result beside
-        // an early-clobber scratch, like the clamped add.
         SaturatingMultiply(_) => ArithmeticContract {
             early_clobbers: &[2, 3],
             flags: flag_custody(x86, FlagsCustody::Def),
@@ -617,9 +533,6 @@ fn arithmetic_contract(
     }
 }
 
-/// Every selected arithmetic rule on every declared target/ABI pair is bound
-/// to the operand custody, condition-code custody, and fall-through encoding
-/// that pair's ABI declares.
 #[test]
 fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
     for case in scalar_abi_cases() {
@@ -633,10 +546,6 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
             case.convention
         );
 
-        // Arithmetic authority is declared for exactly the selected
-        // arithmetic rules: every declaration carrying an arithmetic semantic
-        // names its selected constraint key, and no selected rule may lack
-        // its declared semantic set.
         let declared = declared_pairs(&catalog, |declaration| {
             arithmetic_rules
                 .iter()
@@ -654,9 +563,6 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
         let flags = flags_view(model, case);
         let integer_class = model.view_named(case.arguments[0]).unwrap().class;
         let float_class = model.view_named(case.float_result).unwrap().class;
-        // The ABI leaves the condition codes volatile on every pair: an
-        // arithmetic rule may read, define, or clobber them but can never
-        // touch preserved or fixed state.
         assert!(
             flags.units.iter().all(|unit| {
                 convention.caller_saved.contains(unit)
@@ -677,9 +583,6 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
             assert_eq!(declaration.memory, MachineMemoryEffect::NoneV1, "{key:?}");
             assert_eq!(declaration.trap, MachineTrapBehavior::NeverV1, "{key:?}");
 
-            // ABI operand structure: dense operand numbers with the declared
-            // access pattern, class membership, ABI pinning, and
-            // early-clobber marking.
             assert_eq!(row.operands.len(), contract.accesses.len(), "{key:?}");
             for (position, operand) in row.operands.iter().enumerate() {
                 assert_eq!(operand.operand as usize, position, "{key:?}");
@@ -717,9 +620,6 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
                 }
             }
 
-            // Implicit custody is exactly the declared condition-code state:
-            // the flags view where the contract names it, plus any extra
-            // named clobber the ISA's realization writes.
             assert_eq!(
                 row.implicit_uses,
                 if contract.flags == FlagsCustody::Use {
@@ -760,9 +660,6 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
                 "{key:?} implicit state must stay inside volatile units"
             );
 
-            // Each canonical alternative replays the exact ABI arithmetic
-            // mechanism for this target: its applicability window, size
-            // knowledge, and external custody refine the shared row.
             assert_eq!(
                 declaration.alternatives.len(),
                 contract.alternatives.len(),
@@ -776,10 +673,6 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
             {
                 assert_eq!(alternative.key.family, (*semantic).into(), "{key:?}");
                 assert_eq!(alternative.key.variant, index as u32, "{key:?}");
-                // Encoded implicit state refines exactly to the constraint
-                // row's declared custody for every selected arithmetic rule;
-                // an optimization-selected form adds only the condition
-                // codes its rule proves dead.
                 let mut expected_clobbers = row.clobbers.clone();
                 match expected.applicability {
                     ExpectedApplicability::Window(window) => {
@@ -824,10 +717,6 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
     }
 }
 
-/// Every selected arithmetic rule replays its encoded fall-through form:
-/// borrowing a foreign control shape, inventing a memory or stack footprint,
-/// drifting the trap surface, or forging or losing custody must reject for
-/// every alternative of every rule on every declared target/ABI pair.
 #[test]
 fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target() {
     for case in scalar_abi_cases() {
@@ -861,9 +750,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 .alternatives
                 .len();
             for index in 0..alternatives {
-                // A fall-through rule cannot borrow any control-transfer or
-                // hosted shape: every foreign control encoding fails the
-                // control/barrier join.
                 for control in [
                     MachineEncodedControlEffect::ConditionalRelativeBranchV1,
                     MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
@@ -882,8 +768,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     );
                 }
 
-                // An arithmetic rule cannot grow a memory footprint or a
-                // stack lifecycle.
                 let mut corrupted = catalog.clone();
                 encoded_mut(&mut corrupted, key, semantic, index).memory =
                     MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -899,9 +783,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     };
                 reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
-                // Trap drift stays inside the admitted fallthrough surface
-                // for both admitted values, so only canonical ISA replay
-                // rejects it; a hosted trap shape is outside that surface.
                 let mut corrupted = catalog.clone();
                 encoded_mut(&mut corrupted, key, semantic, index).trap = if contract.faulting {
                     MachineEncodedTrapBehavior::NeverV1
@@ -918,9 +799,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     MachineEncodedTrapBehavior::HostedWriteFailureV1;
                 reject_encoded!(corrupted, "{key:?} hosted trap shape must reject");
 
-                // Encoded operand custody: losing a declared read or write
-                // understates the contracted surface and fails structural
-                // admission; canonical replay never sees the forgery.
                 let expected = &contract.alternatives[index];
                 if let Some(&dropped) = expected.reads.last() {
                     let mut corrupted = catalog.clone();
@@ -940,9 +818,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     writes.retain(|write| *write != dropped);
                     reject_encoded!(corrupted, "{key:?} lost operand write must reject");
                 }
-                // A read the row does offer but the form does not take — the
-                // zeroing subtraction form — is just as contracted out: the
-                // all-aliased surface owns its empty read set.
                 let unread = row.operands.iter().find(|operand| {
                     matches!(
                         operand.access,
@@ -990,11 +865,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     .iter()
                     .find(|operand| operand.access == RegisterOperandAccess::Use)
                     .map(|operand| operand.operand)
-                    .unwrap_or_else(|| {
-                        // A read-free row's only operand is already written;
-                        // writing it twice breaks canonical ordering instead.
-                        expected.writes.first().copied().unwrap_or(0)
-                    });
+                    .unwrap_or_else(|| expected.writes.first().copied().unwrap_or(0));
                 let writes = &mut declaration_mut(&mut corrupted, key, semantic).alternatives
                     [index]
                     .encoded
@@ -1003,9 +874,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 writes.sort_unstable();
                 reject_encoded!(corrupted, "{key:?} forged operand write must reject");
 
-                // Encoded implicit custody: a unit the row does not declare
-                // fails structural admission, and so does losing a declared
-                // one — the encoded lists restate the row exactly.
                 let mut corrupted = catalog.clone();
                 encoded_mut(&mut corrupted, key, semantic, index)
                     .implicit_unit_uses
@@ -1046,11 +914,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     reject_encoded!(corrupted, "{key:?} lost encoded clobber must reject");
                 }
 
-                // The alternative stays bound to its own family and admitted
-                // window: a borrowed family fails admission, a self-aliasing
-                // window is invalid for every operand shape, and a window the
-                // row does admit but the form does not declare needs
-                // canonical replay.
                 let mut corrupted = catalog.clone();
                 let declaration = declaration_mut(&mut corrupted, key, semantic);
                 declaration.alternatives[index].key.family =
@@ -1059,10 +922,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     } else {
                         MachineSemanticKind::CopyI64.into()
                     };
-                // A borrowed family that leaves the roster ordered reaches
-                // the family check; one that reorders it — borrowing a
-                // lower family onto a later alternative — fails canonical
-                // ordering first.
                 let expected_rejection = if declaration
                     .alternatives
                     .windows(2)
@@ -1116,11 +975,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                         .applicability =
                         MachineAlternativeApplicability::ResultAliasesOperand { result, operand };
-                    // The drifted window contracts every input back into the
-                    // read surface: a form whose honest reads are already the
-                    // full contract still needs canonical replay, while the
-                    // all-aliased subtract's empty read set now understates
-                    // its own applicability and fails structural admission.
                     let contracted_reads = row
                         .operands
                         .iter()
@@ -1146,8 +1000,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     );
                 }
 
-                // Size knowledge: a degenerate bound fails admission, while a
-                // plausible drift needs canonical replay.
                 let mut corrupted = catalog.clone();
                 declaration_mut(&mut corrupted, key, semantic).alternatives[index].size =
                     MachineSizeKnowledge::ExactBytes(0);
@@ -1167,22 +1019,15 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     "{key:?} size drift must reject"
                 );
 
-                // A single-alternative declaration keeps a canonical roster
-                // under a variant drift; a multi-alternative roster breaks
-                // ordering first.
                 let mut corrupted = catalog.clone();
                 declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .key
                     .variant = (index + 1) as u32;
                 let expected_rejection = if index + 1 < alternatives {
-                    // Bumping a variant into its successor duplicates the key
-                    // and breaks canonical ordering before replay.
                     EffectRejection::Structural(
                         MachineEffectCatalogValidationError::NonCanonicalAlternatives(semantic),
                     )
                 } else {
-                    // The last variant stays ordered; only canonical replay
-                    // sees the drift.
                     EffectRejection::SemanticMismatch
                 };
                 assert_eq!(
@@ -1192,8 +1037,6 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 );
             }
 
-            // The alternative roster itself: an empty roster fails admission,
-            // and a duplicated alternative breaks canonical ordering.
             let mut corrupted = catalog.clone();
             declaration_mut(&mut corrupted, key, semantic)
                 .alternatives

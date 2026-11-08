@@ -514,6 +514,7 @@ impl ScalarBindings {
     /// Join the checked loan prefix before resolving ordinary backing geometry.
     /// Silent aliases have no fresh storage: their loan row, not initializer
     /// syntax, supplies the original root and formation-time selector homes.
+    #[track_caller]
     pub(crate) fn prepared_borrowed_argument(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,

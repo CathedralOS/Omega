@@ -1,5 +1,10 @@
-//! Import thunks, the import directory and IAT written into .rdata, and the
-//! post-relocation re-check that the thunk opcodes survived.
+/*
+We install six-byte `jmp [rip+disp32]` import thunks onto `.text`, build the
+deterministic `.rdata` import directory, import lookup tables, hint/name table,
+and IAT for both by-name and by-ordinal imports, patch the thunk displacements
+once layout is fixed, and re-verify that every thunk's `ff 25` opcode survived
+general relocation patching.
+*/
 
 use crate::bytes::{write_i32_at, write_u16_at, write_u32_at, write_u64_at};
 use crate::constants::IMAGE_BASE;
@@ -23,7 +28,6 @@ pub(crate) enum PeImportLookup {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PeImportThunk {
-    /// Object-local diagnostic label. Physical lookup never uses this field.
     pub(crate) symbol: String,
     pub(crate) library: Vec<u8>,
     pub(crate) lookup: PeImportLookup,
@@ -179,8 +183,6 @@ pub(crate) fn install_import_thunks(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PeImportTable {
     pub(crate) bytes: Vec<u8>,
-    /// Each thunk's IAT slot offset within `bytes`, in input thunk order; the
-    /// slot's address is this offset over the table's own RVA.
     pub(crate) iat_table_offsets: Vec<usize>,
     pub(crate) import_directory_rva: u32,
     pub(crate) import_directory_size: usize,
@@ -189,11 +191,6 @@ pub(crate) struct PeImportTable {
 }
 
 pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> PeImportTable {
-    // No-host / EFI targets import NOTHING -- services arrive through a parameter
-    // (the UEFI SystemTable), never the import table. Emit no import directory at
-    // all (RVA/size 0) rather than a lone null descriptor, so the image is a clean
-    // import-free PE32+. Mirrors the `.reloc` has_reloc gating in lib.rs; the
-    // header threads these zeros straight through.
     if imports.is_empty() {
         return PeImportTable {
             bytes: Vec::new(),
@@ -204,15 +201,6 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
             iat_size: 0,
         };
     }
-    // MULTI-DLL import table: thunks are grouped by their exact retained raw
-    // library bytes. Legacy catalog fallback is resolved before this boundary.
-    // Layout, all offsets relative to rdata_rva:
-    //   [descriptors: (n_dlls + 1) * 20]
-    //   [ILT_dll1][ILT_dll2]...      (each (count+1) * 8)
-    //   [IAT_dll1][IAT_dll2]...      (contiguous, so ONE directory entry covers all)
-    //   [dll names][hint/name entries]
-    // `iat_table_offsets` is filled in INPUT thunk order (patch_import_thunks
-    // zips it against the same slice).
     let mut libraries: Vec<(&[u8], Vec<usize>)> = Vec::new();
     for (index, import) in imports.iter().enumerate() {
         let library = import.library.as_slice();
@@ -223,7 +211,6 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
     }
 
     let descriptor_table_size = (libraries.len() + 1) * 20;
-    // Per-library ILT offsets, then the contiguous IAT region.
     let mut ilt_offsets = Vec::with_capacity(libraries.len());
     let mut cursor = descriptor_table_size;
     for (_, members) in &libraries {
@@ -237,14 +224,12 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
         cursor += (members.len() + 1) * 8;
     }
     let iat_region_size = cursor - iat_region_offset;
-    // DLL name strings.
     let mut dll_name_offsets = Vec::with_capacity(libraries.len());
     for (library, _) in &libraries {
         dll_name_offsets.push(cursor);
         cursor += library.len() + 1;
     }
     cursor = align_to(cursor, 2);
-    // Hint/name entries, in INPUT thunk order.
     let mut hint_name_offsets = vec![None; imports.len()];
     for (index, import) in imports.iter().enumerate() {
         if let PeImportLookup::ByName(export) = &import.lookup {
@@ -286,7 +271,6 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
         }
     }
 
-    // Hint/name entries, in INPUT thunk order.
     for (index, import) in imports.iter().enumerate() {
         let (PeImportLookup::ByName(export), Some(name_offset)) =
             (&import.lookup, hint_name_offsets[index])
@@ -314,7 +298,6 @@ pub(crate) fn patch_import_thunks(
     thunks: &[PeImportThunk],
     table: &PeImportTable,
 ) -> Result<(), Diagnostic> {
-    // One base plus the retained slot offset is the slot's address.
     let table_rva = table.import_directory_rva;
     for (thunk, &slot_offset) in thunks.iter().zip(table.iat_table_offsets.iter()) {
         let instruction_address = layout.text_address + thunk.text_offset as u64;
@@ -333,9 +316,6 @@ pub(crate) fn patch_import_thunks(
     Ok(())
 }
 
-/// Validate the final patched PE thunk opcode shape and attach its exact
-/// architectural effect. `jmp [rip+disp32]` writes control flow but no GPR,
-/// flags, stack, or vector state.
 pub(crate) fn validate_import_thunk_footprints(
     image: &mut FinalImage,
     thunks: &[PeImportThunk],
@@ -398,8 +378,6 @@ mod tests {
     };
     use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
 
-    /// A final image carrying one import row: the fixture shape every
-    /// bootstrap-import test in this module starts from.
     fn image_with_import(name: &str, import: FinalImageImportPlan) -> FinalImage {
         let mut image = FinalImage::with_capacity(
             NativeTarget::windows_x64(),
@@ -462,9 +440,6 @@ mod tests {
 
     #[test]
     fn no_host_target_emits_no_import_directory() {
-        // A no-host / EFI target imports nothing: the directory must be absent
-        // (RVA/size 0) and no import bytes emitted, so the PE header threads
-        // zeros -- a clean import-free PE32+, not a lone null descriptor.
         let table = build_import_table(&[], 0x3000);
         assert!(table.bytes.is_empty());
         assert!(table.iat_table_offsets.is_empty());
@@ -476,8 +451,6 @@ mod tests {
 
     #[test]
     fn hosted_target_still_builds_a_directory() {
-        // Regression: with imports present the directory is non-empty and the
-        // per-thunk IAT rvas are returned in input order.
         let thunks = vec![
             PeImportThunk {
                 symbol: "ExitProcess".to_owned(),
@@ -502,8 +475,6 @@ mod tests {
 
     #[test]
     fn binding_carried_library_beats_the_catalog() {
-        // A source external import names its own DLL; the catalog would
-        // otherwise file `abs` under the KERNEL32 default.
         let thunks = vec![PeImportThunk {
             symbol: "abs".to_owned(),
             library: b"msvcrt.dll".to_vec(),

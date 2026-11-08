@@ -1,4 +1,11 @@
-//! Canonical AAPCS64 fixed-frame save/restore encoding.
+/*
+We encode and validate the AAPCS64 fixed-frame prologue/epilogue protocol,
+page-granule stack-commit probes (`Aarch64StackProbe`), and frame/pointer memory
+accesses. Because Linux AArch64 (4 KiB) and Darwin AArch64 (16 KiB) commit stack
+pages at different granules, we emit ordered probe loads across newly entered
+pages before establishing callee-saved register slots (`Aarch64FrameSlot`) and
+frame-relative addresses.
+*/
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 
@@ -13,24 +20,12 @@ pub struct Aarch64FrameSlot {
     pub size_bytes: u64,
 }
 
-/// Stack-commit probe roster for one frame, in the order the prologue
-/// performs it. The committed-stack granule is target-owned — Darwin AArch64
-/// commits 16 KiB pages where Linux AArch64 commits 4 KiB pages — so the
-/// interval arrives from the validated layout instead of a codec constant.
-/// A frame larger than one granule is committed one granule at a time,
-/// reading each newly entered page so lazily backed stacks grow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Aarch64StackProbe {
-    /// Stack-commit granule the roster probes, in bytes.
     pub interval_bytes: u64,
-    /// Ordered touches, one per committed chunk, each at the new stack
-    /// pointer position after that chunk is subtracted.
     pub touches: u32,
 }
 
-/// A commit granule is one translation page, and 64 KiB is the largest
-/// AArch64 translation granule. A roster probing at a coarser interval could
-/// step over a whole guard page between touches.
 pub(crate) const MAX_STACK_PROBE_INTERVAL_BYTES: u64 = 65_536;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,11 +45,6 @@ diagnostics::failed_display!(
 
 impl std::error::Error for Aarch64FrameProtocolError {}
 
-/// Encode one canonical fixed AAPCS64 frame. The returned epilogue excludes
-/// `ret`; the selected return instruction retains that semantic operation.
-/// `probe` is the validated layout's committed-stack roster: it must name the
-/// exact granule and touch count this frame size commits under, because the
-/// encoder emits a probe touch after every chunk it subtracts.
 pub fn encode_aapcs64_frame_protocol(
     model: &ValidatedPhysicalRegisterModel,
     frame_size_bytes: u64,
@@ -106,10 +96,6 @@ pub fn encode_aapcs64_frame_protocol(
     Ok((prologue, epilogue))
 }
 
-/// The roster must be the exact commit schedule for this frame size: no
-/// touches inside one granule, and exactly one touch per granule chunk past
-/// it so the emitted prologue cannot skip or pad the commit sequence. The
-/// granule itself must be a translation-page-shaped interval.
 fn validate_probe(
     frame_size_bytes: u64,
     probe: Aarch64StackProbe,
@@ -130,16 +116,10 @@ fn validate_probe(
     Ok(())
 }
 
-/// `ldr xzr, [sp]` reads the lowest newly committed byte: a read is enough to
-/// fault on the guard region, and the zero register discards the loaded value.
 fn append_probe_touch(bytes: &mut Vec<u8>) {
     append_word(bytes, 0xf940_03ff);
 }
 
-/// Emit `sub`/`add sp, sp, #amount` as shifted page steps then the unshifted
-/// remainder. Amounts through 16 MiB - 1 keep their one- or two-instruction
-/// encoding; a larger release continues with further page steps, each of
-/// which only moves `sp` toward the caller's activation.
 fn append_stack_adjust(bytes: &mut Vec<u8>, amount: u64, subtract: bool) {
     let mut words = Vec::new();
     let opcode = if subtract {
@@ -212,11 +192,6 @@ fn register(
     }
 }
 
-/// IP0/IP1 are call-clobbered and outside AAPCS64's argument/result banks
-/// (including the x8 indirect result pointer). They can address preservation
-/// slots before the body and after its result is ready without moving SP or
-/// clobbering a saved register. Canonical preservation rosters never contain
-/// either; still refuse a supplied roster that leaves neither scratch free.
 fn frame_scratch(
     model: &ValidatedPhysicalRegisterModel,
     slots: &[Aarch64FrameSlot],
@@ -251,10 +226,6 @@ fn append_memory(
     append_sized_memory(bytes, register, 31, offset_bytes, scratch, 8, load)
 }
 
-/// Encode a physical SP-relative transfer without inventing a semantic frame
-/// slot. Native entry adapters own their frame ranges separately. The declared
-/// address scratch may be clobbered for large displacements; the caller owns
-/// its footprint and must keep it separate from stored values.
 pub fn encode_aarch64_frame_memory(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -286,9 +257,6 @@ pub fn encode_aarch64_frame_memory(
     Ok(bytes)
 }
 
-/// Transfer physical bytes through an explicit pointer register. The caller
-/// owns its extent and authority; this encoder supplies neither. Large offsets
-/// may advance the base scratch, so each transfer must provide a fresh base.
 pub fn encode_aarch64_pointer_memory(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -318,7 +286,6 @@ pub fn encode_aarch64_pointer_memory(
     Ok(bytes)
 }
 
-/// Form a frame address with the same checked immediate steps as frame forms.
 pub fn encode_aarch64_frame_address(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -336,7 +303,6 @@ pub fn encode_aarch64_frame_address(
     )
 }
 
-/// Form an absolutely aligned value/member address inside a padded fixed frame.
 pub fn encode_aarch64_aligned_frame_address(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -358,7 +324,6 @@ pub fn encode_aarch64_aligned_frame_address(
     Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
 }
 
-/// Materialize an interpretation word using the ordinary integer encoder.
 pub fn encode_aarch64_integer_constant(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -395,10 +360,6 @@ fn append_sized_memory(
         (base_register, offset_bytes)
     } else {
         let scratch = scratch.ok_or(Aarch64FrameProtocolError::NonCanonicalSlots)?;
-        // add xIP, sp, #pages, lsl #12, one step per 4095 pages; the memory
-        // operation carries the aligned low 12 bits. SP remains at the
-        // committed base throughout, so earlier saves stay inside the live
-        // activation.
         let mut words = Vec::new();
         append_page_steps(
             &mut words,
@@ -556,7 +517,6 @@ mod tests {
     fn frame_past_one_instruction_uses_shifted_then_unshifted_adjust() {
         let model =
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
-        // 4208 = 4096 + 112: `sub sp, sp, #1, lsl #12` then `sub sp, sp, #112`.
         let (prologue, epilogue) =
             encode_aapcs64_frame_protocol(&model, 4_208, DARWIN_PROBE, &[]).unwrap();
         assert_eq!(
@@ -580,14 +540,11 @@ mod tests {
         };
         let (prologue, epilogue) =
             encode_aapcs64_frame_protocol(&model, 8_192, probe, &[frame_slot(x19, 0, 8)]).unwrap();
-        // sub sp,sp,#1,lsl#12 ; ldr xzr,[sp] ; sub sp,sp,#1,lsl#12 ; ldr xzr,[sp] ; save
         let chunk = [0xd140_07ff_u32.to_le_bytes(), 0xf940_03ff_u32.to_le_bytes()].concat();
         assert_eq!(&prologue[..8], &chunk);
         assert_eq!(&prologue[8..16], &chunk);
         assert_eq!(&prologue[16..20], &0xf900_03f3_u32.to_le_bytes());
         assert_eq!(prologue.len(), 20);
-        // The epilogue restores the whole frame in one adjustment: only the
-        // growing direction needs the commit touches.
         assert_eq!(
             &epilogue[epilogue.len() - 4..],
             &0x9140_0bff_u32.to_le_bytes()
@@ -603,7 +560,6 @@ mod tests {
             touches: 2,
         };
         let (prologue, _) = encode_aapcs64_frame_protocol(&model, 4_208, probe, &[]).unwrap();
-        // sub sp,sp,#1,lsl#12 ; touch ; sub sp,sp,#112 ; touch
         assert_eq!(
             &prologue,
             &[
@@ -634,8 +590,6 @@ mod tests {
             &slots,
         )
         .unwrap();
-        // Each address is sp + 64 KiB; the three memory displacements are
-        // 0, 8 and 16 bytes. The epilogue reverses the same save roster.
         let saves = [
             0x9140_43f0_u32,
             0xf900_0213,
@@ -668,7 +622,6 @@ mod tests {
     fn frame_past_sixteen_mebibytes_steps_its_release_and_slot_addresses() {
         let model =
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
-        // 32 MiB + 32: 2048 full Darwin granules and a 32-byte tail chunk.
         let slots = [("x19", 33_554_448), ("x30", 33_554_456)].map(|(name, offset_bytes)| {
             frame_slot(model.model().view_named(name).unwrap().id, offset_bytes, 8)
         });
@@ -691,22 +644,18 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         let prologue = words(&prologue);
-        // sub sp, sp, #4, lsl #12; ldr xzr, [sp] per granule, then the tail.
         assert!(
             prologue[..4_096]
                 .chunks(2)
                 .all(|pair| pair == [0xd140_13ff, 0xf940_03ff])
         );
         assert_eq!(&prologue[4_096..4_098], &[0xd100_83ff, 0xf940_03ff]);
-        // x16 = sp + 8192 pages in three steps; the access carries the low bits.
         let address = [0x917f_fff0, 0x917f_fe10, 0x9140_0a10];
         assert_eq!(&prologue[4_098..4_101], &address);
         assert_eq!(prologue[4_101], 0xf900_0a13);
         assert_eq!(&prologue[4_102..4_105], &address);
         assert_eq!(prologue[4_105], 0xf900_0e1e);
         assert_eq!(prologue.len(), 4_106);
-        // Restores reverse the saves; the release steps sp back by whole
-        // 4095-page steps, the partial page step, and the 32-byte remainder.
         assert_eq!(
             words(&epilogue),
             [
@@ -734,7 +683,6 @@ mod tests {
         let slots = [frame_slot(x16, 0, 8), frame_slot(x19, 65_536, 8)];
         let (prologue, epilogue) =
             encode_aapcs64_frame_protocol(&model, 65_552, probe, &slots).unwrap();
-        // IP1 addresses the large save while IP0's value is preserved.
         let save = [0x9140_43f1_u32.to_le_bytes(), 0xf900_0233_u32.to_le_bytes()].concat();
         assert!(prologue.ends_with(&save));
         assert_eq!(

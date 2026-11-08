@@ -19,6 +19,53 @@ and layout policies, while the compiler validates and consumes the resulting
 plans. [UEFI ownership](../build/uefi_entry.md#authored-firmware-definitions-and-adapters)
 does not introduce a compiler-owned table schema or a separate layout mechanism.
 
+## Home-layout realization
+
+Named decision: `semantics-preserving-home-layout`, settled 2026-11-07.
+
+Home-layout realization may use any representation that preserves the language's
+semantics and applicable representation commitments. Field packing, tag
+elimination and storage elimination are permitted examples, not an exhaustive
+list. No additional source annotation or authored layout policy is required to
+permit these transformations. Optional optimizations retain the ordinary
+[selection and validation rules](../build/optimizations.md).
+
+All readers, writers, projections and layout queries must agree with the selected
+realization. Where home geometry is unconstrained, that realization may choose a
+different size, alignment or encoding. Once a layout-dependent observation or
+checked contract fixes a relationship, subsequent transformations must preserve
+it. Explicit placements, ABI contracts, exposed bytes and addresses, compatible
+views, loans, custody, cleanup and permitted survivor/recovery behavior constrain
+the choice even when storage never crosses an ABI.
+
+For example, a sum with a payload-free first case and a nonzero integer payload
+in its second case may encode the first case as zero and the second as the
+payload itself. The realization must establish that these encodings distinguish
+every admitted observation and preserve zero's first-case meaning. This example
+grants no fixed byte-size guarantee or general rule that a gated payload has a
+niche. Failure to establish zero validity is insufficient to prove an unused
+representation pattern.
+
+[Invariant windows](../language/dependent_values.md#invariant-windows) retain
+their existing source rules. A payload predicate may be temporarily broken
+during repair. A compact realization must preserve legal case observations,
+repair paths, cleanup and surviving storage, retaining case information where
+needed or choosing another representation. Optimization cannot require an extra
+window fence or per-write predicate obligation merely to fit its encoding.
+
+A [same-storage recast](recasts.md#layout-optimization-and-recasts) constrains
+both representations and every permitted aliasing observation. Jointly optimizing
+them is allowed when the cast remains valid; equal resulting sizes alone are
+insufficient. When a transformation cannot preserve an admitted use, it must
+retain a compatible realization rather than reject that use because of the
+optional optimization. Ordinary invalid layout or recast requests still reject.
+
+The concrete representation and its relevant selection dependencies participate
+in the validated plan and artifact identities consumed by layout queries,
+recasts and ABI planning. The language specifies these preservation obligations;
+eligibility algorithms, proof procedures and profitability heuristics belong to
+the implementation and its versioned optimization policy.
+
 ## Policy evaluation and schema
 
 A fixed-memory policy is a named implementation of the ordinary core trait
@@ -201,8 +248,11 @@ A validated plan establishes:
   no duplicate, overlapping, or unresolved demand; and
 - normalization yields one stable identity.
 
-Published layout/type identity is normalizer-owned. Prover strength may change
-whether a conformance is accepted, never the canonical plan or ABI key.
+Published layout/type identity is normalizer-owned. Proof may enable a permitted
+home-layout realization, whose concrete plan and selection dependencies retain
+their identities. It cannot identify incompatible plans or change a committed
+ABI. Canonical identity of a given plan application is independent of how its
+validity was established.
 Consumer applicability is derived: declaring a flag cannot make a symbolic
 relocation decodable or a variable-length wire field safe for MMIO.
 

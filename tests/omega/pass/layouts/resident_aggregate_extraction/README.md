@@ -18,7 +18,7 @@ with a 3885-cell ceiling and 64-byte placement-image payload ceiling. It checks
 one-cell-short, one-byte-short and one-byte-only refusals; a root reservation
 made after the initialization image retires independently forces extraction to
 refuse. Actual write-only backing also refuses the source provider's read/write
-description at extraction. One-unit fuel resumes never replay the operation;
+description at extraction. One-unit work resumes never replay the operation;
 sticky faults retain custody until teardown, which releases all reservations.
 Metadata and host-supplied backing capacity are not placement-image payloads.
 

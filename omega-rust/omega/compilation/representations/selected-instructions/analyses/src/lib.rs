@@ -1,28 +1,46 @@
 #![forbid(unsafe_code)]
 
-//! Current selected-program facts and their independent validation.
-//!
-//! Liveness, live ranges, allocation legality, allocator availability,
-//! fixed-precolored intervals, segment homes and split requirements, machine
-//! effects, recovery classification and spill choice are computed over a
-//! selected program and sealed with their receipts. Selected optimization
-//! (Omega 04) and register allocation (Omega 05) both run them, so they belong
-//! to the selected-instruction family rather than to either stage. The staged
-//! carriers (`StagedOptimizedLiveness`, `StagedOptimizedLiveRanges`,
-//! `StagedOptimizedAllocationLegality`) chain a [`SelectedOptimizationInput`]
-//! through those facts. Bounded work is charged through [`work_accounting`].
-//!
-//! Inputs are trusted same-compile plans read through [`SelectedProgramView`].
-//! This crate does not re-validate a plan it is handed (verification placement
-//! in `omega-rust/pipeline.md`); the seal over which programs may be analyzed
-//! is enforced where those plans are produced, by each stage's own
-//! `ValidatedSelectedAnalysis`.
+/*
+  Pre-allocation dataflow, live-range, machine-effect, and register-allocation
+  legality analyses (`ValidatedLiveness`, `ValidatedLiveRanges`,
+  `ValidatedAllocationLegality`, `ValidatedPreAllocationMachineEffects`) and
+  staged custody carriers for `SelectedInstructionPlan`.
 
-/// The six analysis identities every validation receipt and analysis input
-/// in this stage carries: live ranges, allocation legality, the register
-/// environment, allocator availability, the optimization unit and the work
-/// schedule. Expanded inside each receipt's `impl` so `self.<field>`
-/// resolves on the receiver's own field names.
+  We compute and seal the target-aware program facts that govern pre-allocation
+  rewrites and physical register assignment: backward CFG liveness (`liveness`),
+  live-range fragments and interference graphs (`live_ranges`), per-instruction
+  machine effects (`machine_effects`), allocator register availability
+  (`allocator_availability`), candidate register-view legality (`allocation_legality`,
+  `legality`), fixed/precolored intervals, segment homes, and split cuts
+  (`fixed_precolored_intervals`, `fixed_precolored_segment_homes`,
+  `fixed_precolored_split_requirements`), and deterministic spill-victim selection
+  and recovery classification (`spill_choice`, `recovery_classification`).
+  Shared rewrite primitives (`rewriting`) and bounded work-budget accounting
+  (`work_accounting`) support both optimization passes and pressure recovery.
+*/
+
+/*
+  Selected optimization (`04_selected-instructions-to-selected-instructions`)
+  and register allocation (`05_selected-instructions-to-register-homes`) both
+  require authenticated liveness, live-range, and legality facts over the
+  same `SelectedInstructionPlan` representation. Housing these analyses in a
+  single representation-analysis crate lets both pipeline stages share the
+  exact dataflow and interference engines, while `UnsealedRecoveryFacts` and
+  `carried_digests` reuse unchanged per-function `Arc` rows across iterative
+  spill/split recovery steps without re-analyzing or re-hashing untouched
+  functions.
+*/
+
+/*
+  Consumes `SelectedProgram`, `SelectedInstructionPlan`, and target register
+  models (`ValidatedTargetRegisterEnvironment`, `ValidatedPhysicalRegisterModel`)
+  through `SelectedProgramView`. Produces sealed analysis carriers and custody
+  receipts (`StagedOptimizedLiveness`, `StagedOptimizedLiveRanges`,
+  `StagedOptimizedAllocationLegality`, `SelectedOptimizationOutput`) consumed by
+  `04_selected-instructions-to-selected-instructions` and
+  `05_selected-instructions-to-register-homes`.
+*/
+
 #[macro_export]
 macro_rules! shared_analysis_identity_accessors {
     ($visibility:vis) => {
@@ -51,10 +69,6 @@ macro_rules! shared_analysis_identity_accessors {
     };
 }
 
-/// One owner row per receipt accessor: the field's own name read back as its
-/// own type. A receipt whose rows are not one of the shared identity blocks
-/// lists them here instead of restating the body at the site; `ref` selects
-/// the `&self` receiver for receipts whose callers hold a reference.
 #[macro_export]
 macro_rules! receipt_accessor_rows {
     (ref $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
@@ -68,8 +82,6 @@ macro_rules! receipt_accessor_rows {
     };
 }
 
-/// A by-value receipt whose accessor rows are exactly its fields. The struct
-/// and `receipt_accessor_rows!` stay one roster.
 #[macro_export]
 macro_rules! copy_receipt {
     (
@@ -97,68 +109,53 @@ macro_rules! copy_receipt {
     };
 }
 
-/// The producer rows a staged shell re-serves unchanged: one internal rule per
-/// accessor, so a shell names its producer field and the rows it re-serves
-/// instead of restating each delegation body and its doc. `$producer` is the
-/// field holding the retained producer stage, and every row delegates to that
-/// producer's own method of the same name.
 #[macro_export]
 macro_rules! staged_producer_accessors {
     ($producer:ident; $($row:ident),* $(,)?) => {
         $( staged_producer_accessors!(@row $producer, $row); )*
     };
     (@row $producer:ident, selected) => {
-        /// The current selected program this stage describes.
         pub const fn selected(&self) -> &SelectedProgram {
             self.$producer.selected()
         }
     };
     (@row $producer:ident, liveness) => {
-        /// The liveness facts over the current program.
         pub const fn liveness(&self) -> &ValidatedLiveness {
             self.$producer.liveness()
         }
     };
     (@row $producer:ident, ranges) => {
-        /// The live ranges over the current program.
         pub const fn ranges(&self) -> &ValidatedLiveRanges {
             self.$producer.ranges()
         }
     };
     (@row $producer:ident, register_environment) => {
-        /// The target register environment admitted with the current program.
         pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
             self.$producer.register_environment()
         }
     };
     (@row $producer:ident, allocator_availability) => {
-        /// The environment-derived allocator availability governing the program.
         pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
             self.$producer.allocator_availability()
         }
     };
     (@row $producer:ident, source_legality_stage) => {
-        /// The source legality stage this stage's program was derived from.
         pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
             self.$producer.source_legality_stage()
         }
     };
     (@row $producer:ident, selections) => {
-        /// The governing optimizer selections for this admission.
         pub fn selections(&self) -> &OptimizationSelections {
             self.$producer.selections()
         }
     };
     (@row $producer:ident, budget_per_pass) => {
-        /// The per-pass work budget admitted beside the same evidence.
         pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
             self.$producer.budget_per_pass()
         }
     };
 }
 
-/// The validated analyses a staged optimization keeps: liveness, live
-/// ranges, and allocation legality.
 #[macro_export]
 macro_rules! validated_analysis_accessors {
     () => {
@@ -174,9 +171,6 @@ macro_rules! validated_analysis_accessors {
     };
 }
 
-/// `From<WorkDefect>` for every bounded stage error that carries
-/// `Work(WorkDefect)`: a charge's `?` lands in the stage's own refusal surface
-/// without a per-stage adapter block or a per-site mapping.
 #[macro_export]
 macro_rules! work_defect_conversion {
     ($($error:ty),+ $(,)?) => {$(
@@ -188,10 +182,6 @@ macro_rules! work_defect_conversion {
     )+};
 }
 
-/// One owner row for a validated analysis carrier: the admitted plan, its
-/// receipt, and the two projections every consumer reads — `plan()` and the
-/// receipt's own accessor rows. Each analysis names its carrier, plan and
-/// receipt types instead of restating the shell.
 #[macro_export]
 macro_rules! validated_plan_carrier {
     ($carrier:ident : $plan:ty, $receipt:ty) => {
@@ -213,11 +203,6 @@ macro_rules! validated_plan_carrier {
     };
 }
 
-/// The same carrier for an analysis that shares its admitted plan with a
-/// successor pass: the plan rides behind an `Arc`, and beside the receipt it
-/// keeps each function's share of the receipt identity so a successor plan
-/// that carries a function over unchanged need not hash it again. The row
-/// names the report-only fields the analysis keeps beside those shares.
 #[macro_export]
 macro_rules! shared_plan_carrier {
     (
@@ -229,9 +214,6 @@ macro_rules! shared_plan_carrier {
         pub struct $carrier {
             pub(crate) plan: std::sync::Arc<$plan>,
             pub(crate) receipt: $receipt,
-            /// Each function's share of the receipt identity, kept so a
-            /// successor plan that carries a function over unchanged need
-            /// not hash it again.
             pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
             $($(#[$meta])* $vis $field: $ty,)*
         }
@@ -248,10 +230,6 @@ macro_rules! shared_plan_carrier {
     };
 }
 
-/// The whole seal of a freshly produced plan: every receipt row is copied from
-/// the plan root the producer just built, and that plan becomes the validated
-/// carrier. A bounded pass names its plan, carrier, receipt, identity function
-/// and the plan fields its receipt records instead of restating the body.
 #[macro_export]
 macro_rules! seal_plan {
     (
@@ -259,8 +237,6 @@ macro_rules! seal_plan {
             = $identity:path, $error:ty
         { $($field:ident),* $(,)? }
     ) => {
-        /// Admit a freshly produced plan with its receipt; the producer calls
-        /// this instead of replaying its own output.
         pub(crate) fn $seal(candidate: $plan) -> Result<$carrier, $error> {
             let receipt = $receipt {
                 identity: $identity(&candidate),
@@ -274,10 +250,6 @@ macro_rules! seal_plan {
     };
 }
 
-/// `Display` and `Error` for the crate's `<context>: {self:?}` refusal
-/// convention. The caller passes the whole context, so both the
-/// `invalid <rewrite>` and the `<analysis> failed` spellings render from one
-/// owner.
 #[macro_export]
 macro_rules! failed_display {
     ($type:ty, $message:literal) => {
@@ -291,11 +263,6 @@ macro_rules! failed_display {
     };
 }
 
-/// Every validated rewrite carries the same two fields — the transformed plan
-/// shared by later stages and the receipt the rewrite replayed — and exposes
-/// the same three accessors over them: the plan borrowed and shared, and the
-/// receipt. One declarative row per validated type expands the carrier and
-/// that impl, so a family names its receipt instead of restating the shell.
 #[macro_export]
 macro_rules! validated_transformed_receipt {
     (
@@ -325,28 +292,19 @@ macro_rules! validated_transformed_receipt {
     };
 }
 
-/// Every selected-rewrite receipt exposes the same four identities: the
-/// selected plan before and after, plus the optimization-unit and work
-/// identities the rewrite carried. One declarative row per receipt expands
-/// those accessors; receipts with extra accessors keep them in their own
-/// impl.
 #[macro_export]
 macro_rules! receipt_selected_identities {
     ($name:ident) => {
         impl $name {
-            /// Identity of the selected plan the rewrite consumed.
             pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
                 self.source_selected
             }
-            /// Identity of the selected plan the rewrite produced.
             pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
                 self.transformed_selected
             }
-            /// Optimization unit the rewrite's evidence belongs to.
             pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
                 self.optimization_unit
             }
-            /// Work schedule the rewrite ran under.
             pub const fn work_schedule(&self) -> WorkScheduleIdentity {
                 self.work_schedule
             }
@@ -354,12 +312,6 @@ macro_rules! receipt_selected_identities {
     };
 }
 
-/// Every selected-rewrite receipt records the same four shared identities and
-/// the coordinate rows its transformation names. One declarative row per
-/// family expands the structure, the coordinate's own accessor rows and the
-/// shared identity accessors, so a family states the rows that distinguish its
-/// receipt — with the prose that says which instruction it folded — instead of
-/// restating the shell around them.
 #[macro_export]
 macro_rules! rewrite_receipt {
     (
@@ -397,13 +349,6 @@ macro_rules! rewrite_receipt {
     };
 }
 
-/// Every rewrite receipt's canonical identity: the family's own domain
-/// separator, both selected-plan identities, the optimization unit, the work
-/// schedule, the transformed function coordinate, and the rule's instruction
-/// coordinate(s). One declarative row per rule expands the encoder and the
-/// receipt's own `identity()` accessor, so a rule declares only what
-/// distinguishes its identity. A row's prose stays a plain `//` comment: a doc
-/// comment on a macro invocation is an unused attribute.
 #[macro_export]
 macro_rules! rewrite_receipt_identity {
     (
@@ -429,9 +374,6 @@ macro_rules! rewrite_receipt_identity {
         }
 
         impl $receipt {
-            /// The durable transformation identity the post-allocation
-            /// manifest ledger records: the receipt's exact fields under its
-            /// family's domain separator.
             pub fn identity(&self) -> $identity {
                 $function(self)
             }
@@ -439,22 +381,280 @@ macro_rules! rewrite_receipt_identity {
     };
 }
 
-mod allocation_recovery_catalog;
+mod allocation_recovery_catalog {
+
+    use optimization_core::{
+        Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
+        OptimizationPhaseMismatch, OptimizationPhaseSelections,
+    };
+
+    use crate::rewriting::RegisterAllocationRuleTargetApplicability;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct AllocationRecoveryRuleCatalogPayload {
+        target: RegisterAllocationRuleTargetApplicability,
+    }
+
+    impl AllocationRecoveryRuleCatalogPayload {}
+
+    pub type AllocationRecoveryRuleCatalogEntry =
+        OptimizationCatalogDescriptor<AllocationRecoveryRuleCatalogPayload>;
+
+    pub const ALLOCATION_RECOVERY_RULE_CATALOG: [AllocationRecoveryRuleCatalogEntry; 2] = [
+        AllocationRecoveryRuleCatalogEntry::new(
+            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+            AllocationRecoveryRuleCatalogPayload {
+                target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            },
+        ),
+        AllocationRecoveryRuleCatalogEntry::new(
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            AllocationRecoveryRuleCatalogPayload {
+                target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            },
+        ),
+    ];
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum AllocationRecoveryRuleCatalogError {
+        WrongPhase(OptimizationPhaseMismatch),
+        UnsupportedSelection(Optimization),
+        UnsupportedComposition,
+    }
+
+    pub fn selected_allocation_recovery_rule(
+        selections: &OptimizationPhaseSelections,
+    ) -> Result<Option<Optimization>, AllocationRecoveryRuleCatalogError> {
+        let phase = selections
+            .require_phase(OptimizationExecutionPhase::AllocationRecovery)
+            .map_err(AllocationRecoveryRuleCatalogError::WrongPhase)?;
+        match phase.as_slice() {
+            [] => Ok(None),
+            [selected]
+                if ALLOCATION_RECOVERY_RULE_CATALOG
+                    .iter()
+                    .any(|entry| entry.optimization() == *selected) =>
+            {
+                Ok(Some(*selected))
+            }
+            [unsupported] => Err(AllocationRecoveryRuleCatalogError::UnsupportedSelection(
+                *unsupported,
+            )),
+            _ => Err(AllocationRecoveryRuleCatalogError::UnsupportedComposition),
+        }
+    }
+}
 pub use allocation_recovery_catalog::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
     AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload,
     selected_allocation_recovery_rule,
 };
-pub mod codec_bytes;
-mod selected_optimization_output;
+pub mod codec_bytes {
+
+    pub use optimization_core::codec_bytes::push_encoded;
+    pub fn encode_header(buffer: &mut Vec<u8>, magic: &[u8; 8], version: u32) {
+        buffer.extend_from_slice(magic);
+        push_encoded(buffer, version.to_le_bytes());
+    }
+
+    pub fn decode_header<E>(
+        cursor: &mut crate::cursor::Cursor<'_>,
+        magic: &[u8; 8],
+        expected_version: u32,
+        wrong_magic: impl FnOnce() -> E,
+        unsupported_version: impl FnOnce(u32) -> E,
+    ) -> Result<(), E>
+    where
+        E: From<crate::cursor::Truncated> + From<crate::cursor::TakeError>,
+    {
+        if cursor.take(magic.len())? != magic.as_slice() {
+            return Err(wrong_magic());
+        }
+        let version = cursor.u32()?;
+        if version != expected_version {
+            return Err(unsupported_version(version));
+        }
+        Ok(())
+    }
+}
+mod selected_optimization_output {
+
+    use optimization_core::{
+        OptimizationSelectionIdentity, PreAllocationOptimizationCompletionIdentity,
+        SelectedLoweringOptimizationCompletionIdentity,
+    };
+    use register_homes::PostAllocationSelectedTransformation;
+
+    use crate::{
+        OwnedSelectedProgram, SelectedProgramRef, StagedOptimizedAllocationLegality,
+        StagedOptimizedAllocationLegalityCustodyReceipt, StagedOptimizedLiveRanges,
+        ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
+    };
+
+    #[derive(Debug)]
+    pub enum SelectedOptimizationOutput {
+        Identity(StagedOptimizedLiveRanges),
+        SelectedLowering(
+            CompletedSelectedOptimization<SelectedLoweringOptimizationCompletionIdentity>,
+        ),
+        PreAllocation(CompletedSelectedOptimization<PreAllocationOptimizationCompletionIdentity>),
+    }
+
+    #[derive(Debug)]
+    pub struct CompletedSelectedOptimization<Completion> {
+        pub source: StagedOptimizedAllocationLegality,
+        pub current: OwnedSelectedProgram,
+        pub liveness: ValidatedLiveness,
+        pub ranges: ValidatedLiveRanges,
+        pub legality: ValidatedAllocationLegality,
+        pub ledger: SelectedOptimizationLedger<Completion>,
+    }
+
+    impl<Completion> CompletedSelectedOptimization<Completion> {
+        pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
+            &self.source
+        }
+
+        pub fn current(&self) -> SelectedProgramRef<'_> {
+            SelectedProgramRef::new(&self.current)
+        }
+
+        pub const fn liveness(&self) -> &ValidatedLiveness {
+            &self.liveness
+        }
+
+        pub const fn ranges(&self) -> &ValidatedLiveRanges {
+            &self.ranges
+        }
+
+        pub const fn legality(&self) -> &ValidatedAllocationLegality {
+            &self.legality
+        }
+
+        pub const fn ledger(&self) -> &SelectedOptimizationLedger<Completion> {
+            &self.ledger
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct SelectedOptimizationLedger<Completion> {
+        pub identity: Completion,
+        pub phase_selections: OptimizationSelectionIdentity,
+        pub source: StagedOptimizedAllocationLegalityCustodyReceipt,
+        pub transformations: Vec<PostAllocationSelectedTransformation>,
+    }
+
+    impl<Completion: Copy> SelectedOptimizationLedger<Completion> {
+        pub const fn identity(&self) -> Completion {
+            self.identity
+        }
+
+        pub const fn phase_selections(&self) -> OptimizationSelectionIdentity {
+            self.phase_selections
+        }
+
+        pub const fn source(&self) -> &StagedOptimizedAllocationLegalityCustodyReceipt {
+            &self.source
+        }
+
+        pub fn transformations(&self) -> &[PostAllocationSelectedTransformation] {
+            &self.transformations
+        }
+    }
+}
 pub use selected_optimization_output::{
     CompletedSelectedOptimization, SelectedOptimizationLedger, SelectedOptimizationOutput,
 };
-pub mod cursor;
+pub mod cursor {
+
+    pub use optimization_core::cursor::{TakeError, Truncated};
+    pub struct Cursor<'a> {
+        encoded: &'a [u8],
+        offset: usize,
+    }
+
+    impl<'a> Cursor<'a> {
+        pub const fn new(encoded: &'a [u8]) -> Self {
+            Self { encoded, offset: 0 }
+        }
+
+        pub fn remaining(&self) -> usize {
+            self.encoded.len().saturating_sub(self.offset)
+        }
+
+        pub fn take(&mut self, count: usize) -> Result<&'a [u8], Truncated> {
+            let end = self.offset.checked_add(count).ok_or(Truncated)?;
+            let value = self.encoded.get(self.offset..end).ok_or(Truncated)?;
+            self.offset = end;
+            Ok(value)
+        }
+
+        pub fn array<const N: usize>(&mut self) -> Result<[u8; N], Truncated> {
+            self.take(N)?.try_into().map_err(|_| Truncated)
+        }
+
+        pub fn byte(&mut self) -> Result<u8, Truncated> {
+            Ok(self.array::<1>()?[0])
+        }
+
+        pub fn length(&mut self) -> Result<usize, TakeError> {
+            let value = u64::from_le_bytes(self.array().map_err(|_| TakeError::Truncated)?);
+            usize::try_from(value).map_err(|_| TakeError::LengthOverflow)
+        }
+
+        pub fn u16(&mut self) -> Result<u16, Truncated> {
+            Ok(u16::from_le_bytes(self.array()?))
+        }
+
+        pub fn u32(&mut self) -> Result<u32, Truncated> {
+            Ok(u32::from_le_bytes(self.array()?))
+        }
+
+        pub fn u64(&mut self) -> Result<u64, Truncated> {
+            Ok(u64::from_le_bytes(self.array()?))
+        }
+
+        pub fn u128(&mut self) -> Result<u128, Truncated> {
+            Ok(u128::from_le_bytes(self.array()?))
+        }
+    }
+}
 pub mod rewriting;
 pub mod work_accounting;
 pub use work_accounting::WorkDefect;
-mod optimization_input;
+mod optimization_input {
+
+    use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
+    use register_environment::ValidatedTargetRegisterEnvironment;
+    use selected_instructions::{SelectedProgram, StagedOptimizedCustodyCore};
+
+    #[derive(Debug)]
+    pub struct SelectedOptimizationInput {
+        pub program: SelectedProgram,
+        pub custody: StagedOptimizedCustodyCore,
+        pub register_environment: ValidatedTargetRegisterEnvironment,
+        pub selections: OptimizationSelections,
+        pub budget_per_pass: OptimizationWorkBudget,
+    }
+
+    impl SelectedOptimizationInput {
+        pub const fn selected(&self) -> &SelectedProgram {
+            &self.program
+        }
+
+        pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+            &self.register_environment
+        }
+
+        pub const fn selections(&self) -> &OptimizationSelections {
+            &self.selections
+        }
+
+        pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
+            self.budget_per_pass
+        }
+    }
+}
 pub use optimization_input::SelectedOptimizationInput;
 
 mod legality;
@@ -494,7 +694,127 @@ pub mod fixed_precolored_intervals;
 mod fixed_precolored_segment_homes;
 pub mod fixed_precolored_split_requirements;
 pub mod recovery_classification;
-mod selected_input;
+mod selected_input {
+    use optimization_core::OptimizationUnitIdentity;
+    use selected_instructions::{
+        CurrentSelectedProgram, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+        SelectedProgram,
+    };
+    use semantic_vocabulary::WorkScheduleIdentity;
+
+    pub trait SelectedProgramView {
+        fn selected_plan(&self) -> &SelectedInstructionPlan;
+        fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan>;
+        fn selected_identity(&self) -> SelectedInstructionPlanIdentity;
+        fn optimization_unit_identity(&self) -> OptimizationUnitIdentity;
+        fn work_schedule_identity(&self) -> WorkScheduleIdentity;
+
+        fn current_program(&self) -> CurrentSelectedProgram<'_> {
+            CurrentSelectedProgram {
+                plan: self.selected_plan(),
+                identity: self.selected_identity(),
+                optimization_unit: self.optimization_unit_identity(),
+                work_schedule: self.work_schedule_identity(),
+            }
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct SelectedProgramRef<'program> {
+        program: &'program dyn SelectedProgramView,
+    }
+
+    impl<'program> SelectedProgramRef<'program> {
+        pub fn plan(self) -> &'program SelectedInstructionPlan {
+            self.program.selected_plan()
+        }
+
+        pub fn new(program: &'program impl SelectedProgramView) -> Self {
+            Self { program }
+        }
+    }
+
+    impl SelectedProgramView for SelectedProgramRef<'_> {
+        fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+            self.program.shared_selected_plan()
+        }
+
+        fn selected_plan(&self) -> &SelectedInstructionPlan {
+            self.program.selected_plan()
+        }
+
+        fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+            self.program.selected_identity()
+        }
+
+        fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+            self.program.optimization_unit_identity()
+        }
+
+        fn work_schedule_identity(&self) -> WorkScheduleIdentity {
+            self.program.work_schedule_identity()
+        }
+    }
+
+    impl SelectedProgramView for SelectedProgram {
+        fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+            self.shared_plan()
+        }
+
+        fn selected_plan(&self) -> &SelectedInstructionPlan {
+            self.plan()
+        }
+
+        fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+            self.identity()
+        }
+
+        fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+            self.optimization_unit()
+        }
+
+        fn work_schedule_identity(&self) -> WorkScheduleIdentity {
+            self.work_schedule()
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct OwnedSelectedProgram {
+        plan: std::sync::Arc<SelectedInstructionPlan>,
+        selected: SelectedInstructionPlanIdentity,
+        optimization_unit: OptimizationUnitIdentity,
+        work_schedule: WorkScheduleIdentity,
+    }
+
+    impl OwnedSelectedProgram {
+        pub fn retain(source: &impl SelectedProgramView) -> Self {
+            Self {
+                plan: source.shared_selected_plan(),
+                selected: source.selected_identity(),
+                optimization_unit: source.optimization_unit_identity(),
+                work_schedule: source.work_schedule_identity(),
+            }
+        }
+    }
+
+    impl SelectedProgramView for OwnedSelectedProgram {
+        fn selected_plan(&self) -> &SelectedInstructionPlan {
+            &self.plan
+        }
+        fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+            std::sync::Arc::clone(&self.plan)
+        }
+        fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+            self.selected
+        }
+        fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+            self.optimization_unit
+        }
+        fn work_schedule_identity(&self) -> WorkScheduleIdentity {
+            self.work_schedule
+        }
+    }
+}
 pub mod spill_choice;
 pub use allocation_legality::AllocationLegalityValidationReceipt;
 pub use allocation_legality::{
@@ -521,7 +841,6 @@ pub use recovery_classification::{
 };
 pub use selected_input::{OwnedSelectedProgram, SelectedProgramRef, SelectedProgramView};
 
-// The five bounded analyses carry the shared work refusal.
 work_defect_conversion!(
     FixedPrecoloredIntervalError,
     FixedPrecoloredSegmentHomeError,
@@ -533,9 +852,6 @@ work_defect_conversion!(
 pub use spill_choice::{SpillChoiceError, ValidatedSpillChoices, choose_spill_victims};
 use std::sync::Arc;
 
-/// Each function's digest for the receipt identity: a carried function's
-/// comes from its validated predecessor, whose rows it copies; every other
-/// function is hashed afresh.
 pub(crate) fn carried_digests<Function>(
     functions: &[Function],
     carried: &[bool],
@@ -559,8 +875,6 @@ pub enum RecoveryReanalysisError {
     Legality(AllocationLegalityError),
 }
 
-/// Intermediate per-function analysis rows during runtime-spill recovery,
-/// deferring whole-plan receipt hashing until placement succeeds.
 #[derive(Clone)]
 pub struct UnsealedRecoveryFacts {
     liveness_functions: Vec<Arc<selected_instructions::FunctionLiveness>>,
@@ -775,4 +1089,121 @@ impl UnsealedRecoveryFacts {
 }
 
 #[cfg(test)]
-mod report_counts_tests;
+mod report_counts_tests {
+
+    use register_homes::{
+        AllocationLegalityPlan, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
+        VirtualLegalitySpan, VirtualRegisterAllocationLegality,
+    };
+    use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
+    use selected_instructions::{
+        FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity, LiveRangePlan, LiveRangePoint,
+        LivenessIdentity, SelectedBlockId, SelectedInstructionPlanIdentity, VirtualLiveRange,
+        VirtualRegisterId,
+    };
+    use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+    use std::sync::Arc;
+
+    #[test]
+    fn range_receipt_counts_match_fresh_projection_after_partial_carry() {
+        let register = VirtualLiveRange {
+            virtual_register: VirtualRegisterId(0),
+            class: RegisterClassId(0),
+            occurrences: Vec::new(),
+            fixed_constraints: Vec::new(),
+            fragments: vec![LiveRangeFragment {
+                block: SelectedBlockId(0),
+                start: LiveRangePoint(1),
+                end: LiveRangePoint(4),
+            }],
+            edge_connectors: Vec::new(),
+        };
+        let function = |machine| {
+            Arc::new(FunctionLiveRanges {
+                machine: MachineId::new(machine).unwrap(),
+                block_domains: Vec::new(),
+                virtual_registers: vec![register.clone()],
+                tied_pairs: Vec::new(),
+                edge_transfers: Vec::new(),
+                copy_affinities: Vec::new(),
+                early_clobbers: Vec::new(),
+                architectural_units: Vec::new(),
+                interference: Default::default(),
+            })
+        };
+        let mut plan = LiveRangePlan {
+            selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"counts"),
+            liveness: LivenessIdentity::from_bytes([1; 32]),
+            optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([2; 32]),
+            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+            target: target::NativeTarget::macos_arm64(),
+            functions: vec![function(1), function(2)],
+        };
+        let previous = super::live_ranges::validate::admit(plan.clone(), &[], &[], &[]);
+        Arc::make_mut(&mut plan.functions[1])
+            .virtual_registers
+            .push(VirtualLiveRange {
+                virtual_register: VirtualRegisterId(1),
+                ..register
+            });
+        let fresh = super::live_ranges::validate::admit(plan.clone(), &[], &[], &[]);
+        assert_eq!(fresh.receipt().virtual_register_count(), 3);
+        assert_eq!(fresh.receipt().virtual_fragment_count(), 3);
+        for previous_counts in [&previous.function_counts[..], &[]] {
+            let carried = super::live_ranges::validate::admit(
+                plan.clone(),
+                &[true, false],
+                &previous.function_digests,
+                previous_counts,
+            );
+            assert_eq!(carried, fresh);
+        }
+    }
+
+    #[test]
+    fn legality_receipt_counts_match_fresh_projection_after_partial_carry() {
+        let register = VirtualRegisterAllocationLegality {
+            virtual_register: VirtualRegisterId(0),
+            class: RegisterClassId(0),
+            spans: vec![VirtualLegalitySpan {
+                block: SelectedBlockId(0),
+                start: LiveRangePoint(1),
+                end: LiveRangePoint(4),
+                candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+            }],
+            early_clobber_points: Vec::new(),
+            entry_transitions: Vec::new(),
+        };
+        let function = |machine| {
+            Arc::new(FunctionAllocationLegality {
+                machine: MachineId::new(machine).unwrap(),
+                virtual_registers: vec![register.clone()],
+            })
+        };
+        let mut plan = AllocationLegalityPlan {
+            ranges: LiveRangeIdentity::from_bytes([1; 32]),
+            register_environment: TargetRegisterEnvironmentIdentity::from_bytes([2; 32]),
+            allocator_availability: AllocatorAvailabilityIdentity::from_bytes([3; 32]),
+            functions: vec![function(1), function(2)],
+        };
+        let previous =
+            super::allocation_legality::validate::admit(plan.clone(), &[], &[], &[]).unwrap();
+        let changed = &mut Arc::make_mut(&mut plan.functions[1]).virtual_registers[0];
+        changed.spans[0].end = LiveRangePoint(8);
+        changed.spans[0].candidates.push(RegisterViewId(2));
+        let fresh =
+            super::allocation_legality::validate::admit(plan.clone(), &[], &[], &[]).unwrap();
+        assert_eq!(fresh.receipt().point_count(), 10);
+        assert_eq!(fresh.receipt().candidate_count(), 27);
+        for previous_counts in [&previous.function_counts[..], &[]] {
+            let carried = super::allocation_legality::validate::admit(
+                plan.clone(),
+                &[true, false],
+                &previous.function_digests,
+                previous_counts,
+            )
+            .unwrap();
+            assert_eq!(carried, fresh);
+        }
+    }
+}

@@ -136,7 +136,10 @@ costs; loan/effect checking and external artifact verification remain required.
 Type openings and pairings must be represented explicitly in checked evidence
 and carried through [Terminal dispatch](../terminal-psi/dynamic_dispatch.md).
 Lowering must consume the established plan rather than re-deriving witness
-identity from source expressions. External verification checks that evidence.
+identity from source expressions. External structural checks preserve these
+associations under [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption).
+Trusted producer judgments may be reused; interpretation still checks actual
+pairings, custody and call access. An untrusted asserted pairing grants no authority.
 
 This does not authorize arbitrary new code to enter a closed product. Build
 admission, reachability, code retention and replacement contracts still apply.

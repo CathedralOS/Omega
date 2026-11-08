@@ -50,7 +50,7 @@ On `linux_x86_64`, all nine positive projects execute with `native exit 0` and
 mismatch at the owning landing position. The optimized producer has SHA-256
 `11c798e0319051245654fadebcacbfd90d16ec0386eed4ed14a503f0705bc5d7`.
 The retained local evidence includes each Terminal product, native image,
-identity and fuel receipt, plus source/oracle and artifact hashes. Other hosted
+identity and work receipt, plus source/oracle and artifact hashes. Other hosted
 platforms have not been executed in this Linux cloud session.
 
 Changing only the local witness's demanded result from 2 to 3 produces native

@@ -1,10 +1,17 @@
 name: Repository lint
 
 # RC-REPOSITORY's full lint command covers every workspace crate, test and
-# example. It is too slow for the required admission check, which lints only
-# the `omega` crate graph, so it runs after merge and nightly to catch lint
-# debt in test and example targets. A red run is main's regression to repair.
+# example; `compiler-check` lints only the `omega` crate graph. This job runs
+# only after merge, so on 2026-11-07 main went red for a day: about 40
+# errors in tests, examples and sample drivers landed behind it. It now also
+# runs on pull requests and in the merge queue, so `workspace-clippy` can be a
+# required check. A warm run takes about 5 minutes.
 on:
+  pull_request:
+    branches: [main]
+  merge_group:
+    branches: [main]
+    types: [checks_requested]
   push:
     branches: [main]
   schedule:
@@ -15,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: repository-lint-${{ github.ref }}
+  group: repository-lint-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,11 +39,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: '3.12'
-      - name: Check formatting
-        run: python tools/fmt.py --check
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
@@ -46,5 +48,7 @@ jobs:
           key: repository-lint-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
             repository-lint-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+      - name: Check formatting
+        run: cargo xtask fmt --check
       - name: Lint every workspace target
         run: cargo clippy --locked --keep-going --workspace --all-targets -- -D warnings

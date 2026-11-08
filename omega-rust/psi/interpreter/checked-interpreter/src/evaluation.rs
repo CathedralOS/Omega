@@ -1,11 +1,14 @@
-//! Evaluator work, observed effects, and returned-result custody.
+/*
+    Measured checked-tree evaluation outcomes, build-time value observation,
+    sponsor accounting, and virtual clock bindings.
+
+    We record step schedules, storage cell and text-byte watermarks, output
+    obligations, and executed behavior exclusions alongside the pure build-time
+    value and virtual wait vocabulary.
+*/
 
 use crate::FilesystemGrantRootIdentity;
 
-/// Versioned identity of the checked interpreter semantics used for
-/// build-time result evaluation. This is independent of work accounting: a
-/// semantic change must advance this marker even when the step schedule and
-/// usage-record shape stay unchanged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct EvaluationSemanticsIdentity(u32);
 
@@ -18,12 +21,6 @@ impl EvaluationSemanticsIdentity {
 pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
     EvaluationSemanticsIdentity(6);
 
-/// Identity of the deterministic evaluator-step schedule used before the
-/// canonical portable IR exists.
-///
-/// This is deliberately distinct from canonical-IR `WorkScheduleIdentity`.
-/// Its marker names the current TypedTrees interpreter's accounting precursor and
-/// must not be used as an IR-derived fixed-work certificate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct EvaluationStepScheduleIdentity(u32);
 
@@ -33,14 +30,9 @@ impl EvaluationStepScheduleIdentity {
     }
 }
 
-/// The current deterministic evaluator-step schedule charges one unit for each
-/// entered state, executed statement, and evaluated expression.
 pub const CURRENT_EVALUATION_STEP_SCHEDULE: EvaluationStepScheduleIdentity =
     EvaluationStepScheduleIdentity(1);
 
-/// Version of the canonical evaluator usage-record schema. This is distinct
-/// from the step schedule: adding an attributed count changes the record shape
-/// without changing the meaning or weight of an evaluator step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvaluationUsageSchemaIdentity(u32);
 
@@ -53,11 +45,6 @@ impl EvaluationUsageSchemaIdentity {
 pub const CURRENT_EVALUATION_USAGE_SCHEMA: EvaluationUsageSchemaIdentity =
     EvaluationUsageSchemaIdentity(7);
 
-/// Deterministic work measured by the current evaluator-step schedule.
-///
-/// The fields are private so future attributed telemetry can extend this
-/// record without allowing callers to fabricate usage. The evaluated program
-/// cannot observe this record or its remaining sponsor budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvaluationUsage {
     pub(crate) schema: EvaluationUsageSchemaIdentity,
@@ -77,11 +64,6 @@ pub use filesystem_authority::{
     MAX_BUILD_OUTPUT_OBLIGATIONS,
 };
 
-/// One explicit generated-source handoff emitted by the exact toolchain
-/// `BuildOutput::include_source` machine during a successful granted build.
-/// The compiler still has to match this coordinate to its captured staged tree
-/// before the bytes may enter compilation. The filesystem-attempt ordinal binds
-/// the handoff after the mutation it publishes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildIncludedSource {
     pub(crate) root: FilesystemGrantRootIdentity,
@@ -115,62 +97,31 @@ impl BuildIncludedSource {
     }
 }
 
-/// A provider choice executed against the activation's original Build cell.
-/// Its operands are declaration references, never evaluated product code.
-/// Omega rejoins this coordinate to validate product scope and provider coverage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedBuildSelection {
-    /// The typed Build operation that executed, independently of its operands.
     pub operation: language_semantics::declaration_selection::BuildOperation,
     pub machine: symbols::SymbolHandle,
-    /// The authored call: Psi 02 retains every provider-selection
-    /// spelling, statement or discard included, as this one expression.
     pub expression: typed_trees::expression::ExpressionHandle,
-    /// Zero means the omitted default; otherwise the evaluated toolchain case.
     pub composition_case: symbols::SymbolHandle,
 }
 
-/// One crash, physical-authority, or service exclusion selection that
-/// actually evaluated against the activation's original Build value
-/// (wiki/spec/build/behavior_exclusions.md): exclusions are evaluated Build
-/// selections, so a call present in the static call scope but never executed
-/// selects nothing. The coordinate rejoins the authored call in the exact
-/// evaluated program; an enum case is the EVALUATED value's exact variant
-/// symbol, not the spelled argument shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedBehaviorExclusion {
-    /// The machine whose state body evaluated the exclusion call.
     pub machine: symbols::SymbolHandle,
-    /// The executed call's coordinate in the evaluated program.
     pub site: ExecutedBehaviorExclusionSite,
-    /// The evaluated selection.
     pub kind: ExecutedBehaviorExclusionKind,
 }
 
-/// Where an executed exclusion call sat in the evaluated program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutedBehaviorExclusionSite {
-    /// A `StatementNode::Call` statement.
     Statement(typed_trees::statement::StatementHandle),
-    /// An `ExpressionNode::Call` at any expression position.
     Expression(typed_trees::expression::ExpressionHandle),
 }
 
-/// The exclusion one evaluated call selected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutedBehaviorExclusionKind {
-    /// `Build::exclude_crash(builder, cause)`: the exact toolchain `CrashCause`
-    /// variant symbol the evaluated argument carried. The argument is a
-    /// value here — a bound local or a computed case selects as much as a
-    /// literal spelling.
     CrashCause { case_symbol: symbols::SymbolHandle },
-    /// The exact compiler-owned physical-authority case selected at run time.
-    /// Omega admission maps this source identity to its physical vocabulary;
-    /// the target-neutral evaluator does not classify mechanisms.
     PhysicalAuthorityClass { case_symbol: symbols::SymbolHandle },
-    /// `Build::exclude_service<Trait>(builder)`: the call executed; the retained
-    /// call node still carries the resolved trait identity admission
-    /// validates.
     Service,
 }
 
@@ -202,41 +153,30 @@ impl EvaluationUsage {
         self.work_units
     }
 
-    /// Exact per-invocation evaluator work budget installed for this run.
     pub const fn work_budget(self) -> u64 {
         self.work_budget
     }
 
-    /// Bytes emitted through the compiler-owned BuildLog facet.
     pub const fn build_log_bytes(self) -> u64 {
         self.build_log_bytes
     }
 
-    /// Canonical filesystem calls that entered operation-attempt capture.
     pub const fn filesystem_operation_attempts(self) -> u64 {
         self.filesystem_operation_attempts
     }
 
-    /// Maximum semantic interpreter-cell allocations live concurrently during
-    /// this invocation. This is an allocation count, not a byte estimate.
     pub const fn peak_live_cells(self) -> u64 {
         self.peak_live_cells
     }
 
-    /// Maximum logical bytes held by interpreter Text backing buffers during
-    /// this invocation. This is not Vec capacity or process-memory usage.
     pub const fn peak_live_text_bytes(self) -> u64 {
         self.peak_live_text_bytes
     }
 
-    /// Number of value cells retained by the successful evaluation result.
-    /// Scalar and unit roots count as one cell; each structured value counts
-    /// its root plus every recursively retained field, payload, or element.
     pub const fn result_cells(self) -> u64 {
         self.result_cells
     }
 
-    /// Exact Text payload bytes retained by the successful result.
     pub const fn result_text_bytes(self) -> u64 {
         self.result_text_bytes
     }
@@ -274,7 +214,6 @@ impl EvaluationUsage {
     }
 }
 
-/// A successful semantic evaluation paired with deterministic usage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MeasuredEvaluation<T> {
     pub(crate) value: T,
@@ -303,9 +242,6 @@ impl<T> MeasuredEvaluation<T> {
     }
 }
 
-/// One executed compiler-known private layout placement. The static
-/// conformance application is retained exactly; semantic validation, not the
-/// evaluator, decides whether it is the declared slot for the active layout.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateLayoutPlacementReceipt {
     pub operation_expression: typed_trees::expression::ExpressionHandle,
@@ -313,8 +249,6 @@ pub struct PrivateLayoutPlacementReceipt {
     pub placement: build_time_values::BuildTimeValue,
 }
 
-/// Structured evaluation plus compiler-only operation receipts. Receipts are
-/// not Omega values and cannot be observed or fabricated by evaluated code.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BuildTimeOperationEvaluation<T> {
     pub(crate) measured: MeasuredEvaluation<T>,
@@ -350,7 +284,6 @@ impl<T> BuildTimeOperationEvaluation<T> {
         (value, usage, self.private_layout_placements)
     }
 
-    /// The value and its usage, dropping the placement receipts.
     pub fn into_measured(self) -> MeasuredEvaluation<T> {
         self.measured
     }
@@ -360,25 +293,13 @@ impl<T> BuildTimeOperationEvaluation<T> {
     }
 }
 
-/// The result of interpreting a program.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InterpretOutcome {
-    /// The process exit code (from `exit_process`, or 0 if the program ran to a terminal
-    /// transition without exiting).
     pub exit_code: i32,
-    /// Bytes written to stdout via `write` / `write_line`.
     pub stdout: Vec<u8>,
-    /// Bytes written to stderr via `write_error` / `write_error_line`.
     pub stderr: Vec<u8>,
-    /// A reason ordinary completion is unavailable. Crash-aware consumers use
-    /// the typed `crash_cause`; other failures remain evaluator declines.
     pub error: Option<String>,
-    /// The cause of an executed authored crash, never inferred from failure
-    /// text or an internal evaluator trap. `error` remains populated so
-    /// consumers expecting only ordinary completion stay fail-closed.
     pub crash_cause: Option<typed_trees::signature::CrashCause>,
-    /// Deterministic work under the current evaluator-step schedule. This is a
-    /// precursor usage record, not canonical-IR work.
     pub usage: EvaluationUsage,
 }
 
@@ -433,5 +354,546 @@ impl InterpretOutcome {
     }
 }
 
-/// Maximum generated sources included by one build evaluation.
 pub const MAX_INCLUDED_BUILD_SOURCES: usize = 256;
+
+pub(crate) mod build_evaluation_sponsor {
+    pub use evaluation_accounting::{
+        BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, BuildEvaluationLiveCellLease,
+        BuildEvaluationLiveFilesystemHandleLease, BuildEvaluationLiveTextByteLease,
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
+    };
+}
+
+pub(crate) mod build_evaluation_usage {
+    use crate::{BuildEvaluationSponsor, EvaluationUsage};
+    use evaluation_accounting::{
+        BuildEvaluationUsage, BuildEvaluationUsageError, EvaluationMeasurementIdentity,
+    };
+
+    pub fn capture_checked_build_evaluation_usage(
+        usage: EvaluationUsage,
+        sponsor: Option<&BuildEvaluationSponsor>,
+    ) -> Result<BuildEvaluationUsage, BuildEvaluationUsageError> {
+        if sponsor.is_some_and(|sponsor| {
+            sponsor.measurement() != EvaluationMeasurementIdentity::CheckedTree
+        }) {
+            return Err(BuildEvaluationUsageError::MeasurementSponsorMismatch);
+        }
+        let record = BuildEvaluationUsage {
+            measurement: evaluation_accounting::EvaluationMeasurementIdentity::CheckedTree,
+            usage_schema_version: usage.schema().schema_version(),
+            step_schedule_marker: usage.schedule().marker(),
+            invocation_work_budget: usage.work_budget(),
+            sponsor_schema_version: sponsor.map(|sponsor| sponsor.limits().schema_version()),
+            session_work_budget: sponsor.map(|sponsor| sponsor.limits().work_budget()),
+            session_build_log_byte_ceiling: sponsor
+                .map(|sponsor| sponsor.limits().maximum_build_log_bytes()),
+            session_filesystem_attempt_ceiling: sponsor
+                .map(|sponsor| sponsor.limits().maximum_filesystem_operation_attempts()),
+            session_live_filesystem_handle_ceiling: sponsor
+                .map(|sponsor| sponsor.limits().maximum_live_filesystem_handles()),
+            session_live_storage_cell_ceiling: sponsor
+                .map(|sponsor| sponsor.limits().maximum_live_cells()),
+            session_live_payload_byte_ceiling: sponsor
+                .map(|sponsor| sponsor.limits().maximum_live_text_bytes()),
+            session_result_storage_cell_ceiling: sponsor
+                .map(|sponsor| sponsor.limits().maximum_result_cells()),
+            session_result_payload_byte_ceiling: sponsor
+                .map(|sponsor| sponsor.limits().maximum_result_text_bytes()),
+            session_peak_live_filesystem_handles: sponsor
+                .map_or(0, BuildEvaluationSponsor::peak_live_filesystem_handles),
+            session_peak_live_storage_cells: sponsor
+                .map_or(0, BuildEvaluationSponsor::peak_live_cells),
+            session_peak_live_payload_bytes: sponsor
+                .map_or(0, BuildEvaluationSponsor::peak_live_text_bytes),
+            work_units: usage.work_units(),
+            build_log_bytes: usage.build_log_bytes(),
+            filesystem_operation_attempts: usage.filesystem_operation_attempts(),
+            peak_live_storage_cells: usage.peak_live_cells(),
+            peak_live_payload_bytes: usage.peak_live_text_bytes(),
+            result_storage_cells: usage.result_cells(),
+            result_payload_bytes: usage.result_text_bytes(),
+        };
+        record.validate()?;
+        Ok(record)
+    }
+}
+
+pub(crate) mod build_time {
+    use crate::value::{Cell, Reference, Value};
+    use build_time_values::BuildTimeValue;
+    use std::collections::BTreeMap;
+
+    pub(crate) fn materialize_build_time_value<E>(
+        argument: BuildTimeValue,
+        allocate: &impl Fn(Value) -> Result<Cell, E>,
+        allocate_text: &impl Fn(Vec<u8>) -> Result<Value, E>,
+    ) -> Result<Value, E> {
+        match argument {
+            BuildTimeValue::Unit => Ok(Value::Unit),
+            BuildTimeValue::LayoutTarget(facts) => {
+                let fields = [
+                    ("profile", BuildTimeValue::Text(facts.profile.into_bytes())),
+                    (
+                        "pointer_size",
+                        BuildTimeValue::Int(facts.pointer_size as i64),
+                    ),
+                    (
+                        "pointer_alignment",
+                        BuildTimeValue::Int(facts.pointer_alignment as i64),
+                    ),
+                    ("little_endian", BuildTimeValue::Bool(facts.little_endian)),
+                ];
+                materialize_build_time_value(
+                    BuildTimeValue::Struct {
+                        type_name: "@compiler-layout-target".to_owned(),
+                        fields: fields
+                            .into_iter()
+                            .map(|(name, value)| (name.to_owned(), value))
+                            .collect(),
+                    },
+                    allocate,
+                    allocate_text,
+                )
+            }
+            BuildTimeValue::Int(value) => Ok(Value::Int(value)),
+            BuildTimeValue::Bool(value) => Ok(Value::Bool(value)),
+            BuildTimeValue::Float(value) => Ok(Value::Float(value)),
+            BuildTimeValue::UndeterminedNaN(format) => Ok(Value::UndeterminedNaN(format)),
+            BuildTimeValue::Text(bytes) => allocate_text(bytes),
+            BuildTimeValue::Struct { type_name, fields } => {
+                let mut cells: BTreeMap<crate::value::ValueName, Cell> = BTreeMap::new();
+                for (name, value) in fields {
+                    let value = materialize_build_time_value(value, allocate, allocate_text)?;
+                    cells.insert(name.into(), allocate(value)?);
+                }
+                Ok(Value::Struct {
+                    type_symbol: symbols::SymbolHandle::invalid(),
+                    type_name: type_name.into(),
+                    fields: cells,
+                })
+            }
+            BuildTimeValue::Case { variant, payload } => Ok(Value::Enum {
+                type_symbol: symbols::SymbolHandle::invalid(),
+                variant_name: variant.into(),
+                payload: payload
+                    .into_iter()
+                    .map(|(name, value)| {
+                        let value = materialize_build_time_value(value, allocate, allocate_text)?;
+                        Ok((name.into(), allocate(value)?))
+                    })
+                    .collect::<Result<_, E>>()?,
+            }),
+            BuildTimeValue::Array(elements) => Ok(Value::Array(
+                elements
+                    .into_iter()
+                    .map(|element| {
+                        let value = materialize_build_time_value(element, allocate, allocate_text)?;
+                        allocate(value)
+                    })
+                    .collect::<Result<_, E>>()?,
+            )),
+        }
+    }
+
+    pub(crate) fn observe_build_time_value<E>(
+        value: &Value,
+        read_reference: &impl Fn(&Reference) -> Result<Value, E>,
+    ) -> Result<BuildTimeValue, E> {
+        Ok(match value {
+            Value::Unit => BuildTimeValue::Unit,
+            Value::Int(value) => BuildTimeValue::Int(*value),
+            Value::Bool(value) => BuildTimeValue::Bool(*value),
+            Value::Float(value) => BuildTimeValue::Float(*value),
+            Value::UndeterminedNaN(format) => BuildTimeValue::UndeterminedNaN(*format),
+            Value::Str(bytes) => BuildTimeValue::Text(bytes.borrow().to_vec()),
+            Value::Struct {
+                type_name, fields, ..
+            } => BuildTimeValue::Struct {
+                type_name: type_name.to_string(),
+                fields: fields
+                    .iter()
+                    .map(|(name, cell)| {
+                        Ok((
+                            name.to_string(),
+                            observe_build_time_value(&cell.borrow(), read_reference)?,
+                        ))
+                    })
+                    .collect::<Result<_, E>>()?,
+            },
+            Value::Enum {
+                variant_name,
+                payload,
+                ..
+            } => BuildTimeValue::Case {
+                variant: variant_name.to_string(),
+                payload: payload
+                    .iter()
+                    .map(|(name, cell)| {
+                        Ok((
+                            name.to_string(),
+                            observe_build_time_value(&cell.borrow(), read_reference)?,
+                        ))
+                    })
+                    .collect::<Result<_, E>>()?,
+            },
+            Value::Array(elements) => BuildTimeValue::Array(
+                elements
+                    .iter()
+                    .map(|cell| observe_build_time_value(&cell.borrow(), read_reference))
+                    .collect::<Result<_, E>>()?,
+            ),
+            Value::Ref(reference) => {
+                observe_build_time_value(&read_reference(reference)?, read_reference)?
+            }
+        })
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub struct SelectedBuildTimeBinaryOperator {
+        pub expression: typed_trees::expression::ExpressionHandle,
+        pub origin: checked_trees::CheckedValueOrigin,
+        pub requirement: symbols::SymbolHandle,
+        pub operation: typed_trees::expression::BinaryOperator,
+        pub operands: [typed_trees::expression::ExpressionHandle; 2],
+        pub format: numerics::literals::FloatFormat,
+        pub policy: checked_trees::CheckedArithmeticPolicyAdapter,
+        pub provider: checked_trees::CheckedProviderPlanCommitment,
+    }
+
+    impl SelectedBuildTimeBinaryOperator {
+        pub fn prepare(
+            program: &typed_trees::TypedTrees,
+            expression: typed_trees::expression::ExpressionHandle,
+            origin: checked_trees::CheckedValueOrigin,
+            requirement: symbols::SymbolHandle,
+            policy: checked_trees::CheckedArithmeticPolicyAdapter,
+            provider: checked_trees::CheckedProviderPlanCommitment,
+        ) -> Result<Self, String> {
+            let operator = typed_trees::operator::declaration_by_symbol(program, requirement)
+                .ok_or("selected build-time Float requirement disappeared")?;
+            let (operation, format) =
+                typed_trees::operator::primitive_float_binary_semantics(program, operator)
+                    .ok_or("selected build-time operation has no matching sealed Float meaning")?;
+            let operands = match program.expression_table.expression(expression) {
+                typed_trees::expression::ExpressionNode::Binary(binary) => {
+                    [binary.left, binary.right]
+                }
+                typed_trees::expression::ExpressionNode::Call(call) => {
+                    let [left, right] = program.expression_table.expression_handles(call.arguments)
+                    else {
+                        return Err("selected build-time Float call has wrong arity".into());
+                    };
+                    [*left, *right]
+                }
+                _ => {
+                    return Err(
+                        "selected build-time Float expression has no binary operands".into(),
+                    );
+                }
+            };
+            Ok(Self {
+                expression,
+                origin,
+                requirement,
+                operation,
+                operands,
+                format,
+                policy,
+                provider,
+            })
+        }
+
+        pub fn has_crash_contract(&self, program: &typed_trees::TypedTrees) -> bool {
+            program
+                .operators()
+                .iter()
+                .chain(program.machine_token_bindings())
+                .filter(|operator| operator.symbol == self.requirement)
+                .any(|operator| {
+                    program
+                        .signature_contracts
+                        .span_or_empty(operator.contracts)
+                        .iter()
+                        .any(|contract| contract.is_crashes())
+                })
+                || program
+                    .machines()
+                    .iter()
+                    .filter(|machine| machine.symbol == self.requirement)
+                    .any(|machine| program.machine_declares_crash(machine))
+        }
+    }
+}
+
+pub(crate) mod virtual_clock {
+    use checked_trees::CheckedTrees;
+    use language_semantics::MachineSupplyMode;
+    use symbols::SymbolHandle;
+    use typed_trees::signature::StateParameter;
+    use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum VirtualClockOperand {
+        Milliseconds,
+        Ignored,
+        ExactInteger(i64),
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum VirtualClockResult {
+        Unit,
+        Integer(PrimitiveType),
+    }
+
+    impl VirtualClockResult {
+        pub fn matches_type(self, checked: &CheckedTrees, result: TypeReferenceHandle) -> bool {
+            if result.is_valid() && !checked.type_reference_table.contains_type_reference(result) {
+                return false;
+            }
+            match self {
+                Self::Unit => matches!(
+                    checked.type_reference_table.type_reference(result),
+                    TypeReferenceNode::Unit
+                ),
+                Self::Integer(primitive) => {
+                    primitive.is_fixed_integer()
+                        && matches!(
+                            checked.type_reference_table.type_reference(result),
+                            TypeReferenceNode::Named { .. }
+                        )
+                        && checked.primitive_type_reference(result) == Some(primitive)
+                }
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum VirtualClockOperation {
+        Wait {
+            maximum_milliseconds: i64,
+            result: VirtualClockResult,
+        },
+        Read {
+            primitive: PrimitiveType,
+            units_per_millisecond: i64,
+        },
+    }
+
+    impl VirtualClockOperation {
+        pub fn result(self) -> VirtualClockResult {
+            match self {
+                Self::Wait { result, .. } => result,
+                Self::Read { primitive, .. } => VirtualClockResult::Integer(primitive),
+            }
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct VirtualClockBinding {
+        checked_program_address: usize,
+        pub(crate) requirement: SymbolHandle,
+        pub(crate) call_target: SymbolHandle,
+        pub(crate) operands: Vec<VirtualClockOperand>,
+        pub(crate) parameter_types: Vec<PrimitiveType>,
+        pub(crate) operation: VirtualClockOperation,
+        realization: SymbolHandle,
+        realization_call_target: SymbolHandle,
+    }
+
+    impl VirtualClockBinding {
+        pub fn from_compiler_resolved_requirement(
+            checked: &CheckedTrees,
+            requirement: SymbolHandle,
+            operands: &[VirtualClockOperand],
+            operation: VirtualClockOperation,
+        ) -> Result<Self, &'static str> {
+            let durations = operands
+                .iter()
+                .filter(|operand| **operand == VirtualClockOperand::Milliseconds)
+                .count();
+            match operation {
+                VirtualClockOperation::Wait {
+                    maximum_milliseconds,
+                    ..
+                } if maximum_milliseconds >= 0 && durations == 1 => {}
+                VirtualClockOperation::Read {
+                    units_per_millisecond,
+                    primitive,
+                    ..
+                } if units_per_millisecond > 0
+                    && durations == 0
+                    && matches!(primitive, PrimitiveType::I64 | PrimitiveType::U64) => {}
+                _ => {
+                    return Err(
+                        "virtual clock operation has an invalid duration or scale contract",
+                    );
+                }
+            }
+            let (parameters, return_type, call_target) =
+                requirement_signature(checked, requirement)
+                    .ok_or("virtual wait binding is not one exact bodyless requirement")?;
+            if parameters.len() != operands.len()
+                || !operation.result().matches_type(checked, return_type)
+            {
+                return Err(
+                    "virtual wait binding requires its exact operand count and result type",
+                );
+            }
+            let parameter_types = parameters
+                .iter()
+                .map(
+                    |parameter| match checked.primitive_type_reference(parameter.type_reference) {
+                        Some(primitive) if primitive.is_fixed_integer() => Ok(primitive),
+                        _ => Err("virtual wait requires scalar integer operands"),
+                    },
+                )
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Self {
+                checked_program_address: std::ptr::from_ref(checked).addr(),
+                requirement,
+                call_target,
+                operands: operands.to_vec(),
+                parameter_types,
+                operation,
+                realization: SymbolHandle::invalid(),
+                realization_call_target: SymbolHandle::invalid(),
+            })
+        }
+
+        pub fn with_compiler_resolved_realization(
+            mut self,
+            checked: &CheckedTrees,
+            realization: SymbolHandle,
+        ) -> Result<Self, &'static str> {
+            if self.checked_program_address != std::ptr::from_ref(checked).addr() {
+                return Err("virtual clock binding belongs to a different checked program");
+            }
+            let machine = checked
+                .machine_by_symbol(realization)
+                .filter(|machine| {
+                    !machine.body_is_present && checked.machine_type_parameters(machine).is_empty()
+                })
+                .ok_or("virtual clock realization must be one exact bodyless machine")?;
+            let [entry] = checked.machine_states(machine) else {
+                return Err("virtual clock realization has no unique entry");
+            };
+            let parameters = checked.state_parameters(entry);
+            if parameters.len() != self.parameter_types.len()
+                || !parameters
+                    .iter()
+                    .zip(&self.parameter_types)
+                    .all(|(parameter, primitive)| {
+                        checked.primitive_type_reference(parameter.type_reference)
+                            == Some(*primitive)
+                    })
+                || !self
+                    .operation
+                    .result()
+                    .matches_type(checked, entry.return_type)
+                || checked
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .filter(|conformance| conformance.requirement_symbol == self.requirement)
+                    .count()
+                    != 1
+            {
+                return Err("virtual clock realization disagrees with its exact requirement");
+            }
+            self.realization = realization;
+            self.realization_call_target = entry.symbol;
+            Ok(self)
+        }
+
+        pub(crate) fn matches_target(&self, target: SymbolHandle) -> bool {
+            target == self.call_target
+                || (self.realization_call_target.is_valid()
+                    && target == self.realization_call_target)
+        }
+
+        pub(crate) fn overlaps(&self, other: &Self) -> bool {
+            self.requirement == other.requirement
+                || self.matches_target(other.call_target)
+                || (other.realization_call_target.is_valid()
+                    && self.matches_target(other.realization_call_target))
+        }
+
+        pub(crate) fn validate_for(&self, checked: &CheckedTrees) -> Result<(), &'static str> {
+            if self.checked_program_address != std::ptr::from_ref(checked).addr() {
+                return Err("virtual wait binding belongs to a different checked program");
+            }
+            let reconstructed = Self::from_compiler_resolved_requirement(
+                checked,
+                self.requirement,
+                &self.operands,
+                self.operation,
+            )?;
+            let reconstructed = if self.realization.is_valid() {
+                reconstructed.with_compiler_resolved_realization(checked, self.realization)?
+            } else {
+                reconstructed
+            };
+            if reconstructed != *self {
+                return Err("virtual wait binding no longer matches its checked requirement");
+            }
+            Ok(())
+        }
+    }
+
+    fn requirement_signature(
+        checked: &CheckedTrees,
+        requirement: SymbolHandle,
+    ) -> Option<(&[StateParameter], TypeReferenceHandle, SymbolHandle)> {
+        if !requirement.is_valid() {
+            return None;
+        }
+        let mut signatures = Vec::new();
+        for machine in checked
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == requirement)
+        {
+            if machine.body_is_present
+                || machine.supply_mode != MachineSupplyMode::TopLevelRequirement
+            {
+                return None;
+            }
+            let [entry] = checked.machine_states(machine) else {
+                return None;
+            };
+            signatures.push((
+                checked.state_parameters(entry),
+                entry.return_type,
+                entry.symbol,
+            ));
+        }
+        for definition in checked
+            .traits()
+            .iter()
+            .filter(|definition| definition.is_boundary)
+        {
+            for signature in checked
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(|signature| signature.symbol == requirement)
+            {
+                if !signature.native_callback_parameters.is_empty()
+                    || !checked
+                        .state_signature_type_parameters(signature)
+                        .is_empty()
+                {
+                    return None;
+                }
+                signatures.push((
+                    checked.state_signature_parameters(signature),
+                    signature.return_type,
+                    signature.symbol,
+                ));
+            }
+        }
+        match signatures.as_slice() {
+            [signature] => Some(*signature),
+            _ => None,
+        }
+    }
+}

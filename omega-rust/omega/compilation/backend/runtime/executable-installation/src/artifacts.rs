@@ -1,12 +1,14 @@
-//! Executable artifacts, their entries, admission evidence and audiences.
-//!
-//! `container.rs` owns the decoded container — validation of its sections
-//! and relocations, and admission of a validated container into an
-//! [`AdmittedArtifact`] — and `container_bytes.rs` the wire format that
-//! encodes and decodes one.
+/*
+We define executable artifacts (`Artifact`, `AdmittedArtifact`), their decoded
+entries (`ArtifactEntry`), normalized relocation records
+(`ArtifactRelocationKind`, `DecodedArtifactRelocation`), and the target
+installation audience (`InstallationAudience`).
 
-pub(crate) mod container;
-use crate::artifacts::container::DecodedArtifactRelocation;
+Decoding an artifact produces an immutable candidate (`Artifact`) that grants
+no placement or execute authority; only an `AdmittedArtifact` carrying a sealed
+`AdmissionReceiptId` can resolve an entry identity into a `RelocationTarget`.
+*/
+
 use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::NonAuthoritativeContainerFingerprint64;
 use crate::authority_digests::{
@@ -17,6 +19,23 @@ use crate::installation::InstallationDiagnostic;
 use layout_plans::{EntryStubId, PlacementConstraints, RelocationTarget};
 use std::sync::Arc;
 use target::Architecture;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ArtifactRelocationKind {
+    Absolute64,
+    X86Relative32,
+    Aarch64Page21,
+    Aarch64PageOffset12,
+    Aarch64Branch26,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecodedArtifactRelocation {
+    pub kind: ArtifactRelocationKind,
+    pub destination_offset: u64,
+    pub target: RelocationTarget, // Symbolic target; decoding never exposes a numeric code or data address.
+    pub addend: i64,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct ArtifactRecord {
@@ -37,13 +56,10 @@ pub(crate) struct ArtifactRecord {
     pub(crate) authority_commitments: Option<ArtifactAuthorityCommitments>,
 }
 
-/// Canonically decoded entry in one executable artifact. The offset remains
-/// sealed inside the installation/provider layer; ordinary Omega code sees at
-/// most the compiler-issued [`EntryStubId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArtifactEntry {
     pub(crate) identity: EntryStubId,
-    pub(crate) code_offset: u64,
+    pub(crate) code_offset: u64, // Sealed inside the installation/provider layer.
 }
 
 impl ArtifactEntry {
@@ -56,8 +72,6 @@ impl ArtifactEntry {
     }
 }
 
-/// Immutable canonical decode result. Construction grants no executable
-/// eligibility; it is merely the candidate consumed by admission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Artifact(pub(crate) Arc<ArtifactRecord>);
 
@@ -78,9 +92,6 @@ impl Artifact {
         self.0.byte_length
     }
 
-    /// Exact immutable executable bytes bound by this artifact's normalized
-    /// content identity. This provider-side projection grants neither
-    /// placement nor execute authority.
     pub fn code(&self) -> &[u8] {
         &self.0.code
     }
@@ -93,9 +104,6 @@ impl Artifact {
         self.0.relocation_set
     }
 
-    /// Canonical destination-ordered relocation commitments retained through
-    /// admission for the eventual provider materializer. Targets remain sealed
-    /// identities; this projection grants no address resolver.
     pub fn relocations(&self) -> &[DecodedArtifactRelocation] {
         &self.0.relocations
     }
@@ -109,7 +117,6 @@ impl Artifact {
     }
 }
 
-/// Reusable immutable artifact carrying the sealed `AdmittedExecutable` fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AdmittedArtifact {
     pub(crate) artifact: Artifact,
@@ -117,10 +124,6 @@ pub(crate) struct AdmittedArtifact {
 }
 
 impl AdmittedArtifact {
-    /// Selects a sealed materialization target only when the requested entry
-    /// belongs to this admitted artifact's canonical, admission-bound entry
-    /// set. Numeric address resolution remains deferred until materialization
-    /// has bound the artifact to one exact placement.
     pub fn selected_entry_target(
         &self,
         identity: EntryStubId,
@@ -137,24 +140,13 @@ impl AdmittedArtifact {
     }
 }
 
-/// The audience an admitted installation is scoped to
-/// (wiki/spec/build/executable_installation.md#visibility-and-retirement).
-/// The audience binds into placement evidence, so a receipt minted for one
-/// audience cannot satisfy a validated placement scoped to another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[expect(
     dead_code,
     reason = "spec audiences (executable_installation.md#visibility-and-retirement) await TASKS.md COMPONENT-SUBSTRATE"
 )]
 pub(crate) enum InstallationAudience {
-    /// Local installation completion only: the realization has no remote
-    /// fetcher and no current executor.
     DormantLocal,
-    /// A remote fetcher may enter later: instruction-fetch visibility must
-    /// complete before entry.
     FutureFetcher,
-    /// An executor may already be running this realization: the sanctioned
-    /// alteration route is the live patch-then-drain replacement join, and
-    /// retirement still proves quiescence before returning the placement.
     PossibleCurrentExecutor,
 }

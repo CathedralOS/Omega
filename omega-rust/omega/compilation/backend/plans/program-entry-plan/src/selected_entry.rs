@@ -1,26 +1,31 @@
-//! Start here. The selected program storage entry plan; its root role,
-//! diagnostic, derived boundary storage and fused service establishment
-//! receipt live beside it.
+/*
+We bind the selected target-owned `ProgramStorageEntry::enter` slot to its
+normalized boundary schema and optional physical arrival contract, defining the
+root roles and diagnostics shared across program-entry planning.
+*/
 
-pub(crate) mod diagnostic;
-pub(crate) mod root_role;
+use crate::ProgramEntryPhysicalContractPlan;
 
 const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";
 const PROGRAM_STORAGE_ENTRY_METHOD: &str = "enter";
 
-use crate::{ProgramEntryPhysicalContractPlan, ProgramStorageEntryDiagnostic};
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramStorageEntryDiagnostic(pub String);
 
-/// Exact target-owned environment-to-program slot and its normalized source
-/// schema. This is deliberately not a provider plan: `ProgramEntry` accepts an
-/// environment root and does not model an outbound service conformance.
+diagnostics::string_diagnostic!(ProgramStorageEntryDiagnostic);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramStorageEntryRootRole {
+    Image,
+    InitialStorage,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramStorageEntryPlan {
     target_slot: target::ProgramEntrySlotDeclaration,
     requirement_identity: terminal_psi::TerminalIdentityIndex,
     schema: effects::provider_plan::ServiceSchema,
     physical_contract: Option<ProgramEntryPhysicalContractPlan>,
-    /// Identity text the plan's indices resolve against — minted beside the
-    /// checked program before a Terminal module exists.
     identities: terminal_psi::TerminalIdentityTable,
 }
 
@@ -30,13 +35,6 @@ impl SelectedProgramStorageEntryPlan {
         schema: effects::provider_plan::ServiceSchema,
         requirement_identity: String,
     ) -> Result<Self, ProgramStorageEntryDiagnostic> {
-        // The semantic continuation is `ProgramStorageEntry::enter` under
-        // every admitted entry contract. Where its two roots become visible
-        // is fixed by the slot's declared shape: a freestanding
-        // `ProgramStorageApplication` exposes them as authored parameters,
-        // while a hosted `HostedApplication` keeps them as internal bridge
-        // inputs and exposes no source-visible parameters. Any other shape
-        // pairing is drift, not a third contract.
         let declares_exact_continuation = match slot.schema {
             target::ProgramEntrySchema::ProgramStorageApplication => {
                 slot.visible_parameters
@@ -112,7 +110,6 @@ impl SelectedProgramStorageEntryPlan {
         })
     }
 
-    /// The plan-local table this plan's requirement index resolves against.
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.identities
     }

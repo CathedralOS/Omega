@@ -1,23 +1,67 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: crate map. Independent meaning and rewrite validation for the optimization-unit representation.
-//! This crate neither lowers Terminal Psi nor sequences optimization passes or publication.
-//! Candidate producers do not participate in acceptance. The caller retains
-//! Terminal admission and supplies any independently admitted cycle roster;
-//! structural success alone grants no execution or publication authority.
-//!
-//! The exports below are the whole public surface. Whole-unit acceptance
-//! starts at `unit_validation.rs`: `validate_psi_optimization_unit` is the
-//! entry, and the file shows the acceptance order -- identity and fact
-//! indexes, catalogs with every function validated in place, retained affine
-//! authority, final authorities -- with each invariant family owned by a
-//! named module beside it. Rewrite acceptance starts at `candidates/mod.rs`:
-//! `validate_psi_rewrite_candidate` routes each typed candidate to the exact
-//! validator of the pass family that proposed it, and those family validators
-//! are exported by name for callers that hold one family's candidate.
-//! `current_ownership` reconstructs the ownership frontiers of the current
-//! revision and `current_value_ranges` validates its value-range facts;
-//! `error` is the failure vocabulary.
+/*
+We provide independent semantic and rewrite validation for the Psi optimization
+unit representation. We neither lower Terminal Psi nor sequence optimization
+passes or publication. Candidate producers do not participate in acceptance:
+our callers retain Terminal admission and supply any independently admitted
+control-cycle roster, while structural validation alone grants no execution or
+publication authority.
+
+Our public surface divides into whole-unit acceptance, rewrite-candidate replay,
+current-revision fact reconstruction, and structural authority queries. Whole-
+unit validation enters through `unit_validation` and checks canonical identity
+and fact indexes, structural and service catalogs, per-function control flow
+and operation contracts, retained affine cleanup authority, and final frontier
+and service reach. Rewrite acceptance enters through `candidates`, routing each
+typed `PsiRewriteCandidate` to the independent replay validator of the pass
+family that proposed it. Current-revision ownership and loan frontiers are
+reconstructed in `current_ownership`, value-range interval and dominance facts
+are checked in `current_value_ranges`, cohort descriptor and reference flow
+graphs are adapted in `descriptor_results`, native access-view backing
+correspondence is verified in `access_references`, and `error` defines our
+diagnostic rejection vocabulary.
+*/
+
+/*
+We keep semantic and rewrite validation in a dedicated crate separate from both
+the `optimization-unit` data representation and the optimization pipeline so
+every transformation stage can verify candidate rewrites and unit invariants
+without trusting producer summaries or coupling data carriers to pass logic.
+When an optimization pass proposes a `PsiRewriteCandidate`, we do not trust its
+claimed post-state or provenance accounting: we replay the patch from the
+admitted input unit, recompute node definitions, uses, effect chains, fact
+indexes, declared places, and root service reach, re-validate the entire unit,
+and verify that every block and function outside the declared rewrite region
+remains byte-for-byte intact.
+
+We enforce the same fail-closed discipline across structural and ownership
+queries. Rather than reading stale source summaries or cached `OwnershipEvent`
+rows, we reconstruct live claims, owned places, partial-affine move paths, and
+outstanding reference loans directly from the current revision's executable
+operations and signatures. That separation ensures that any rewrite bug, leaked
+linear claim, disturbed shared-join origin, or broken provenance settlement is
+caught immediately at the candidate boundary before a commit can enter the
+transformation ledger.
+*/
+
+/*
+Downstream pipeline stages consume our validators and queries across the
+abstract and target realization boundaries:
+- `unit_validation`: whole-unit, structural-catalog, and ownership-frontier
+  validation (`validate_psi_optimization_unit_with_admitted_cycle_machines`,
+  `validate_psi_structural_catalog`, and
+  `reconstruct_ownership_frontier_facts_with_admitted_cycle_machines`).
+- `candidates`: typed rewrite dispatch (`validate_psi_rewrite_candidate`),
+  family-specific specialization validators, linear empty-block thread
+  predicates, and `ValidatedPsiRewrite` receipts.
+- `current_ownership` and `current_value_ranges`: CFG loan/claim frontier replay
+  (`CallRegion`) and interval dominance verification
+  (`validate_current_value_range_fact_at`).
+- `descriptor_results` and `access_references`: cohort descriptor flow graphs,
+  call-origin reconstruction, and placed native backing checks.
+- `error`: `OperationSite` coordinates and `OptimizationUnitValidationError`.
+*/
 
 pub mod access_references;
 mod candidates;
@@ -25,27 +69,14 @@ mod current_ownership;
 mod current_value_ranges;
 pub mod descriptor_results;
 mod error;
-mod structural_types;
 mod unit_validation;
 
 pub use error::{OperationSite, OptimizationUnitValidationError};
 
-/// The empty-block threads' shared binding composition: substitute the
-/// threaded edge's parameters through its incoming bindings and forward that
-/// replacement into the outgoing bindings. Proposing rules and the replay
-/// checkers below share this predicate; it decides values only, so it grants
-/// neither acceptance nor the provenance accounting a rewrite still owes.
 pub use candidates::rewrite_accounting::threading::reconstruct_linear_thread_bindings;
 
-/// The empty-block threads' shared ownership predicate: the six frontier sites
-/// the thread touches must carry one snapshot at the unit's identity. Proposing
-/// rules and the replay checkers share it, so neither restates the site list;
-/// like the bindings predicate it decides only, granting neither acceptance nor
-/// the provenance accounting a rewrite still owes.
 pub use candidates::rewrite_accounting::threading::reconstruct_linear_thread_ownership_is_identity;
 
-// Declaration custody shared by validation and target realization. This query
-// grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::{byte_field_root, declared_descriptor_home};
 
 pub use current_ownership::references::CallRegion;
@@ -55,18 +86,12 @@ pub use unit_validation::structural_catalog::{
     structural_storage_projection,
 };
 
-/// Every structural place consumed by an operation, including its ordered
-/// cleanup operands. Current-graph analyses share the exhaustive inventory;
-/// this query establishes no availability, custody, or permission.
 pub fn operation_place_inputs(
     operation: &abstract_operations::AbstractOperation,
 ) -> Vec<semantic_vocabulary::PlaceId> {
     unit_validation::function_structure::operation_place_inputs(operation)
 }
 
-/// Current declaration and producer authority for one structural place.
-/// Availability, the selected projection and use-site loan compatibility are
-/// separate judgments; this query does not bypass their receiving validators.
 pub fn structural_place_access(
     function: &optimization_unit::PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
@@ -75,9 +100,6 @@ pub fn structural_place_access(
         .map(|source| source.access)
 }
 
-/// Intersect an operand's requested permission with the home and every stored
-/// reference or view ceiling. This describes declared access, not liveness,
-/// bounds, or the absence of overlapping active loans.
 pub fn descriptor_argument_accessible(
     function: &optimization_unit::PsiOptimizationFunction,
     argument: &terminal_psi::StructuralArgument,
@@ -101,11 +123,6 @@ pub fn descriptor_argument_accessible(
         )
 }
 
-/// Descriptor extent is metadata, not payload. A write-only source still
-/// resolves its selected descriptor's geometry under its own authority: the
-/// path must traverse without a stored-referent crossing, and the selected
-/// descriptor's backing admission stays the payload contract this observation
-/// never reaches.
 pub fn descriptor_metadata_argument_accessible(
     function: &optimization_unit::PsiOptimizationFunction,
     argument: &terminal_psi::StructuralArgument,
@@ -129,17 +146,11 @@ pub fn descriptor_metadata_argument_accessible(
         )
 }
 
-/// Backing access is distinct from owning a descriptor's carrier. Resolve it
-/// from the same admitted source contract used by call and reference checking;
-/// exact projection, current availability and loan compatibility remain owed.
 pub fn structural_place_backing_access<'types>(
     function: &optimization_unit::PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
     types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
 ) -> Option<terminal_psi::StructuralAccess> {
-    // An arrival retains outer storage access separately from its contained
-    // descriptor ceiling. Query the actual row; absent contained permission
-    // cannot become a readable grant from the outer storage loan.
     if let Some(parameter) = function.arrival_parameter(place)
         && terminal_semantics::descriptor_results::is_descriptor(
             types.clone(),
@@ -188,26 +199,15 @@ macro_rules! structural_write_preserves {
 }
 
 structural_write_preserves!(
-    /// Check a write against the current root's complete membership roster. The
-    /// path stays in the original carrier's coordinates, including every Referent
-    /// crossing and the selected typed field; peeling a referent must not forget
-    /// its enclosing predicates. This supplies no storage or live-loan authority.
     structural_write_preserves_memberships,
     terminal_semantics::store_preserves_qualifications
 );
 
 structural_write_preserves!(
-    /// A checked scalar mutation may expire incoming predicate facts. Its exact
-    /// root still owes both carried domain Content and independent entry claims;
-    /// source checking, not a declaration roster, owns later predicate consumption.
     structural_write_preserves_content,
     terminal_semantics::store_preserves_domain_content
 );
 
-/// Declaration-side owned or exclusive storage for whole-referent restoration.
-/// Producer-derived view access follows its actual backing contract; an owned
-/// descriptor alone does not grant referent access. The receiving custody walk
-/// separately proves the origin live and the captured loan mutable.
 pub fn structural_place_supports_window_restoration(
     function: &optimization_unit::PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
@@ -219,31 +219,46 @@ pub fn structural_place_supports_window_restoration(
                 terminal_psi::StructuralAccess::Owned
                     | terminal_psi::StructuralAccess::MutableBorrow
             ) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-                // Receiving memberships are checked by the store contract;
-                // they are value facts, not a loss of storage authority.
-                && source.operation_result().is_none_or(|result| result.claims.is_empty())
+                && source
+                    .operation_result()
+                    .is_none_or(|result| result.claims.is_empty())
         },
     )
 }
 
-// Whole-unit acceptance.
 pub(crate) use unit_validation::validate_psi_optimization_unit;
 pub use unit_validation::{
     reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
     validate_psi_optimization_unit_with_admitted_cycle_machines, validate_psi_structural_catalog,
 };
 
-// Rewrite-candidate acceptance: the typed dispatch and the result it returns.
 pub use candidates::{ValidatedPsiRewrite, validate_psi_rewrite_candidate};
 
-// The exact validators the dispatch routes to, by producing pass family.
 pub use candidates::case_membership_specialization::validate_case_membership_specialization_candidate;
 pub(crate) use candidates::dead_scalar_elimination::validate_dead_scalar_node_candidate;
 pub use candidates::field_value_specialization::validate_field_value_specialization_candidate;
 pub use candidates::state_specialization::validate_state_argument_specialization_candidate;
 
-// The closed scalar observation boundary scalar rewrites are checked against.
 pub(crate) use candidates::observation::reconstruct_closed_scalar_node_boundary;
 
-// Current-revision value-range facts.
 pub use current_value_ranges::validate_current_value_range_fact_at;
+
+use semantic_vocabulary::StructuralTypeId;
+use terminal_psi::StructuralTypeDeclaration;
+
+pub(crate) trait StructuralTypes {
+    fn declaration(&self, id: StructuralTypeId) -> Option<&StructuralTypeDeclaration>;
+    fn declarations(&self) -> impl Iterator<Item = &StructuralTypeDeclaration> + Clone;
+}
+
+impl StructuralTypes for [StructuralTypeDeclaration] {
+    fn declaration(&self, id: StructuralTypeId) -> Option<&StructuralTypeDeclaration> {
+        self.binary_search_by_key(&id, |row| row.id)
+            .ok()
+            .map(|position| &self[position])
+    }
+
+    fn declarations(&self) -> impl Iterator<Item = &StructuralTypeDeclaration> + Clone {
+        self.iter()
+    }
+}

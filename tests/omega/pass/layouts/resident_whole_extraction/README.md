@@ -25,7 +25,7 @@ read/write resident through initialization, mutation and extraction.
 pass/layouts/resident_whole_extraction` executes the public embedding provision
 on both borrowed and loaded Terminal artifacts. The declared 3876-cell ceiling
 admits the complete journey; one cell less refuses without publishing a result
-or replaying effects. Resumption uses one-unit fuel grants. Failed instances
+or replaying effects. Resumption uses one-unit work grants. Failed instances
 retain their custody until teardown, which releases all live cells. Successful
 handback releases the allocation record and its descriptors and cannot repeat.
 The image's separate payload ceiling is 16 bytes: its eight-byte field and

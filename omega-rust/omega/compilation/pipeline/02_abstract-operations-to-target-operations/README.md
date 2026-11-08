@@ -1,19 +1,19 @@
 # Abstract operations to target operations
 
 This stage derives target operations and call placement from abstract operations.
-Start at [lib.rs](src/lib.rs), then [function routing](src/lowering/function/mod.rs).
+Start at [lib.rs](src/lib.rs).
 The target representation owns the resulting control, values, storage, calls,
 and boundary data; this stage does not assign registers or frame offsets.
 
 Provider, callback and authority admission belongs to
-[Omega 00](../00_terminal-psi-to-abstract-operations/src/native_admission.rs).
+[Omega 00](../00_terminal-psi-to-abstract-operations/src/native_execution_scope.rs).
 This stage consumes admitted settlements and independently checks their lowering;
 it does not select providers or authorize execution.
 
 ## Functions have one route
 
 Every function enters
-[control-flow lowering](src/lowering/control_flow.rs). It requires explicit source
+[control-flow lowering](src/control_flow.rs). It requires explicit source
 blocks and retains definitions, calls, branches, and returns in
 `TargetFunction.graph`. Unit, scalar, and aggregate returns are graph terminators,
 not alternative function representations. Missing block structure rejects. There is no flat-input
@@ -42,7 +42,7 @@ to preserve their historical test counts.
 
 The stage admits its inputs while it lowers: settlement bindings, the
 installation join, the selected call index and each function's ABIs are bound in
-[coordination](src/lowering/coordination.rs) as the program is produced, and a
+[coordination](src/coordination.rs) as the program is produced, and a
 raw fused-multiply-add plan is rejected there. The output is not re-validated in
 the same compile; a program that violates this stage's contract is a bug in this
 stage, for the corpus and the tests to find.
@@ -72,7 +72,7 @@ referents without inventing a physical result home; aggregates retain their
 exact storage. Only Unit has no result. The independent audit reconstructs the
 result against pre-call custody; production retains the resulting origins for
 later storage joins.
-One [direct-call lowering](src/lowering/control_flow/calls.rs) produces
+One [direct-call lowering](src/control_flow_calls.rs) produces
 every such row: it resolves the callee contract and each operand's storage,
 then commits moves and publishes the result. The result kind does not choose
 argument transport. Published scalar operations additionally retain their
@@ -101,7 +101,7 @@ Formation, release, edges and returns still have local native custody
 restrictions. Their removal requires replacing the
 storage relationship, not skipping the independent corpus audit.
 
-[Structural signatures](src/lowering/structural_signature.rs) derive placement
+[Structural signatures](src/function_signature.rs) derive placement
 from structural declarations and referent layout. Every borrowed access uses
 `BorrowedReference`; only owned values receive shape-selected value placement.
 A staged pointer is not a staged copy of its referent. See the
@@ -138,7 +138,7 @@ Parallel transfers must preserve duplicate sources and cycles before replacing
 destinations. Allocation owns the actual snapshots and frame locations.
 
 A shared byte-view argument may observe bounded-owner storage without taking
-ownership of its capacity or predicates. [Byte arguments](src/lowering/control_flow/byte_arguments.rs)
+ownership of its capacity or predicates. [Byte arguments](src/control_flow_calls.rs)
 resolve the exact entry placement, state arrival or operation home and retain
 its backing identity. Whole owners and inline owner fields present the same
 live length word followed by bytes; the call-local descriptor contains the
@@ -220,7 +220,7 @@ observations, nested construction, and whole-parameter returns share that backin
 across calls. Input and result placement are independently selected by the
 complete call plan; a stack-passed value may return through hidden result storage.
 Whole owned record and primitive-array arguments share
-[owned argument lowering](src/lowering/control_flow/owned_arguments.rs).
+[owned argument lowering](src/control_flow_calls.rs).
 It retains the current source backing and exact callee placement, including
 indirect value copies; pointer-slot and payload-copy offsets remain distinct.
 Source-produced integer getter controls cover direct and call-produced
@@ -242,7 +242,7 @@ implementation.
 ## Acceptance
 
 The crate's Rust tests cover
-[placed container geometry](src/lowering/structural_layout.rs).
+[placed container geometry](src/structural_layout.rs).
 The corpus (`tests/omega/{pass,fail,run}`) exercises this stage end to end,
 including the arithmetic and storage fixtures.
 The corpus native leg (`python3 tools/corpus_gate.py --native`) builds source

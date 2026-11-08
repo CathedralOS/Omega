@@ -53,7 +53,7 @@ twin identifies the false constant construction. The 54 sample/pin file pairs
 are byte-identical. The optimized producer has SHA-256
 `d8530587e625f1f95576eb3a458bfa60730984d61f809f8ac924720d34d57c04`.
 The worker retains raw commands, source hashes, Terminal/native artifacts and
-fuel receipts. This establishes this fact row, not the entire pipeline task.
+work receipts. This establishes this fact row, not the entire pipeline task.
 
 The [composition](compositions/policy_and_return/main.omg) exercises the same
 conversion through an explicit Wrapping qualification and a later Exact

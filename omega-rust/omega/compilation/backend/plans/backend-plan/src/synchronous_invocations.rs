@@ -1,15 +1,12 @@
-//! Whole-plan synchronous invocation graph, independent of source or execution storage.
-//!
-//! Source checking supplies checked call facts. Receiving admission supplies
-//! retained executable edges for every installed candidate. Both use this same
-//! exact-slot join and cycle rule; opaque rows retain their declared ceilings.
+/*
+We validate whole-plan synchronous invocation graphs across concrete provider
+selections so both source checking and receiving executable admission enforce
+the same exact-slot join and cycle prohibition while preserving declared
+ceilings on opaque rows.
+*/
 
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
-/// Authoring-cycle policy over the checked declaration product. Plans come
-/// from the compiler's derivation/selection path; Build chooses declarations,
-/// never these rows. Do not repeat their Source conformance/lifetime derivation.
-/// Untrusted review and receiving executable admission remain independent.
 pub fn validate_declared_synchronous_invocation_cycles(
     selected_plans: &[crate::TerminalTargetProviderPlan],
     module: &terminal_psi::TerminalModule,
@@ -72,17 +69,12 @@ pub fn validate_declared_synchronous_invocation_cycles(
     )
 }
 
-/// A complete checked application, or an explicitly abstract external ceiling.
-/// Declaration names are canonical package-qualified export coordinates here,
-/// not source spelling used to rediscover a call.
 pub enum SynchronousBoundaryTarget {
     Application {
         declaration: String,
         package: Option<semantic_vocabulary::PackageKeyIdentity>,
         application: Option<String>,
     },
-    /// Canonical installation already joined this exact whole plan. Do not
-    /// erase that association and rediscover it from an optional package name.
     Selected {
         plan: effects::provider_plan::ProviderPlanDigest,
         label: String,
@@ -139,12 +131,6 @@ impl SynchronousBoundaryTarget {
     }
 }
 
-/// Reject a cycle in the direct synchronous graph realized by the concrete
-/// provider selection. Reach closure is intentionally irrelevant. Checked
-/// adapters contribute actual requirement applications; opaque supplies retain
-/// their authored invocation ceilings. A missing selected target cannot
-/// manufacture an edge. The caller owns checked-body edge production, not slot
-/// matching or cycle policy.
 pub fn validate_selected_synchronous_invocation_cycles<'plan>(
     selected_plans: impl IntoIterator<Item = &'plan ProviderPlan>,
     mut checked_targets: impl FnMut(
@@ -157,9 +143,6 @@ pub fn validate_selected_synchronous_invocation_cycles<'plan>(
     let mut edges = vec![Vec::<usize>::new(); selected.len()];
     let mut diagnostics = Vec::new();
     for (source_index, source) in selected.iter().enumerate() {
-        // Only bound rows grant supply. Ordinary selections independently owe
-        // full schema coverage; partial toolchain cohorts may leave a leaf
-        // unbound, but no marker exempts a present row from its call edges.
         for binding in &source.rows {
             let methods = source
                 .schema

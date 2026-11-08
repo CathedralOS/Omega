@@ -166,7 +166,7 @@ warning: variants `Import`, `VtableSlot`, `VtableField`, and `TableFunction` are
    Compiling program-entry-plan v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/backend/plans/program-entry-plan)
 warning: `effects` (lib) generated 2 warnings
    Compiling backend-plan v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/backend/plans/backend-plan)
-   Compiling terminal-fuel v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/fuel)
+   Compiling psi-work v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/terminal-psi/work)
    Compiling boundary-applications v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/backend/artifacts/boundary-applications)
    Compiling facts v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/psi/compilation/representations/checked-trees/facts)
    Compiling installation-evidence v0.1.0 (/workspace/Omega/.codex/worktrees/nf01/omega-rust/omega/compilation/backend/runtime/installation-evidence)

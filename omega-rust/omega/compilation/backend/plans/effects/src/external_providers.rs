@@ -1,12 +1,15 @@
-//! Source-free joins between checked external declarations and selected plans.
+/*
+We join checked external provider declarations from canonical Terminal Psi with
+selected provider plans without consulting source declarations. Display names
+serve only as consistency checks; exact overload identities, package ownership,
+binding kinds, and deployment targets establish the requirement association and
+reconcile portable numeric meanings with selected compiler intrinsics.
+*/
 
 use crate::CompilerIntrinsicExecutionIdentity;
 use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use terminal_psi::{ExternalProviderConformance, TerminalIdentityTable};
 
-/// Declaration facts borrowed from either the source view (early Build) or
-/// canonical Psi. Display coordinates are consistency checks; exact overload
-/// and package identity still establish the requirement association.
 pub struct RequirementPlanIdentity<'a> {
     pub overload: &'a str,
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -36,8 +39,6 @@ impl RequirementPlanIdentity<'_> {
     }
 }
 
-/// Numeric provider plans contain one method and one realization. This is
-/// independent of the operation's numeric meaning and its execution authority.
 pub fn matches_requirement_schema(
     candidate: &ExternalProviderConformance,
     identities: &TerminalIdentityTable,
@@ -72,13 +73,6 @@ pub fn matches_requirement_schema(
         .matches(plan, method, row)
 }
 
-/// Select one numeric satisfaction edge using nominal requirement identity,
-/// the exact callable, package owners, binding kind and deployment target.
-/// Absence is not authorization: a consumer requiring numeric execution must
-/// reject it. Host and access authority are independent of this catalog.
-/// A declaration review also nominates its exact realization; a portable
-/// consumer without that coordinate must have one candidate in its admitted
-/// catalog. Never choose a family head or a sibling merely by display name.
 pub fn selected_numeric_provider<'a>(
     providers: &'a [ExternalProviderConformance],
     identities: &TerminalIdentityTable,
@@ -156,8 +150,6 @@ pub fn matches_external_selection(
         }
 }
 
-/// Portable meaning cannot replace selected-provider custody or disagree with
-/// a retained execution. Numeric execution requires its checked meaning.
 pub fn reconcile_numeric_meaning(
     meaning: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
     selected: Option<CompilerIntrinsicExecutionIdentity>,

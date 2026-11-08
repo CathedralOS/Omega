@@ -1,19 +1,21 @@
-//! Fixtures shared by the register-model tests: a miniature physical
-//! register model and constraint catalog.
+/*
+We provide our miniature physical-register model and constraint-catalog test
+fixtures along with unit tests for physical-model validation and reservation
+profile validation.
+*/
 
 mod constraint_catalog;
 mod declared_identities;
-mod model_validation;
-mod reservation_profiles;
 
 use crate::{
     PhysicalRegisterModel, PreservationConvention, RegisterClass, RegisterClassId,
     RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintId,
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterModelValidationError,
-    RegisterOperandAccess, RegisterOperandConstraint, RegisterReservationOverlay, RegisterUnit,
+    RegisterOperandAccess, RegisterOperandConstraint, RegisterReservationOverlay,
+    RegisterReservationProfile, RegisterReservationProfileValidationError, RegisterUnit,
     RegisterUnitId, RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
     ReservationReason, ValidatedPhysicalRegisterModel, validate_physical_register_model,
-    validate_register_constraint_catalog,
+    validate_register_constraint_catalog, validate_register_reservation_profile,
 };
 use target::Architecture;
 
@@ -21,9 +23,6 @@ type ModelMutation = Box<dyn Fn(&mut PhysicalRegisterModel)>;
 
 type CatalogMutation = Box<dyn Fn(&mut RegisterConstraintCatalog)>;
 
-/// Assert that a fresh fixture, corrupted by `mutate`, fails `validate` with
-/// exactly `expected`. Every negative fixture test in this module tree spells
-/// its expectation through this one owner.
 pub(crate) fn assert_rejected<T, V, E>(
     mut fixture: T,
     mutate: impl FnOnce(&mut T),
@@ -37,7 +36,6 @@ pub(crate) fn assert_rejected<T, V, E>(
     assert_eq!(validate(fixture), Err(expected));
 }
 
-/// The miniature catalog rejects the row `mutate` corrupts with `expected`.
 pub(crate) fn catalog_rejection(
     mutate: impl FnOnce(&mut RegisterConstraintCatalog),
     expected: RegisterConstraintCatalogValidationError,
@@ -50,7 +48,6 @@ pub(crate) fn catalog_rejection(
     );
 }
 
-/// The miniature model rejects the declaration `mutate` corrupts with `expected`.
 pub(crate) fn model_rejection(
     mutate: impl FnOnce(&mut PhysicalRegisterModel),
     expected: RegisterModelValidationError,
@@ -178,4 +175,107 @@ fn miniature_catalog() -> RegisterConstraintCatalog {
 
 fn validated_miniature_model() -> ValidatedPhysicalRegisterModel {
     validate_physical_register_model(miniature_model()).expect("miniature model must validate")
+}
+
+#[test]
+fn validator_accepts_a_closed_model_and_rejects_noncanonical_units() {
+    assert!(validate_physical_register_model(miniature_model()).is_ok());
+    model_rejection(
+        |model| model.views[0].units.push(RegisterUnitId(0)),
+        RegisterModelValidationError::NonCanonicalUnitSet,
+    );
+}
+
+#[test]
+fn validator_rejects_a_false_zero_extension_footprint() {
+    model_rejection(
+        |model| model.views[0].write_semantics = RegisterWriteSemantics::ZeroExtendsParent,
+        RegisterModelValidationError::WriteFootprintMismatch(RegisterViewId(0)),
+    );
+}
+
+#[test]
+fn active_reservation_profile_is_exact_canonical_and_model_bound() {
+    let model = validated_miniature_model();
+    let target = target::NativeTarget::linux_x64();
+    let profile = RegisterReservationProfile {
+        name: "test.policy".into(),
+        active_overlays: vec!["test.reserve-r0".into(), "test.reserve-v0".into()],
+    };
+    let validated = validate_register_reservation_profile(profile.clone(), target, &model)
+        .expect("canonical profile must validate");
+    assert_eq!(
+        validated.reserved_units(),
+        &[RegisterUnitId(0), RegisterUnitId(1)]
+    );
+    assert_eq!(
+        validated.identity(),
+        validate_register_reservation_profile(profile.clone(), target, &model)
+            .unwrap()
+            .identity()
+    );
+
+    let one_overlay = validate_register_reservation_profile(
+        RegisterReservationProfile {
+            name: profile.name.clone(),
+            active_overlays: vec!["test.reserve-r0".into()],
+        },
+        target,
+        &model,
+    )
+    .unwrap();
+    assert_eq!(one_overlay.reserved_units(), &[RegisterUnitId(0)]);
+    assert_ne!(one_overlay.identity(), validated.identity());
+
+    let renamed = validate_register_reservation_profile(
+        RegisterReservationProfile {
+            name: "test.policy-renamed".into(),
+            active_overlays: profile.active_overlays.clone(),
+        },
+        target,
+        &model,
+    )
+    .unwrap();
+    assert_ne!(renamed.identity(), validated.identity());
+    let windows = validate_register_reservation_profile(
+        profile.clone(),
+        target::NativeTarget::windows_x64(),
+        &model,
+    )
+    .unwrap();
+    assert_ne!(windows.identity(), validated.identity());
+    let mut changed_model = miniature_model();
+    changed_model.units[0].name.push_str(".changed");
+    let changed_model = validate_physical_register_model(changed_model).unwrap();
+    let changed_model_profile =
+        validate_register_reservation_profile(profile.clone(), target, &changed_model).unwrap();
+    assert_ne!(changed_model_profile.identity(), validated.identity());
+
+    let mut duplicate = profile.clone();
+    duplicate.active_overlays[1] = duplicate.active_overlays[0].clone();
+    assert_eq!(
+        validate_register_reservation_profile(duplicate, target, &model),
+        Err(RegisterReservationProfileValidationError::NonCanonicalOverlayNames)
+    );
+    let unknown = RegisterReservationProfile {
+        name: profile.name,
+        active_overlays: vec!["unknown".into()],
+    };
+    assert_eq!(
+        validate_register_reservation_profile(unknown, target, &model),
+        Err(RegisterReservationProfileValidationError::UnknownOverlay(
+            "unknown".into()
+        ))
+    );
+    assert_eq!(
+        validate_register_reservation_profile(
+            RegisterReservationProfile {
+                name: "test.policy".into(),
+                active_overlays: Vec::new(),
+            },
+            target::NativeTarget::linux_arm64(),
+            &model,
+        ),
+        Err(RegisterReservationProfileValidationError::TargetArchitectureMismatch)
+    );
 }

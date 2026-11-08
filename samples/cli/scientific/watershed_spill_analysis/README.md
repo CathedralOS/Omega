@@ -97,7 +97,7 @@ For independent byte-exact Terminal output checks, the private reference harness
 links the public complete-project and Terminal runtime APIs from one verified
 Rust compiler build. It checks all fixtures through the exact produced Terminal
 artifact with retained provisions, publishes that same native artifact, and runs
-all inputs against the resulting executable. Declines, fuel exhaustion, crashes,
+all inputs against the resulting executable. Declines, work-budget exhaustion, crashes,
 wrong exits, output differences and nonempty guest stderr fail validation. It
 does not reconstruct artifacts or interpret checked trees.
 

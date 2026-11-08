@@ -39,7 +39,7 @@ build/linear-provider/terminal-validation tests/omega/pass/providers/linear_stru
 It captures the native report's actual retained Terminal output with finite stdin,
 then publishes that report's native product for separate execution. The pure entry
 uses its exact retained installation and no arrival inputs or host imports. It is
-paused at 265 fuel allowances and resumed with the same instance, checking exact
+paused at 265 work budgets and resumed with the same instance, checking exact
 completion. Malformed returned-claim copies cross canonical codec admission and
 must refuse; they are never executable inputs.
 

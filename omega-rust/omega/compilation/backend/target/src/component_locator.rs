@@ -1,9 +1,10 @@
-//! Physical linkage coordinates for a separately published component image.
-//!
-//! A content-addressed image and version-qualified export slot are one locator.
-//! Normalizing coordinates establishes no checked provider, ABI compatibility,
-//! package permission, installed mapping or historical-era authority. Those
-//! owners independently join the locator to their complete retained products.
+/*
+We normalize physical linkage coordinates for separately published component
+images and join foreign and component locators into one shared physical import
+vocabulary (`NormalizedImportLocator`). Normalizing coordinates establishes
+deterministic artifact identity without granting provider, ABI, or package
+admission authority.
+*/
 
 use crate::{NormalizedForeignLocator, TargetProfile};
 
@@ -47,8 +48,6 @@ impl NormalizedComponentLocator {
         })
     }
 
-    /// Normalize the exact container bytes; publication independently verifies
-    /// those bytes before placing the content-addressed sibling file.
     pub fn for_image(
         target: TargetProfile,
         contents: &[u8],
@@ -81,8 +80,6 @@ impl NormalizedComponentLocator {
         )
     }
 
-    /// A fixed adjacent filename, never an ambient package/library selector.
-    /// Publication must retain and verify the exact bytes with this digest.
     pub fn image_filename(&self) -> String {
         let suffix = match self.target {
             TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => "so",
@@ -100,17 +97,12 @@ impl NormalizedComponentLocator {
     }
 }
 
-/// Shared physical import vocabulary. Source foreign binding and checked
-/// component call admission remain distinct; sharing relocation transport
-/// cannot turn either locator into the other's authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NormalizedImportLocator {
     Foreign(NormalizedForeignLocator),
     Component(NormalizedComponentLocator),
 }
 
-/// Strong identity of one complete physical import locator, in its own
-/// foreign/component normalization domain. It supplies no binding authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ImportLocatorIdentityDigest([u8; 32]);
 impl ImportLocatorIdentityDigest {
@@ -193,8 +185,6 @@ impl NormalizedImportLocator {
     }
 }
 
-/// Version-qualified physical symbol key. Native admission separately proves
-/// that this semantic subject and complete ABI application were selected.
 pub fn component_export_slot(
     vocabulary: u16,
     semantic_subject: &[u8; 32],

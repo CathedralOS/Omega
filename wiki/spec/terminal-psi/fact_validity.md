@@ -7,6 +7,25 @@ facts. See the [product](product.md), [encoding](encoding.md), and
 [observation](observations.md) contracts. Runtime cycles follow
 [control flow and ranking](control_flow.md).
 
+## Establishing facts on receipt
+
+The [product admission contract](product.md#publication-and-separate-consumption)
+determines whether producer-established judgments may be reused. A trusted
+producer's exact artifact retains their subjects, substitutions and assumption
+dependencies. Later stages preserve the validity conditions below; a theorem
+name or success flag supplied by an untrusted artifact grants no premise.
+
+Receipt requires neither rediscovery of source theorems nor replay of carried
+certificates. The local kernel remains part of source proving. Canonical proof
+encoding alone does not establish the encoded judgment or its correspondence to
+an executable operation.
+
+Interpreter operation checks use actual values, storage and permissions even
+for trusted artifacts. Untrusted interpretation, when admitted under the
+containment contract, cannot use asserted facts to skip those checks or gain
+host authority. It does not establish arbitrary logical claims. Optimization
+and native lowering may consume producer judgments only from trusted input.
+
 ## Premise availability
 
 A premise must dominate its use and remain valid on every path to it. Acyclic

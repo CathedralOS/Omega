@@ -1,3 +1,12 @@
+/*
+    Allocation-owned semantic cells, reference descriptors, and runtime values
+    for the checked-tree interpreter.
+
+    Every storage place is an allocation-owned `Cell` so `&mut` borrows share
+    the underlying cell by construction while encoded reference views retain
+    their backing, projection path, and physical codec.
+*/
+
 use crate::build_evaluation_sponsor::{
     BuildEvaluationLiveCellLease, BuildEvaluationLiveTextByteLease, BuildEvaluationSponsor,
 };
@@ -8,9 +17,6 @@ use std::rc::Rc;
 use symbols::SymbolHandle;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
-/// A reference transports storage identity and its captured representation
-/// together. Copies share the endpoint; returning or storing a reference never
-/// requires recovering metadata from a callee's vanished lexical binding.
 #[derive(Debug, Clone)]
 pub struct Reference {
     pub(crate) cell: Cell,
@@ -33,8 +39,6 @@ impl Reference {
     }
 }
 
-/// A checked shared or mutable view's captured geometry. Access comes from
-/// the checked reference type, not this runtime representation descriptor.
 #[derive(Debug, Clone)]
 pub(crate) enum ReferenceStorage {
     Direct {
@@ -73,9 +77,6 @@ pub(crate) struct ReferenceProjection {
     pub(crate) stored_integer: Option<typed_trees::PlanLaidIntegerField>,
 }
 
-/// A storage cell. Every alias clones the same allocation, so a write through a
-/// reference mutates the original cell. A sponsored cell also owns one lifetime
-/// lease; cloning does not double-charge it and the final alias retires it.
 #[derive(Clone)]
 pub struct Cell(Rc<CellAllocation>);
 
@@ -118,9 +119,6 @@ struct CellMeterAccount {
     peak: CounterCell<u64>,
 }
 
-/// Per-evaluator exact cell-lifetime meter. The optional sponsor adds one
-/// closure-wide reservation before each allocation; neither count is a byte or
-/// resident-memory estimate.
 #[derive(Debug, Clone)]
 pub(crate) struct CellMeter {
     account: Rc<CellMeterAccount>,
@@ -177,9 +175,6 @@ impl Drop for LiveCellLease {
     }
 }
 
-/// One shared interpreter Text backing buffer. Aliases share both bytes and
-/// one exact logical-byte lifetime lease; only the final alias releases it.
-/// Bounded views retain their extent and prevent backing length changes.
 #[derive(Clone)]
 pub struct TextBuffer {
     allocation: Rc<TextAllocation>,
@@ -193,8 +188,6 @@ struct TextAllocation {
     live_windows: CounterCell<usize>,
 }
 
-/// Clones share one window lease; nested subslices register their own lease.
-/// Keeping the allocation alive here makes release independent of field order.
 struct TextWindowLease {
     allocation: Rc<TextAllocation>,
     extent: Range<usize>,
@@ -243,8 +236,6 @@ impl TextBuffer {
         })
     }
 
-    /// Share the exclusive byte range relative to this view. Empty ranges also
-    /// retain the allocation and prevent resizing until their final alias drops.
     pub(crate) fn subslice(&self, start: usize, end: usize) -> Result<Self, String> {
         let extent = self.extent(self.allocation.bytes.borrow().len());
         let length = extent.len();
@@ -259,8 +250,6 @@ impl TextBuffer {
             .get()
             .checked_add(1)
             .ok_or_else(|| "Text live-window count overflowed".to_owned())?;
-        // Both offsets are bounded by the existing extent, so adding its start
-        // cannot exceed the original backing length.
         let window = Rc::new(TextWindowLease {
             allocation: self.allocation.clone(),
             extent: extent.start + start..extent.start + end,
@@ -297,13 +286,7 @@ impl TextBuffer {
         Ok(())
     }
 
-    /// Replace shared backing bytes while preserving aliases and resizing the
-    /// exact logical-byte lease before any growth becomes interpreter state.
-    /// A bounded view requires equal-length replacement within its extent;
-    /// full-buffer aliases cannot resize while any bounded view remains live.
     pub(crate) fn replace(&self, bytes: Vec<u8>) -> Result<(), String> {
-        // Acquire mutation custody before changing either meter. A conflicting
-        // internal borrow may panic, but cannot leave accounting advanced.
         let mut backing = self.allocation.bytes.borrow_mut();
         let extent = self.extent(backing.len());
         if self.allocation.live_windows.get() > 0 {
@@ -343,8 +326,6 @@ struct TextByteMeterAccount {
     peak: CounterCell<u64>,
 }
 
-/// Exact logical-byte meter for interpreter-owned Text backing buffers. This
-/// deliberately excludes Vec capacity and every non-Text temporary buffer.
 #[derive(Debug, Clone)]
 pub(crate) struct TextByteMeter {
     account: Rc<TextByteMeterAccount>,
@@ -441,61 +422,27 @@ impl LiveTextByteLease {
     }
 }
 
-/// A declared name a value carries: its data type, a field, or a case. Values
-/// copy and clone often (every array default and deep copy), and a shared name
-/// makes each copy a count bump rather than a fresh string.
 pub type ValueName = Rc<str>;
 
-/// A semantic runtime value. Width/signedness of integers is tracked separately by the
-/// evaluator from the declared type; the value itself stores an `i64` payload (skeleton:
-/// full i64 semantics, refined per-width later).
 #[derive(Debug, Clone)]
 pub enum Value {
     Unit,
     Int(i64),
     Bool(bool),
     Float(f64),
-    /// A semantic NaN has a landed format but no observable representation.
     UndeterminedNaN(numerics::literals::FloatFormat),
-    /// Text: a `&[u8]` view, a string literal, OR an owned `[u8; N]` carrier. Stored as raw
-    /// BYTES (not a Rust `String`) because Omega text is `&[u8]` -- bytes that need only be
-    /// valid Utf8 at domain boundaries, not at every intermediate step. Bytes (vs a UTF-8
-    /// String) let a carrier be byte-indexed and byte-WRITTEN (`out[i] = ch`) directly. The
-    /// runtime length is the visible buffer extent; subslices share bounded windows of
-    /// the original bytes. A carrier's static capacity `N` remains a compile-time bound.
     Str(TextBuffer),
-    /// A struct / data record / machine instance. Fields are addressed by name so the
-    /// interpreter can resolve `self.field` without depending on backend layout. Each
-    /// field is its own cell (so `&mut self.field` aliases correctly).
     Struct {
         type_symbol: SymbolHandle,
         type_name: ValueName,
         fields: BTreeMap<ValueName, Cell>,
     },
-    /// A case (enum) value, identified by its case name -- the TAG -- optionally
-    /// carrying NAMED payload field cells (`case Say(text: String)` constructs
-    /// `Enum { "Say", [("text", cell)] }`). Payload-less cases and bare case
-    /// references (`Command::Quit`, including those used as tag-compare operands)
-    /// have an empty payload. Equality between enum values compares the TAG only,
-    /// matching the native backend's constant tag compare.
-    ///
-    /// `type_symbol` names the DECLARING data type so tag-ORDINAL resolution
-    /// (the value-position `match` desugar's tag arithmetic) is type-local --
-    /// same-name variants at different ordinals across enums must not
-    /// cross-resolve. INVALID when the provenance cannot name a type (the
-    /// build-time value boundary); resolution then falls back to the
-    /// name-global scan.
     Enum {
         type_symbol: SymbolHandle,
         variant_name: ValueName,
         payload: Vec<(ValueName, Cell)>,
     },
-    /// A fixed array or a slice view. Both are an ordered list of element CELLS; a slice
-    /// shares the array's element `Rc`s (so writes through the slice alias the array). The
-    /// interpreter does not distinguish their static type -- indexing and `.len` work the
-    /// same -- which is enough for the slice/array canaries.
     Array(Vec<Cell>),
-    /// A shared or mutable reference with its original endpoint and codec.
     Ref(Reference),
 }
 
@@ -528,8 +475,6 @@ impl Value {
         matches!(self, Self::Float(_) | Self::UndeterminedNaN(_))
     }
 
-    /// Semantic observations do not require a NaN payload. Concrete projections
-    /// continue to use `as_float`, which deliberately declines undetermined NaN.
     pub(crate) fn float_meaning(&self) -> Option<numerics::float_semantics::FloatMeaning> {
         use numerics::float_semantics::FloatMeaning;
         match self {
@@ -538,13 +483,6 @@ impl Value {
         }
     }
 
-    /// Clone with VALUE SEMANTICS: a `Struct`/`Enum`/`Array` gets FRESH element cells (a deep
-    /// copy), so mutating a field of the copy does NOT alias the original. A `Ref` is preserved
-    /// (it shares the referent cell -- a reference aliases by design), and scalars/strings use
-    /// the ordinary derived clone. The derived `Clone` is SHALLOW (it `Rc::clone`s the field
-    /// cells, sharing them), which is correct for `&mut` aliasing but WRONG for a value-semantic
-    /// copy like `self.f = self.arr[1]; self.f.x = 50` -- that must not touch `arr[1]`. Used by
-    /// the evaluator at every value-semantic copy site (assignment, `let` initializer).
     pub(crate) fn deep_clone_with<E>(
         &self,
         allocate: &impl Fn(Value) -> Result<Cell, E>,
@@ -589,8 +527,6 @@ impl Value {
                     })
                     .collect::<Result<_, E>>()?,
             )),
-            // Scalars keep their value; a `Str` keeps its shared buffer (status quo -- not the
-            // subject of this fix); a `Ref` MUST keep sharing the referent cell.
             Value::Unit
             | Value::Int(_)
             | Value::Bool(_)
@@ -601,7 +537,6 @@ impl Value {
         }
     }
 
-    /// Borrow canonical cell storage without inventing a view or copying its value.
     pub fn reference(cell: Cell) -> Self {
         Self::Ref(Reference::new(cell))
     }

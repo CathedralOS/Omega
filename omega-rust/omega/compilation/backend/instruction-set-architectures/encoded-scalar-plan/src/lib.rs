@@ -1,50 +1,55 @@
 #![forbid(unsafe_code)]
 
-//! The encoded-scalar codec program both ISA encoders lay out.
-//!
-//! A load walks the admitted byte count high-to-low and sign-extends the first
-//! byte through constant shifts; a store walks low-to-high under the same count.
-//! The streams differ — x86 bytes are variable-length, AArch64 words are fixed —
-//! but the program a stream realizes is one program, so it is stated here once
-//! and each ISA supplies only its instruction spellings and its terminal step.
-//! Plan branch targets are step indices; each ISA resolves them in its own unit.
+/*
+We define the target-neutral step program (`Step` and `plan`) that both the
+x86-64 and AArch64 selected-form encoders lower when realizing variable-width
+encoded scalar loads and stores (`LoadEncodedScalar` and `StoreEncodedScalar`).
+A load walks the admitted byte count from high byte to low byte and sign-extends
+the leading byte through constant shifts when the codec word marks the scalar
+signed; a store walks low-to-high under the same byte count. Each instruction
+set supplies only its concrete instruction encodings and terminal load step,
+resolving step-index branch targets in its own stream unit (bytes on x86-64,
+32-bit words on AArch64).
+*/
 
-/// One step of the encoded-scalar codec program.
+/*
+We state the encoded-scalar byte-loop program once in this crate so that two
+architectures with different instruction widths and condition-flag rules cannot
+drift in the byte addresses they access, the order in which they walk multi-byte
+scalars, or how signed and unsigned widths extend into a 64-bit destination
+register. Keeping the step vocabulary and control flow shared reduces each ISA's
+encoded-scalar implementation to a direct one-to-one step table and decoder.
+*/
+
+/*
+`isa-aarch64` and `isa-x86_64` consume `Step` and `plan` in their
+`selected_form_encoding` modules to emit and validate encoded-scalar instruction
+streams. Under the `test-support` feature, our `replay` module executes a
+decoded `Step` stream against a 32-register state array and byte buffer, while
+`harness` drives the shared footprint, sign-extension, bit-flip rejection, and
+scratch-aliasing test sweeps for both architectures.
+*/
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     Zero(u8),
     Copy(u8, u8),
-    /// The admitted byte count: the low byte of the codec word.
     ByteCount(u8, u8),
     SubOne(u8),
     AddOne(u8),
-    /// One byte through a base register and a byte cursor.
     LoadByte(u8, u8, u8),
-    /// One byte through a base register and a byte cursor.
     StoreByte(u8, u8, u8),
     SignByte(u8),
     ShiftLeft8(u8),
     ShiftRight8(u8),
     Or(u8, u8),
     Compare(u8, u8),
-    /// Branch unless the codec word marks the scalar signed.
     TestSigned(u8, usize),
-    /// Branch when a register reached zero.
     ZeroBranch(u8, usize),
-    /// Branch when the byte loop's comparison said less.
     LessBranch(usize),
     Branch(usize),
 }
 
-/// The program the encoded scalar form runs over its six admitted registers, in
-/// operand order.
-///
-/// A load admits `[address, codec, cursor, count, byte, result]` and needs
-/// `finish` as the step its exit label lands on — x86 clears the cursor it
-/// counted down, AArch64 compares so the emitted stream writes the condition
-/// flags the form's footprint claims. A store admits
-/// `[address, codec, value, cursor, count, payload]` and ends in its own
-/// compare-and-branch, so it ignores `finish`.
 pub fn plan(load: bool, registers: [u8; 6], finish: Step) -> Vec<Step> {
     if load {
         let [address, codec, cursor, count, byte, result] = registers;
@@ -81,23 +86,13 @@ pub fn plan(load: bool, registers: [u8; 6], finish: Step) -> Vec<Step> {
     }
 }
 
-/// The two sweeps both instruction sets' encoded-scalar tests run.
 #[cfg(feature = "test-support")]
 pub mod harness;
 
-/// Replay of a decoded codec stream: the ISA crates' encoder tests run the
-/// program a stream decodes to, and check the bytes it touches.
 #[cfg(feature = "test-support")]
 pub mod replay {
     use crate::Step;
 
-    /// Run `bytes` through `decode` against the register file and memory, and
-    /// report the byte addresses the program touched, in order.
-    ///
-    /// `decode` reports the step at a stream position and the position that
-    /// follows it; `slots` is the stream length in that same unit. x86 positions
-    /// are byte offsets and AArch64 positions are word indices, so the unit
-    /// belongs to the decoder that reads the stream.
     pub fn execute(
         bytes: &[u8],
         slots: usize,

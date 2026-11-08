@@ -1,3 +1,10 @@
+/*
+We derive the exact machine, object, and final-image byte spans for surviving
+operator-application occurrences, covering both checked call realizations and
+compiler-intrinsic integer and IEEE floating-point comparisons across ordinary
+and fragment-published object routes.
+*/
+
 use super::derivation::hashing::sha256;
 use boundary_applications::BoundaryApplicationRealization;
 use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
@@ -5,14 +12,12 @@ use target::{Architecture, NativeTarget};
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
 
-pub(super) mod fragment_call;
-mod fragment_comparison;
-
 pub(super) use super::derivation::evidence::{ranges_overlap, span, text_relocation_overlaps};
 use super::{
     NativeByteSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition, native_byte_span,
     sole_terminal_operation,
 };
+
 pub(super) struct OperatorPhysicalSpan {
     pub machine: NativeByteSpan,
     pub object: NativeByteSpan,
@@ -23,35 +28,361 @@ pub(super) struct OperatorPhysicalSpan {
     pub relocation: PhysicalRelocationDisposition,
 }
 
-/// The occurrence's emitted bytes must rejoin exactly one machine/object/
-/// final-image span, and `Ok(None)` remains a witnessed gap — it becomes
-/// `UnsupportedOperatorSpan`, never an erasure.
-///
-/// Reachability is upstream of this table, and on the current surface it is
-/// narrower than the match arms suggest. A `boundary machine` requirement
-/// spelled like an operator emits a `BoundaryCall` operation — the
-/// boundary-settlement lane owns it, not the operator lane — while named
-/// `boundary operator` calls in local initializers stop at statement-sequence
-/// planning (`call: flow call`) and spelled `boundary operator` uses stop at
-/// scalar-local admission (`pure initializer`).
-/// Of the remaining `ExactCompilerIntrinsic` families, only the float and
-/// integer comparisons are producible: they are the only intrinsic
-/// realizations with a Terminal operation of their own, and Psi 08's
-/// occurrence replay rebuilds only them. Float arithmetic, negation,
-/// conversion and builtins have no Terminal operation to bind, and Terminal
-/// nearest-FMA is refused at comparison-coverage settlement for lack of
-/// selected-provider custody. A selected float guard over receiver fields
-/// stops earlier still, at Psi 06 scalar field observation. The `Call*` arms
-/// still bind replayed artifacts naming them; extending the intrinsic arms before an
-/// occurrence exists would dead-code this lane, so the arm to extend is
-/// whichever family the next replay change first makes survivable.
-///
-/// Production native publication admits physical evidence only through
-/// `NativePhysicalEvidenceScope::from_validated_fragment_publication`, so
-/// `fragment_publication` is true on every compiler-produced artifact; the
-/// non-fragment arms serve the constructed optimized and unoptimized scopes.
-/// The driver's `boundary_internal_call_evidence` test witnesses the
-/// fragment comparison arm end to end on both canonical architectures.
+pub(super) mod fragment_call {
+    use super::{
+        Architecture, CallSiteOwner, NativeTarget, OperationKind, OperatorPhysicalSpan,
+        OptimizedOperatorOccurrence, PhysicalRelocationDisposition, SectionKind, derive_span,
+        ranges_overlap,
+    };
+
+    pub(super) fn derive(
+        occurrence: &OptimizedOperatorOccurrence,
+        operation: &terminal_psi::Operation,
+        target: NativeTarget,
+        object: &image_emission::ObjectArtifact,
+        image: &image::EmittedImageOutput,
+    ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
+        let expected_callee = match operation.kind {
+            OperationKind::Call { callee, .. }
+            | OperationKind::CallUnit { callee, .. }
+            | OperationKind::CallStructural { callee, .. }
+            | OperationKind::CallStructuralScalar { callee, .. }
+            | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
+            _ => return Ok(None),
+        };
+        let function = object
+            .function_on_machine(occurrence.machine())
+            .ok_or("D29 fragment call names an absent caller")?;
+        let mut calls = function
+            .unit_call_stacks
+            .iter()
+            .map(|call| (call.owner, call.target, call.text_offset))
+            .chain(
+                function
+                    .scalar_call_stacks
+                    .iter()
+                    .map(|call| (call.owner, call.target, call.text_offset)),
+            )
+            .filter(|(owner, _, _)| *owner == CallSiteOwner::Operation(occurrence.operation()));
+        let (_, call_target, call_offset) = calls
+            .next()
+            .ok_or("D29 fragment call has no exact stack/call record")?;
+        if calls.next().is_some() || call_target != expected_callee {
+            return Err("D29 fragment call changed its unique owner or callee");
+        }
+        let callee = object
+            .function_on_machine(expected_callee)
+            .ok_or("D29 fragment call names an absent callee")?;
+        let opcode = match target.architecture {
+            Architecture::X86_64 => call_offset.checked_sub(1),
+            Architecture::Aarch64 => Some(call_offset),
+        }
+        .ok_or("D29 fragment call opcode offset underflow")?;
+        let end = call_offset
+            .checked_add(4)
+            .ok_or("D29 fragment call extent overflow")?;
+        let bytes = object
+            .text_bytes()
+            .get(opcode..end)
+            .ok_or("D29 fragment call is outside object text")?;
+        validate_destination(target.architecture, opcode, bytes, callee.text_offset)?;
+        let mut attribution = object.semantic_code_attribution().iter().filter(|row| {
+            row.machine == function.machine
+                && row.attribution.site
+                    == machine_code::SemanticCodeSite::Operation(occurrence.operation())
+                && row.attribution.operation_ordinal == occurrence.operation_ordinal()
+                && row.text_offset <= opcode
+                && row
+                    .text_offset
+                    .checked_add(row.attribution.byte_count)
+                    .is_some_and(|limit| end <= limit)
+        });
+        let row = attribution
+            .next()
+            .ok_or("D29 fragment call lacks its exact semantic interval")?;
+        if attribution.next().is_some()
+            || function
+                .text_offset
+                .checked_add(row.attribution.code_offset)
+                != Some(row.text_offset)
+            || object.relocations().records().any(|(_, relocation)| {
+                relocation.section == SectionKind::Text
+                    && ranges_overlap(
+                        opcode,
+                        end,
+                        relocation.offset,
+                        relocation.offset.saturating_add(relocation.byte_width),
+                    )
+            })
+        {
+            return Err("D29 resolved fragment call has ambiguous attribution or a relocation");
+        }
+        derive_span(
+            function,
+            row.attribution.code_offset,
+            row.attribution.byte_count,
+            object,
+            image,
+            PhysicalRelocationDisposition::ResolvedInternalCall,
+            &[],
+        )
+        .map(Some)
+    }
+
+    pub(crate) fn validate_destination(
+        architecture: Architecture,
+        opcode: usize,
+        bytes: &[u8],
+        callee: usize,
+    ) -> Result<(), &'static str> {
+        let destination = match architecture {
+            Architecture::X86_64 => {
+                let [0xe8, first, second, third, fourth] = bytes else {
+                    return Err("resolved internal call is not an x86 relative call");
+                };
+                opcode as i128
+                    + 5
+                    + i128::from(i32::from_le_bytes([*first, *second, *third, *fourth]))
+            }
+            Architecture::Aarch64 => {
+                let word = u32::from_le_bytes(
+                    bytes
+                        .try_into()
+                        .map_err(|_| "resolved internal call width changed")?,
+                );
+                if word & 0xfc00_0000 != 0x9400_0000 || !opcode.is_multiple_of(4) {
+                    return Err("resolved internal call is not an aligned Arm64 BL");
+                }
+                let displacement = ((word << 6) as i32 >> 6) as i64 * 4;
+                opcode as i128 + i128::from(displacement)
+            }
+        };
+        if destination != callee as i128 {
+            return Err("resolved internal call displacement names a different callee");
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{Architecture, validate_destination};
+
+        #[test]
+        fn resolved_call_destination_is_exact_on_both_targets() {
+            assert!(validate_destination(Architecture::X86_64, 8, &[0xe8, 3, 0, 0, 0], 16).is_ok());
+            assert!(
+                validate_destination(Architecture::X86_64, 8, &[0xe8, 3, 0, 0, 0], 17).is_err()
+            );
+            assert!(
+                validate_destination(Architecture::Aarch64, 8, &0x9400_0002_u32.to_le_bytes(), 16)
+                    .is_ok()
+            );
+            assert!(
+                validate_destination(Architecture::Aarch64, 8, &0x9400_0002_u32.to_le_bytes(), 20)
+                    .is_err()
+            );
+            assert!(
+                validate_destination(Architecture::Aarch64, 16, &0x97ff_fffe_u32.to_le_bytes(), 8)
+                    .is_ok()
+            );
+            assert!(
+                validate_destination(Architecture::Aarch64, 8, &0x1400_0002_u32.to_le_bytes(), 16)
+                    .is_err()
+            );
+        }
+    }
+}
+
+mod fragment_comparison {
+    use super::{
+        OperatorPhysicalSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition,
+        SectionKind, derive_span, ranges_overlap,
+    };
+    use image_emission::ObjectCodeAttribution;
+    use machine_code::SemanticCodeSite;
+    use semantic_vocabulary::{MachineId, OperationId};
+
+    pub(super) fn derive(
+        occurrence: &OptimizedOperatorOccurrence,
+        object: &image_emission::ObjectArtifact,
+        image: &image::EmittedImageOutput,
+    ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
+        let mut functions = object
+            .functions()
+            .iter()
+            .filter(|function| function.machine == occurrence.machine());
+        let function = functions
+            .next()
+            .ok_or("D29 comparison names an absent object function")?;
+        if functions.next().is_some() {
+            return Err("D29 comparison names duplicate object functions");
+        }
+        let (offset, length) = comparison_interval(
+            occurrence.machine(),
+            occurrence.operation(),
+            occurrence.operation_ordinal(),
+            function.text_offset,
+            function.byte_count,
+            object.semantic_code_attribution(),
+        )?;
+        let start = function
+            .text_offset
+            .checked_add(offset)
+            .ok_or("D29 comparison text offset overflow")?;
+        let end = start
+            .checked_add(length)
+            .ok_or("D29 comparison text end overflow")?;
+        if object.relocations().records().any(|(_, relocation)| {
+            relocation.section == SectionKind::Text
+                && ranges_overlap(
+                    start,
+                    end,
+                    relocation.offset,
+                    relocation.offset.saturating_add(relocation.byte_width),
+                )
+        }) {
+            return Err("D29 comparison direct bytes contain a relocation");
+        }
+        derive_span(
+            function,
+            offset,
+            length,
+            object,
+            image,
+            PhysicalRelocationDisposition::DirectInstructionBytes,
+            &[],
+        )
+        .map(Some)
+    }
+
+    fn comparison_interval(
+        machine: MachineId,
+        operation: OperationId,
+        ordinal: usize,
+        function_offset: usize,
+        function_length: usize,
+        rows: &[ObjectCodeAttribution],
+    ) -> Result<(usize, usize), &'static str> {
+        let site = SemanticCodeSite::Operation(operation);
+        let mut first = None;
+        let mut end = 0usize;
+        for row in rows
+            .iter()
+            .filter(|row| row.machine == machine && row.attribution.site == site)
+        {
+            let attribution = &row.attribution;
+            let row_end = attribution
+                .code_offset
+                .checked_add(attribution.byte_count)
+                .ok_or("D29 comparison interval overflow")?;
+            if attribution.operation_ordinal != ordinal
+                || attribution.byte_count == 0
+                || row_end > function_length
+                || function_offset.checked_add(attribution.code_offset) != Some(row.text_offset)
+                || first.is_some() && attribution.code_offset < end
+            {
+                return Err("D29 comparison changed its exact interval coordinates");
+            }
+            first.get_or_insert(attribution.code_offset);
+            end = row_end;
+        }
+        let first = first.ok_or("D29 comparison lacks semantic code attribution")?;
+        let start = function_offset
+            .checked_add(first)
+            .ok_or("D29 comparison start overflow")?;
+        let limit = function_offset
+            .checked_add(end)
+            .ok_or("D29 comparison end overflow")?;
+        for row in rows {
+            if row.machine == machine && row.attribution.site == site {
+                continue;
+            }
+            let row_end = row
+                .text_offset
+                .checked_add(row.attribution.byte_count)
+                .ok_or("D29 neighboring attribution overflow")?;
+            if ranges_overlap(start, limit, row.text_offset, row_end)
+                || row.attribution.byte_count == 0
+                    && start < row.text_offset
+                    && row.text_offset < limit
+            {
+                return Err("D29 comparison interval absorbs another semantic site");
+            }
+        }
+        Ok((first, end - first))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{
+            MachineId, ObjectCodeAttribution, OperationId, SemanticCodeSite, comparison_interval,
+        };
+
+        fn row(offset: usize, length: usize) -> ObjectCodeAttribution {
+            ObjectCodeAttribution {
+                machine: MachineId::new(1).unwrap(),
+                attribution: machine_code::SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(OperationId::new(2).unwrap()),
+                    operation_ordinal: 3,
+                    code_offset: offset,
+                    byte_count: length,
+                },
+                text_offset: 100 + offset,
+            }
+        }
+
+        fn check(rows: &[ObjectCodeAttribution]) -> Result<(usize, usize), &'static str> {
+            comparison_interval(
+                MachineId::new(1).unwrap(),
+                OperationId::new(2).unwrap(),
+                3,
+                100,
+                64,
+                rows,
+            )
+        }
+
+        #[test]
+        fn comparison_child_covers_all_intervals_and_private_spill_gaps() {
+            assert_eq!(check(&[row(8, 12)]), Ok((8, 12)));
+            assert_eq!(check(&[row(8, 12), row(24, 16)]), Ok((8, 32)));
+            assert_eq!(check(&[row(8, 12), row(20, 16)]), Ok((8, 28)));
+        }
+
+        #[test]
+        fn comparison_child_rejects_hostile_coordinates_and_foreign_sites() {
+            assert!(check(&[]).is_err());
+            for mutation in 0..8 {
+                let mut rows = vec![row(8, 12), row(24, 16)];
+                match mutation {
+                    0 => rows[0].attribution.operation_ordinal += 1,
+                    1 => rows[0].text_offset += 1,
+                    2 => rows[0].attribution.byte_count = 0,
+                    3 => rows[1] = row(16, 16),
+                    4 => rows[1] = row(60, 16),
+                    5 => rows.swap(0, 1),
+                    6 => rows[1].attribution.code_offset = usize::MAX,
+                    _ => rows
+                        .iter_mut()
+                        .for_each(|row| row.machine = MachineId::new(9).unwrap()),
+                }
+                assert!(check(&rows).is_err(), "coordinate mutation {mutation}");
+            }
+            for (site, width) in [
+                (SemanticCodeSite::Operation(OperationId::new(7).unwrap()), 4),
+                (
+                    SemanticCodeSite::Edge(semantic_vocabulary::EdgeId::new(7).unwrap()),
+                    0,
+                ),
+            ] {
+                let mut foreign = row(21, width);
+                foreign.attribution.site = site;
+                assert!(check(&[row(8, 12), row(24, 16), foreign]).is_err());
+            }
+        }
+    }
+}
+
 pub(super) fn derive_operator_physical_span(
     occurrence: &OptimizedOperatorOccurrence,
     realization: &BoundaryApplicationRealization,
@@ -234,9 +565,6 @@ fn validate_checked_call_relocation(
     Ok(())
 }
 
-/// Selected integer comparisons emit instruction-only operations with no
-/// dedicated roster; the exact span is the provenance-attributed byte
-/// interval for the surviving Terminal operation.
 fn derive_integer_comparison_span(
     occurrence: &OptimizedOperatorOccurrence,
     execution: &effects::CompilerIntrinsicExecutionIdentity,

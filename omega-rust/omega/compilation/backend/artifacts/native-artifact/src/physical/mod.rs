@@ -1,51 +1,77 @@
-//! Native physical evidence: for each operation that survives optimization,
-//! the machine, object and final-image byte spans that realize it, bound to
-//! the operator or boundary occurrence it realizes.
-//!
-//! This file defines the evidence records: the surviving occurrence roster
-//! (`NativeOptimizationProjection`), the validated scope that admits it
-//! (`ValidatedOptimizedNativePhysicalEvidenceScope`), each physical child
-//! with its parent, spans, byte digests and relocation disposition
-//! (`NativePhysicalChild`), boundary settlements, normalized foreign call
-//! relocations and import fields, and the gap that
-//! names where a derivation stopped (`NativePhysicalEvidenceGap`). Their
-//! fields are private. The constructor functions at the end of this file are
-//! used only by the children below; code outside `physical` reads the
-//! records, and several public records can be rebuilt from replayed parts.
-//!
-//! One entry is called from `native_artifact`:
-//!
-//! - `derive_physical_evidence` (`derivation`) derives the evidence for an
-//!   emitted artifact within its scope: one child per boundary occurrence,
-//!   from its installed settlement, its normalized foreign call, or an
-//!   installed provider realized as a resolved internal call; a check that
-//!   every retained privileged port effect was consumed by a settlement; then
-//!   one child per operator occurrence, whose spans `operator_applications`
-//!   derives. It returns `Complete` evidence,
-//!   `Blocked` with a gap naming the first occurrence or retained record it
-//!   could not bind, or `Unavailable` when the scope admits no derivation.
-//!   The native artifact types call it when built from emitted parts, when
-//!   rebuilt from replayed parts and when validated.
-//!
-//! Two further scope entries have no caller at this revision:
-//! `derive_validated_optimization_scope` (`projection`) and
-//! `derive_fragment_publication_scope` (`fragment_publication`). The latter is
-//! referenced only by
-//! `NativePhysicalEvidenceScope::from_validated_fragment_publication`, which
-//! nothing calls, and the former is reached only through it; so
-//! `ValidatedOptimizedProjection` has no constructor. They are unwired, not
-//! superseded: the retained fragment-publication custody that only they build
-//! is what the surviving `UnoptimizedCompleteBoundaryEvidence` scope lacks for
-//! three boundary lanes — an installed-provider internal call, a structural
-//! boundary result, and a kernel entry without a symbolic import, each of
-//! which rejoins selected-plan rows no other input carries. Wiring that
-//! custody to the surviving route is what lets the optimized scope and
-//! `projection.rs` be deleted; deleting them first removes those lanes
-//! instead.
+/*
+We define the native physical evidence records and constructors that bind each
+surviving optimized operator or boundary occurrence to its exact machine,
+object, and final-image byte spans, byte digests, and relocation disposition.
+Every record field stays private to this module so replay paths cannot
+manufacture optimizer or derivation authority outside our scoped constructors.
+*/
 
-mod derivation;
+pub(crate) mod derivation {
+    pub(crate) mod evidence;
+    pub(super) mod foreign_calls;
+    pub(super) mod fragment_custody;
+    pub(crate) mod hashing;
+    pub(super) mod hosted_builtins;
+    pub(super) mod internal_calls;
+    pub(super) mod provider_custody;
+    pub(super) mod provider_settlements;
+    pub(super) mod settlement_identity;
+    #[cfg(test)]
+    mod tests;
+
+    pub(crate) use evidence::{NativePhysicalEvidenceDerivation, derive_physical_evidence};
+}
 mod fragment_publication;
-mod identity_bytes;
+pub(crate) mod identity_bytes {
+    use super::canonical_usize;
+
+    pub(crate) fn terminal_identity_bytes(terminal: terminal_psi::TerminalPsiIdentity) -> Vec<u8> {
+        let mut canonical = Vec::with_capacity(40);
+        crate::codec_bytes::push_encoded(
+            &mut canonical,
+            terminal.vocabulary_marker.get().to_le_bytes(),
+        );
+        canonical.extend_from_slice(terminal.program_fingerprint.as_bytes());
+        canonical
+    }
+
+    pub(crate) fn append_operator_occurrence_identity(
+        canonical: &mut Vec<u8>,
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        operation_ordinal: usize,
+    ) {
+        crate::codec_bytes::push_encoded(canonical, machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(canonical, operation.get().to_le_bytes());
+        canonical.extend_from_slice(&canonical_usize(operation_ordinal));
+    }
+
+    pub(crate) fn append_boundary_occurrence_identity(
+        canonical: &mut Vec<u8>,
+        machine: semantic_vocabulary::MachineId,
+        site: impl Into<semantic_vocabulary::InvocationSite>,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        operation_ordinal: usize,
+    ) {
+        crate::codec_bytes::push_encoded(canonical, machine.get().to_le_bytes());
+        match site.into() {
+            semantic_vocabulary::InvocationSite::Operation(operation) => {
+                canonical.push(0);
+                crate::codec_bytes::push_encoded(canonical, operation.get().to_le_bytes());
+            }
+            semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+                canonical.push(1);
+                crate::codec_bytes::push_encoded(canonical, edge.get().to_le_bytes());
+            }
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+                canonical.push(2);
+                crate::codec_bytes::push_encoded(canonical, edge.get().to_le_bytes());
+            }
+        }
+        crate::codec_bytes::push_encoded(canonical, boundary.get().to_le_bytes());
+        canonical.extend_from_slice(&canonical_usize(operation_ordinal));
+    }
+}
 mod operator_applications;
 #[expect(
     dead_code,
@@ -135,9 +161,6 @@ impl OptimizedBoundaryOccurrence {
         self.identity
     }
 
-    /// The gap-report spelling of this occurrence's four identity fields —
-    /// every boundary-occurrence gap names its site the same way before its
-    /// own reason clause.
     pub fn label(&self) -> String {
         format!(
             "boundary occurrence on machine {} site {} boundary {} ordinal {}",
@@ -173,8 +196,6 @@ impl OptimizedOperatorOccurrence {
     }
 }
 
-/// Exact optimized-operation survivor roster used to derive D32 children.
-/// Identity and non-identity optimization lanes share this representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeOptimizationProjection {
     terminal: TerminalPsiIdentity,
@@ -201,13 +222,6 @@ impl NativeOptimizationProjection {
     }
 }
 
-/// Opaque native custody for one independently validated optimized abstract
-/// projection and its exact surviving D29/D41 occurrence set.
-///
-/// Construction is owned by [`crate::NativePhysicalEvidenceScope`]. Keeping
-/// every field private prevents replay parts from manufacturing optimizer
-/// authority; callers may only retain or move a value issued by that
-/// constructor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedOptimizedNativePhysicalEvidenceScope {
     validation: OptimizedAbstractPlanProjectionIdentity,
@@ -237,8 +251,6 @@ impl ValidatedOptimizedNativePhysicalEvidenceScope {
         self.publication.as_ref()
     }
 
-    /// Foreign-call custody projected at publication time. Empty for scopes
-    /// that never replayed a fragment publication source.
     pub(crate) fn foreign_call_custody(&self) -> &[image_emission::ObjectForeignCall] {
         self.publication
             .as_ref()
@@ -256,36 +268,20 @@ pub struct BoundaryTraitSettlement {
     identity: [u8; 32],
 }
 
-/// Scalar-argument custody one hosted builtin settlement retained. The two
-/// shapes cover the argument rosters the settlement record can fill: a
-/// compile-time scalar row or one emitted runtime scalar source record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CompilerBuiltinScalarArgument {
-    /// One compile-time scalar argument: the exact value, type, immediate,
-    /// and ABI destination the settlement declared.
     Immediate(BoundaryScalarArgument),
-    /// One runtime scalar argument retained by its emitted source record.
     RuntimeScalar(machine_code::ForeignCallScalarArgumentRecord),
 }
 
-/// Result custody one hosted builtin settlement retained.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CompilerBuiltinResult {
-    /// The builtin settles with a unit result and retains no result record.
     Unit,
-    /// The builtin writes one exact structural result into its caller home.
     Structural(machine_code::BoundaryStructuralResultRecord),
 }
 
-/// Complete role-specific D41 custody. Installed provider authority and the
-/// consuming lowerer's builtin catalog remain disjoint and cannot substitute
-/// for one another.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BoundaryTraitSettlementRole {
-    /// One hosted builtin settlement bound by its declared scalar-argument and
-    /// result shapes. A further hosted builtin needs no new role variant: the
-    /// custody kinds below already cover the argument and result shapes the
-    /// settlement record can carry.
     CompilerBuiltin {
         catalog: NativeCompilerBuiltinCatalogIdentity,
         execution: target_operations::CompilerBuiltinExecution,
@@ -297,29 +293,11 @@ pub(crate) enum BoundaryTraitSettlementRole {
         execution: ProviderExecutionBinding,
         realization: NormalizedForeignCallBinding,
     },
-    /// Exact installed provider settlement realized in place by a supported
-    /// target mechanism: a privileged metadata-only port effect, a direct
-    /// port read, a Linux write-line byte custody, or a claim completion.
-    /// The complete retained settlement row stays with the role so replay
-    /// cannot substitute its realization, argument, completion, result, or
-    /// source coordinates; a joined privileged port effect is retained beside
-    /// it rather than widening the occurrence roster.
     AdmittedProviderSettlement {
         execution: ProviderExecutionBinding,
         settlement: machine_code::BoundarySettlementRecord,
-        /// Exact privileged port effect joined to a `MetadataOnlyPort`
-        /// settlement; `None` for every other admitted realization.
         port_effect: Option<machine_code::PortEffectRecord>,
     },
-    /// One installed provider boundary call realized as an ordinary resolved
-    /// internal call into its selected checked-machine candidate. The
-    /// retained object call-stack row names the owner operation and the
-    /// callee machine; the selected Terminal conformance row rejoins the
-    /// exact choosing declaration, provider and candidate identities. The
-    /// physical parent commits that declaration even when code is shared.
-    /// An in-module provider call
-    /// crosses no external boundary and carries no external execution
-    /// binding, so this role retains none.
     InstalledProviderInternalCall {
         boundary: BoundaryMachineId,
         provider_declaration: String,
@@ -329,28 +307,19 @@ pub(crate) enum BoundaryTraitSettlementRole {
     },
 }
 
-/// Retained call custody for a selected boundary callee realized as
-/// an ordinary internal call. The variants mirror the caller's retained
-/// object call-stack record family: an aggregate-frame Unit caller keeps its
-/// frame terms, a scalar caller keeps caller-live bytes only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BoundaryInternalCallCustody {
-    /// Call-site custody of the `ObjectUnitCallStack` family.
     Unit {
         owner: CallSiteOwner,
         target: MachineId,
-        /// Absolute object `.text` offset of the call's mutable field: the
-        /// x86-64 rel32 displacement or the Aarch64 BL immediate bits.
         call_field_offset: usize,
         active_frame_bytes: u32,
         transient_bytes: u32,
         caller_live_bytes: u32,
     },
-    /// Call-site custody of the `ObjectScalarCallStack` family.
     Scalar {
         owner: CallSiteOwner,
         target: MachineId,
-        /// Absolute object `.text` offset of the call's mutable field.
         call_field_offset: usize,
         caller_live_bytes: u32,
     },
@@ -362,9 +331,6 @@ impl BoundaryTraitSettlement {
     }
 }
 
-/// Physical custody for a checked target-family member. This parent records
-/// selection from the immutable canonical roster, not provider installation
-/// or external execution authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetFamilyInternalCall {
     terminal: TerminalPsiIdentity,
@@ -403,9 +369,6 @@ impl PhysicalChildParent {
         }
     }
 
-    /// The semantic occurrence class is independent from the physical parent
-    /// kind encoded in its digest. Both family selection and provider settlement
-    /// retain an ordinary boundary occurrence, with distinct selection custody.
     pub(crate) const fn occurrence_role_tag(&self) -> u8 {
         match self {
             Self::OperatorApplicationCoverage(_) => 1,
@@ -441,16 +404,9 @@ pub enum PhysicalRelocationDisposition {
     DirectInstructionBytes,
     ResolvedInternalCall,
     UnresolvedNormalizedForeignCall(NormalizedForeignCallRelocation),
-    /// Fragment-publication custody: the call's import field lives in the
-    /// retained relocation-free object plan, which owns the unresolved field
-    /// row and declared import symbol in place of object relocation records.
     UnresolvedNormalizedForeignCallImportField(NormalizedForeignCallImportField),
 }
 
-/// Exact unresolved import relocation retained by one normalized-foreign D41
-/// child. The parent owns the complete locator and boundary contract; their
-/// strong identities are repeated here to bind that semantic parent to this
-/// object symbol and final-image relocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedForeignCallRelocation {
     locator_identity: [u8; 32],
@@ -465,10 +421,6 @@ pub struct NormalizedForeignCallRelocation {
     final_image_symbol_identity: [u8; 32],
 }
 
-/// Exact private-function relocation custody for the one direct callback
-/// shape admitted by normalized foreign calls. The closed variants mirror the
-/// two architecture-native encodings; no open-ended mutable relocation list
-/// can be smuggled into D32 evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NormalizedForeignCallbackRelocations {
     X86_64Relative32 {
@@ -482,8 +434,6 @@ pub enum NormalizedForeignCallbackRelocations {
     },
 }
 
-/// One exact object relocation targeting a compiler-private callback
-/// function. Construction remains derivation-owned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NormalizedForeignCallbackRelocation {
     object_symbol: object_file::ObjectSymbolHandle,
@@ -494,9 +444,6 @@ pub struct NormalizedForeignCallbackRelocation {
     kind: object_file::RelocationKind,
 }
 
-/// `pub const fn field(&self) -> T { self.field }` for every carried `Copy`
-/// field. The relocation columns are one custody shape, so each record that
-/// carries them names them once here instead of spelling the getters out.
 macro_rules! copied_accessors {
     ($($name:ident : $ty:ty),* $(,)?) => {
         $(
@@ -520,12 +467,6 @@ impl NormalizedForeignCallbackRelocation {
 
 impl NormalizedForeignCallbackRelocations {}
 
-/// Exact unresolved import-field custody retained by one normalized-foreign
-/// D41 child realized through fragment publication. The relocation-free
-/// object plan binds the `{caller, operation}` field owner and the declared
-/// import symbol directly; the parent locator and boundary-contract
-/// identities are repeated here so the field record cannot be rebound to a
-/// different call or contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NormalizedForeignCallImportField {
     locator_identity: [u8; 32],
@@ -641,9 +582,6 @@ impl NativePhysicalOccurrence {
     }
 }
 
-/// One occurrence's exact ordered covered union. Allocation may insert
-/// compiler-only instructions between its ABI transport and result capture;
-/// those gaps are excluded rather than absorbed into a semantic span hull.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePhysicalChild {
     parent: PhysicalChildParent,
@@ -672,7 +610,6 @@ impl NativePhysicalChild {
         self.occurrence
     }
 
-    /// Ordered exact covered intervals; compiler-only gaps are not source work.
     pub(crate) fn machine_spans(&self) -> &[NativeByteSpan] {
         &self.machine_spans
     }
@@ -792,45 +729,24 @@ pub struct NativePhysicalEvidenceParts {
     pub identity: [u8; 32],
 }
 
-/// The exact subject that stopped a scoped physical-evidence derivation
-/// before it could bind every surviving occurrence to a physical child.
-///
-/// Scoped evidence is all-or-nothing: the first occurrence or retained record
-/// that cannot be bound blocks the whole derivation, and the gap names that
-/// subject rather than exposing a bare absence. Every variant carries enough
-/// coordinate custody to rejoin the exact Terminal operation or retained
-/// object record independently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativePhysicalEvidenceGapSubject {
-    /// A normalized foreign call is owned by a cleanup action rather than an
-    /// operation, so no surviving boundary occurrence can claim it.
     ForeignCallSiteOwner {
         machine: MachineId,
         owner: CallSiteOwner,
     },
-    /// A surviving boundary occurrence's installed settlement carries an
-    /// execution and realization pair no supported child arm admits.
     UnsupportedSettlementRealization {
         occurrence: OptimizedBoundaryOccurrence,
     },
-    /// A surviving boundary occurrence's normalized foreign call declined the
-    /// normalized-foreign child derivation.
     UnsupportedNormalizedForeignCall {
         occurrence: OptimizedBoundaryOccurrence,
     },
-    /// A surviving boundary occurrence retained no supported realization:
-    /// no installed settlement, no normalized foreign call, and no internal
-    /// call custody a supported arm can bind.
     UnrealizedBoundaryOccurrence {
         occurrence: OptimizedBoundaryOccurrence,
     },
-    /// A surviving operator occurrence's realization declined every physical
-    /// span arm.
     UnsupportedOperatorSpan {
         occurrence: OptimizedOperatorOccurrence,
     },
-    /// A retained privileged port effect was consumed by no exact
-    /// `MetadataOnlyPort` settlement join.
     UnownedPortEffect {
         machine: MachineId,
         psi_operation: OperationId,
@@ -843,9 +759,6 @@ pub enum NativePhysicalEvidenceGapSubject {
     },
 }
 
-/// Canonical name of the subject that stopped one scoped physical-evidence
-/// derivation. The identity binds the complete subject, so an artifact's
-/// identity commits to exactly where its evidence stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativePhysicalEvidenceGap {
     subject: NativePhysicalEvidenceGapSubject,
@@ -857,8 +770,6 @@ impl NativePhysicalEvidenceGap {
         self.subject
     }
 
-    /// The surviving occurrence when the blocking subject is one; `None` for
-    /// retained-record and machine-level subjects.
     pub const fn occurrence(&self) -> Option<NativePhysicalOccurrence> {
         match self.subject {
             NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { .. }
@@ -977,9 +888,6 @@ pub(crate) fn native_byte_span(offset: usize, byte_count: usize) -> NativeByteSp
     NativeByteSpan::from_replayed_parts(offset, byte_count)
 }
 
-/// The one Terminal operation `machine` declares at `operation`: every
-/// physical derivation that rejoins an occurrence to its emitted operation
-/// reads that join here instead of re-walking both rosters per arm.
 pub(crate) fn sole_terminal_operation(
     module: &terminal_psi::TerminalModule,
     machine: MachineId,
@@ -1119,7 +1027,6 @@ fn native_optimization_projection(
     }
 }
 
-// Tests exercise this retained-but-unwired path, so it is dead only outside them.
 #[cfg_attr(
     not(test),
     expect(
@@ -1170,8 +1077,6 @@ fn native_physical_evidence(
     }
 }
 
-/// Construction stays derivation-owned: the identity must be the derivation's
-/// canonical encoding of `subject`, never a caller-asserted digest.
 pub(crate) fn native_physical_evidence_gap(
     subject: NativePhysicalEvidenceGapSubject,
     identity: [u8; 32],

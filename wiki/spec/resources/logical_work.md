@@ -3,13 +3,28 @@
 [Psi product](../terminal-psi/product.md) |
 [Spatial resources](storage.md) | [Observation semantics](../terminal-psi/observations.md)
 
-## Fuel is an accounting domain
+## Work is an accounting domain
 
 A versioned schedule assigns deterministic logical cost to every closed Terminal
-operation and terminator. Fuel is not native instructions, cycles, energy, or
+operation and terminator. Work is not native instructions, cycles, energy, or
 elapsed time. Schedule identity is independent of semantic/program identity.
 Extending the vocabulary requires an explicit cost classification; changing the
-schedule does not change program meaning.
+schedule does not change program meaning. Schedule 1 charges one unit per
+executed Psi operation or taken control-flow edge.
+
+A granted amount is a `work_budget`. Consumed and available amounts are
+`work_used` and `work_remaining`. `WorkSchedule` and `WorkScheduleIdentity`
+identify the versioned charges; `WorkMeter` enforces the budget. `WorkUsage`
+and per-site attribution record consumption; `WorkSettlement` preserves logical
+charges through lowering. A proved maximum is a work bound, distinct from a
+granted budget.
+
+Local, invocation and session budgets retain separate scopes. Replenishing a
+local budget cannot increase the enclosing invocation or session budget. An
+exhaustion diagnostic reports work used, work remaining, the unpaid next charge
+and schedule identity. Remaining units need not be zero when a charge is refused.
+A work-budget pause denotes resumable evaluation only; it is not a source
+suspension or a program result.
 
 An evaluator or bounded compiler/bootstrap service may supply a budget.
 Charge before each semantic site and report deterministic total and per-operation
@@ -17,8 +32,8 @@ and per-edge usage. Evaluated code cannot inspect the remaining budget, branch
 on budget policy, or catch exhaustion as a machine result. Exhaustion is an
 incomplete consumer outcome outside program semantics.
 
-Native execution contains no implicit fuel counter, allowance, sponsor route,
-dispatcher, charge/transfer/resume stub, or fuel-induced suspension. Suspension
+Native execution contains no implicit work counter, budget, sponsor route,
+dispatcher, charge/transfer/resume stub, or work-budget-induced suspension. Suspension
 facts come from real runtime operations. Static bounds and missing static bounds
 alike leave native control flow unchanged. An explicitly authored bounded
 algorithm is a different contract from this invisible service budget.
@@ -32,27 +47,43 @@ turning its policy into language semantics.
 ## Proof discovery and evidence checking
 
 [Index compatibility](../proofs/contracts.md#proved-index-compatibility) separates
-proof discovery from semantic identity and from checking supplied evidence.
+proof discovery from semantic identity and from local checking of proof steps.
 Root [Build proof-work policy](../build/configuration.md#proof-work-policy)
 records the automatic expansion allowance, defaulting to 64 resulting terms
 per product expansion. This is a search-strategy ceiling; it is neither a
-canonical normalization limit nor the Terminal fuel schedule.
+canonical normalization limit nor the Terminal work schedule.
 
 Sponsor discovery as compiler work and retain its exact scope, effective
 policy, algorithm/accounting version, usage and outcome. Proof-engine work
-does not silently acquire runtime fuel units: use a named versioned compiler
+does not silently acquire runtime work units: use a named versioned compiler
 account, with its resource bounds/receipts, and charge before admitted work.
 An increased expansion allowance does not waive another work or storage limit.
 Missing proof or exhausted resources cannot establish a negative proposition.
 
-A successfully checked compatibility derivation is evidence, not a record that
-a search once returned true. Generic substitution carries that derivation.
-A published artifact consumer verifies its evidence under ordinary trust and
-verification-resource admission without rerunning discovery under the consumer's
-search limit. Importing a proof does not charge historical producer search.
-Local cached work remains subject to
+A successful compatibility judgment survives exact generic substitution. A
+host-authorized consumer of the trusted producer's exact artifact reuses it
+without repeating proof discovery. A smaller receiving discovery budget cannot
+invalidate that reuse. Neither a work receipt nor a success flag establishes
+producer trust. Local cached work follows
 [usage-record accounting](../language/evaluation.md#result-caching-and-published-evidence).
-Verification exhaustion must be diagnosed separately from unsuccessful search.
+
+## Loading and interpreter checks
+
+External loading and preparation have a host-granted aggregate work budget,
+separate from source proof-discovery limits and executed-program work. Charge
+parsing, canonicalization, structural validation and execution preparation before
+the work, including descriptor and entailment analysis. Per-query limits remain
+useful but do not replace the aggregate budget. Report exhaustion as a resource
+refusal, distinct from malformed input, unsupported semantics or a false predicate.
+
+Interpreter dispatch retains concrete safety and closed actual-value checks,
+with accounted work limits. Static declaration analysis belongs to preparation;
+repeated execution adds no proof search or scans over whole declaration tables.
+Ordinary traversal of runtime data still consumes its normal work. The operation
+schedule alone is not a bound on all implementation or host-service cost.
+Installed adapters enforce host-work quotas and outstanding-resource limits;
+a guest work meter cannot preempt a synchronous host call or reclaim storage
+still held by a provider. See [embedding](../build/embedding.md#loading-and-preparation).
 
 ## Composition and charged work
 
@@ -81,7 +112,7 @@ the enclosing machine contract.
 Every retained executable operation is charged, including each arithmetic
 operation, cast, widen, shift, call, and ordinary value leaf. `ReturnUnit` charges
 one normal-return edge and no invented value-producing operation. Verifier work
-introduces no executable fuel: equations, interval/preimage/hull calculations,
+introduces no executable work: equations, interval/preimage/hull calculations,
 correlation and cancellation proofs, carrier intersections, and checked
 substitution are proof work, not hidden program operations. Proving a retained
 operation redundant does not remove its charge. Actual optimization must preserve
@@ -138,7 +169,7 @@ Selected-point reports distinguish:
   publishes no finite bound.
 
 None of these analysis verdicts creates an execution outcome or runtime meter.
-A fixed-fuel request still rejects if no numeric certificate can be built.
+A fixed-work request still rejects if no numeric certificate can be built.
 
 ## Response and physical time
 
@@ -149,7 +180,7 @@ root results. Force-terminating a blocked holder does not prove a response bound
 
 A clock/counter measures one observed run. Converting a logical or target-work
 bound to elapsed time needs a separate derived or admitted worst-case timing
-model. Fuel and target WCET optimize different cost functions and may have
+model. Work and target WCET optimize different cost functions and may have
 different maximizing paths. Target analysis must re-search paths and account
 for helper calls, expansions, and other lowering-introduced structure.
 It may reuse enabling facts, not a presumed maximizing path, from Psi evidence.

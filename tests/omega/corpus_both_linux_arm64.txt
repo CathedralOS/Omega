@@ -330,7 +330,7 @@ pass/borrows/borrowed_record_stack_parameter_writeback_exit built 7944ms exit:70
 pass/borrows/borrowed_sum_dispatch checked 2027ms @6e42425cd720
 pass/borrows/borrowed_window_parameter_provenance_exit built 2161ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/boundary_scalar_slice_write_exit built 1987ms interpreter-exit:0 @6e42425cd720
-pass/borrows/branch_selected_record_composed_receiver_exit built 7759ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
+pass/borrows/branch_selected_record_composed_receiver_exit built 20386ms exit:70 interpreter-exit:70 interpreter:agrees @0d70a8a6a5ee
 pass/borrows/branch_selected_record_receiver_exit built 7580ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/borrows/callee_returned_shared_reborrow_chain_exit built 2019ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/captured_state_shared_reborrow built 1978ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -343,7 +343,7 @@ pass/borrows/collection_element_loans_exit built 1983ms exit:0 interpreter-exit:
 pass/borrows/completed_reference_read_preserves_prefix built 1938ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/completed_reference_result_preserves_input_holds_exit built 1928ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/completed_selector_join_pattern_effect_exit built 2002ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/borrows/completed_selector_value_composition_exit built 1942ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/borrows/completed_selector_value_composition_exit built 6766ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
 pass/borrows/conditional_copied_slot_restores_parent_exit incomplete 1906ms interpreter:unchecked @6e42425cd720
 	`selected` has no executable body: this compiler does not lower its declaration of it yet (statement sequence: completion carrier retirement order)
 pass/borrows/constant_shared_boundary_exit built 2266ms interpreter-exit:0 @6e42425cd720
@@ -405,7 +405,7 @@ pass/borrows/nested_array_call_restores_memberships_exit built 1936ms exit:0 int
 pass/borrows/nested_byte_row_forwarded_window_exit built 1936ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/nested_machine_carried_field_replacement_exit built 7459ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/nested_machine_carried_long_cycle_exit built 8428ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/borrows/nested_machine_carried_recurrent_selector_exit built 6976ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/borrows/nested_machine_carried_recurrent_selector_exit built 18944ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
 pass/borrows/nested_machine_unit_output_completed_operand_exit built 7007ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/nested_machine_unit_output_local_destination_exit built 7207ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/nested_machine_unit_output_long_cycle_exit built 10500ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -551,7 +551,7 @@ pass/borrows/runtime_expired_call_carrier_selection_exit built 2025ms exit:0 int
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit built 2126ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_fixed_byte_view_forwarding_exit built 1946ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_formed_child_descriptor_replacement_exit built 2222ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/borrows/runtime_forwarded_indexed_reference_exit built 2020ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/borrows/runtime_forwarded_indexed_reference_exit built 6784ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
 pass/borrows/runtime_forwarded_primitive_state_loan_exit built 7848ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit built 7963ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_forwarded_view_field_domain_exit rejected 8235ms interpreter:unchecked @6e42425cd720
@@ -659,7 +659,7 @@ pass/borrows/runtime_reference_result_case_payload_exit rejected 178ms interpret
 pass/borrows/runtime_released_loan_with_forwarded_view_exit rejected 7652ms interpreter:unchecked @6e42425cd720
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(30)), operation: Some(OperationId(216)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/borrows/runtime_replaced_reference_record_return_exit built 1987ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/borrows/runtime_result_element_call_selector_capture_exit built 1893ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/borrows/runtime_result_element_call_selector_capture_exit built 6463ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
 pass/borrows/runtime_retained_operand_descriptor_cleanup_exit built 2001ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_returned_literal_window_exit built 3753ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.window:unrequested terminal-inspections:match @6e42425cd720
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit built 7954ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
@@ -1576,6 +1576,7 @@ pass/contracts/address_observation_preserves_facts_exit built 1992ms exit:0 inte
 pass/contracts/arith_ensures_selection checked 1844ms @6e42425cd720
 pass/contracts/boolean_result_all_normal_returns_exit built 1907ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/contracts/borrowed_field_ensures checked 1906ms @6e42425cd720
+pass/contracts/borrowed_guarantee_disjoint_field_write_exit built 6764ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
 pass/contracts/call_write_keeps_disjoint_guard_assert_exit built 1934ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/contracts/call_write_keeps_disjoint_guard_exit built 7486ms exit:24 interpreter-exit:24 interpreter:agrees @6e42425cd720
 pass/contracts/carry_contract_decl checked 1821ms @6e42425cd720
@@ -1648,7 +1649,7 @@ pass/contracts/runtime_recursive_result_bound_exit built 1990ms exit:0 interpret
 pass/contracts/runtime_specialized_normal_call_contract_exit built 1995ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/contracts/saved_call_case_guarantee_requires_exit built 2010ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/contracts/saved_case_guarantee checked 1943ms @6e42425cd720
-pass/contracts/scalar_reference_unit_completion_exit built 2049ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/contracts/scalar_reference_unit_completion_exit built 6761ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
 pass/contracts/selected_storage_contract_exit built 2082ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/contracts/shared_field_current_arithmetic checked 1643ms @6e42425cd720
 pass/contracts/static_type_requires_prior_call_exit built 2013ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -2829,15 +2830,15 @@ pass/facts/body_bearing_comparison_through_parameter_exit rejected 8150ms interp
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "completed call scalar operands disagree with the target signature", gap: None })
 	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \\"main\\", reason: \\"completed call scalar operands disagree with the target signature\\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/facts/body_bearing_comparison_through_target_body_exit built 8439ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @6e42425cd720
-pass/facts/borrowed_content_partition_through_call_result_exit built 2957ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/borrowed_content_partition_through_const_name_exit built 3018ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/borrowed_content_partition_through_field_exit built 3095ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/borrowed_content_partition_through_local_exit built 3068ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/borrowed_content_partition_through_match_join_exit built 3248ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/borrowed_content_partition_through_other_machine_exit built 3016ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/borrowed_content_partition_through_other_state_exit built 3283ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/borrowed_content_partition_through_parameter_exit built 2937ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/borrowed_content_partition_through_target_body_exit built 3932ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
+pass/facts/borrowed_content_partition_through_call_result_exit built 7939ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/facts/borrowed_content_partition_through_const_name_exit built 7926ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/facts/borrowed_content_partition_through_field_exit built 7878ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/facts/borrowed_content_partition_through_local_exit built 7905ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/facts/borrowed_content_partition_through_match_join_exit built 7905ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/facts/borrowed_content_partition_through_other_machine_exit built 7842ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/facts/borrowed_content_partition_through_other_state_exit built 7895ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/facts/borrowed_content_partition_through_parameter_exit built 7924ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/facts/borrowed_content_partition_through_target_body_exit built 10076ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @0d70a8a6a5ee
 pass/facts/borrowed_holder_extent_through_call_result_exit built 2259ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/borrowed_holder_extent_through_const_name_exit built 2035ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/borrowed_holder_extent_through_field_exit built 2163ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -9486,15 +9487,12 @@ pass/ownership/selected_constructor_fresh_field built 2722ms exit:0 interpreter:
 	Terminal interpreter: runtime execution failed: Execution(ExecutionSite { machine: MachineId(4), block: BlockId(69), operation: None, cause: StructuralArgumentPreparation { stage: "state arrival storage and memberships", detail: "ClaimTransferMismatch" } })
 pass/ownership/selected_constructor_owner_cleanup checked 1810ms @6e42425cd720
 pass/ownership/selected_constructor_swapped_fields built 3018ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/ownership/selected_storage_join_backedge_exit rejected 2628ms interpreter:unchecked @6e42425cd720
-	cannot prove ensures contract for exit from cycle at statement 0: strategy.tail.length == 48
-	cannot prove ensures contract for exit from cycle at statement 0: strategy.remaining == 48
-pass/ownership/selected_storage_join_borrowed_ingress_exit built 3191ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/ownership/selected_storage_join_held_address_exit built 3364ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/ownership/selected_storage_join_nested_exit built 3117ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/ownership/selected_storage_join_returned_owner_exit rejected 2968ms interpreter:unchecked @6e42425cd720
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "exercise", reason: "loan completion qualification has no exact projected carrier", gap: None })
-pass/ownership/selected_storage_join_scalar_result_exit built 3196ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/ownership/selected_storage_join_backedge_exit built 7959ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/ownership/selected_storage_join_borrowed_ingress_exit built 8004ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/ownership/selected_storage_join_held_address_exit built 7955ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/ownership/selected_storage_join_nested_exit built 8034ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/ownership/selected_storage_join_returned_owner_exit built 8003ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
+pass/ownership/selected_storage_join_scalar_result_exit built 8150ms exit:0 interpreter-exit:0 interpreter:agrees @0d70a8a6a5ee
 pass/ownership/shared_array_view_compile checked 1693ms @6e42425cd720
 pass/ownership/shared_float_view_compile checked 3651ms @6e42425cd720
 pass/ownership/shared_record_view_compile checked 2017ms @6e42425cd720

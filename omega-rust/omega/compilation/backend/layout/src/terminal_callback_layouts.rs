@@ -1,6 +1,10 @@
-//! Complete inline callback paths from canonical declarations and selected bytes.
-//! References are carrier leaves. Only an explicitly supplied formal backing
-//! root starts a path; an identity-only referent never proves absence of slots.
+/*
+We materialize inline callback storage paths (`TerminalCallbackLayouts`) from
+canonical Terminal declarations and selected target bytes. We treat references as
+carrier leaves so only an explicitly supplied formal backing root starts a path,
+and we verify that private callback slots neither overlap semantic field storage
+(including fragmented and repeated fields) nor collide with sibling slots.
+*/
 
 use calling_conventions::{
     BoundaryCallbackLayout, CallbackDataGeometry, CallbackInlineFieldGeometry,
@@ -14,7 +18,6 @@ use target::TargetProfile;
 use terminal_psi::{StructuralTypeShape, TerminalModule};
 use terminal_semantics::{ReferenceRecordField, ReferenceStorageGeometry, StorageGeometryError};
 
-/// Exact semantic/native association retained by the checked formal producer.
 pub struct CallbackStorageRoot {
     pub record: StructuralTypeId,
     pub parameter: NativeParameterId,
@@ -22,8 +25,6 @@ pub struct CallbackStorageRoot {
     pub native_ordinal: u32,
 }
 
-/// Exact canonical storage coordinates beside a completed physical path.
-/// These are geometry-free joins for source review, not ABI identity lanes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallbackLayoutCoordinates {
     pub destination: NativePlace,
@@ -375,7 +376,6 @@ where
     }
 }
 
-/// Whether a formal backing actually demands private callback layout geometry.
 pub fn callback_storage_has_slots(
     module: &TerminalModule,
     target: TargetProfile,
@@ -413,8 +413,6 @@ impl OccupiedBits {
                 if element_size == 0 || element_count == 0 || end <= occupied {
                     return false;
                 }
-                // The nearest element preceding the queried end is the last
-                // possible overlap. Padding never expands into element bytes.
                 let last = ((end - 1 - occupied) / stride).min(element_count - 1);
                 occupied + last * stride + element_size > start
             }

@@ -1,15 +1,6 @@
-//! A fixed host frame entering one admitted native C calling plan.
-//!
-//! The host owns a two-pointer C frame: an array of pointers to complete native
-//! argument values, followed by the result storage pointer. Each pointed-to
-//! buffer has its calling-plan extent and alignment. Borrowed native arguments
-//! contain a pointer supplied by their backing owner, not captured referent
-//! bytes. This physical adapter establishes no backing, lifetime or authority.
-//!
-//! Snapshot every argument before distributing registers or outgoing stack
-//! homes. The one unresolved call names the selected actual foreign import;
-//! the resulting bytes can be replayed before a host installs the adapter.
-//! A stable backing owner and actual completion remain separate obligations.
+/*
+We emit and replay the physical adapter (`NativeForeignBridge`) that enters an admitted native C calling plan from the host's fixed two-pointer frame (`arguments` array pointer plus `result` buffer pointer). We snapshot every pointed-to argument buffer into aligned adapter-frame storage before populating outgoing registers or stack slots, sign-extend narrow 8-bit and 16-bit signed integer register arguments when required by the scalar parameter telescope, emit one unresolved direct call to the foreign import, and copy any direct register result back into the host's result buffer.
+*/
 
 use calling_conventions::{
     CallSignature, CallingPolicy, EntryControl, MachineRegister, ValidatedBoundaryEntryPlan,
@@ -26,32 +17,32 @@ use crate::native_bridge_encoding::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeForeignBridgeRequest {
-    pub target: NativeTarget,
-    pub foreign: ValidatedBoundaryEntryPlan,
-    /// Exact native telescope: scalar formals retain their logical carrier;
-    /// records, references and private ABI parameters are None. Byte extent
-    /// alone cannot distinguish signed i8 from u8 or a one-byte record.
-    pub scalar_parameters: Vec<Option<ScalarType>>,
+    pub target: NativeTarget, // Target platform for the foreign call adapter.
+    pub foreign: ValidatedBoundaryEntryPlan, // Admitted native C boundary entry plan.
+    pub scalar_parameters: Vec<Option<ScalarType>>, // Per-parameter scalar types for narrow sign extension.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeForeignBridge {
-    request: NativeForeignBridgeRequest,
-    bytes: Vec<u8>,
-    frame_bytes: u32,
-    call_field_offset: usize,
+    request: NativeForeignBridgeRequest, // Request parameters that produced this bridge.
+    bytes: Vec<u8>,                      // Encoded machine bytes of the foreign bridge adapter.
+    frame_bytes: u32,                    // Total stack frame size reserved by the adapter.
+    call_field_offset: usize, // Byte offset of the unresolved direct-call displacement field.
 }
 
 impl NativeForeignBridge {
     pub fn request(&self) -> &NativeForeignBridgeRequest {
         &self.request
     }
+
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
+
     pub fn frame_bytes(&self) -> u32 {
         self.frame_bytes
     }
+
     pub fn call_field_offset(&self) -> usize {
         self.call_field_offset
     }
@@ -81,9 +72,9 @@ impl From<NativeBridgeEncodingError> for Error {
 }
 
 struct Argument {
-    placement: ValueStorage,
-    extent: u32,
-    snapshot: u32,
+    placement: ValueStorage, // Outgoing ABI register, stack, or indirect storage for this argument.
+    extent: u32,             // Byte extent copied from the host argument buffer.
+    snapshot: u32,           // Adapter-frame byte offset holding the captured argument snapshot.
 }
 
 fn extent(shape: ValueShape) -> u32 {
@@ -110,8 +101,6 @@ pub fn emit_native_foreign_bridge(
     {
         return Err(Error::ScalarParameterMismatch);
     }
-    // Consume the producer's admitted plan rather than reevaluating its policy.
-    // This physical adapter supports the host's ordinary C call regime only.
     if foreign.policy != policy
         || foreign.entry_control != EntryControl::CallReturn
         || foreign.stack_alignment != 16
@@ -334,11 +323,6 @@ pub fn emit_native_foreign_bridge(
             && integer.sign() == IntegerSign::Signed
             && matches!(integer.bits(), 8 | 16)
         {
-            // Darwin requires the caller to extend narrow integer scalar
-            // register arguments. Aggregate pieces keep raw bytes, and stack
-            // slots keep their exact ABI widths. These are value semantics,
-            // so they follow the original scalar formal through its native
-            // ordinal rather than being guessed from a register's byte width.
             for piece in argument.placement.pieces() {
                 if let WordLocation::Register(register) = piece.location {
                     extend_signed_scalar(&encoding, &mut bytes, register, integer.bits())?;

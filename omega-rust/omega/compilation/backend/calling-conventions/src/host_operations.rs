@@ -1,13 +1,22 @@
-//! Host operations: the keyed catalog of every operation a host can be asked
-//! for, the capability each requires, and the interned custom names.
+/*
+We maintain the keyed catalog of host capabilities (`HostCapability`) and host
+operations (`HostOperation`) with process-wide interning for custom authored
+names, the external binding rows (`ExternalBindingRow`, `ExternalBindingKind`)
+that connect a bodyless external leaf to its foreign locator or table dispatch
+mechanism, the Darwin and Windows import library mappings
+(`DARWIN_LIBOBJC_PATH`, `darwin_import_library`, `windows_import_library`), and
+x86-64 interrupt gate address fragment assembly (`InterruptGateAddress`,
+`interrupt_gate_address`). Both directions of our capability and operation
+catalogs read one table so authored spellings and enum keys never drift, while
+custom names outside the built-in catalog intern to a stable index for the life
+of the process.
+*/
 
-pub(crate) mod external_bindings;
+use crate::plans::BoundaryEntryPlan;
+use layout_plans::LayoutPlacementReport;
+use semantic_vocabulary::{AuthoredBitFragment, AuthoredBitFragments};
+use target::NormalizedForeignLocator;
 
-/// The process-wide interner for CUSTOM operation names (M2 blocker 1:
-/// the closed catalog generalized). A name outside the built-in catalog
-/// interns to a stable index for the life of the process, so the key stays
-/// `Copy` and binding/call sites agree by construction. Leaked once per
-/// DISTINCT name (bounded by the program's external-binding surface).
 fn interned_names() -> &'static std::sync::Mutex<Vec<&'static str>> {
     use std::sync::{Mutex, OnceLock};
     static NAMES: OnceLock<Mutex<Vec<&'static str>>> = OnceLock::new();
@@ -34,15 +43,11 @@ fn custom_name(index: u32) -> &'static str {
         .unwrap_or("<custom>")
 }
 
-/// The built-in row whose authored spelling is `name`; `None` when the name
-/// is outside the catalog (the caller then interns a `Custom` key).
 fn row_for_spelling<T: Copy>(rows: &[(T, &'static str)], name: &str) -> Option<T> {
     rows.iter()
         .find_map(|(row, spelling)| (*spelling == name).then_some(*row))
 }
 
-/// The authored spelling of a built-in `value`; `None` when the value has no
-/// catalog row (the caller reports the unknown/custom default).
 fn spelling_for_row<T: PartialEq>(rows: &[(T, &'static str)], value: T) -> Option<&'static str> {
     rows.iter()
         .find_map(|(row, spelling)| (*row == value).then_some(*spelling))
@@ -58,36 +63,14 @@ pub enum HostCapability {
     Stderr,
     Clock,
     Input,
-    /// The windowed-renderer surface: device contexts, windows, framebuffer
-    /// blits (user32/gdi32 imports on Windows).
     Gui,
-    /// Filesystem access: open/read/write/close/unlink over file descriptors
-    /// (libSystem imports on darwin, syscalls on linux).
     Filesystem,
-    /// Floating-point math (libm/libSystem `lround`, `sqrt`, …). Its ops carry
-    /// `f64` arguments/returns — the first host boundary to exercise the arm64
-    /// float calling convention (v-register args), the foundation for calling
-    /// Cocoa/Core Graphics `CGFloat`/`double` methods.
     Math,
-    /// The Objective-C runtime (`objc_getClass`, `sel_registerName`,
-    /// `objc_msgSend`) in `/usr/lib/libobjc.A.dylib` — the FIRST boundary that
-    /// binds against a SECOND dylib (see `darwin_import_library` + the Mach-O
-    /// multi-dylib load commands). The gateway to Cocoa/AppKit.
     ObjectiveC,
-    /// CoreGraphics — the `CG*` C API. `CGRect`-taking geometry functions exercise
-    /// the arm64 HFA calling convention (a `CGRect` = 4 doubles passed in v0–v3);
-    /// `CGImageCreate`/`CGColorSpace…` build the blit surface.
     CoreGraphics,
-    /// A string-interned source capability (an external binding whose trait
-    /// name is outside the built-in catalog; M2 blocker 1). The index
-    /// resolves through the process-wide interner, so the key stays `Copy`
-    /// and binding/call sites agree by construction.
     Custom(u32),
 }
 
-/// Every built-in capability with its authored name, in catalog order. Both
-/// directions (`from_name` and `name`) read this one table, so a renamed
-/// spelling or a new capability cannot drift between them.
 const HOST_CAPABILITY_ROWS: &[(HostCapability, &str)] = &[
     (HostCapability::Process, "Process"),
     (HostCapability::Stdin, "Stdin"),
@@ -122,8 +105,6 @@ impl HostCapability {
 pub enum HostOperation {
     #[default]
     Unknown,
-    /// A string-interned AUTHORED method name (M2 blocker 1); index into
-    /// the process-wide interner.
     Custom(u32),
     Exit,
     ExitGroup,
@@ -133,353 +114,95 @@ pub enum HostOperation {
     ReadFile,
     Write,
     WriteFile,
-    /// `pread(fd, buf, count, offset)` -- read at an absolute file offset WITHOUT
-    /// moving the descriptor's cursor (Rust `FileExt::read_at`). Same as `read`
-    /// plus a trailing offset scalar: `[result, fd, buffer ptr, count, offset]`.
     PRead,
-    /// `pwrite(fd, buf, count, offset)` -- write at an absolute file offset WITHOUT
-    /// moving the cursor (Rust `FileExt::write_at`). Same as `write` plus a trailing
-    /// offset scalar: `[result, fd, buffer ptr, length, offset]`.
     PWrite,
-    /// `open`/`openat` -- open a path, returning a file descriptor (or -errno).
     Open,
-    /// `creat(path, mode)` -- create/truncate a path for writing. Unlike `open`
-    /// its `mode` is a NAMED (non-variadic) parameter, so it marshals in a
-    /// register on arm64 (open's variadic mode would go on the stack).
     Creat,
-    /// `close(fd)` -- release a file descriptor.
     Close,
-    /// `CreateFileA(path, access, share, security, disposition, flags,
-    /// template)` -- open a Win32 path as a kernel HANDLE. Windows-only.
     CreateFile,
-    /// `CloseHandle(handle)` -- release a Win32 kernel HANDLE. Windows-only.
     CloseHandle,
-    /// `unlink`/`remove` -- delete a path.
     Unlink,
-    /// `lseek(fd, offset, whence)` -- reposition the descriptor, returning the
-    /// resulting absolute offset (so `seek(fd, 0, SEEK_END)` yields the size).
     Seek,
-    /// `mkdir(path, mode)` -- create a directory (Rust `create_dir`).
     MakeDir,
-    /// `rmdir(path)` -- remove an empty directory (Rust `remove_dir`).
     RemoveDir,
-    /// `openat(dirfd, name, flags)` -- open `name` RELATIVE to the directory
-    /// `dirfd` (Rust `openat`, the `*at` family used by `remove_dir_all`).
-    /// `[result, dirfd, name POINTER (NUL-terminated), flags]`.
     OpenAt,
-    /// `unlinkat(dirfd, name, flags)` -- remove `name` RELATIVE to `dirfd`
-    /// (`flags & AT_REMOVEDIR` = rmdir, else unlink). Same operand shape.
     UnlinkAt,
-    /// `chmod(path, mode)` -- set a path's permission bits (Rust
-    /// `set_permissions`). Same shape as `mkdir`: a path pointer + a NAMED
-    /// (register) mode scalar.
     Chmod,
-    /// `fchmod(fd, mode)` -- set an OPEN file's permission bits (Rust
-    /// `File::set_permissions`). Same shape as `set_len`: two scalars (fd, mode).
     Fchmod,
-    /// `rename(from, to)` -- move/rename a path (Rust `rename`). Two path args.
     Rename,
-    /// `link(original, link)` -- create a hard link (Rust `hard_link`): a second
-    /// directory entry for the same inode. Two path args, same shape as `rename`.
     Link,
-    /// `symlink(target, linkpath)` -- create a symbolic link (Rust
-    /// `os::unix::fs::symlink`). Two path args, same shape as `rename`/`link`.
     Symlink,
-    /// `readlink(path, buf, bufsize)` -- read a symlink's target into a caller
-    /// buffer (Rust `fs::read_link`), returning the byte count. Same shape as
-    /// `read` but with a PATH pointer instead of an fd.
     ReadLink,
-    /// `__getdirentries64(fd, buf, bufsize, &position)` -- read directory entries
-    /// (darwin arm64's dir-read primitive; classic `getdirentries` is unavailable
-    /// with 64-bit inodes) into a caller buffer as packed `dirent` records
-    /// (d_reclen@16, d_namlen@18, d_type@20, d_name@21), returning the byte count
-    /// (0 at end). Underpins Rust `fs::read_dir`. Four args incl. an in/out
-    /// position pointer.
     ReadDir,
-    /// `FindFirstFileA(pattern, &find_data)` -- open a windows directory
-    /// enumeration for `pattern` (typically `dir\*`) and fill the FIRST entry's
-    /// WIN32_FIND_DATAA record (attributes u32 @0, directory bit 0x10;
-    /// NUL-terminated cFileName @44; record 320 bytes). Returns the find HANDLE
-    /// as i64, or -1 (INVALID_HANDLE_VALUE). The windows half of the fs
-    /// portable-contract dir-walk (rung 3a); posix targets never lower it.
     FindFirst,
-    /// `FindNextFileA(handle, &find_data)` -- fill the NEXT entry of an open
-    /// enumeration (BOOL: 1 = filled, 0 = end).
     FindNext,
-    /// `FindClose(handle)` -- release a find handle (BOOL).
     FindClose,
-    /// `CreateHardLinkA(link, existing, security_attributes)` -- the windows
-    /// hard-link primitive (session slice 3). Arg order is (NEW link,
-    /// existing) -- reversed from posix `link(existing, new)` -- with a
-    /// trailing security-attributes pointer the API requires as NULL (the
-    /// designed op passes 0). Returns BOOL (non-zero success); failure
-    /// reasons live in GetLastError, not msvcrt errno. Posix targets never
-    /// lower it (they bind `Link`).
     CreateHardLink,
-    /// `_get_osfhandle(fd)` -- the msvcrt fd -> Win32 HANDLE bridge (session
-    /// slice 4a): the OS HANDLE behind an open CRT descriptor (i64; -2 for a
-    /// bad fd). Unlocks the HANDLE-keyed kernel32 surface. Windows-only.
     GetOsfHandle,
-    /// `GetFinalPathNameByHandleA(handle, buffer, capacity, flags)` --
-    /// resolve an open handle to its final DOS path (windows canonicalize).
-    /// Returns the length written (no NUL), the required capacity (with NUL)
-    /// when too small, or 0 on failure. Windows-only.
     FinalPathNameByHandle,
-    /// `SetFileTime(handle, creation, last_access, last_write)` -- stamp an
-    /// open handle's times from FILETIME buffers (the windows set_times leg;
-    /// session slice 4b). `creation` rides as a NULL-able scalar (0 = leave
-    /// alone); BOOL result. Windows-only.
     SetFileTime,
-    /// `LockFileEx(handle, flags, reserved, length_low, length_high,
-    /// overlapped)` -- acquire a Win32 byte-range lock. The std wrapper uses
-    /// offset zero and the full u64 length to provide whole-file locking.
     LockFileEx,
-    /// `UnlockFile(handle, offset_low, offset_high, length_low, length_high)` --
-    /// release a Win32 byte-range lock. Windows-only.
     UnlockFile,
-    /// `GetLastError()` -- read the calling thread's Win32 last-error value.
-    /// Unlike `ReadErrno`, this returns the value directly (no dereference).
     GetLastError,
-    /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
-    /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
-    /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
-    /// (off 96, i64) and `st_mode` (off 4, u16) back out.
     Stat,
-    /// `fstat(fd, buf)` -- fill a `struct stat` buffer for an OPEN fd (Rust
-    /// `File::metadata`). Same buffer as `stat`, but keyed by descriptor instead of
-    /// path: operand shape `[result, fd scalar, buffer pointer]` (like `read`
-    /// without the count). Never touches the file offset.
     FStat,
-    /// `lstat(path, buf)` -- like `stat`, but does NOT follow a final symlink (Rust
-    /// `fs::symlink_metadata`). On a symlink the `st_mode` file-type field is
-    /// `S_IFLNK` (0o120000), so `Metadata::is_symlink()` is true. Identical operand
-    /// shape to `Stat` (path pointer + buffer pointer).
     LStat,
-    /// `realpath(path, resolved)` -- resolve a path to its canonical absolute form,
-    /// following every symlink, into a caller buffer (>= PATH_MAX). Rust
-    /// `fs::canonicalize`. Returns the `resolved` pointer (non-NULL) on success or
-    /// NULL on error, so the stored i64 is just a success flag (no deref). Same
-    /// operand shape as `Stat` (path pointer + buffer pointer).
     Realpath,
-    /// `ftruncate(fd, length)` -- set a file's length (Rust `File::set_len`).
     SetLen,
-    /// `futimens(fd, times[2])` -- set a file's access + modification timestamps
-    /// (Rust `File::set_times`). `times` is a caller buffer holding two
-    /// `struct timespec` (atime then mtime, each {tv_sec i64, tv_nsec i64}); the
-    /// operand shape is the SAME as `fstat` (`[result, fd, buffer pointer]`).
     SetFileTimes,
-    /// `fsync(fd)` -- flush a file's buffered data + metadata to the storage
-    /// device (Rust `File::sync_all`). Same shape as `close`: one fd arg, rc.
     Sync,
-    /// `dup(fd)` -- duplicate a file descriptor onto the lowest free fd, sharing
-    /// the underlying open file description (Rust `File::try_clone`). Same shape as
-    /// `close`: one fd arg, returns the NEW fd (or -1 on error).
     Dup,
-    /// `flock(fd, operation)` -- apply or remove an advisory lock on an open file
-    /// (Rust `File::lock`/`lock_shared`/`try_lock`/`unlock`). `operation` is a
-    /// bitmask: LOCK_SH=1, LOCK_EX=2, LOCK_NB=4, LOCK_UN=8. Same operand shape as
-    /// `ftruncate` (`[result, fd, operation]` -- fd + one scalar), returns 0 / -1.
     Flock,
-    /// `chown(path, uid, gid)` -- change a file's owner/group, following symlinks
-    /// (Rust `os::unix::fs::chown`). uid/gid of -1 leaves that component
-    /// unchanged. Operand shape `[result, path pointer, uid, gid]` (path + two
-    /// scalars). Returns 0 / -1 (EPERM if the caller may not change ownership).
     Chown,
-    /// `lchown(path, uid, gid)` -- like `chown` but does NOT follow a final
-    /// symlink (Rust `os::unix::fs::lchown`). Same operand shape as `chown`.
     LChown,
-    /// `fchown(fd, uid, gid)` -- change owner/group by open descriptor (Rust
-    /// `os::unix::fs::fchown`). Same operand shape as `lseek` (`[result, fd, uid,
-    /// gid]` -- fd + two scalars).
     Fchown,
-    /// `open(path, flags, mode)` with O_CREAT -- the CREATING open (Rust
-    /// `File::create_new`, `OpenOptions.create`/`.create_new`). Unlike `creat`
-    /// (fixed O_WRONLY|O_CREAT|O_TRUNC, register mode) this passes ARBITRARY flags
-    /// (O_CREAT|O_EXCL|O_RDWR|...) plus a `mode`. `mode` is VARIADIC on darwin, so
-    /// the retained Apple AAPCS64 plan marshals it on the outgoing stack rather
-    /// than in the next fixed-parameter register.
     OpenCreate,
-    /// `___error()` -- darwin's thread-local errno accessor; returns `int*`.
-    /// Takes NO args and its result is DEREFERENCED once (see
-    /// `HostOperationKey::dereferences_result`) so the stored value is `errno`
-    /// itself (the numeric failure kind), not the pointer.
     ReadErrno,
-    /// `Math::round_nearest(x: f64) -> i64` → libm `lround`. The first op with an
-    /// `f64` ARGUMENT (passed in v0), proving the arm64 float calling convention.
     RoundNearest,
-    /// `Math::square_root(x: f64) -> f64` → libm `sqrt`. The first op with an `f64`
-    /// RESULT (returned in d0), proving the arm64 float RETURN convention (see
-    /// `HostOperationKey::returns_float`).
     SquareRoot,
-    /// `Math::hypotenuse(x: f64, y: f64) -> f64` → libm `hypot`. First op with TWO
-    /// `f64` arguments (v0, v1) AND a float return — proves multi-float-arg
-    /// register sequencing alongside the float return.
     Hypotenuse,
-    /// `Math::fused_multiply_add(x: f64, y: f64, z: f64) -> f64` → libm `fma`
-    /// (`x*y + z`). THREE `f64` args (v0, v1, v2) — proves the float-arg sequence
-    /// extends past v1 to v2, i.e. that a homogeneous-float aggregate (`NSRect` = 4
-    /// doubles → v0–v3) marshals correctly, since an HFA and N separate double args
-    /// occupy the SAME consecutive v-registers on AArch64 AAPCS.
     FusedMultiplyAdd,
-    /// `ObjectiveC::get_class(name: &[u8] in Path) -> u64` → libobjc `objc_getClass`.
-    /// Takes a NUL-terminated C string (the class name, materialized like an fs
-    /// path) and returns the `Class` pointer in x0. The first op binding a SECOND
-    /// dylib (libobjc) — proves multi-dylib linking.
     GetClass,
-    /// `ObjectiveC::register_selector(name) -> u64` → libobjc `sel_registerName`.
-    /// A NUL-terminated selector name → the interned `SEL` pointer (x0). Same
-    /// operand shape as `get_class`.
     RegisterSelector,
-    /// `ObjectiveC::send(recv: u64, sel: u64) -> u64` → libobjc `objc_msgSend`.
-    /// The zero-argument message send: `recv`→x0, `sel`→x1, result `id`/scalar in
-    /// x0. The Objective-C workhorse (`[recv sel]`).
     MsgSend,
-    /// `ObjectiveC::send_scalar(recv, sel, arg: u64) -> u64` → `objc_msgSend` with
-    /// one integer/pointer argument (`recv`→x0, `sel`→x1, `arg`→x2). For selectors
-    /// taking a scalar: `respondsToSelector:` (SEL), `setActivationPolicy:` (int),
-    /// `activateIgnoringOtherApps:` (BOOL). Shares `_objc_msgSend` with `send`.
     MsgSendScalar,
-    /// `ObjectiveC::send_string(recv, sel, text) -> u64` → `objc_msgSend` with one
-    /// C-string argument (`recv`→x0, `sel`→x1, `char*`→x2). For selectors like
-    /// `initWithUTF8String:` (window titles etc.). Shares `_objc_msgSend`. Only
-    /// provable once Foundation is loaded (NSString registered).
     MsgSendString,
-    /// `ObjectiveC::send_rect(recv, sel, x, y, w, h, a, b, c) -> u64` →
-    /// `objc_msgSend` with an `NSRect`/`CGRect` (4 doubles) HFA argument plus three
-    /// trailing integer/pointer args: `recv`→x0, `sel`→x1, the rect→v0–v3, then
-    /// `a`→x2, `b`→x3, `c`→x4. The MIXED HFA-plus-scalar call the window's
-    /// `initWithContentRect:styleMask:backing:defer:` needs (rect + styleMask +
-    /// backing + defer). Shares the `_objc_msgSend` symbol.
     MsgSendRect,
-    /// `ObjectiveC::send_scalar4(recv, sel, a, b, c, d) -> u64` → `objc_msgSend` with
-    /// FOUR integer/pointer args: `recv`→x0, `sel`→x1, then `a`→x2, `b`→x3, `c`→x4,
-    /// `d`→x5. For the event pump's `nextEventMatchingMask:untilDate:inMode:dequeue:`
-    /// (mask, NSDate*, mode NSString*, BOOL). Shares the `_objc_msgSend` symbol.
     MsgSendScalar4,
-    /// `ObjectiveC::send_image_size(recv, sel, image, w, h) -> u64` → `objc_msgSend`
-    /// with a pointer arg plus an `NSSize` (2 doubles): `recv`→x0, `sel`→x1,
-    /// `image`→x2, then the size in v0,v1. For `NSImage initWithCGImage:size:` —
-    /// the mixed scalar-plus-2-float call that wraps a `CGImage` for display.
-    /// Shares the `_objc_msgSend` symbol.
     MsgSendImageSize,
-    /// `ObjectiveC::send_byte_string(recv, sel, text: &[u8]) -> u64` → `objc_msgSend`
-    /// with one RUNTIME byte-buffer pointer argument (`recv`→x0, `sel`→x1, ptr→x2).
-    /// For `initWithUTF8String:` over runtime bytes (the samples' window titles),
-    /// which `send_string`'s compile-time CString literal argument cannot express.
-    /// The callee reads to the first NUL, so the buffer must be NUL-terminated by
-    /// construction; tighten to a proven CString domain once the reference-domain
-    /// mint lands. Shares the `_objc_msgSend` symbol.
     MsgSendByteString,
-    /// `ObjectiveC::pool_push() -> u64` → libobjc `objc_autoreleasePoolPush`: opens
-    /// an autorelease-pool scope and returns its token. No args. The gui event pump
-    /// runs outside any Cocoa-managed pool, so dequeued autoreleased NSEvents would
-    /// otherwise leak every frame.
     PoolPush,
-    /// `ObjectiveC::pool_pop(pool: u64) -> u64` → libobjc `objc_autoreleasePoolPop`:
-    /// closes the pool scope opened by `pool_push`, draining every object
-    /// autoreleased inside it (a void C call; the result register is scratch).
     PoolPop,
-    /// `CoreGraphics::rect_max_x(x, y, w, h) -> f64` → `CGRectGetMaxX`. Takes a
-    /// `CGRect` = 4 doubles passed as an HFA in v0–v3, returns `origin.x +
-    /// size.width` (v0 + v2) as a `CGFloat` in d0. The run-verified proof that 4
-    /// doubles land in v0–v3 (`RectMaxY` returns v1 + v3).
     RectMaxX,
-    /// `CoreGraphics::rect_max_y(x, y, w, h) -> f64` → `CGRectGetMaxY` = `origin.y +
-    /// size.height` (v1 + v3).
     RectMaxY,
-    /// `CoreGraphics::color_space_rgb() -> u64` → `CGColorSpaceCreateDeviceRGB`. NO
-    /// args; returns a `CGColorSpaceRef` in x0. The colorspace for the blit's
-    /// bitmap context.
     ColorSpaceRgb,
-    /// `CoreGraphics::bitmap_context(data, w, h, bpc, stride, space, info) -> u64` →
-    /// `CGBitmapContextCreate`. SEVEN integer/pointer args (x0–x6): `data` is a
-    /// pointer to the framebuffer, then width/height/bitsPerComponent/bytesPerRow
-    /// (ints), the colorspace (ptr), and the `CGBitmapInfo` (int). Returns a
-    /// `CGContextRef` backed by the framebuffer. Chosen over `CGImageCreate` (11
-    /// args, 3 on the stack) because all 7 fit in registers.
     BitmapContext,
-    /// `CoreGraphics::bitmap_context_image(ctx) -> u64` →
-    /// `CGBitmapContextCreateImage`: snapshots the bitmap context into a
-    /// `CGImageRef`. One ptr arg.
     BitmapContextImage,
-    /// `CoreGraphics::image_width(img) -> i64` → `CGImageGetWidth`: the width of a
-    /// `CGImageRef` (a `size_t` in x0). Used to run-verify the blit path.
     ImageWidth,
-    /// `CoreGraphics::context_release(ctx) -> u64` → `CGContextRelease`: drops the
-    /// blit's per-frame bitmap context (Create-rule ownership from
-    /// `CGBitmapContextCreate`). One ptr arg; a void C call — the result register
-    /// is scratch. Without it every presented frame leaks a CGContext.
     ContextRelease,
-    /// `CoreGraphics::image_release(img) -> u64` → `CGImageRelease`: drops the
-    /// per-frame CGImage snapshot (Create-rule ownership from
-    /// `CGBitmapContextCreateImage`). Same shape as `context_release`.
     ImageRelease,
-    /// `CoreGraphics::event_source_key_state(state_id, keycode) -> u64` →
-    /// `CGEventSourceKeyState(CGEventSourceStateID, CGKeyCode)`: is a physical key
-    /// currently down? Two scalar args (state_id → x0, keycode → x1), returns a BOOL
-    /// (0/1) in x0. The macOS backing for the samples' `Input.key_state` (the
-    /// `MacosInput` provider maps a Win32 virtual-key to the macOS keycode). In the
-    /// CoreGraphics framework (`_CG*` → CoreGraphics dylib).
     EventSourceKeyState,
     Sleep,
-    /// `Clock::sleep(milliseconds)` on darwin → `poll(NULL, 0, milliseconds)`:
-    /// with zero fds `poll` is a portable millisecond sleep whose timeout is ALREADY
-    /// in milliseconds (unlike `usleep`, which is microseconds and rejects ≥1s), so
-    /// no unit scaling is needed. A DISTINCT op (not `Sleep`) so its operand arm can
-    /// place `[NULL, 0, ms]` in x0/x1/x2 without a per-target branch in the shared
-    /// `Sleep` arm (which marshals a single arg into x0 for Win32 `Sleep(ms)`).
     SleepPoll,
     TickCount,
-    /// std::time monotonic source (TimeHost seam, TASKS_TIME.md rung 5).
-    /// windows: `QueryPerformanceCounter(&ticks)` -- an OUT-PARAM u64; darwin:
-    /// `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` returns the u64 directly.
     MonotonicTicks,
-    /// Ticks-per-second calibration for `MonotonicTicks`. windows:
-    /// `QueryPerformanceFrequency(&freq)` (out-param); darwin: constant 1e9.
     MonotonicTicksPerSecond,
-    /// Wall clock as ONE raw u64 read. windows:
-    /// `GetSystemTimePreciseAsFileTime(&ft)` (out-param FILETIME); darwin:
-    /// `clock_gettime_nsec_np(CLOCK_REALTIME)`.
     WallClockRaw,
-    /// Units-per-second for `WallClockRaw`. Windows uses 1e7.
     WallClockUnitsPerSecond,
-    /// Platform-epoch -> Unix-epoch shift in seconds -- also a per-target
-    /// `ConstantResult`. windows 11_644_473_600 (1601 -> 1970); darwin 0.
     WallClockEpochOffsetSeconds,
     KeyState,
-    /// `CreateCompatibleDC(0)` -- a memory device context (the CI-safe,
-    /// differential-testable blit target).
     DcCreate,
-    /// `GetDC(hwnd)` -- a window's device context.
     GetDc,
-    /// `CreateWindowExA` through the built-in `"STATIC"` window class (no
-    /// WNDCLASS registration, no WndProc, no message pump for a short-lived
-    /// window).
     WindowCreate,
-    /// `StretchDIBits` -- blit a top-down 32bpp DIB framebuffer into a device
-    /// context.
     Blit,
-    /// `PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)` -- poll one queued message into
-    /// a caller-owned MSG buffer; 0 when the queue is empty.
     MsgPeek,
-    /// `TranslateMessage(&msg)` -- produce character messages from key messages.
     MsgTranslate,
-    /// `DispatchMessageW(&msg)` -- route the message to the window procedure
-    /// (DefWindowProc via the built-in "STATIC" class), which is what makes a
-    /// window draggable, hoverable, and closable.
     MsgDispatch,
-    /// `IsWindow(hwnd)` -- liveness: 0 once the user (or the app) destroyed it.
     IsWindow,
-    /// `DestroyWindow(hwnd)`.
     WindowDestroy,
-    /// `GetForegroundWindow()` -- the focused top-level window (0 when none).
-    /// Lets a pump scope global key state (GetAsyncKeyState) to its own window.
     ForegroundWindow,
 }
 
-/// Every catalog operation with its authored name, in catalog order. Both
-/// directions (`from_name` and `name`) read this one table, so a renamed
-/// spelling or a new operation cannot drift between them.
 const HOST_OPERATION_ROWS: &[(HostOperation, &str)] = &[
     (HostOperation::Exit, "exit"),
     (HostOperation::ExitGroup, "exit_group"),
@@ -604,4 +327,242 @@ impl HostOperation {
                 .expect("every catalog operation carries its spelling in the catalog"),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalBindingRow {
+    pub target_name: String,
+    pub trait_name: String,
+    pub method: String,
+    pub requirement_identity: String,
+    pub provider_type: String,
+    pub calling_applications: Vec<crate::BoundaryCallingApplication>,
+    pub binding: ExternalBindingKind,
+}
+
+impl ExternalBindingRow {
+    pub fn calling_application(
+        &self,
+        abi: &semantic_vocabulary::CallingAbiIdentity,
+    ) -> Option<&crate::BoundaryCallingApplication> {
+        let mut applications = self
+            .calling_applications
+            .iter()
+            .filter(|application| &application.abi == abi);
+        let application = applications.next()?;
+        applications.next().is_none().then_some(application)
+    }
+
+    pub fn boundary_entry_plan(
+        &self,
+        abi: &semantic_vocabulary::CallingAbiIdentity,
+    ) -> Option<&BoundaryEntryPlan> {
+        self.calling_application(abi)
+            .map(|application| application.plan.plan())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExternalBindingKind {
+    Syscall { number: i64 },
+    Import { locator: NormalizedForeignLocator },
+    CompilerIntrinsic { machine: String },
+    VtableSlot { index: i64 },
+    VtableField { field: String, byte_offset: u32 },
+    TableFunction { field: String, byte_offset: u32 },
+}
+
+const DARWIN_LIBSYSTEM_PATH: &str = "/usr/lib/libSystem.B.dylib";
+pub const DARWIN_LIBOBJC_PATH: &str = "/usr/lib/libobjc.A.dylib";
+const DARWIN_COREGRAPHICS_PATH: &str =
+    "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics";
+
+pub fn darwin_import_library(symbol: &str) -> &'static str {
+    if symbol.starts_with("_objc_")
+        || symbol.starts_with("_sel_")
+        || symbol.starts_with("_class_")
+        || symbol.starts_with("_object_")
+        || symbol.starts_with("_method_")
+        || symbol.starts_with("_ivar_")
+        || symbol.starts_with("_protocol_")
+    {
+        return DARWIN_LIBOBJC_PATH;
+    }
+    if symbol.starts_with("_CG") {
+        return DARWIN_COREGRAPHICS_PATH;
+    }
+    DARWIN_LIBSYSTEM_PATH
+}
+
+macro_rules! row {
+    ($a:expr => $b:expr => $c:expr => $d:expr) => {
+        ($a, $b, $c, $d)
+    };
+}
+
+const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
+    ("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+    ("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
+    ("Stdin", "read", "Kernel32.dll", "ReadFile"),
+    ("Stdout", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+    ("Stdout", "write", "Kernel32.dll", "WriteFile"),
+    ("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
+    ("Stderr", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+    ("Stderr", "write", "Kernel32.dll", "WriteFile"),
+    ("Stderr", "write_file", "Kernel32.dll", "WriteFile"),
+    ("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
+    ("Clock", "sleep", "Kernel32.dll", "Sleep"),
+    ("Clock", "tick_count", "Kernel32.dll", "GetTickCount64"),
+    row!("Clock" => "monotonic_ticks" => "Kernel32.dll" => "QueryPerformanceCounter"),
+    row!("Clock" => "monotonic_ticks_per_second" => "Kernel32.dll" => "QueryPerformanceFrequency"),
+    row!("Clock" => "wall_clock_raw" => "Kernel32.dll" => "GetSystemTimePreciseAsFileTime"),
+    ("Input", "key_state", "User32.dll", "GetAsyncKeyState"),
+    ("Gui", "dc_create", "Gdi32.dll", "CreateCompatibleDC"),
+    ("Gui", "get_dc", "User32.dll", "GetDC"),
+    ("Gui", "window_create", "User32.dll", "CreateWindowExA"),
+    ("Gui", "blit", "Gdi32.dll", "StretchDIBits"),
+    ("Gui", "msg_peek", "User32.dll", "PeekMessageW"),
+    ("Gui", "msg_translate", "User32.dll", "TranslateMessage"),
+    ("Gui", "msg_dispatch", "User32.dll", "DispatchMessageW"),
+    ("Gui", "is_window", "User32.dll", "IsWindow"),
+    ("Gui", "window_destroy", "User32.dll", "DestroyWindow"),
+    row!("Gui" => "foreground_window" => "User32.dll" => "GetForegroundWindow"),
+    ("Filesystem", "open", "msvcrt.dll", "_open"),
+    ("Filesystem", "open_create", "msvcrt.dll", "_open"),
+    ("Filesystem", "creat", "msvcrt.dll", "_creat"),
+    ("Filesystem", "read", "msvcrt.dll", "_read"),
+    ("Filesystem", "write", "msvcrt.dll", "_write"),
+    ("Filesystem", "close", "msvcrt.dll", "_close"),
+    ("Filesystem", "unlink", "msvcrt.dll", "_unlink"),
+    ("Filesystem", "lseek", "msvcrt.dll", "_lseeki64"),
+    ("Filesystem", "mkdir", "msvcrt.dll", "_mkdir"),
+    ("Filesystem", "rmdir", "msvcrt.dll", "_rmdir"),
+    ("Filesystem", "rename", "msvcrt.dll", "rename"),
+    ("Filesystem", "dup", "msvcrt.dll", "_dup"),
+    ("Filesystem", "fsync", "msvcrt.dll", "_commit"),
+    ("Filesystem", "chmod", "msvcrt.dll", "_chmod"),
+    ("Filesystem", "stat", "msvcrt.dll", "_stat64"),
+    ("Filesystem", "fstat", "msvcrt.dll", "_fstat64"),
+    ("Filesystem", "find_first", "Kernel32.dll", "FindFirstFileA"),
+    ("Filesystem", "find_next", "Kernel32.dll", "FindNextFileA"),
+    ("Filesystem", "find_close", "Kernel32.dll", "FindClose"),
+    row!("Filesystem" => "create_hard_link" => "Kernel32.dll" => "CreateHardLinkA"),
+    row!("Filesystem" => "open_path_handle" => "Kernel32.dll" => "CreateFileA"),
+    ("Filesystem", "close_handle", "Kernel32.dll", "CloseHandle"),
+    row!("Filesystem" => "get_osfhandle" => "msvcrt.dll" => "_get_osfhandle"),
+    (
+        "Filesystem",
+        "final_path_name_by_handle",
+        "Kernel32.dll",
+        "GetFinalPathNameByHandleA",
+    ),
+    ("Filesystem", "set_file_time", "Kernel32.dll", "SetFileTime"),
+    ("Filesystem", "lock_file_ex", "Kernel32.dll", "LockFileEx"),
+    ("Filesystem", "unlock_file", "Kernel32.dll", "UnlockFile"),
+    row!("Filesystem" => "get_last_error" => "Kernel32.dll" => "GetLastError"),
+    ("Filesystem", "ftruncate", "msvcrt.dll", "_chsize_s"),
+    ("Filesystem", "read_errno", "msvcrt.dll", "_errno"),
+];
+
+pub fn windows_import_library(symbol: &str) -> Option<&'static str> {
+    WINDOWS_IMPORT_ROWS
+        .iter()
+        .find(|(_, _, _, row_symbol)| *row_symbol == symbol)
+        .map(|(_, _, library, _)| *library)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterruptGateAddress {
+    pub fragments: AuthoredBitFragments,
+    pub envelope_offset: u32,
+    pub gate_byte_offset: u32,
+}
+
+pub fn interrupt_gate_address(
+    placements: &[LayoutPlacementReport],
+    table_bytes: u32,
+) -> Result<InterruptGateAddress, &'static str> {
+    let mut fragments = Vec::with_capacity(placements.len());
+    let mut covered = 0u64;
+    let mut gate = None;
+    for placement in placements {
+        let LayoutPlacementReport::Bits {
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        } = *placement
+        else {
+            return Err("interrupt entry address must retain its scattered hardware fragments");
+        };
+        if width == 0
+            || container_width == 0
+            || container_width > 64
+            || container_width % 8 != 0
+            || destination_lsb
+                .checked_add(width)
+                .is_none_or(|end| end > container_width)
+            || source_lsb.checked_add(width).is_none_or(|end| end > 64)
+            || container
+                .checked_add(container_width / 8)
+                .is_none_or(|end| end > u64::from(table_bytes))
+        {
+            return Err("interrupt address fragment exceeds its source or table container");
+        }
+        for bit in 0..width {
+            let source = source_lsb + bit;
+            let flag = 1u64 << source;
+            if covered & flag != 0 {
+                return Err("interrupt address source bit is duplicated");
+            }
+            covered |= flag;
+            let hardware_bit = match source {
+                0..=15 => source,
+                _ => source + 32,
+            };
+            let physical = container
+                .checked_mul(8)
+                .and_then(|base| base.checked_add(destination_lsb + bit))
+                .ok_or("interrupt address bit coordinate overflowed")?;
+            let base = physical
+                .checked_sub(hardware_bit)
+                .ok_or("interrupt address fragment precedes its gate")?;
+            if base % 128 != 0 || gate.is_some_and(|old| old != base) {
+                return Err("private address fragments do not describe one aligned interrupt gate");
+            }
+            gate = Some(base);
+        }
+        fragments.push(AuthoredBitFragment {
+            container_byte_offset: container,
+            container_width_bits: container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        });
+    }
+    if covered != u64::MAX {
+        return Err("interrupt address does not supply all 64 bits");
+    }
+    let gate_byte_offset = u32::try_from(gate.ok_or("interrupt address has no gate")? / 8)
+        .map_err(|_| "interrupt gate offset exceeds native storage")?;
+    if gate_byte_offset
+        .checked_add(16)
+        .is_none_or(|end| end > table_bytes)
+    {
+        return Err("interrupt gate exceeds the supplied table");
+    }
+    let fragments = AuthoredBitFragments::new(fragments);
+    let envelope_offset = u32::try_from(
+        fragments
+            .byte_envelope()
+            .ok_or("interrupt address has no container envelope")?
+            .0,
+    )
+    .map_err(|_| "interrupt address envelope exceeds native storage")?;
+    Ok(InterruptGateAddress {
+        fragments,
+        envelope_offset,
+        gate_byte_offset,
+    })
 }

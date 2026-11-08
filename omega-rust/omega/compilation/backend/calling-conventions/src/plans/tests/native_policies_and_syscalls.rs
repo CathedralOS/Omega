@@ -1,3 +1,11 @@
+/*
+We test target-to-policy selection (`native_for_target`,
+`native_syscall_for_target`), fail-closed rejection for undeclared
+architecture/object-format pairs, architecture drift rejection on syscall
+plans, and multi-word integer formal placement across the six Linux syscall
+argument registers.
+*/
+
 use super::{call_signature, integer_signature};
 use crate::plans::{
     CallingPolicy, EntryControl, MachineRegister, RegisterSet, ValueLocation, ValueShape,
@@ -138,8 +146,6 @@ fn syscall_two_word_formals_use_physical_slot_capacity() {
             (0..6).map(MachineRegister::Aarch64X).collect(),
         ),
     ] {
-        // A descriptor remains one formal; a scalar after it uses the next
-        // physical slot, not the next formal ordinal. Empty values use no slot.
         let mut signature = call_signature(
             vec![
                 ValueShape::integer(4, 4),

@@ -1,8 +1,42 @@
-//! Clean x86-64 encoders owned by the terminal-Psi realization lane.
-//!
-//! This crate deliberately consumes only normalized target and terminal
-//! installation facts. It does not depend on either legacy operation graph or
-//! any source-shaped Psi representation.
+/*
+We provide the x86-64 physical register model, register-constraint catalog,
+machine-effect catalog, frame and MXCSR custody protocols, hosted syscall
+sequences, post-handoff writer lowering, semantic-unit wrapper templates, and
+selected-form instruction encoders and validators for the native realization
+pipeline. Every interface in this crate consumes only normalized target,
+register-home, and terminal-installation facts, with zero dependency on
+source-shaped Psi representations.
+*/
+
+/*
+We pair every x86-64 byte producer with an independent structural decoder and
+validator inside the same domain boundary so that variable-length x86-64
+instruction streams, REX/VEX prefixes, ModRM/SIB addressing modes, and signed
+8-bit/32-bit displacements are verified from actual emitted bytes rather than
+trusted from producer claims. Sharing the register-constraint keys, machine
+effect declarations, and realization tables across selection, register
+allocation, branch relaxation, and binary emission guarantees end-to-end
+agreement on register reads, clobbers, flags, memory footprints, and traps.
+*/
+
+/*
+Our domain modules serve the x86-64 backend across System V AMD64, Microsoft
+x64, Linux, macOS, and UEFI targets:
+- `register_model` and `preservation_storage`: physical x86-64 registers,
+  System V and Microsoft x64 call/operation constraint keys, and callee-saved
+  preservation catalogs.
+- `machine_effects`: per-alternative encoded effect declarations and size bounds.
+- `frame_protocol` and `ieee_float`: fixed-frame prologue/epilogue save/restore,
+  4 KiB stack-commit probing, aligned frame addressing, exact IEEE scalar bit
+  materialization, MXCSR custody, and canonical scalar FMA3 decoding.
+- `selected_form_encoding`: encoding, structural decoding, and validation for
+  all x86-64 selected instruction forms, branches, call templates, atomics, and
+  installed interrupt/table sequences.
+- `generated_entry`, `hosted_kernel`, `post_handoff_writer`, and
+  `semantic_unit_wrapper_encoding`: generated entry replay, import-free Linux
+  and Darwin syscall leaves, post-handoff writer lowering, and semantic Unit
+  wrapper templates.
+*/
 
 pub(crate) use optimization_core::codec_bytes;
 
@@ -15,28 +49,118 @@ pub(crate) fn encoder_resolved(
         maximum_bytes,
     }
 }
-mod cursor;
-mod model_specific_state;
+pub(crate) mod cursor {
+    pub(crate) use optimization_core::cursor::Cursor;
+}
+mod model_specific_state {
+    use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateEffectsEvidence};
+    use selected_instructions::RegisterOperation;
+
+    pub fn x86_64_model_specific_register_state(
+        operation: RegisterOperation,
+        selector: Option<u32>,
+    ) -> Result<StateEffectsEvidence, &'static str> {
+        match operation {
+            RegisterOperation::ModelSpecificRead => match selector {
+                Some(0xc000_0080 | 0x277) => Ok(StateEffectsEvidence::new(
+                    RegisterSet::default(),
+                    RegisterSet::default(),
+                    MachineStateSet::new([MachineState::ControlState]),
+                    MachineStateSet::empty(),
+                )),
+                Some(_) => Err("MSR read selector has no target-defined architectural footprint"),
+                None => Err("MSR read selector is not an exact retained u32 constant"),
+            },
+            RegisterOperation::ModelSpecificWrite => {
+                Err("MSR write has no target-defined architectural footprint")
+            }
+            _ => Err("MSR architectural footprint requested for another operation"),
+        }
+    }
+}
 pub use model_specific_state::x86_64_model_specific_register_state;
-mod fma;
 mod frame_protocol;
 mod generated_entry;
 pub use generated_entry::decode_x86_64_generated_entry;
-/// Unresolved ordinary internal call control; the owner retains its rel32 field.
 pub const ORDINARY_DIRECT_CALL_BYTES: [u8; 5] = [0xe8, 0, 0, 0, 0];
-/// Ordinary call-return control, after releasing the active frame.
 pub const ORDINARY_RETURN_BYTES: [u8; 1] = [0xc3];
-/// Restore the normalized long-mode interrupt frame, including SS:RSP.
 pub const INTERRUPT_RETURN_BYTES: [u8; 2] = [0x48, 0xcf];
-/// Establish the ordinary internal ABI direction flag after asynchronous entry.
 pub const CLEAR_DIRECTION_FLAG_BYTES: [u8; 1] = [0xfc];
-/// Permanently stop privileged execution: mask ordinary interrupts and retry HLT
-/// after any permitted asynchronous wake. This requires CPL0.
 pub const PRIVILEGED_STOP_BYTES: [u8; 4] = [0xfa, 0xf4, 0xeb, 0xfd];
 mod hosted_kernel;
-mod hosted_linux_encoding;
 mod ieee_float;
-mod import_thunk;
+mod import_thunk {
+    use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence};
+
+    use crate::selected_form_encoding::decoding::{DecodedInstruction, decode_all};
+
+    pub const X86_64_IMPORT_THUNK_BYTE_COUNT: usize = 6;
+
+    pub fn x86_64_import_thunk_footprint() -> StateFootprintEvidence {
+        StateFootprintEvidence::new(
+            RegisterSet::default(),
+            MachineStateSet::new([MachineState::InstructionPointer]),
+        )
+    }
+
+    pub fn decode_x86_64_import_thunk(bytes: &[u8]) -> Option<i32> {
+        match decode_all(bytes) {
+            Ok(rows) => match rows.as_slice() {
+                [DecodedInstruction::JumpIndirectRip { displacement }] => Some(*displacement),
+                _ => None,
+            },
+            Err(_) => None,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{
+            X86_64_IMPORT_THUNK_BYTE_COUNT, decode_x86_64_import_thunk,
+            x86_64_import_thunk_footprint,
+        };
+        use calling_conventions::{
+            MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence,
+        };
+
+        #[test]
+        fn decode_returns_the_emitted_displacement() {
+            let bytes = [0xff, 0x25, 0x78, 0x56, 0x34, 0x12];
+            assert_eq!(bytes.len(), X86_64_IMPORT_THUNK_BYTE_COUNT);
+            assert_eq!(decode_x86_64_import_thunk(&bytes), Some(0x1234_5678));
+            assert_eq!(
+                decode_x86_64_import_thunk(&[0xff, 0x25, 0, 0, 0, 0]),
+                Some(0)
+            );
+        }
+
+        #[test]
+        fn decode_rejects_everything_but_the_closed_form() {
+            assert_eq!(
+                decode_x86_64_import_thunk(&[0xff, 0x24, 0x24, 0, 0, 0]),
+                None
+            );
+            assert_eq!(decode_x86_64_import_thunk(&[0xff, 0x25, 0, 0, 0]), None);
+            assert_eq!(
+                decode_x86_64_import_thunk(&[0xff, 0x25, 0, 0, 0, 0, 0x90]),
+                None
+            );
+            assert_eq!(decode_x86_64_import_thunk(&[]), None);
+            assert_eq!(decode_x86_64_import_thunk(&[0xc3, 0, 0, 0, 0, 0]), None);
+        }
+
+        #[test]
+        fn footprint_claims_the_instruction_pointer_alone() {
+            assert_eq!(
+                x86_64_import_thunk_footprint(),
+                StateFootprintEvidence::new(
+                    RegisterSet::default(),
+                    MachineStateSet::new([MachineState::InstructionPointer]),
+                )
+            );
+        }
+    }
+}
 mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
@@ -99,13 +223,13 @@ pub use selected_form_encoding::system_call::{
 
 mod semantic_unit_wrapper_encoding;
 
-pub use fma::{DecodedScalarFmaFormat, decode_vfmadd132_scalar};
 pub use frame_protocol::{
     X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
     encode_system_v_amd64_frame_protocol, encode_x86_64_aligned_frame_address,
     encode_x86_64_frame_address, encode_x86_64_frame_memory, encode_x86_64_integer_constant,
     encode_x86_64_pointer_memory,
 };
+pub use ieee_float::{DecodedScalarFmaFormat, decode_vfmadd132_scalar};
 pub use ieee_float::{
     OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,
     encode_ldmxcsr_rsp_displacement, encode_stmxcsr_rsp_displacement,
@@ -167,11 +291,11 @@ pub use selected_form_encoding::materialization::mov_r64_imm32_sign_extended::X8
 pub use hosted_kernel::{
     encode_darwin_read_byte_to_stack, encode_hosted_exit_process_i32_for_target,
 };
-pub(crate) use hosted_kernel::{hosted_exit_syscall_number, hosted_syscall_target};
-pub use hosted_linux_encoding::{
+pub use hosted_kernel::{
     encode_hosted_exit_process_i32, encode_hosted_write_byte_i32_from_r11,
     encode_linux_read_byte_to_stack, encode_linux_write_line_literal,
 };
+pub(crate) use hosted_kernel::{hosted_exit_syscall_number, hosted_syscall_target};
 pub use register_model::X86_64_HOSTED_EXIT_PROCESS_I32;
 pub use register_model::x86_64_indirect_aggregate_call_keys;
 pub use register_model::{
@@ -227,7 +351,6 @@ pub use selected_form_encoding::{
 
 pub use selected_form_encoding::callback_group_bytes as encode_private_callback_materialization;
 
-// These byte producers do not admit an installation or authorize publication.
 pub use selected_form_encoding::register_access::installed_table::{
     X86InstalledCpuStateGeometry, X86InstalledCpuStateRegisters, X86InstalledTableEncodingError,
     X86InstalledTablePublicationRegisters, X86InstalledTaskCommitRegisters,

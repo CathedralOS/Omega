@@ -284,7 +284,7 @@ representatives; no additional public biconditional surface is implied.
 The selected theorem must be bodyful, checked, pure, crash-free,
 non-suspending/nonblocking, and terminating. A boundary/admitted declaration
 cannot occupy that selection. Fact-only use emits no representative pairs,
-runtime call, dictionary, or fuel charge. Recursive theorem citation still
+runtime call, dictionary, or work charge. Recursive theorem citation still
 requires the exact strict-edge [induction rule](contracts.md#citation-and-induction).
 Initial representative machines are pure and terminating, with only semantic
 preconditions and normal results observable. Effectful lifting needs a relation

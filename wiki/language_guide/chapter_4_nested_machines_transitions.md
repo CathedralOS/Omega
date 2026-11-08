@@ -1,4 +1,4 @@
-# Chapter 4: Nested Machines And Transitions
+# Chapter 4: Nested machines and transitions
 
 A nested machine is an ordinary machine whose name is visible only inside its
 enclosing machine's scope. Nesting organizes code; it does not capture data or
@@ -33,7 +33,7 @@ A cyclic machine promising termination supplies the ranking evidence described
 in [Chapter 9](chapter_9_proof_obligations.md). Runtime recursive cycles use
 constant-stack iteration; nesting depth does not decide stack consumption.
 
-## Calls Resume; Terminal Calls Complete
+## Calls resume; terminal calls complete
 
 ```omega
 machine answer() -> i32 {
@@ -73,7 +73,7 @@ a result expression, or ordinary Unit completion can end that portion. There
 is no requirement to manufacture a transition just to declare a helper.
 Executable statements cannot appear after the first nested declaration.
 
-## Explicit Data, Lexical Names
+## Explicit data, lexical names
 
 ```omega
 machine forward(value: Inventory) -> Inventory {
@@ -105,7 +105,7 @@ preserving exact values, loans and custody. Owned values still transfer once;
 dying values need their legal disposition. A final call cannot discard backing
 that its arguments still borrow.
 
-## Contracts Are Not Captured Either
+## Pass the required facts
 
 Every call proves the callee's requirements using its exact actual arguments.
 Live facts established by an enclosing entry may help prove them, but nesting
@@ -118,7 +118,7 @@ Ordinary invariant and borrowed-storage restoration rules still apply at calls,
 terminal transfers and completion. Nesting introduces no scope for hiding
 unfinished restoration.
 
-## Data Patterns And Coverage
+## Data patterns and coverage
 
 A transition can destructure its saved subject:
 
@@ -141,7 +141,7 @@ silently trapping. Complete finite case/Boolean coverage or a wildcard establish
 coverage; arbitrary guard ladders need a fallback. An explicit `_ -> {}`
 completes with Unit and cannot satisfy a value-returning contract.
 
-## Final Calls, Including Suspension
+## Final calls, including suspension
 
 Assume `Storage::read(&mut storage)` returns `u32`, permits suspension but not
 blocking, and the reference satisfies its loan/carry requirements:
@@ -151,7 +151,7 @@ machine finish_read(storage: &mut Storage) -> u32
 suspends
 {
     transition {
-        _ -> suspend Storage::read(&mut storage)
+        _ -> suspend Storage::read(storage)
     }
 }
 ```
@@ -165,21 +165,11 @@ permits suspension, their callers acknowledge it too. A future jump optimization
 does not remove source acknowledgements. Use `block` or `suspend block` when
 the selected call envelope requires them. See
 [terminal arm calls](../spec/language/state_contracts.md#terminal-calls-in-transition-arms)
-and [borrows across suspension](chapter_18_concurrency.md#borrows-across-suspension).
+and [borrows across suspension](chapter_18_concurrency.md#borrow-values-across-a-wait).
 
-## From Declarations To Execution
+## Stack use
 
-Resolution checks lexical visibility, then gives each machine a flat identity
-and explicit arguments. Downstream code need not carry a runtime nesting tree.
-Basic blocks, calls and terminal transfers describe execution; source ancestry
-remains useful for diagnostics and debug correspondence.
-
-A machine is not a promise to allocate a frame. The compiler may inline, fuse,
-reuse frames or emit jumps while preserving contracts, resource bounds and live
-storage. Constant-stack runtime cycles are required behavior, not an optional
-optimization. Non-tail runtime recursion does not become legal through nesting.
-
-The source `state` keyword is retired. These examples describe the ratified
-language ahead of implementation. Existing sample paths such as `other_state/`
-are migration coordinates, not a second declaration kind; the
-`NESTED-MACHINE-UNIFICATION` task tracks compiler, library and sample migration.
+Runtime cycles use tail transfers, so repeating a nested machine keeps stack use
+bounded. Ordinary calls can use another frame; the compiler calculates the
+storage required for the complete call graph. Nesting itself does not require
+an extra frame.

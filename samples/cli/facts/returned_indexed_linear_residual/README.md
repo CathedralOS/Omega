@@ -36,7 +36,7 @@ authored [] operator to acquire builtin array meaning.
 7. Instructions and frames: preserve operand order, outgoing scalar values and
    original cleanup actions without runtime liveness flags.
 8. Images and execution: native and Terminal must independently produce exit 0;
-   this row establishes no cross-host or fuel/resume execution.
+   this row establishes no cross-host or work/resume execution.
 
 Baseline 55c5385c96f5 rejects public preparation at issue's indexed ensures,
 consume's input requirement and the sibling hook prerequisite. Fresh main
@@ -57,7 +57,7 @@ and selected Exact arithmetic. Producer `b457b1978b87` refreshes all nine
 places and reject twins on macOS ARM64. The separate ordered-edge controls run
 on Linux x86-64 and Windows x86-64; this indexed row's native execution coverage
 remains macOS ARM64. The projected nominal cleanup fixture's portable provision
-owns the existing fuel/retry acceptance.
+owns the existing work/retry acceptance.
 
 Authority: [proof contracts](../../../../wiki/spec/proofs/contracts.md),
 [structural array construction](../../../../wiki/spec/terminal-psi/structural_access.md#complete-structural-array-construction),

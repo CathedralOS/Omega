@@ -5,10 +5,10 @@ requires value == 1 && remaining <= 9
 terminates by remaining in 0..=9
 {
     transition { _ -> later(2, remaining) }
-    machine later(value: u32, fuel: u32) requires fuel <= 9 terminates by fuel in 0..=9 {
+    machine later(value: u32, remaining_steps: u32) requires remaining_steps <= 9 terminates by remaining_steps in 0..=9 {
         accept(value);
-        transition fuel > 0 {
-            true -> later(value, fuel - 1)
+        transition remaining_steps > 0 {
+            true -> later(value, remaining_steps - 1)
             false -> done()
         }
     }

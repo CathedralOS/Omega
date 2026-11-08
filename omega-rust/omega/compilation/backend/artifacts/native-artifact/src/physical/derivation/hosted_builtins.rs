@@ -1,4 +1,9 @@
-//! Derive hosted builtin physical evidence from the closed settlement catalog.
+/*
+We derive hosted builtin physical children from our closed settlement catalog,
+verifying that each installed settlement binds its declared scalar argument and
+result custody shapes and reproduces identical instruction bytes across machine,
+object, and final-image custody.
+*/
 
 use crate::BoundaryTraitSettlementParts;
 use crate::BoundaryTraitSettlementRole;
@@ -32,33 +37,19 @@ use target_operations::HostedReadByteRealization;
 use target_operations::HostedWriteByteI32Realization;
 use target_operations::MachineRegister;
 
-/// One declared scalar-argument form a hosted builtin settlement may retain.
-/// The forms are mutually exclusive on the settlement record's two scalar
-/// rosters, so at most one form binds for any installed settlement.
 enum HostedScalarArgumentForm {
-    /// The settlement retains no scalar argument on either roster.
     Absent,
-    /// One compile-time scalar argument of the declared scalar type, carrying
-    /// a signed immediate that fits that type, bound to the declared
-    /// per-architecture ABI destination.
     Immediate {
         scalar: fn() -> ScalarType,
         destination: fn(Architecture) -> MachineRegister,
     },
-    /// One runtime scalar argument retained by its emitted source record;
-    /// `source` restricts the record's source kind when `Some`.
     RuntimeScalar {
         source: Option<fn(&InternalUnitScalarArgumentSourceRecord) -> bool>,
     },
 }
 
-/// One declared result-custody form for a hosted builtin settlement.
 enum HostedResultForm {
-    /// Unit result: the settlement retains no result record.
     Unit,
-    /// One structural result bound by `bind`, which validates the record's
-    /// exact custody for this builtin and reproduces the emitted bytes the
-    /// settlement span must carry.
     Structural {
         bind: fn(
             &machine_code::BoundaryStructuralResultRecord,
@@ -68,28 +59,12 @@ enum HostedResultForm {
     },
 }
 
-/// One hosted builtin's declared settlement custody. The catalog is the
-/// complete dispatch surface for compiler-builtin settlements: a further
-/// hosted builtin is one row — its closed execution and realization pair, the
-/// realization's own target applicability, the scalar-argument forms its
-/// settlement may retain, and its declared result custody — not a new match
-/// arm, role variant, or derivation function.
 pub(crate) struct HostedBuiltinSettlement {
-    /// Closed builtin execution the installed settlement must carry.
     execution: CompilerBuiltinExecution,
-    /// Closed realization the installed settlement must carry. The hosted
-    /// realizations carry no configurable fields, so record equality with
-    /// this row is the exact variant join.
     realization: BoundaryRealization,
-    /// The realization's canonical target applicability.
     supports_target: fn(NativeTarget) -> bool,
-    /// Admitted scalar-argument forms; the installed settlement must bind
-    /// exactly one.
     scalar_forms: &'static [HostedScalarArgumentForm],
-    /// Declared result custody.
     result: HostedResultForm,
-    /// Custody tags naming this builtin's execution and realization inside
-    /// the HostedV1 builtin settlement identity.
     identity_tags: [u8; 2],
 }
 
@@ -130,11 +105,6 @@ const HOSTED_BUILTIN_SETTLEMENTS: &[HostedBuiltinSettlement] = &[
     },
 ];
 
-/// Find the hosted builtin whose closed `(execution, realization)` pair the
-/// installed settlement carries. A `CompilerBuiltin` execution whose
-/// realization is not the builtin's own falls through to the provider lanes
-/// and remains an `UnsupportedSettlementRealization` gap, exactly as a named
-/// foreign realization does.
 pub(crate) fn hosted_builtin_settlement(
     settlement: &machine_code::BoundarySettlementRecord,
 ) -> Option<&'static HostedBuiltinSettlement> {
@@ -167,11 +137,6 @@ fn selected_process_exit_i32_source(source: &InternalUnitScalarArgumentSourceRec
     )
 }
 
-/// Validate the read-byte result record's exact custody and reproduce the
-/// emitted instruction bytes its settlement span must carry: the result is
-/// defined by the occurrence's own operation, and the caller-home layout is
-/// the conventional `ByteRead` sum — a zero tag at offset 0, a two-case
-/// layout with the byte payload at offset 4 in the success case.
 fn read_byte_result_bytes(
     result: &machine_code::BoundaryStructuralResultRecord,
     occurrence: &OptimizedBoundaryOccurrence,
@@ -217,8 +182,6 @@ fn read_byte_result_bytes(
     }
 }
 
-/// The retained scalar argument must be a signed immediate that fits its
-/// declared integer type.
 fn signed_immediate_fits_declared(immediate: IntegerValue, scalar_type: ScalarType) -> bool {
     let (ScalarType::Integer(integer), IntegerValue::Signed(value)) = (scalar_type, immediate)
     else {
@@ -234,9 +197,6 @@ fn signed_immediate_fits_declared(immediate: IntegerValue, scalar_type: ScalarTy
     }
 }
 
-/// Bind the installed settlement's retained scalar custody to one of the
-/// builtin's declared forms. `Some(None)` is a bound absent form; `None` means
-/// no declared form matched the retained rosters.
 fn bind_scalar_form(
     form: &HostedScalarArgumentForm,
     settlement: &machine_code::BoundarySettlementRecord,
@@ -274,12 +234,6 @@ fn bind_scalar_form(
     }
 }
 
-/// Derive the D41 physical child for one installed hosted builtin settlement.
-/// The caller matched the builtin's closed execution and realization pair;
-/// here the realization's own target applicability binds, the settlement's
-/// retained scalar and result custody must join the catalog row's declared
-/// shapes exactly, and the emitted span must attach to the object and the
-/// final image byte-identically with no relocation inside it.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_hosted_builtin_child(
     builtin: &HostedBuiltinSettlement,

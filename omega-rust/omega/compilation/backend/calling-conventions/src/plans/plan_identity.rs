@@ -1,4 +1,11 @@
-//! The compact FNV-1a identity every plan reports.
+/*
+We compute both the compact 64-bit FNV-1a report fingerprint and the optional
+32-byte domain-separated strong commitment over `CallPlan`, `StatePlan`, and
+`StateFootprintEvidence`. Empty callback materialization catalogs omit the
+callback domain tag to preserve historical plan identities, while nonempty
+catalogs append a dedicated domain tag before encoding their binder and
+`NativePlace` rows.
+*/
 
 use crate::callback_materializations::NativePlace;
 use crate::plans::vocabulary::{register_code, system_v_eightbyte_class_code};
@@ -84,9 +91,6 @@ impl Fnv1a {
             None => self.u8(0),
         }
         self.register_set(&plan.ordinary_clobbers);
-        // Empty catalogs preserve the identity of ordinary plans created
-        // before callback materialization existed. A nonempty catalog is a
-        // new observable ABI commitment and receives its own domain tag.
         if !plan.callback_materializations.is_empty() {
             self.bytes(b"omega.callback-materializations.v1");
             self.u32(plan.callback_materializations.len() as u32);

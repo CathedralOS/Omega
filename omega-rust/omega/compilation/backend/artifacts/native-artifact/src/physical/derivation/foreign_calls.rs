@@ -1,13 +1,19 @@
-//! Derive normalized foreign-call evidence from semantic custody, provider
-//! bindings, and exact emitted spans and relocation fields. Fragment publication
-//! rejoins its retained call custody before those checks continue.
+/*
+We derive normalized foreign-call physical evidence (`derive_normalized_foreign_child`)
+from semantic boundary custody, selected provider bindings, covered invocation
+intervals (`CoveredInvocationIntervals`), floating-point control-state envelopes
+(`floating_control`), and emitted relocation or relocation-free import fields.
 
-mod covered_intervals;
-mod floating_control;
-mod fragment_custody;
+The normalized foreign lane admits structural argument custody
+(`normalized_foreign_structural_parameter_shapes`) only for the exact source-rooted
+borrowed flat-record lane that lowering owns, and rejoins fragment-published calls
+against their relocation-free plan rows before checking import relocations,
+callback address materializations, or direct kernel instruction bytes.
+*/
 
 use crate::BoundaryTraitSettlementParts;
 use crate::BoundaryTraitSettlementRole;
+use crate::NativeByteSpan;
 use crate::NativePhysicalChild;
 use crate::NativePhysicalChildParts;
 use crate::NativePhysicalOccurrence;
@@ -18,16 +24,18 @@ use crate::NormalizedForeignCallbackRelocations;
 use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
-use crate::physical::derivation::evidence::physical_child_identity;
-use crate::physical::derivation::foreign_calls::fragment_custody::fragment_normalized_foreign_rejoin;
+use crate::physical::derivation::evidence::{physical_child_identity, ranges_overlap, span};
+use crate::physical::derivation::fragment_custody::fragment_normalized_foreign_rejoin;
 use crate::physical::derivation::settlement_identity::admitted_provider_boundary_trait_settlement_identity;
 use crate::physical::fragment_publication::FragmentPublicationBinding;
+use crate::physical::native_byte_span;
 use crate::physical::normalized_foreign_call_import_field;
 use crate::physical::normalized_foreign_call_relocation;
 use crate::physical::normalized_foreign_callback_relocation;
 use calling_conventions::NativePlace;
 use calling_conventions::ValuePlacement;
 use calling_conventions::validate_boundary_entry_plan;
+use image_emission::{ObjectCodeAttribution, ObjectForeignCall, ObjectFunction};
 use installation_evidence::ProviderExecutionEvidence;
 use machine_code::CallbackAddressDestination;
 use object_file::RelocationKind;
@@ -35,6 +43,7 @@ use object_file::SectionKind;
 use object_file::invocation_relocation_origin;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::ScalarType;
+use sha2::{Digest, Sha256};
 use target::Architecture;
 use target::NativeTarget;
 use target_operations::NormalizedForeignCallMechanism;
@@ -186,12 +195,6 @@ pub(crate) fn derive_normalized_foreign_child(
         u16::try_from(target.pointer_alignment)
             .map_err(|_| "normalized foreign D41 pointer alignment does not fit its ABI")?,
     );
-    // The normalized foreign lane admits structural custody only as the exact
-    // source-rooted borrowed flat-record lane the lowering owns: each expected
-    // Terminal argument row must rejoin its declared formal and the observed
-    // evaluated plan must place each formal's referent pointer as one
-    // pointer-width word. Any other valid signature shape retains no complete
-    // physical evidence rather than claiming a custody join it cannot prove.
     let structural_parameter_shapes =
         if !structural_arguments.is_empty() || !declaration.structural_parameters.is_empty() {
             let caller = module
@@ -215,10 +218,6 @@ pub(crate) fn derive_normalized_foreign_child(
         } else {
             None
         };
-    // Fragment publication retains the call's custody as relocation-free
-    // plan rows instead of object relocations; rejoin the unresolved import
-    // field, its declared import symbol, and the selected roster row before
-    // the custody checks below split on which route produced the call.
     let fragment_rejoin = publication
         .map(|publication| {
             fragment_normalized_foreign_rejoin(
@@ -246,9 +245,6 @@ pub(crate) fn derive_normalized_foreign_child(
             Some(shape)
         }
         (Some(OperationResult::Scalar(value)), BoundaryMachineResult::Scalar(declared), None) => {
-            // Fragment custody rows keep `scalar_result` empty; the retained
-            // roster row's result-home requirement carries the same custody
-            // the object route proves through its emitted durable-home record.
             let Some(home) =
                 fragment_rejoin.and_then(|rejoin| rejoin.record.call.result.scalar_home())
             else {
@@ -274,8 +270,6 @@ pub(crate) fn derive_normalized_foreign_child(
             BoundaryMachineResult::Structural(declared),
             None,
         ) => {
-            // The admitted fragment retains the complete typed home and independently
-            // replayed capture. It is not represented by the legacy scalar record.
             let Some(rejoin) = fragment_rejoin else {
                 return Ok(None);
             };
@@ -286,10 +280,6 @@ pub(crate) fn derive_normalized_foreign_child(
             else {
                 return Err("normalized foreign D41 child changed its structural result layout");
             };
-            // Fragment admission independently classifies the complete public
-            // declaration under the retained calling policy. Rejoin those exact
-            // declarations below, retaining that admitted ABI class: activation
-            // storage carries only ordinary geometry, not SysV/HFA classification.
             let placement = foreign
                 .binding
                 .boundary_entry_plan
@@ -338,10 +328,6 @@ pub(crate) fn derive_normalized_foreign_child(
             .as_slice(),
     ) {
         (callbacks, materials) if callbacks.len() == materials.len() => callbacks,
-        // Fragment custody projects the entry plan wholesale but cannot
-        // carry callback materialization custody rows it never derived; the
-        // call retains no complete physical evidence rather than claiming a
-        // custody join it cannot prove.
         ([], materials) if fragment_rejoin.is_some() && !materials.is_empty() => {
             return Ok(None);
         }
@@ -349,8 +335,6 @@ pub(crate) fn derive_normalized_foreign_child(
     };
     let mut callback_ordinals = Vec::with_capacity(callbacks.len());
     for callback in callbacks {
-        // Field destinations occupy their root parameter's existing slot;
-        // only Parameter destinations add a native parameter position.
         if !matches!(callback.target.destination, NativePlace::Parameter(_)) {
             continue;
         }
@@ -381,9 +365,6 @@ pub(crate) fn derive_normalized_foreign_child(
             return Err("normalized foreign D41 child changed a scalar argument position");
         }
     }
-    // Terminal retains authored order independently of the physical proposal.
-    // Reconstruct that interleave instead of letting either lane claim the
-    // other lane's ABI positions, even when their word shapes happen to match.
     let mut scalar_shapes = parameter_shapes.into_iter();
     let mut structural_shapes = structural_parameter_shapes.into_iter().flatten();
     let mut native_parameter_shapes = declaration
@@ -448,9 +429,6 @@ pub(crate) fn derive_normalized_foreign_child(
                 }
             }
         };
-        // Parameter-destination callbacks consume the next recorded native
-        // ordinal; field destinations bind through their root parameter's
-        // slot and take no ordinal of their own.
         let callback_ordinal = usize::try_from(callback.target.application.native_ordinal)
             .map_err(|_| "normalized foreign D41 callback ordinal does not fit this target")?;
         if matches!(callback.target.destination, NativePlace::Parameter(_))
@@ -505,8 +483,6 @@ pub(crate) fn derive_normalized_foreign_child(
             .map_err(|_| "normalized foreign D41 child contains an invalid boundary entry plan")?
     };
     let boundary_plan_identity = validated_plan.contract_commitment_digest();
-    // Physical provider evidence names the selected schema requirement; the
-    // original occurrence above still names and validates the portable head.
     let selected_requirement = selected_plan.selected_requirement_identity(requirement_identity);
     if validated_plan.plan() != &foreign.binding.boundary_entry_plan
         || foreign.binding.native_target() != Some(target)
@@ -575,8 +551,6 @@ pub(crate) fn derive_normalized_foreign_child(
     )
     .ok_or("normalized foreign D41 child has an invalid provider execution")?;
 
-    // Fragment publication independently projects the same object roster;
-    // the image carries that complete roster without appending extra calls.
     let retained_calls: &[image_emission::ObjectForeignCall] = match publication {
         Some(binding) => binding.foreign_call_custody(),
         None => object.foreign_calls(),
@@ -606,8 +580,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 && attribution.attribution.operation_ordinal == occurrence.operation_ordinal()
         })
         .collect::<Vec<_>>();
-    let intervals =
-        covered_intervals::CoveredInvocationIntervals::derive(function, &matching_attributions)?;
+    let intervals = CoveredInvocationIntervals::derive(function, &matching_attributions)?;
     intervals.require_invocation(
         fragment_rejoin.map(|rejoin| rejoin.call_span),
         target.architecture,
@@ -618,10 +591,6 @@ pub(crate) fn derive_normalized_foreign_child(
         Architecture::X86_64 => RelocationKind::X86_64Relative32,
         Architecture::Aarch64 => RelocationKind::Aarch64Branch26,
     };
-    // Fragment publication binds the same call custody through the
-    // relocation-free object plan — the unresolved import field plus its
-    // declared import symbol — where the object route binds it through
-    // relocation records and an object-plan import row.
     let (mutable_intervals, relocation) = if foreign.binding.symbolic_import().is_none() {
         if fragment_rejoin.is_none_or(|rejoin| rejoin.import.is_some()) {
             return Err("kernel entry lacks independently replayed fragment custody");
@@ -651,13 +620,13 @@ pub(crate) fn derive_normalized_foreign_child(
             )?;
             let field_byte_width = usize::from(field.field_byte_width);
             let field_kind = match field.kind {
-            machine_code::NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => {
-                RelocationKind::X86_64Relative32
-            }
-            machine_code::NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => {
-                RelocationKind::Aarch64Branch26
-            }
-        };
+                machine_code::NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => {
+                    RelocationKind::X86_64Relative32
+                }
+                machine_code::NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => {
+                    RelocationKind::Aarch64Branch26
+                }
+            };
             if field_offset != foreign.text_offset
                 || field_byte_width != 4
                 || field.addend != 0
@@ -804,10 +773,6 @@ pub(crate) fn derive_normalized_foreign_child(
                         },
                     });
                 }
-                // Callback materialization patch fields are unresolved
-                // private-function fields the final image binds — each 4-byte field
-                // inside the operation interval is mutable alongside the import
-                // field.
                 let mut mutable_intervals = vec![(field_offset, field_end)];
                 for callback in &field.callback_materializations {
                     let patch_section_offsets: [u64; 2] = match callback.encoding {
@@ -829,8 +794,8 @@ pub(crate) fn derive_normalized_foreign_child(
                             continue;
                         }
                         let patch_start = usize::try_from(patch_section_offset).map_err(
-                        |_| "normalized foreign D41 callback field offset does not fit this target",
-                    )?;
+                            |_| "normalized foreign D41 callback field offset does not fit this target",
+                        )?;
                         if !intervals.contains_object_span(patch_start, 4) {
                             return Err(
                                 "normalized foreign callback relocation crosses its invocation interval",
@@ -902,53 +867,51 @@ pub(crate) fn derive_normalized_foreign_child(
             };
             let mut callback_relocations = Vec::with_capacity(callbacks.len());
             for callback in callbacks {
-                {
-                    let (callback_symbol, _) = object_file::object_function_symbol(
-                        object.object(),
-                        callback.target.callback_function,
-                    )
-                    .ok_or("normalized foreign D41 callback lost its private object symbol")?;
-                    if !intervals.contains_object_span(callback.code_offset, callback.byte_count) {
-                        return Err(
-                            "normalized foreign D41 callback materialization left its operation interval",
-                        );
-                    }
-                    let exact_callback_relocation =
-                        |offset: usize, kind: RelocationKind| -> Result<_, &'static str> {
-                            admitted_callback_relocation(
-                                overlapping_relocations.iter().copied(),
-                                expected_origin,
-                                offset,
-                                callback_symbol,
-                                kind,
-                            )
-                        };
-                    callback_relocations.push(match callback.encoding {
-                        machine_code::CallbackAddressEncoding::X86_64Relative32 {
-                            relocation_offset,
-                        } => NormalizedForeignCallbackRelocations::X86_64Relative32 {
-                            callback_function: callback.target.callback_function,
-                            relocation: exact_callback_relocation(
-                                relocation_offset,
-                                RelocationKind::X86_64Relative32,
-                            )?,
-                        },
-                        machine_code::CallbackAddressEncoding::Aarch64PageAddress {
-                            page_relocation_offset,
-                            page_offset_relocation_offset,
-                        } => NormalizedForeignCallbackRelocations::Aarch64PageAddress {
-                            callback_function: callback.target.callback_function,
-                            page: exact_callback_relocation(
-                                page_relocation_offset,
-                                RelocationKind::Aarch64Page21,
-                            )?,
-                            page_offset: exact_callback_relocation(
-                                page_offset_relocation_offset,
-                                RelocationKind::Aarch64PageOffset12,
-                            )?,
-                        },
-                    });
+                let (callback_symbol, _) = object_file::object_function_symbol(
+                    object.object(),
+                    callback.target.callback_function,
+                )
+                .ok_or("normalized foreign D41 callback lost its private object symbol")?;
+                if !intervals.contains_object_span(callback.code_offset, callback.byte_count) {
+                    return Err(
+                        "normalized foreign D41 callback materialization left its operation interval",
+                    );
                 }
+                let exact_callback_relocation =
+                    |offset: usize, kind: RelocationKind| -> Result<_, &'static str> {
+                        admitted_callback_relocation(
+                            overlapping_relocations.iter().copied(),
+                            expected_origin,
+                            offset,
+                            callback_symbol,
+                            kind,
+                        )
+                    };
+                callback_relocations.push(match callback.encoding {
+                    machine_code::CallbackAddressEncoding::X86_64Relative32 {
+                        relocation_offset,
+                    } => NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                        callback_function: callback.target.callback_function,
+                        relocation: exact_callback_relocation(
+                            relocation_offset,
+                            RelocationKind::X86_64Relative32,
+                        )?,
+                    },
+                    machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                        page_relocation_offset,
+                        page_offset_relocation_offset,
+                    } => NormalizedForeignCallbackRelocations::Aarch64PageAddress {
+                        callback_function: callback.target.callback_function,
+                        page: exact_callback_relocation(
+                            page_relocation_offset,
+                            RelocationKind::Aarch64Page21,
+                        )?,
+                        page_offset: exact_callback_relocation(
+                            page_offset_relocation_offset,
+                            RelocationKind::Aarch64PageOffset12,
+                        )?,
+                    },
+                });
             }
             let expected_relocation_count = 1 + callback_relocations
                 .iter()
@@ -1064,11 +1027,6 @@ pub(crate) fn derive_normalized_foreign_child(
     ))
 }
 
-/// Admit the one private-function relocation a callback address slot pins —
-/// same invocation origin, exact field, four-byte width, callback symbol, and
-/// zero addend — and retain it as the normalized evidence row. The caller owns
-/// the candidate scope, so a placed callback's full object record set and a
-/// selected callback's interval-overlapping text records stay distinct.
 fn admitted_callback_relocation<'a>(
     candidates: impl Iterator<Item = &'a object_file::RelocationRecord>,
     origin: object_file::RelocationOrigin,
@@ -1097,36 +1055,12 @@ fn admitted_callback_relocation<'a>(
     ))
 }
 
-/// Classify the retained semantic type through the same closed ABI vocabulary
-/// as object custody. The hosted address carrier has an eight-byte integer
-/// slot without becoming a fixed integer type; reconstructing only fixed
-/// carriers rejects valid address results and their later foreign consumers.
-/// Exact source types, placements and producer spans still rejoin separately.
-fn foreign_scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
+pub(super) fn foreign_scalar_shape(
+    scalar_type: ScalarType,
+) -> Option<calling_conventions::ValueShape> {
     calling_conventions::ValueShape::for_scalar(scalar_type)
 }
 
-/// Rejoin the expected structural-argument custody of one normalized foreign
-/// Terminal boundary call against the observed evaluated-plan parameter
-/// placements.
-///
-/// Returns `Ok(Some(_))` — one pointer-width signature shape per declared
-/// structural formal — only for the exact source-rooted borrowed flat-record
-/// lane the lowering owns: every argument carries a nonempty field-only path
-/// rooted at a caller structural parameter, matches its declared formal's
-/// position and access, that formal is borrowed and unrestricted, and the
-/// observed plan places each formal's referent pointer
-/// as exactly one pointer-width word. `Ok(None)` names a valid signature
-/// shape this lane cannot prove — a callback-bearing signature, an owned
-/// formal, or an argument
-/// that is not such a projection — so the artifact retains no complete
-/// physical evidence rather than claiming an unprovable custody join.
-/// `Err` names contradictory retained custody: an argument count, declared
-/// formal position, or access that changed between declaration and call, or
-/// an observed plan whose parameter rows no longer realize each formal's
-/// pointer word.
-/// Semantic qualification custody is retained in the settlement identity and
-/// checked at the source call; membership adds no physical transport word.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn normalized_foreign_structural_parameter_shapes(
     structural_arguments: &[terminal_psi::StructuralArgument],
@@ -1143,8 +1077,6 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
     if structural_arguments.is_empty() {
         return Ok(Some(Vec::new()));
     }
-    // Callback address custody is a separate native-only slot, not a
-    // structural formal. That combination is not yet covered by this lane.
     if callback_present {
         return Ok(None);
     }
@@ -1200,4 +1132,321 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
         shapes.push(pointer_shape);
     }
     Ok(Some(shapes))
+}
+
+struct CoveredInvocationIntervals {
+    machine: Vec<NativeByteSpan>,
+    object: Vec<NativeByteSpan>,
+    final_image: Vec<NativeByteSpan>,
+}
+
+struct CoveredByteDigests {
+    machine: [u8; 32],
+    object: [u8; 32],
+    final_image: [u8; 32],
+}
+
+impl CoveredInvocationIntervals {
+    fn derive(
+        function: &ObjectFunction,
+        attributions: &[&ObjectCodeAttribution],
+    ) -> Result<Self, &'static str> {
+        if attributions.is_empty() {
+            return Err("normalized foreign call has no emitted attribution intervals");
+        }
+        let mut machine = Vec::with_capacity(attributions.len());
+        let mut object = Vec::with_capacity(attributions.len());
+        for attribution in attributions {
+            let offset = attribution.attribution.code_offset;
+            let count = attribution.attribution.byte_count;
+            let object_offset = attribution.text_offset;
+            if count == 0
+                || function.text_offset.checked_add(offset) != Some(object_offset)
+                || offset.checked_add(count).is_none()
+                || object_offset.checked_add(count).is_none()
+                || machine.last().is_some_and(|previous: &NativeByteSpan| {
+                    previous
+                        .offset()
+                        .checked_add(previous.byte_count())
+                        .is_none_or(|end| end >= offset)
+                })
+            {
+                return Err(
+                    "normalized foreign call has unordered, overlapping or detached intervals",
+                );
+            }
+            machine.push(native_byte_span(offset, count));
+            object.push(native_byte_span(object_offset, count));
+        }
+        Ok(Self {
+            machine,
+            final_image: object.clone(),
+            object,
+        })
+    }
+
+    fn contains_object_span(&self, offset: usize, count: usize) -> bool {
+        count != 0
+            && offset.checked_add(count).is_some_and(|end| {
+                self.object.iter().any(|span| {
+                    span.offset() <= offset
+                        && span
+                            .offset()
+                            .checked_add(span.byte_count())
+                            .is_some_and(|span_end| end <= span_end)
+                })
+            })
+    }
+
+    fn overlaps_object_span(&self, offset: usize, count: usize) -> bool {
+        offset.checked_add(count).is_some_and(|end| {
+            self.object.iter().any(|span| {
+                span.offset()
+                    .checked_add(span.byte_count())
+                    .is_some_and(|span_end| ranges_overlap(span.offset(), span_end, offset, end))
+            })
+        })
+    }
+
+    fn require_invocation(
+        &self,
+        placed: Option<&machine_code::PlacedInstructionSpan>,
+        architecture: target::Architecture,
+        foreign: &ObjectForeignCall,
+        object_bytes: &[u8],
+    ) -> Result<(), &'static str> {
+        let (offset, count) = if let Some(placed) = placed {
+            (
+                usize::try_from(placed.section_offset)
+                    .map_err(|_| "foreign call offset overflow")?,
+                usize::try_from(placed.byte_count).map_err(|_| "foreign call size overflow")?,
+            )
+        } else {
+            if foreign.binding.symbolic_import().is_none() {
+                return Err("kernel entry lacks retained instruction custody");
+            }
+            match architecture {
+                target::Architecture::X86_64 => {
+                    let offset = foreign
+                        .text_offset
+                        .checked_sub(1)
+                        .ok_or("foreign x86 call opcode offset underflow")?;
+                    let end = offset
+                        .checked_add(5)
+                        .ok_or("foreign x86 call end overflow")?;
+                    if object_bytes.get(offset..end) != Some(&[0xe8, 0, 0, 0, 0]) {
+                        return Err(
+                            "foreign object call differs from its exact x86 import instruction",
+                        );
+                    }
+                    (offset, 5)
+                }
+                target::Architecture::Aarch64 => {
+                    let end = foreign
+                        .text_offset
+                        .checked_add(4)
+                        .ok_or("foreign aarch64 call end overflow")?;
+                    if !foreign.text_offset.is_multiple_of(4)
+                        || object_bytes.get(foreign.text_offset..end)
+                            != Some(&0x9400_0000_u32.to_le_bytes())
+                    {
+                        return Err(
+                            "foreign object call differs from its exact aarch64 import instruction",
+                        );
+                    }
+                    (foreign.text_offset, 4)
+                }
+            }
+        };
+        if !self.contains_object_span(offset, count) {
+            return Err("normalized foreign invocation instruction is outside its owned intervals");
+        }
+        Ok(())
+    }
+
+    fn replay_bytes(
+        &self,
+        machine_bytes: &[u8],
+        object_bytes: &[u8],
+        final_image_bytes: &[u8],
+        mutable_offsets: &[(usize, usize)],
+    ) -> Result<CoveredByteDigests, &'static str> {
+        for &(start, end) in mutable_offsets {
+            let count = end
+                .checked_sub(start)
+                .ok_or("foreign mutable interval is reversed")?;
+            if !self.contains_object_span(start, count) {
+                return Err("foreign mutable interval crosses uncovered bytes");
+            }
+        }
+        let mut machine_digest = Sha256::new();
+        let mut object_digest = Sha256::new();
+        let mut final_image_digest = Sha256::new();
+        for ((machine_span, object_span), image_span) in
+            self.machine.iter().zip(&self.object).zip(&self.final_image)
+        {
+            let before_machine = span(machine_bytes, *machine_span)?;
+            let before_object = span(object_bytes, *object_span)?;
+            let after_image = span(final_image_bytes, *image_span)?;
+            if before_machine != before_object {
+                return Err("normalized foreign call changed before object custody");
+            }
+            for (byte_index, (before, after)) in before_object.iter().zip(after_image).enumerate() {
+                let offset = object_span
+                    .offset()
+                    .checked_add(byte_index)
+                    .ok_or("normalized foreign covered byte offset overflow")?;
+                if before != after
+                    && !mutable_offsets
+                        .iter()
+                        .any(|(start, end)| offset >= *start && offset < *end)
+                {
+                    return Err(
+                        "normalized foreign bytes changed outside their exact relocation set",
+                    );
+                }
+            }
+            machine_digest.update(before_machine);
+            object_digest.update(before_object);
+            final_image_digest.update(after_image);
+        }
+        Ok(CoveredByteDigests {
+            machine: machine_digest.finalize().into(),
+            object: object_digest.finalize().into(),
+            final_image: final_image_digest.finalize().into(),
+        })
+    }
+}
+
+pub(super) mod floating_control {
+    use crate::physical::fragment_publication::FragmentPublicationBinding;
+    use image_emission::ObjectForeignCall;
+    use image_emission::fragment_instruction_span;
+    use machine_code::PlacedFunctionFragment;
+    use selected_instructions::calls::normalized_foreign::return_transport;
+    use selected_instructions::calls::normalized_foreign::return_transport::resolve;
+    use selected_instructions::{
+        LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedNormalizedForeignCall,
+    };
+    use target::Architecture;
+
+    pub(in crate::physical::derivation) fn rejoin(
+        publication: &FragmentPublicationBinding,
+        function: &SelectedFunction,
+        block: &SelectedBlock,
+        fragment: &PlacedFunctionFragment,
+        record: &SelectedNormalizedForeignCall,
+        foreign: &ObjectForeignCall,
+    ) -> bool {
+        check(publication, function, block, fragment, record, foreign) == Some(())
+    }
+
+    fn check(
+        publication: &FragmentPublicationBinding,
+        function: &SelectedFunction,
+        block: &SelectedBlock,
+        fragment: &PlacedFunctionFragment,
+        record: &SelectedNormalizedForeignCall,
+        foreign: &ObjectForeignCall,
+    ) -> Option<()> {
+        if record.invocation_site.operation().is_none() {
+            return (foreign.x86_floating_control.is_none()
+                && foreign.aarch64_floating_control.is_none())
+            .then_some(());
+        }
+        let operation = record.invocation_site.operation()?;
+        let section = publication.text_section();
+        let (target, displacement, save_offset, save_count, restore_offset, restore_count) =
+            match section.target.architecture {
+                Architecture::Aarch64 => {
+                    let control = foreign.aarch64_floating_control?;
+                    if foreign.x86_floating_control.is_some() {
+                        return None;
+                    }
+                    (
+                        control.target,
+                        control.saved_slot_byte_offset,
+                        control.save_offset,
+                        control.save_byte_count,
+                        control.restore_offset,
+                        control.restore_byte_count,
+                    )
+                }
+                Architecture::X86_64 => {
+                    let control = foreign.x86_floating_control?;
+                    if foreign.aarch64_floating_control.is_some() {
+                        return None;
+                    }
+                    (
+                        control.target,
+                        control.saved_slot_byte_offset,
+                        control.save_offset,
+                        control.save_byte_count,
+                        control.restore_offset,
+                        control.restore_byte_count,
+                    )
+                }
+            };
+        if target != section.target || !displacement.is_multiple_of(8) {
+            return None;
+        }
+        let slot = LocalStorageSlotId::Boundary { operation };
+        let mut homes = function
+            .local_storage_slots
+            .iter()
+            .filter(|home| home.id == slot);
+        let home = homes.next()?;
+        if homes.next().is_some() || home.byte_size != 8 || home.alignment != 8 {
+            return None;
+        }
+
+        let transport = resolve(function, block, record)?;
+        let call_position = transport.call_position;
+        let restore_position = transport.restore_position?;
+        let restore = block.instructions.get(restore_position)?;
+        let save_position =
+            return_transport::save_position(function, block, record, call_position)?;
+        let save = &block.instructions[save_position];
+        let matches_span = |instruction, offset, count| {
+            fragment_instruction_span(fragment, instruction).is_some_and(|(start, size)| {
+                usize::try_from(start) == Ok(offset) && usize::try_from(size) == Ok(count)
+            })
+        };
+        let (call_start, call_size) = fragment_instruction_span(fragment, record.instruction)?;
+        let transported_end = block.instructions[call_position + 1..restore_position]
+            .iter()
+            .try_fold(call_start.checked_add(call_size)?, |end, copy| {
+                let (offset, count) = fragment_instruction_span(fragment, copy.id)?;
+                (offset == end).then_some(())?;
+                offset.checked_add(count)
+            })?;
+        if !matches_span(save.id, save_offset, save_count)
+            || !matches_span(restore.id, restore_offset, restore_count)
+            || u64::try_from(save_offset.checked_add(save_count)?).ok()? > call_start
+            || u64::try_from(restore_offset).ok()? != transported_end
+        {
+            return None;
+        }
+        let saved_bytes = section
+            .bytes
+            .get(save_offset..save_offset.checked_add(save_count)?)?;
+        let restored_bytes = section
+            .bytes
+            .get(restore_offset..restore_offset.checked_add(restore_count)?)?;
+        let exact = match target.architecture {
+            Architecture::Aarch64 => {
+                saved_bytes
+                    == isa_aarch64::encode_save_fpcr_to_sp_displacement(displacement).ok()?
+                    && restored_bytes
+                        == isa_aarch64::encode_restore_fpcr_from_sp_displacement(displacement)
+                            .ok()?
+            }
+            Architecture::X86_64 => {
+                saved_bytes == isa_x86_64::encode_stmxcsr_rsp_displacement(displacement).ok()?
+                    && restored_bytes
+                        == isa_x86_64::encode_ldmxcsr_rsp_displacement(displacement).ok()?
+            }
+        };
+        exact.then_some(())
+    }
 }

@@ -1,14 +1,9 @@
-//! Cleanup family: the declared `cleanup` surface is a closed `NoneV1`
-//! vocabulary today — admission fails closed if a second variant ever
-//! appears — and the only cleanup-capable encoded surface is the
-//! activation-stack lifecycle. An x86-64 user-space call commits the return-address
-//! extent below the stack pointer and an x86-64 return releases it;
-//! AArch64 transfers control through its link register, so no selected rule
-//! owns a lifecycle there. The lifecycle vocabulary itself is
-//! architecture-agnostic: structural admission binds its shape — the memory
-//! footprint, the stack lifecycle, and the trap surface must agree — while
-//! the ISA's canonical replay owns the coordinates, namely which view the
-//! stack pointer is and how wide a return address runs.
+/*
+We verify the closed `NoneV1` cleanup vocabulary and activation-stack lifecycle
+invariants across all supported targets: x86-64 user-space calls commit the
+return-address extent below the stack pointer and returns release it, whereas
+AArch64 link-register transfers and supervisor entries remain lifecycle-free.
+*/
 
 use super::{
     Architecture, EffectRejection, RegisterConstraintKey, assert_faulting_trap,
@@ -25,12 +20,6 @@ use selected_instructions::{
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineSemanticKind,
 };
 
-/// Which side of the activation-stack lifecycle a selected semantic owns —
-/// a call commits the return-address extent below the stack pointer, a
-/// return releases it — when the ISA's call pushes the return address at
-/// all. Only x86-64 does; AArch64 returns through its link register, so
-/// every selected rule there is lifecycle-free. Supervisor entry is also
-/// lifecycle-free on both ISAs, despite sharing foreign-call operand transport.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LifecycleOwner {
     Call,
@@ -48,8 +37,6 @@ fn lifecycle_owner(
         return None;
     }
     match semantic {
-        // A nonreturning invocation still enters the callee through the
-        // ordinary call, pushing the return address it never returns to.
         MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallUnit
         | MachineSemanticKind::CallAggregate
@@ -62,25 +49,83 @@ fn lifecycle_owner(
     }
 }
 
-/// The private stack extent an x86-64 rule pushes and pops within its own
-/// form: the directed-rounding float forms save and restore the rounding
-/// control, and the RFLAGS snapshot and restore move the flags through
-/// `pushfq`/`popfq`. None of them owns an activation-stack lifecycle.
-fn temporary_stack_bytes(architecture: Architecture, key: RegisterConstraintKey) -> Option<u16> {
+fn temporary_stack_shape(
+    architecture: Architecture,
+    key: RegisterConstraintKey,
+    stack_pointer: RegisterViewId,
+) -> Option<(u16, MachineEncodedMemoryEffect)> {
     if architecture != Architecture::X86_64 {
         return None;
     }
     match key {
         isa_x86_64::X86_64_IEEE_FLOAT_DIRECTED_BINARY
-        | isa_x86_64::X86_64_IEEE_FLOAT_DIRECTED_UNARY => Some(16),
-        isa_x86_64::X86_64_FLAGS_SNAPSHOT | isa_x86_64::X86_64_FLAGS_RESTORE => Some(8),
+        | isa_x86_64::X86_64_IEEE_FLOAT_DIRECTED_UNARY => Some((
+            16,
+            MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                stack_pointer,
+                byte_count: 16,
+            },
+        )),
+        isa_x86_64::X86_64_FLAGS_SNAPSHOT | isa_x86_64::X86_64_FLAGS_RESTORE => Some((
+            8,
+            MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                stack_pointer,
+                byte_count: 8,
+            },
+        )),
+        isa_x86_64::X86_64_TASK_REGISTER_ACTIVATE => Some((
+            8,
+            MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
+                table_pointer_operand: 0,
+                task_pointer_operand: 1,
+                selector_operand: 2,
+                scratch_pointer_operand: 3,
+                table_byte_count_operand: 4,
+                stack_pointer,
+            },
+        )),
+        isa_x86_64::X86_64_CODE_SEGMENT_RELOAD => Some((
+            16,
+            MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
+                table_pointer_operand: 0,
+                selector_operand: 1,
+                scratch_pointer_operand: 2,
+                table_byte_count_operand: 3,
+                stack_pointer,
+            },
+        )),
+        isa_x86_64::X86_64_DATA_SEGMENT_RELOAD => Some((
+            8,
+            MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
+                table_pointer_operand: 0,
+                selector_operand: 1,
+                scratch_pointer_operand: 2,
+                table_byte_count_operand: 3,
+                stack_pointer,
+            },
+        )),
+        isa_x86_64::X86_64_INSTALLED_INTERRUPT_CPU_CHECK => Some((
+            8,
+            MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 {
+                table_pointer_operand: 0,
+                task_pointer_operand: 1,
+                scratch_pointer_operand: 2,
+                stack_pointer,
+            },
+        )),
+        isa_x86_64::X86_64_INSTALLED_INTERRUPT_TASK_COMMIT => Some((
+            8,
+            MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 {
+                table_pointer_operand: 0,
+                task_pointer_operand: 1,
+                scratch_pointer_operand: 2,
+                stack_pointer,
+            },
+        )),
         _ => None,
     }
 }
 
-/// The memory footprint a lifecycle owner performs over `byte_count` bytes at
-/// `view`: a call writes the return address below the stack pointer, a return
-/// reads it back off the activation stack.
 fn lifecycle_memory(
     owner: LifecycleOwner,
     view: RegisterViewId,
@@ -98,7 +143,6 @@ fn lifecycle_memory(
     }
 }
 
-/// The stack lifecycle the same owner performs over the same extent.
 fn lifecycle_stack(
     owner: LifecycleOwner,
     view: RegisterViewId,
@@ -116,11 +160,6 @@ fn lifecycle_stack(
     }
 }
 
-/// Every selected rule on every declared target/ABI pair binds its cleanup
-/// surface: the declared vocabulary stays closed to `NoneV1`, and the
-/// encoded activation-stack lifecycle — the only cleanup-capable surface —
-/// is owned by exactly the semantics that transfer control through the
-/// activation, restating its memory footprint's pointer and extent.
 #[test]
 fn every_selected_rule_binds_its_activation_stack_lifecycle() {
     for case in scalar_abi_cases() {
@@ -132,9 +171,6 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
         for declaration in &catalog.catalog().declarations {
             let key = declaration.constraint;
             let semantic = declaration.semantic;
-            // The declared cleanup vocabulary is closed today: a second
-            // `MachineCleanupEffect` variant must name its owning semantics
-            // in admission before any declaration may carry it.
             assert_eq!(declaration.cleanup, MachineCleanupEffect::NoneV1, "{key:?}");
             assert!(!declaration.alternatives.is_empty(), "{key:?}");
 
@@ -143,9 +179,6 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                 let encoded = &alternative.encoded;
                 match lifecycle {
                     Some(LifecycleOwner::Call) => {
-                        // A call writes the return address below the stack
-                        // pointer; the lifecycle commits exactly the extent
-                        // that footprint writes.
                         assert_eq!(
                             encoded.memory,
                             MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
@@ -170,8 +203,6 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                         );
                     }
                     Some(LifecycleOwner::Return) => {
-                        // A return reads the pushed return address; the pop
-                        // releases exactly the extent that read consumed.
                         assert_eq!(
                             encoded.memory,
                             MachineEncodedMemoryEffect::ReadActivationStackV1 {
@@ -195,9 +226,16 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             "{key:?}"
                         );
                     }
-                    None if temporary_stack_bytes(case.target.architecture, key).is_some() => {
-                        let byte_count =
-                            temporary_stack_bytes(case.target.architecture, key).unwrap();
+                    None if temporary_stack_shape(
+                        case.target.architecture,
+                        key,
+                        stack_pointer.id,
+                    )
+                    .is_some() =>
+                    {
+                        let (byte_count, expected_memory) =
+                            temporary_stack_shape(case.target.architecture, key, stack_pointer.id)
+                                .unwrap();
                         assert_eq!(
                             encoded.stack,
                             MachineEncodedStackEffect::TemporaryBytesV1 {
@@ -206,14 +244,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             },
                             "{key:?}"
                         );
-                        assert_eq!(
-                            encoded.memory,
-                            MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
-                                stack_pointer: stack_pointer.id,
-                                byte_count,
-                            },
-                            "{key:?}"
-                        );
+                        assert_eq!(encoded.memory, expected_memory, "{key:?}");
                         assert_faulting_trap(encoded, key);
                         let row = environment.constraint(key).unwrap();
                         assert!(
@@ -230,10 +261,6 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                         );
                     }
                     None => {
-                        // Every other rule — including all calls and returns
-                        // on the link-register ISA — leaves the stack
-                        // untouched and touches no activation-stack
-                        // footprint.
                         assert_eq!(
                             encoded.stack,
                             MachineEncodedStackEffect::UnchangedV1,
@@ -253,9 +280,6 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                 }
             }
 
-            // The constraint row holds custody of the pointer a lifecycle
-            // moves: the call and return rows implicitly use and define the
-            // stack pointer the commit or release adjusts.
             if lifecycle.is_some() {
                 let row = environment
                     .constraint(key)
@@ -279,11 +303,6 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
     }
 }
 
-/// No selected rule may claim a stack lifecycle its encoding does not own:
-/// rules without an activation-stack footprint reject a borrowed lifecycle,
-/// and the call/return rows that own one reject its loss, its cross-class
-/// sibling, its fault surface, and forged coordinates — on every declared
-/// target/ABI pair.
 #[test]
 fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
     for case in scalar_abi_cases() {
@@ -301,11 +320,6 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
         for (semantic, key) in rules {
             let forgeries: Vec<(&'static str, MachineEncodedStackEffect)> =
                 match lifecycle_owner(case.target.architecture, semantic, key) {
-                    // A rule that touches no activation-stack footprint cannot
-                    // borrow either lifecycle shape: the vocabulary is closed
-                    // to the semantics that own it. This also covers AArch64's
-                    // calls and returns, whose link-register control performs
-                    // no stack lifecycle.
                     None => vec![
                         (
                             "borrowed return cleanup",
@@ -326,8 +340,6 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
                         let owned = |view, count| lifecycle_stack(owner, view, count);
                         vec![
                             ("dropped lifecycle", MachineEncodedStackEffect::UnchangedV1),
-                            // The sibling class's lifecycle does not fit this
-                            // row's memory footprint.
                             (
                                 "borrowed cross-class lifecycle",
                                 match owner {
@@ -349,12 +361,6 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
                         ]
                     }
                 };
-            // Every forgery above fails structural admission: the
-            // (memory, stack, trap) triple no arm owns rejects before the
-            // ISA's canonical replay ever runs, so the raw validator is
-            // enough. A fence's whole encoded surface is its fixed barrier
-            // shape, so admission reports any drift there as a barrier
-            // mismatch before it reaches the encoded-effect arms.
             let expected_rejection = if matches!(
                 semantic,
                 MachineSemanticKind::MemoryFence | MachineSemanticKind::AtomicFence
@@ -373,8 +379,6 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
                 );
             }
 
-            // A lifecycle dereferences the stack: understating its fault
-            // surface leaves a (memory, stack, trap) triple no semantic owns.
             if lifecycle_owner(case.target.architecture, semantic, key).is_some() {
                 let mut corrupted = catalog.clone();
                 encoded_mut(&mut corrupted, key, semantic, 0).trap =
@@ -389,12 +393,6 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
     }
 }
 
-/// Structural admission binds the lifecycle's shape — its pointer and
-/// extent must restate the memory footprint's — but only the ISA's
-/// canonical replay knows which view the stack pointer is and how wide a
-/// return address runs. A consistent forgery that renames both surfaces'
-/// pointer, or resizes both extents, survives admission and must still
-/// reject for every lifecycle-owning rule on every declared target.
 #[test]
 fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
     for case in scalar_abi_cases() {
@@ -416,9 +414,6 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
             };
             saw_lifecycle = true;
 
-            // Rename the lifecycle pointer on both surfaces consistently:
-            // admission cannot tell a register view from the stack pointer,
-            // so canonical replay must reject it.
             let mut corrupted = catalog.clone();
             let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
             encoded.memory = lifecycle_memory(owner, foreign_pointer.id, 8);
@@ -429,9 +424,6 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
                 "{key:?} consistently renamed lifecycle pointer must reject"
             );
 
-            // Halve the lifecycle extent on both surfaces consistently:
-            // admission sees a coherent lifecycle, so canonical replay must
-            // reject the half-width return address.
             let mut corrupted = catalog.clone();
             let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
             encoded.memory = lifecycle_memory(owner, stack_pointer.id, 4);
@@ -442,9 +434,6 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
                 "{key:?} consistently narrowed lifecycle extent must reject"
             );
         }
-        // The lifecycle is real on the call-pushes-return-address ISA and
-        // genuinely absent on the link-register ISA: the sweep must be
-        // non-vacuous on x86-64 and must not invent one on AArch64.
         assert_eq!(
             saw_lifecycle,
             matches!(case.target.architecture, Architecture::X86_64),

@@ -4,7 +4,7 @@ Start at [native_artifact.rs](src/native_artifact.rs). `NativeArtifact` keeps
 the canonical Terminal artifact, target object, executable image, selected
 provider projections, and replay evidence together.
 
-Its [requested-image construction](src/native_artifact/emission.rs) consumes
+Its [requested-image construction](src/native_artifact.rs) consumes
 `NativeArtifactEmissionParts<ExecutableImageEmissionRequest>`, emits the image,
 and dispatches to the authority-distinct Direct or Dynamic-ELF constructor.
 `RequestedNativeArtifact::emit` accepts only source-free custody and writes no
@@ -37,7 +37,7 @@ Follow its subordinate owners for:
 - [identity.rs](src/native_artifact/identity.rs): exact identity-field
   serialization, including foreign-call custody. This is not a substitute for
   replaying those fields.
-- [boundary_applications.rs](src/native_artifact/boundary_applications.rs) and
+- [native_artifact.rs](src/native_artifact.rs) and
   [mixed_structural_scalar.rs](src/native_artifact/mixed_structural_scalar.rs):
   focused semantic-to-object checks used by both products.
 
@@ -47,8 +47,8 @@ domains, producer-side executable evidence validation and self-verifying receipt
 evidence before installation, then binds its receipt to the installed path.
 The compiler chooses products and installs files; it does not assemble the
 native digest chain. Receipt replay detects content and mode drift without
-granting receiving or execution authority. Its
-[dynamic_elf.rs](src/publication/dynamic_elf.rs) gives a dynamically linked
+granting receiving or execution authority. Its `DynamicElfPublicationReceipt`
+in [publication.rs](src/publication.rs) gives a dynamically linked
 ELF product its own flat-file receipt in a separate digest domain, so dynamic
 bytes never satisfy direct-image publication custody.
 
@@ -61,8 +61,8 @@ The image backend's `physical_entry` owner implements the ABI bridge; it calls
 that ordinary source adapter and preserves its actual return value. The bridge
 does not synthesize semantic storage roots or replace the adapter's handoff.
 Follow
-[physical/derivation.rs](src/physical/derivation.rs) for independent physical
-evidence reconstruction and [physical/mod.rs](src/physical/mod.rs) for its
+[physical/mod.rs](src/physical/mod.rs) for independent physical
+evidence reconstruction and its
 retained carriers. The derivation coordinator in
 [evidence.rs](src/physical/derivation/evidence.rs) rejoins surviving occurrences
 and dispatches their boundary evidence to three owners:
@@ -74,9 +74,9 @@ and dispatches their boundary evidence to three owners:
 - [foreign_calls.rs](src/physical/derivation/foreign_calls.rs) reconstructs
   normalized foreign-call evidence, including argument placement, callbacks,
   and import relocations. Its
-  [fragment_custody.rs](src/physical/derivation/foreign_calls/fragment_custody.rs)
-  rejoins fragment-published imports and selected-call records; the sibling
-  `floating_control.rs` checks the saved and restored control-state envelope.
+  [fragment_custody.rs](src/physical/derivation/fragment_custody.rs)
+  rejoins fragment-published imports and selected-call records; the nested
+  `floating_control` module checks the saved and restored control-state envelope.
 
 Settlement identity encoding and provider-execution custody remain shared,
 named owners beside these derivations. Missing coverage still produces an

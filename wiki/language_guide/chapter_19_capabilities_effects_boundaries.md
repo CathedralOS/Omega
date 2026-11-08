@@ -1,375 +1,74 @@
-# Chapter 19: Capabilities, Reach, And Boundaries
+# Chapter 19: Capabilities, reach, and boundaries
 
-A portable program should be able to say what it needs without naming a syscall,
-DLL, or firmware table. Omega separates that requirement from the provider that
-realizes it and the authority needed to invoke it.
+A portable program can ask to read a file without naming a syscall or DLL.
+Declare the service it needs, then select a provider for the target.
 
-Keep five questions separate:
+## Declare and call a service
 
-| Question | Where the answer lives |
-| --- | --- |
-| Which services may this code reach? | Checked transitive inference, optionally bounded by `reaches`, and explicit boundary requirement contracts. |
-| May it park, block a worker, or crash? | Independent operational clauses. |
-| What authority was it given? | Values with established qualifications and provenance. |
-| Why trust the implementation? | Checked evidence or explicit provider admissions. |
-| What resources and mechanism does it use? | Selected plans, resource contracts, and receiving policy. |
-
-An empty service row does not prove termination or absence of mutation. A
-capability does not override a requirement's reach ceiling. Selecting a provider does not
-establish a runtime claim. The [effect specification](../spec/language/effects.md)
-defines these distinctions precisely.
-
-Examples illustrate the intended source model, not a claim that every target or
-native route is implemented. Unsupported routes must reject rather than weaken
-a contract. Implementation limits belong beside the
-[native realization code](../../omega-rust/omega/compilation/compiler/README.md#native-realization).
-
-## Boundary Surfaces
-
-`boundary` marks an explicitly accounted crossing. Its declaration kind says
-what crosses:
-
-| Declaration | Concern |
-| --- | --- |
-| Boundary machine or operator | Control, calling, reach, and guarantees. |
-| Boundary trait | Service requirements and provider realization. |
-| Boundary data | Representation. |
-
-A crossing can use checked Omega code or an admitted external realization.
-The keyword alone does not grant trust or determine direction. Parameters,
-results, and selected supply give those details.
-
-Indexing, for example, keeps its caller obligation visible even when the
-physical operation is compiler-provided:
-
-```omega
-boundary trait ElementIndex<T [copy]> {
-    machine [] index(items: &[T], index: u64) -> T
-    reaches
-    requires index < items.len;
-}
-
-boundary trait ElementRange<T> {
-    machine [..] range(items: &[T], start: u64, end: u64) -> &[T]
-    reaches
-    requires start <= end && end <= items.len;
-}
-```
-
-The caller proves the bounds. The requirement does not select its realization;
-the target or an authorized build choice selects an admitted candidate. Users
-need not know the private pointer or descriptor layout.
-
-### Representation TCB and claim admission
-
-An opaque representation answers “how are these bits carried?”, not “who may
-create this value?” or “what may its holder do?”. An interrupt acknowledgement
-can use a provider-selected carrier while remaining linear and consumable only
-through its completion protocol.
-
-Runtime by-value use needs one exact target-closed representation before ABI
-planning. A reference-only opaque pointee need not expose its by-value shape;
-proof-erased data needs none. The active consumer build selects a declared
-candidate:
-
-```omega
-machine build(builder: &mut Build) {
-    Build::select_representation<
-        InterruptAcknowledgement,
-        PicAckRepresentation
-    >(builder);
-}
-```
-
-`PicAckRepresentation` names a conformance to the exact compiler-owned
-representation trait. The compiler derives shape and movement rather than
-accepting authored sizes or ABI classes. Compiler-owned primitives instead
-derive their representation from pinned target semantics.
-
-The initial relationship is inert: no independently invoked cleanup or disposable
-debt may hide in the carrier, including inactive sum cases. Register and argument
-copies of a linear opaque value move one semantic occurrence; they do not
-duplicate its authority. A semantic copy needs a copyable opaque and a
-structurally copyable inert carrier.
-
-An invalid explicit selection rejects even if unused. A valid unused selection
-remains visible to review but creates no by-value demand. Dependency builds do
-not dictate the consumer's choice. Independently compiled by-value crossings
-must agree on the exact representation; a state-migration proof cannot repair
-an incompatible ABI in an existing caller.
-
-See [opaque representations](../spec/build/opaque_representations.md) and
-[representation review](../../omega-rust/omega/packages/review-evidence/README.md).
-Opacity alone is not an accepted proposition or capability establishment.
-
-## Boundary Traits
-
-A boundary trait names a portable callable surface. Its requirements can be
-realized by checked adapters, imported code, syscalls, firmware, or other
-providers:
+This interface lets a reader fill a caller-owned buffer:
 
 ```omega
 boundary trait Readable {
-    machine read(
-        path: [u8]::Utf8,
-        out: &mut Vec<u8>
-    ) -> ReadResult
+    machine read(path: [u8]::Utf8, out: &mut Vec<u8>) -> ReadResult
     reaches Readable
-      suspends;
+    suspends;
+}
+
+machine read_config(path: [u8]::Utf8, out: &mut Vec<u8>) -> ReadResult
+reaches Readable
+suspends
+{
+    suspend Readable::read(path, out)
 }
 ```
 
-The caller proves input requirements. Checked realizations prove their
-guarantees; opaque realizations require admitted guarantees. The requirement
-explicitly names `Readable` in its reach row. The boundary trait's name is not
-added automatically. A boundary requirement must declare its row; use bare
-`reaches` when it permits no services. A bodyless declaration's final semicolon
-still terminates the declaration, not the reach clause. `suspends` separately permits
-parking. Opaque realizations inherit that published contract; unknown native
-behavior is not inferred as empty.
+The example assumes the library's `Utf8`, `Vec` and `ReadResult` declarations
+are imported. `reaches Readable` records service use. `suspends` permits waiting,
+and `suspend` marks that possibility at the call. The caller also supplies
+the input facts and runtime authority required by the selected API.
 
-Calling a window requirement declaring window-service reach contributes that row.
-Whether its code came from a DLL is a provider fact. Calling an explicit runtime
-loader additionally reaches `DynamicLibraryLoading` and still needs admission
-for the loaded implementation. API visibility, crossings, and possible behavior
-are different questions: `public`, `boundary`, and `reaches` do not substitute for
-one another.
+A boundary requirement declares its reach explicitly. Use bare `reaches` for
+an empty row. The trait name is added only when the declaration names it.
 
-## Provider slots and runtime values
+## Select a provider
 
-A boundary trait is an interface whose exact application names a static provider
-slot. Source calls it directly:
-
-```omega
-machine report(text: &[u8]) reaches LoggingService suspends {
-    suspend LoggingService::write(text);
-}
-```
-
-Build/provider planning selects one admitted implementation for every demanded
-slot. Missing or ambiguous supply rejects. Several simultaneous static roles use
-distinct exact applications, for example `LoggingService<Interactive>` and
-`LoggingService<Audit>`, or separately named wrapper traits. Provider replacement
-updates the compiler/runtime's internal era for that slot; it does not rewrite
-source data.
-
-Runtime multiplicity uses values defined by the protocol itself: file handles,
-sessions, windows, registrations, component descriptors, machine values, or `some` packages.
-Those values carry their real state, ownership, and lifecycle. A generic
-`Binding<R>` routing object is not part of the source language. See
-[traits](chapter_14_traits.md) for local dynamic values,
-[embedding](chapter_24_embedding.md) for host import slots, and
-[component publication](../spec/build/component_publication.md) for internal
-provider eras and replacement.
-
-## Consumer Acceptance And Build Ceilings
-
-An independent component reports checked demands and any explicit environmental
-assumptions on which its claims depend. The consuming project reviews the
-canonical meaning and scope, and its lock retains acceptance for packaged
-dependencies. Existing root grants cover the root's own claims. A dependency's
-Build code or lock cannot approve assumptions on the consumer's behalf.
-
-Build may restrict the selected product further. For each target, the complete
-selected closure's demands must fit Build's ceiling, and that ceiling must fit
-consumer acceptance. Omission adds no restriction; an explicitly empty ceiling
-permits none in the restricted category; widening beyond acceptance rejects.
-Include helpers, callbacks, initialization, cleanup, and retained providers.
-Selecting only a library's numerical functionality may avoid its unused network
-or filesystem demands, but merely expecting not to take a runtime path cannot
-erase it from the verified inventory.
-
-This is one approval system plus optional attenuation, not two mandatory lists
-of accepted hashes. The source `Build::accept_component_assumption` approval
-call is retired; any retained Build policy only selects or restricts. Accepting
-an environmental assumption does not prove it true or grant execution or
-installation authority. See
-[consumer acceptance and Build attenuation](../spec/build/component_publication.md#consumer-acceptance-and-build-attenuation).
-
-## Root-Assumed Binding Contracts
-
-**Ordinary Omega programs should reject assumed bindings outright.** Treat them
-as unavailable when implementing or advising ordinary code. Do not use them to
-bypass borrow checking, silence an unproved ordinary contract, compensate for a
-compiler limitation, or make a failing test pass. Fix the ownership model,
-proof, contract or compiler instead. A library must not ask its consumers to
-approve an assumed binding as a substitute for that work.
-
-The mechanism remains for exceptional programs deliberately exceeding the
-checked model, including some forms of self-modifying code. Such use needs an
-explicit explanation of the requirement outside that model and the guarantees
-being relinquished. A compiler rejection alone is not justification.
-
-Ordinary provider selection requires a checked conformance. The following
-examples explain the exceptional trust mechanism, not a recommended way to
-obtain writable memory. A root can explicitly assume a relationship between
-two compatible boundary contracts:
+Build configuration chooses an implementation for a service. For example,
+with a declared `TestConsole` provider:
 
 ```omega
 machine build(builder: &mut Build) {
-    Build::application(builder, "memory_editor");
-    Build::select_provider<RangeSupplier, EchoSupplier>(builder);
-    Build::assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>(builder);
+    Build::select_provider<selected_target::Console, TestConsole>(builder);
 }
 ```
 
-For example, a library can declare these two views of the same runtime data:
+The provider must satisfy the requirement's signature and contracts. A checked
+Omega implementation proves its guarantees. An opaque foreign implementation
+needs explicit trust in those guarantees. Selecting either still leaves
+runtime authority and resource requirements to be met.
 
-```omega
-public boundary trait WritableMemory {
-    machine claim(region: Range) -> Range in Writable reaches WritableMemory;
-}
+One boundary-trait application names one static provider slot. Use distinct
+applications such as `LoggingService<Interactive>` and `LoggingService<Audit>`
+when the program needs two roles. Multiple files, sessions or windows are
+ordinary runtime values returned by those services.
 
-public boundary trait RangeSupplier {
-    machine supply(region: Range) -> Range reaches;
-}
+Application code usually follows this path:
 
-public EchoSupplier satisfies RangeSupplier {
-    machine supply(region: Range) -> Range { region }
-}
-
-machine claim_memory(region: Range) -> Range in Writable
-reaches WritableMemory
-{
-    WritableMemory::claim(region)
-}
+```text
+application -> checked library adapter -> boundary requirement
+            -> selected provider -> syscall, imported symbol or firmware
 ```
 
-Here the library's `Range`/`Writable` contract includes valid backing, write
-authority, lifetime and aliasing requirements, with the claim operation as an
-authorized issuer. Those definitions are not replaced by the names in this
-example. Numeric geometry alone supplies none of that authority.
+The standard library and target packages supply these layers as ordinary
+package code. [Provider selection](../spec/build/provider_selection.md) gives
+the complete selection and trust rules.
 
-The supplier body honestly checks as an identity operation. The root's admission
-supplies the missing qualification at the caller-facing crossing; calling the
-supplier directly still returns an unqualified range. An input-side difference
-can similarly supply a qualification the implementation requires. Both directions
-retain their exact subjects and owner-authorized establishment evidence.
+## Limit the services a machine uses
 
-Arguments/results must match in runtime carrier, order, representation, passing
-mode and lifetime/ownership relationships. Operational contracts stay checked.
-Different shapes need an ordinary checked adapter, not a same-size bit cast.
-Neither `satisfies` nor assembly gains an unchecked mode. If the root's external
-claim is false, the consumer's conditional safety guarantee no longer applies.
-
-The root may also deliberately accept a connection the checker can refute.
-This illustrates loss of assurance, not a technique for repairing a failed
-contract:
+A checked body can infer its reach. A wrapper propagates the services used by
+its callees:
 
 ```omega
-boundary trait Expected {
-    machine value() -> u32
-    reaches
-    ensures result == 1;
-}
-
-boundary trait Supplied {
-    machine value() -> u32
-    reaches
-    ensures result == 0;
-}
-
-ZeroProvider satisfies Supplied {
-    machine value() -> u32 { 0 }
-}
-
-machine build(builder: &mut Build) {
-    Build::select_provider<Supplied, ZeroProvider>(builder);
-    Build::assume_binding_contract<Expected::value, Supplied::value>(builder);
-}
-```
-
-A caller of `Expected::value()` checks against `result == 1`. The supplier
-checks against `result == 0`; the root assumes the connection despite the known
-contradiction. This is not a proof that zero equals one, nor permission for the
-supplier to fail its own contract. Shape, ownership mapping and operational
-compatibility still check independently. Ordinary grants and `satisfies` cannot
-use this exception.
-
-The caller may optimize using its promised result, so this deliberately false
-link does not promise that callers observe zero or get a controlled trap. Its
-guarantees depend on an assumption the root has chosen to violate.
-
-Package tools label this **Extremely high risk - assumed binding contract**,
-including through wrappers and dependencies. The exact relationship and selected
-implementation require explicit project acceptance; a changed implementation
-invalidates that approval. The root can register it for runtime, but build code,
-generators, constants and automatic tests cannot execute it or use its assumptions.
-Audit shows any detected contradiction with its exact statements and subjects.
-See the [complete contract](../spec/build/assumed_binding_contracts.md#known-contradictions-at-the-trust-crossing)
-for this scoped exception to the ordinary refutable-claim veto.
-
-## Service Reach And Operational Clauses
-
-`reaches` is an optional ceiling on a checked body's complete service reach.
-Without a clause, infer the row from direct boundary calls and ordinary callees,
-whether the body is private, an exported library API or an application entry.
-An explicit `reaches A + B` permits a body reaching only `A`; bare `reaches`
-permits no services and rejects hidden transitive use. Boundary-trait machine
-requirements must declare their ceiling, including an explicit empty one.
-Implementations must fit that requirement regardless of their own annotations.
-Parking, worker
-blocking, and crashes use independent clauses; `terminates` is a positive
-progress guarantee, not another may-effect.
-
-At a call, possible parking and blocking are acknowledged independently:
-
-```omega
-operation();
-suspend may_park();
-block may_block_worker();
-suspend block may_do_either();
-```
-
-These prefixes match the statically known envelope exactly. They do not force
-a pause or change the ABI. A suspending call needs a continuation boundary and
-cannot nest inside an argument or operator; a blocking-only call may nest.
-Final machine calls in transition arms use these same markers and forward the
-eventual result. Borrowed services may cross suspension under ordinary loan/carry
-preservation; boundary-trait identity neither grants nor forbids that permission.
-[Concurrency](chapter_18_concurrency.md) explains the call-site restrictions.
-
-## Service Identities And Inference
-
-Services are exact boundary-trait identities, not a built-in numeric list or
-names recognized by spelling. Inheritance adds parent services and `+` means
-set union, never a choice between target providers.
-
-Provider interfaces and capabilities need not have the same name. A Windows
-filesystem read requirement can declare `reaches FilesystemContentRead`; its
-caller then reaches that core capability, not `WindowsFilesystemHost` merely
-because that trait supplied the implementation. A pure floating-point boundary
-can have empty reach. Checked implementations must satisfy these contracts;
-foreign implementation assumptions remain separately auditable.
-
-All declared reaches propagate, including library-defined ones. Core-critical
-capabilities are always highlighted in package audits. To give a custom driver
-the same treatment, the consuming root can write:
-
-```omega
-boundary trait MotorControl {
-    machine set_speed(speed: u32)
-        reaches MotorControl;
-}
-
-// In root build configuration, with its original Build value:
-Build::audit_service<MotorControl>(builder);
-```
-
-This adds a critical audit identity; it grants no authority and accepts no
-finding. Unregistered custom reach remains in the full report and can still be
-restricted with `Build::exclude_service`. Dependencies cannot suppress core
-warnings or hide underlying physical operations behind an unregistered wrapper.
-See [critical service audit policy](../spec/packages/review.md#critical-service-audit-policy)
-for the fixed core catalog and install/update acceptance rules.
-
-Checked bodies publish their inferred row when unannotated, or their checked
-authored ceiling when one is present. Review retains both declared and derived
-rows. For example:
-
-```omega
-machine greet()
-{
+machine greet() {
     Console::write_line("Hello");
 }
 
@@ -378,62 +77,75 @@ machine start() {
 }
 ```
 
-`greet` infers the row declared by `Console::write_line`, and `start` propagates
-that published summary. Neither needs an annotation. An author may add a
-ceiling to catch accidental widening; a consumer audit still receives checked
-reach without that annotation. Provider selection and any required runtime
-authority remain separate obligations. `main` follows the same rules; a
-Cathedral application's deployment manifest separately bounds its permission.
-The same reach rule applies to directly named boundary calls; provider
-selection is not creation of a global mutable Console object.
-
-A dynamic call with an established implementation selection propagates its
-retained checked contract, which may be narrower than the trait's bound. Unknown
-selections use the requirement ceiling; joins account for every possible choice.
-This does not let a provider chosen later by Build erase boundary reach or let
-private-body analysis shrink an explicitly published ceiling. See
-[dynamic envelopes](chapter_14_traits.md#operational-envelopes).
-
-The same propagation works through a named static callback:
+Both reach the services declared by `Console::write_line`. Add an explicit
+ceiling when you want future edits checked against a limit:
 
 ```omega
-trait Visitor<Context> {
-    machine visit(context: &mut Context, value: u32)
-    reaches Console;
-}
-
-machine visit_pair<Context, Step>(
-    context: &mut Context, first: u32, second: u32
-)
-requires machine Step satisfies Visitor<Context>::visit;
-{
-    Step(context, first);
-    Step(context, second);
+machine greet() reaches Console {
+    Console::write_line("Hello");
 }
 ```
 
-The requirement permits at most Console reach. A selected no-reach callback
-leaves this traversal's reach empty; a Console-reaching callback contributes
-Console. There is no `reaches Step.reaches` declaration. The compiler derives a
-normalized dependency summary and substitutes selected public contracts into it.
-Call order and private-helper extraction preserving net reach preserve that
-summary. Adding logging inside a private helper can change the exported
-interface; callers and retained evidence are revalidated against the new row.
-This does not automatically require a package-version bump or break every caller.
+`reaches A + B` permits either or both services. Bare `reaches` permits none.
+Cleanup, callbacks and helper calls contribute too. Calls on runtime branches
+count toward the published reach.
 
-Reach omission requests inference. An explicitly empty clause bounds the row
-to empty; it never suppresses a service the body actually reaches. This is an
-upper-bound contract, not exact equality, a runtime authority grant or a promise
-of no mutation, blocking, crashes or divergence. Mandatory direct-call clauses
-and additive rows in the current compiler are migration debt under
-`OPTIONAL-REACH-CEILINGS` in [the task board](../../TASKS.md).
+Public APIs can infer reach too. The compiler publishes the checked summary for
+review and installation. Adding a service can invalidate a caller's ceiling or
+installation policy, so write a ceiling when you want that change caught locally.
 
-### Suspension And Blocking Through Callbacks
+Service identities come from declarations. A filesystem requirement may name
+`FilesystemContentRead` in its row; the DLL containing its provider does not
+become a service merely by supplying the code.
 
-A public generic declares the suspension/blocking ceilings its body needs under
-the callback requirement. The compiler also publishes a dependency summary, so
-a caller selecting a synchronous callback does not inherit suspension solely
-because other admissible callbacks could park:
+Reach describes possible service use. Mutation, suspension, blocking, crashes
+and termination have their own contracts. For call prefixes and their legal
+positions, see [calls that may wait](chapter_18_concurrency.md#mark-calls-that-may-wait).
+Extra acknowledgements are permitted and do not add an effect.
+
+## Forward a callback's services
+
+A reusable helper can accept callbacks using services defined by its clients:
+
+```omega
+public boundary trait MotorControl {
+    machine set_speed(speed: u32) reaches MotorControl;
+}
+
+machine command_motor(speed: u32) {
+    MotorControl::set_speed(speed);
+}
+
+public machine apply<machine F>(value: u32)
+requires machine F(value: u32);
+{
+    F(value);
+}
+
+public machine start_motor() reaches MotorControl {
+    apply<command_motor>(42);
+}
+```
+
+`apply` gets its reach from the selected F. Here `start_motor` reaches
+`MotorControl`; another callback can contribute a different service or none.
+The application still selects a provider for the boundary operation.
+
+Omitting reach on a body means “derive it from my calls.” On a non-boundary
+callback requirement it means “derive it from the selected implementation.”
+Write `requires machine F(value: u32) reaches;` to accept only service-free
+callbacks. The semicolon ends F's whole requirement; clauses after it belong
+to `apply`.
+
+The same propagation works through trait members and forwarded wrappers.
+A generic using an unrestricted F leaves its own reach inferred. Once F is
+selected, a caller can check the resulting finite row against its ceiling,
+as `start_motor` does above.
+
+## Suspension and blocking through callbacks
+
+A traversal may permit a suspending callback while a particular use remains
+synchronous:
 
 ```omega
 public machine apply<machine F>(value: u32) -> u32
@@ -453,512 +165,148 @@ public machine example() -> u32 {
 }
 ```
 
-`apply`'s body acknowledges the requirement's maximum permission. Its checked
-summary says suspension depends on F. `local`'s public contract forbids
-suspension, so `example` needs neither a marker nor a `suspends` clause.
-It may also write `suspend apply<local>(42)` without adding suspension to its
-contract. That redundant marker still occupies a legal suspension position.
-A callback whose published contract permits suspension instead requires
-`suspend apply<Callback>(42)` in a caller that admits suspension. Blocking is an
-independent dependency with the same rules. An unrelated potentially suspending
-call in apply keeps suspension possible even with local.
+`apply` checks its body against F's declared maximum behavior. Its published
+summary records that suspension depends on F. Since `local` cannot suspend,
+`example` can call the specialization without a marker or suspension clause.
 
-Private checked bodies may infer their ceilings. Public omissions still forbid
-the corresponding behavior for all admitted callbacks; a public generic cannot
-omit `suspends` merely because its current callers happen to be synchronous.
-Unknown callback selections use their requirement ceiling.
+A callback whose contract permits suspension requires `suspend apply<Callback>`.
+An unrelated suspending operation inside `apply` would also keep it suspending.
+Blocking follows the same substitution rule independently.
 
-Body markers must cover the abstract envelope; callers' markers must cover
-the specialized envelope. Redundant markers are permitted in either context,
-including a template's `suspend F(...)` after F becomes synchronous. This is
-published contract substitution, not an optimizer decision. Carry, loans and invariant windows inside the body
-still satisfy its upper-bound obligations, with no conditional carry exemption.
-Omitted published crash causes remain forbidden.
+The generic body still satisfies ordinary borrow and invariant rules at the call.
+When it keeps a resource across a callback, its suspension permission follows
+the [conditional carry rule](chapter_18_concurrency.md#keep-a-resource-across-a-callback):
+a synchronous selection needs no permission to cross a park; a suspending one does.
+Redundant markers remain allowed, including the template's `suspend F(value)`.
+See [forwarding callback contracts](chapter_13_generics.md#forwarding-a-callback-contract)
+for composing wrappers.
 
-Summaries compose through wrappers. Forwarding an exact callback requirement
-can also [infer the wrapper's repeated requirement](chapter_13_generics.md#forwarding-a-callback-contract).
-Both dependencies and inferred requirements belong to the public interface;
-body edits affecting them require dependent revalidation. See
-[operational dependencies](../spec/language/effects.md#static-callback-operational-dependencies).
+## Pass authority as data
 
-A checked in-memory `Readable` provider may avoid opaque trust and blocking;
-it does not erase the abstract `Readable` reach. An empty service row says nothing
-by itself about recoverable failure, mutation, authority use, or termination.
-There is no subtraction or masking of services.
-
-Installation-bound requirements have one restricted symbolic form:
-
-```omega
-public boundary trait InterruptCompletion {
-    machine complete(acknowledgement: InterruptAcknowledgement)
-        reaches <= MachineControl + PortIo
-        requires
-            acknowledgement in InterruptAcknowledgement::Pending;
-}
-```
-
-The selected provider's exact row must fit the bound and be resolved throughout
-the installation closure. It cannot escape unresolved through an ordinary
-callable package or component interface. Equal reach sets do not prove provider
-identity or acknowledgement lineage. See the
-[effect identity rules](../spec/language/effects.md#published-identity-and-installation-rows).
-
-### Declared service reach and installed terminal authority
-
-Source review asks which abstract service is reachable. Receiving policy also
-asks what the selected implementation can physically do. A filesystem provider
-cannot justify a process-execution syscall merely by satisfying a filesystem
-requirement.
-
-The receiver is the OS, loader, registry, or deployment system accepting the
-artifact. Ordinary compilation does not need its policy or grant execution
-permission. An explicit deployment-compatibility check may apply that
-ecosystem's rules before shipping. No supplied receiving policy means no
-admission claim, not refusal to emit the binary. Build code is different because
-it runs during compilation: its benign default and explicit restricted-action
-acceptance are covered by the
-[package workflow](packages.md#build-time-requests-are-part-of-the-audit).
-
-The receiver compares the service/schema's permitted authority with the selected
-mechanism and argument contract's exercised authority. Every demanded mechanism
-needs one classification, including explicit empty cases; unknown is not empty.
-A function named `open_read` proves no flag restriction. Narrowing needs retained
-checked constraints on the actual arguments.
-
-Filesystem policy distinguishes content read/write, metadata query/mutation,
-directory enumeration, and namespace mutation. Requesting or arming deletion
-is namespace mutation. Ordinary release incidentally completing another actor's
-already-requested deletion is different; deferred-deletion behavior attached to
-the released handle is not exempt. The exact mechanism and accepted release
-contract decide the classification, not the name `close`.
-
-An empty dangerous-authority set does not hide the call or prove purity, lifecycle
-safety, trust, or object confinement. Raw integer descriptors cannot prove “writes
-only files opened for writing.” That needs unforgeable, checked object authority.
-[Permission policy](../spec/build/permissions.md) owns the complete rules.
-
-## Synchronous Boundary Invocation
-
-Transitive service reach is not a call graph. `invokes` describes a binding that
-may be entered synchronously before the current invocation returns. Bodyful
-machines infer direct invocations; bodyless requirements declare them, and
-omission permits none. An invoked handler contributes its service and selected
-operational envelope to the current invocation.
-
-Durable registration instead establishes a future external root. Creating it
-adds no synchronous edge. A registrar that also calls the handler on its current
-chain must declare that possibility. The realized synchronous graph must be
-acyclic: adding a wrapper does not break a cycle, while a queue or genuine new
-activation can. Root admission separately checks the concrete future handler.
-See [callback lifetime](../spec/build/private_callbacks.md#registration-and-lifetime).
-
-## Bounded Line Input
-
-`Console::read_line` fills a caller-supplied mutable byte slice and returns a
-`LineReadResult`. This is the [settled bounded-input API](../spec/resources/bounded_input.md),
-not completed implementation support. The supplied slice length is the write
-bound. The reader neither grows storage nor updates a container's live length;
-owners and allocating wrappers perform their own explicit bookkeeping.
-
-`Invalid` is the result's zero-initialized state, meaning no read result has
-been established. A normal read instead returns `LineComplete(count)`,
-`EndOfInput(count)`, or `Full(count)`. Only that count's prefix is newly read
-data; the remaining destination is unchanged.
-
-The reader continues until LF, EOF, or the supplied range fills. LF is stored
-and counted, and wins over Full if it occupies the final slot. Zero capacity
-returns `Full(0)` without reading. Filling without LF returns Full without
-consuming another byte; it does not prove that the line is too long. The next
-call continues the same stream. Greedy filling may block and is not a query
-for currently available input.
-
-This is raw byte input: CRLF, NUL, and non-ASCII bytes remain unchanged. A
-partial prefix may split a UTF-8 sequence. Import the library's encoding domain
-and validate the reported prefix before treating it as text; naming a domain
-or previously holding valid text does not establish validity after a write.
-Shared checked adapters can compose OS byte reads, while a target may supply
-the same complete contract directly. Neither route implies a resizable OS
-buffer API, automatic allocation, or rollback after an I/O failure.
-
-## Process Exit
-
-The canonical core `ProcessExit` boundary service separates process-exit authority
-from console I/O. `reaches ProcessExit` permits an API to invoke exit, including
-through helpers; the API still needs actual authority bound to its process
-domain. Importing core or selecting a provider grants none. Output-only code
-does not need exit authority. Targets without a process abstraction do not
-supply this service.
-
-`terminates` promises eventual arrival at a permitted endpoint under the
-invocation's premises, not necessarily return to the caller. A machine may
-conditionally exit and otherwise return. It publishes the conservative reach
-ceiling, but only the exit branch has no continuation. Returning branches retain
-their normal results, postconditions, and cleanup. An imported reach ceiling
-alone cannot establish which arguments guarantee return.
-
-The exact `ProcessExit::exit_process(return_code: i32)` requirement defines a
-non-crashing terminal transfer ending the bound process and its activations.
-It has no normal result or implicit unwind. Outstanding obligations, including
-linear ones, are abandoned, not discharged; external survivor guarantees still
-require their crossing contracts. A zero status proves no cleanup or protocol
-success. A normal-return `ensures` is neither established nor necessarily
-violated by exit.
-
-Graceful shutdown remains ordinary cleanup and explicit task/resource settlement
-followed by entry return. The entry bridge cannot conceal unfinished custody.
-Automatic cleanup must return normally and cannot transitively permit exit.
-
-No `completes` keyword or public `never` type is needed. The compiler must retain
-the canonical requirement's terminal meaning and exact arguments through
-checking, provider selection, and verification. A returning mock, divergent
-provider, or abort is not an exit implementation; an interpreter instead ends
-its simulated process. See the [process-exit contract](../spec/language/process_exit.md)
-for the settled semantics and implementation boundary. The current Unit console
-call and native syscall alone do not yet establish that portable observation.
-
-## Capabilities And Authority Flow
-
-Two packages can both reach `Writable` yet hold different power. One writes using
-authority supplied by its caller; another prompts for fresh authority. The reach
-row alone does not distinguish them.
-
-Authority uses ordinary values qualified by owner-defined domains:
-
-```omega
-data Folder {
-}
-
-domain Folder::Writable
-    access FolderAccess;
-
-FolderAccess satisfies AccessPolicy {
-    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = AccessPlan::new(&schema);
-        AccessPlan::establish(&mut plan, [reflect::callable(Desktop::choose_folder)]);
-        plan
-    }
-}
-
-boundary trait Desktop {
-    machine choose_folder(prompt: &[u8]::Utf8) -> Folder::Writable;
-}
-
-boundary trait Writable {
-    machine write_bytes(folder: Folder, path: &[u8]::Path, bytes: &[u8])
-    requires
-        folder in Folder::Writable;
-}
-```
-
-This is a protocol sketch; the actual runtime fields and provider are
-package-owned. Reconstructing fields does not establish `Writable`. A caller must
-already carry the qualification or obtain it through the authorized route and
-matching admitted invocation.
-
-Authority-flow reports distinguish accepting, using, deriving, storing,
-returning, releasing, and acquiring authority. Opening a narrower handle within
-a caller-supplied folder derives authority; prompting for a new folder acquires
-it. Thus a report can distinguish:
+Two machines may both reach a write service while having different permissions.
+One might receive a writable cache directory; another might ask the user to
+choose a new directory. The latter acquires authority the former was given.
 
 ```text
-caller-supplied cache:
-  accepts/uses Folder::Writable; acquires none; reaches Writable
+save_cache(folder, bytes)
+  receives a writable folder from its caller
+  writes within that folder
 
-prompted cache:
-  acquires Folder::Writable via Desktop::choose_folder;
-  reaches Desktop + Writable
+choose_and_save(bytes)
+  asks Desktop to choose a folder
+  receives the resulting writable-folder claim
+  writes within that folder
 ```
 
-Policy may allow the first and reject the second. Neither report replaces provider
-trust or object-level confinement. The
-[authority specification](../spec/resources/authority.md) defines establishment,
-provenance, and the distinction between promises and actual receipts.
+Library domains and access policies express these claims. A `Folder::Writable`
+qualification can restrict establishment to an authorized chooser or derivation
+operation. Reconstructing a folder's public fields does not reproduce that
+permission. [Domains](chapter_8_domains.md) explains the source declarations;
+[authority](../spec/resources/authority.md) covers their provenance.
 
-### Package builds
+Origin identifies where a claim began. Custody identifies the owner currently
+responsible for it. For example, a transaction handle may contain a slot number
+whose meaning depends on a live provider instance. Moving the handle preserves
+that dependency until the transaction is settled or custody is transferred.
 
-`build.omg` receives explicit execution backing, not ambient filesystem, network,
-process, secret or package-acceptance power. It uses ordinary filesystem traits
-and selected implementations, just as library code does. A parent may supply a
-read-only subtree, snapshot or copy-on-write virtual view. The child uses the
-same contract without needing to know the physical backing, and imports cannot open
-an alternative host route. Changeset inspection and applying changes are
-ordinary library operations under the destination's authority.
+## Review what a package can do
 
-The [scoped build contract](../spec/build/scoped_execution.md) requires an exact
-captured input inventory, no implicit symlink traversal, deterministic logical
-metadata, and fresh append-and-seal staging. A build dependency makes an admitted
-implementation eligible for explicit preparation and checked continuation
-execution; it grants neither undeclared nameability nor host authority. Pass
-narrowed filesystem capabilities and linear required-artifact
-obligations to helpers; borrowing the whole builder delegates its operations.
-No new successful result set is published after a required output fails or final
-product checking rejects. These requirements are not a claim that every current
-legacy compiler facet already implements the ratified ordinary-service model.
+Package review reports service reach, acquired and supplied authority, foreign
+trust and environmental assumptions. The consuming root accepts those findings;
+a dependency cannot approve its own assumptions on the root's behalf.
+Build may further restrict the selected product.
 
-The resolver retrieves dependencies before their code runs. Its transport and
-credential authority does not pass to dependency builds. Generated source also
-inherits no build authority: ordinary runtime contracts apply to it. The root's
-filesystem selection governs descendants, whose delegated access cannot exceed
-their caller's. Lock mismatches and missing capabilities reject before restricted
-actions; executing the build does not require a second replay run.
-Different granted views are distinct Build execution contexts; a shared package
-name is not permission to union their grants or reuse inapplicable results.
-See [build execution](../spec/build/execution.md).
+The receiver, such as an OS or loader, also checks the implementation's physical
+permissions. A filesystem provider cannot justify process creation merely by
+implementing a filesystem interface. Compiling a binary and authorizing its
+installation are separate decisions.
 
-Package acceptance is a root policy decision over compiler-derived findings,
-not proof that a human audited or understood the source. A signature identifies
-key control; a certificate proves only its checked claim.
-[Package review](../spec/packages/review.md) keeps these evidence roles separate.
+Use [package tools](packages.md) for review and retained acceptance. Provider
+authors should also read [permission policy](../spec/build/permissions.md) and
+[component publication](../spec/build/component_publication.md).
 
-### Checked topology and actual authorization
+## Root-assumed binding contracts
 
-An ordinary [topology package](../spec/packages/topology.md) can check a finite
-graph of verified component instances. `no_route(S, T)` requires no directed
-invocation/message path. `only_via(S, T, V)` requires at least one S-to-T path
-and requires every such path to visit V. With multiple sources this does not
-promise connectivity for each source; register a separate check for each when
-that is required. Empty and overlapping selectors reject in the initial API.
+**Ordinary Omega programs should reject assumed bindings outright.** Treat them
+as unavailable when implementing or advising ordinary code. Do not use them to
+bypass borrow checking, silence an unproved ordinary contract, compensate for a
+compiler limitation, or make a failing test pass. Fix the ownership model,
+proof, contract or compiler instead. A library must not ask its consumers to
+approve an assumed binding as a substitute for that work.
 
-API -> Authorization -> Billing is a routing restriction, not evidence that a
-particular charge was approved. Approval still needs qualified evidence for the
-exact operation. Replies over a permitted connection can disclose secrets;
-topology does not prove confidentiality or information-flow security.
+The mechanism remains for exceptional programs deliberately exceeding the
+checked model, including some forms of self-modifying code. Such use needs an
+explicit explanation of the requirement outside that model and the guarantees
+being relinquished. A compiler rejection alone is not justification.
 
-The package consumes complete verified component descriptions,
-not reflected field names or a writer's inventory. Its installer receives current
-owner intent separately from the plan, rechecks policies, and establishes every
-actual binding before activation. Published plan bytes grant no execution or
-endpoint authority. Partial startup failure requires supervised cleanup, not a
-false success receipt or a claim to roll back external side effects. The first
-implementation customer is three checked processes with private pipes on Windows
-and macOS; runtime enforcement remains an acceptance obligation, not an existing
-feature demonstrated by graph tests.
 
-### Origin and custody
+An assumed binding connects compatible boundary contracts without proving the
+relationship between their guarantees. Callers and optimizers may rely on the
+assumed guarantee. If it is false, there is no promise of a controlled failure.
 
-Origin records where a claim began. Custody records the owner that currently
-gives it meaning and must remain available for reclamation. A transparent
-`Transaction { slot: u64 }` can still depend on the provider era interpreting
-that slot. Moves and returns preserve custody. Transfer requires a named
-receiver's checked acknowledgement or admitted receipt; a written postcondition
-does not create it. Old-era sessions can safely delay replacement until consumed
-or transferred. See [returned-value custody](../spec/build/component_publication.md#returned-values-and-custody).
+Package review labels this **Extremely high risk - assumed binding contract**.
+It requires explicit project acceptance of the relationship and implementation,
+including when hidden behind wrappers or dependencies. Build evaluation,
+constants and automatic tests cannot execute it or use its assumptions.
 
-## Host Providers
+The [assumed-binding reference](../spec/build/assumed_binding_contracts.md)
+contains the exceptional mechanism and its loss-of-assurance examples.
 
-The target package declares checked adapters and irreducible native leaves.
-The compiler derives a complete candidate plan from their explicit satisfaction
-relationships. Build selects a candidate, not authored plan rows:
+## Read bounded input
 
-```omega
-machine build(builder: &mut Build) {
-    Build::select_provider<selected_target::Console, TestConsole>(builder);
-}
-```
+`Console::read_line` takes a mutable byte slice. Its length is the write limit;
+the operation returns `LineComplete(count)`, `EndOfInput(count)` or `Full(count)`.
+Use the reported prefix and update any containing buffer's live length yourself.
 
-The target supplies ordinary defaults; an authorized slot owner can override
-one. Selection, structural validation, semantic admission, and runtime invocation
-are separate steps. A selected provider must cover its required surface and
-apply to the target.
+For a four-byte destination:
 
-A generic requirement is normally one selected schema, not a slot per type or
-const argument. Final composition closes every reachable application and checks
-its realization. A symbolic demand describes what must be supplied; it is not
-coverage. Even future universal checked-body evidence could not provide concrete
-ABI layouts or emitted code.
+| Input | Result | Newly written bytes |
+| --- | --- | --- |
+| `ab` followed by LF | `LineComplete(3)` | `ab` and LF |
+| `abcd` followed by more input | `Full(4)` | `abcd` |
+| `ab` followed by EOF | `EndOfInput(2)` | `ab` |
 
-Equal closed applications may share semantic evidence, but every surviving
-executable boundary occurrence needs its own replayed physical realization.
-Eliminating an occurrence requires verified optimization, not a missing report.
-See [provider selection](../spec/build/provider_selection.md) and
-[boundary realization](../spec/terminal-psi/boundary_calls.md). These are required
-guarantees, not blanket claims of generic or native implementation support.
+`Full` means the supplied range filled, not that the line is too long. The next
+call continues the stream. A zero-length destination returns `Full(0)` without
+reading. `Invalid` is the result type's unestablished zero state.
 
-## Freestanding Targets And Hardware Facts
+The reader preserves raw bytes, including CR and NUL. A full prefix can split
+a UTF-8 sequence, so validate it before treating it as text. See
+[bounded input](../spec/resources/bounded_input.md) for the complete API.
 
-A freestanding target has no operating-system host below it. Its providers may
-guarantee hardware behavior: a mapping becomes active, an MMIO access reaches
-a device, or an interrupt mask remains in force until restoration. Those accepted
-facts remain explicit trust inputs. [Inline assembly](chapter_22_inline_assembly.md)
-is an implementation mechanism, not a bypass around their contracts.
+## End a process
 
-Physical arrival is distinct from semantic authority. UEFI supplies an image
-handle and system-table pointer; neither is an owned `Extent`. A target-owned
-bootstrap obtains admitted image correspondence, establishes separate storage,
-accounts for stack and explicitly owned state storage, crosses the semantic entry once, and
-calls the source continuation with only its declared values.
+`ProcessExit::exit_process(return_code: i32)` ends the bound process and its
+activations. Code invoking it declares `reaches ProcessExit` and needs the
+corresponding process authority. Console access alone supplies neither.
 
-That bootstrap is target-package Omega code. Firmware structures, layouts,
-calling policies, validation, and protocol sequencing should be authored there;
-the compiler provides generic checking and the necessary entry/instruction
-mechanics. UEFI does not make firmware protocols compiler primitives.
-See [authored firmware adapters](../spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
+Exit has no normal return or implicit cleanup. A graceful shutdown explicitly
+settles tasks and resources before returning from the program entry.
+An exit status of zero is a status code, not evidence that those protocols ran.
+See [process exit](../spec/language/process_exit.md).
 
-A returning firmware application and an OS-loader handoff have different
-lifecycles. Handoff must account for retry, live Boot Services, final exit, and
-surviving storage explicitly; it cannot reinterpret failure as success or loop
-without a bound. [Entry roots](../spec/build/entry_roots.md) and
-[entry stacks](../spec/resources/entry_stacks.md) own the arrival rules.
+## Write a foreign adapter
 
-Callbacks and interrupts are external roots even without an ordinary Omega
-caller. Installation includes their service, trust, state, stack, and custody
-demands so they cannot hide behavior outside the ordinary call graph.
+A provider often needs to adapt a portable signature to the foreign API's
+representation and calling convention. Keep that conversion in checked code;
+bind the irreducible native operation using its exact target and locator.
+For example, a PE import identifies a name or ordinal, while an ELF import
+identifies an object, symbol and optional version.
 
-Starting another processor follows the same division. Cathedral implements the
-boot protocol through selected providers; Omega checks entry and resource
-contracts. A request sent is not an arrival confirmed, and a timeout does not
-permit reclaiming a stack a delayed processor may still use. The
-[startup contract](../spec/build/external_roots.md#secondary-processor-startup)
-requires exact completion or safe cancellation before resources are released.
+The [foreign-binding reference](../spec/build/foreign_bindings.md) covers those
+locators. [Layout and ABI](chapter_20_memory_layout_abi.md) explains layouts,
+calling plans and views. Boundary data describes representation; a boundary
+machine or trait describes a callable crossing.
 
-### Admitted executable installation
+A reference returned by an admitted provider carries promises about valid
+backing, access and lifetime. A pointer retained after return needs a protocol
+that keeps its storage alive until external access ends. A numeric address
+alone supplies no memory authority. See [foreign storage](../spec/build/foreign_storage.md).
 
-Omega has no general operation converting arbitrary bytes to code. Installation
-borrows an admitted immutable artifact and consumes authority over one
-destination. Writable placement is frozen, exact final bytes and footprint are
-validated, and the provider establishes permissions and instruction-fetch
-visibility before entry. The artifact is reusable; destination authority is not.
-Replacement also needs quiescence before retirement. Indirect transfers retain
-their own entry-reference and descriptor contracts. See
-[executable installation](../spec/build/executable_installation.md).
+### Foreign callbacks through platform adapters
 
-### Build policy and privileged reach
-
-A hosted profile can reject privileged reach; a kernel profile may grant a
-small admitted provider set. The authored grants are exact per class:
-`b.privileged_services.port_io = true` admits port-I/O instruction contracts
-and `b.privileged_services.interrupt_table = true` admits interrupt-table
-publication, while machine-owner authority has no granular grant and stays
-`b.freestanding = true`. Approval still supplies neither a resource value
-nor its operation-specific qualification. An interrupt-table value does not
-authorize installation, and installation authority does not construct the table.
-Checked wrappers and hardware roots remain visible to policy.
-[Hardware materialization](../spec/build/hardware_materialization.md) and
-[interrupt obligations](../spec/build/interrupt_obligations.md) define generic
-crossings; OS tables, drivers, and lifecycle protocols remain package-owned.
-
-## Views, domains, and foreign shapes
-
-Foreign APIs use ordinary types, qualifications, and contracts. Text can be
-owned, growable, or borrowed bytes with an encoding domain:
-
-```omega
-boundary trait CConsole {
-    machine write(text: &[u8]::Utf8 & NoNul)
-    reaches
-        CConsole;
-}
-```
-
-Length comes from the descriptor. Sequence-wide facts such as UTF-8 validity or
-absence of NUL are established once and carried while valid; each use need not
-rescan the bytes. [Domains](chapter_8_domains.md) explains establishment.
-
-A semantic view does not choose a foreign ABI. If the public contract leaves
-representation choices, the leaf states the counterparty's actual shape and a
-checked adapter converts it. Retaining a pointer after return requires backing
-custody in a linear protocol, not a bare borrow. `addr` and `Ptr<T>` are inert
-tokens; memory access needs an authority-bearing view.
-
-An admitted safe boundary can return a reference, or write one into an output
-slot, to storage owned by its provider. The admitted contract promises valid
-backing, the stated access and stability for the allowed lifetime. For example,
-firmware can return loaded-image metadata that is not inside the services table
-used for the call. Sharing a lifetime does not imply sharing that table's bytes.
-Omega checks subsequent use and invalidation; it trusts the admitted opaque
-provider to keep its promise. No extra root token is required just for returning
-a view, and a view of metadata does not grant ownership of the memory it describes.
-
-Write-only access lends an already valid region without permission to inspect
-its old contents. It is not vacant-storage initialization. The outcome states
-the modified prefix and preserves the untouched suffix; opaque compliance needs
-admission or enforcement. See [foreign storage](../spec/build/foreign_storage.md)
-and [layout/ABI](chapter_20_memory_layout_abi.md).
-
-## Boundary evidence and authority values
-
-A boundary guarantee establishes routed qualification only for the exact subject
-and requirement authorized by the domain, with the selected invocation's receipt.
-Calling a checked adapter directly does not import that receipt. Predicates can
-prove geometry; they cannot manufacture external provenance.
-
-`Extent { base, length }` describes a range, but reconstructing those fields
-does not recreate a granted extent. Splitting granted storage consumes the
-parent and proves its content equals the separated children while preserving
-backing and lineage. Matching byte counts alone prove neither fresh exclusive
-issuance nor valid recomposition.
-
-[Authority](../spec/resources/authority.md),
-[content custody](../spec/resources/content_custody.md), and
-[extents](../spec/resources/extents.md) distinguish installed local roots, provider
-issuance, geometry, conservation, and external correspondence. Boundary arguments
-must already carry their required qualifications; the call does not establish
-them again. Joins and optimization cannot union incompatible histories to invent
-authority.
-
-## Boundary Realization Catalog
-
-Checked adapters handle sequences, argument reshaping, caching, and other policy.
-The owning package's Build records a direct native binding from an exact product
-requirement and target to ordinary typed locator data. Source `via` clauses and
-per-symbol bodyless forwarding declarations are retired. Locator literal lengths
-are inferred; one-to-one helper machines and counted return types are not
-required. `ForeignBinding` covers object-format imports and syscall numbers;
-validated typed native-table fields retain their separate mechanism.
-
-An import locator keeps its coordinates together: PE name/ordinal, ELF
-object/symbol/version, or Mach-O install-name/symbol. They are foreign bytes,
-not Omega names or provider keys. Firmware calls name validated fields, not
-authored numeric slots. The requirement independently owns the calling plan;
-the locator cannot reselect it.
-
-Compiler intrinsics use exact declaration, signature, target, and sealed catalog
-identity, not an empty locator or authored intrinsic string. Changing a
-foreign binding changes dependent artifact identity and requires relinking and
-fresh admission. Build authors binding intent, not trusted evidence or mutable
-plan rows; native validation, foreign-contract admission and runtime authority
-remain separate. Package bindings compose under the selected portable provider,
-without exposing private raw slots or repeating imports in application Build.
-[Foreign bindings](../spec/build/foreign_bindings.md) owns the complete vocabulary,
-lifetime applications, and validation.
-
-## Blocking Boundaries
-
-A pipe read can wait for data or closure; a driver can wait for an interrupt.
-`blocks` permits occupying the worker but does not prove that either event will
-happen. Positive progress needs its own admitted premises. Without finite-wait
-evidence, response analysis cannot claim a finite bound.
-
-A pinned UI executor may make a blocking native call. A blocking-executor package
-may instead use queues and completion claims. Neither strategy permits killing
-an in-process native worker while its custody remains live; bounded recovery
-from a genuine hang requires suitable isolation. See
-[foreign operational coherence](../spec/build/foreign_bindings.md#operational-coherence)
-and [response bounds](../spec/resources/logical_work.md#response-and-physical-time).
-
-## Host vs Standard Library
-
-Typical layering is:
-
-```text
-application
-  -> optional checked library adapters
-        -> boundary-trait requirement
-      -> selected provider and calling plan
-        -> imported symbol, syscall, or firmware operation
-```
-
-The standard library is optional ordinary package code, not a privileged
-namespace. Target providers can live in it or separate packages. Static versus
-dynamic linkage is different from checked versus admitted supply. Application
-authors normally use portable interfaces; provider authors own the target-specific
-binding and explicitly expand the boundary base.
-
-## Foreign callbacks through platform adapters
-
-A foreign callback is selected by exact nominal satisfaction, not signature
-coincidence or a conveniently named visible machine. This sketch assumes the
-named `MicrosoftX64Policy` conformance is in scope:
+A callback declares which foreign requirement it satisfies. This adapter sketch
+assumes the platform types and `MicrosoftX64Policy` are imported:
 
 ```omega
 boundary trait WindowProcedure:
@@ -984,12 +332,6 @@ boundary machine ApplicationWindow::dispatch(
 }
 ```
 
-The requirement supplies the signature, contract, and inbound calling/state
-plan. The registrar's outbound plan is separate. Its static machine binder names
-the exact requirement; a signature-free path denoting several overloads rejects.
-
-A direct callback destination is declared at its actual native parameter position:
-
 ```omega
 machine install<machine Handler>(
     hook: HookKind,
@@ -1002,58 +344,30 @@ requires machine Handler satisfies HookProcedure::call;
 install<ApplicationHook>(hook, module, thread)
 ```
 
-The call omits `procedure`: no runtime function-pointer value is passed. The
-compiler privately realizes the callback and relocation. Calling policy places
-that declared entry; it cannot invent a trailing argument or retarget the binder.
+The requirement supplies the inbound signature and calling contract. The call
+to `install` omits its declared native callback position: the static Handler
+selection supplies that entry. Runtime instance state travels through explicit
+context tokens, handles or package-owned storage.
 
-`address_of<ApplicationHook>()` separately observes an executable entry address under
-[address exposure](chapter_20_memory_layout_abi.md#exposing-addresses). It does not
-expose this private ABI slot or replace the callback requirement, calling plan,
-or registration custody with a number.
+Registration must keep the callback code and state alive. Teardown first
+unregisters and establishes quiescence, then releases them. A registrar that
+can call back before returning declares that synchronous invocation with
+`invokes`; durable registration creates a future external entry instead.
+See [callback registration](../spec/build/private_callbacks.md#registration-and-lifetime).
 
-A nested destination instead comes from a layout explicitly citing a named
-`PrivateCallbackSlot<Layout, Requirement>` implementation whose `Layout`
-argument is that layout policy. Layout owns the offset; the calling plan maps
-the binder to the declared private place. Merely declaring an implementation
-changes no layout, and private slots are not readable source fields. [Private callbacks](../spec/build/private_callbacks.md) defines both forms
-and their independent occurrence/placement checks.
+### Freestanding targets and hardware facts
 
-Code emission is not registration. Build selects realization and resources;
-ordinary runtime control calls the registrar. Success establishes a future root
-and moves live-registration capacity into the linear registration. Failure creates
-no root and preserves that authority. Teardown unregisters and establishes
-quiescence before releasing code/component leases; retry preserves outstanding
-custody. Capacity counts live registrations, not emitted thunks.
+Firmware and kernel providers may establish hardware facts: a mapping is active,
+a device accepted an access, or an interrupt mask remains in force. Those
+guarantees are explicit trust inputs. Assembly still has to satisfy the
+selected operation's contract.
 
-Per-instance state uses an explicit context token, checked generational handle,
-or package-owned stable state. No implicit closure environment accompanies the
-native address. Retained caller storage follows ordinary foreign-storage rules.
+The target package owns firmware structures, layouts and boot sequencing.
+Its entry adapter establishes stack and storage backing before calling the
+source entry. A secondary-processor startup similarly needs confirmation or
+safe cancellation before reclaiming a stack a delayed processor might use.
 
-A platform adapter can answer restricted synchronous queries and queue ordinary
-notifications for a new activation. It still respects the acyclic `invokes` graph,
-executor affinity, and [callback entry-stack contract](../spec/resources/entry_stacks.md#foreign-callback-entry).
-A native declaration alone proves no absence of opaque re-entry.
-
-The [native implementation note](../../omega-rust/omega/compilation/compiler/README.md#callback-custody-boundaries)
-separates current materialization support from complete authored-use, registration,
-and lifetime custody. A retained callback companion or installed-entry record
-alone does not establish that protocol.
-
-## Build Artifacts
-
-Reports keep service reach, authority flow, provider trust, representation,
-resources, and executable scope separate. Exact requirement and realization
-identities matter; names and compact coordinates explain evidence rather than
-granting admission. A transitive provider change can matter even when reach
-stays the same.
-
-An opaque binary loaded in-process remains trusted code behind a checked wrapper.
-Its known-entry list may be incomplete because it can load or generate code
-outside Omega's mediation. An isolated provider has a parent endpoint and a
-separately evaluated child scope; isolation, termination, fault containment,
-and resource bounds remain independent guarantees.
-
-[Provider trust](../spec/build/provider_selection.md#executable-trust-and-containment)
-defines manifest and runtime-admission rules. The useful audit question is not
-just “was this package accepted?”, but “which exact claims, capabilities,
-realizations, and resource obligations does this artifact depend on?”
+Provider authors can continue with [external roots](../spec/build/external_roots.md),
+[entry stacks](../spec/resources/entry_stacks.md),
+[opaque representations](../spec/build/opaque_representations.md) and
+[executable installation](../spec/build/executable_installation.md).

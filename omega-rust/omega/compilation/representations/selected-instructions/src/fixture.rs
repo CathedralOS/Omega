@@ -1,12 +1,14 @@
-//! The refusal records a selected form's encoder states about its own bytes.
-//!
-//! An encoder and the validator that re-derives its bytes are defined as much
-//! by what they refuse as by what they emit. That list — a mutated word, a
-//! truncated or extended stream, a foreign operand, another alternative
-//! family, altered effect custody — is one record between the instruction
-//! sets; only the admitted bytes differ (`ud2` against `brk #0`, `call rel32`
-//! against `bl`). Each set supplies its encoder, its word, and the views its
-//! physical model pins, and the record that reads them is stated here once.
+/*
+  Shared refusal and call-template test assertions for target instruction
+  encoders (`x86_64` and `aarch64`).
+
+  `assert_crash_refusals` verifies that a target's crash leaf encodes the exact
+  expected bytes (`ud2` or `brk #0`) and rejects bit flips, truncated or
+  extended byte streams, foreign operands, and wrong alternative keys.
+  `assert_mixed_unit_call_row` verifies that a mixed ABI unit-call row binds
+  its pinned physical operand views and callee fixup while rejecting any
+  deviating operand or effect request.
+*/
 
 use crate::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
@@ -16,32 +18,23 @@ use register_model::{
 };
 use semantic_vocabulary::MachineId;
 
-/// A validated selected-form encoding as the byte record reads it.
 pub trait EncodedWord {
     fn encoded_bytes(&self) -> &[u8];
     fn encoded_effects(&self) -> &MachineEncodedEffects;
 }
 
-/// A validated ordinary-call template as the mixed-row record reads it.
 pub trait CallTemplate {
     fn bound_operands(&self) -> &[RegisterViewId];
-    /// The template's unresolved fixup is the canonical one for `callee`.
     fn names_callee(&self, callee: MachineId) -> bool;
 }
 
-/// The exact word one instruction set's crash leaf encodes.
 pub struct CrashWord<'a> {
     pub physical: &'a ValidatedPhysicalRegisterModel,
     pub bytes: &'a [u8],
-    /// The program-counter view the trap records as used and defined.
-    pub program_counter: &'a str,
-    /// A view the operand-free leaf must refuse as an operand.
-    pub foreign_operand: &'a str,
+    pub program_counter: &'a str, // The program-counter view the trap records as used and defined.
+    pub foreign_operand: &'a str, // A view the operand-free leaf must refuse as an operand.
 }
 
-/// Require the crash leaf to encode `word` exactly and to refuse every mutation
-/// of it. The word's length fixes the bit-flip count and the truncated stream,
-/// so a two-byte and a four-byte instruction set state the same record.
 pub fn assert_crash_refusals<E, X>(
     word: CrashWord<'_>,
     alternative: MachineAlternativeKey,
@@ -110,10 +103,6 @@ pub fn assert_crash_refusals<E, X>(
     );
 }
 
-/// Require one mixed unit-call row to encode a template that binds exactly its
-/// fixed operand views, and to refuse every request its ABI cannot produce.
-/// `base` is the instruction set's ordinary-call effect row for the target;
-/// the row, its alternative, and its callee fixup are the same in both.
 pub fn assert_mixed_unit_call_row<E, X>(
     row: &RegisterInstructionConstraint,
     base: MachineEncodedEffects,

@@ -1,16 +1,11 @@
 # Chapter 13: Generics
 
-Generics let one declaration work over different types, values, or named
-implementations. A value binder can be runtime-capable or explicitly `const`.
-The body is checked against its declared requirements; uses select applications
-satisfying those requirements. Static applications can monomorphize; dynamic
-value arguments can share ordinary code. Neither changes ownership or proof rules.
+Generics let one declaration work with different types, values or selected
+operations. Start with type parameters and fixed capacities; static callbacks
+let callers choose behavior. Runtime indices and mathematical families are
+covered later in the chapter.
 
-[Generic declarations](../spec/language/generics.md) owns the source contracts.
-Examples here assume their named types, traits, and conformances are in scope;
-they illustrate intended semantics rather than every current implementation path.
-
-## Generic Data
+## Generic data
 
 ```omega
 data Optional<T> {
@@ -34,7 +29,7 @@ ordinary ownership, borrowing, and cleanup; a generic wrapper does not erase
 an active payload's substituted linear obligation. Proof-only instances do not
 acquire runtime layout merely by being closed.
 
-## Transparent Aliases
+## Transparent aliases
 
 An alias supplies arguments to an existing type expression without declaring
 another nominal carrier:
@@ -51,15 +46,23 @@ expressions for static values. Selected machines and implementations retain
 their exact code identities. The underlying constructor's constraints still
 apply; an alias cannot attenuate them or hide an incompatible representation.
 
-Aliases add no wrapper, storage, conversion or independent type identity.
-Their generic arguments expand before ordinary matching, layout and ABI
-selection. Domain aliases are a separate existing facility, and this general
-type-alias surface is ratified implementation work, not a claim that the current
-parser already accepts it. See [transparent type aliases](../spec/language/generics.md#transparent-type-aliases).
+An alias expands before matching and layout selection. It adds no wrapper or
+conversion. Domain aliases separately name combinations of domain facts. See [transparent type aliases](../spec/language/generics.md#transparent-type-aliases).
 
-## Generic Machines
+## Generic machines
 
-A generic machine can require one explicitly passed conformance:
+A type parameter lets a machine preserve whatever type its caller supplies:
+
+```omega
+machine identity<T>(value: T) -> T {
+    value
+}
+
+let number: u32 = identity<u32>(42);
+```
+
+Operations on T need a contract. Given an `Equatable<T>` trait with an `equals`
+requirement, select its named implementation explicitly:
 
 ```omega
 machine equal<T, Equality satisfies Equatable<T>>(left: &T, right: &T) -> bool {
@@ -67,16 +70,11 @@ machine equal<T, Equality satisfies Equatable<T>>(left: &T, right: &T) -> bool {
 }
 ```
 
-The body uses the selected map's requirement. Its implementation is checked
-against that contract, not inferred from whichever equality implementation a
-consumer happens to pass. An ordinary call supplies the type and named evidence,
-such as `equal<Card, CardEquality>(&left, &right)`.
+A call such as `equal<Card, CardEquality>(&left, &right)` supplies that evidence.
+The body checks against the trait's contract. [Traits](chapter_14_traits.md)
+explains how to declare and satisfy it.
 
-Explicit conformance selection is different from guessing a machine from its
-name or finding a visible implementation. [Chapter 14](chapter_14_traits.md)
-explains the complete map and its laws.
-
-## Generic Requirements
+## Generic requirements
 
 A trait can declare the same generic interface as an ordinary machine, including
 an implementation parameter supplied by the caller:
@@ -112,7 +110,226 @@ the attempt rejects during source checking. Explicit finite value families keep
 their existing rules. See [generic requirements](../spec/language/generics.md#generic-machine-requirements)
 and [dynamic eligibility](../spec/terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
 
-## Runtime-Capable Value Parameters
+## Const and proof parameters
+
+Static values can parameterize stored shape or contracts:
+
+```omega
+data FixedBuffer<T, const N: u64> {
+    items: [T; N];
+}
+```
+
+`N` is a static value of its declared carrier. Each application proves its kinds,
+ranges, and constraints even if the body never uses it. A runtime length remains
+a runtime witness, not an argument to this `const` binder. Use a runtime-capable
+value binder when the declaration supports dynamic execution instead.
+
+Anonymous arithmetic lands exactly under the expected carrier.
+`FixedBuffer<u8, 0.1 * 70>` has length seven; `FixedBuffer<u8, 7.5>` rejects
+because its exact value is not integral. Named constants and forwarded binders
+must also match their declared carriers. A decimal point alone does not select
+floating-point arithmetic.
+
+Target-semantic observations may supply const arguments under the same rules.
+Before target closure they remain symbolic; afterward their exact dependencies
+remain in application compatibility. This does not introduce a target-native
+count type or an unspecified `UInt<Bits>` carrier family. See
+[target-dependent applications](../spec/language/evaluation.md#target-dependent-applications).
+
+## Machine parameters
+
+A static parameter can select a machine declaration:
+
+```omega
+machine Deck::score<machine Key>(card: &Card) -> u64
+requires machine Key(card: &Card) -> u64;
+{
+    Key(card)
+}
+```
+
+Calling `Deck::score<Card::power_key>(&card)` substitutes the selected symbol
+and produces a direct call in that specialization. The binder is not a hidden
+runtime function argument or inferred capture.
+
+The semicolon ends `Key`'s callable contract before the enclosing machine body.
+Its own `requires` or `ensures`, when present, belong before that terminator;
+clauses following it belong to the enclosing machine.
+
+Operational clauses stay inside that same callable until its declaration ends:
+
+```omega
+requires machine Key(card: &Card) -> u64
+    suspends
+    blocks
+    terminates;
+```
+
+There are no semicolons between these clauses. The one after the last clause
+ends `Key`; it is not a termination-clause delimiter. Higher-order requirements
+retain one declaration terminator for each nested callable.
+
+There are three distinct binder categories:
+
+| Binder | What the declaration provides |
+| --- | --- |
+| Structural callable | An authored `requires machine Key(...)` contract. |
+| Nominal callable | One exact `requires machine Handler satisfies HookProcedure::call` requirement. |
+| Declaration identity | A trait's noncallable machine binder, used only to relate declaration identities. |
+
+An originating callback contract is explicit. A wrapper may omit its repeated
+clause when it forwards an explicitly kinded machine binder into an exact
+callee's required slot. The compiler publishes the inherited requirement for
+public and private wrappers alike. Direct calls such as `Step(item)` do not
+invent a requirement, and the current set of consumers cannot select one.
+
+The nominal form retains the originating requirement's complete signature,
+conditions and operational/boundary contract without repeating it. A path with
+several overloads is not an exact selection.
+
+### Forwarding a callback contract
+
+The inner operation declares what it accepts; its wrapper need not repeat it:
+
+```omega
+public trait ElementStep<T> {
+    machine apply(item: &mut T) terminates;
+}
+
+public machine apply_one<T, F>(item: &mut T)
+requires machine F satisfies ElementStep<T>::apply;
+terminates
+{
+    F(item);
+}
+
+public machine visit_one<T, machine F>(item: &mut T)
+terminates
+{
+    apply_one<T, F>(item);
+}
+```
+
+The published contract for `visit_one` includes
+`requires machine F satisfies ElementStep<T>::apply;`. Forwarding `F` into
+`for_each<T, F>` works the same way. Multiple uses contribute all their
+requirements; the selected callback must satisfy every one. An explicit
+originating contract is not silently strengthened to repair an invalid body.
+
+`ElementStep::apply` omits reach, so both helpers propagate the services of the
+selected step. A trait author can write bare `reaches` to require service-free
+steps instead. Forwarding keeps that choice. See
+[callback services](chapter_19_capabilities_effects_boundaries.md#forward-a-callbacks-services)
+for a complete example with an application-defined service.
+
+There is no trait lookup or implementation selection here: callers still name
+their chosen machine with its required nominal satisfaction edges. Public
+inferred requirements must obey visibility rules,
+and changing a forwarding use can change the public contract and require
+rechecking consumers. Diagnostics show the inferred clause and its originating
+use. See [forwarded requirements](../spec/language/generics.md#forwarded-callback-requirements).
+
+## Requirements on generic arguments
+
+Requirements can constrain static values or the behavior of selected operations.
+A required member belongs to a named trait and is supplied through an explicit
+conformance binder, not an anonymous `requires machine T::member(...)` declaration.
+
+For example, assuming `Ranked` declares the required ordering operations:
+
+```omega
+machine sort<Element, Order satisfies Ranked<Element>>(values: &mut [Element]) {
+    ... // implementation and proof omitted
+}
+
+sort<Card, PowerOrder>(&mut cards);
+```
+
+When the selected conformance owns parameters, its application nests inside the
+evidence argument, as in `SequenceEncoding<u8, PlayerMessage>`. Every type,
+const, and static-machine argument owned by that conformance is explicit. The
+expected trait application validates the resulting closed map; they do not fill
+missing arguments or `_` holes. An already-closed evidence binder forwards bare.
+
+Only lifetime arguments follow ordinary application-site elision, and only
+when borrow constraints determine one unique mapping. Resolved regions remain
+in semantic identity even though they create no runtime generic arguments.
+See [named conformance selection](../spec/language/conformances.md#declaration-and-selection).
+
+Static `requires` obligations are checked at instantiation. Data `requires` facts over
+runtime fields instead define a default domain maintained at consumption points.
+Runtime value-binder requirements are proved for the exact subjects at each
+application; a runtime guard may establish them. These are different binding
+times, not permission to reinterpret runtime data as arbitrary type declarations.
+
+## Static dispatch
+
+Calls through explicitly selected evidence are static by default:
+
+```omega
+machine Runner::tick<T, Increment satisfies Incrementable<T>>(subject: &mut T) {
+    Increment::increment(subject);
+}
+```
+
+The specialization uses the selected conformance's implementation. Another
+visible `increment` machine cannot replace it. Runtime machine values provide
+the separate dynamic route, with their own callable evidence and custody.
+
+## Specialization and code size
+
+A static application can specialize a generic body for its type, value and
+machine arguments. The selected operations become direct calls and may inline.
+Using many combinations can produce many copies of the algorithm.
+
+Runtime machine values offer another choice: share an algorithm with a fixed
+callable interface and select its operation at runtime. You can mix the two,
+specializing one parameter while passing another as a runtime value. See
+[machine values](chapter_14_traits.md).
+
+Runtime-capable value arguments do not require a specialization per observed
+number. Their dependent types retain which value they refer to. A runtime
+capacity still needs explicit backing or an allocator, while inline fixed
+arrays need static extents. A bound of 65536 does not allocate 65536 elements
+by itself. See [runtime index storage](../spec/language/generics.md#runtime-index-identity-and-storage).
+
+## Generic invariants and reach
+
+Generic code carries ordinary obligations. Copying an element requires a
+copy-eligible parameter, independently of proving a nonempty buffer:
+
+```omega
+machine Buffer::first<T [copy], const N: u64>(buffer: &FixedBuffer<T, N>) -> T
+requires
+    N > 0
+{
+    buffer.items[0]
+}
+```
+
+A concrete length of eight proves `N > 0`; a generic caller with unknown `N`
+must carry the corresponding fact. The `[copy]` bound separately permits the
+read to return a value without moving it out of borrowed storage.
+
+Reach and operational ceilings likewise remain obligations of the abstract
+requirement. Calls use `suspend`, `block`, or both according to that envelope.
+A transparent refinement can require narrower behavior when the algorithm needs
+it. Capacity and cleanup remain explicit resource and ownership obligations,
+not extra service-reach members.
+
+## Interface types
+
+Use explicit trait type parameters for an interface's input and output types:
+
+```omega
+trait WireReadable<Message, Value> {
+    machine from_wire(message: Message, out: &mut Value);
+}
+```
+
+The conformance binds both types, so callers can see the relationship directly.
+## Runtime-capable value parameters
 
 Value binders distinguish two staging contracts:
 
@@ -121,22 +338,14 @@ Value binders distinguish two staging contracts:
 <const Count: u32>  statically known within the compiled specialization
 ```
 
-`const` is a requirement, not an optimization hint. Without it, known arguments
-may still specialize. With it, a declaration can require fixed layout or static
-instruction operands without supplying a runtime fallback. Runtime-capable binders are
-implemented for machine signatures: `machine f<Count: u32>(...)` compiles to one
-body carrying `Count` as an ordinary argument, with its `requires` bound proved
-at the call site. They are not implemented for data declarations, so the
-`Index<Limit: u32>` example below still specifies the intended contract rather
-than currently executable source, and layout-determining positions such as array
-extents continue to reject. The slice-length bound shown in the next example is
-likewise not what the landed canaries exercise — those bound a scalar
-parameter.
+Use `const` when a declaration needs a statically known argument, for example
+to determine inline storage. A runtime-capable binder also accepts known
+arguments, but its body must support runtime values under the declared bounds.
 
 ```omega
 machine prefix_count<Count: u32>(items: &[u8]) -> u32
 requires
-    embed(Count) <= embed(items.len);
+    embed(Count) <= embed(items.len)
 {
     Count
 }
@@ -198,16 +407,10 @@ no implicit boxing or variable-layout return is introduced. The
 and [dynamic-family contract](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
 define the rules.
 
-The implementation canary
-`tests/omega/pass/traits/dyn_finite_family_dispatch` exercises separate generated
-rows for closed widths 16 and 32. Any remaining receiver or data-subject
-conformance syntax is migration debt under the named-implementation contract.
-Its `dyn` surface also needs the [machine-value migration](../drafts/designs/machine_values_some.md).
-The implemented limit is
-narrower than "no generic virtual calls": the binder tuple must be one complete
-roster tuple of closed static values; runtime width selection is not yet covered.
+See the [finite-specialization rules](../spec/language/generics.md#finite-specialization-boundary)
+when a runtime choice selects among a bounded set of static kernels.
 
-## Type Equality And Indexed-Domain Matching
+## Type equality and indexed-domain matching
 
 Exact type comparisons use ordinary Boolean connectives:
 
@@ -267,38 +470,14 @@ equality, not merely a proof that its length fits some larger capacity. Selectio
 and proof of call legality are separate. A zero-argument `upper_bound<N>()`
 merely returns an already bound N; an unconstrained `upper_bound()` cannot infer it.
 
-These are settled source rules with incomplete implementation. See
-[structural inference](../spec/language/generics.md#structural-type-equations-and-inference).
+See [structural inference](../spec/language/generics.md#structural-type-equations-and-inference).
 [Semantic reflection](chapter_21_reflection.md) uses these same generic rules for
 typed member callbacks. Structural inference itself is not declaration inspection
 or permission to discover arbitrary predicates.
 
-## Const And Proof Parameters
+## Advanced static indices
 
-Static values can parameterize stored shape or contracts:
-
-```omega
-data FixedBuffer<T, const N: u64> {
-    items: [T; N];
-}
-```
-
-`N` is a static value of its declared carrier. Each application proves its kinds,
-ranges, and constraints even if the body never uses it. A runtime length remains
-a runtime witness, not an argument to this `const` binder. Use a runtime-capable
-value binder when the declaration supports dynamic execution instead.
-
-Anonymous arithmetic lands exactly under the expected carrier.
-`FixedBuffer<u8, 0.1 * 70>` has length seven; `FixedBuffer<u8, 7.5>` rejects
-because its exact value is not integral. Named constants and forwarded binders
-must also match their declared carriers. A decimal point alone does not select
-floating-point arithmetic.
-
-Target-semantic observations may supply const arguments under the same rules.
-Before target closure they remain symbolic; afterward their exact dependencies
-remain in application compatibility. This does not introduce a target-native
-count type or an unspecified `UInt<Bits>` carrier family. See
-[target-dependent applications](../spec/language/evaluation.md#target-dependent-applications).
+Use these rules when an API carries computed dimensions or algebraic indices.
 
 ### Structured values and indexed domains
 
@@ -361,19 +540,21 @@ algebra use integer literals:
 
 ```omega
 trait Additive<T> {
-    machine zero() -> T terminates;
+    machine zero() -> T reaches terminates;
 
     machine + add(
         left: T,
         right: T
-    ) -> T terminates;
+    ) -> T reaches terminates;
 
     machine right_identity(value: T)
+    reaches
     ensures core::Identity<T>(add(value, zero()), value);
 }
 
 trait WrappingByteIndices : Additive<u8 in Wrapping> {
     machine zero_is_literal()
+    reaches
     ensures core::Identity<u8 in Wrapping>(zero(), 0);
 }
 
@@ -392,6 +573,7 @@ machine remove_zero<
 A caller selects a complete implementation, for example
 `remove_zero<8, ByteArithmetic>(value)`. `ByteArithmetic` supplies the inherited
 operations and proves both laws; their names have no compiler authority. The
+bare `reaches` clauses make the operations service-free for use in these laws. The
 same pattern connects multiplicative identity to `1`. Each rewrite needs only
 its own laws, not a full ring or semiring. `Count + 1` is not an identity.
 
@@ -431,16 +613,15 @@ ordinary Build setting:
 builder.proof.index_expansion_terms = 128;
 ```
 
-This ratified setting is part of the pending compiler migration. It changes
-proof discovery, never type identity. Other sponsored resource ceilings still
+This changes proof discovery, never type identity. Other sponsored resource ceilings still
 apply. If an obligatory equality remains unproved, the diagnostic names the
 missing evidence or exhausted budget; it does not claim mathematical inequality.
 A checked theorem can establish equality without expanding the whole product.
 
-A generic compatibility proof travels through specialization and in published
-artifacts. Consumers check it without repeating the producer's search under a
-smaller allowance. A reverse-distributivity law does not invalidate a forward
-proof: the old rule disabling both directions is retired.
+A generic compatibility judgment survives specialization. A consumer that trusts
+the library's exact Psi artifact reuses that judgment, so it needs no larger
+proof-search budget to import a difficult proof. Adding a valid law leaves
+existing proofs valid and canonical keys unchanged.
 
 Exact declaration and conformance matching still uses canonical keys.
 Consequently, a conformance for one symbolic spelling does not automatically
@@ -452,269 +633,19 @@ a key. The rules are in
 [proved compatibility](../spec/proofs/contracts.md#proved-index-compatibility),
 and [Build proof-work policy](../spec/build/configuration.md#proof-work-policy).
 
-## Machine Parameters
+## Advanced machine arguments
 
-A static parameter can select a machine declaration:
-
-```omega
-machine Deck::score<machine Key>(card: &Card) -> u64
-requires machine Key(card: &Card) -> u64;
-{
-    Key(card)
-}
-```
-
-Calling `Deck::score<Card::power_key>(&card)` substitutes the selected symbol
-and produces a direct call in that specialization. The binder is not a hidden
-runtime function argument or inferred capture.
-
-The semicolon ends `Key`'s callable contract before the enclosing machine body.
-Its own `requires` or `ensures`, when present, belong before that terminator;
-clauses following it belong to the enclosing machine.
-
-Operational clauses stay inside that same callable until its declaration ends:
-
-```omega
-requires machine Key(card: &Card) -> u64
-    suspends
-    blocks
-    terminates;
-```
-
-There are no semicolons between these clauses. The one after the last clause
-ends `Key`; it is not a termination-clause delimiter. Higher-order requirements
-retain one declaration terminator for each nested callable.
-
-There are three distinct binder categories:
-
-| Binder | What the declaration provides |
-| --- | --- |
-| Structural callable | An authored `requires machine Key(...)` contract. |
-| Nominal callable | One exact `requires machine Handler satisfies HookProcedure::call` requirement. |
-| Declaration identity | A trait's noncallable machine binder, used only to relate declaration identities. |
-
-An originating callback contract is explicit. A wrapper may omit its repeated
-clause when it forwards an explicitly kinded machine binder into an exact
-callee's required slot. The compiler publishes the inherited requirement for
-public and private wrappers alike. Direct calls such as `Step(item)` do not
-invent a requirement, and the current set of consumers cannot select one.
-
-The nominal form retains the originating requirement's complete signature,
-conditions and operational/boundary contract without repeating it. A path with
-several overloads is not an exact selection.
-
-### Forwarding A Callback Contract
-
-The inner operation declares what it accepts; its wrapper need not repeat it:
-
-```omega
-public trait ElementStep<T> {
-    machine apply(item: &mut T) terminates;
-}
-
-public machine apply_one<T, F>(item: &mut T)
-requires machine F satisfies ElementStep<T>::apply;
-terminates
-{
-    F(item);
-}
-
-public machine visit_one<T, machine F>(item: &mut T)
-terminates
-{
-    apply_one<T, F>(item);
-}
-```
-
-The published contract for `visit_one` includes
-`requires machine F satisfies ElementStep<T>::apply;`. Forwarding `F` into
-`for_each<T, F>` works the same way. Multiple uses contribute all their
-requirements; the selected callback must satisfy every one. An explicit
-originating contract is not silently strengthened to repair an invalid body.
-
-There is no trait lookup or implementation selection here: callers still name
-their chosen machine with its required nominal satisfaction edges. Public
-inferred requirements must obey visibility rules,
-and changing a forwarding use can change the public contract and require
-rechecking consumers. Diagnostics show the inferred clause and its originating
-use. See [forwarded requirements](../spec/language/generics.md#forwarded-callback-requirements).
-
-### Identity-Only Binders
-
-An identity-only trait binder has no callable signature:
+A trait can retain a machine's identity without granting permission to call it:
 
 ```omega
 trait PrivateCallbackSlot<Layout, machine Requirement> { }
 ```
 
-This illustrates the existing identity relationship, not a replacement core
-declaration. `Layout` is an ordinary type argument; the machine argument must
-identify one exact free machine or requirement, not a type, conformance,
-runtime value, or overloaded family. Neither a default
-nor a consumer may invoke it as if a missing callable contract were inferred.
+To invoke the argument, give it a callable contract. Contracts can themselves
+take machine parameters; every nested selection must satisfy its declared
+signature, effects, and guarantees.
 
-A structural callable contract can itself bind machine parameters. Matching is
-binder-positional, including all nested contracts and operational guarantees;
-renaming a nested parameter is harmless, weakening its promised behavior is not.
-Specialization continues through nested selections until executable calls are
-direct. See [nested contracts](../spec/language/generics.md#nested-contracts-and-proof-families)
-for a complete example.
-
-Generic bodies prove a selected parameter's `requires`, use its `ensures`, and
-respect its reach, suspension, blocking, crash, and progress contract. Concrete
-selections must refine that public bound. The generic body uses the callback's
-upper-bound suspension/blocking permissions; applications use the published
-[operational dependencies](../spec/language/effects.md#static-callback-operational-dependencies)
-after substituting selected contracts. Ordinary type/result arguments may
-be inferred when the selected signature and value arguments determine an exact
-application; that does not select conformance evidence or invent an originating
-callable contract. Forwarded requirements retain already declared contracts.
-
-Stateful callbacks take ordinary explicit context parameters; dynamically
-selected operations use [machine values](../spec/language/machine_values.md).
-[Some packages](../spec/language/some_packages.md) relate heterogeneous borrowed
-state and its operations without exposing the state type. Invocation scratch
-belongs in local bindings, not persistent context merely to make it accessible.
-A static machine binder remains a declaration argument. Its closed executable
-selection may construct a runtime machine value under a checked callable type.
-`address_of<Selected<u32>>()` may separately expose the address
-of a fully selected executable application, but the resulting number is not
-call authority; see [address exposure](chapter_20_memory_layout_abi.md#exposing-addresses).
-Registered foreign callbacks still use contextual realization with an exact
-requirement and private destination; see
-[Chapter 19](chapter_19_capabilities_effects_boundaries.md#foreign-callbacks-through-platform-adapters).
-
-### Proof-family index telescopes
-
-A proof-only carrier may use a machine as a static family index:
-
-```text
-Rat                       no static indices
-CauchySeq<machine S>       generator S, under its full callable contract
-```
-
-The telescope is the complete ordered parameter list, not stored metadata.
-One relation may compare independent generators `A` and `B`; another may require
-both subjects to share `S`. Those roles belong to the relation, not a global
-annotation on the carrier parameter. Finite-layout data does not thereby acquire
-machine-valued fields.
-
-An application in a proof contract instantiates a schema without itself
-demanding executable monomorphization. This supports universal law statements
-without reifying a runtime function. It still does not replace arbitrary
-mathematical function/predicate [term binders](../spec/proofs/mathematical_bindings.md)
-under the [selected foundation](../spec/proofs/foundation.md).
-Logical hypotheses may consume checked theorem evidence; executable callbacks
-still require declaration supply under their complete operational contracts.
-[Quotients](../spec/proofs/quotients.md) owns relation-family matching and laws.
-
-## Where Clauses
-
-Requirements can constrain static values or the behavior of selected operations.
-A required member belongs to a named trait and is supplied through an explicit
-conformance binder, not an anonymous `requires machine T::member(...)` declaration.
-
-For example, assuming `Ranked` declares the required ordering operations:
-
-```omega
-machine sort<Element, Order satisfies Ranked<Element>>(values: &mut [Element]) {
-    ... // implementation and proof omitted
-}
-
-sort<Card, PowerOrder>(&mut cards);
-```
-
-When the selected conformance owns parameters, its application nests inside the
-evidence argument, as in `SequenceEncoding<u8, PlayerMessage>`. Every type,
-const, and static-machine argument owned by that conformance is explicit. The
-expected trait application validates the resulting closed map; they do not fill
-missing arguments or `_` holes. An already-closed evidence binder forwards bare.
-
-Only lifetime arguments follow ordinary application-site elision, and only
-when borrow constraints determine one unique mapping. Resolved regions remain
-in semantic identity even though they create no runtime generic arguments.
-See [named conformance selection](../spec/language/conformances.md#declaration-and-selection).
-
-Static `requires` obligations are checked at instantiation. Data `requires` facts over
-runtime fields instead define a default domain maintained at consumption points.
-Runtime value-binder requirements are proved for the exact subjects at each
-application; a runtime guard may establish them. These are different binding
-times, not permission to reinterpret runtime data as arbitrary type declarations.
-
-## Static Dispatch
-
-Calls through explicitly selected evidence are static by default:
-
-```omega
-machine Runner::tick<T, Increment satisfies Incrementable<T>>(subject: &mut T) {
-    Increment::increment(subject);
-}
-```
-
-The specialization uses the selected conformance's implementation. Another
-visible `increment` machine cannot replace it. Runtime machine values provide
-the separate dynamic route, with their own callable evidence and custody.
-
-## Monomorphization
-
-```text
-declaration + static arguments + exact runtime-index bindings -> checked application
-```
-
-Substitution preserves declaration identities through bodies, contracts, fields,
-and nested applications. A shadowing local cannot rewrite another binder.
-Substituted field types determine eligible layout, not the display spelling of
-a generic origin. Runtime values do not enter a cache as if their contents were
-already known constants. Inferred call-result types retain the selected static
-arguments and dynamic subjects; authored local annotations still impose their
-own store obligations.
-
-Logical extent is not allocation. A runtime-capacity owner may use explicitly
-supplied backing or an allocator with an ordinary failure outcome. It need not
-be growable. Inline fixed storage still needs static extent and a fitting stack
-plan; neither `0..=65536` nor a full `u32` range orders the compiler to reserve
-the maximum. Runtime-dependent indices authorize no hidden boxing, dynamic
-stack allocation, or runtime code generation. See
-[runtime index storage](../spec/language/generics.md#runtime-index-identity-and-storage).
-
-Physical code sharing is possible as an optimization only when it preserves
-these semantics. It does not merge distinct application identities, change
-ownership, or select a different contract.
-
-## Generic Invariants And Reach
-
-Generic code carries ordinary obligations. Copying an element requires a
-copy-eligible parameter, independently of proving a nonempty buffer:
-
-```omega
-machine Buffer::first<T [copy], const N: u64>(buffer: &FixedBuffer<T, N>) -> T
-requires
-    N > 0
-{
-    buffer.items[0]
-}
-```
-
-A concrete length of eight proves `N > 0`; a generic caller with unknown `N`
-must carry the corresponding fact. The `[copy]` bound separately permits the
-read to return a value without moving it out of borrowed storage.
-
-Reach and operational ceilings likewise remain obligations of the abstract
-requirement. Calls use `suspend`, `block`, or both according to that envelope.
-A transparent refinement can require narrower behavior when the algorithm needs
-it. Capacity and cleanup remain explicit resource and ownership obligations,
-not extra service-reach members.
-
-## Associated Types
-
-Use explicit trait type parameters for interface types:
-
-```omega
-trait WireReadable<Message, Value> {
-    machine from_wire(message: Message, out: &mut Value);
-}
-```
-
-The current contract specifies no associated-type declaration surface. An
-ergonomic extension would need its own justification; ordinary explicit
-parameters already have defined application and conformance rules.
+Proof libraries can also index a family by a generator machine, for example
+`CauchySeq<machine S>`. A theorem may relate sequences with different generators
+without giving them the same identity. See [nested contracts and proof families](../spec/language/generics.md#nested-contracts-and-proof-families)
+and [mathematical term binders](../spec/proofs/mathematical_bindings.md).

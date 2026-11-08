@@ -77,6 +77,12 @@ authority. A generic evidence binder has the same shape without a body:
 `Order satisfies Ranked<Element>`. It is an implementation parameter, not a
 constraint saying that `Element` owns or implements operations.
 
+Calls through an evidence binder project service reach from the exact selected
+member. An omitted clause on a non-boundary requirement defers to that member's
+published row; an authored clause bounds it. The dependency retains the evidence
+binder, requirement identity and substitutions, so two members of the same map
+can contribute different rows. See [static reach dependencies](effects.md#static-callback-reach-dependencies).
+
 A machine requirement may introduce such an implementation binder in its own
 generic parameter list, including inside a boundary trait. Its selected member
 has a matching ordered binder contract and must satisfy the requirement for
@@ -293,9 +299,12 @@ Omission here means inheritance, unlike the omission rules of an ordinary
 machine contract. `suspends false` and `blocks false` explicitly remove those
 possibilities; crash refinement may disprove inherited route predicates.
 Bare `reaches` is empty. `reaches _` introduces an independent abstract row for that
-requirement bounded by the inherited row; it does not correlate different
-requirements. This refinement-local bound is not an installation requirement's
-`reaches <= Bound` row and grants no unresolved ordinary exported row variable.
+requirement under the inherited reach constraint; it does not correlate different
+requirements or widen a finite inherited ceiling. When the base non-boundary
+requirement omits reach, its selection-dependent row is open. Static uses
+propagate that row under [deferred requirement reach](effects.md#deferred-requirement-reach).
+This refinement-local spelling introduces neither an authored row parameter nor
+an installation requirement's `reaches <= Bound` declaration.
 
 ## Core equality acquisition
 

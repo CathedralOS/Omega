@@ -23,7 +23,7 @@ native emission, and execution machinery. Parsing is not an Omega backend step.
 Psi is immutable, self-contained, concrete, and post-instantiation.
 Its meaning requires no source syntax, typed-tree arena, producer process,
 instruction selector, or generic execution machinery. Execution, proof
-questions, evidence, diagnostics, fuel, and lowering refer to the same stable
+questions, evidence, diagnostics, work, and lowering refer to the same stable
 values, places, operations, and edges. Each executable choice affecting behavior
 or obligations has a closed static identity. Author-declared hardware geometry
 remains semantic; target-selected layout, ABI classes, registers, storage regions,
@@ -159,16 +159,71 @@ independently.
 
 ## Publication and separate consumption
 
-Compilation may stop at Psi. A later interpreter or native lowerer
-may consume it in a different process, on another machine, under separately
-supplied authority. The first-party source-to-native path crosses this same
-boundary; checked frontend state is not a privileged alternative input.
+Named decision: `psi-execution-admission`, ratified 2026-11-07, superseding
+`psi-claim-admission`'s requirement to rediscover published proofs.
 
-The portable envelope contains canonical semantics and pre-Terminal selection
-provenance, plus optional canonical debug information. It carries no proof
-evidence. Program meaning, installation decisions, and debug information have
-distinct identities. The manifest is reconstructed from the sections, not
-accepted as redundant authoritative input.
+Compilation may stop at Psi. A later interpreter or native lowerer may consume
+the exact artifact under host-supplied authority. Trust attaches to that artifact
+and its producing process, including an accepted separately built library. It
+is supplied by the receiving host; an artifact's digest, producer name or
+assertion that it was checked does not authorize execution by itself.
+
+| Input and requested use | Admission |
+| --- | --- |
+| Trusted producer's exact artifact, interpreted | Reuse checked judgments; prepare execution and enforce concrete operation checks. |
+| Trusted producer's exact artifact, native | Reuse checked judgments for optimization and lowering under the selected installation contracts. |
+| Untrusted artifact, interpreted | Available only through a containment-audited interpreter and host bindings. Until that route is established, execution requires host authorization of producer trust. |
+| Untrusted artifact, native | Refuse. This contract provides no guarded native lowering route. |
+| Untrusted bytes, inspection | Bounded canonical decoding and structural validation; no execution or installation authority. |
+
+Every public execution entry, including embedding APIs accepting bytes or
+caller-supplied modules, enforces this distinction. An execution trust witness
+records the host's authorization for the exact artifact digest and producer;
+copying those identifiers from the artifact is insufficient. Internal stages may
+reuse their trusted immutable outputs without repeating their checking. Changed
+bytes or a different producing process require a new admission decision.
+
+The portable envelope retains canonical semantics, contracts, mathematical
+claims, exact subjects, selected operations, assumptions and dependencies. It
+also retains pre-Terminal selection provenance and optional debug information.
+The existing mathematical-certificate forms remain carried and canonically
+decoded as specified by [encoding](encoding.md#mathematical-certificate).
+Their presence grants no truth, execution authority or producer trust, and
+receipt does not require kernel replay. Local source proving keeps its kernel.
+
+A trusted producer's established judgments may cross the artifact boundary with
+their exact subjects, substitutions and assumption dependencies. The consumer
+does not rediscover source theorems or require transported derivations. Trust in
+the producer does not waive the receiver's assumption, installation or authority
+policy. Source-to-artifact correspondence and faithful native realization remain
+trusted compiler responsibilities; see the
+[verification table](../../../omega-rust/pipeline.md#verification-placement).
+
+The interpreter enforces actual bounds, storage liveness, access permissions,
+operand safety and admitted resource limits independently of asserted facts.
+An invalid operation produces a defined guest fault even when the artifact
+declares no crash route. Published crash guards describe permitted program
+failure; they do not replace these enforcement checks. Budget exhaustion retains
+its defined pause or refusal outcome. Neither faults nor refusal imply rollback.
+
+Host grants and installed bindings bound actual reach. Untrusted guest metadata
+cannot grant capabilities or establish a qualification needed by a host adapter.
+A crossing offered to untrusted execution must enforce its required permissions,
+limits, custody and supported value conditions dynamically, or be unavailable.
+Containment establishes safe execution within those limits, not the truth of
+every source theorem or a crash-free guest. Only trusted inputs may supply facts
+to optimization or native lowering.
+
+[Loading and preparation](../build/embedding.md#loading-and-preparation) separate
+inspection from execution admission. Both have shared input and aggregate work
+limits. Preparation computes declaration-dependent check plans once; dispatch
+checks actual values without proof search or repeated declaration-table scans.
+The [implementation plan](../../drafts/designs/psi_claim_admission.md) owns the
+API changes, codec split, performance validation and containment acceptance.
+
+Program meaning, installation decisions, and debug information have distinct
+identities. The manifest is reconstructed from the sections, not accepted as
+redundant authoritative input.
 
 Nominal declarations retain their original owner and owner-local identity,
 including [content-identified anonymous roots](../build/declarations.md#default-builds-and-anonymous-owner-identity).
@@ -180,21 +235,14 @@ declarations. No global catalog of previous compilations establishes identity
 or acceptance. Products missing required provenance must reject the affected
 nominal import rather than guess it from a path or same-spelled declaration.
 
-Optimization validation retains the exact Psi-local selection and input/output
-semantic identities. Decoding rejoins retained output identity to the
-semantic module. Producers and
-consumers use the current pre-release vocabulary;
-stale encodings reject rather than being guessed compatible.
-
-A consumer decodes and performs ordinary structural, contract and authority
-validation before creating execution state or native realization requirements.
-A public in-memory module cannot bypass those checks. Consumption relies on
-Psi checking for the logical obligations the producer discharged; it does not
-repeat them. Failure to find a proof does not refute its conclusion.
+Optimization validation retains exact Psi-local selections and input/output
+semantic identities. Decoding rejoins the retained output identity to the
+semantic module. Consumers use the current pre-release vocabulary; unsupported
+or stale forms reject.
 
 An authoritative vocabulary extension must define encoding, execution,
 reconstructed obligations and authorized admissions, proof rules and their
-soundness argument, interpretation, lowering requirements, and fuel identity.
+soundness argument, interpretation, lowering requirements, and work identity.
 An incomplete consumer rejects unsupported forms; a metadata-only producer
 does not establish complete executable support.
 Obligation-affecting policies are closed operation variants, not ordinary values
@@ -260,8 +308,8 @@ later facts.
 
 ## Accounting and subsequent products
 
-Semantic/program identity and fuel-schedule identity are independent.
-Changing a fuel schedule changes accounting, not program meaning. Semantic
+Semantic/program identity and work-schedule identity are independent.
+Changing a work schedule changes accounting, not program meaning. Semantic
 caches bind semantics and program identity; cost evidence additionally binds
 the schedule. [Logical work](../resources/logical_work.md) and
 [spatial resources](../resources/storage.md) own those separate contracts.

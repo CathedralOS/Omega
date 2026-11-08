@@ -1,23 +1,18 @@
-//! Exact boundary callable dependencies, before executable demand selects them.
-//!
-//! A direct call names its leaf, not the whole-trait implementation whose
-//! member may forward to it. Retain the satisfied contract and execution
-//! projection together; none of this inventory supplies execution authority.
+/*
+We retain exact boundary callable dependencies before executable demand selects
+them, pairing each satisfied service contract with its foreign or intrinsic
+execution projection and authenticating calling custody against the receiving
+Terminal module without granting execution authority.
+*/
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectBoundaryLeaf {
-    /// The declaration this leaf names, in the vocabulary its consumer joins
-    /// on: the hermetic package/toolchain identity when the declaration has
-    /// one, and the exact `program-local::<path>` coordinate for a declaration
-    /// authored in the compilation's own root program.
     pub declaration_identity: String,
     pub callable_identity: String,
     pub satisfied_schema: effects::provider_plan::ServiceSchema,
     pub plan: effects::provider_plan::ProviderPlan,
     pub satisfied_requirement_identity: String,
-    /// Native projection may be unavailable for a checked but unexecuted leaf.
-    /// Preserve its exact refusal until executable demand activates this row.
-    pub execution: DirectBoundaryExecution,
+    pub execution: DirectBoundaryExecution, // Preserves exact refusal until executable demand activates this row.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,9 +22,6 @@ pub enum DirectBoundaryExecution {
 }
 
 impl DirectBoundaryLeaf {
-    /// Authenticate a callable route without changing its public declaration ABI.
-    /// Original policy choices remain independently retained beside execution;
-    /// self-consistent application bytes alone never authorize another policy.
     pub fn validate_calling_custody(&self) -> Result<(), String> {
         self.satisfied_schema
             .declaration
@@ -95,8 +87,6 @@ impl DirectBoundaryLeaf {
             return Err("direct callable changed its original semantic contract".into());
         }
         let DirectBoundaryExecution::Foreign(Ok(binding)) = &self.execution else {
-            // A deferred refusal supplies no physical execution. Intrinsics
-            // enter their own source-owned semantic settlement.
             return Ok(());
         };
         if binding.requirement_identity != route {
@@ -139,9 +129,6 @@ impl DirectBoundaryLeaf {
         Ok(())
     }
 
-    /// Terminal binding changes the route coordinate, never either retained
-    /// Source identity or its public ABI. Rejoin all three against this exact
-    /// receiving module before the route can supply native execution.
     pub fn validate_bound_calling_custody(
         &self,
         module: &terminal_psi::TerminalModule,

@@ -7,6 +7,57 @@
 use crate::{SymbolHandle, SymbolKind, SymbolTable};
 use source::{SourceFile, Span};
 
+/// The symbols of one table that carry an authored source span, looked up by
+/// that span. Rejoining retained provider selections asks, for each
+/// selection, which symbols sit at an anchor's exact span; scanning the whole
+/// table per question made that quadratic in selections times symbols.
+///
+/// GUARDED: a symbol's span is decided by the symbol arena and the name arena,
+/// so every lookup compares the table's address and both arenas' revisions and
+/// lengths with the ones the rows were built from, and rebuilds when any
+/// differ. Rows keep arena order within one span, the order of a table scan.
+#[derive(Debug, Default)]
+pub struct SourceSpanCandidates {
+    built_for: Option<(usize, u64, usize, u64, usize)>,
+    rows: Vec<(usize, usize, SymbolHandle)>,
+}
+
+impl SourceSpanCandidates {
+    /// Every symbol of `symbols` whose authored source span is exactly `span`
+    /// (in any source), in arena order.
+    pub fn at_span(&mut self, symbols: &SymbolTable, span: Span) -> Vec<SymbolHandle> {
+        let nodes = symbols.symbols().nodes();
+        let names = symbols.names();
+        let key = (
+            std::ptr::from_ref(symbols) as usize,
+            nodes.revision(),
+            nodes.len(),
+            names.revision(),
+            names.len(),
+        );
+        if self.built_for != Some(key) {
+            self.rows = nodes
+                .iter()
+                .filter_map(|(symbol, _)| {
+                    let span = symbols.symbol_source_span(symbol)?.span;
+                    Some((span.start, span.end, symbol))
+                })
+                .collect();
+            // Stable: equal spans keep arena order.
+            self.rows.sort_by_key(|&(start, end, _)| (start, end));
+            self.built_for = Some(key);
+        }
+        let first = self
+            .rows
+            .partition_point(|&(start, end, _)| (start, end) < (span.start, span.end));
+        self.rows[first..]
+            .iter()
+            .take_while(|&&(start, end, _)| (start, end) == (span.start, span.end))
+            .map(|&(_, _, symbol)| symbol)
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetainedDeclaration {
     source: SourceFile,

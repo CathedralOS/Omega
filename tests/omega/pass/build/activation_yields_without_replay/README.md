@@ -9,9 +9,9 @@ native and Terminal execution on the executing host.
 
 The existing `compiler` example `build_charge` also runs this source through
 the production Build path. It asserts one activation, more than 1,024 consumed
-fuel units (the production scheduling slice), and zero retained live storage
-after completion. A second invocation with one fewer total fuel unit must refuse
-for fuel exhaustion and retire its storage. Local replenishment cannot increase
+work units (the production scheduling slice), and zero retained live storage
+after completion. A second invocation with one fewer total work unit must refuse
+for work-budget exhaustion and retire its storage. Local replenishment cannot increase
 that total allowance.
 
 This does not establish dependency acquisition or provider readiness: those

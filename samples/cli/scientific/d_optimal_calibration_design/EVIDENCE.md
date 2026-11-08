@@ -87,7 +87,7 @@ the private SDK sponsor links 159 exact dependency units selected by the shared
 and reuses the original Terminal artifact and runtime provisions. It makes no
 policy decisions or source-interpreter fallback. Compiler/executable/source and
 all dependency hashes are checked; each fresh runtime retains isolated-domain
-exit delegation, ten-million fuel allowance and a 30s timeout. Incomplete or
+exit delegation, ten-million work budget and a 30s timeout. Incomplete or
 unsupported observations fail. An earlier reconciled 46-case Terminal replay took 25.03s, with
 all native values independently checked from the public CLI's produced image.
 The original per-case CLI route remains available; both routes passed.

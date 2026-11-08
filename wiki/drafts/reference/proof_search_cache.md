@@ -21,23 +21,24 @@ must not erase meaningful distinctions. Dependency changes invalidate affected
 entries. A key computed from the proof term can identify a stored proof, but
 does not alone provide the lookup key for finding it from an obligation.
 
-Published [proof evidence](../../spec/proofs/contracts.md) is a distinct reuse path:
-its producer publishes a checked contract rather than substituting for search
-still owned by the current consumer. Evaluator-result caches retain logical
+Published [Psi claims](../../spec/terminal-psi/product.md#publication-and-separate-consumption)
+retain exact subjects and dependencies. Host-authorized consumers reuse trusted
+producer judgments without rediscovery. This draft explores local search caching
+separately; it does not define an artifact-admission route. Evaluator-result caches retain logical
 usage under the [evaluation contract](../../spec/language/evaluation.md).
 
 ## Alternatives and unresolved choices
 
-- Recheck a published certificate without a search cache: fewer persistent
-  mechanisms, potentially repeated search for local obligations.
+- Reprove required claims without a persistent search cache: fewer persistent
+  mechanisms, potentially repeated search for unchanged obligations.
 - Store untrusted derivations in the existing content-addressed store with
   a local semantic lookup index; choose per-obligation or coarser granularity
   only after measuring realistic edit/recheck costs.
 - A signed server verdict or cryptographic argument is a different admitted
   trust basis, not a faster implementation of unconditional local checking.
 
-Large certificates can remain sound while exceeding a build's transfer,
-storage, or checking budget. Size does not make them attestations, and a finite
+Large cached derivations can remain sound while exceeding local storage or
+checking budgets. Size does not make them attestations, and a finite
 search does not by itself supply a compact proof. Prefer compact checked
 derivations where available without imposing an unproved universal size bound.
 Measure hit rate, invalidation, total checking cost, and storage before selecting

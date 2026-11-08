@@ -1,56 +1,78 @@
-//! Work-bounded reference execution of admitted Terminal Psi artifacts.
-//!
-//! Start at `terminal_interpreter.rs`: it owns the raw start entry — obtain
-//! canonical program storage, construct the execution, bind its inputs — for a
-//! caller that drives the loop itself. External bytes decode once; retained
-//! artifacts are borrowed. The folders are the four roles around that entry:
-//! `embedding` (the surface a host builds on), `engine` (the loop and what it
-//! dispatches), `storage` (what the loop mutates) and `boundary` (what crosses
-//! between an execution and its host).
-//!
-//! `engine::execution` is the engine that entry drives: the live state and the
-//! interpreter loop. Execution retains immutable code and resumable live
-//! custody; work-budget exhaustion is not a semantic program outcome.
-//! `runtime_rows` owns live-cell reservations for frame values/descriptors and
-//! shared scalar record fields. Constructor and subtree staging pay for their
-//! overlap, then transfer reservations with the rows. `result_custody` charges
-//! completed publications from their retained storage graph, not declarations or
-//! unrelated frame storage. These owners alone do not establish complete Build
-//! accounting: remaining Build host operations and scheduler integration remain.
-//!
-//! The embedding surface sits beside it, by lifecycle: `program` (one owned or
-//! borrowed immutable artifact — `TerminalProgram` — reusable across
-//! independent instances), `instance` (`TerminalInstance`: one guest
-//! activation whose demanded import slots bind checked host adapters before
-//! `invoke` and release on `close`), and `adapters` (the typed contract a
-//! host implementation declares so a slot can be checked before any effect
-//! runs). Embedding a program goes through `TerminalProgram::load` or `borrow`,
-//! `instantiate`, `bind_import`, `invoke`, `close`. Entries returning checked
-//! loans additionally require `retain_returned_loans` before execution;
-//! `returned_loan` then borrows actual completed storage until the instance
-//! closes. Its read-only observations grant no new guest value or authority. The raw
-//! `TerminalExecution`/`TerminalEffectHandler` surface remains the low-level
-//! control the embedding layer is built over, not a binding API.
-//! Shared `AdmittedProviderSelections` records only exact checked providers
-//! and assumed links. `admit_runtime_supplies` combines those with this host's
-//! import choices into `TerminalRuntimeSupplies` before instance creation;
-//! native compilation never constructs that interpreter dispatch state.
-//!
-//! The domains beside them, by responsibility: `structural_inputs` (the
-//! host-supplied entry inputs and their binding), `custody` (claims, the
-//! affine frontier and argument binding), `structural_identities` (execution-wide
-//! local identity allocation and host reservations), `reference`,
-//! `primitive_storage`, `record`, `scalar_array` and `byte_sequences` (the storage the loop
-//! mutates), `scalar_operations`, `structural_operations`,
-//! `atomic_operations`, `calls` and `terminators` (what the loop dispatches),
-//! `effects` (what it hands to the host and how host results bind), `values`,
-//! `results` and `errors` (what crosses the boundary).
+/*
+    Work-bounded reference interpreter and host embedding surface for admitted
+    Terminal Psi (`PSITERM\0`) artifacts.
 
-mod boundary;
+    We decode external semantic bytes once or borrow retained compiler artifacts
+    into an immutable `TerminalProgram`, instantiate isolated `TerminalInstance`
+    or `TerminalExecution` state machines, bind checked host import adapters and
+    structural inputs, and step through blocks, operations, and terminators
+    under explicit work and storage-cell accounting.
+*/
+
+/*
+    Canonical portable execution requires a target-neutral engine in `psi/` that
+    depends only on verified Terminal Psi representations and semantic rules,
+    never on Omega backend ABIs or source-tree evaluators. Keeping code
+    ownership, affine claim custody, paid runtime-row reservations, and host
+    boundary validation in this crate ensures both build-time evaluation and
+    differential testing execute the exact portable IR contract.
+*/
+
+/*
+    Start at `embedding` (`TerminalProgram`, `TerminalInstance`, and
+    `TerminalImportAdapter`) for the host embedding lifecycle, or
+    `TerminalExecution::start_artifact` below for raw resumable execution.
+    `engine_execution`, `engine_calls`, `engine_custody`, `engine_structural`,
+    and `engine_terminators` implement the dispatch loop and ownership rules;
+    `storage_primitives`, `storage_bytes_and_views`, `storage_providers`,
+    `storage_records_and_arrays`, and `storage_references` own runtime storage;
+    and `boundary_values`, `boundary_inputs`, `boundary_effects`, and
+    `boundary_storage_inputs` govern values and effects crossing the host
+    boundary.
+*/
+
+mod boundary_effects;
+mod boundary_inputs;
+mod boundary_storage_inputs;
+mod boundary_values;
 mod embedding;
-mod engine;
-mod storage;
-mod terminal_interpreter;
+mod engine_calls;
+mod engine_custody;
+mod engine_execution;
+mod engine_structural;
+mod engine_terminators;
+mod storage_bytes_and_views;
+mod storage_primitives;
+mod storage_providers;
+mod storage_records_and_arrays;
+mod storage_references;
+
+pub(crate) mod boundary {
+    pub(crate) use crate::boundary_effects as effects;
+    pub(crate) use crate::boundary_inputs as structural_inputs;
+    pub(crate) use crate::boundary_values::{
+        entry_results, errors, memory_ordering, native_code_layouts, result_custody, results,
+        values,
+    };
+}
+
+pub(crate) mod engine {
+    pub(crate) use crate::engine_calls as calls;
+    pub(crate) use crate::engine_custody as custody;
+    pub(crate) use crate::engine_execution::{capabilities, execution, scalar_operations};
+    pub(crate) use crate::engine_terminators as terminators;
+}
+
+pub(crate) mod storage {
+    pub(crate) use crate::storage_bytes_and_views::{byte_sequences, element_views};
+    pub(crate) use crate::storage_primitives::{
+        activation_storage, primitive_storage, runtime_rows, scalar_storage, storage_addresses,
+        structural_identities,
+    };
+    pub(crate) use crate::storage_providers as provider_storage;
+    pub(crate) use crate::storage_records_and_arrays::{record, scalar_array, structural_storage};
+    pub(crate) use crate::storage_references as reference;
+}
 
 pub use boundary::entry_results::TerminalEntryResultRequest;
 pub use boundary::memory_ordering::TerminalMemoryOrderingEnvironment;
@@ -131,3 +153,17 @@ pub use terminal_installation::{
     admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
+
+impl TerminalExecution<'_> {
+    pub fn start_artifact(
+        semantic_bytes: &[u8],
+        scalar_arguments: &[TerminalScalarValue],
+        structural_inputs: TerminalStructuralInputs<'_>,
+    ) -> Result<Self, TerminalArtifactInterpretError> {
+        crate::embedding::program::TerminalProgram::load(semantic_bytes)?.start_execution(
+            scalar_arguments,
+            structural_inputs,
+            None,
+        )
+    }
+}
