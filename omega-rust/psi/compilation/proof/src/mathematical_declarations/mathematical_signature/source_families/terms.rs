@@ -2073,7 +2073,6 @@ mod induction_tests {
 /// Check actual dependency closure rather than the ambient signature roster:
 /// a temporary value assumption may remain stored, but no theorem declaration
 /// or type can reach it through a transparent definition or another constant.
-
 #[cfg(test)]
 mod indexed_vector_budget_tests {
     use super::*;

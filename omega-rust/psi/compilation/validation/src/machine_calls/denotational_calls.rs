@@ -25,15 +25,31 @@ pub(crate) use normal_return::plain_value_call_target;
 pub(crate) use specification::validate_specification_calls;
 pub use specification::{SpecificationCallRequest, admit_specification_calls};
 
-/// A static callable's exact public telescope can close a value-only leaf.
+/// A static callable or implementation requirement's exact public contract
+/// can close a value-only leaf.
 /// This consumes the declared promise; it never inspects a selected private
 /// implementation or supplies an unresolved caller with stronger guarantees.
 pub(crate) fn abstract_value_call_signature(
     program: &dyn crate::CheckingInput,
     target: SymbolHandle,
 ) -> Option<&typed_trees::signature::StateSignature> {
-    let contract = program.retained_static_machine_contract(target)?;
-    let signature = contract.signature();
+    let signature = if let Some(contract) = program.retained_static_machine_contract(target) {
+        contract.signature()
+    } else {
+        if !target.is_valid() {
+            return None;
+        }
+        let binder = program.symbols.get(target).parent;
+        if !binder.is_valid()
+            || program.symbols.get(binder).kind != symbols::SymbolKind::ConformanceParameter
+        {
+            return None;
+        }
+        // Keep the exact invoked child as the value identity. Its declaring
+        // evidence bound supplies the applied public signature, including
+        // explicit refinements; a selected private body supplies no promise.
+        crate::selected_requirement_signature(program, target)?.1
+    };
     if !signature_has_closed_value_contract(program, signature) {
         return None;
     }
