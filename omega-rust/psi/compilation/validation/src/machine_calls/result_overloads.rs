@@ -250,8 +250,17 @@ fn record_expression_owner(
 pub fn resolve_named_result_overloads(
     program: &mut TypedTrees,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
-    let boolean_equalities = crate::static_type_boolean_equalities(program);
-    let case_memberships = crate::case_membership_type_facts(program);
+    // Reads of one unchanged program: run them on the checking pool together.
+    // Each result is consumed exactly as the serial calls returned it.
+    let (boolean_equalities, case_memberships) = {
+        let program: &TypedTrees = program;
+        crate::checking_thread_pool().install(|| {
+            rayon::join(
+                || crate::static_type_boolean_equalities(program),
+                || crate::case_membership_type_facts(program),
+            )
+        })
+    };
     program.prepare_static_type_contexts(&boolean_equalities, case_memberships.clone());
     program.elide_unreachable_case_arms();
     // Full-predicate implications apply under the successful case test to
@@ -278,36 +287,74 @@ pub fn resolve_named_result_overloads(
         crate::proof_contracts::contract_entailment::predicate_type_contexts(&context)
     };
     program.retain_proven_type_contexts(predicate_contexts);
-    let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
-        collect_expected_expression_calls(program)
-            .into_iter()
-            .collect();
-    let expression_owners = expression_owners(program);
-    let machine_overloads = MachineOverloadIndex::new(program);
-    let mut diagnostics = Vec::new();
-
-    let expression_updates = expression_table(program)
+    // From here to the write phase `program` is only read. The three indexes
+    // are independent reads, and every call's selection reads only them and
+    // the program, so calls are judged in contiguous chunks on the checking
+    // pool. Chunks are joined in expression-table order, which reproduces the
+    // serial update list and diagnostic order exactly.
+    let reading: &TypedTrees = program;
+    let pool = crate::checking_thread_pool();
+    let (expected_calls, (expression_owners, machine_overloads)) = pool.install(|| {
+        rayon::join(
+            || {
+                collect_expected_expression_calls(reading)
+                    .into_iter()
+                    .collect::<std::collections::HashMap<ExpressionHandle, TypeReferenceHandle>>()
+            },
+            || {
+                rayon::join(
+                    || expression_owners(reading),
+                    || MachineOverloadIndex::new(reading),
+                )
+            },
+        )
+    });
+    let calls = expression_table(reading)
         .expression_entries()
-        .filter_map(|(handle, expression)| {
-            let ExpressionNode::Call(call) = expression else {
-                return None;
-            };
-            let expected = expected_calls.get(&handle).copied();
-            selected_named_expression_callable_symbol(
-                program,
-                &machine_overloads,
-                call,
-                expression_owners.get(&handle.arena_index()).copied(),
-                expression_owners
-                    .get(&handle.arena_index())
-                    .map(|owner| owner.source_span())
-                    .unwrap_or_else(|| expression_table(program).source_span(handle)),
-                expected,
-                &mut diagnostics,
-            )
-            .map(|selected| (handle, selected))
+        .filter_map(|(handle, expression)| match expression {
+            ExpressionNode::Call(call) => Some((handle, call)),
+            _ => None,
         })
         .collect::<Vec<_>>();
+    let chunk = calls
+        .len()
+        .div_ceil(pool.current_num_threads().max(1) * 4)
+        .max(1);
+    let judged = pool.install(|| {
+        use rayon::prelude::*;
+        calls
+            .par_chunks(chunk)
+            .map(|calls| {
+                let mut diagnostics = Vec::new();
+                let updates = calls
+                    .iter()
+                    .filter_map(|&(handle, call)| {
+                        let expected = expected_calls.get(&handle).copied();
+                        selected_named_expression_callable_symbol(
+                            reading,
+                            &machine_overloads,
+                            call,
+                            expression_owners.get(&handle.arena_index()).copied(),
+                            expression_owners
+                                .get(&handle.arena_index())
+                                .map(|owner| owner.source_span())
+                                .unwrap_or_else(|| expression_table(reading).source_span(handle)),
+                            expected,
+                            &mut diagnostics,
+                        )
+                        .map(|selected| (handle, selected))
+                    })
+                    .collect::<Vec<_>>();
+                (updates, diagnostics)
+            })
+            .collect::<Vec<_>>()
+    });
+    let mut diagnostics = Vec::new();
+    let mut expression_updates = Vec::new();
+    for (updates, chunk_diagnostics) in judged {
+        expression_updates.extend(updates);
+        diagnostics.extend(chunk_diagnostics);
+    }
 
     let mut statement_updates = Vec::new();
     let mut operator_statement_updates = Vec::new();
