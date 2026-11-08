@@ -1,13 +1,15 @@
-//! Fast hashing for the compiler's integer-keyed maps.
-//!
-//! `std::collections::HashMap` defaults to SipHash, whose per-call state build
-//! is measurable across the program-scoped index maps (symbol->entry rosters,
-//! per-state collections, operational memos) hit once per demand site. The
-//! keys are already well-mixed handles, so an FxHash-style multiply-rotate
-//! keeps lookup cheap without an external dependency.
-//!
-//! `SymbolMap<V>` covers the common `SymbolHandle -> V` shape; `SymbolKeyMap`
-//! covers tuple keys over handles and indexes.
+/*
+    Fast hashing for the compiler's integer-keyed maps.
+
+    `std::collections::HashMap` defaults to SipHash, whose per-call state build
+    is measurable across the program-scoped index maps (symbol->entry rosters,
+    per-state collections, operational memos) hit once per demand site. The
+    keys are already well-mixed handles, so an FxHash-style multiply-rotate
+    keeps lookup cheap without an external dependency.
+
+    `SymbolMap<V>` covers the common `SymbolHandle -> V` shape; `SymbolKeyMap`
+    covers tuple keys over handles and indexes.
+*/
 
 use core::hash::{BuildHasher, Hasher};
 
@@ -80,8 +82,8 @@ impl BuildHasher for BuildSymbolHasher {
     }
 }
 
-/// `SymbolHandle -> V` map with fast integer hashing.
+/* `SymbolHandle -> V` map with fast integer hashing. */
 pub type SymbolMap<V> = std::collections::HashMap<crate::SymbolHandle, V, BuildSymbolHasher>;
 
-/// `K -> V` map with fast integer hashing for handle/index tuple keys.
+/* `K -> V` map with fast integer hashing for handle/index tuple keys. */
 pub type SymbolKeyMap<K, V> = std::collections::HashMap<K, V, BuildSymbolHasher>;

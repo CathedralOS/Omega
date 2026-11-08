@@ -1,5 +1,7 @@
-//! Start here. The symbol table: the hierarchy arena scoped lookup walks,
-//! its builder, appender and extension.
+/*
+    Start here. The symbol table: the hierarchy arena scoped lookup walks,
+    its builder, appender and extension.
+*/
 
 use std::sync::Arc;
 
@@ -8,18 +10,1853 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
-mod child_batches;
-mod indices;
+mod child_batches {
+    /*
+        Append-only child batches beneath frozen hierarchy nodes.
+
+        A dense parent index links arena-owned spans. Appending another batch never
+        copies earlier children or relocates a declaration's original child range.
+    */
+
+    use crate::{Symbol, SymbolHandle};
+    use arena::{Arena, Handle, HandleSpan};
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    struct ChildBatch {
+        children: HandleSpan<Symbol>,
+        next: Handle<ChildBatch>,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+    struct ChildChain {
+        first: Handle<ChildBatch>,
+        last: Handle<ChildBatch>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub(super) struct SupplementalChildren {
+        batches: Arena<ChildBatch>,
+        parents: Vec<ChildChain>,
+    }
+
+    impl SupplementalChildren {
+        pub(super) fn append(&mut self, parent: SymbolHandle, children: HandleSpan<Symbol>) {
+            if children.is_empty() {
+                return;
+            }
+            let parent_index = parent.arena_index() as usize;
+            if self.parents.len() <= parent_index {
+                self.parents.resize(parent_index + 1, ChildChain::default());
+            }
+            let next = self.batches.insert(ChildBatch {
+                children,
+                next: Handle::invalid(),
+            });
+            let chain = &mut self.parents[parent_index];
+            if chain.last.is_valid() {
+                self.batches.get_mut(chain.last).next = next;
+            } else {
+                chain.first = next;
+            }
+            chain.last = next;
+        }
+
+        pub(super) fn children(&self, parent: SymbolHandle) -> SupplementalChildHandles<'_> {
+            SupplementalChildHandles {
+                batches: &self.batches,
+                next_batch: self
+                    .parents
+                    .get(parent.arena_index() as usize)
+                    .map(|chain| chain.first)
+                    .unwrap_or_default(),
+                children: HandleSpan::empty(),
+            }
+        }
+    }
+
+    pub(super) struct SupplementalChildHandles<'table> {
+        batches: &'table Arena<ChildBatch>,
+        next_batch: Handle<ChildBatch>,
+        children: HandleSpan<Symbol>,
+    }
+
+    impl Iterator for SupplementalChildHandles<'_> {
+        type Item = SymbolHandle;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            self.nth(0)
+        }
+
+        fn nth(&mut self, mut ordinal: usize) -> Option<Self::Item> {
+            loop {
+                if ordinal < self.children.len() {
+                    let selected = self.children.handle_at(ordinal as u32);
+                    let remaining = self.children.count() - ordinal as u32 - 1;
+                    self.children = HandleSpan::from_parts_or_empty(
+                        self.children.handle_at(ordinal as u32 + 1),
+                        remaining,
+                    );
+                    return Some(selected);
+                }
+                ordinal -= self.children.len();
+                self.children = HandleSpan::empty();
+                if !self.next_batch.is_valid() {
+                    return None;
+                }
+                let batch = self.batches.get(self.next_batch);
+                self.next_batch = batch.next;
+                self.children = batch.children;
+            }
+        }
+    }
+}
+mod indices {
+    /*
+        Deferred lookup indices: root-name, binding-source, module-path and
+        module-scope maps built on first lookup and cleared by mutation. The
+        caches ignore themselves for equality so a warmed table still compares
+        equal to a cold one.
+    */
+
+    use super::{SourceScopedTopLevelBinding, SymbolHandle};
+    use source::SourceId;
+    use std::sync::Arc;
+
+    #[derive(Clone, Default)]
+    pub(super) struct RootNameIndex {
+        pub(super) by_name: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        pub(super) by_leaf: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+    }
+
+    /*
+        Selected bindings and their derived namespace environment belong to one
+        immutable table frontier. Queries borrow these rows without rebuilding paths.
+    */
+    #[derive(Clone, Default)]
+    pub(super) struct BindingSourceIndex {
+        pub(super) by_source: crate::SymbolKeyMap<SourceId, SourceLookupScope>,
+        pub(super) has_selected_module: bool,
+    }
+
+    #[derive(Clone, Default)]
+    pub(super) struct SourceLookupScope {
+        pub(super) bindings: Vec<SourceScopedTopLevelBinding>,
+        pub(super) imports: Vec<PreparedModuleImport>,
+        pub(super) has_exact_import: bool,
+    }
+
+    /*
+        `binding_position` addresses this scope's ordered binding batch. Derived
+        spellings describe lookup only; visibility and package authority remain queries.
+    */
+    #[derive(Clone)]
+    pub(super) struct PreparedModuleImport {
+        pub(super) binding_position: usize,
+        pub(super) logical: String,
+        pub(super) package_prefix: String,
+        pub(super) module_leaf: Option<String>,
+    }
+
+    #[derive(Clone, Default)]
+    pub(super) struct ModulePathIndex {
+        pub(super) paths: crate::SymbolKeyMap<SymbolHandle, Arc<str>>,
+    }
+
+    /*
+        Candidates for a module-qualified lookup, keyed by how the match arms
+        select them. `order` is the position in the original roster walk —
+        root children then module symbols — so gathering buckets and sorting
+        reproduces the scan's candidate order exactly, including a handle that
+        appears in both halves (its two positions stay distinct).
+    */
+    #[derive(Clone, Default)]
+    pub(super) struct ModuleScopeIndex {
+        /* `name` → (order, handle). */
+        pub(super) by_name: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        /* `display_path("::")` → (order, handle). */
+        pub(super) by_path: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        /*
+            Declared leaf name → (order, handle), for Domain-kind candidates
+            only: the carrier-qualified arm is the sole leaf-shaped selector.
+        */
+        pub(super) domain_leaves: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+    }
+
+    /*
+        Clones share one immutable lookup frontier, including its deferred work.
+        A mutation detaches a shared cell; clearing a unique cell needs no new
+        allocation. The cache is invisible to semantic equality and debug output.
+    */
+    macro_rules! index_cache {
+    ($(#[$cache_meta:meta])* $cache:ident, $index:ty, $label:literal) => {
+        $(#[$cache_meta])*
+        #[derive(Clone, Default)]
+        pub(super) struct $cache(pub(super) Arc<std::sync::OnceLock<$index>>);
+
+        /*
+            Lookup is derived from the owning symbol/source tables, including
+            inactive selection. A restored graph starts with a cold local index.
+        */
+        impl compiler_storage::Record for $cache {
+            fn write(&self, _: &mut compiler_storage::RecordWriter) -> Result<(), compiler_storage::RecordError> { Ok(()) }
+            fn read<Context>(_: &mut compiler_storage::RecordReader<'_, Context>) -> Result<Self, compiler_storage::RecordError> { Ok(Self::default()) }
+        }
+
+
+        impl $cache {
+            pub(super) fn clear(&mut self) {
+                if let Some(cell) = Arc::get_mut(&mut self.0) {
+                    cell.take();
+                } else {
+                    self.0 = Arc::default();
+                }
+            }
+        }
+
+        impl PartialEq for $cache {
+            fn eq(&self, _: &Self) -> bool {
+                true
+            }
+        }
+
+        impl Eq for $cache {}
+
+        impl std::fmt::Debug for $cache {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str($label)
+            }
+        }
+    };
+}
+
+    index_cache!(
+        /*
+            The table's root children bucketed by full name and by leaf, built on the
+            first top-level lookup. Every mutation that can change the root roster
+            clears it, so it always describes this table; equality ignores it.
+        */
+        RootNameIndexCache,
+        RootNameIndex,
+        "RootNameIndexCache"
+    );
+
+    index_cache!(
+        /*
+            `source_scoped_top_level_bindings` bucketed by `reference_source`, built on
+            the first scoped lookup. A finished table still gains bindings when an
+            extension begins or a syntax-only import is registered, and both clear
+            the index; equality ignores it.
+        */
+        BindingSourceIndexCache,
+        BindingSourceIndex,
+        "BindingSourceIndexCache"
+    );
+
+    index_cache!(
+        /*
+            `display_path("::")` per root child and module symbol, snapshotted on the
+            first module-qualified or imported-path lookup. Handles minted after the
+            snapshot miss the map and fall back to a walk. Every roster mutation
+            clears it alongside `root_names`; equality ignores it.
+        */
+        ModulePathIndexCache,
+        ModulePathIndex,
+        "ModulePathIndexCache"
+    );
+
+    index_cache!(
+        /*
+            The module-qualified roster index is built on the first
+            `find_module_qualified_reference` and cleared wherever `module_path_index`
+            or `root_names` clears; equality ignores it.
+        */
+        ModuleScopeIndexCache,
+        ModuleScopeIndex,
+        "ModuleScopeIndexCache"
+    );
+}
 use indices::{
     BindingSourceIndexCache, ModulePathIndex, ModulePathIndexCache, ModuleScopeIndex,
     ModuleScopeIndexCache, RootNameIndex, RootNameIndexCache,
 };
-mod modules;
+mod modules {
+    /*
+        Logical module ownership without relocating physical declaration slots.
+
+        Local declarations precede imported and root names, including relative
+        attached paths. A narrow import may expose an attached declaration's leaf;
+        retaining that candidate does not expose sibling declarations or make its
+        leaf a bare local name. Every candidate still needs its exact source owner.
+        A loader-certified package alias can qualify other already-loaded sources
+        of that same dependency; that lookup does not change which exact source
+        must satisfy an authored import or expose additional unqualified names.
+    */
+
+    use std::sync::Arc;
+
+    use arena::HandleSpan;
+    use source::{SourceId, SourceSpan};
+
+    use super::indices::{BindingSourceIndex, PreparedModuleImport, SourceLookupScope};
+    use super::{SourceScopedTopLevelBinding, SymbolLookup, SymbolTable};
+    use crate::{Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef};
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub(super) struct ModuleImport {
+        pub(super) path: Arc<str>,
+        package_prefix_members: usize,
+        exact_source: bool,
+    }
+
+    impl SourceScopedTopLevelBinding {
+        /*
+            Bind one authored import to the exact source loaded through the
+            requester's reconciled package graph. Only the loader may strip the
+            certified package-prefix members from the logical module path.
+        */
+        pub fn module_import(
+            reference_source: SourceId,
+            declaration_source: SourceId,
+            authored_path: &str,
+            package_prefix_members: usize,
+        ) -> Self {
+            Self {
+                reference_source,
+                declaration_source,
+                name: Arc::from(""),
+                module_import: Some(ModuleImport {
+                    path: Arc::from(authored_path),
+                    package_prefix_members,
+                    exact_source: true,
+                }),
+                producer: super::BindingProducer::Loader,
+            }
+        }
+    }
+
+    impl SymbolTable {
+        /*
+            Whether this source has a loader-certified package qualifier. Package
+            aliases select namespaces without manufacturing a Module declaration.
+            Type and trait qualifiers retain their separate call semantics.
+        */
+        pub fn is_source_package_qualifier(&self, reference: SourceSpan, qualifier: &str) -> bool {
+            self.source_scoped_bindings_for(reference.source_id)
+                .iter()
+                .filter_map(|binding| binding.module_import.as_ref())
+                .any(|import| {
+                    import.exact_source
+                        && import.package_prefix_members != 0
+                        && import
+                            .path
+                            .split("::")
+                            .take(import.package_prefix_members)
+                            .eq(qualifier.split("::"))
+                })
+        }
+
+        /* Authored import spellings retained for source lookup diagnostics. */
+        pub fn source_module_import_paths(&self, source: SourceId) -> impl Iterator<Item = &str> {
+            self.source_scoped_bindings_for(source)
+                .iter()
+                .filter_map(move |binding| {
+                    (binding.reference_source == source)
+                        .then_some(binding.module_import.as_ref())
+                        .flatten()
+                        .map(|import| import.path.as_ref())
+                })
+        }
+
+        /*
+            Publish the logical namespace of one source without relocating any
+            existing declaration or builtin slot in the symbol hierarchy.
+        */
+        pub fn register_source_module<'name>(
+            &mut self,
+            source: SourceId,
+            members: impl IntoIterator<Item = (&'name str, SourceSpan)>,
+        ) -> Result<(), &'static str> {
+            if self.source_module(source).is_valid() {
+                return Err("a source file may declare only one module");
+            }
+            self.root_names.clear();
+            self.binding_source_index.clear();
+            self.module_path_index.clear();
+            self.module_scope_index.clear();
+            let mut parent = self.root;
+            for (name, span) in members {
+                let existing =
+                    self.module_symbols
+                        .iter()
+                        .map(|(_, handle)| *handle)
+                        .find(|handle| {
+                            self.get(*handle).parent == parent
+                                && self.name(*handle) == name
+                                && self.symbol_provenance_source_span(*handle).is_some_and(
+                                    |previous| self.same_source_package(previous, span),
+                                )
+                        });
+                parent = if let Some(existing) = existing {
+                    existing
+                } else {
+                    let symbol_name = self.names.insert(SymbolName::from_ref_with_sources(
+                        SymbolNameRef::OwnedSource {
+                            value: name,
+                            source_span: span,
+                        },
+                        self.sources.as_deref(),
+                    ));
+                    let handle = self.symbols.insert_supplemental_child(
+                        parent,
+                        Symbol {
+                            parent,
+                            declaration_owner: SymbolHandle::invalid(),
+                            children: HandleSpan::empty(),
+                            kind: SymbolKind::Module,
+                            name: symbol_name,
+                            generated_from: SymbolHandle::invalid(),
+                        },
+                    );
+                    self.module_symbols.insert(handle);
+                    handle
+                };
+            }
+            if parent == self.root {
+                return Err("module declaration requires a nonempty logical path");
+            }
+            if source.0 >= self.source_module_index.len() {
+                self.source_module_index
+                    .resize(source.0 + 1, SymbolHandle::invalid());
+            }
+            self.source_module_index[source.0] = parent;
+            Ok(())
+        }
+
+        /*
+            Retain an import for syntax-only callers. Compiler-loaded imports
+            already carry exact source custody and take precedence over this row.
+        */
+        pub fn register_source_import(&mut self, reference_source: SourceId, path: &str) {
+            if self.source_scoped_top_level_bindings.iter().any(|binding| {
+                self.source_binding_is_selected(binding)
+                    && binding.reference_source == reference_source
+                    && binding
+                        .module_import
+                        .as_ref()
+                        .is_some_and(|import| import.path.as_ref() == path)
+            }) {
+                return;
+            }
+            let mut binding = SourceScopedTopLevelBinding::module_import(
+                reference_source,
+                reference_source,
+                path,
+                0,
+            );
+            if let Some(import) = &mut binding.module_import {
+                import.exact_source = false;
+            }
+            binding.producer = super::BindingProducer::AuthoredImport;
+            self.source_scoped_top_level_bindings.push(binding);
+            self.binding_source_index.clear();
+        }
+
+        /*
+            An imported source with an authored module must supply the exact
+            logical namespace or declaration requested by the import.
+        */
+        pub fn validate_source_module_import(
+            &self,
+            reference_source: SourceId,
+            path: &str,
+        ) -> Result<(), String> {
+            let mut inactive_import = false;
+            let mut selected_import = false;
+            for binding in self
+                .source_scoped_top_level_bindings
+                .iter()
+                .filter(|binding| binding.reference_source == reference_source)
+            {
+                let Some(import) = &binding.module_import else {
+                    continue;
+                };
+                if import.path.as_ref() != path || !import.exact_source {
+                    continue;
+                }
+                if !self.source_binding_is_selected(binding) {
+                    inactive_import = true;
+                    continue;
+                }
+                selected_import = true;
+                let module = self.source_module(binding.declaration_source);
+                if !module.is_valid() {
+                    continue;
+                }
+                let logical = logical_import_path(import);
+                let namespace = self.indexed_display_path(module);
+                if logical == namespace.as_ref() {
+                    continue;
+                }
+                let declarations =
+                    self.child_handles(self.root)
+                        .into_iter()
+                        .flatten()
+                        .filter(|candidate| {
+                            self.import_owner_matches(binding, *candidate)
+                                && self.indexed_display_path(*candidate) == logical.as_str()
+                        });
+                if unique(declarations).is_none() {
+                    return Err(format!(
+                        "import `{path}` does not select one exact declaration or module in declared namespace `{namespace}`"
+                    ));
+                }
+            }
+            if inactive_import && !selected_import {
+                Err(format!(
+                    "import `{path}` refers to an inactive source instance"
+                ))
+            } else {
+                Ok(())
+            }
+        }
+
+        /*
+            Return the declaration selected by a validated module import. Legacy
+            file imports have no independently selected namespace declaration.
+        */
+        pub fn source_module_import_target(
+            &self,
+            reference_source: SourceId,
+            path: &str,
+        ) -> Option<SymbolHandle> {
+            for binding in self.source_scoped_bindings_for(reference_source) {
+                let Some(import) = &binding.module_import else {
+                    continue;
+                };
+                if import.path.as_ref() != path {
+                    continue;
+                }
+                if import.exact_source && !self.source_module(binding.declaration_source).is_valid()
+                {
+                    return None;
+                }
+                let logical = logical_import_path(import);
+                return unique(
+                    self.child_handles(self.root)
+                        .into_iter()
+                        .flatten()
+                        .chain(self.module_symbols.iter().map(|(_, symbol)| *symbol))
+                        .filter(|candidate| {
+                            self.import_owner_matches(binding, *candidate)
+                                && self.indexed_display_path(*candidate) == logical.as_str()
+                        }),
+                );
+            }
+            None
+        }
+
+        pub fn source_module(&self, source: SourceId) -> SymbolHandle {
+            self.source_module_index
+                .get(source.0)
+                .copied()
+                .unwrap_or_else(SymbolHandle::invalid)
+        }
+
+        pub(super) fn source_binding_is_selected(
+            &self,
+            binding: &SourceScopedTopLevelBinding,
+        ) -> bool {
+            self.sources.as_deref().is_none_or(|sources| {
+                sources.source_is_selected(binding.reference_source)
+                    && sources.source_is_selected(binding.declaration_source)
+            })
+        }
+
+        /*
+            Selected files contributing to this namespace or any nested namespace.
+            The module's original spelling owner is not its activation membership.
+        */
+        pub(super) fn module_source_ids(
+            &self,
+            module: SymbolHandle,
+        ) -> impl Iterator<Item = SourceId> + '_ {
+            self.source_module_index
+                .iter()
+                .enumerate()
+                .filter_map(move |(position, leaf)| {
+                    let source = SourceId(position);
+                    if self
+                        .sources
+                        .as_deref()
+                        .is_some_and(|sources| !sources.source_is_selected(source))
+                    {
+                        return None;
+                    }
+                    let mut ancestor = *leaf;
+                    while ancestor.is_valid() {
+                        if ancestor == module {
+                            return Some(source);
+                        }
+                        ancestor = self.get(ancestor).parent;
+                    }
+                    None
+                })
+        }
+
+        /*
+            Whether an authored domain reference may select `domain` from
+            `reference` under module name law. A fully qualified spelling always
+            selects its exact declaration. A relative spelling reaches a
+            module-owned domain inside its own module or through an exposing
+            import: a narrow import of the exact declaration exposes its leaf and
+            its declared carrier-qualified spelling, while importing the declaring
+            module exposes its directly declared domains to the carrier-qualified
+            spelling. The carrier-qualified form additionally requires the
+            authored carrier to resolve to the exact carrier the declaring context
+            attached the domain to -- importing the carrier type, an ordinary
+            sibling declaration, or merely loading another source exposes nothing.
+            Unmoduled domains keep root scope; generated references carry no
+            lexical module and select only qualified or unmoduled domains.
+            Resolution-stratum and package visibility stay with the caller.
+        */
+        pub fn domain_name_reaches(
+            &self,
+            domain: SymbolHandle,
+            authored: &str,
+            reference: SourceSpan,
+        ) -> bool {
+            let qualified = self.indexed_display_path(domain);
+            if qualified.as_ref() == authored {
+                return true;
+            }
+            let domain_name = self.name(domain);
+            let domain_module = self.symbol_module(domain);
+            if !domain_name.contains("::")
+                && let Some((carrier, leaf)) = authored.rsplit_once("::")
+            {
+                if leaf != domain_name {
+                    return false;
+                }
+                let carrier_symbol = self.find_top_level_by_name_and_kinds_from_source(
+                    carrier,
+                    &[
+                        SymbolKind::BuiltinType,
+                        SymbolKind::Data,
+                        SymbolKind::Machine,
+                        SymbolKind::Trait,
+                    ],
+                    reference,
+                );
+                let Some(carrier_symbol) = carrier_symbol else {
+                    return false;
+                };
+                if self.get(carrier_symbol).kind != SymbolKind::BuiltinType {
+                    let domain_source = self
+                        .symbol_provenance_source_span(domain)
+                        .map(|span| span.source_id);
+                    let carrier_source = self
+                        .symbol_provenance_source_span(carrier_symbol)
+                        .map(|span| span.source_id);
+                    if domain_source.is_none() || domain_source != carrier_source {
+                        return false;
+                    }
+                }
+            }
+            if !domain_module.is_valid() {
+                return same_semantic_name(domain_name, authored);
+            }
+            if reference.span.start == reference.span.end {
+                return false;
+            }
+            if self.source_module(reference.source_id) == domain_module {
+                return same_semantic_name(domain_name, authored);
+            }
+            if !authored.contains("::") {
+                return same_semantic_name(domain_name, authored)
+                    && self
+                        .source_module_import_paths(reference.source_id)
+                        .any(|path| {
+                            self.source_module_import_target(reference.source_id, path)
+                                == Some(domain)
+                        });
+            }
+            self.carrier_qualified_domain_reaches(domain, authored, reference)
+        }
+
+        /*
+            Whether a carrier-qualified spelling (`Carrier::Leaf`) selects an
+            exposed module-owned domain. The authored carrier must resolve to the
+            same exact carrier the declaring source attached the domain to -- a
+            caller's same-spelled type cannot redirect the attachment -- and an
+            import must expose the domain: either a narrow import of the exact
+            declaration or a broad import of its declaring module, which exposes
+            only the domains that module directly declares.
+        */
+        pub fn carrier_qualified_domain_reaches(
+            &self,
+            domain: SymbolHandle,
+            authored: &str,
+            reference: SourceSpan,
+        ) -> bool {
+            let domain_module = self.symbol_module(domain);
+            if !domain_module.is_valid() || reference.span.start == reference.span.end {
+                return false;
+            }
+            let Some((declared_carrier, declared_leaf)) = self.name(domain).rsplit_once("::")
+            else {
+                return false;
+            };
+            let Some((authored_carrier, authored_leaf)) = authored.rsplit_once("::") else {
+                return false;
+            };
+            if authored_leaf != declared_leaf {
+                return false;
+            }
+            const CARRIER_KINDS: [SymbolKind; 4] = [
+                SymbolKind::BuiltinType,
+                SymbolKind::Data,
+                SymbolKind::Machine,
+                SymbolKind::Trait,
+            ];
+            let Some(authored_carrier_symbol) = self.find_top_level_by_name_and_kinds_from_source(
+                authored_carrier,
+                &CARRIER_KINDS,
+                reference,
+            ) else {
+                return false;
+            };
+            let declared_carrier_symbol =
+                self.symbol_provenance_source_span(domain).and_then(|span| {
+                    self.find_top_level_by_name_and_kinds_from_source(
+                        declared_carrier,
+                        &CARRIER_KINDS,
+                        span,
+                    )
+                });
+            if authored_carrier_symbol
+                != declared_carrier_symbol.unwrap_or_else(SymbolHandle::invalid)
+            {
+                return false;
+            }
+            self.source_module_import_paths(reference.source_id)
+                .any(|path| {
+                    matches!(
+                        self.source_module_import_target(reference.source_id, path),
+                        Some(target) if target == domain || target == domain_module
+                    )
+                })
+        }
+
+        /*
+            Whether one authored import edge in `reference` brings `symbol`'s
+            leaf name into that source's resolution scope. Importing an
+            unmoduled source exposes every leaf it declares; a moduled source
+            exposes a leaf only through a narrow import of that exact
+            declaration, so a broad `module::name` edge never collides with a
+            package-local `name`.
+        */
+        pub(super) fn import_exposes_symbol(
+            &self,
+            reference: SourceId,
+            symbol: SymbolHandle,
+        ) -> bool {
+            let Some(declaration) = self.symbol_source_span(symbol) else {
+                return false;
+            };
+            self.source_scoped_bindings_for(reference)
+                .iter()
+                .any(|binding| {
+                    let Some(import) = &binding.module_import else {
+                        return false;
+                    };
+                    (binding.declaration_source == declaration.source_id
+                        && self.indexed_display_path(symbol) == logical_import_path(import))
+                        || (import.exact_source
+                            && !self.source_module(declaration.source_id).is_valid()
+                            && self.exact_import_exposes_source(
+                                binding.declaration_source,
+                                declaration,
+                            ))
+                })
+        }
+
+        /*
+            Whether an exact-source import of `imported_source` exposes a
+            declaration at `declaration`: it is authored in that file, or it is a
+            generated unit of the same checked package instance. A package's
+            module-less files form one logical module, and the units its build
+            handed off (`SourceResolutionStratum::DependencyActivationExtension`)
+            are that module's later stratum, so importing the package's root file
+            imports them too. Two checked instances of one package never expose
+            each other's units.
+        */
+        pub(super) fn exact_import_exposes_source(
+            &self,
+            imported_source: SourceId,
+            declaration: SourceSpan,
+        ) -> bool {
+            if declaration.source_id == imported_source {
+                return true;
+            }
+            !self.source_module(imported_source).is_valid()
+                && self.source_file(declaration).is_some_and(|file| {
+                    file.resolution_stratum
+                        == source::SourceResolutionStratum::DependencyActivationExtension
+                })
+                && self.sources.as_deref().is_some_and(|sources| {
+                    sources.same_checked_instance(
+                        declaration,
+                        SourceSpan::new(imported_source, declaration.span),
+                    )
+                })
+        }
+
+        pub fn symbol_module(&self, symbol: SymbolHandle) -> SymbolHandle {
+            self.symbol_provenance_source_span(symbol)
+                .map(|span| self.source_module(span.source_id))
+                .unwrap_or_else(SymbolHandle::invalid)
+        }
+
+        /*
+            Semantic path ownership includes the authored module while physical
+            declaration storage preserves its original root child range.
+        */
+        pub fn namespace_parent(&self, symbol: SymbolHandle) -> SymbolHandle {
+            let parent = self.get(symbol).parent;
+            if (parent == self.root || !parent.is_valid())
+                && self.get(symbol).kind != SymbolKind::Module
+            {
+                let module = self.symbol_module(symbol);
+                if module.is_valid() {
+                    return module;
+                }
+            }
+            parent
+        }
+
+        pub(super) fn module_children(&self, module: SymbolHandle) -> Vec<SymbolHandle> {
+            self.module_symbols
+                .iter()
+                .map(|(_, handle)| *handle)
+                .filter(|handle| self.get(*handle).parent == module)
+                .chain(
+                    self.child_handles(self.root)
+                        .into_iter()
+                        .flatten()
+                        .filter(|handle| self.symbol_module(*handle) == module),
+                )
+                .filter(|symbol| self.symbol_source_is_selected(*symbol))
+                .collect()
+        }
+
+        /*
+            Materialize the selected import environment once for this table frontier.
+            It owns no authority: all candidate-specific admission remains below.
+        */
+        pub(super) fn source_binding_index(&self) -> &BindingSourceIndex {
+            self.binding_source_index.0.get_or_init(|| {
+                let mut index = BindingSourceIndex {
+                    has_selected_module: self
+                        .module_symbols
+                        .iter()
+                        .any(|(_, symbol)| self.symbol_source_is_selected(*symbol)),
+                    ..Default::default()
+                };
+                for binding in &self.source_scoped_top_level_bindings {
+                    if !self.source_binding_is_selected(binding) {
+                        continue;
+                    }
+                    let scope = index.by_source.entry(binding.reference_source).or_default();
+                    if let Some(import) = &binding.module_import {
+                        let logical = logical_import_path(import);
+                        let package_prefix = import
+                            .path
+                            .split("::")
+                            .take(import.package_prefix_members)
+                            .collect::<Vec<_>>()
+                            .join("::");
+                        let module = self.source_module(binding.declaration_source);
+                        let module_leaf = (module.is_valid()
+                            && self.indexed_display_path(module) == logical.as_str())
+                        .then(|| self.name(module).to_string());
+                        scope.has_exact_import |= import.exact_source;
+                        scope.imports.push(PreparedModuleImport {
+                            binding_position: scope.bindings.len(),
+                            logical,
+                            package_prefix,
+                            module_leaf,
+                        });
+                    }
+                    scope.bindings.push(binding.clone());
+                }
+                index
+            })
+        }
+
+        fn source_lookup_scope(&self, reference_source: SourceId) -> &SourceLookupScope {
+            static EMPTY: SourceLookupScope = SourceLookupScope {
+                bindings: Vec::new(),
+                imports: Vec::new(),
+                has_exact_import: false,
+            };
+            self.source_binding_index()
+                .by_source
+                .get(&reference_source)
+                .unwrap_or(&EMPTY)
+        }
+
+        pub(super) fn has_namespace_context(&self, reference: SourceSpan) -> bool {
+            self.source_file(reference).is_some_and(|file| {
+                file.origin == source::SourceOrigin::User
+                    && file.resolution_stratum
+                        != source::SourceResolutionStratum::CurrentActivationExtension
+            }) || self.source_binding_index().has_selected_module
+                || self
+                    .source_lookup_scope(reference.source_id)
+                    .has_exact_import
+        }
+
+        pub(super) fn select_namespace_candidates(
+            &self,
+            candidates: &[SymbolHandle],
+            name: &str,
+            reference: SourceSpan,
+        ) -> Vec<SymbolHandle> {
+            let current_module = self.source_module(reference.source_id);
+            let shared_extension = self.source_file(reference).is_some_and(|file| {
+                file.resolution_stratum
+                    == source::SourceResolutionStratum::CurrentActivationExtension
+            });
+            let local = candidates
+                .iter()
+                .copied()
+                .filter(|candidate| {
+                    self.name(*candidate) == name
+                        && self.symbol_module(*candidate) == current_module
+                        && self
+                            .symbol_provenance_source_span(*candidate)
+                            .is_some_and(|span| {
+                                if current_module.is_valid() {
+                                    self.same_source_package(reference, span)
+                                } else {
+                                    span.source_id == reference.source_id
+                                        || (shared_extension
+                                            && self.same_source_package(reference, span)
+                                            && self.sources.as_deref().is_some_and(|sources| {
+                                                !sources.resolution_strata_separate(reference, span)
+                                            }))
+                                }
+                            })
+                })
+                .collect::<Vec<_>>();
+            if !local.is_empty() {
+                return local;
+            }
+            let source_scope = self.source_lookup_scope(reference.source_id);
+            let imported = candidates
+                .iter()
+                .copied()
+                .filter(|candidate| {
+                    source_scope.imports.iter().any(|scope| {
+                        let binding = &source_scope.bindings[scope.binding_position];
+                        let logical = &scope.logical;
+                        let import = binding
+                            .module_import
+                            .as_ref()
+                            .expect("import bindings carry module imports");
+                        if !self.import_owner_matches(binding, *candidate) {
+                            return false;
+                        }
+                        self.indexed_display_path(*candidate) == logical.as_str()
+                            || (import.exact_source
+                                && self.name(*candidate) == name
+                                && !self.source_module(binding.declaration_source).is_valid()
+                                && self.symbol_provenance_source_span(*candidate).is_some_and(
+                                    |span| {
+                                        self.exact_import_exposes_source(
+                                            binding.declaration_source,
+                                            span,
+                                        )
+                                    },
+                                ))
+                    })
+                })
+                .collect::<Vec<_>>();
+            if !imported.is_empty() {
+                return imported;
+            }
+            if !current_module.is_valid() {
+                let package = candidates.iter().copied().filter(|candidate| {
+                    self.name(*candidate) == name
+                        && !self.symbol_module(*candidate).is_valid()
+                        && self
+                            .symbol_provenance_source_span(*candidate)
+                            .is_some_and(|span| self.same_source_package(reference, span))
+                });
+                let package = package.collect::<Vec<_>>();
+                if !package.is_empty() {
+                    return package;
+                }
+            }
+            candidates
+                .iter()
+                .copied()
+                .filter(|candidate| {
+                    self.name(*candidate) == name
+                        && !self.symbol_module(*candidate).is_valid()
+                        && self.symbol_source_origin(*candidate) != Some(source::SourceOrigin::User)
+                })
+                .collect()
+        }
+
+        fn import_owner_matches(
+            &self,
+            binding: &SourceScopedTopLevelBinding,
+            candidate: SymbolHandle,
+        ) -> bool {
+            let Some(import) = &binding.module_import else {
+                return false;
+            };
+            if !import.exact_source {
+                return self
+                    .symbol_provenance_source_span(candidate)
+                    .is_some_and(|span| {
+                        self.same_source_package(
+                            SourceSpan::new(binding.reference_source, span.span),
+                            span,
+                        )
+                    });
+            }
+            self.symbol_provenance_source_span(candidate)
+                .is_some_and(|span| {
+                    if self.get(candidate).kind == SymbolKind::Module {
+                        self.same_source_package(
+                            span,
+                            SourceSpan::new(binding.declaration_source, span.span),
+                        )
+                    } else {
+                        self.exact_import_exposes_source(binding.declaration_source, span)
+                    }
+                })
+        }
+
+        /*
+            An empty roster is an authoritative failed logical lookup. `None`
+            leaves an unqualified lookup to its ordinary source-scope precedence.
+        */
+        pub(super) fn find_module_qualified_candidates(
+            &self,
+            name: &str,
+            kinds: &[SymbolKind],
+            reference: SourceSpan,
+            matches_candidate: &mut impl FnMut(SymbolHandle) -> bool,
+        ) -> Option<Vec<SymbolHandle>> {
+            if self.module_symbols.is_empty() && !self.has_namespace_context(reference) {
+                return None;
+            }
+            let qualified = name.contains("::");
+            if !qualified && !kinds.contains(&SymbolKind::Module) {
+                return None;
+            }
+            let current_module = self.source_module(reference.source_id);
+            let source_scope = self.source_lookup_scope(reference.source_id);
+            let import_bindings = &source_scope.imports;
+            let needs_candidate_path = qualified || !import_bindings.is_empty();
+            let mut matches = Vec::new();
+            let mut module_local_matches = Vec::new();
+            let mut carrier_domain_matches = Vec::new();
+            let index = self.module_scope_index();
+            let mut candidate_pool: Vec<(u32, SymbolHandle)> = Vec::new();
+            let gather = |pool: &mut Vec<(u32, SymbolHandle)>, key: &str| {
+                if let Some(entries) = index.by_name.get(key) {
+                    pool.extend_from_slice(entries);
+                }
+            };
+            gather(&mut candidate_pool, name);
+            if qualified {
+                if let Some(entries) = index.by_path.get(name) {
+                    candidate_pool.extend_from_slice(entries);
+                }
+                if let Some((_, authored_leaf)) = name.rsplit_once("::")
+                    && let Some(entries) = index.domain_leaves.get(authored_leaf)
+                {
+                    candidate_pool.extend_from_slice(entries);
+                }
+                for scope in import_bindings {
+                    let import = source_scope.bindings[scope.binding_position]
+                        .module_import
+                        .as_ref()
+                        .expect("import bindings carry module imports");
+                    let logical = scope.logical.as_str();
+                    if import.exact_source
+                        && import.package_prefix_members != 0
+                        && let Some(suffix) = name
+                            .strip_prefix(scope.package_prefix.as_str())
+                            .and_then(|rest| rest.strip_prefix("::"))
+                        && let Some(entries) = index.by_path.get(suffix)
+                    {
+                        candidate_pool.extend_from_slice(entries);
+                    }
+                    if let Some(short) = logical.rsplit("::").next()
+                        && let Some(suffix) = name
+                            .strip_prefix(short)
+                            .and_then(|rest| rest.strip_prefix("::"))
+                    {
+                        let key = format!("{logical}::{suffix}");
+                        if let Some(entries) = index.by_path.get(key.as_str()) {
+                            candidate_pool.extend_from_slice(entries);
+                        }
+                    }
+                    if let Some(module_leaf) = scope.module_leaf.as_deref()
+                        && let Some(suffix) = name
+                            .strip_prefix(module_leaf)
+                            .and_then(|rest| rest.strip_prefix("::"))
+                    {
+                        let key = format!("{logical}::{suffix}");
+                        if let Some(entries) = index.by_path.get(key.as_str()) {
+                            candidate_pool.extend_from_slice(entries);
+                        }
+                    }
+                }
+            }
+            candidate_pool.sort_unstable_by_key(|(order, _)| *order);
+            candidate_pool.dedup_by_key(|(order, _)| *order);
+            for (_, candidate) in candidate_pool {
+                let candidate_kind = self.get(candidate).kind;
+                let is_module = candidate_kind == SymbolKind::Module;
+                if !kinds.contains(&candidate_kind)
+                    || !matches_candidate(candidate)
+                    || !self.source_reference_can_see_symbol(reference, candidate)
+                {
+                    continue;
+                }
+                let candidate_path =
+                    needs_candidate_path.then(|| self.indexed_display_path(candidate));
+                if qualified
+                    && reference.span.start != reference.span.end
+                    && current_module.is_valid()
+                    && self.symbol_module(candidate) == current_module
+                    && self.name(candidate) == name
+                {
+                    module_local_matches.push(candidate);
+                }
+                let direct_path = qualified
+                    && (candidate_path.as_deref() == Some(name)
+                        || (current_module.is_valid()
+                            && self.symbol_module(candidate) == current_module
+                            && self.name(candidate) == name));
+                let same_package = self
+                    .symbol_provenance_source_span(candidate)
+                    .is_some_and(|span| self.same_source_package(reference, span));
+                let installed_path = qualified
+                    && !is_module
+                    && !self.symbol_module(candidate).is_valid()
+                    && self.name(candidate) == name
+                    && self.symbol_source_origin(candidate) != Some(source::SourceOrigin::User);
+                let imported_path = import_bindings.iter().any(|scope| {
+                    let binding = &source_scope.bindings[scope.binding_position];
+                    let import = binding
+                        .module_import
+                        .as_ref()
+                        .expect("import bindings carry module imports");
+                    let logical = scope.logical.as_str();
+                    if qualified
+                        && import.exact_source
+                        && import.package_prefix_members != 0
+                        && self
+                            .symbol_provenance_source_span(candidate)
+                            .is_some_and(|span| {
+                                self.same_source_package(
+                                    span,
+                                    SourceSpan::new(binding.declaration_source, span.span),
+                                )
+                            })
+                        && name
+                            .strip_prefix(scope.package_prefix.as_str())
+                            .and_then(|suffix| suffix.strip_prefix("::"))
+                            == candidate_path.as_deref()
+                    {
+                        return true;
+                    }
+                    if !self.import_owner_matches(binding, candidate) {
+                        return false;
+                    }
+                    if !qualified {
+                        return is_module
+                            && candidate_path.as_deref() == Some(logical)
+                            && self.name(candidate) == name;
+                    }
+                    if candidate_path.as_deref() == Some(name) {
+                        return true;
+                    }
+                    if let Some(short) = logical.rsplit("::").next()
+                        && name
+                            .strip_prefix(short)
+                            .and_then(|suffix| suffix.strip_prefix("::"))
+                            .is_some_and(|suffix| {
+                                candidate_path
+                                    .as_deref()
+                                    .and_then(|path| path.strip_prefix(logical))
+                                    .and_then(|rest| rest.strip_prefix("::"))
+                                    == Some(suffix)
+                            })
+                    {
+                        return true;
+                    }
+                    if is_module {
+                        return false;
+                    }
+                    if let Some(module_leaf) = scope.module_leaf.as_deref() {
+                        return name
+                            .strip_prefix(module_leaf)
+                            .and_then(|suffix| suffix.strip_prefix("::"))
+                            .is_some_and(|suffix| {
+                                candidate_path
+                                    .as_deref()
+                                    .and_then(|path| path.strip_prefix(logical))
+                                    .and_then(|rest| rest.strip_prefix("::"))
+                                    == Some(suffix)
+                            });
+                    }
+                    false
+                });
+                if qualified
+                    && self.get(candidate).kind == SymbolKind::Domain
+                    && self.carrier_qualified_domain_reaches(candidate, name, reference)
+                {
+                    carrier_domain_matches.push(candidate);
+                }
+                if installed_path
+                    || (direct_path && same_package)
+                    || imported_path
+                    || (!qualified
+                        && is_module
+                        && self.get(candidate).parent == self.root
+                        && self.name(candidate) == name
+                        && same_package)
+                {
+                    matches.push(candidate);
+                }
+            }
+            if !module_local_matches.is_empty() {
+                Some(module_local_matches)
+            } else if qualified {
+                if matches.is_empty() && carrier_domain_matches.len() == 1 {
+                    return Some(carrier_domain_matches);
+                }
+                Some(matches)
+            } else if matches.is_empty() {
+                None
+            } else {
+                Some(matches)
+            }
+        }
+    }
+
+    /*
+        The `a::b::c` spelling of a displayable member path, shared by the path
+        member rosters that previously spelled the iter/map/collect chain inline.
+    */
+    pub trait JoinedPath {
+        /* Members joined with `::`. */
+        fn joined_path(&self) -> String;
+        /* Members joined with a caller-chosen separator. */
+        fn joined_path_with(&self, separator: &str) -> String;
+    }
+
+    impl<T: std::fmt::Display> JoinedPath for [T] {
+        fn joined_path(&self) -> String {
+            self.joined_path_with("::")
+        }
+
+        fn joined_path_with(&self, separator: &str) -> String {
+            self.iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(separator)
+        }
+    }
+
+    /*
+        A relative domain spelling matches its declared name either exactly or by
+        leaf, mirroring the semantic-name rule the resolved-lookup exposure pool
+        shares with this table law.
+    */
+    pub fn same_semantic_name(left: &str, right: &str) -> bool {
+        left == right
+            || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
+            || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
+    }
+
+    fn logical_import_path(import: &ModuleImport) -> String {
+        import
+            .path
+            .split("::")
+            .skip(import.package_prefix_members)
+            .collect::<Vec<_>>()
+            .join("::")
+    }
+
+    fn unique(candidates: impl Iterator<Item = SymbolHandle>) -> Option<SymbolHandle> {
+        SymbolLookup::from_candidates(candidates).unique()
+    }
+}
 
 pub use modules::{JoinedPath, same_semantic_name};
-mod source_queries;
+mod source_queries {
+    /*
+        Source and package queries: span-to-text lookup, symbol provenance,
+        and package-identity checks, extracted from `table` so storage and
+        name navigation stay the headline.
+    */
+
+    use super::*;
+
+    impl SymbolTable {
+        /*
+            Generated declarations follow authored provenance. Missing provenance
+            retains the existing unscoped declaration behavior.
+        */
+        #[inline]
+        pub fn symbol_is_in_dependency_scope(
+            &self,
+            symbol: crate::SymbolHandle,
+            scope: source::DependencyScope,
+        ) -> bool {
+            self.symbol_provenance_source_span(symbol)
+                .and_then(|span| self.source_file(span))
+                .is_none_or(|file| file.dependency_scope == scope)
+        }
+
+        pub fn source_text(&self, source_span: SourceSpan) -> &str {
+            self.sources
+                .as_deref()
+                .map(|sources| sources.text_at(source_span))
+                .unwrap_or("")
+        }
+
+        /* Source declaration span retained for an authored symbol. */
+        pub fn symbol_source_span(&self, symbol: SymbolHandle) -> Option<SourceSpan> {
+            self.names.get(self.get(symbol).name).source_span()
+        }
+
+        /*
+            Exact authored provenance span for an authored or compiler-generated
+            symbol. Generated symbols follow their mandatory derivation origin.
+        */
+        pub fn symbol_provenance_source_span(&self, symbol: SymbolHandle) -> Option<SourceSpan> {
+            self.provenance_source_span(symbol)
+        }
+
+        /*
+            File metadata for one retained authored span. Generated/source-free
+            trees return `None` instead of inventing a presentation path.
+        */
+        pub fn source_file(&self, source_span: SourceSpan) -> Option<&SourceFile> {
+            self.sources.as_deref()?.file_at(source_span)
+        }
+
+        /*
+            The retained authored source map, shared without copying. Consumers
+            that resolve diagnostic locations on a path where the program moves
+            away clone this handle rather than reading storage back.
+        */
+        pub fn source_map(&self) -> Option<std::sync::Arc<source::SourceMap>> {
+            self.sources.clone()
+        }
+
+        /*
+            Whether `symbol` was authored in the toolchain-owned build prelude
+            translation unit.
+        */
+        pub fn is_build_prelude_symbol(&self, symbol: SymbolHandle) -> bool {
+            self.symbol_source_span(symbol)
+                .and_then(|span| self.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == source::SourceOrigin::Toolchain
+                        && file.path == std::path::Path::new("<build-prelude>")
+                })
+        }
+
+        /*
+            Product-scope dependency `alias` authorized for the package that owns
+            `occurrence`. `None` means the occurrence carries no package identity,
+            no retained sources, or no such product edge -- callers treat every
+            one of those as "not an authorized product alias", never as license
+            to widen the search.
+        */
+        pub fn product_dependency_target(
+            &self,
+            occurrence: SourceSpan,
+            alias: &str,
+        ) -> Option<PackageKeyIdentity> {
+            self.sources
+                .as_deref()?
+                .product_dependency_at(occurrence, alias)
+        }
+
+        /*
+            Executed Build descriptions keep their original source occurrence.
+            Product admission may seal that anonymous source as a new instance;
+            only the source producer's exact correspondence rejoins its namespace.
+            Without one, the original occurrence remains subject to ordinary refusal.
+        */
+        pub fn rejoin_product_occurrence(&self, occurrence: SourceSpan) -> SourceSpan {
+            let selected = self.sources.as_deref().and_then(|sources| {
+                let original = sources.get(occurrence.source_id)?;
+                sources.rejoined_source_id(original)
+            });
+            selected.map_or(occurrence, |source| {
+                SourceSpan::new(source, occurrence.span)
+            })
+        }
+
+        /*
+            Resolve a designated product operand under its author's package scope.
+            Callers supply declaration candidates and their public visibility; this
+            never extends ordinary source lookup. Exact module paths take precedence
+            over same-package short names. Operator overloads at one exact path name
+            one family, represented by its first declaration in candidate order.
+        */
+        pub fn find_product_declaration_from_source(
+            &self,
+            path: &str,
+            occurrence: SourceSpan,
+            candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+        ) -> Option<SymbolHandle> {
+            self.find_declaration_from_source(path, occurrence, candidates, false, &[])
+        }
+
+        /*
+            [`Self::find_product_declaration_from_source`] for a BUILD operand,
+            which may also name a public toolchain declaration.
+
+            The toolchain injects its own core into every product without an
+            authored dependency, so a core declaration has no package instance an
+            unqualified operand could share and no manifest an alias could name.
+            A build that selects a provider for `ExtentRootProvider` is naming that
+            exact declaration. Ordinary call resolution keeps the narrower rule:
+            admitting core there changes which declaration a call selects.
+            `token_bound_machines` identifies the machine declarations whose token
+            views share this family-selection rule. Ordinary same-path machines
+            remain ambiguous; exact path, package and source scope must agree even
+            for declared family members. This selects a family representative, not
+            a callable overload or provider.
+        */
+        pub fn find_build_subject_declaration_from_source(
+            &self,
+            path: &str,
+            occurrence: SourceSpan,
+            candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+            token_bound_machines: &[SymbolHandle],
+        ) -> Option<SymbolHandle> {
+            self.find_declaration_from_source(
+                path,
+                occurrence,
+                candidates,
+                true,
+                token_bound_machines,
+            )
+        }
+
+        /*
+            Exact completed-Build scope, authenticated by package output custody.
+            Candidates are Product declarations only; this grants no ordinary host
+            visibility and does not make a dependency's private members public.
+        */
+        pub fn find_captured_product_declaration(
+            &self,
+            path: &str,
+            package: PackageKeyIdentity,
+            stratum: source::SourceResolutionStratum,
+            candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+        ) -> Option<SymbolHandle> {
+            let sources = self.sources.as_deref()?;
+            let qualified = path.split_once("::");
+            let dependency =
+                qualified.and_then(|(alias, _)| sources.product_dependency_target(package, alias));
+            let target = dependency.unwrap_or(package);
+            let path = match (qualified, dependency) {
+                (Some((_, remaining)), Some(_)) => remaining,
+                _ => path,
+            };
+            let mut selected = None;
+            let mut selected_exact = false;
+            let mut ambiguous = false;
+            for (symbol, public) in candidates {
+                if !self.symbol_source_is_selected(symbol)
+                    || self.symbol_product_package_identity(symbol) != Some(target)
+                    || dependency.is_some() && !public
+                {
+                    continue;
+                }
+                let file = self
+                    .symbol_provenance_source_span(symbol)
+                    .and_then(|span| self.source_file(span))?;
+                if !source::SourceMap::captured_reference_can_see_stratum(package, stratum, file) {
+                    continue;
+                }
+                let exact = self.display_path(symbol, "::") == path;
+                if !exact && (dependency.is_some() || self.name(symbol) != path) {
+                    continue;
+                }
+                if selected.is_none() || exact && !selected_exact {
+                    selected = Some(symbol);
+                    selected_exact = exact;
+                    ambiguous = false;
+                } else if exact == selected_exact && selected != Some(symbol) {
+                    ambiguous = true;
+                }
+            }
+            if ambiguous { None } else { selected }
+        }
+
+        fn find_declaration_from_source(
+            &self,
+            path: &str,
+            occurrence: SourceSpan,
+            candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+            admit_toolchain: bool,
+            token_bound_machines: &[SymbolHandle],
+        ) -> Option<SymbolHandle> {
+            let occurrence = self.rejoin_product_occurrence(occurrence);
+            if occurrence.span.start != occurrence.span.end
+                && self
+                    .sources
+                    .as_deref()
+                    .is_some_and(|sources| !sources.source_is_selected(occurrence.source_id))
+            {
+                return None;
+            }
+            let qualified = path.split_once("::");
+            let dependency =
+                qualified.and_then(|(alias, _)| self.product_dependency_target(occurrence, alias));
+            let declaration_path = match (qualified, dependency) {
+                (Some((_, remaining)), Some(_)) => remaining,
+                _ => path,
+            };
+            let mut selected = None;
+            let mut selected_exact = false;
+            let mut ambiguous = false;
+            for (symbol, is_public) in candidates {
+                if !symbol.is_valid()
+                    || !self.symbol_source_is_selected(symbol)
+                    || !match dependency {
+                        Some(package) => {
+                            is_public
+                                && self.symbol_product_package_identity(symbol) == Some(package)
+                        }
+                        None => {
+                            self.symbol_provenance_source_span(symbol)
+                                .is_some_and(|declaration| {
+                                    self.same_product_package_instance(occurrence, declaration)
+                                })
+                                || (admit_toolchain
+                                    && is_public
+                                    && self
+                                        .symbol_provenance_source_span(symbol)
+                                        .and_then(|span| self.source_file(span))
+                                        .is_some_and(|file| {
+                                            file.origin == SourceOrigin::Toolchain
+                                                && file.dependency_scope
+                                                    == source::DependencyScope::Product
+                                        }))
+                                || !self.has_source_metadata()
+                        }
+                    }
+                {
+                    continue;
+                }
+                if !self.source_reference_can_describe_product_symbol(occurrence, symbol) {
+                    continue;
+                }
+                let exact = self.display_path(symbol, "::") == declaration_path;
+                if !exact && (dependency.is_some() || self.name(symbol) != declaration_path) {
+                    continue;
+                }
+                if selected.is_none() || (exact && !selected_exact) {
+                    selected = Some(symbol);
+                    selected_exact = exact;
+                    ambiguous = false;
+                } else if exact == selected_exact && selected != Some(symbol) {
+                    let same_operator_family = selected.is_some_and(|previous| {
+                        ((self.get(previous).kind == SymbolKind::Operator
+                            && self.get(symbol).kind == SymbolKind::Operator)
+                            || (self.get(previous).kind == SymbolKind::Machine
+                                && self.get(symbol).kind == SymbolKind::Machine
+                                && token_bound_machines.contains(&previous)
+                                && token_bound_machines.contains(&symbol)))
+                            && self.display_path(previous, "::") == self.display_path(symbol, "::")
+                            && self.symbol_package_identity(previous)
+                                == self.symbol_package_identity(symbol)
+                            && self.same_symbol_source_package(previous, symbol)
+                    });
+                    ambiguous |= !same_operator_family;
+                }
+            }
+            if ambiguous { None } else { selected }
+        }
+
+        /*
+            A designated Product bridge keeps the ordinary temporal/stratum policy
+            while its caller separately admits exact Product package visibility.
+        */
+        pub fn source_reference_can_describe_product_symbol(
+            &self,
+            reference: SourceSpan,
+            symbol: SymbolHandle,
+        ) -> bool {
+            match (&self.sources, self.symbol_provenance_source_span(symbol)) {
+                (Some(sources), Some(declaration)) => {
+                    sources.reference_can_see_stratum(reference, declaration)
+                }
+                _ => !self.has_source_metadata(),
+            }
+        }
+
+        /*
+            Compare declaration provenance at the lexical package boundary: the
+            same package identity AND the same checked dependency scope. Two
+            checked instances of one source are the same package nominally but
+            share no lexical context — module namespaces, package-private
+            visibility, and same-package selection never cross instances
+            (wiki/spec/build/scoped_execution.md, "Two checked contexts").
+            Source-free lowering is used by focused representation tests; those
+            trees model one package and retain the historical all-local behavior.
+        */
+        pub fn same_source_package(&self, left: SourceSpan, right: SourceSpan) -> bool {
+            self.sources
+                .as_deref()
+                .is_none_or(|sources| sources.same_checked_instance(left, right))
+        }
+
+        /*
+            Whether `declaration` is the product-scope checked instance inside
+            `reference`'s package — the scope-crossing match for the bridges that
+            deliberately name a product declaration from a build occurrence (root
+            bindings, product entry/schema/provider queries). Ordinary resolution
+            never uses this.
+        */
+        pub fn same_product_package_instance(
+            &self,
+            reference: SourceSpan,
+            declaration: SourceSpan,
+        ) -> bool {
+            let Some(sources) = self.sources.as_deref() else {
+                return true;
+            };
+            sources.same_package(reference, declaration)
+                && sources
+                    .file_at(declaration)
+                    .is_none_or(|file| file.dependency_scope == source::DependencyScope::Product)
+        }
+
+        /*
+            Compare declaration provenance for authored or compiler-generated
+            symbols. Generated symbols follow their mandatory earlier derivation
+            origin; they never inherit a package through `SourceSpan::default()`.
+            Source-free focused trees continue to model one package.
+        */
+        pub fn same_symbol_source_package(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
+            let Some(sources) = self.sources.as_deref() else {
+                return true;
+            };
+            let Some(left) = self.provenance_source_span(left) else {
+                return false;
+            };
+            let Some(right) = self.provenance_source_span(right) else {
+                return false;
+            };
+            sources.same_checked_instance(left, right)
+        }
+
+        /*
+            Authored declaration provenance for one symbol. Compiler-generated
+            symbols follow their mandatory derivation origin. Focused source-free
+            trees return `None`; semantic consumers that admit them must make that
+            fallback explicit rather than mistaking a spelling for ownership.
+        */
+        pub fn symbol_source_origin(&self, symbol: SymbolHandle) -> Option<SourceOrigin> {
+            let sources = self.sources.as_deref()?;
+            let source_span = self.provenance_source_span(symbol)?;
+            sources.file_at(source_span).map(|file| file.origin)
+        }
+
+        /*
+            Reconciled package identity for one user-authored declaration.
+            Generated symbols inherit their exact authored derivation origin.
+            Source-free, toolchain, and unmanaged symbols return `None`.
+        */
+        pub fn symbol_package_identity(&self, symbol: SymbolHandle) -> Option<PackageKeyIdentity> {
+            let source_span = self.provenance_source_span(symbol)?;
+            let source_file = self.source_file(source_span)?;
+
+            (source_file.origin == SourceOrigin::User)
+                .then_some(source_file.package_identity)
+                .flatten()
+        }
+
+        /*
+            Reconciled package identity only for its product checked instance.
+            A product dependency authorizes selection from that instance, not from
+            an independently checked build copy of the same package/source bytes.
+            Generated symbols retain the scope of their authored derivation origin.
+        */
+        pub fn symbol_product_package_identity(
+            &self,
+            symbol: SymbolHandle,
+        ) -> Option<PackageKeyIdentity> {
+            let source_span = self.provenance_source_span(symbol)?;
+            let source_file = self.source_file(source_span)?;
+            (source_file.dependency_scope == source::DependencyScope::Product)
+                .then(|| self.symbol_package_identity(symbol))
+                .flatten()
+        }
+
+        pub fn has_source_metadata(&self) -> bool {
+            self.sources.is_some()
+        }
+
+        /*
+            Exact frontend source custody retained beside authored symbol spans.
+            This exposes source-map facts, not symbol identity or a stable package
+            format; compiler-internal consumers remain responsible for canonical
+            framing.
+        */
+        pub fn source_files(&self) -> impl Iterator<Item = &SourceFile> {
+            self.sources
+                .iter()
+                .flat_map(|sources| sources.selected_files())
+        }
+
+        /*
+            The authored symbol a generated symbol derives from, or `symbol`
+            itself when it was authored. Specialization mints machine symbols whose
+            names carry a selection fingerprint, and that spelling belongs to the
+            compiler, not to a reader: a diagnostic about a specialized callee names
+            the declaration its author wrote. The walk is the same derivation chain
+            `provenance_source_span` follows, and a generated symbol always records
+            one origin that precedes it, so it terminates.
+        */
+        pub fn authored_origin(&self, mut symbol: SymbolHandle) -> SymbolHandle {
+            while symbol.is_valid() {
+                let generated_from = self.get(symbol).generated_from;
+                if !generated_from.is_valid()
+                    || generated_from.arena_index() >= symbol.arena_index()
+                {
+                    return symbol;
+                }
+                symbol = generated_from;
+            }
+            symbol
+        }
+
+        pub(super) fn provenance_source_span(
+            &self,
+            mut symbol: SymbolHandle,
+        ) -> Option<SourceSpan> {
+            while symbol.is_valid() {
+                let data = self.get(symbol);
+                if let Some(source_span) = self.names.get(data.name).source_span() {
+                    return Some(source_span);
+                }
+                let provenance_parent = if data.generated_from.is_valid() {
+                    data.generated_from
+                } else {
+                    data.parent
+                };
+                if !provenance_parent.is_valid()
+                    || provenance_parent.arena_index() >= symbol.arena_index()
+                {
+                    return None;
+                }
+                symbol = provenance_parent;
+            }
+            None
+        }
+    }
+}
 #[cfg(test)]
-mod tests;
+mod tests {
+    /*
+        Symbol-table unit tests, extracted from `table` so the storage and
+        lookup machinery stays the file's headline.
+    */
+
+    use super::*;
+
+    #[cfg(test)]
+    mod builtin_function_identity_tests {
+        use super::{BuiltinFunction, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
+        use crate::{builtin_function_symbols, builtin_type_symbols};
+
+        fn builtin_symbol_table(
+            function_symbols: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'static>)>,
+        ) -> SymbolTable {
+            let mut builder = SymbolTableBuilder::new();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            builder.insert_children(
+                root,
+                builtin_type_symbols().into_iter().chain(function_symbols),
+            );
+            builder.finish()
+        }
+
+        #[test]
+        fn every_installed_builtin_function_round_trips_by_exact_slot() {
+            let symbols = builtin_symbol_table(builtin_function_symbols());
+
+            for (function, _) in BuiltinFunction::ALL {
+                let symbol = symbols
+                    .builtin_function_symbol(function)
+                    .expect("compiler builtin function must occupy its fixed root slot");
+                assert_eq!(symbols.builtin_function_for_symbol(symbol), Some(function));
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod source_name_storage_tests {
+        use super::{Arc, SourceMap, SourceSpan, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+        use source::Span;
+
+        #[test]
+        fn builder_and_extension_names_borrow_retained_source_bytes() {
+            let mut sources = SourceMap::default();
+            let source_id = sources.add("main.omg".into(), "Ready".into()).source_id;
+            let source_span = SourceSpan::new(source_id, Span::new(0, 5));
+            let sources = Arc::new(sources);
+            let expected_pointer = sources.text_at(source_span).as_ptr();
+            let seed = SymbolNameRef::OwnedSource {
+                value: "Ready",
+                source_span,
+            };
+            let mut builder = SymbolTableBuilder::with_sources(Some(sources.clone()));
+            let root = builder.insert_root(SymbolKind::Root, seed);
+            let child = SymbolTableBuilder::child_handles(
+                builder.insert_children(root, [(SymbolKind::Machine, seed)]),
+            )
+            .next()
+            .expect("authored child");
+            let mut extension = builder.finish().begin_extension(Some(sources), Vec::new());
+            let additional = extension.insert_top_level([(SymbolKind::Machine, seed)])[0];
+            let additional_child = SymbolTableBuilder::child_handles(
+                extension.insert_children(additional, [(SymbolKind::State, seed)]),
+            )
+            .next()
+            .expect("extension child");
+            let table = extension
+                .finish()
+                .begin_extension(None, Vec::new())
+                .finish();
+            for symbol in [root, child, additional, additional_child] {
+                assert_eq!(table.name(symbol), "Ready");
+                assert_eq!(table.name(symbol).as_ptr(), expected_pointer);
+                assert_eq!(table.symbol_source_span(symbol), Some(source_span));
+            }
+        }
+    }
+}
 use super::{
     BuiltinFunction, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember, FixedCoreDeclaration, Symbol,
     SymbolHandle, SymbolKind, SymbolName, SymbolNameRef, SymbolPath,
@@ -36,28 +1873,38 @@ pub struct SymbolTable {
     root: SymbolHandle,
     supplemental_children: SupplementalChildren,
     module_symbols: Arena<SymbolHandle>,
-    /// Dense `SourceId`-indexed map from a source to its declared module:
-    /// a linear scan per lookup would cost `O(#sources)` on every
-    /// module-qualified name walk.
+    /*
+        Dense `SourceId`-indexed map from a source to its declared module:
+        a linear scan per lookup would cost `O(#sources)` on every
+        module-qualified name walk.
+    */
     source_module_index: Vec<SymbolHandle>,
-    /// Declaration membership at the last activation frontier. Later allocations
-    /// belong to the new cohort. Selecting a source again does not resurrect
-    /// an older declaration that already left its predecessor's view.
+    /*
+        Declaration membership at the last activation frontier. Later allocations
+        belong to the new cohort. Selecting a source again does not resurrect
+        an older declaration that already left its predecessor's view.
+    */
     inherited_symbols: Vec<bool>,
     root_names: RootNameIndexCache,
-    /// `source_scoped_top_level_bindings` bucketed by reference source,
-    /// because three lookup paths scanned the whole binding list per query.
-    /// Cleared wherever bindings are appended after `finish`.
+    /*
+        `source_scoped_top_level_bindings` bucketed by reference source,
+        because three lookup paths scanned the whole binding list per query.
+        Cleared wherever bindings are appended after `finish`.
+    */
     binding_source_index: BindingSourceIndexCache,
-    /// `display_path("::")` snapshot for the top-level and module roster,
-    /// because module-qualified lookups walked every candidate's parent
-    /// chain -- allocating a `String` per candidate per reference. Cleared
-    /// alongside the other roster indexes.
+    /*
+        `display_path("::")` snapshot for the top-level and module roster,
+        because module-qualified lookups walked every candidate's parent
+        chain -- allocating a `String` per candidate per reference. Cleared
+        alongside the other roster indexes.
+    */
     module_path_index: ModulePathIndexCache,
-    /// The top-level + module roster bucketed by full name, display path,
-    /// and (for Domain kinds) declared leaf, so `find_module_qualified_reference`
-    /// consults only name- or path-bearing candidates instead of walking the
-    /// roster per reference. Cleared alongside `module_path_index`.
+    /*
+        The top-level + module roster bucketed by full name, display path,
+        and (for Domain kinds) declared leaf, so `find_module_qualified_reference`
+        consults only name- or path-bearing candidates instead of walking the
+        roster per reference. Cleared alongside `module_path_index`.
+    */
     module_scope_index: ModuleScopeIndexCache,
 }
 
@@ -70,11 +1917,13 @@ pub struct SymbolTableBuilder {
     root: SymbolHandle,
 }
 
-/// One compiler-owned top-level vocabulary binding for an exact source.
-///
-/// The authored spelling remains unchanged. Only references originating in
-/// `reference_source` select the same-spelled declaration authored in
-/// `declaration_source`; every other source retains ordinary lookup.
+/*
+    One compiler-owned top-level vocabulary binding for an exact source.
+
+    The authored spelling remains unchanged. Only references originating in
+    `reference_source` select the same-spelled declaration authored in
+    `declaration_source`; every other source retains ordinary lookup.
+*/
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceScopedTopLevelBinding {
     reference_source: SourceId,
@@ -105,14 +1954,16 @@ impl SourceScopedTopLevelBinding {
         }
     }
 
-    /// The source whose top-level references this binding scopes.
+    /* The source whose top-level references this binding scopes. */
     pub const fn reference_source(&self) -> SourceId {
         self.reference_source
     }
 }
 
-/// Outcome after declaration eligibility and source lookup precedence.
-/// Ambiguity must remain distinct from absence when composing static names.
+/*
+    Outcome after declaration eligibility and source lookup precedence.
+    Ambiguity must remain distinct from absence when composing static names.
+*/
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolLookup {
     NotFound,
@@ -242,11 +2093,13 @@ fn child_symbol(
     }
 }
 
-/// Common append surface used while first constructing a symbol hierarchy and
-/// while extending one retained hierarchy. Both routes preserve contiguous
-/// child ranges; only top-level insertion differs.
+/*
+    Common append surface used while first constructing a symbol hierarchy and
+    while extending one retained hierarchy. Both routes preserve contiguous
+    child ranges; only top-level insertion differs.
+*/
 pub trait SymbolTableAppender {
-    /// Source custody used while inserting explicit declaration namespaces.
+    /* Source custody used while inserting explicit declaration namespaces. */
     fn source_map(&self) -> Option<Arc<SourceMap>>;
 
     fn insert_children<'name>(
@@ -275,13 +2128,13 @@ impl SymbolTable {
         Self::default()
     }
 
-    /// Whether this table retains `base` exactly and appends only generated
-    /// declarations with earlier derivation origins. A later frontend may
-    /// adopt this allocation frontier before minting authored body symbols;
-    /// this does not turn generated declarations into authored source roots.
+    /*
+        Whether this table retains `base` exactly and appends only generated
+        declarations with earlier derivation origins. A later frontend may
+        adopt this allocation frontier before minting authored body symbols;
+        this does not turn generated declarations into authored source roots.
+    */
     pub fn is_generated_extension_of(&self, base: &Self) -> bool {
-        // Lookup caches are derived from the retained semantic fields. Their
-        // initialization state is not source or allocation custody.
         let Self {
             symbols,
             names,
@@ -320,10 +2173,6 @@ impl SymbolTable {
         {
             return false;
         }
-        // Late generated locals extend an existing lexical scope through the
-        // supplemental index. Retain its exact old prefix; only newly allocated
-        // children with the same parent may follow it. The loop below verifies
-        // every new child's derivation origin independently.
         for (parent, _) in symbols.nodes().iter() {
             let mut children = supplemental_children.children(parent);
             if base
@@ -339,8 +2188,6 @@ impl SymbolTable {
             }
         }
         for (handle, symbol) in symbols.nodes().iter().skip(base.symbols.len()) {
-            // Origins precede their products, so this also rejects cycles and
-            // foreign generations without following an untrusted parent chain.
             let origin = symbol.generated_from;
             if !origin.is_valid()
                 || symbol.declaration_owner.is_valid()
@@ -365,8 +2212,6 @@ impl SymbolTable {
                         .arena_index()
                         .checked_sub(siblings.start().arena_index())
                         .is_some_and(|offset| offset < siblings.count());
-                // Primary membership remains constant time for large cloned
-                // scopes. Only late supplemental locals need an index walk.
                 let supplemental_count = supplemental_children
                     .children(symbol.parent)
                     .filter(|&child| child == handle)
@@ -392,10 +2237,12 @@ impl SymbolTable {
             })
     }
 
-    /// Append an authored child batch without replacing the parent's original
-    /// children or rebinding any existing handle. Lookup visits the original
-    /// declaration children first, then appended batches in insertion order.
-    /// This is also the route for body locals and synthesized state headers.
+    /*
+        Append an authored child batch without replacing the parent's original
+        children or rebinding any existing handle. Lookup visits the original
+        declaration children first, then appended batches in insertion order.
+        This is also the route for body locals and synthesized state headers.
+    */
     pub fn append_children<'name>(
         &mut self,
         parent: SymbolHandle,
@@ -409,8 +2256,10 @@ impl SymbolTable {
         )
     }
 
-    /// Append generated locals to an existing lexical scope while preserving
-    /// both its frozen child span and each new child's derivation origin.
+    /*
+        Append generated locals to an existing lexical scope while preserving
+        both its frozen child span and each new child's derivation origin.
+    */
     pub fn append_generated_children_from<'name>(
         &mut self,
         parent: SymbolHandle,
@@ -435,7 +2284,6 @@ impl SymbolTable {
         parent: SymbolHandle,
         children: impl IntoIterator<Item = (SymbolHandle, SymbolKind, SymbolNameRef<'name>)>,
     ) -> HandleSpan<Symbol> {
-        // Validate the full generational handle before indexing its dense slot.
         let _ = self.get(parent);
         let mut appended = HandleSpan::empty();
         for (generated_from, kind, name) in children {
@@ -471,9 +2319,11 @@ impl SymbolTable {
         self.symbols.get(symbol)
     }
 
-    /// Record the inverse of an owning declaration row. Resolution establishes
-    /// uniqueness before publication; a retained frontier may rejoin the same
-    /// relationship, but another owner cannot replace it.
+    /*
+        Record the inverse of an owning declaration row. Resolution establishes
+        uniqueness before publication; a retained frontier may rejoin the same
+        relationship, but another owner cannot replace it.
+    */
     pub fn record_declaration_owner(
         &mut self,
         declaration: SymbolHandle,
@@ -494,16 +2344,18 @@ impl SymbolTable {
         Ok(())
     }
 
-    /// A discarded synthesized declaration cannot lend its old capture scope.
+    /* A discarded synthesized declaration cannot lend its old capture scope. */
     pub fn clear_declaration_owner(&mut self, declaration: SymbolHandle) {
         self.symbols.get_mut(declaration).declaration_owner = SymbolHandle::invalid();
     }
 
-    /// Give one symbol a new spelling. Target-family selection promotes the
-    /// realized target's body to the family path and demotes the body it
-    /// replaces to its `<path>::<target>` spelling; handles are unchanged.
-    /// The declaration's source span stays attached to the new spelling, so
-    /// provenance and diagnostics are unchanged.
+    /*
+        Give one symbol a new spelling. Target-family selection promotes the
+        realized target's body to the family path and demotes the body it
+        replaces to its `<path>::<target>` spelling; handles are unchanged.
+        The declaration's source span stays attached to the new spelling, so
+        provenance and diagnostics are unchanged.
+    */
     pub fn rename(&mut self, symbol: SymbolHandle, name: &str) {
         let name = match self.names.get(self.get(symbol).name).source_span() {
             Some(source_span) => {
@@ -524,8 +2376,10 @@ impl SymbolTable {
         self.root_names.clear();
     }
 
-    /// Start an append-only extension of an already resolved symbol table.
-    /// Existing symbol handles and child ranges remain unchanged.
+    /*
+        Start an append-only extension of an already resolved symbol table.
+        Existing symbol handles and child ranges remain unchanged.
+    */
     pub fn begin_extension(
         mut self,
         sources: Option<Arc<SourceMap>>,
@@ -540,11 +2394,13 @@ impl SymbolTable {
         SymbolTableExtension { table: self }
     }
 
-    /// Start a new compilation view over retained declaration coordinates.
-    /// Unlike an extension within one activation, its complete loader-supplied
-    /// loader import roster replaces historical loader bindings, even when both
-    /// endpoints remain selected for unrelated imports. Selected declarations
-    /// retain their own authored imports; backing is not loader authority.
+    /*
+        Start a new compilation view over retained declaration coordinates.
+        Unlike an extension within one activation, its complete loader-supplied
+        loader import roster replaces historical loader bindings, even when both
+        endpoints remain selected for unrelated imports. Selected declarations
+        retain their own authored imports; backing is not loader authority.
+    */
     pub fn begin_source_activation(
         mut self,
         sources: Arc<SourceMap>,
@@ -570,9 +2426,6 @@ impl SymbolTable {
             for (position, module) in self.source_module_index.iter_mut().enumerate() {
                 let source = SourceId(position);
                 if sources.source_is_selected(source) && !previous.source_is_selected(source) {
-                    // This file is a new declaration cohort, not a second module
-                    // declaration in the old cohort. Its parsed module will join
-                    // the existing logical namespace without reviving old members.
                     *module = SymbolHandle::invalid();
                 }
             }
@@ -593,9 +2446,6 @@ impl SymbolTable {
         self.root_names.clear();
         self.module_path_index.clear();
         self.module_scope_index.clear();
-        // Syntax imports belong to retained declarations. Loader rows belong
-        // to the current request and were completely replaced above. Reinsert
-        // through their producer so a current certified import takes precedence.
         for binding in authored_imports {
             if let Some(import) = &binding.module_import {
                 self.register_source_import(binding.reference_source, &import.path);
@@ -604,10 +2454,12 @@ impl SymbolTable {
         Ok(SymbolTableExtension { table: self })
     }
 
-    /// Mint a compiler-generated root declaration after symbol resolution.
-    /// The generated name is owned by the table and authored symbol handles
-    /// remain unchanged. Children must be installed once, as one batch, via
-    /// [`Self::insert_generated_children`].
+    /*
+        Mint a compiler-generated root declaration after symbol resolution.
+        The generated name is owned by the table and authored symbol handles
+        remain unchanged. Children must be installed once, as one batch, via
+        [`Self::insert_generated_children`].
+    */
     pub fn insert_generated_root_from(
         &mut self,
         generated_from: SymbolHandle,
@@ -635,9 +2487,11 @@ impl SymbolTable {
         })
     }
 
-    /// Mint the complete child range of a freshly generated symbol. Keeping
-    /// the batch contiguous preserves the hierarchy arena's compact child-span
-    /// representation without allowing late mutation of authored parents.
+    /*
+        Mint the complete child range of a freshly generated symbol. Keeping
+        the batch contiguous preserves the hierarchy arena's compact child-span
+        representation without allowing late mutation of authored parents.
+    */
     pub fn insert_generated_children<'name>(
         &mut self,
         parent: SymbolHandle,
@@ -651,9 +2505,11 @@ impl SymbolTable {
         )
     }
 
-    /// Mint one contiguous child range while retaining each child's exact
-    /// existing derivation origin. Lexical parentage still belongs to `parent`;
-    /// specialization provenance belongs to the corresponding source child.
+    /*
+        Mint one contiguous child range while retaining each child's exact
+        existing derivation origin. Lexical parentage still belongs to `parent`;
+        specialization provenance belongs to the corresponding source child.
+    */
     pub fn insert_generated_children_from<'name>(
         &mut self,
         parent: SymbolHandle,
@@ -712,9 +2568,11 @@ impl SymbolTable {
         })
     }
 
-    /// Root-level children whose full name is exactly `name`, in the order
-    /// `child_handles(root())` yields them, probed through the root name
-    /// index rather than a scan of the whole root roster.
+    /*
+        Root-level children whose full name is exactly `name`, in the order
+        `child_handles(root())` yields them, probed through the root name
+        index rather than a scan of the whole root roster.
+    */
     pub fn root_children_named(&self, name: &str) -> impl Iterator<Item = SymbolHandle> + '_ {
         self.root_names
             .0
@@ -764,8 +2622,10 @@ impl SymbolTable {
         Some(first)
     }
 
-    /// Resolve one source-backed top-level reference without turning a
-    /// presentation spelling into global authority.
+    /*
+        Resolve one source-backed top-level reference without turning a
+        presentation spelling into global authority.
+    */
     pub fn find_top_level_by_name_and_kinds_from_source(
         &self,
         name: &str,
@@ -775,9 +2635,11 @@ impl SymbolTable {
         self.find_top_level_by_name_and_kinds_from_source_matching(name, kinds, reference, |_| true)
     }
 
-    /// Apply declaration eligibility before source-scoped binding and lookup
-    /// precedence. In particular, a receiver's nominal owner can exclude a
-    /// same-spelled method without hiding another eligible declaration.
+    /*
+        Apply declaration eligibility before source-scoped binding and lookup
+        precedence. In particular, a receiver's nominal owner can exclude a
+        same-spelled method without hiding another eligible declaration.
+    */
     pub fn find_top_level_by_name_and_kinds_from_source_matching(
         &self,
         name: &str,
@@ -794,8 +2656,10 @@ impl SymbolTable {
         .unique()
     }
 
-    /// Retain ambiguity when a caller composes multiple declaration meanings.
-    /// Eligibility still precedes the ordinary source and namespace precedence.
+    /*
+        Retain ambiguity when a caller composes multiple declaration meanings.
+        Eligibility still precedes the ordinary source and namespace precedence.
+    */
     pub fn lookup_top_level_by_name_and_kinds_from_source_matching(
         &self,
         name: &str,
@@ -812,10 +2676,12 @@ impl SymbolTable {
         )
     }
 
-    /// Apply ordinary namespace selection without choosing among declarations
-    /// that require a call signature to distinguish. Flat source forests retain
-    /// the occurrence's package scope, and synthetic references retain the whole
-    /// eligible pool; neither may silently select its first declaration.
+    /*
+        Apply ordinary namespace selection without choosing among declarations
+        that require a call signature to distinguish. Flat source forests retain
+        the occurrence's package scope, and synthetic references retain the whole
+        eligible pool; neither may silently select its first declaration.
+    */
     pub fn lookup_signature_free_top_level_from_source_matching(
         &self,
         name: &str,
@@ -832,10 +2698,12 @@ impl SymbolTable {
         )
     }
 
-    /// Root-level children whose full name or leaf name selects `name`,
-    /// in declaration order. The whole-roster filter behind every top-level
-    /// lookup is O(children) per call; bucketing once per table keeps the
-    /// same candidate pool without rescanning.
+    /*
+        Root-level children whose full name or leaf name selects `name`,
+        in declaration order. The whole-roster filter behind every top-level
+        lookup is O(children) per call; bucketing once per table keeps the
+        same candidate pool without rescanning.
+    */
     fn top_level_children_matching_name(
         &self,
         name: &str,
@@ -851,10 +2719,12 @@ impl SymbolTable {
         merged.into_iter().map(|(_, symbol)| symbol).collect()
     }
 
-    /// The bindings visible to `reference_source`, in binding order, via the
-    /// per-source index instead of a whole-list scan per lookup. Activation
-    /// is projected once here: lookup and collision consumers cannot recover
-    /// authority from a historical row by forgetting their own filter.
+    /*
+        The bindings visible to `reference_source`, in binding order, via the
+        per-source index instead of a whole-list scan per lookup. Activation
+        is projected once here: lookup and collision consumers cannot recover
+        authority from a historical row by forgetting their own filter.
+    */
     pub(super) fn source_scoped_bindings_for(
         &self,
         reference_source: SourceId,
@@ -888,9 +2758,11 @@ impl SymbolTable {
         index
     }
 
-    /// The `find_module_qualified_reference` candidate roster — root
-    /// children then module symbols, in the same order — bucketed by every
-    /// key the match arms can select on. Built once per table state.
+    /*
+        The `find_module_qualified_reference` candidate roster — root
+        children then module symbols, in the same order — bucketed by every
+        key the match arms can select on. Built once per table state.
+    */
     fn module_scope_index(&self) -> &ModuleScopeIndex {
         self.module_scope_index.0.get_or_init(|| {
             let mut index = ModuleScopeIndex::default();
@@ -926,9 +2798,11 @@ impl SymbolTable {
         })
     }
 
-    /// Preserve the complete declaration roster after namespace and import
-    /// precedence. Typed call selection consumes this roster; a signature-free
-    /// reference still requires the existing unique/ambiguous lookup verdict.
+    /*
+        Preserve the complete declaration roster after namespace and import
+        precedence. Typed call selection consumes this roster; a signature-free
+        reference still requires the existing unique/ambiguous lookup verdict.
+    */
     pub fn top_level_candidates_from_source(
         &self,
         name: &str,
@@ -975,8 +2849,6 @@ impl SymbolTable {
         {
             return Vec::new();
         }
-        // A dummy span may retain a real SourceId, but it has no lexical
-        // occurrence. Do not let that id authorize a relative module path.
         if (reference_is_source_backed || selection == TopLevelSelection::Ordinary)
             && let Some(result) = self.find_module_qualified_candidates(
                 name,
@@ -1045,9 +2917,6 @@ impl SymbolTable {
                 self.symbol_source_span(*symbol)
                     .is_some_and(|span| span.source_id == reference.source_id)
             })
-            // Two checked instances of one path each carry the same spelled
-            // candidates; a reference selects only its own instance — but
-            // only among candidates its stratum can already see.
             .or_else(|| {
                 self.sources.as_deref().and_then(|sources| {
                     candidates.iter().copied().find(|symbol| {
@@ -1072,10 +2941,12 @@ impl SymbolTable {
             .collect()
     }
 
-    /// Resolve either one exact declaration or one source-scoped overloaded
-    /// operator family. The returned operator is only a representative;
-    /// typed consumers must reconstruct and validate the complete same-path
-    /// family before granting it authority.
+    /*
+        Resolve either one exact declaration or one source-scoped overloaded
+        operator family. The returned operator is only a representative;
+        typed consumers must reconstruct and validate the complete same-path
+        family before granting it authority.
+    */
     pub fn find_top_level_declaration_or_operator_family_from_source(
         &self,
         name: &str,
@@ -1107,11 +2978,11 @@ impl SymbolTable {
         family.next().map(|_| representative)
     }
 
-    /// Whether two declarations occupy separate source-resolution contexts
-    /// through the activation stratum or an explicit same-name binding.
+    /*
+        Whether two declarations occupy separate source-resolution contexts
+        through the activation stratum or an explicit same-name binding.
+    */
     pub fn source_scopes_separate(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
-        // Specialization names are diagnostic payload, not a new source
-        // namespace. Apply the authored declarations' existing scope rules.
         let left = self.authored_origin(left);
         let right = self.authored_origin(right);
         let left_parent = self.get(left).parent;
@@ -1120,8 +2991,6 @@ impl SymbolTable {
             && (self.get(left_parent).kind == SymbolKind::Machine
                 || self.get(right_parent).kind == SymbolKind::Machine)
         {
-            // Lexical machine scopes stay private even inside the same file.
-            // Package imports never expose another invocation's declarations.
             return true;
         }
         let (Some(left_span), Some(right_span)) = (
@@ -1133,19 +3002,12 @@ impl SymbolTable {
         if left_span.source_id == right_span.source_id {
             return false;
         }
-        // Two checked instances of one package — including two instances of
-        // the exact same file — never share a resolution scope, module-
-        // declared or not.
         if self.sources.as_deref().is_some_and(|sources| {
             sources.same_package(left_span, right_span)
                 && !sources.same_checked_instance(left_span, right_span)
         }) {
             return true;
         }
-        // A package boundary is a resolution-scope boundary: declarations
-        // in distinct packages collide only where an authored import edge
-        // exposes the name into the other file's scope, since imports do
-        // not shadow authored declarations.
         if let Some(sources) = self.sources.as_deref()
             && sources.file_at(left_span).is_some()
             && sources.file_at(right_span).is_some()
@@ -1177,11 +3039,13 @@ impl SymbolTable {
         })
     }
 
-    /// Whether a source-backed reference may use this exact declaration under
-    /// checked-purpose and current activation resolution-stratum boundaries.
-    ///
-    /// Source-free consumers retain their existing behavior. Compiler-generated
-    /// symbols inherit the visibility of their exact authored derivation.
+    /*
+        Whether a source-backed reference may use this exact declaration under
+        checked-purpose and current activation resolution-stratum boundaries.
+
+        Source-free consumers retain their existing behavior. Compiler-generated
+        symbols inherit the visibility of their exact authored derivation.
+    */
     pub fn source_reference_can_see_symbol(
         &self,
         reference: SourceSpan,
@@ -1198,8 +3062,6 @@ impl SymbolTable {
             return true;
         };
         if self.get(symbol).kind == SymbolKind::Module {
-            // A logical namespace can have active contributors even when its
-            // first declaration belongs to retained, inactive backing.
             return self.module_source_ids(symbol).any(|source| {
                 sources.reference_can_see_declaration(
                     reference,
@@ -1210,8 +3072,10 @@ impl SymbolTable {
         sources.reference_can_see_declaration(reference, declaration)
     }
 
-    /// Current declaration membership; source-free vocabulary remains present.
-    /// Logical modules are present while any selected source contributes to them.
+    /*
+        Current declaration membership; source-free vocabulary remains present.
+        Logical modules are present while any selected source contributes to them.
+    */
     pub fn symbol_source_is_selected(&self, symbol: SymbolHandle) -> bool {
         let Some(sources) = self.sources.as_deref() else {
             return true;
@@ -1236,16 +3100,18 @@ impl SymbolTable {
             .unwrap_or(true)
     }
 
-    /// Whether a source-backed reference may select this declaration as a
-    /// candidate: the declaration is authored in the reference's own source,
-    /// in the same logical module of its checked package instance, or in a
-    /// source the reference's file imported. A declaration is never a candidate
-    /// merely because its source was loaded (modules spec, "Import scope and
-    /// exposure"): every target's entry contract joins every compilation, and
-    /// the bundled spellings and names it pulls in must not change the
-    /// resolution of a program that never imported them. Source-free
-    /// references and symbols without authored provenance keep the whole
-    /// program, as `source_reference_can_see_symbol` does.
+    /*
+        Whether a source-backed reference may select this declaration as a
+        candidate: the declaration is authored in the reference's own source,
+        in the same logical module of its checked package instance, or in a
+        source the reference's file imported. A declaration is never a candidate
+        merely because its source was loaded (modules spec, "Import scope and
+        exposure"): every target's entry contract joins every compilation, and
+        the bundled spellings and names it pulls in must not change the
+        resolution of a program that never imported them. Source-free
+        references and symbols without authored provenance keep the whole
+        program, as `source_reference_can_see_symbol` does.
+    */
     pub fn source_reference_may_select_symbol(
         &self,
         reference: SourceSpan,
@@ -1295,9 +3161,11 @@ impl SymbolTable {
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinFunction)
     }
 
-    /// Classify only an exact compiler-installed root builtin-function slot.
-    /// Names are deliberately irrelevant: same-spelled package declarations
-    /// and generated source-free symbols are not compiler functions.
+    /*
+        Classify only an exact compiler-installed root builtin-function slot.
+        Names are deliberately irrelevant: same-spelled package declarations
+        and generated source-free symbols are not compiler functions.
+    */
     pub fn builtin_function_for_symbol(&self, symbol: SymbolHandle) -> Option<BuiltinFunction> {
         if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::BuiltinFunction {
             return None;
@@ -1306,8 +3174,10 @@ impl SymbolTable {
             .and_then(BuiltinFunction::from_ordinal)
     }
 
-    /// The root child installed for `declaration`, if this table carries the
-    /// fixed `core::*` vocabulary at its canonical slots.
+    /*
+        The root child installed for `declaration`, if this table carries the
+        fixed `core::*` vocabulary at its canonical slots.
+    */
     pub fn fixed_core_declaration_symbol(
         &self,
         declaration: FixedCoreDeclaration,
@@ -1320,8 +3190,10 @@ impl SymbolTable {
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::MathematicalDefinition)
     }
 
-    /// The member's compiler-installed slot beneath its exact builtin owner.
-    /// A package member with the same spelling never supplies this identity.
+    /*
+        The member's compiler-installed slot beneath its exact builtin owner.
+        A package member with the same spelling never supplies this identity.
+    */
     pub fn builtin_type_member_symbol(&self, member: BuiltinTypeMember) -> Option<SymbolHandle> {
         self.child_handles(
             self.child_handles(self.root)?
@@ -1343,9 +3215,11 @@ impl SymbolTable {
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinType)
     }
 
-    /// Classify only an exact compiler-installed root builtin slot. A package
-    /// declaration with the same spelling, or a generated source-free symbol,
-    /// is deliberately not a compiler atom.
+    /*
+        Classify only an exact compiler-installed root builtin slot. A package
+        declaration with the same spelling, or a generated source-free symbol,
+        is deliberately not a compiler atom.
+    */
     pub fn builtin_type_atom(&self, symbol: SymbolHandle) -> Option<BuiltinTypeAtom> {
         if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::BuiltinType {
             return None;
@@ -1354,10 +3228,12 @@ impl SymbolTable {
             .and_then(BuiltinTypeAtom::from_ordinal)
     }
 
-    /// Ordinal of `symbol` among the `count` compiler-installed root slots
-    /// starting at root child `first`. The builder installs those slots as
-    /// the root's first contiguous children, so an ordinal is an arena
-    /// distance from the first child, confirmed by `nth` rather than a scan.
+    /*
+        Ordinal of `symbol` among the `count` compiler-installed root slots
+        starting at root child `first`. The builder installs those slots as
+        the root's first contiguous children, so an ordinal is an arena
+        distance from the first child, confirmed by `nth` rather than a scan.
+    */
     fn root_slot_ordinal(&self, symbol: SymbolHandle, first: usize, count: usize) -> Option<usize> {
         let start = self.child_handles(self.root)?.next()?;
         let ordinal = symbol.arena_index().checked_sub(start.arena_index())? as usize;
@@ -1365,10 +3241,12 @@ impl SymbolTable {
         (self.child_handles(self.root)?.nth(ordinal) == Some(symbol)).then_some(slot)
     }
 
-    /// `display_path` for a roster member through the per-table snapshot:
-    /// zero allocation on a hit, and handles minted after the snapshot
-    /// (generated roots, late module registrations, extension children)
-    /// miss the map and fall back to the parent walk.
+    /*
+        `display_path` for a roster member through the per-table snapshot:
+        zero allocation on a hit, and handles minted after the snapshot
+        (generated roots, late module registrations, extension children)
+        miss the map and fall back to the parent walk.
+    */
     pub(super) fn indexed_display_path(&self, symbol: SymbolHandle) -> std::borrow::Cow<'_, str> {
         let index = self.module_path_index.0.get_or_init(|| {
             let mut paths = crate::SymbolKeyMap::default();
@@ -1492,8 +3370,10 @@ impl Iterator for SymbolChildHandles<'_> {
             .or_else(|| self.supplemental.next())
     }
 
-    /// Skip whole parts by length: builtin lookups index the root's children
-    /// by ordinal, and stepping through them one at a time was measurable.
+    /*
+        Skip whole parts by length: builtin lookups index the root's children
+        by ordinal, and stepping through them one at a time was measurable.
+    */
     fn nth(&mut self, mut n: usize) -> Option<Self::Item> {
         if let Some(contiguous) = self.contiguous.as_mut() {
             let length = contiguous.len();
@@ -1526,7 +3406,7 @@ impl SymbolTableExtension {
             .collect()
     }
 
-    /// Append beneath an existing declaration while retaining its exact node.
+    /* Append beneath an existing declaration while retaining its exact node. */
     pub fn append_children<'name>(
         &mut self,
         parent: SymbolHandle,

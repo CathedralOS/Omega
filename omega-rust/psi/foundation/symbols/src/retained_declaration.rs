@@ -1,21 +1,25 @@
-//! An authored declaration retained across independently allocated source contexts.
-//!
-//! This transfers an already selected declaration, never visibility, checking
-//! evidence or execution authority. Invocation owners must separately admit the
-//! destination source context. No numeric handle or display name crosses it.
+/*
+    An authored declaration retained across independently allocated source contexts.
+
+    This transfers an already selected declaration, never visibility, checking
+    evidence or execution authority. Invocation owners must separately admit the
+    destination source context. No numeric handle or display name crosses it.
+*/
 
 use crate::{SymbolHandle, SymbolKind, SymbolTable};
 use source::{SourceFile, Span};
 
-/// The symbols of one table that carry an authored source span, looked up by
-/// that span. Rejoining retained provider selections asks, for each
-/// selection, which symbols sit at an anchor's exact span; scanning the whole
-/// table per question made that quadratic in selections times symbols.
-///
-/// GUARDED: a symbol's span is decided by the symbol arena and the name arena,
-/// so every lookup compares the table's address and both arenas' revisions and
-/// lengths with the ones the rows were built from, and rebuilds when any
-/// differ. Rows keep arena order within one span, the order of a table scan.
+/*
+    The symbols of one table that carry an authored source span, looked up by
+    that span. Rejoining retained provider selections asks, for each
+    selection, which symbols sit at an anchor's exact span; scanning the whole
+    table per question made that quadratic in selections times symbols.
+
+    GUARDED: a symbol's span is decided by the symbol arena and the name arena,
+    so every lookup compares the table's address and both arenas' revisions and
+    lengths with the ones the rows were built from, and rebuilds when any
+    differ. Rows keep arena order within one span, the order of a table scan.
+*/
 #[derive(Debug, Default)]
 pub struct SourceSpanCandidates {
     built_for: Option<(usize, u64, usize, u64, usize)>,
@@ -23,8 +27,10 @@ pub struct SourceSpanCandidates {
 }
 
 impl SourceSpanCandidates {
-    /// Every symbol of `symbols` whose authored source span is exactly `span`
-    /// (in any source), in arena order.
+    /*
+        Every symbol of `symbols` whose authored source span is exactly `span`
+        (in any source), in arena order.
+    */
     pub fn at_span(&mut self, symbols: &SymbolTable, span: Span) -> Vec<SymbolHandle> {
         let nodes = symbols.symbols().nodes();
         let names = symbols.names();
@@ -43,7 +49,6 @@ impl SourceSpanCandidates {
                     Some((span.start, span.end, symbol))
                 })
                 .collect();
-            // Stable: equal spans keep arena order.
             self.rows.sort_by_key(|&(start, end, _)| (start, end));
             self.built_for = Some(key);
         }
@@ -66,9 +71,11 @@ pub struct RetainedDeclaration {
 }
 
 impl RetainedDeclaration {
-    /// Recover an inert declaration anchor from retained source custody.
-    /// This establishes only a well-formed coordinate. The receiving compiler
-    /// must still admit the source and rejoin its checked declaration.
+    /*
+        Recover an inert declaration anchor from retained source custody.
+        This establishes only a well-formed coordinate. The receiving compiler
+        must still admit the source and rejoin its checked declaration.
+    */
     pub fn from_retained_parts(
         mut source: SourceFile,
         span: Span,
@@ -77,23 +84,21 @@ impl RetainedDeclaration {
         if span.start >= span.end || source.source.get(span.start..span.end).is_none() {
             return Err("retained declaration has an invalid authored source coordinate");
         }
-        // A retained anchor has no numeric coordinate in a receiving map.
-        // Rejoin authenticates its immutable source, never this placeholder.
         source.source_id = source::SourceId(0);
         Ok(Self { source, span, kind })
     }
 
-    /// The immutable source custody captured when this declaration was selected.
+    /* The immutable source custody captured when this declaration was selected. */
     pub fn source(&self) -> &SourceFile {
         &self.source
     }
 
-    /// The original declaration anchor, independent of any later source number.
+    /* The original declaration anchor, independent of any later source number. */
     pub const fn span(&self) -> Span {
         self.span
     }
 
-    /// The declaration role retained beside its source anchor.
+    /* The declaration role retained beside its source anchor. */
     pub const fn kind(&self) -> SymbolKind {
         self.kind
     }
@@ -115,10 +120,12 @@ impl RetainedDeclaration {
         })
     }
 
-    /// Rejoin the exact authored occurrence among the destination's declarations.
-    /// Source IDs and arena handles may change; source bytes, location, stratum,
-    /// origin and checked dependency scope may not. An anonymous source may gain
-    /// its final package owner, but an existing owner cannot be replaced.
+    /*
+        Rejoin the exact authored occurrence among the destination's declarations.
+        Source IDs and arena handles may change; source bytes, location, stratum,
+        origin and checked dependency scope may not. An anonymous source may gain
+        its final package owner, but an existing owner cannot be replaced.
+    */
     pub fn rejoin(
         &self,
         symbols: &SymbolTable,
@@ -197,7 +204,6 @@ mod tests {
         if prefix {
             symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("unrelated"));
         }
-        // Equal spellings at distinct declarations must stay distinct.
         let declarations = [Span::new(0, 6), Span::new(7, 13)].map(|span| {
             symbols.insert_root(
                 SymbolKind::Machine,
