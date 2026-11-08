@@ -157,9 +157,10 @@ jobs:
           import urllib.request
           import zipfile
           
+          root = Path.cwd().resolve()
+          sys.path.insert(0, str(root / "tools"))
           from tools.ci import compiler_replay_plan
           
-          root = Path.cwd().resolve()
           plan = compiler_replay_plan.load(root, os.environ["OMEGA_COMPILER_PILOT_FIXTURES"])
           revision = "9af3eb514e1665328bbdbbc875be077276c47869"
           tree = "7c2eb47ec3bcd4832cb85e4e6a6c2aae94b2d59a"
@@ -216,7 +217,6 @@ jobs:
               cache = root / cache
           debug = cache / "debug"
           debug.mkdir(parents=True, exist_ok=True)
-          sys.path.insert(0, str(root / "tools"))
           from compiler_profile import require_optimized
           observations = {}
           with tempfile.TemporaryDirectory(prefix="omega-9af-artifact-", dir=os.environ.get("RUNNER_TEMP")) as temporary:
@@ -368,106 +368,16 @@ jobs:
       - name: Enable requested ownership and state tracing
         if: github.event_name == 'workflow_dispatch' && inputs.structural_trace
         run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_STRUCT_TRACE=1\n')"
-      - name: Install the debugger for the retained host caller probe
+      - name: Optional executable observations
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        timeout-minutes: 3
-        shell: bash
-        run: |
-          if ! command -v gdb >/dev/null; then
-            sudo apt-get update -qq
-            sudo apt-get install -y --no-install-recommends gdb
-          fi
-          gdb --version
-      - name: Capture the retained host missing-home caller
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        timeout-minutes: 4
-        shell: bash
-        run: |
-          python - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-          import platform
-          import shutil
-          import subprocess
-          import sys
-          
-          root = Path.cwd().resolve()
-          output = root / "build/compiler-pilot"
-          producer = json.loads((output / "producer.json").read_text())["producer"]
-          expected_revision = "9af3eb514e1665328bbdbbc875be077276c47869"
-          if producer["revision"] != expected_revision:
-              raise SystemExit("Host caller probe requires the reviewed retained 9af producer")
-          if platform.machine() != "x86_64" or sys.platform != "linux":
-              raise SystemExit("Host caller probe requires the existing Linux x86-64 debugger route")
-          runner = Path(producer["runner"])
-          expected = "f4ceb42bd12d22254fc4ff90e0d04f5f405ffce9076ed4f93ec672b3af35cb8c"
-          with runner.open("rb") as stream:
-              actual = hashlib.file_digest(stream, "sha256").hexdigest()
-          if actual != expected:
-              raise SystemExit("Host caller probe runner digest differs")
-          cli = Path(producer["cli"])
-          with cli.open("rb") as stream:
-              cli_digest = hashlib.file_digest(stream, "sha256").hexdigest()
-          if cli_digest != "c2ef7288a0d034c9a006368381fd1e75db2d16328265b5078cb21e0a698a5cd8":
-              raise SystemExit("Host caller probe CLI digest differs")
-          sys.path.insert(0, str(root / "tools"))
-          from compiler_profile import require_optimized
-          require_optimized(runner)
-          require_optimized(cli)
-          fixture = "pass/host/runtime_descriptor_nested_case_array_exit"
-          folder = subprocess.check_output(["git", "rev-parse", "HEAD:tests/omega/" + fixture], text=True).strip()
-          if folder != "c70e459a59fb0d283bec967c2758602961425ff3":
-              raise SystemExit("Host caller probe source, Build, input or stream oracle differs")
-          library = subprocess.check_output(["git", "rev-parse", "HEAD:source/library"], text=True).strip()
-          if library != "b40f44024dc87743a5faab6ad403a4681115cb40":
-              raise SystemExit("Host caller probe library differs")
-          debugger = shutil.which("gdb")
-          if debugger is None:
-              raise SystemExit("gdb is unavailable on this runner")
-          sections = subprocess.check_output(["readelf", "-S", str(runner)], text=True, timeout=10)
-          if ".symtab" not in sections:
-              raise SystemExit("Host caller probe requires the retained symbol table")
-          environment = dict(os.environ)
-          environment.pop("NEXTEST", None)
-          environment.pop("OMEGA_PROVIDER_DEBUG", None)
-          environment.update(OMEGA_CORPUS_ROOT=str(root), OMEGA_LIBRARY_ROOT=str(root / "source/library"),
-                             OMEGA_CORPUS_FIXTURE_FILTER=fixture, OMEGA_COMPILER_CHECK_SITES="1",
-                             OMEGA_CORPUS_RECORDS=str(output / "host-caller-probe-records.txt"))
-          for name in ("OMEGA_CORPUS_NATIVE", "OMEGA_CORPUS_INTERPRET", "OMEGA_CORPUS_CHECKED_INTERPRETER"):
-              if name in environment:
-                  raise SystemExit("Host caller probe requires ordinary source checking without engines")
-          script = output / "host-caller-probe.gdb"
-          script.write_text("set pagination off\nset confirm off\nset print thread-events off\nset print frame-arguments none\nset debuginfod enabled off\nset $omega_host_marker_seen = 0\npython\nimport gdb\nimport struct\n\n_omega_tails = {}\n_omega_marker = b\"CHECKSITE computed-borrow-home-missing\"\n\ndef omega_probe_write():\n    # Linux x86-64 syscall-entry stops expose -ENOSYS before write executes.\n    if int(gdb.parse_and_eval(\"$rax\")) != -38:\n        return\n    if int(gdb.parse_and_eval(\"$rdi\")) != 2:\n        return\n    number = int(gdb.parse_and_eval(\"$orig_rax\"))\n    inferior = gdb.selected_inferior()\n    address = int(gdb.parse_and_eval(\"$rsi\"))\n    count = int(gdb.parse_and_eval(\"$rdx\"))\n    if number == 1:\n        payload = bytes(inferior.read_memory(address, min(count, 4096)))\n    elif number == 20:\n        pieces = []\n        remaining = 4096\n        for index in range(min(count, 32)):\n            pointer, length = struct.unpack(\"<QQ\", bytes(inferior.read_memory(address + index * 16, 16)))\n            take = min(length, remaining)\n            if take:\n                pieces.append(bytes(inferior.read_memory(pointer, take)))\n                remaining -= take\n            if not remaining:\n                break\n        payload = b\"\".join(pieces)\n    else:\n        raise gdb.GdbError(\"Unexpected syscall at the write catchpoint\")\n    thread = gdb.selected_thread()\n    key = thread.ptid\n    joined = _omega_tails.get(key, b\"\") + payload\n    if _omega_marker in joined:\n        gdb.write(\"OMEGA_HOST_MISSING_HOME_MARKER_MATCHED\\n\")\n        gdb.write(\"Observed stderr prefix: \" + repr(joined[-512:]) + \"\\n\")\n        gdb.execute(\"set $omega_host_marker_seen = 1\")\n    _omega_tails[key] = joined[-128:]\nend\ncatch syscall write writev\ncommands\nsilent\npython omega_probe_write()\nif $omega_host_marker_seen != 0\nprintf \"OMEGA_HOST_MISSING_HOME_STACK_BEGIN\\n\"\nbt 24\nprintf \"OMEGA_HOST_MISSING_HOME_STACK_END\\n\"\nquit 0\nend\ncontinue\nend\ninfo breakpoints\nrun > /dev/null 2>&1\npython raise gdb.GdbError(\"The retained runner exited without the required host failure marker\")\n")
-          arguments = [debugger, "-nx", "-batch", "-x", str(script), "--args", str(runner)]
-          log = output / "host-caller-backtrace.txt"
-          returncode = None
-          timed_out = False
-          try:
-              with log.open("w") as stream:
-                  result = subprocess.run(arguments, cwd=root, env=environment, stdout=stream,
-                                          stderr=subprocess.STDOUT, timeout=180)
-              returncode = result.returncode
-          except subprocess.TimeoutExpired:
-              timed_out = True
-          size = log.stat().st_size
-          if size > 4 * 1024 * 1024:
-              raise SystemExit("Host caller debugger output exceeded its bounded text limit")
-          data = log.read_bytes()
-          matched = b"OMEGA_HOST_MISSING_HOME_MARKER_MATCHED" in data
-          stack = b"OMEGA_HOST_MISSING_HOME_STACK_BEGIN" in data and b"OMEGA_HOST_MISSING_HOME_STACK_END" in data and b"#0 " in data
-          metadata = dict(kind="diagnostic-only", producer=expected_revision, runner_sha256=expected,
-                          cli_sha256=cli_digest, fixture=fixture, source_folder=folder, library=library,
-                          debugger_returncode=returncode, timeout_seconds=180, timed_out=timed_out,
-                          marker_matched=matched, stack_captured=stack, log_bytes=size,
-                          log_sha256=hashlib.sha256(data).hexdigest())
-          (output / "host-caller-backtrace.json").write_text(json.dumps(metadata, indent=2) + "\n")
-          print("Diagnostic caller stack only; the source verdict remains the previously recorded rejection.", flush=True)
-          print(data[-32000:].decode("utf-8", errors="replace"))
-          if timed_out or returncode != 0 or not matched or not stack:
-              raise SystemExit("The retained host caller probe did not capture its exact failure stack")
-          PY
+        env:
+          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
+          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
+          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
+          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
+          OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
+          OMEGA_COMPILER_PILOT_INSPECTION_MACHINE: ${{ inputs.inspection_machine }}
+        run: python tools/ci/compiler_pilot.py --phase consume
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'inspection.json', 'build-consent-controls.json') if (root / name).is_file()]"
