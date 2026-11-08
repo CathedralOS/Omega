@@ -1,54 +1,72 @@
+/*
+    Stage 02 resolves the names in parsed Omega source into stable Psi symbol
+    identities.
+
+    We have one entrance, `resolve`, in `resolution`; its `drive` is the
+    route, one call per phase. `begin` first runs `preparation`, which rewrites
+    syntax to syntax before any symbol exists: target families, type aliases
+    and generic data normalize, trait defaults are synthesized, and machine
+    equation declarations are validated. `drive` then runs the phases in the
+    one order their preconditions allow: `lowering` translates items and
+    mathematical definitions into the symbol-resolved carrier; `selection`
+    binds operator homes, which need no symbols yet; `symbols` builds the
+    table and assigns identities; `lowering` normalizes exact arithmetic
+    intrinsics and marks the domain homes of token-bearing machines, which
+    need those attached symbols; then `constant` and `selection` close in turn
+    (constants need the table, the authored-selection ledger needs substituted
+    constants, operator obligations need the ledger, and every remaining
+    selection needs all of it) before `lowering` rejects duplicate direct
+    token bindings by comparing settled operand identities.
+*/
+
+/*
+    We keep one route with a fixed phase order because each phase needs facts
+    only an earlier one can settle, and an explicit order is easier to audit
+    than phases that discover each other. `constant` is deliberately not a
+    phase: it owns constant declarations, substitution and initializer custody
+    across every phase, and `preparation` and `lowering` reach it directly.
+    Const value semantics end here: each selected use receives a fresh copy of
+    its initializer, so no later stage grows a const-value concept.
+
+    Each phase lives in one file named after its module, and the larger
+    sub-phases live beside it as `<phase>_<submodule>.rs`, attached with a
+    `#[path]` attribute so the module tree, its privacy and every
+    `crate::` path stay exactly as the phases name them.
+*/
+
+/*
+    We consume the `SyntaxTrees` produced by stage 01
+    (`tokens-to-syntax-trees`) and publish `SymbolResolvedTrees` together
+    with the `SymbolTable` from the `symbols` foundation crate. Stage 03
+    (`symbol-resolved-trees-to-typed-trees`) and `psi-compiler` consume that
+    result. `resolve_extension` re-enters for source a build generates after
+    the base was resolved, and `pre_resolution` is the one seam that
+    build-time evaluation drives before this stage can run: it must resolve
+    names to evaluate constants and evaluate constants to close generic data.
+    No later stage may use it.
+*/
+
 #![forbid(unsafe_code)]
 
-//! Resolves names in parsed Omega source into stable Psi symbol identities.
-//!
-//! One entrance: [`resolve`], in `resolution.rs`. Read `drive` there to read
-//! this stage — it is the route, one call per phase, and the module order
-//! below is the order it calls them in. `resolution::lowerer` owns the
-//! `Lowerer` state every phase borrows.
-//!
-//! `begin` first runs `preparation`, which rewrites syntax to syntax before
-//! any symbol exists and validates machine equation declarations. `drive`
-//! then runs the phases in the one order their preconditions allow, as its
-//! own comment records: `lowering` translates items and then mathematical
-//! definitions into the symbol-resolved carrier; `selection` binds operator
-//! homes, which need no symbols yet; `symbols` builds the table and assigns
-//! identities; `lowering` normalizes exact arithmetic intrinsics and marks
-//! the domain homes of token-bearing machines,
-//! which need those just-assigned attached symbols; then `constant` and
-//! `selection` close in turn — constants need the table, the authored
-//! selection ledger needs substituted constants, operator obligations need
-//! the ledger, and every remaining selection needs all of it — before
-//! `lowering` rejects duplicate direct token bindings by comparing settled
-//! operand identities.
-//!
-//! `constant` is not one phase of that route. It owns constant declarations,
-//! substitution and initializer custody across every phase, and `preparation`
-//! and `lowering` reach it directly, not only through the route.
-//!
-//! There is one re-entry beside the entrance, [`resolve_extension`], for
-//! source a build generates after the base was resolved, and one seam,
-//! [`pre_resolution`], that build-time evaluation drives before the stage can
-//! run: it must resolve names to evaluate constants and evaluate constants to
-//! close generic data. No later stage may use it.
-
-// The entrance and the route it drives.
+/* The entrance and the route it drives. */
 mod resolution;
 
-// The phases, in the order `drive` calls them.
+/* The phases, in the order `drive` calls them. */
 mod lowering;
 mod preparation;
 mod selection;
 mod symbols;
 
-// Not a phase: reached from preparation, lowering and the route alike.
+/* Not a phase: reached from preparation, lowering and the route alike. */
 mod constant;
 
-// Read views onto the carrier's tables, reached from every phase.
+/* Read views onto the carrier's tables, reached from every phase. */
 mod tables;
 
-// The entrance, its post-base re-entry, and the requests and carriers both
-// name.
+/*
+    The entrance, its post-base re-entry, and the requests and carriers both
+    name.
+*/
 pub use resolution::{
     DeferredResolvedExtension, DeferredResolvedFrontier, ExtensionRequest,
     RebasedResolvedBodyCompletion, RebasedSeededSymbolResolvedTrees, ResolutionRequest,
@@ -56,12 +74,14 @@ pub use resolution::{
     resolve_deferred_extension, resolve_extension,
 };
 
-/// What build-time evaluation drives before this stage can run.
-///
-/// Constants must be evaluated to close generic data, and names must be
-/// resolved to evaluate constants, so that service runs restricted resolutions
-/// and the syntax-to-syntax rewrites here between its evaluations, then hands
-/// the forest to [`resolve`]. Nothing downstream of resolution may use this.
+/*
+    What build-time evaluation drives before this stage can run.
+
+    Constants must be evaluated to close generic data, and names must be
+    resolved to evaluate constants, so that service runs restricted resolutions
+    and the syntax-to-syntax rewrites here between its evaluations, then hands
+    the forest to [`resolve`]. Nothing downstream of resolution may use this.
+*/
 pub mod pre_resolution {
     pub use crate::constant::initializer_dependencies::{
         ConstInitializerDependencies, ResolvedMachineBodyDemand,
@@ -89,8 +109,10 @@ pub mod pre_resolution {
     };
 }
 
-/// Exact declaration lookup for retained, signature-free metadata operands.
-/// This reads resolved declarations and keeps ordinary visibility/ambiguity rules.
+/*
+    Exact declaration lookup for retained, signature-free metadata operands.
+    This reads resolved declarations and keeps ordinary visibility/ambiguity rules.
+*/
 pub mod declaration_selection {
     pub use crate::selection::signature_free_requirements::{
         ExactSignatureFreeRequirement, SignatureFreeRequirementResolutionError,
