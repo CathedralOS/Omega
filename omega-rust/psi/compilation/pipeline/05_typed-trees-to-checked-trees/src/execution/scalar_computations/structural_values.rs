@@ -767,11 +767,44 @@ impl Builder<'_, '_> {
                             .map(|shell| shell.referee)
                     });
                     let root_reference = root_reference?;
-                    source_value = self.structural_value(root, root_reference)?;
-                    // The anonymous backing is an independently admitted owner,
-                    // not a contained descriptor field. Publish the exact root
-                    // so its normal disposition can rejoin this retained graph.
-                    self.retained_argument_owner(source_value, root_reference)?;
+                    source_value = if let Some(receiver) = self
+                        .dispatch_receivers
+                        .get(&(root.arena_index(), root.generation()))
+                        .copied()
+                    {
+                        // A completed value and an existing place are different
+                        // producer roles, even when both have expression roots.
+                        // Consume the retained role, not another owned wrapper
+                        // around its non-executable alias.
+                        if !validation::declared_carriers_match(
+                            self.program,
+                            root_reference,
+                            receiver.type_reference,
+                        ) {
+                            return None;
+                        }
+                        receiver.value
+                    } else {
+                        let value = self.structural_value(root, root_reference)?;
+                        let kind = &self.structural_values.nodes.get(value).kind;
+                        if argument_needs_establishment(kind) {
+                            value
+                        } else if let ValueKind::Place(argument) = kind {
+                            // Ordinary stored sources need no second producer.
+                            // Keep any already recorded real value dependency.
+                            argument
+                                .source
+                                .structural_value_dependency()
+                                .unwrap_or_default()
+                        } else {
+                            return None;
+                        }
+                    };
+                    if source_value.is_valid() {
+                        // A real value keeps its exact producer and normal
+                        // disposition. An existing place needs no value birth.
+                        self.retained_argument_owner(source_value, root_reference)?;
+                    }
                 }
                 // Geometry can already know an ordinal from a call's result
                 // contract. Its authored evaluation remains a child even then.
@@ -795,6 +828,20 @@ impl Builder<'_, '_> {
             )?;
             let (mut source, storage, backing_type) =
                 (capture.source, capture.storage, capture.backing_type);
+            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression: anchor,
+                ..
+            } = source.source
+                && self
+                    .dispatch_receivers
+                    .get(&(anchor.arena_index(), anchor.generation()))
+                    .is_some_and(|receiver| !receiver.value.is_valid())
+            {
+                // Existing-place aliases are already referent-presented. Bind
+                // their actual logical root type before catalog/path consumers;
+                // stored descriptor values retain their separate interpretation.
+                source.source = self.retained_dispatch_place_source(anchor, source.access)?;
+            }
             let projection_evaluations = if selectors.is_empty() {
                 Default::default()
             } else {
