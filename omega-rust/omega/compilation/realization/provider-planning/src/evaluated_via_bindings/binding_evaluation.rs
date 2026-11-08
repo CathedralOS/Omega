@@ -1,13 +1,14 @@
-//! Evaluating one via binding and validating its shape and widths.
+// Evaluation of a single `via` binding expression and validation of its
+// shape and widths. Target-scoped producers resolve to their family head and
+// evaluate the member body authored for the selected target under
+// `ConstEvaluable` with the `via` span retained as invocation custody.
 
 use crate::evaluated_via_bindings::binding_digests::{
     at, evaluation_digest, materialization_digest, producer_closure_digest,
 };
-use crate::evaluated_via_bindings::binding_values::{
-    DecodedBindingValue, decode_binding_value, retained_usage,
-};
 use crate::evaluated_via_bindings::{
-    BindingVocabulary, EvaluatedNativeBinding, EvaluatedViaBindingRow, MATERIALIZER_SCHEMA_VERSION,
+    BindingVocabulary, DecodedBindingValue, EvaluatedNativeBinding, EvaluatedViaBindingRow,
+    MATERIALIZER_SCHEMA_VERSION, decode_binding_value, retained_usage,
 };
 use crate::provider_planning::entry_state;
 use build_time_evaluation::{
@@ -15,14 +16,13 @@ use build_time_evaluation::{
     CURRENT_EVALUATION_SEMANTICS,
 };
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::types::TypeReferenceHandle;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     EvaluatedBindingReceipt, EvaluatedForeignImport, EvaluatedForeignSyscall,
 };
 use symbols::SymbolHandle;
 use target::{TargetProfile, normalize_foreign_locator};
-
-use checked_trees::typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn evaluate_one(
     program: BuildTimeProgram<'_>,
@@ -72,9 +72,6 @@ pub(crate) fn evaluate_one(
             "ordinary external `via` target is not the producer entry state",
         ));
     }
-    // A target-scoped producer resolves to its family head, which has no
-    // body: the evaluated binding is the member body authored for the
-    // selected target, as every other realization of a family resolves it.
     let producer = if producer.target_family_interface {
         typed
             .target_family_member(producer.symbol, target.target_name())
@@ -100,9 +97,6 @@ pub(crate) fn evaluate_one(
     let widths = binding_widths(typed, vocabulary.binding, entry.return_type)
         .map_err(|message| at(source_span, message))?;
     let custody = BuildTimeInvocationCustody::Source(source_span);
-    // The evaluated binding crosses the boundary as an ordinary closed const
-    // value: the producer result is admitted under ConstEvaluable, with the
-    // authored `via` span retained as its invocation custody.
     let measured = admission
         .evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
             program,

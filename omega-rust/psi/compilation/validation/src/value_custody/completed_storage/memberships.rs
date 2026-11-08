@@ -122,7 +122,7 @@ fn judge_completed_membership(
             }
             None => {}
         }
-        let Some(predecessors) = super::predecessors(program, facts, value, path) else {
+        let Some(predecessors) = super::predecessors(program, facts.view(), value, path) else {
             return false;
         };
         walk.visiting.push((value, path.to_vec()));

@@ -17,7 +17,6 @@ type SubjectCopies = Vec<(Handle<MatchSubjectCapture>, Handle<MatchSubjectCaptur
 
 #[derive(Clone)]
 pub(crate) struct DestructureBinding {
-    pub(crate) component: language_core::PatternComponent,
     pub(crate) binding: Identifier,
     pub(crate) member: Identifier,
     pub(crate) case_variant: Option<Identifier>,
@@ -107,7 +106,6 @@ fn rewrite_expression(
             })
         }
         ExpressionNode::SavedSubject(saved) => ExpressionNode::SavedSubject(TableSavedSubject {
-            component: saved.component,
             capture: captures
                 .iter()
                 .rev()
@@ -199,27 +197,15 @@ fn rewrite_expression(
             access: inner.access,
         }),
         ExpressionNode::Name(path) => {
-            if let Some((field, case_variant, component)) =
+            if let Some((field, case_variant)) =
                 single_destructured_field_name(syntax_trees, path, fields)
             {
-                if component == language_core::PatternComponent::Case {
-                    // This is another view of the dispatch's saved value,
-                    // never a field read or another evaluation of its source.
-                    let ExpressionNode::SavedSubject(mut saved) =
-                        *exprs_of(syntax_trees).expression(subject)
-                    else {
-                        unreachable!("destructure aliases are produced from a saved subject")
-                    };
-                    saved.component = component;
-                    ExpressionNode::SavedSubject(saved)
-                } else {
-                    ExpressionNode::Member(TableMemberExpression {
-                        receiver: subject,
-                        access_source_span: Default::default(),
-                        member: field,
-                        case_variant,
-                    })
-                }
+                ExpressionNode::Member(TableMemberExpression {
+                    receiver: subject,
+                    access_source_span: Default::default(),
+                    member: field,
+                    case_variant,
+                })
             } else {
                 ExpressionNode::Name(path)
             }
@@ -311,11 +297,7 @@ fn single_destructured_field_name(
     syntax_trees: &SyntaxTrees,
     path: HandleSpan<Identifier>,
     fields: &[DestructureBinding],
-) -> Option<(
-    Identifier,
-    Option<Identifier>,
-    language_core::PatternComponent,
-)> {
+) -> Option<(Identifier, Option<Identifier>)> {
     let members = exprs_of(syntax_trees).identifier_path_members(path);
     let [member] = members else {
         return None;
@@ -323,11 +305,5 @@ fn single_destructured_field_name(
     fields
         .iter()
         .find(|field| field.binding.as_str(syntax_trees) == member.as_str(syntax_trees))
-        .map(|field| {
-            (
-                field.member.clone(),
-                field.case_variant.clone(),
-                field.component,
-            )
-        })
+        .map(|field| (field.member.clone(), field.case_variant.clone()))
 }

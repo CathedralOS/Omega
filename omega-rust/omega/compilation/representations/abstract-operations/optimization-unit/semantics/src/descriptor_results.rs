@@ -68,6 +68,24 @@ pub fn abstract_reference_catalog_graph<'function, 'boundary>(
     )
 }
 
+/// Current flat bodies with both reference contents and view backing. A
+/// residence consumer must not mistake the descriptor's own home for the
+/// storage reached through its captured pointer.
+pub fn abstract_borrowed_storage_catalog_graph<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function AbstractFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+) -> Option<Vec<DescriptorMachine>> {
+    abstract_graph_with_slots(
+        functions,
+        boundaries,
+        types,
+        dynamic_dispatch,
+        kernel::DescriptorSlotKind::BorrowedStorage,
+    )
+}
+
 /// The complete inventory for post-effect caller membership queries.
 pub fn optimized_borrowed_storage_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,

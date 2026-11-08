@@ -1,4 +1,6 @@
-//! Canonical identity for an exact package-source tree.
+// Canonical `omega-source-tree-v4` content identity hasher (`SourceIdentityHasher`)
+// over sorted relative paths, normalized directory modes, file executable bits
+// and bytes, and symlink targets.
 
 use crate::SourceResolveError;
 use crate::identity::digest::format_sha256;

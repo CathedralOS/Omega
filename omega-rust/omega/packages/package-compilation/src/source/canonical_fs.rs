@@ -1,13 +1,14 @@
-//! Host-filesystem byte and mode handling shared by the canonical Source
-//! layouts. Unix takes the raw byte/mode surfaces; other hosts go through
-//! portable UTF-8.
+// Host-filesystem permission mode, path-byte, and row-ceiling helpers shared by canonical `Source` walkers.
+//
+// On Unix, physical `Source` directories must carry exact mode `0o555` and files must
+// carry `0o444` (non-executable) or `0o555` (executable) so widened host permissions
+// cannot impersonate a sealed canonical tree. Non-Unix hosts carry no POSIX mode
+// surface, report `false` for the executable bit, and require portable UTF-8 path
+// spellings.
 
 #[cfg(unix)]
 use std::path::Path;
 
-/// Reject a directory whose permission bits are not the canonical Source
-/// mode. Checked on every trusted-tree entry so a widened physical layout
-/// cannot impersonate the canonical one.
 #[cfg(unix)]
 pub(crate) fn require_canonical_mode(
     path: &Path,
@@ -26,16 +27,11 @@ pub(crate) fn require_canonical_mode(
     }
 }
 
-/// The two authored Source file modes: plain files are read-only, executables
-/// are read-execute. A widened physical mode impersonates neither.
 #[cfg(unix)]
 pub(crate) const CANONICAL_FILE_MODE: u32 = 0o444;
 #[cfg(unix)]
 pub(crate) const CANONICAL_EXECUTABLE_FILE_MODE: u32 = 0o555;
 
-/// The executable bit of a canonical Source file: only the two authored modes
-/// are legal, so the flag is the mode itself. Non-unix hosts carry no mode
-/// surface and always report false.
 pub(crate) fn canonical_file_executable(
     path: &std::path::Path,
     metadata: &std::fs::Metadata,
@@ -59,8 +55,6 @@ pub(crate) fn canonical_file_executable(
     }
 }
 
-/// Read one canonical symlink target and charge its spelling against the
-/// caller's aggregate ceiling — the sequence every metadata walker repeats.
 pub(crate) fn canonical_symlink_target(
     path: &std::path::Path,
     aggregate_content_bytes: &mut u64,
@@ -96,8 +90,6 @@ pub(crate) fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
         .ok_or_else(|| "physical Source path is not portable UTF-8".to_owned())
 }
 
-/// Reject the next canonical-metadata row when the walk would cross the
-/// shared row ceiling — both walkers bound `rows + stack + 1` identically.
 pub(crate) fn check_metadata_row_ceiling(rows: usize, stack: usize) -> Result<(), String> {
     if rows
         .checked_add(stack)

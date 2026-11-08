@@ -1,15 +1,19 @@
-//! Application sponsorship of canonical scalar evaluation.
-//!
-//! Source checking and native demand share this operation. Provider choices
-//! come from the retained Build companion; evaluation never reopens source.
+/*
+Application-sponsored completion of canonical Terminal scalar applications
+(`scalar_completion::complete`).
+
+Both post-Terminal source checking and native preparation call `complete` to
+evaluate `ScalarApplicationId` demands against the retained
+`TerminalTargetProviderProposal` companions without reopening source trees. Any
+attempted evaluation usage is recorded in `accounting` even when a condition
+refuses.
+*/
 
 use backend_plan::TerminalTargetProviderProposal;
 use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
 use terminal_installation::admit_target_machine_selections;
 
-/// Complete canonical demand with the retained target provider companions.
-/// Attempted evaluation remains in `accounting`, including a refused condition.
 pub fn complete(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
     primary: &str,

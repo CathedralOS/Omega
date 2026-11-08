@@ -61,59 +61,32 @@ impl Emission<'_, '_, '_> {
                 self.type_ids,
                 &stored_structural_identity(self.checked, node.type_reference),
             )?;
+            // Backing completes through its own producer occurrence, not the
+            // descriptor's child roster. The shared construction/call owner
+            // publishes that exact home's claims before the loan is formed.
+            let ValueOutcome::Normal(completed) = self.child_constructor_operand(
+                identities,
+                root_type,
+                source_value,
+                node.type_reference,
+            )?
+            else {
+                return Ok(ValueOutcome::NoNormal);
+            };
+            // The loan and its later retirement name this exact home. Keep
+            // its expression identity at establishment, not a reconstructed
+            // initializer or a second evaluation during cleanup.
             let root = source
                 .structural_storage_root()
                 .ok_or(LoweringError::Unsupported(
                     "computed reference backing has no storage identity",
                 ))?;
-            let argument = if let Some(completed) = self
-                .evaluation
-                .completed_value_binding(source_value, self.operations)?
-            {
-                // Address formation uses this exact producer's admitted home.
-                // A constructor operand would request a new owned value and
-                // could copy a saved receiver into a different physical home.
-                // Keep the original path/access; the ordinary borrowed-argument
-                // join below still checks the requested loan ceiling.
-                if completed.structural_type != root_type {
-                    return unsupported(
-                        "completed reference backing has a different retained source type",
-                    );
-                }
-                if crate::expression_preparation::bindings::structural_local_by_root(
-                    &self.evaluation.structural_locals,
-                    root,
-                )
-                .is_none()
-                {
-                    return unsupported(
-                        "completed reference backing has no current source-root binding",
-                    );
-                }
-                completed.argument.clone()
-            } else {
-                // A genuinely unproduced backing completes through its own
-                // occurrence and publishes its claims before the loan forms.
-                let ValueOutcome::Normal(completed) = self.child_constructor_operand(
-                    identities,
-                    root_type,
-                    source_value,
-                    node.type_reference,
-                )?
-                else {
-                    return Ok(ValueOutcome::NoNormal);
-                };
-                completed.argument
-            };
-            // Require the exact current root/argument/type association. This
-            // also publishes a genuinely fresh backing; a conflicting existing
-            // home remains an error rather than being silently overwritten.
             crate::expression_preparation::bindings::retain_completed_structural_homes(
                 &mut self.evaluation.structural_locals,
                 &[StructuralLocalBinding {
                     result_binding_ordinal: None,
                     root,
-                    argument,
+                    argument: completed.argument.clone(),
                     structural_type: root_type,
                 }],
             )?;

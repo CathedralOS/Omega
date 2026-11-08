@@ -164,6 +164,9 @@ pub(in crate::flow) fn record<'plans>(
             fields.extend(super::fields::capture_completed_argument(
                 program,
                 semantic,
+                build.operators,
+                state,
+                call.statement_index,
                 completed,
                 parameter.symbol,
             ));

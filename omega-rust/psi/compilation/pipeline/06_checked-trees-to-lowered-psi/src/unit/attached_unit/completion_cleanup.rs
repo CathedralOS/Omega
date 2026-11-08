@@ -9,6 +9,7 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{
     Evaluation, ScalarReturnCleanup, StructuralValueStorage,
 };
+use crate::unit::attached_unit::scalar_completion::control::returning_destinations;
 use crate::unit::unit_cleanup::CleanupRegion;
 use crate::unit::unit_cleanup::bind_consumed_claims;
 mod owner_order;
@@ -65,21 +66,6 @@ pub(crate) fn destination(
 /// Keep each authored scalar return's cleanup before its private result join.
 /// Preparing action identities does not discharge their prerequisites; complete
 /// graph proof production observes the selected path and outgoing call effects.
-/// Working state for the exact source-published normal result tree.
-pub(crate) enum NormalResultCleanup {
-    NoNormal {
-        computation: checked_trees::CheckedScalarComputationHandle,
-    },
-    Value {
-        computation: checked_trees::CheckedScalarComputationHandle,
-        actions: Vec<CleanupRegion>,
-    },
-    Dispatch {
-        computation: checked_trees::CheckedScalarComputationHandle,
-        arms: Vec<(checked_trees::CheckedScalarDispatchArm, NormalResultCleanup)>,
-    },
-}
-
 pub(crate) fn scalar_returns(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     claims: &[(
@@ -103,62 +89,26 @@ pub(crate) fn scalar_returns(
     // plan selects runtime returns; preparing dead cleanup rows would allocate
     // orphan completion blocks and their obligations. Every selected return
     // still requires its unique, exact source-owned cleanup coordinate.
-    control
-        .selected_copies
-        .iter()
-        .map(|row| {
-            let destination = CheckedScalarBranchDestination::Return {
-                statement_ordinal: row.statement_ordinal,
-                is_continuation: row.is_continuation,
-            };
+    let destinations = returning_destinations(checked, control)?;
+    destinations
+        .into_iter()
+        .map(|destination| {
             let exit = self::destination(source, &destination)?;
-            let plan = plan_for_exit(source, exit)?;
-            let (actions, result) = if plan.result_completion.is_valid() {
-                (
-                    Vec::new(),
-                    Some(normal_result_cleanup(
-                        identities,
-                        claims,
-                        checked,
-                        source,
-                        exit,
-                        plan,
-                        plan.result_completion,
-                        catalog,
-                        parameters,
-                        evaluation,
-                        operations,
-                    )?),
-                )
-            } else {
-                let mut actions = for_planned_actions(
-                    identities,
-                    claims,
-                    checked,
-                    source,
-                    exit,
-                    plan,
-                    catalog.control.actions.span_or_empty(plan.actions),
-                    catalog,
-                    parameters,
-                    evaluation,
-                    operations,
-                )?;
-                selection(
-                    exit.state_symbol,
-                    source.operations,
-                    evaluation,
-                    operations,
-                    &mut actions,
-                )?;
-                (actions, None)
-            };
+            let mut actions = for_exit_regions(
+                identities, claims, checked, source, exit, catalog, parameters, evaluation,
+                operations,
+            )?;
+            selection(
+                exit.state_symbol,
+                source.operations,
+                evaluation,
+                operations,
+                &mut actions,
+            )?;
             Ok(ScalarReturnCleanup {
                 exit,
                 destination,
                 actions,
-                result,
-                copied_payloads: row.copied_payloads.clone(),
             })
         })
         .collect()
@@ -217,22 +167,6 @@ pub(crate) fn optional_coordinate(
 /// production cleanup selects storage. The shared reference-completion owner
 /// preserves holder dependency order and prevents a second descriptor death.
 #[allow(clippy::too_many_arguments)]
-fn plan_for_exit<'a>(
-    source: NormalExitSource<'a>,
-    exit: FlowClaimJoinExit,
-) -> Result<&'a checked_trees::CheckedNormalExitCleanupPlan, LoweringError> {
-    let mut selected = source.cleanups.iter().filter(|plan| plan.exit == exit);
-    let selected_exit = selected.next().ok_or(LoweringError::Unsupported(
-        "normal return is missing its exact cleanup plan",
-    ))?;
-    if selected.next().is_some() {
-        return Err(LoweringError::Unsupported(
-            "normal cleanup repeats its selected exit",
-        ));
-    }
-    Ok(selected_exit)
-}
-
 pub(crate) fn for_exit_regions(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     claims: &[(
@@ -247,42 +181,18 @@ pub(crate) fn for_exit_regions(
     evaluation: &Evaluation,
     operations: &OperationBuffer,
 ) -> Result<Vec<CleanupRegion>, LoweringError> {
-    let plan = plan_for_exit(source, exit)?;
-    for_planned_actions(
-        identities,
-        claims,
-        checked,
-        source,
-        exit,
-        plan,
-        catalog.control.actions.span_or_empty(plan.actions),
-        catalog,
-        parameters,
-        evaluation,
-        operations,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn for_planned_actions(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    claims: &[(
-        language_semantics::PermissionClaimIdentity,
-        semantic_vocabulary::ClaimId,
-    )],
-    checked: &CheckedTrees,
-    source: NormalExitSource<'_>,
-    exit: FlowClaimJoinExit,
-    selected_exit: &checked_trees::CheckedNormalExitCleanupPlan,
-    selected_actions: &[checked_trees::CheckedNormalCleanupAction],
-    catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
-    parameters: &[StructuralParameterDeclaration],
-    evaluation: &Evaluation,
-    operations: &OperationBuffer,
-) -> Result<Vec<CleanupRegion>, LoweringError> {
+    let mut selected = source.cleanups.iter().filter(|plan| plan.exit == exit);
+    let selected_exit = selected.next().ok_or(LoweringError::Unsupported(
+        "normal return is missing its exact cleanup plan",
+    ))?;
+    if selected.next().is_some() {
+        return Err(LoweringError::Unsupported(
+            "normal cleanup repeats its selected exit",
+        ));
+    }
     let cleanup_control = catalog.control;
     let planned = crate::unit::unit_cleanup::outstanding_actions(
-        selected_actions,
+        cleanup_control.actions.span_or_empty(selected_exit.actions),
         source.operations,
         source.parameters,
         cleanup_control,
@@ -354,85 +264,6 @@ fn for_planned_actions(
         ))
     }));
     Ok(regions)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn normal_result_cleanup(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    claims: &[(
-        language_semantics::PermissionClaimIdentity,
-        semantic_vocabulary::ClaimId,
-    )],
-    checked: &CheckedTrees,
-    source: NormalExitSource<'_>,
-    exit: FlowClaimJoinExit,
-    plan: &checked_trees::CheckedNormalExitCleanupPlan,
-    result: arena::Handle<checked_trees::CheckedNormalResultCompletion>,
-    catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
-    parameters: &[StructuralParameterDeclaration],
-    evaluation: &Evaluation,
-    operations: &OperationBuffer,
-) -> Result<NormalResultCleanup, LoweringError> {
-    let control = catalog.control;
-    Ok(match control.normal_result_completions.get(result) {
-        checked_trees::CheckedNormalResultCompletion::NoNormal { computation } => {
-            NormalResultCleanup::NoNormal {
-                computation: *computation,
-            }
-        }
-        checked_trees::CheckedNormalResultCompletion::Value {
-            computation,
-            actions,
-        } => {
-            let mut actions = for_planned_actions(
-                identities,
-                claims,
-                checked,
-                source,
-                exit,
-                plan,
-                control.actions.span_or_empty(*actions),
-                catalog,
-                parameters,
-                evaluation,
-                operations,
-            )?;
-            selection(
-                exit.state_symbol,
-                source.operations,
-                evaluation,
-                operations,
-                &mut actions,
-            )?;
-            NormalResultCleanup::Value {
-                computation: *computation,
-                actions,
-            }
-        }
-        checked_trees::CheckedNormalResultCompletion::Dispatch { computation, arms } => {
-            let mut results = Vec::new();
-            for arm in control.normal_result_arms.span_or_empty(*arms) {
-                let child = normal_result_cleanup(
-                    identities, claims, checked, source, exit, plan, arm.result, catalog,
-                    parameters, evaluation, operations,
-                )?;
-                results.push((
-                    checked
-                        .facts
-                        .values
-                        .scalar_computations
-                        .dispatch_arms
-                        .get(arm.arm)
-                        .clone(),
-                    child,
-                ));
-            }
-            NormalResultCleanup::Dispatch {
-                computation: *computation,
-                arms: results,
-            }
-        }
-    })
 }
 
 fn result_storage(

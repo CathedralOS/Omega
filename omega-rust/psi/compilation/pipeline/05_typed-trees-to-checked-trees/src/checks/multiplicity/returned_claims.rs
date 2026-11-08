@@ -13,8 +13,7 @@ use super::linear_obligations::LinearPlace;
 use super::linear_validation::permission_event_statement_index;
 use crate::flow::{CapturedValueChoice, SelectionCondition, SelectionConditions};
 use checked_trees::{
-    CheckFacts, FlowOperandCompletion, FlowOperandFact, FlowPermissionEvaluation,
-    FlowStateOutgoingFact,
+    FlowOperandCompletion, FlowOperandFact, FlowPermissionEvaluation, FlowStateOutgoingFact,
 };
 use facts::PlaceSegment;
 use language_semantics::{PermissionAccess, PermissionClaimIdentity, PermissionEventKind};
@@ -101,7 +100,7 @@ impl ClaimConsumption {
 /// the selected target's complete summary instead.
 pub(crate) fn current_returned_claims(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     outgoing: &FlowStateOutgoingFact,
     conditions: &mut SelectionConditions,
 ) -> Result<Vec<ReturnedClaim>, &'static str> {
@@ -135,7 +134,7 @@ pub(crate) fn current_returned_claims(
 
 pub(crate) fn consumed_operand_claims(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     consumer: ClaimConsumption,
     operand: arena::Handle<FlowOperandFact>,
     conditions: &mut SelectionConditions,
@@ -185,7 +184,7 @@ impl ClaimObservation<'_> {
 
 pub(crate) fn completed_owned_claims(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     value: arena::Handle<FlowOperandFact>,
     location: CompletedClaimLocation,
     places: &[LinearPlace],
@@ -235,7 +234,7 @@ pub(crate) fn completed_owned_claims(
 /// expression coordinate. The live frontier still supplies every identity.
 fn receiving_destination(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     value: arena::Handle<FlowOperandFact>,
 ) -> Result<Option<validation::CanonicalPlace>, &'static str> {
     let capture = facts.flow.control.operands.get(value);
@@ -259,7 +258,7 @@ fn receiving_destination(
     }
     crate::flow::canonical_place_from_semantic_place(
         program,
-        &facts.semantic,
+        facts.semantic,
         facts.semantic.places.get(statement.stored_destination),
     )
     .map(Some)
@@ -268,7 +267,7 @@ fn receiving_destination(
 
 fn captured_claims(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     consumer: ClaimConsumption,
     operand: &FlowOperandFact,
     observation: ClaimObservation<'_>,
@@ -299,7 +298,7 @@ fn captured_claims(
             }
             let choice = conditions
                 .choice(
-                    &facts.flow.control,
+                    facts.flow.control,
                     CapturedValueChoice {
                         selection: alternatives,
                         alternative: alternatives.handle_at(
@@ -633,11 +632,11 @@ fn captured_claims(
             place.segments.extend_from_slice(&expected.path);
             if preserved_inactive_place(
                 program,
-                &facts.borrow,
+                facts.borrow,
                 state,
                 operand.statement_index,
                 &place,
-                &facts.flow.ownership,
+                facts.flow.ownership,
                 facts
                     .flow
                     .ownership
@@ -684,7 +683,7 @@ fn captured_claims(
 /// stops this trace. No declaration initializer is replayed.
 fn stored_claims(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     consumer: ClaimConsumption,
     operand: &FlowOperandFact,
     path: &[PlaceSegment],
@@ -728,7 +727,7 @@ fn stored_claims(
     }
     if !crate::flow::binding_origin_is_stable(
         program,
-        &facts.flow.control,
+        facts.flow.control,
         operand.entry_origin_writes,
         operand.entry_origin_unknown_write,
         &source,
@@ -764,7 +763,7 @@ fn stored_claims(
         {
             let destination = crate::flow::canonical_place_from_semantic_place(
                 program,
-                &facts.semantic,
+                facts.semantic,
                 facts.semantic.places.get(statement.stored_destination),
             )
             .ok_or("stored claim destination has no canonical identity")?;
@@ -800,7 +799,7 @@ fn stored_claims(
         }
         if !crate::flow::binding_origin_is_stable(
             program,
-            &facts.flow.control,
+            facts.flow.control,
             statement.completed_writes,
             statement.completed_unknown_write,
             &source,
@@ -813,7 +812,7 @@ fn stored_claims(
 
 fn check_frontier(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     operand: &FlowOperandFact,
     claims: &[ReturnedClaim],
     conditions: &mut SelectionConditions,
@@ -842,13 +841,13 @@ fn check_frontier(
             }
             for previous in &matching[..index] {
                 let overlap = conditions.all(previous.condition, claim.condition);
-                if conditions.possible(&facts.flow.control, overlap) {
+                if conditions.possible(facts.flow.control, overlap) {
                     return Err("returned claim path has overlapping consuming occurrences");
                 }
             }
             coverage = conditions.any(coverage, claim.condition);
         }
-        if !conditions.covers(&facts.flow.control, coverage) {
+        if !conditions.covers(facts.flow.control, coverage) {
             trace_missing_frontier(program, facts, operand, &expected.path, claims);
             return Err("returned capture omits a declared claim path on an alternative");
         }
@@ -866,7 +865,7 @@ fn check_frontier(
                 && !claim_paths_are_case_alternatives(&claim.path, &other.path)
             {
                 let overlap = conditions.all(claim.condition, other.condition);
-                if conditions.possible(&facts.flow.control, overlap) {
+                if conditions.possible(facts.flow.control, overlap) {
                     return Err("one live claim supplies simultaneous returned paths");
                 }
             }
@@ -890,7 +889,7 @@ fn check_frontier(
 /// and receiving establishment, retaining the caller's current identity.
 fn completed_call_claims(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     consumer: ClaimConsumption,
     operand: &FlowOperandFact,
     conditions: &SelectionConditions,
@@ -898,7 +897,7 @@ fn completed_call_claims(
     let Some(state_flow) = facts.flow.control.state_by_symbol(operand.state_symbol) else {
         return Err("completed result has no state flow");
     };
-    let mut calls = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
+    let mut calls = crate::flow::call_flows(facts.flow.control, state_flow.calls)
         .iter()
         .filter(|call| {
             call.statement_index == operand.statement_index
@@ -980,7 +979,7 @@ fn completed_call_claims(
 // Temporary bounded diagnostic. Root removes this with its call before landing.
 fn trace_missing_frontier(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     operand: &FlowOperandFact,
     path: &[PlaceSegment],
     claims: &[ReturnedClaim],
@@ -1003,6 +1002,7 @@ fn trace_missing_frontier(
         .flow
         .control
         .state(machine.symbol, operand.state_symbol);
+    ownership.walk_guard.note(operand.state_symbol);
     let events = ownership
         .permissions
         .iter()

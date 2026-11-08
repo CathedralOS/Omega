@@ -36,6 +36,7 @@ mod zero_bytes;
 pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_read_byte;
 pub(crate) mod hosted_write_byte;
+pub(crate) mod installed_interrupt;
 mod instruction_bytes;
 #[cfg(test)]
 mod integer_normalization_tests;
@@ -103,7 +104,7 @@ use crate::selected_form_encoding::request_validation::{
     validate_alias_partition, validate_request,
 };
 
-/// The canonical rflags-clobbering footprint for memory-form encoders whose
+/// The canonical condition-flag-clobbering footprint for memory-form encoders whose
 /// operands split contiguously: the first `read_count` operands are the
 /// register reads (external reads `0..read_count`), the rest the register
 /// writes (external writes `read_count..len`), under the unchanged-stack,
@@ -118,7 +119,7 @@ pub(super) fn canonical_effects_encoding(
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     let flags = physical
         .model()
-        .view_named("rflags")
+        .view_named("condition_flags")
         .ok_or(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel)?;
     Ok(ValidatedX86_64SelectedFormEncoding {
         bytes: bytes.to_vec(),
@@ -167,6 +168,7 @@ impl ValidatedX86_64SelectedFormEncoding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum X86_64SelectedFormEncodingError {
+    InstalledTable(Box<crate::X86InstalledTableEncodingError>),
     UnsupportedAtomicForm,
     NonCanonicalPhysicalModel,
     LayoutDependentForm,
@@ -192,6 +194,9 @@ pub fn encode_x86_64_selected_form(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if installed_interrupt::Form::from_kind(kind).is_some() {
+        return installed_interrupt::encode(physical, kind, alternative, operands);
+    }
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::encode(physical, alternative, operands, 0);
     }
@@ -234,6 +239,9 @@ pub fn validate_x86_64_selected_form_encoding(
     operands: &[RegisterViewId],
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if installed_interrupt::Form::from_kind(kind).is_some() {
+        return installed_interrupt::validate(physical, kind, alternative, operands, bytes);
+    }
     if let SelectedInstructionKind::RegisterAccess { operation } = kind {
         return register_access::validate(physical, operation, alternative, operands, bytes);
     }

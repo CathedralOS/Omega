@@ -286,7 +286,7 @@ fn exact_multiply_alias_partitions_encode_and_decode() {
                 .encoded
                 .implicit_unit_clobbers
                 .is_empty(),
-            "imul clobbers rflags"
+            "imul clobbers condition flags"
         );
         assert_every_byte_change_rejected(&physical, kind, key, &homes, encoded.bytes(), "changed");
     }
@@ -516,7 +516,11 @@ fn materialize_i64_variant_one_is_the_optimizer_selected_xor_zero_idiom() {
         assert!(encoded.footprint().writes_rflags);
         assert_eq!(
             encoded.footprint().encoded.implicit_unit_clobbers,
-            physical.model().view_named("rflags").unwrap().units
+            physical
+                .model()
+                .view_named("condition_flags")
+                .unwrap()
+                .units
         );
         assert_eq!(encoded.footprint().register_writes, destination);
         assert!(encoded.footprint().register_reads.is_empty());
@@ -596,6 +600,10 @@ fn materialize_i64_variant_one_is_the_optimizer_selected_xor_zero_idiom() {
     );
     assert_eq!(
         declaration.alternatives[1].encoded.implicit_unit_clobbers,
-        physical.model().view_named("rflags").unwrap().units
+        physical
+            .model()
+            .view_named("condition_flags")
+            .unwrap()
+            .units
     );
 }

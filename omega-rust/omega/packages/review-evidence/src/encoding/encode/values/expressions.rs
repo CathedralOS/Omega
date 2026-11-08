@@ -1,3 +1,5 @@
+// Canonical encoding for contract expressions, static arguments, and operator meanings.
+
 use super::super::declarations::encode_type_identity;
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;

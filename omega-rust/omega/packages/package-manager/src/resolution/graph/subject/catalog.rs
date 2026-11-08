@@ -1,4 +1,7 @@
-//! Catalog execution sources are recorded beside, never inside, Product routing.
+// We project and validate catalog execution sources beside, never inside,
+// `Product` routing. Nested catalog provider closures are flattened into a
+// strictly ordered list and verified for consistent immutable custody across
+// catalog and `Product` packages.
 
 use super::validation::validate_package_navigation;
 use super::validation::validate_source_identity;

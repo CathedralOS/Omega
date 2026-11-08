@@ -1,8 +1,8 @@
-//! One invocation's portable code, shared by policy and Product consumers.
-//!
-//! Source completion fixes optimization choices before targets settle. The
-//! producing operation supplies code once; retaining it grants no application,
-//! provider or native authority and does not retain checked source.
+// One invocation's portable Terminal code, shared by policy and Product
+// consumers. `ProductTerminalPublication` fixes Psi optimization choices before
+// targets settle and memoizes the produced `PortableTerminalProgram` (or its
+// refusal) in a `OnceLock` without retrying or permitting a different Psi
+// optimization projection to replace it.
 
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
@@ -12,8 +12,6 @@ use std::sync::{Arc, OnceLock};
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
-    /// Another publication of the same checked program and roots in this
-    /// invocation reads the code this one produced instead of lowering again.
     productions: Arc<psi_compiler::PortableProductions>,
 }
 
@@ -39,7 +37,6 @@ impl ProductTerminalPublication {
         }
     }
 
-    /// The invocation's shared productions, keyed by their exact inputs.
     pub fn productions(&self) -> &psi_compiler::PortableProductions {
         &self.productions
     }
@@ -48,14 +45,10 @@ impl ProductTerminalPublication {
         &self.optimizations
     }
 
-    /// Borrow already published code for descriptive consumers. This cannot
-    /// start production, retry a refusal, or grant target execution authority.
     pub fn published(&self) -> Option<&PortableTerminalProgram> {
         self.program.get()?.as_ref().ok().map(Arc::as_ref)
     }
 
-    /// Read the shared program after publication. Target compilation cannot
-    /// invoke a source producer or retry a saved failure through this method.
     pub fn require_published(
         &self,
         optimizations: &OptimizationSelections,
@@ -73,9 +66,6 @@ impl ProductTerminalPublication {
         })?
     }
 
-    /// Retain one exact Psi projection. Post-Terminal choices do not change
-    /// portable code; a different Psi projection must belong to another source
-    /// product, never silently replace this publication or borrow stale code.
     pub fn retain(
         &self,
         optimizations: &OptimizationSelections,

@@ -1,6 +1,8 @@
-//! Resolve source requests issued by actual Build returns. Application code
-//! executes each acquired source; this owner never invokes a compiler. The
-//! resulting graph is source custody, not package review or execution authority.
+// We resolve source requests issued by actual `Build` returns. Application code
+// executes each acquired source while this owner tracks source custody without
+// invoking a compiler. A new source needs one executed declaration, whereas a
+// repeated acquisition keeps the first immutable capture and advances the graph
+// while still validating this occurrence's role, alias, and dependency edge.
 
 use super::{AcquiredBuildSource, PackageSourceCustody};
 use crate::resolution::graph::reconcile::{
@@ -45,8 +47,6 @@ impl DeclaredBuildSource {
         .with_captured_source(std::sync::Arc::clone(tree))
     }
 
-    /// Start bounded reconciliation from the executed root ledger. A request
-    /// remains outstanding until its selected source has also returned Build.
     pub fn resolve(self) -> Result<ExecutedSourceResolution, String> {
         let step =
             begin_source_closure::<String>(self.root_request, self.custody, Default::default())
@@ -75,9 +75,6 @@ pub struct PendingBuildSource {
     pub(super) request: PendingSourceResolution,
 }
 
-/// A new source needs one executed declaration. A repeated acquisition keeps
-/// the first immutable capture and advances the same graph without replaying
-/// Build. Reuse still checks this occurrence's role, alias and dependency edge.
 pub enum BuildSourceAcquisition {
     Execute(AcquiredBuildDependency),
     Reused(ExecutedSourceResolution),
@@ -88,8 +85,6 @@ pub enum BuildSourceAcquisition {
 }
 
 impl PendingBuildSource {
-    /// Join an acquired immutable source to this graph occurrence. Source
-    /// transport and workspace observation do not own the graph continuation.
     pub fn select(self, acquired: AcquiredBuildSource) -> Result<BuildSourceAcquisition, String> {
         if let Some(custody) = self
             .request
@@ -141,8 +136,6 @@ impl AcquiredBuildDependency {
         self.acquired.source_capture()
     }
 
-    /// Supply the executed declaration for this exact acquisition. The compiler
-    /// separately authenticates each retained activation when completing it.
     pub fn complete(
         self,
         returned: &build_settings::ReturnedBuild,
@@ -154,9 +147,6 @@ impl AcquiredBuildDependency {
         self.complete_declared(&declared)
     }
 
-    /// Reuse an already executed declaration, including after its activation
-    /// has settled for helper production. It must describe this exact capture;
-    /// reusing the result does not skip graph role, alias or cycle validation.
     pub fn complete_declared(
         self,
         declared: &DeclaredBuildSource,
@@ -204,9 +194,6 @@ impl ResolvedBuildSources {
         self.closure.graph().root().identity()
     }
 
-    /// Join this package's authenticated request ledger with the acquisitions
-    /// completed by this resolution. A lookalike alias graph cannot substitute
-    /// different Path/Git requests from another execution.
     pub fn join_build(
         &self,
         root: PackageKeyIdentity,
@@ -252,8 +239,6 @@ impl ResolvedBuildSources {
         Ok(inputs)
     }
 
-    /// Build a package's source view without reopening any acquired namespace.
-    /// Review grants and generated output remain separate joins.
     pub fn compilation_inputs(
         &self,
         root: PackageKeyIdentity,

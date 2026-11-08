@@ -1,4 +1,6 @@
-//! Actual host-owned entry backing, not values invented from a parameter list.
+// Establish host-owned entry backing (`EstablishedEntry`) from explicit
+// installed private-RAM recipes (`CheckedPrivateEntryRamRecipe`). No ordinary
+// reference receives zeroed backing inferred solely from its parameter signature.
 
 use native_artifact::TerminalRuntimeProvisions;
 use terminal_interpreter::{
@@ -61,8 +63,6 @@ pub(super) fn establish(
         private_entry_ram: recipes.to_vec(),
         establishments: Vec::new(),
     };
-    // Every retained argument has an explicit installed private-RAM recipe.
-    // No ordinary reference receives zeroed backing from its signature.
     for (ordinal, parameter) in entry.structural_parameters.iter().enumerate() {
         let index = recipes
             .iter()

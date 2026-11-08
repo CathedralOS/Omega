@@ -102,7 +102,7 @@ pub(super) fn published_call(
     // receiver ABI, including erased receivers. source::requires_graph_storage_replay
     // makes that retained evidence mandatory; omitting this duplicate projection
     // does not omit the call, its original home, or its physical realization.
-    if contract.owner.operation().is_none() {
+    if !matches!(contract.owner, CallSiteOwner::Operation(_)) {
         return false;
     }
     // Fresh aggregate results use complete selected call/storage replay. The
@@ -726,7 +726,9 @@ fn call_site_owner_semantic_site(owner: &CallSiteOwner) -> Option<SemanticCodeSi
     match owner {
         CallSiteOwner::Operation(operation) => Some(SemanticCodeSite::Operation(*operation)),
         CallSiteOwner::InvokeNoNormal(edge) => Some(SemanticCodeSite::Edge(*edge)),
-        CallSiteOwner::ExternalCompletion(_) => None,
+        // Installation helper replay must retain the role before it can map
+        // this owner to an emitted source call.
+        CallSiteOwner::ExternalCompletion(_) | CallSiteOwner::Installation { .. } => None,
         CallSiteOwner::CleanupAction { edge, .. } => Some(SemanticCodeSite::Edge(*edge)),
     }
 }

@@ -1,4 +1,13 @@
-//! Select and publish one declared member from an authenticated Git workspace.
+// Selection and snapshot publication for one declared member from an
+// authenticated Git workspace (`resolve_git_workspace_member_from_pin_in_lanes`,
+// `materialize_member`).
+//
+// Both the bare-repository `git_lane` and the `member_lane` prove their path
+// identities around the resolution. Because identical Git member subtrees can
+// belong to distinct package lineages that require disjoint physical source
+// roots, `materialize_member` scopes the member publication beneath a
+// repository-specific child directory (`member_lane.retain_child(repository_namespace)`)
+// rather than sharing a content-only member namespace.
 
 #[cfg(test)]
 use crate::SourceResolver;
@@ -27,10 +36,6 @@ pub(super) mod declarations;
 mod recorded;
 pub use recorded::resolve_git_workspace_member_at_revision_in_lanes;
 
-/// Resolve one declared workspace member through a caller-supplied resolver.
-///
-/// Test fixture entry: production callers pass both retained lanes to
-/// [`resolve_git_workspace_member_from_pin_in_lanes`].
 #[cfg(test)]
 pub(crate) fn resolve_git_workspace_member<Planner>(
     request: &GitSourceRequest,
@@ -88,8 +93,6 @@ where
     )
 }
 
-/// One member selection inside the retained lanes the resolution is issued in:
-/// the cache lane and the member lane both prove their path identity around it.
 #[allow(clippy::too_many_arguments)]
 fn resolve_git_workspace_member_at_selection<Planner>(
     primary_git: &PrimaryGitSelection,
@@ -216,9 +219,6 @@ pub(super) fn materialize_member<Evidence, PlannerError>(
         selected_member_path,
         materialized_tree.clone(),
     );
-    // Equal Git trees can belong to distinct package lineages. The compiler
-    // requires disjoint physical source roots for those distinct identities;
-    // content-only member storage would merge their routing custody.
     let repository_namespace = repository
         .entry_name
         .to_str()

@@ -236,19 +236,48 @@ pub(super) fn state_result_origins<'program>(
             |values| values.to_vec(),
         );
     inference.active_states.push(state.symbol);
-    let mut result = state_equations::solve(
-        program,
-        state,
-        expected_result,
-        symbols,
-        inference,
-        include_shared,
-    );
+    // A completing call can reenter through another declaration with changed
+    // actuals. Keep the relation in formal coordinates until every edge settles.
+    let mut result = inference.without_values(|inference| {
+        state_equations::solve(
+            program,
+            state,
+            expected_result,
+            symbols,
+            inference,
+            include_shared,
+        )
+    });
     inference.active_states.pop();
     // Solve all normal-result equations before captured inputs select physical
     // sources. Provisional unions and state-only memo entries stay unspecialized.
     if let Some(origins) = &mut result {
         selected_sources::retain_reachable_sources(program, state, &values, origins);
+        let mut entry_symbols = program
+            .state_parameters(state)
+            .iter()
+            .map(|parameter| {
+                (
+                    parameter.symbol.arena_index(),
+                    parameter.symbol.generation(),
+                )
+            })
+            .collect::<Vec<_>>();
+        entry_symbols.sort_unstable();
+        for leaf in &mut origins.references {
+            if let Some(ReferenceSource::Symbolic(origin)) = &mut leaf.origin
+                && entry_symbols
+                    .binary_search(&(
+                        origin.source.root.arena_index(),
+                        origin.source.root.generation(),
+                    ))
+                    .is_ok()
+            {
+                // Crossing a namespace already erased unresolved selectors;
+                // only surviving entry coordinates can use these actuals.
+                inference.specialize_source(program, &mut origin.source);
+            }
+        }
     }
     result
 }

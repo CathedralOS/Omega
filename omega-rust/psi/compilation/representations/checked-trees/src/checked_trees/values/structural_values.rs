@@ -805,25 +805,6 @@ impl CheckedStructuralValuePlans {
         self.unique_state_root(node.state, |root| root.root == value)
     }
 
-    /// The exact completed producer and the expression home it establishes.
-    /// A saved alias has its own enclosing capture association; it cannot
-    /// relabel a different value as this expression's producer.
-    pub fn root_for_value_home(
-        &self,
-        value: CheckedStructuralValueHandle,
-        expression: ExpressionHandle,
-    ) -> Option<&CheckedStructuralValueRoot> {
-        let root = self.root_for_value(value)?;
-        let node = self.nodes.get(value);
-        (root.expression == expression
-            && node.expression == expression
-            && root.machine == node.machine
-            && root.state == node.state
-            && root.statement_ordinal == node.statement_index
-            && root.type_reference == node.type_reference)
-            .then_some(root)
-    }
-
     pub fn root_at(
         &self,
         state: SymbolHandle,
@@ -859,7 +840,6 @@ mod index_tests {
         let capture = expressions.insert_match_subject(source);
         let head = expressions.insert(ExpressionNode::Boolean(true));
         let alias = expressions.insert(ExpressionNode::SavedSubject(TableSavedSubject {
-            component: Default::default(),
             capture,
             pattern_head: head,
         }));

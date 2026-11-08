@@ -30,7 +30,7 @@ use selected_instructions::{
     LiveRangeIdentity, MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 
 /// Fold each nominated materialized literal into the enabled consumer that is
 /// the literal's sole use later in its block: nomination scans every
@@ -606,7 +606,7 @@ pub struct LiteralFoldPlan {
     /// replay.
     pub machine_effect_catalog: MachineEffectCatalogIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub policy: LiteralFoldPolicy,
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
@@ -644,9 +644,9 @@ impl LiteralFoldPlan {
         let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes(cursor.array()?);
         let optimization_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
-        let raw_fuel = cursor.u32()?;
-        let fuel_schedule = FuelScheduleIdentity::new(raw_fuel)
-            .ok_or(LiteralFoldDecodeError::InvalidFuelSchedule(raw_fuel))?;
+        let raw_work = cursor.u32()?;
+        let work_schedule = WorkScheduleIdentity::new(raw_work)
+            .ok_or(LiteralFoldDecodeError::InvalidWorkSchedule(raw_work))?;
         let policy_bits = cursor.u32()?;
         let policy = LiteralFoldPolicy::from_canonical_bits(policy_bits)
             .ok_or(LiteralFoldDecodeError::UnknownPolicy(policy_bits))?;
@@ -696,7 +696,7 @@ impl LiteralFoldPlan {
             allocator_availability,
             machine_effect_catalog,
             optimization_unit,
-            fuel_schedule,
+            work_schedule,
             policy,
             budget,
             usage,
@@ -754,7 +754,7 @@ pub struct LiteralFoldValidationReceipt {
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) machine_effect_catalog: MachineEffectCatalogIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
-    pub(crate) fuel_schedule: FuelScheduleIdentity,
+    pub(crate) work_schedule: WorkScheduleIdentity,
     pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
     pub(crate) policy: LiteralFoldPolicy,
     pub(crate) usage: OptimizationWorkUsage,
@@ -841,7 +841,7 @@ pub enum LiteralFoldDecodeError {
     UnknownPolicy(u32),
     UnknownOption(u8),
     UnknownConstraintFamily(u8),
-    InvalidFuelSchedule(u32),
+    InvalidWorkSchedule(u32),
     InvalidMachineId(u64),
     InvalidBudget,
     InvalidUsage,

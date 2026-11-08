@@ -1,3 +1,19 @@
+/*
+We derive the canonical source-consumption commitment (`PackageSourceConsumptionCommitment`) and subject (`PackageCompilationSubject`) for a package-aware compilation.
+
+Every package-aware frontend run retains the reconciled package graph and the exact authored, generated, and toolchain source bytes it consumed. We project those retained `SourceFile` records and generated-source custody rows into sorted, deduplicated `ConsumedSourceUnit` records (`derive_consumed_source_units`) and hash them alongside the root package identity, root role, package roster, and dependency edges under `OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4` (`derive_source_consumption_commitment`).
+*/
+
+/*
+Why authored and generated source units deduplicate differently:
+Authored physical files share identical bytes across `Build` and `Product` checked scopes and collapse to a single `ConsumedSourceUnit` row. Generated source instances (`PackageGeneratedSource`) include their checked scope in their canonical coordinate because the same virtual path `.omega/generated/<path>` may legitimately carry different bytes in `Build` vs `Product` scopes; however, two generated units at the exact same coordinate with differing bytes still fail closed.
+*/
+
+/*
+Provenance:
+- Pre-build and final checked source custody (`BuildSourceCustody`, `CheckedSourceCustody`): `src/source/source_consumption/checked_sources.rs`.
+*/
+
 use diagnostics::Diagnostic;
 use source::{SourceFile, SourceOrigin};
 
@@ -9,21 +25,11 @@ const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4\0
 use source::source_identity::append_canonical_consumed_unit;
 pub use source::source_identity::{ConsumedSourceUnit, ConsumedSourceUnitKind};
 
-/// Compiler-owned commitment to the reconciled package graph and exact
-/// authored/toolchain source bytes retained by one package-aware frontend run.
-///
-/// This binds review output to what the compiler consumed. It is not an
-/// accepted package instance, a whole-compiler identity, or protection against
-/// a hostile process that can race every filesystem observation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageSourceConsumptionCommitment {
     digest: [u8; 32],
 }
 
-/// Canonical package and source subject consumed by one final checked
-/// package-aware compilation. This is the only retained package-source
-/// authority: compatibility accessors must project from it rather than retain
-/// parallel copies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationSubject {
     root: semantic_vocabulary::PackageKeyIdentity,
@@ -61,8 +67,6 @@ impl PackageSourceConsumptionCommitment {
         Self { digest }
     }
 
-    /// Rebuild a commitment from its retained digest. The digest was bound
-    /// when the rows were derived; recovery replays the same value.
     #[doc(hidden)]
     pub const fn from_retained_digest(digest: [u8; 32]) -> Self {
         Self { digest }
@@ -129,11 +133,6 @@ fn canonical_root_role(role: crate::BuildDeclarationKind) -> u8 {
     }
 }
 
-/// Derive the canonical projection of the frontend's exact retained sources.
-/// Generated-source custody is joined by private `SourceId` only while this
-/// projection is constructed; IDs never enter the retained rows.
-/// This establishes source identity, not semantic validity. Both pre-build
-/// admission and final checked publication use the same projection.
 #[doc(hidden)]
 pub(crate) fn derive_consumed_source_units<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
@@ -171,10 +170,6 @@ pub(crate) fn derive_consumed_source_units<'source>(
         )]);
     }
     units.sort();
-    // Authored instances share their physical bytes across checked scopes and
-    // retain one source row. Generated instances include their checked scope
-    // in the coordinate: equal virtual paths may carry different bytes across
-    // scopes, but conflicting bytes within one coordinate still reject.
     units.dedup();
     if units
         .windows(2)
@@ -187,10 +182,6 @@ pub(crate) fn derive_consumed_source_units<'source>(
     Ok(units)
 }
 
-/// Producers append custody in source-ID order. Borrow that order directly;
-/// arbitrary callers need only a compact permutation, never a source-ID-sized
-/// table. SourceMap::from_files can retain arbitrary source order, so consumers
-/// search this view rather than assume that source iteration is monotonic.
 struct GeneratedSourceOrder<'source> {
     sources: &'source [(source::SourceId, build_output::PackageGeneratedSource)],
     positions: Option<Vec<usize>>,
@@ -203,8 +194,6 @@ impl<'source> GeneratedSourceOrder<'source> {
             .any(|pair| pair[0].0.0 > pair[1].0.0)
             .then(|| {
                 let mut positions = (0..sources.len()).collect::<Vec<_>>();
-                // Preserve the first input occurrence for verification callers;
-                // projection separately rejects every duplicate source ID.
                 positions.sort_unstable_by_key(|position| (sources[*position].0.0, *position));
                 positions
             });
@@ -270,8 +259,6 @@ fn validate_generated_source_join(
     Ok(())
 }
 
-/// Bind retained source identity to the reconciled package/dependency closure.
-/// Semantic checking and authority admission remain the caller's obligations.
 #[doc(hidden)]
 pub fn derive_package_compilation_subject<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
@@ -304,7 +291,6 @@ fn same_source_coordinate(left: &ConsumedSourceUnit, right: &ConsumedSourceUnit)
         && left.relative_path() == right.relative_path()
 }
 
-/// Exact retained toolchain identities, shared with early Psi production.
 pub fn toolchain_source_identities<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
 ) -> Result<Vec<(source::SourceId, [u8; 32])>, Vec<Diagnostic>> {

@@ -1,6 +1,9 @@
-//! One origin-bound publication address from the content pin callers retain.
-//! Historical raw-tree keys remain readable through verified legacy recovery;
-//! new publication and observation never reinterpret those old addresses.
+// Origin-bound publication address (`source-v2-<digest>`) and legacy address
+// helpers (`source-<digest>`) for local snapshots.
+//
+// New publications hash `LOCAL_SNAPSHOT_CUSTODY_POLICY`, the canonical origin's
+// raw OS bytes, and the 32-byte `SourceContentDigest`. Legacy raw-tree keys
+// remain readable only through verified historical recovery.
 
 use crate::identity::SourceContentDigest;
 use crate::identity::digest::format_sha256;

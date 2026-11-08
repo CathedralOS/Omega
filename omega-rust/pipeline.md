@@ -75,10 +75,15 @@ Source checking, decoding and installation checks remain required at their
 owning boundaries. A new or changed foreign package is verified during review,
 and an untrusted build script is confined and checked while it executes.
 [Psi consumption](../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-checks structural, contract and authority relationships; it relies on Psi for
-the logical obligations discharged during source checking. The portable product
-contains semantics and provenance, not an independently replayable proof of
-source correctness or faithful native translation.
+reuses judgments from a trusted producer's exact artifact under host authorization.
+This includes separately built accepted artifacts; it is not limited to the same
+process. Receipt requires neither source-theorem rediscovery nor replay of carried
+proof bytes. Canonical decoding grants no execution or provider authority.
+
+Native optimization/lowering requires trusted input. Interpretation enforces
+actual operation safety even for trusted inputs. General untrusted artifact
+execution remains gated on a containment audit of the interpreter, host bindings
+and teardown; inspection remains available under bounded structural decoding.
 
 The corpus and tests exercise independent validators where those validators
 exist. The default compile path does not run these stage-output validators on
@@ -93,8 +98,25 @@ optimization infallible.
 | Source to checked trees | Parsing, typing, ownership and [source contract automation](psi/compilation/validation/README.md#source-proof-automation), including admitted mathematical proofs; positive and rejection tests exercise these judgments. | The source checker, proof kernel and explicitly admitted premises. Contract automation remains trusted wherever it accepts an obligation without kernel-checked evidence. Not every source obligation passes through the proof kernel. |
 | Checked trees to Terminal Psi | Lowering and selected Psi transformations; focused tests and independent validators exercise their contracts. | Preservation of the checked source's meaning and obligations through these transformations. |
 | Terminal Psi to native execution | Target realization and publication checks; `omega run --both` compares native execution with the Terminal interpreter. | Backend correctness beyond the executions and observations compared, plus the interpreter and shared semantics. |
-| Received artifacts and installed providers | Canonical decoding and consumer-owned structural, contract, authority and installation checks. | Psi's discharged source judgments and the accepted provenance and external contracts. |
+| Received artifacts and installed providers | Bounded canonical/structural decoding; explicit host authorization of the exact artifact and producer; preparation and installation checks; concrete interpreter operation and host-access checks. | Authorized producer judgments, admitted assumptions, faithful lowering, the interpreter and installed adapters. Future untrusted interpretation requires audited containment and does not certify source claims. |
 | Foreign packages and build execution | Package review, exact acceptance and confined build services. | Accepted external claims and the enforcing review/execution machinery. |
+
+Three kinds of information have different roles:
+
+- Local proof objects let the kernel check source proving and supported local
+  evaluation. Existing carried certificate encodings are decoded canonically;
+  their presence grants no admission authority and triggers no required replay.
+- Retained contracts, definitions, subject identities and custody relationships
+  describe the program and bind reusable judgments to their exact questions.
+- Host authorization permits reuse of a trusted producer's judgments. An artifact
+  cannot authorize itself with a flag, digest or producer name. Interpreter checks
+  of actual operations and host permissions remain independent of those claims.
+
+The [admission and preparation plan](../wiki/drafts/designs/psi_claim_admission.md)
+records the execution-API gate, codec split, shared limits, static operation plans,
+performance measurements and containment work. Optional stage validators exercise independent checks
+on compiler output; they neither replace required external admission nor certify
+the full source-to-executable correspondence.
 
 `--both` executes the same produced Terminal artifact through the interpreter
 and native route. Agreement is evidence for the exercised inputs, paths and
@@ -450,7 +472,7 @@ policy-code catalog through ordinary Psi production per checked source;
 target children borrow the same artifact as the final Product. Signature
 preparation closes the complete native telescope and callback geometry before
 the policy's single activation. That activation executes the shared catalog in
-Terminal with finite fuel and metered storage/results, not the checked-source
+Terminal with finite work and metered storage/results, not the checked-source
 interpreter. There is no preliminary incomplete-signature evaluation or later
 plan replacement.
 
@@ -1013,7 +1035,7 @@ library APIs; they do not introduce another compiler driver.
 | --- | --- |
 | Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
 | Source-program judgments | Psi `compilation/validation/`; source proof planning/search in `compilation/proof/`, independent mathematical checking in `compilation/proof/admission/` |
-| Terminal encoding, semantic reconstruction and fuel | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
+| Terminal encoding, semantic reconstruction and work | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | Each half's `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
 | Shared target-neutral source/arena/numeric primitives and optimization selections | Psi `foundation/` |
@@ -1127,7 +1149,7 @@ separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
 owns source provider derivation, declaration preparation, and calling/component
-planning. [`provider-selection/src/choice/provider_selection.rs`](omega/compilation/realization/provider-selection/src/choice/provider_selection.rs)
+planning. [`provider-selection/src/choice.rs`](omega/compilation/realization/provider-selection/src/choice.rs)
 owns shared whole-provider choice and admission; its `publication.rs` selects
 canonical companions against Terminal demand without source dependencies.
 Psi projects checked task activation requirements, exact specialization and
@@ -1337,7 +1359,7 @@ backend layout derives target shape from the admitted carrier. Its independent
 `psi/compilation/proof/` constructs and solves source proof obligations; its
 independent `admission/` package owns the mathematical kernel and
 supplied-certificate checking. Terminal-specific codec, semantic reconstruction
-and fuel schedule packages live beside Terminal Psi under
+and work schedule packages live beside Terminal Psi under
 `psi/compilation/representations/terminal-psi/`. Each keeps its own manifest and
 dependency direction. Nesting gives these companions a subject; it adds no
 program stage. A general `psi/semantics/` bucket obscures these distinct
@@ -1548,7 +1570,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 - Psi `compilation/proof/` — source obligation construction and proof search; independent
   `compilation/proof/admission/` owns the shared mathematical checker.
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
-  `codec/`, `semantics/` and `fuel/`.
+  `codec/`, `semantics/` and `work/`.
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/psi-compiler/terminal-production/` — sequences Psi 06–08 through
   publication. Omega consumers supply product policy and reporting directly;

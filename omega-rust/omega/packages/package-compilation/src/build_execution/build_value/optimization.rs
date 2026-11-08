@@ -1,8 +1,10 @@
-//! Optimizer module role: executable entrance. Build-authored optimization selection.
-//!
-//! Admission binds the exact toolchain vocabulary before evaluation. The same
-//! value then constructs the zeroed interpreter input and extracts the exact
-//! selection afterward, so legacy empty-selection behavior cannot diverge.
+// Build-authored optimization vocabulary admission and selection extraction.
+//
+// `BuildOptimizationAdmission` classifies the `Build` declaration before evaluation
+// (`Canonical` vs `LegacyWithoutField`), constructs the zeroed `optimizations`
+// field for the interpreter input, and extracts the evaluated `OptimizationSelections`
+// and `OptimizationReportRequest` afterward so legacy empty-selection behavior
+// cannot diverge from canonical decoding.
 
 mod selection;
 mod vocabulary;

@@ -1,9 +1,15 @@
-//! Matching Linux kernel operations over an instance-private descriptor table.
-//! The receiving runtime separately admits target, exact ABI and delegation.
-//! The libc syscall trampoline only enters the selected kernel operation: its
-//! immediate thread-local errno is restored to Linux's negative-status convention.
-//! No Rust I/O error, retry, private worker descriptor or modeled stream supplies
-//! a kernel result. Owned descriptors close when this namespace retires.
+/*
+We execute Linux kernel filesystem operations over an instance-private guest
+descriptor table (`LinuxFilesystem`).
+
+The receiving runtime separately admits target, exact ABI, and delegation. Our
+`libc::syscall` trampoline enters the selected kernel operation and translates
+its immediate thread-local `errno` back into Linux's negative-status convention.
+No Rust I/O error, retry loop, private worker descriptor, or modeled standard
+stream (`0..=2`) supplies a kernel result. When `close` fails after retiring the
+OS descriptor, we record a `None` tombstone so neither retries nor `OwnedFd`
+destructors can close a subsequently reused OS descriptor number.
+*/
 
 use std::{ffi::CStr, io};
 
@@ -29,8 +35,6 @@ impl LinuxFilesystem {
             } else {
                 self.descriptor(directory)?
             };
-            // The CStr owns the complete initialized terminator window. The
-            // synchronous syscall neither retains it nor writes its storage.
             let status = kernel_status(unsafe {
                 libc::syscall(libc::SYS_openat, directory, path.as_ptr(), flags, mode)
             })?;
@@ -39,7 +43,6 @@ impl LinuxFilesystem {
             }
             let native = i32::try_from(status)
                 .map_err(|_| io::Error::other("kernel descriptor exceeds its native carrier"))?;
-            // A successful openat creates exactly this owned descriptor.
             let native = unsafe { std::os::fd::OwnedFd::from_raw_fd(native) };
             let guest = (3..=i32::MAX)
                 .find(|guest| !self.descriptors.contains_key(guest))
@@ -56,9 +59,6 @@ impl LinuxFilesystem {
         }
     }
 
-    /// Reposition one guest descriptor. The offset is the kernel `off_t`, not
-    /// a narrowed `i32`, and a failure stays the negated errno the POSIX
-    /// trait already returns. Standard streams are not guest resources.
     pub fn lseek(&self, descriptor: i32, offset: i64, whence: i32) -> io::Result<i64> {
         #[cfg(target_os = "linux")]
         {
@@ -72,9 +72,6 @@ impl LinuxFilesystem {
         }
     }
 
-    /// Remove one directory entry. `AT_FDCWD` stays the host's current
-    /// directory; every other directory is a guest descriptor. The path is
-    /// the caller's already-terminated buffer.
     pub fn unlinkat(&mut self, directory: i32, path: &CStr, flags: i32) -> io::Result<i64> {
         #[cfg(target_os = "linux")]
         {
@@ -102,7 +99,6 @@ impl LinuxFilesystem {
             } else {
                 self.descriptor(directory)?
             };
-            // The owned C string supplies every byte the synchronous call reads.
             kernel_status(unsafe {
                 libc::syscall(libc::SYS_mkdirat, directory, path.as_ptr(), mode)
             })
@@ -128,8 +124,6 @@ impl LinuxFilesystem {
             } else {
                 self.descriptor(directory)?
             };
-            // Both supported Linux kernel stat layouts fit this exact borrowed
-            // window. No host pointer or adjacent guest storage is exposed.
             kernel_status(unsafe {
                 libc::syscall(
                     libc::SYS_newfstatat,
@@ -151,7 +145,6 @@ impl LinuxFilesystem {
         #[cfg(target_os = "linux")]
         {
             let descriptor = self.descriptor(descriptor)?;
-            // The array owns the complete fixed kernel output window.
             kernel_status(unsafe { libc::syscall(libc::SYS_fstat, descriptor, bytes.as_mut_ptr()) })
         }
         #[cfg(not(target_os = "linux"))]
@@ -165,8 +158,6 @@ impl LinuxFilesystem {
         #[cfg(target_os = "linux")]
         {
             let descriptor = self.descriptor(descriptor)?;
-            // The kernel receives only the admitted live view, with its exact
-            // byte count. Preserve partial transfers, EOF and negative errno.
             kernel_status(unsafe {
                 libc::syscall(
                     libc::SYS_getdents64,
@@ -183,9 +174,6 @@ impl LinuxFilesystem {
         }
     }
 
-    /// Read into the caller's already-bounded window. A short count, EOF, or
-    /// negated errno is the kernel status; this table does not retry or fill
-    /// past that window. Standard streams are not guest resources.
     pub fn read(&self, descriptor: i32, bytes: &mut [u8]) -> io::Result<i64> {
         #[cfg(target_os = "linux")]
         {
@@ -205,8 +193,6 @@ impl LinuxFilesystem {
         #[cfg(target_os = "linux")]
         {
             let descriptor = self.descriptor(descriptor)?;
-            // Only this initialized, authenticated input window is observable.
-            // Preserve partial writes and EINTR; retries belong to guest code.
             kernel_status(unsafe {
                 libc::syscall(libc::SYS_write, descriptor, bytes.as_ptr(), bytes.len())
             })
@@ -222,17 +208,12 @@ impl LinuxFilesystem {
         #[cfg(target_os = "linux")]
         {
             use std::os::fd::IntoRawFd;
-            // Check before removal; private standard descriptors are never guest
-            // resources. Failed-close tombstones cannot revive reused OS numbers.
             self.descriptor(descriptor)?;
             let native = match self.descriptors.remove(&descriptor) {
                 Some(Some(native)) => native.into_raw_fd(),
                 None => -1,
                 Some(None) => unreachable!("descriptor rejected its tombstone"),
             };
-            // Consume ownership before close, including its error path. Linux
-            // retires the descriptor before reporting late errors: no retry or
-            // OwnedFd destructor may close its subsequently reused OS number.
             let status = kernel_status(unsafe { libc::syscall(libc::SYS_close, native) });
             if !matches!(&status, Ok(0)) {
                 self.descriptors.insert(descriptor, None);
@@ -259,8 +240,6 @@ impl LinuxFilesystem {
             Some(None) => Err(io::Error::other(
                 "filesystem descriptor is uncertain after close",
             )),
-            // Ask the actual kernel about a known invalid descriptor. Never
-            // interpret an arbitrary guest integer in the host's descriptor table.
             None => Ok(-1),
         }
     }

@@ -1,15 +1,23 @@
-//! Source-selected import and syscall demand to exact mechanism custody.
-//! Classification and optional receiver admission belong to closure review.
+// Source-selected import and syscall demand to exact terminal mechanism
+// custody, and toolchain-settled host cohort row minting.
+//
+// `prepare_source_evaluated_bindings` already settled one execution per
+// demanded import and syscall from these selected plans, and provider
+// settlement extracted the external rows from the same plans, so
+// `derive_source_evaluated_mechanisms` does not rejoin settlement coverage or
+// re-compare targets, locators, and syscall numbers. Each leaf must still
+// resolve to one selected row, one Terminal boundary, and (for an import or
+// table binding) one external implementation contract to derive its
+// `TerminalMechanismIdentity` and optional toolchain-settled host cohort row.
 
 use std::collections::BTreeMap;
 
 use crate::NativeCallbackArgumentProposal;
 use crate::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
-
-use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
 
 struct ImportCoverageRows<'input> {
     boundary: BoundaryMachineId,
@@ -21,15 +29,6 @@ struct ImportCoverageRows<'input> {
     callbacks: Vec<&'input NativeCallbackArgumentProposal>,
 }
 
-/// Derive the terminal mechanism of every demanded source-evaluated import and
-/// syscall, plus the toolchain-settled cohort rows those leaves mint.
-/// `prepare_source_evaluated_bindings` already settled one execution per
-/// demanded import and syscall from these selected plans, and provider
-/// settlement extracted the external rows from the same plans, so this
-/// derivation does not rejoin settlement coverage or re-compare targets,
-/// locators and syscall numbers (pipeline.md, "Verification placement").
-/// Each leaf must still resolve to one selected row, one Terminal boundary
-/// and, for an import, one external implementation contract to derive from.
 pub(super) fn derive_source_evaluated_mechanisms(
     input: &crate::AdmissionSource<'_>,
     selected_plans: &effects::SelectedProviderPlanFacts,
@@ -50,9 +49,6 @@ pub(super) fn derive_source_evaluated_mechanisms(
         native_callbacks,
     )?;
     let mut admitted_mechanisms = Vec::new();
-    // Toolchain-settled host cohort rows emitted for demanded leaves: they
-    // classify beside the supplied receiving policy rather than requiring
-    // the receiver to spell them.
     let mut cohort_rows: Vec<TerminalAuthorityPolicyRow> = Vec::new();
     for rows in demanded.into_values() {
         let requirement = rows.requirement;
@@ -96,10 +92,9 @@ pub(super) fn derive_source_evaluated_mechanisms(
                         )]);
                     }
                 };
-                let entry =
-                    super::exact_plan::external_calling_application(external, provider_plan, &abi)?
-                        .plan
-                        .plan();
+                let entry = super::external_calling_application(external, provider_plan, &abi)?
+                    .plan
+                    .plan();
                 let signature = calling_conventions::CallSignature::of_placements(
                     &entry.call.parameters,
                     entry.call.result.as_ref(),
@@ -144,7 +139,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                     ))]);
                 };
                 let boundary_entry_plan =
-                    super::exact_plan::external_calling_application(external, provider_plan, &abi)?
+                    super::external_calling_application(external, provider_plan, &abi)?
                         .plan
                         .plan();
                 match rows.callbacks.as_slice() {
@@ -192,14 +187,6 @@ pub(super) fn derive_source_evaluated_mechanisms(
     Ok((admitted_mechanisms, cohort_rows))
 }
 
-/// A toolchain-settled host cohort supplies one exact mechanism row for a
-/// demanded leaf, so classification does not require the receiving policy to
-/// spell it. The policy module owns which cohort owns a requirement and what
-/// row it mints; this site only binds the exact mechanism this leaf computed.
-/// Ordinary-release cohorts mint nothing here — an unconstrained generic key
-/// cannot inherit the occurrence-specific release proof — and unrecognized
-/// names mint nothing, so both still demand a receiving row or a
-/// release-contract bound key.
 fn settled_host_cohort_row(
     provider_plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -218,9 +205,6 @@ fn settled_host_cohort_row(
     )
 }
 
-/// Keep each reached boundary occurrence beside its exact declaration. Counts
-/// retain competing selected providers and external contracts without allowing
-/// another same-named declaration to replace the call's ABI application.
 fn join_import_coverage_rows<'input>(
     plan: &'input abstract_operations::AbstractOperationPlan,
     selected_plans: &'input effects::SelectedProviderPlanFacts,
@@ -244,7 +228,6 @@ fn join_import_coverage_rows<'input>(
         }
     }
     let mut demanded = BTreeMap::new();
-    // Only callbacks requested by this invocation need an occurrence join.
     let mut callback_boundaries = native_callbacks
         .iter()
         .map(|callback| (callback.terminal_operation, None))
@@ -301,8 +284,6 @@ fn join_import_coverage_rows<'input>(
     let mut has_external_demand = false;
     for provider_plan in selected_plans.plans() {
         for row in &provider_plan.rows {
-            // Calls retain their original contract identity. The selected
-            // closure relates each family or specialization to this exact row.
             for rows in demanded.values_mut() {
                 let requirement = rows.requirement;
                 if selected_plans.selected_row_matches_requirement(
@@ -326,8 +307,6 @@ fn join_import_coverage_rows<'input>(
         }
     }
     if has_external_demand {
-        // Each demand keeps the boundary from its executable occurrence.
-        // An unused family/interface declaration cannot replace that owner.
         for external in external_binding_rows {
             for rows in demanded.values_mut() {
                 let requirement = rows.requirement;
@@ -384,10 +363,6 @@ fn join_import_coverage_rows<'input>(
     Ok(demanded)
 }
 
-/// The expected application comes from the independently selected/admitted
-/// provider schema. The caller has already joined this exact Terminal operation
-/// to its BoundaryCall and selected row; no producer-supplied expected digest
-/// participates in that join.
 fn authenticate_callback_application(
     requirement: &str,
     rows: &ImportCoverageRows<'_>,

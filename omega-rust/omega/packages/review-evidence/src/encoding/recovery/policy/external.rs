@@ -1,3 +1,6 @@
+// Bounded recovery for external executable supply policies, callable signatures, and foreign locators.
+// External-binding tag `0` carried the retired string-backed import row; recovery rejects it as `RetiredVocabulary` rather than reinterpreting two authored strings as a physical locator.
+
 use super::{
     Error, PackagePolicyRecoveryLimits,
     callable_policy::callable_conformance,
@@ -73,9 +76,6 @@ pub(in crate::encoding::recovery) fn binding(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyExternalBinding, Error> {
     Ok(super::tag!(reader => {
-        // Tag 0 carried the retired string-backed import row. A policy that
-        // still uses it is a stale artifact: reject it by name rather than
-        // reinterpreting two authored strings as a physical locator.
         0 => return Err(Error::RetiredVocabulary),
         1 => PackagePolicyExternalBinding::Syscall {
             number: reader.i64()?,

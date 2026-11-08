@@ -1,4 +1,5 @@
-//! Exact foreign locator vocabulary, shared by policy provider bindings.
+// Exact foreign locator vocabulary shared by policy provider bindings.
+
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::values::external_policy::Encoder;
 use crate::record::PackageReviewForeignLocator;

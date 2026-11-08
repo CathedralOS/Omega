@@ -202,7 +202,7 @@ fn narrow_literal_sides(
 
 /// Whether a projected side may join ordered relations: its declared type is
 /// a fixed-width integer, so a strict order is a gap of at least one.
-pub(super) fn has_fixed_integer_meaning(
+pub(in crate::proof_contracts::arithmetic_domains) fn has_fixed_integer_meaning(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {

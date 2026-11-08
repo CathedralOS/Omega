@@ -1,3 +1,5 @@
+// Symbolic boundary operator application demand projection for public checked machines.
+
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;

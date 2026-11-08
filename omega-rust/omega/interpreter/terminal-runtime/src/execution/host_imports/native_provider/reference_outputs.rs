@@ -1,7 +1,7 @@
-//! Correlate an actual worker pointer with a typed endpoint of this invocation.
-//! Equality only selects a candidate. Core still authenticates capture identity,
-//! every lifetime anchor, access and transactional descriptor restoration.
-//! Pointers outside this closed captured graph remain explicitly unsupported.
+// We correlate actual worker pointers with captured typed endpoints of the
+// current invocation. Pointer equality only selects a candidate while Core
+// authenticates capture identity, lifetime anchors, access permissions, and
+// transactional descriptor restoration.
 
 use super::values::ReferenceField;
 use super::{NativeContext, StorageCodec, rejection};
@@ -24,12 +24,14 @@ struct Capture {
     view: StructuralTypeId,
     loan: TerminalOriginalStorageLoan,
 }
+
 pub(super) struct CapturedInput<'a> {
     pub path: Vec<Path>,
     pub loan: &'a TerminalOriginalStorageLoan,
     pub codec: &'a StorageCodec,
     pub bytes: Vec<u8>,
 }
+
 pub(super) struct ReferenceOutputs {
     types: Vec<StructuralTypeDeclaration>,
     parameters: Vec<StructuralTypeId>,
@@ -38,6 +40,7 @@ pub(super) struct ReferenceOutputs {
     pub codecs: BTreeMap<StructuralTypeId, StorageCodec>,
     captures: Vec<Capture>,
 }
+
 impl ReferenceOutputs {
     pub fn admit(
         program: &TerminalProgram,
@@ -53,8 +56,6 @@ impl ReferenceOutputs {
                 .collect(),
             outputs: declaration.reference_outputs.clone(),
             result_regions: declaration.result_reference_regions.clone(),
-            // Unsupported unrelated layouts do not become codecs. Every
-            // captured view below must find its own complete admitted codec.
             codecs: layouts
                 .iter()
                 .filter_map(|layout| {
@@ -66,6 +67,7 @@ impl ReferenceOutputs {
             captures: Vec::new(),
         }
     }
+
     pub fn capture(&mut self, requests: &[TerminalOriginalStorageRequest]) {
         self.captures = requests
             .iter()
@@ -78,9 +80,7 @@ impl ReferenceOutputs {
             })
             .collect();
     }
-    /// Read one existing typed input endpoint. Pointer equality rejoins the
-    /// parent's produced slot with this exact captured loan; it never admits
-    /// a new endpoint or turns an integer address into a reference.
+
     pub fn input_reference<'a>(
         &'a self,
         native: &NativeContext,
@@ -140,6 +140,7 @@ impl ReferenceOutputs {
             bytes,
         })
     }
+
     fn path(
         &self,
         capture: &Capture,
@@ -151,6 +152,7 @@ impl ReferenceOutputs {
         )
         .ok_or_else(|| rejection("native reference candidate lost its exact typed selection path"))
     }
+
     fn anchored(
         &self,
         output: &BoundaryReferenceOutput,
@@ -185,8 +187,7 @@ impl ReferenceOutputs {
                 }
             }))
     }
-    /// Match the actual returned word inside the worker to one captured typed
-    /// endpoint, then mint only that buffer's opaque selection for Core.
+
     pub fn returned_reference(
         &self,
         native: &NativeContext,
@@ -337,6 +338,7 @@ impl ReferenceOutputs {
         native.validate_references()
     }
 }
+
 fn argument(buffer: &TerminalBoundaryStorageBuffer) -> usize {
     match buffer {
         TerminalBoundaryStorageBuffer::Scalar(buffer) => buffer.argument_index(),
@@ -344,6 +346,7 @@ fn argument(buffer: &TerminalBoundaryStorageBuffer) -> usize {
         TerminalBoundaryStorageBuffer::ByteView(buffer) => buffer.argument_index(),
     }
 }
+
 fn covers(available: StructuralAccess, requested: StructuralAccess) -> bool {
     available == requested
         || available == StructuralAccess::MutableBorrow

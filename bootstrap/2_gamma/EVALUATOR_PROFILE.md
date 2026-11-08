@@ -203,7 +203,7 @@ source/input span within the retained request, a fixed table inside the tape,
 or a fixed-size row selected by an already bounded count. Runtime `/` and `%`
 precheck zero and `INT64_MIN / -1`, translating both Alpha arithmetic traps to
 status 2. Thus no admitted evaluator execution reaches an Alpha bounds trap or
-exposes an Alpha arithmetic trap as a Gamma outcome. Gamma has no time or fuel
+exposes an Alpha arithmetic trap as a Gamma outcome. Gamma has no time or work
 bound; a nonterminating program diverges.
 
 The selected implementation is

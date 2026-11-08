@@ -1,4 +1,9 @@
-//! Bind verified historical local bytes without claiming a live resolution.
+// We bind verified historical local bytes from the private source cache without
+// claiming a live resolution or re-executing `Build`. The origin path comes
+// from the current resolver-issued source to identify an existing cache entry,
+// while the accepted source subject supplies the executed `Build`'s name, role,
+// and complete dependency ledger at this content pin after snapshot
+// verification.
 
 use super::super::{
     CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE, PackageSourceCustody,
@@ -24,8 +29,6 @@ pub(crate) fn recover_cached_external_local_source(
     let SourceLineage::ExternalLocal(origin) = current.key().source_lineage() else {
         return Ok(None);
     };
-    // This path comes from the current resolver-issued source, not decoded
-    // lock state. Recovery uses it only to identify an existing cache entry.
     storage.verify_path_identity()?;
     let Some(source) = recover_cached_local_source_in_lane(
         origin.canonical_absolute_path(),
@@ -36,11 +39,6 @@ pub(crate) fn recover_cached_external_local_source(
     else {
         return Ok(None);
     };
-    // The accepted source subject already records the executed Build's name,
-    // role and complete dependency ledger at this content pin. Historical
-    // bytes are not another Build invocation: a literal syntax projection
-    // loses valid helper/conditional declarations, and executing them again
-    // could observe a different environment or repeat effects.
     verify_package_source_snapshot(&source.root, expected, current.source_limits())?;
     storage.verify_path_identity()?;
     let cache_dir = storage

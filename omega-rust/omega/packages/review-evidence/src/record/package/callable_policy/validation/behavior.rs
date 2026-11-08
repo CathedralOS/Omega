@@ -1,4 +1,4 @@
-//! Exact authority sets and entry-rooted operational declarations.
+// Exact authority sets and entry-rooted operational declarations for callable policy. Inferred crash summaries exist only on callables with checked bodies or portable target-family heads (`Requirement`).
 use crate::record::PackagePolicyCallable;
 use crate::record::PackagePolicyCallableRole;
 use crate::record::PackagePolicyCrashGuard;
@@ -104,10 +104,6 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static 
     {
         return Err("internal crash interface has a published or bodyless callable owner");
     }
-    // The checker infers a crash summary only from checked bodies: the
-    // callable's own, or, for a portable target-family head (a bodiless
-    // `Requirement`), its exact members' bodies, which the head carries as
-    // its family envelope. Other bodiless supplies never have one.
     if let PackagePolicyInferredCrash::Complete { causes } = &crash.inferred {
         ordered(causes)?;
         if !matches!(

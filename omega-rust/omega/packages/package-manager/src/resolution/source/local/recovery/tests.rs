@@ -1,6 +1,6 @@
-//! Historical metadata comes from the accepted subject; bytes still come from
-//! the real resolver's verified retained snapshot. These are custody tests,
-//! not substitutes for executing the Build declaration through the CLI.
+// We test cached historical local source recovery, verifying that accepted
+// role and dependency metadata are preserved alongside the resolver's verified
+// snapshot and that tampered snapshot bytes are rejected.
 
 use super::*;
 use crate::declarations::dependencies::read::DependencySourceRequest;
@@ -47,8 +47,6 @@ impl HistoricalSource {
         .unwrap();
         let snapshot = source.snapshot_root().to_path_buf();
         let content = SourceContentDigest::derive(source.normalized().content_identity.as_bytes());
-        // The candidate deliberately has a different role and empty ledgers.
-        // Neither may replace the old accepted metadata during comparison.
         std::fs::write(
             live.join("build.omg"),
             "machine build(builder: &mut Build) { Build::package(builder, \"recorded\"); }\n",
@@ -61,8 +59,6 @@ impl HistoricalSource {
                 LocalSourceLimits::default(),
             )
             .unwrap();
-        // This custody fixture states its candidate metadata directly. Source
-        // Build semantics are exercised by the ordinary CLI fact workflow.
         let lineage = package_source::SourceLineage::ExternalLocal(
             package_source::ExternalLocalLineage::canonicalize(
                 &live,
@@ -159,6 +155,7 @@ fn recorded_metadata_does_not_authorize_tampered_historical_bytes() {
         writable.set_mode(0o600);
     }
     #[cfg(not(unix))]
+    #[expect(clippy::permissions_set_readonly_false)]
     writable.set_readonly(false);
     std::fs::set_permissions(&file, writable).unwrap();
     std::fs::write(&file, "const VALUE: u32 = 29;\n").unwrap();

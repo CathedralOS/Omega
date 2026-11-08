@@ -45,124 +45,44 @@ impl Expansion<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: typed_trees::expression::ExpressionHandle,
         subject: checked_trees::CheckedStructuralValueHandle,
-        subject_expression: checked_trees::expression::ExpressionHandle,
-        place: checked_trees::CheckedUnitStructuralArgumentPlan,
         alias: typed_trees::expression::ExpressionHandle,
         arms: arena::HandleSpan<CheckedScalarDispatchArm>,
         result_type: QualifiedScalarType,
         input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
-        normal_result: Option<&super::returns::NormalDispatchScope>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        #[derive(Clone, Copy)]
-        enum SubjectRequest {
-            Value(ValueRequest),
-            Place {
-                reserved: semantic_vocabulary::PlaceId,
-                structural_type: semantic_vocabulary::StructuralTypeId,
-            },
-        }
-        let request = if subject.is_valid() {
-            SubjectRequest::Value(ValueRequest::prepare(
-                identities,
-                self.checked,
-                subject,
-                self.structural_types,
-            )?)
-        } else {
-            SubjectRequest::Place {
-                reserved: crate::shared::terminal_identities::place_id(
-                    crate::shared::terminal_identities::allocate_dense(self.next_place)?,
-                ),
-                structural_type:
-                    crate::shared::terminal_identities::structural_declaration_by_identity(
-                        self.structural_types,
-                        identities,
-                        self.checked,
-                        place.type_identity,
-                        "dispatch subject has no checked carrier",
-                    )?
-                    .id,
-            }
-        };
-        let arms = if let Some(normal) = normal_result {
-            normal
-                .arms
-                .iter()
-                .map(|(arm, result)| (arm.clone(), Some(result.clone())))
-                .collect::<Vec<_>>()
-        } else {
-            let arms = value_facts(self.checked)
-                .scalar_computations
-                .dispatch_arms
-                .span(arms)
-                .filter(|arms| !arms.is_empty())
-                .ok_or(LoweringError::Unsupported(
-                    "structural dispatch has no live arms",
-                ))?
-                .to_vec();
-            arms.into_iter().map(|arm| (arm, None)).collect::<Vec<_>>()
-        };
+        let request =
+            ValueRequest::prepare(identities, self.checked, subject, self.structural_types)?;
+        let arms = value_facts(self.checked)
+            .scalar_computations
+            .dispatch_arms
+            .span(arms)
+            .filter(|arms| !arms.is_empty())
+            .ok_or(LoweringError::Unsupported(
+                "structural dispatch has no live arms",
+            ))?
+            .to_vec();
         // Predicates and the selected arm share this subject. Its private
         // snapshot ends only after the arm has captured its scalar result,
         // before the outer continuation can retire any borrowed backing.
-        let mut normal_result = normal_result.cloned();
-        let target = if let SubjectRequest::Value(request) = request
-            && !self.has_established_value(subject)
-        {
+        let target = if self.has_established_value(subject) {
+            target
+        } else {
             let mut completed_types = input_types.to_vec();
             completed_types.push(result_type);
-            if let Some(normal) = &mut normal_result {
-                if let Some(effect) = request.snapshot_completion(self.checked)? {
-                    normal.before_completion(effect);
-                }
-                target
-            } else {
-                request.complete_snapshot(self.checked, &completed_types, target, self)?
-            }
-        } else {
-            target
+            request.complete_snapshot(self.checked, &completed_types, target, self)?
         };
         let prefix = self.established_values.len();
         // This is a dependency available on every selected path. Its producer
         // is scheduled below, before the first predicate, not replayed by an
         // observation. The common emitter binds the real completed home.
-        if subject.is_valid() {
-            self.established_values
-                .push(super::EstablishedValue::Produced { root: subject });
-        }
-        let bindings = match request {
-            SubjectRequest::Place {
-                reserved,
-                structural_type,
-            } => Some(site.bindings.clone().with_dispatch_subject(
-                alias,
-                reserved,
-                structural_type,
-            )?),
-            SubjectRequest::Value(_) => None,
-        };
-        let site = &Site {
-            state: site.state,
-            statement: site.statement,
-            bindings: bindings.as_ref().unwrap_or(site.bindings),
-        };
-
+        self.established_values
+            .push(super::EstablishedValue::Produced { root: subject });
         let lowered = (|| {
             let mut continuation = None;
-            let destinations: std::sync::Arc<[_]> =
-                crate::emission::claim_bindings::selections::destinations(
-                    self.checked,
-                    self.machine,
-                    site.state,
-                    site.statement,
-                    expression,
-                    0,
-                )?
-                .into();
-            for (position, (arm, result)) in arms.iter().enumerate().rev() {
+            for (position, arm) in arms.iter().enumerate().rev() {
                 if self.argument_type(
                     identities,
                     &Argument::Computation(arm.value),
@@ -177,25 +97,14 @@ impl Expansion<'_> {
                 let route = dispatch_route(expression, position, arms.len());
                 let mut completed_types = input_types.to_vec();
                 completed_types.push(result_type);
-                let arm_result =
-                    normal_result
-                        .as_ref()
-                        .zip(result.as_ref())
-                        .map(|(normal, result)| {
-                            normal.arm(result.clone(), destinations.clone(), route.clone())
-                        });
-                let completion = if arm_result.is_some() {
-                    target
-                } else {
-                    self.claim_continuation(expression, route, &completed_types, target, site)?
-                };
-                let selected = self.argument_with_normal_result(
+                let completion =
+                    self.claim_continuation(expression, route, &completed_types, target, site)?;
+                let selected = self.argument(
                     identities,
                     &Argument::Computation(arm.value),
                     input_types,
                     completion,
                     site,
-                    arm_result.as_ref(),
                     active,
                 )?;
                 let entry = match arm.pattern {
@@ -258,16 +167,7 @@ impl Expansion<'_> {
             ))
         })();
         self.established_values.truncate(prefix);
-        let lowered = lowered?;
-        Ok(match request {
-            SubjectRequest::Value(request) => request.finish_with_alias(alias, input_types, lowered, self),
-            SubjectRequest::Place { reserved, .. } => self.push(LoweredScalarBranchState::jumping(
-                lowered, Vec::new(), input_types.to_vec(), input_types,
-                vec![crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect::CaptureDispatchSubject {
-                    expression: subject_expression, source: place, alias, place: reserved, statement: site.statement,
-                }],
-            )),
-        })
+        Ok(request.finish_with_alias(alias, input_types, lowered?, self))
     }
 }
 
@@ -283,30 +183,21 @@ impl Expansion<'_> {
         input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
-        normal_result: Option<&super::returns::NormalDispatchScope>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
         let subject = match subject {
             checked_trees::CheckedDispatchSubject::Scalar(subject) => subject,
-            checked_trees::CheckedDispatchSubject::Structural {
-                expression: subject_expression,
-                value,
-                place,
-                alias,
-            } => {
+            checked_trees::CheckedDispatchSubject::Structural { value, alias, .. } => {
                 return self.structural_dispatch(
                     identities,
                     expression,
                     value,
-                    subject_expression,
-                    place,
                     alias,
                     arms,
                     result_type,
                     input_types,
                     target,
                     site,
-                    normal_result,
                     active,
                 );
             }
@@ -318,25 +209,16 @@ impl Expansion<'_> {
             input_types,
         )?;
         let plans = &self.checked.facts.values.scalar_computations;
-        let arms = if let Some(normal) = normal_result {
-            normal
-                .arms
-                .iter()
-                .map(|(arm, result)| (arm.clone(), Some(result.clone())))
-                .collect::<Vec<_>>()
-        } else {
-            let arms = plans
-                .dispatch_arms
-                .span(arms)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar dispatch has a stale arm span",
-                ))?
-                .to_vec();
-            arms.into_iter().map(|arm| (arm, None)).collect::<Vec<_>>()
-        };
+        let arms = plans
+            .dispatch_arms
+            .span(arms)
+            .ok_or(LoweringError::Unsupported(
+                "scalar dispatch has a stale arm span",
+            ))?
+            .to_vec();
         let mut boolean_coverage = [false; 2];
         let mut covered = false;
-        for (arm, _) in &arms {
+        for arm in &arms {
             if covered
                 || self.argument_type(
                     identities,
@@ -386,37 +268,20 @@ impl Expansion<'_> {
         let mut tested_types = saved_types.clone();
         tested_types.push(subject_type);
         let mut continuation = None;
-        let destinations: std::sync::Arc<[_]> =
-            crate::emission::claim_bindings::selections::destinations(
-                self.checked,
-                self.machine,
-                site.state,
-                site.statement,
-                expression,
-                0,
-            )?
-            .into();
-        for (position, (arm, result)) in arms.iter().enumerate().rev() {
+        for (position, arm) in arms.iter().enumerate().rev() {
             let route = dispatch_route(expression, position, arms.len());
             let mut completed_types = input_types.to_vec();
             completed_types.push(result_type);
-            let arm_result = normal_result.zip(result.as_ref()).map(|(normal, result)| {
-                normal.arm(result.clone(), destinations.clone(), route.clone())
-            });
-            let completion = if arm_result.is_some() {
-                target
-            } else {
-                self.claim_continuation(expression, route, &completed_types, target, site)?
-            };
-            // Subjects and patterns remain ordinary operands; only selected
-            // result arms carry their source-owned normal completion.
-            let selected = self.argument_with_normal_result(
+            let completion =
+                self.claim_continuation(expression, route, &completed_types, target, site)?;
+            // Arm bodies receive the original prefix. The saved subject and
+            // last pattern value are no longer live once an arm is selected.
+            let selected = self.argument(
                 identities,
                 &Argument::Computation(arm.value),
                 input_types,
                 completion,
                 site,
-                arm_result.as_ref(),
                 active,
             )?;
             let entry = match arm.pattern {

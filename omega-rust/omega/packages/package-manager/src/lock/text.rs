@@ -1,5 +1,4 @@
-//! The lock owns envelope framing and exact source associations only. Child
-//! owners interpret source, compiler policy, and historical decision meaning.
+// Envelope framing and exact source associations for `omega.lock`, delegating source, policy, and decision semantics to child owners.
 
 pub(super) mod acceptance;
 mod budget;

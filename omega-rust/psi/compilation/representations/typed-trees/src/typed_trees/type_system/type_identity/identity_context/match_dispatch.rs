@@ -67,24 +67,12 @@ pub(super) fn normalize_match(
                 MatchPattern::Destructure(pattern) => {
                     let fields = table.match_fields(pattern.fields).iter().map(|field| {
                         let action = match &field.action {
-                            MatchFieldAction::Bind(_) => bare(
-                                if field.component == language_core::PatternComponent::Case {
-                                    FieldActionForm::BindCase
-                                } else {
-                                    FieldActionForm::Bind
-                                },
-                            ),
+                            MatchFieldAction::Bind(_) => bare(FieldActionForm::Bind),
                             MatchFieldAction::Equal(value) => compound(
                                 FieldActionForm::Equal,
                                 [normalize_index_expression(program, *value, &nested)],
                             ),
-                            MatchFieldAction::Waive => bare(
-                                if field.component == language_core::PatternComponent::Case {
-                                    FieldActionForm::WaiveCase
-                                } else {
-                                    FieldActionForm::Waive
-                                },
-                            ),
+                            MatchFieldAction::Waive => bare(FieldActionForm::Waive),
                         };
                         compound(
                             Label::Field,
@@ -163,16 +151,11 @@ pub(super) fn normalize_saved_subject(
     else {
         return unavailable(context);
     };
-    let identity = compound(
+    compound(
         IndexForm::SavedSubject,
         [
             atom(Label::Depth, &depth.to_string()),
             normalize_index_expression(program, saved.pattern_head, context),
         ],
-    );
-    if saved.component == language_core::PatternComponent::Case {
-        compound(IndexForm::CaseComponent, [identity])
-    } else {
-        identity
-    }
+    )
 }

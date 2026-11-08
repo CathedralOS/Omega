@@ -77,7 +77,7 @@ fn evaluated<'a>(
         &mut observations,
         "macos_arm64",
         &[application(entry)],
-        &mut TerminalFuelMeter::unbounded(),
+        &mut WorkMeter::unbounded(),
     )
     .unwrap();
     (observations, conditions)
@@ -505,7 +505,7 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
         &mut observations,
         "macos_arm64",
         &[application(5)],
-        &mut TerminalFuelMeter::unbounded(),
+        &mut WorkMeter::unbounded(),
     )
     .unwrap();
     assert_eq!(
@@ -531,7 +531,7 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
         &mut selected,
         "macos_arm64",
         &[application(5)],
-        &mut TerminalFuelMeter::unbounded(),
+        &mut WorkMeter::unbounded(),
     )
     .err()
     .unwrap();
@@ -694,7 +694,7 @@ fn canonical_scalar_jobs_refuse_replay_to_fill_a_late_capture() {
         },
     )
     .unwrap();
-    let mut meter = TerminalFuelMeter::unbounded();
+    let mut meter = WorkMeter::unbounded();
     evaluate_scalar_applications(
         &mut observations,
         "macos_arm64",
@@ -742,7 +742,7 @@ fn canonical_scalar_jobs_compose_geometry_entries_and_exact_observations() {
             },
         )
         .unwrap();
-        let mut meter = TerminalFuelMeter::unbounded();
+        let mut meter = WorkMeter::unbounded();
         evaluate_scalar_applications(&mut observations, target, &[application(5)], &mut meter)
             .unwrap();
         for (identity, expected) in [(1, 16), (2, 16), (3, 16), (4, 8), (5, 24)] {
@@ -811,7 +811,7 @@ fn canonical_scalar_jobs_check_local_prerequisites_before_completion() {
             &mut observations,
             "macos_arm64",
             &[application(5)],
-            &mut TerminalFuelMeter::unbounded(),
+            &mut WorkMeter::unbounded(),
         );
         if expected_operand == 16 {
             result.unwrap();
@@ -870,7 +870,7 @@ fn canonical_scalar_jobs_refuse_cycles_and_false_conditions() {
             },
         )
         .unwrap();
-        let mut meter = TerminalFuelMeter::unbounded();
+        let mut meter = WorkMeter::unbounded();
         let usage = meter.usage().clone();
         let evaluated = evaluate_scalar_applications(
             &mut observations,
@@ -933,7 +933,7 @@ fn canonical_scalar_jobs_preserve_nonnegative_signed_extent_carriers() {
         &mut observations,
         "macos_arm64",
         &[application(5)],
-        &mut TerminalFuelMeter::unbounded(),
+        &mut WorkMeter::unbounded(),
     )
     .unwrap();
     observations.discharge_range(0, None).unwrap();
@@ -1007,7 +1007,7 @@ fn canonical_scalar_jobs_bind_provisional_inputs_to_the_target_and_entry() {
         });
         if selected == &windows && entry == machine_id(1) {
             assert!(
-                matches!(result.unwrap().invoke(&mut TerminalFuelMeter::unbounded()).unwrap(),
+                matches!(result.unwrap().invoke(&mut WorkMeter::unbounded()).unwrap(),
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(value)) if value == integer(16))
             );
         } else {

@@ -1,17 +1,24 @@
-//! Bind neutral source acquisition to Build's canonical input metadata.
-//!
-//! Acquisition owns immutable source trees independently of Build activation,
-//! output staging, and materialization. Retained trees share their file bytes
-//! here while Build metadata is derived in its own canonical hash domain;
-//! acquisition's content identity never substitutes for that commitment.
-//! Physical capture remains an adapter for sealed persisted custody and
-//! standalone caller-authorized inventories. Retained input consumption never
-//! queries a physical root, and scoped selection never follows captured links.
+/*
+We bind neutral source acquisition (`source::CapturedSourceTree`) and physical package roots to `Build`'s canonical input metadata (`CanonicalFilesystemMetadataIndex`, `CapturedBuildSourceInput`).
+
+We provide three capture and projection routes:
+1. `retained_source_input` and `retained_scoped_source_input` derive `CapturedBuildSourceInput` directly from an already-captured in-memory `CapturedSourceTree` or `CapturedBuildSourceInput` without touching the host filesystem, sharing `Arc<[u8]>` file buffers while computing `Build`'s canonical metadata commitment under `OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1`.
+2. `capture_package_source_input` and `capture` traverse a physical sealed package root in a single pass, enforcing canonical POSIX modes (`0o555` directories, `0o444`/`0o555` files), row/byte ceilings, and drift-checked file reads (`file_read`) so the retained bytes and `CanonicalFilesystemMetadataIndex` cannot disagree.
+3. `capture_scoped_source_input` restricts physical capture to an explicit caller-authorized `BuildSourceCaptureRequest` inventory (admitting ancestor directory rows without enumerating unselected siblings) and verifies that every `required_members` source file consumed by compilation under that root is included.
+*/
+
+/*
+Why `BuildSourceCaptureRequest` rejects nested entry declarations:
+A declared file or symlink admits one member, whereas a declared directory admits its entire subtree. If one declared entry nested inside another, the outer directory declaration would silently swallow the inner declaration's boundary and obligation (`Required` vs `Optional`). Rejecting nested declarations upfront forces the caller to state non-overlapping inventory boundaries.
+*/
+
+/*
+Provenance:
+- Drift-checked canonical file reading and hashing: `src/source/source_snapshot/file_read.rs`.
+*/
 
 mod file_read;
 
-/// The package boundary adapts Build inventory storage downward to the neutral
-/// source protocol. Neither Psi nor Build-output knows the other's models.
 pub(crate) fn captured_source_view(
     input: &build_output::CapturedBuildSourceInput,
 ) -> source::SourceSnapshot {
@@ -63,44 +70,23 @@ use std::sync::Arc;
 const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
 const CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 
-/// Whether one declared capture entry must be present when the inventory is
-/// taken.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildSourceCaptureObligation {
-    /// The member must exist under the captured root; absence fails capture.
-    Required,
-    /// Absence is itself committed: the inventory simply holds no member at
-    /// that path.
-    Optional,
+    Required, // Member must exist under the captured root; absence fails capture.
+    Optional, // Absence is committed cleanly without failing capture.
 }
 
-/// The explicit, caller-authorized source inventory for one standalone build
-/// activation: exact canonical relative paths under the captured root.
-///
-/// A declared file or symlink is one member; a declared directory member
-/// admits its whole subtree. Ancestor directories are committed as
-/// directory rows so every member keeps canonical parents, but they never
-/// widen the inventory — only a declared member opens a subtree. Two
-/// entries where one nests inside the other would let one declaration
-/// silently admit another's subtree, so the request rejects them instead
-/// of guessing at the intended boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSourceCaptureRequest {
-    entries: BTreeMap<Vec<u8>, BuildSourceCaptureObligation>,
+    entries: BTreeMap<Vec<u8>, BuildSourceCaptureObligation>, // Canonical relative paths mapped to their capture obligations.
 }
 
 impl BuildSourceCaptureRequest {
-    /// The declared inventory keyed by canonical relative path. Every entry
-    /// is a nonempty canonical relative spelling; duplicates and
-    /// nested-declaration pairs reject.
     pub fn new(
         entries: impl IntoIterator<Item = (Vec<u8>, BuildSourceCaptureObligation)>,
     ) -> Result<Self, String> {
         let mut request = BTreeMap::new();
         for (relative_path, obligation) in entries {
-            // Physical package metadata also describes raw host names. A
-            // caller-authored logical inventory has the narrower portable
-            // protocol: UTF-8 and no drive-qualified spellings on any host.
             let drive_qualified = relative_path.split(|byte| *byte == b'/').any(|component| {
                 component.first().is_some_and(u8::is_ascii_alphabetic)
                     && component.get(1) == Some(&b':')
@@ -139,7 +125,6 @@ impl BuildSourceCaptureRequest {
         Ok(Self { entries: request })
     }
 
-    /// The declared entries in canonical path order.
     pub fn entries(&self) -> impl Iterator<Item = (&[u8], BuildSourceCaptureObligation)> {
         self.entries
             .iter()
@@ -153,10 +138,6 @@ struct CapturedSourceMetadataRow {
     content_digest: Option<[u8; 32]>,
 }
 
-/// Derive Build's complete inventory from acquisition's immutable namespace.
-/// The implicit root becomes a canonical directory row. File allocations
-/// stay shared with the neutral source tree; link targets retain their raw
-/// platform spelling as inert bytes, without compiler namespace traversal.
 pub(crate) fn retained_source_input(
     tree: &source::CapturedSourceTree,
 ) -> Result<CapturedBuildSourceInput, String> {
@@ -176,9 +157,6 @@ pub(crate) fn retained_source_input(
     retained_entries_input(entries)
 }
 
-/// Narrow an authenticated retained inventory using the same membership
-/// policy as physical scoped capture. Required members are already resolved
-/// root-relative source paths from the invocation's source filesystem.
 pub(crate) fn retained_scoped_source_input(
     complete: &CapturedBuildSourceInput,
     request: &BuildSourceCaptureRequest,
@@ -328,8 +306,6 @@ pub(crate) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, S
     Ok(index)
 }
 
-/// One metadata-only traversal of the canonical source root: the kind, size,
-/// and content commitment of every member, without retaining file bytes.
 fn metadata_rows(
     root: &Path,
 ) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, ())>), String> {
@@ -342,19 +318,6 @@ fn metadata_rows(
     )
 }
 
-/// Capture one complete compiler-owned immutable build input for this exact
-/// physical source root: every directory, every regular file's exact bytes,
-/// and every inert relative symlink spelling, bound to the same canonical
-/// source metadata index the build's filesystem grants will enforce.
-///
-/// The retained entries and the index's source-content commitment come from
-/// the same traversal, so the retained bytes and granted metadata cannot
-/// disagree. Each member's own read rejects identity or content drift between
-/// its inspection and its consumption; nothing re-traverses the root to
-/// compare the index against itself, because both sides of that comparison
-/// would come from this one call and neither is the tree a later reader meets.
-/// Callers supply sealed resolver-owned backing and capture before execution;
-/// a later replay never rereads the host to rebuild this input.
 pub fn capture_package_source_input(
     source_root: &Path,
 ) -> Result<CapturedBuildSourceInput, String> {
@@ -369,17 +332,6 @@ pub fn capture_package_source_input(
     })
 }
 
-/// Capture one standalone invocation's explicit source inventory: exactly
-/// the members the caller authorized, plus the ancestor directory rows every
-/// member's canonical parentage requires. The root row is committed but
-/// never enumerated, so members outside the request are never read — a
-/// local build does not implicitly expose the working directory.
-///
-/// `required_members` are the source files the compilation already
-/// consumed. Every one located under this root must be a captured member,
-/// so a request cannot silently omit a file the assembled program needed;
-/// members outside the root (toolchain and injected sources) are not this
-/// inventory's members and are skipped.
 pub(crate) fn capture_scoped_source_input(
     source_root: &Path,
     request: &BuildSourceCaptureRequest,
@@ -395,8 +347,6 @@ pub(crate) fn capture_scoped_source_input(
                 .strip_prefix(&canonical_root)
                 .ok()
                 .map(Path::to_path_buf),
-            // An unresolvable member still named under the root was deleted
-            // after consumption; the membership check below fails it.
             Err(_) => member.strip_prefix(source_root).ok().map(Path::to_path_buf),
         };
         let Some(relative) = relative else { continue };
@@ -417,10 +367,6 @@ pub(crate) fn capture_scoped_source_input(
     })
 }
 
-/// One traversal of the canonical sealed source root. Every visited
-/// path produces both its canonical metadata row and one capture-authority
-/// payload, so a caller cannot assemble an index and a retained inventory
-/// that disagree with each other.
 fn capture_rows<T>(
     canonical_root: PathBuf,
     mut row_for: impl FnMut(
@@ -460,11 +406,6 @@ fn capture_rows<T>(
     Ok((finish_capture_index(rows)?, retained))
 }
 
-/// One traversal restricted to a declared inventory. The root row is
-/// admitted but never enumerated; each declared member is admitted and —
-/// for directories — opened for subtree enumeration. Ancestor directories
-/// are admitted as rows without opening their own subtrees, and a declared
-/// required member absent under the root fails capture.
 fn capture_scoped_rows<T>(
     canonical_root: PathBuf,
     request: &BuildSourceCaptureRequest,
@@ -530,9 +471,6 @@ fn capture_scoped_rows<T>(
     Ok((finish_capture_index(rows)?, retained))
 }
 
-/// Select exact inventory members independently of their backing authority.
-/// Ancestors only supply directory rows; declaring a directory opens its
-/// subtree, and neither ancestor inspection nor enumeration follows links.
 fn select_scoped_members<Member>(
     request: &BuildSourceCaptureRequest,
     mut lookup: impl FnMut(&[u8]) -> Result<Option<Member>, String>,
@@ -638,9 +576,6 @@ fn charge_scoped_member<Member>(
     charge_capture_path_bytes(aggregate_path_bytes, path)
 }
 
-/// Admit one visited physical member: ceiling, row construction, duplicate
-/// detection, and retention of every non-root entry. Returns whether the
-/// member is a concrete directory whose children should be enumerated.
 fn admit_capture_row<T>(
     path: &Path,
     relative_path: &[u8],
@@ -671,8 +606,6 @@ fn admit_capture_row<T>(
     Ok(physical.is_dir())
 }
 
-/// Push one directory's children onto the traversal stack under the shared
-/// row and path-byte ceilings and the canonical-path gate.
 fn enqueue_capture_children(
     path: &Path,
     relative_path: &[u8],

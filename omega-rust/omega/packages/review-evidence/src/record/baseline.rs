@@ -1,4 +1,11 @@
-//! Inert package policy composition, independent of compiler replay evidence.
+// Inert package policy composition (`PackagePolicyBaseline`), independent of
+// compiler replay evidence.
+//
+// `PackagePolicyBaseline` records one reviewed package in one exact target
+// activation for comparison, not an acceptance decision or compiler
+// certificate. `assumed_bindings` retains build-host requests in issue order as
+// standalone decision rows without host paths or live grant state.
+
 use crate::record::PackagePolicyBoundaryApplications;
 use crate::record::PackagePolicyCallables;
 use crate::record::PackagePolicyExternalExecutableSupply;
@@ -22,8 +29,6 @@ use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
-/// One reviewed package in one exact target activation. This record carries
-/// comparison meaning, not an acceptance decision or a compiler certificate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyBaseline {
     pub(crate) package: PackageKeyIdentity,
@@ -39,11 +44,7 @@ pub struct PackagePolicyBaseline {
     pub(crate) slack_uses: Vec<PackageReviewDangerousAuthoritySlack>,
     pub(crate) semantic_dependencies: Vec<PackagePolicySemanticDependency>,
     pub(crate) boundary_applications: PackagePolicyBoundaryApplications,
-    /// The build-host requests this package's admitted build activation asked
-    /// before it executed, in issue order. Each retains as its own decision
-    /// row so accepted meaning survives in `omega.lock` without host paths or
-    /// live grant state.
-    pub(crate) assumed_bindings: Vec<String>,
+    pub(crate) assumed_bindings: Vec<String>, // Build-host requests in issue order without host paths or live grants.
     pub(crate) service_audits: Vec<PackageReviewNominalIdentity>,
     pub(crate) restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
 }

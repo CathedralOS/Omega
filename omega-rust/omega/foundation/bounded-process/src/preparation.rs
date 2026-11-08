@@ -1,3 +1,17 @@
+// Structured command preparation (`BoundedProcessPrepared`,
+// `BoundedProcessLimits`).
+//
+// Callers cannot extract or replace the underlying `std::process::Command`.
+// Before spawning, `into_command` verifies that:
+// - all three standard streams (`stdin`, `stdout`, `stderr`) were explicitly
+//   set to `Null` or `Piped` (or preserved by `preserve_configured_stdin` for
+//   Windows private observation);
+// - argument count (`<= 4,096`), environment entry count (`<= 1,024`), and
+//   aggregate configuration bytes (`<= 4 MiB`) stay within fixed ceilings;
+// - any Unix private descriptors passed to `retain_descriptor` are `>= 3` and
+//   kept alive inside a `pre_exec` closure across fork/exec while all other
+//   ambient descriptors above stderr are marked `CLOEXEC`.
+
 use crate::process_child::limits;
 use std::ffi::OsStr;
 use std::io;
@@ -8,11 +22,6 @@ const MAXIMUM_COMMAND_ARGUMENTS: usize = 4 * 1024;
 const MAXIMUM_COMMAND_ENVIRONMENT_ENTRIES: usize = 1024;
 const MAXIMUM_COMMAND_CONFIGURATION_BYTES: usize = 4 * 1024 * 1024;
 
-/// One structured command using a caller-selected executable.
-///
-/// The raw command cannot be extracted or replaced. Callers may add bounded
-/// arguments and environment changes and must explicitly select null or piped
-/// custody for every standard stream before spawning consumes this value.
 #[derive(Debug)]
 pub struct BoundedProcessPrepared {
     command: Command,
@@ -22,10 +31,8 @@ pub struct BoundedProcessPrepared {
     stdin: Option<BoundedStandardStreamDisposition>,
     stdout: Option<BoundedStandardStreamDisposition>,
     stderr: Option<BoundedStandardStreamDisposition>,
-    /// Parent descriptors explicitly assigned to the child (unix only).
-    /// Everything else above the standard streams is still closed on exec.
     #[cfg(unix)]
-    retained_descriptors: Vec<std::os::fd::RawFd>,
+    retained_descriptors: Vec<std::os::fd::RawFd>, // Parent descriptors (>= 3) kept open across exec.
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,10 +140,6 @@ impl BoundedProcessPrepared {
         &self.retained_descriptors
     }
 
-    /// Transfer an explicitly owned private channel endpoint to this launch.
-    /// Its parent-assigned number survives exec; every other ambient descriptor
-    /// still closes. The command owns it until spawn has completed, so neither a
-    /// dropped caller nor a recycled descriptor number can replace this endpoint.
     #[cfg(unix)]
     pub fn retain_descriptor(
         &mut self,
@@ -152,8 +155,8 @@ impl BoundedProcessPrepared {
             ));
         }
         self.retained_descriptors.push(raw);
-        // Only borrow the captured owner after fork; its lifetime in Command
-        // keeps the same open file description alive through the exec setup.
+        // SAFETY: the pre_exec closure only borrows `descriptor` to keep its
+        // OwnedFd alive inside Command until fork/exec completes.
         unsafe {
             self.command.pre_exec(move || {
                 let _keep_alive = &descriptor;
@@ -163,7 +166,6 @@ impl BoundedProcessPrepared {
         Ok(raw)
     }
 
-    // The private observation API receives a command whose stdin the CLI already selected.
     #[cfg(windows)]
     pub(crate) fn preserve_configured_stdin(&mut self) {
         self.stdin = Some(BoundedStandardStreamDisposition::CallerConfigured);
@@ -189,7 +191,6 @@ impl BoundedProcessPrepared {
         self.limits
     }
 
-    /// Request kernel resource observations without changing execution limits.
     pub fn observe_resources(&mut self) -> &mut Self {
         self.observe_resources = true;
         self

@@ -363,7 +363,25 @@ fn proved_offset_upper_bound(
             &numerics::bignum::BigInt::from_i64(needed_bound),
         )
         .then_some(needed_bound);
-    relational_high.or(interval_high)
+    relational_high
+        .or_else(|| {
+            // Private-call bounds belong to the completed actuals. Read this
+            // offset at its original evaluation on every incoming path;
+            // the receiving footprint supplies a goal, never premises.
+            crate::proof_contracts::contract_entailment::completed_value_fits_integer_interval(
+                program,
+                machine,
+                state,
+                statement_index,
+                index,
+                crate::proof_contracts::arithmetic_domains::Interval {
+                    low: Some(0),
+                    high: Some(needed_bound),
+                },
+            )
+            .then_some(needed_bound)
+        })
+        .or(interval_high)
 }
 
 pub(super) fn push_offset_unproven(

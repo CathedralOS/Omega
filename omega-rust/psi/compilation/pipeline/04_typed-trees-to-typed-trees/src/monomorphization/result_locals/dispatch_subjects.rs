@@ -79,14 +79,8 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
                     local.initial_value,
                 )
                 .is_some_and(|place| place.root.as_symbol().is_some());
-                let case_storage = program.pattern_component(local.initial_value)
-                    == Some(language_core::PatternComponent::Case)
-                    && validation::reference_shell(program, actual).is_none();
-                // A case view observes the same home even when the containing
-                // data is copyable. An existing reference keeps its descriptor.
-                let noncopy_storage = storage
-                    && (program.type_multiplicity(actual) != Multiplicity::Unrestricted
-                        || case_storage);
+                let noncopy_storage =
+                    storage && program.type_multiplicity(actual) != Multiplicity::Unrestricted;
                 let (mathematical, logical_machine) = if noncopy_storage {
                     let classification = proof_only
                         .get_or_insert_with(|| typed_trees::proof_only::classify(program));
@@ -363,11 +357,6 @@ fn replace_place_alias(
     path: TableNamePath,
     source: ExpressionHandle,
 ) {
-    // The place substitution preserves this occurrence's component, including
-    // a reference-local alias whose declaration already retained a case view.
-    let Some(component) = program.pattern_component(expression) else {
-        return;
-    };
     // Reuse the ordinary graph copier, then compose projections on that exact
     // captured source. Index operands remain typed occurrences; no index is
     // encoded in a generated name or evaluated again while adding the suffix.
@@ -396,7 +385,6 @@ fn replace_place_alias(
     }
     expressions_of_mut(program).attach_authored_selection_occurrences(source, occurrences);
     expressions_of_mut(program).replace_with_existing(expression, source);
-    expressions_of_mut(program).set_pattern_component(expression, component);
 }
 
 pub(crate) fn require_complete(program: &TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {

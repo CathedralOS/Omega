@@ -1,4 +1,14 @@
-//! Pause for an exact source query and retain only issued description custody.
+/*
+Product query suspension and issued description custody.
+
+When a Build activation queries a product entry, schema, or provider, we
+authenticate its compiler-issued `Build.product` facet, reserve query storage,
+and pause the activation until the coordinator supplies the admitted
+`BuildProductDescription`. Completing the query mints an opaque structural
+description handle whose provenance we retain in `descriptions` so subsequent
+root bindings or path inspections can verify that the handle was issued by this
+activation.
+*/
 
 use super::{BindingState, TerminalBuildBindingHost, lock_state};
 use evaluation_accounting::EvaluationStorageLease;

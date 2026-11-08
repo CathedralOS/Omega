@@ -1,4 +1,8 @@
-//! Receiver identities must survive independently of rendered write-frame paths.
+// Call-receiver root validation ensuring resolved source receiver identities survive
+// independently of rendered write-frame paths. A receiver path cannot visit more
+// nodes than the expression table contains, rejecting cyclic receiver graphs before
+// frame reconstruction. Computed receivers do not carry a name-path root; their own
+// checked call and operation facts own the resulting value.
 
 use super::rejected;
 use checked_trees::CheckFacts;
@@ -28,8 +32,6 @@ fn validate_receiver_root(
     source: &dyn ::validation::CheckingInput,
     mut receiver: ExpressionHandle,
 ) -> Result<(), Vec<Diagnostic>> {
-    // A path cannot visit more nodes than the expression table contains.
-    // This also rejects cyclic receiver graphs before frame reconstruction.
     for _ in 0..source.expression_table.expression_count() {
         match source.expression_table.expression(receiver) {
             ExpressionNode::Borrow(borrow) => receiver = borrow.target,
@@ -49,8 +51,6 @@ fn validate_receiver_root(
                 }
                 return Ok(());
             }
-            // Computed receivers do not carry a name-path root; their own
-            // checked call and operation facts own the resulting value.
             _ => return Ok(()),
         }
     }

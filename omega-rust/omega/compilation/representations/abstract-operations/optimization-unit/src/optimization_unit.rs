@@ -9,10 +9,11 @@ use semantic_vocabulary::IntegerType;
 
 use super::{
     AbstractFunction, AbstractOperation, AbstractOperationPlan, AbstractSuccessor, Arc, BTreeSet,
-    BlockId, BoundaryMachineDeclaration, FuelScheduleIdentity, MachineId, ObligationId,
-    OperationId, OptimizationUnitIdentity, PlaceId, ProviderCandidateConformance, ScalarType,
+    BlockId, BoundaryMachineDeclaration, MachineId, ObligationId, OperationId,
+    OptimizationUnitIdentity, PlaceId, ProviderCandidateConformance, ScalarType,
     ServiceDeclaration, StructuralDomainDeclaration, StructuralPlaceDeclaration,
     StructuralPlaceKind, TerminalPsiIdentity, TerminalRootServiceReach, ValueId,
+    WorkScheduleIdentity,
 };
 mod attachment;
 mod construction;
@@ -52,9 +53,9 @@ pub use evidence::{
 };
 
 pub use graph::{
-    EffectLink, FuelSettlement, OptimizationBlock, OptimizationEdge, OptimizationFact,
-    OptimizationNode, OwnershipEvent, PsiOptimizationFunction, PsiProvenance, ValueDefinition,
-    ValueDefinitionSite, ValueUse, encode_value_definition_site_identity,
+    EffectLink, OptimizationBlock, OptimizationEdge, OptimizationFact, OptimizationNode,
+    OwnershipEvent, PsiOptimizationFunction, PsiProvenance, ValueDefinition, ValueDefinitionSite,
+    ValueUse, WorkSettlement, encode_value_definition_site_identity,
 };
 
 pub use identity::{
@@ -110,7 +111,7 @@ pub use rewrite::{
 pub struct PsiOptimizationUnit {
     pub identity: OptimizationUnitIdentity,
     pub psi: TerminalPsiIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub entry: MachineId,
     /// Target-neutral module declarations needed by layout, ABI, and checked
     /// provider installation after the full Terminal module is discarded.

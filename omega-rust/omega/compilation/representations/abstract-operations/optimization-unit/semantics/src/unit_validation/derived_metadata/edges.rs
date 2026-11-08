@@ -38,7 +38,7 @@ pub(crate) fn expected_edges(operation: &AbstractOperation) -> Vec<OptimizationE
             bindings: bindings.clone(),
             cleanup_actions: cleanup_actions.clone(),
             provenance: vec![PsiProvenance::Edge(*psi_edge)],
-            fuel: vec![optimization_unit::FuelSettlement {
+            work: vec![optimization_unit::WorkSettlement {
                 site: PsiProvenance::Edge(*psi_edge),
                 units: 1,
             }],
@@ -56,7 +56,7 @@ pub(crate) fn expected_edges(operation: &AbstractOperation) -> Vec<OptimizationE
                 bindings: edge.bindings.clone(),
                 cleanup_actions: edge.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(edge.psi_edge)],
-                fuel: vec![optimization_unit::FuelSettlement {
+                work: vec![optimization_unit::WorkSettlement {
                     site: PsiProvenance::Edge(edge.psi_edge),
                     units: 1,
                 }],
@@ -71,7 +71,7 @@ pub(crate) fn expected_edges(operation: &AbstractOperation) -> Vec<OptimizationE
                 structural_bindings: case.structural_bindings.clone(),
                 cleanup_actions: case.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(case.psi_edge)],
-                fuel: vec![optimization_unit::FuelSettlement {
+                work: vec![optimization_unit::WorkSettlement {
                     site: PsiProvenance::Edge(case.psi_edge),
                     units: 1,
                 }],

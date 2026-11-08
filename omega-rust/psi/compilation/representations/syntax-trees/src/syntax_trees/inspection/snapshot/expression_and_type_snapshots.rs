@@ -134,8 +134,6 @@ pub enum MatchPatternSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MatchFieldSnapshot {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub component: Option<&'static str>,
     pub member: IdentifierSnapshot,
     pub action: MatchFieldActionSnapshot,
 }
@@ -158,8 +156,6 @@ pub enum ExpressionSnapshot {
         arms: Vec<MatchArmSnapshot>,
     },
     SavedSubject {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        component: Option<&'static str>,
         capture: (u32, u32),
         pattern_head: Box<ExpressionSnapshot>,
     },
@@ -409,7 +405,6 @@ pub(crate) fn snapshot_expression_handle(
                 .collect(),
         },
         ExpressionNode::SavedSubject(saved) => ExpressionSnapshot::SavedSubject {
-            component: (saved.component == language_core::PatternComponent::Case).then_some("case"),
             capture: (saved.capture.arena_index(), saved.capture.generation()),
             pattern_head: Box::new(snapshot_expression_handle(syntax_trees, saved.pattern_head)),
         },
@@ -706,8 +701,6 @@ pub(super) fn snapshot_match_pattern(
                 .match_fields(pattern.fields)
                 .iter()
                 .map(|field| MatchFieldSnapshot {
-                    component: (field.component == language_core::PatternComponent::Case)
-                        .then_some("case"),
                     member: snapshot_identifier(syntax_trees, &field.member),
                     action: match &field.action {
                         MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {

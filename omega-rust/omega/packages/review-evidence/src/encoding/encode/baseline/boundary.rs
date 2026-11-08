@@ -1,3 +1,5 @@
+// Canonical encoding for boundary application demands and realizations in the package policy baseline.
+
 use super::values;
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::encoder::Encoder;

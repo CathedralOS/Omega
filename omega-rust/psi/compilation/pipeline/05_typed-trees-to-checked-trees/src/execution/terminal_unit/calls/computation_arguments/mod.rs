@@ -200,15 +200,9 @@ impl ComputationCallArguments<'_> {
             if named != expression {
                 return None;
             }
-            // Noncopy saved subjects observe an existing owner. Its exact
-            // captured backing, rather than the alias used for value facts,
-            // supplies the subtree transferred by this argument.
-            let place = validation::ownership_place_from_expression_in_state(
-                program,
-                state.symbol,
-                call.statement_index,
-                expression,
-            )?;
+            // Whole and projected operands name the same established home. The
+            // typed path, not name-expression syntax, selects the transferred
+            // subtree; ownership events separately supply its live claims.
             return storage_argument(
                 program,
                 shapes,
@@ -423,18 +417,7 @@ pub(crate) fn borrowed_storage_argument(
         )?;
         (
             reference,
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                value_dependency: None,
-                expression,
-                // ProjectedArgumentPath omits only the inherited root shells.
-                // Keep that checked logical root beside the completed owner;
-                // nested descriptor hops remain explicit in the suffix.
-                logical_root_type_identity: if place.segments.is_empty() {
-                    None
-                } else {
-                    Some(shapes.add_logical_type(reference, &[], &[])?)
-                },
-            },
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
         )
     } else {
         let symbol = place.root.as_symbol()?;

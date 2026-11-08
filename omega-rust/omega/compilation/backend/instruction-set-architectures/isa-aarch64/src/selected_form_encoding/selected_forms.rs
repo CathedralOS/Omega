@@ -165,7 +165,11 @@ fn family_and_operand_count(
             },
             1,
         ),
-        SelectedInstructionKind::PortWrite { .. } => {
+        SelectedInstructionKind::PrivilegedCrash
+        | SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
+        | SelectedInstructionKind::InstalledInterruptTaskCommit { .. }
+        | SelectedInstructionKind::InstalledInterruptTablePublication { .. }
+        | SelectedInstructionKind::PortWrite { .. } => {
             return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
         }
         SelectedInstructionKind::AtomicFence => (MachineAlternativeFamily::AtomicFence, 0),
@@ -498,7 +502,11 @@ fn encode_unchecked(
         SelectedInstructionKind::RegisterAccess { operation } => {
             return super::register_access::encode(operation, registers);
         }
-        SelectedInstructionKind::PortWrite { .. } => {
+        SelectedInstructionKind::PrivilegedCrash
+        | SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
+        | SelectedInstructionKind::InstalledInterruptTaskCommit { .. }
+        | SelectedInstructionKind::InstalledInterruptTablePublication { .. }
+        | SelectedInstructionKind::PortWrite { .. } => {
             return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
         }
         SelectedInstructionKind::AtomicFence => words.push(0xd503_3fbf),

@@ -1,4 +1,13 @@
-//! Commit and tree graph authentication against declared Git object identities.
+// Cryptographic commit, tree-graph, and blob-payload authentication against
+// declared Git object IDs.
+//
+// `authenticate_git_commit` verifies the commit object's hash and checks that
+// its `tree <oid>` header matches the selected root tree.
+// `authenticate_git_tree_graph` reconstructs the canonical Git tree object
+// hierarchy bottom-up (sorting entries by Git's tree-entry ordering where
+// subdirectories sort as if suffixed with `/`) and verifies every child and
+// root tree hash without needing to open every blob first. Any blob that is
+// later consumed or materialized must then pass `authenticate_git_tree_payloads`.
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -105,11 +114,6 @@ pub(crate) fn authenticate_git_tree(
     authenticate_git_tree_payloads(expected_tree, entries)
 }
 
-/// Authenticate every mode/name/object edge back to the selected root tree.
-///
-/// Blob object IDs commit to their payloads, so graph authentication does not
-/// need to open every blob. Any blob that is later consumed or materialized
-/// must still pass [`authenticate_git_tree_payloads`].
 pub(crate) fn authenticate_git_tree_graph(
     expected_tree: &str,
     entries: &[GitTreeEntry],
@@ -129,7 +133,6 @@ pub(crate) fn authenticate_git_tree_graph(
     Ok(())
 }
 
-/// Authenticate the bytes of every populated blob entry against its graph ID.
 pub(crate) fn authenticate_git_tree_payloads(
     expected_tree: &str,
     entries: &[GitTreeEntry],

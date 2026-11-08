@@ -1,7 +1,4 @@
-//! One project's products: `products` turns project demands into compiler
-//! requests, `project_compilation` executes an admitted package batch,
-//! `build_directory` owns the output directory, and `publication` writes the
-//! compiler's outputs into it.
+// Project build modules: `build_directory` guards output directories, `products` maps project demands to compiler requests, `project_compilation` executes admitted package batches, and `publication` writes final artifacts to disk.
 
 pub(crate) mod build_directory;
 pub(crate) mod products;

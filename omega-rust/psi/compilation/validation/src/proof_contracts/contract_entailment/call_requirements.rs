@@ -136,6 +136,12 @@ pub(super) fn prepare_selected_value<'p>(
     let Some(owner) =
         super::specification_calls::selected_call_site_contract(program, machine.symbol, site)
     else {
+        if super::struct_trace() {
+            eprintln!(
+                "STRUCT selected-prefix declined caller={} reason=no-selected-contract",
+                machine.name
+            );
+        }
         return PreparedRequirement::Decided(false);
     };
     if inherited.is_none()
@@ -160,11 +166,23 @@ pub(super) fn prepare_selected_value<'p>(
                 false
             })
     {
+        if super::struct_trace() {
+            eprintln!(
+                "STRUCT selected-prefix declined caller={} reason=not-declared-requirement expression={expression:?}",
+                machine.name
+            );
+        }
         return PreparedRequirement::Decided(false);
     }
     let Some(parameter_scope) =
         super::specification_calls::call_parameter_scope(program, machine.symbol, &owner, site)
     else {
+        if super::struct_trace() {
+            eprintln!(
+                "STRUCT selected-prefix declined caller={} reason=no-parameter-scope expression={expression:?}",
+                machine.name
+            );
+        }
         return PreparedRequirement::Decided(false);
     };
     // Pure type obligations do not require a runtime observation of a generic
@@ -436,6 +454,7 @@ fn prepare_requirement<'p>(
         inherited: inherited.cloned(),
         seen: false,
         proven: true,
+        isolated_judges: false,
     };
     PreparedRequirement::Walk(Box::new(RequirementWalk {
         requirement,
@@ -557,7 +576,7 @@ pub(super) struct CallRequirement<'program> {
     /// Owned when the selected call's scope was derived, so a prepared
     /// requirement can outlive the query that built it (shared proof walks).
     parameters: std::borrow::Cow<'program, [typed_trees::signature::StateParameter]>,
-    call_site: Option<crate::CallSite<'program>>,
+    pub(super) call_site: Option<crate::CallSite<'program>>,
     pub(super) call_expression: ExpressionHandle,
     leading_operands: usize,
     arguments: &'program [ExpressionHandle],
@@ -565,6 +584,10 @@ pub(super) struct CallRequirement<'program> {
     inherited: Option<InheritedPredicate>,
     seen: bool,
     proven: bool,
+    /// Judge every observation from fresh query caches, so a member of a
+    /// shared walk neither reads nor leaves cache entries another member
+    /// made (`shared_proof_walks`).
+    pub(super) isolated_judges: bool,
 }
 
 impl CallRequirement<'_> {
@@ -607,6 +630,9 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
         observation: PrefixObservation<'_, 'program>,
     ) {
         let (program, machine, state, mut judge, environment) = observation;
+        if self.isolated_judges {
+            judge = judge.with_fresh_query_state();
+        }
         if !judge.has_runtime_body_values() {
             intake_state_induction(
                 program,
@@ -625,6 +651,9 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             return;
         }
         let (program, machine, state, mut judge, environment) = observation;
+        if self.isolated_judges {
+            judge = judge.with_fresh_query_state();
+        }
         // Runtime invocations transport only checked tag guarantees. Their saved
         // results are individual values, not mathematical applications or an IH.
         if !judge.has_runtime_body_values() {

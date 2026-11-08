@@ -1,16 +1,18 @@
-//! Explicit host bindings for exact admitted native host operation slots.
-//! A slot's realization selects semantics; its complete declaration selects
-//! the typed adapter. Modeled services pass the shared
-//! `admit_exact_foreign_call` premise and their exact shape rules. A separately
-//! sponsored native provider joins the complete produced ABI and original
-//! homes, with semantic completion still owned by Psi. No source-name
-//! dispatch or stdout-driven exit exists.
-//! Output stays buffered; input consumes only the caller's finite replay stream
-//! with an instance-private cursor. Checked compound operations remain guest code.
+/*
+We bind admitted native host operation slots (`bind`, `bind_admitted_intrinsics`,
+`HostContext`) to typed interpreter adapters.
 
-/// Every hosted import adapter reports its declared signature the same
-/// way: cloning the `signature` the constructor recorded. One row per
-/// adapter expands that impl.
+A slot's realization selects its semantics while its complete declaration
+selects the typed adapter. Modeled services pass `admit_exact_foreign_call`
+(valid entry mechanism, identified provider-plan report, no callback
+materializations, no unsupported proof/output residue, normal completion, and a
+validated `CallSignature`) plus their family-specific declaration/ABI shape
+rules. Separately sponsored native providers (`native_provider`) join the
+complete produced ABI and original homes, with semantic completion still owned
+by Psi. Output stays buffered in `BufferedStreams`, and standard input consumes
+only the caller's finite replay stream through an instance-private cursor.
+*/
+
 macro_rules! import_signature_via_clone {
     ($name:ty) => {
         impl TerminalImportAdapter for $name {
@@ -21,9 +23,6 @@ macro_rules! import_signature_via_clone {
     };
 }
 
-/// Every buffer-aware adapter refuses a bare effect the same way: its exact
-/// dispatch needs the result and storage the constructor admitted it for. One
-/// row per adapter names its own refusal, so each keeps its own vocabulary.
 macro_rules! handle_effect_requires_dispatch {
     ($message:literal) => {
         handle_effect_requires_dispatch!(TerminalEffectRejection::new($message));
@@ -68,9 +67,6 @@ use terminal_psi::{BoundaryCompletion, BoundaryMachineResult};
 
 use super::TerminalRuntimeError;
 
-/// Native lowering records realizations for both host calls and operations
-/// executed by Psi itself. Accessor RAM eligibility remains an entry-relative
-/// analysis obligation; selecting a host adapter must not preempt that check.
 pub(super) fn executes_internally(
     program: &TerminalProgram,
     provision: &native_artifact::TerminalRuntimeHostProvision,
@@ -88,13 +84,6 @@ enum OutputKind {
     Byte,
 }
 
-/// Shared admission premise for every exact foreign call binding before any
-/// trusted host adapter is offered for it: an identified provider-plan report,
-/// a valid entry mechanism, no callback materializations, no host-supplied
-/// residue obligations, normal completion, and an evaluated boundary-entry
-/// plan that validates the native signature the adapter will actually run.
-/// Each family below keeps its own declaration/ABI shape rules; this one rule
-/// gates every offer, so one operation carries it instead of five copies.
 pub(super) fn admit_exact_foreign_call(
     signature: &TerminalImportSignature,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
@@ -121,15 +110,6 @@ pub(super) fn admit_exact_foreign_call(
             "foreign call binding retains callback materializations",
         ));
     }
-    // Structural requirements are caller-carried qualifications. The ordinary
-    // boundary argument binder checks them before invoking any host effect;
-    // admitting an adapter neither supplies nor re-establishes that evidence.
-    // Keep unsupported proof/output residue on the refusal path below.
-    // The shared interpreter boundary owner evaluates every scalar Requires
-    // against the captured invocation before calling any trusted host adapter.
-    // This adapter supplies no evidence and cannot bypass that gate.
-    // Normal-return memberships are output guarantees, not caller ingress.
-    // An unmodeled host adapter cannot establish them.
     if !declaration.normal_qualifications.is_empty()
         || !declaration.scalar_ensures.is_empty()
         || !declaration.content_guarantees.is_empty()
@@ -158,10 +138,6 @@ pub(super) fn admit_exact_foreign_call(
     Ok(())
 }
 
-/// The operands one boundary call carries. Every adapter reads them through
-/// this shape so the effect variant is destructured once, in `call_operands`,
-/// instead of once per adapter; each adapter still decides which fields its
-/// operation authenticates and refuses everything else.
 pub(super) struct CallOperands<'effect> {
     pub(super) boundary: &'effect BoundaryMachineId,
     pub(super) arguments: &'effect [TerminalScalarValue],
@@ -170,8 +146,6 @@ pub(super) struct CallOperands<'effect> {
     pub(super) result: &'effect BoundaryMachineResult,
 }
 
-/// The operands of a boundary call, or the adapter's own refusal for any other
-/// effect. `refuse` is borrowed so a caller keeps its rejection constructor.
 pub(super) fn call_operands<'effect, E>(
     effect: &'effect TerminalEffect,
     refuse: impl FnOnce() -> E,
@@ -196,21 +170,14 @@ pub(super) fn call_operands<'effect, E>(
     })
 }
 
-/// The refusal one adapter raises for its own operand mismatches: a fresh
-/// rejection carrying the message that adapter owns. Naming the shape once
-/// keeps each adapter to its message instead of re-spelling the closure.
 pub(super) fn refusal(message: &'static str) -> impl Fn() -> TerminalEffectRejection + Copy {
     move || TerminalEffectRejection::new(message)
 }
 
-/// The admission-time counterpart: an adapter that cannot be offered at all
-/// reports through the runtime error rather than an effect rejection.
 pub(super) fn unprovisioned(message: &'static str) -> impl Fn() -> TerminalRuntimeError + Copy {
     move || TerminalRuntimeError::InvalidProvision(message)
 }
 
-/// Whether this host actually supplies the selected target's runtime: another
-/// host's libc/CRT supply is never borrowed for an offer.
 fn host_supplies_target(target: TargetProfile) -> bool {
     match target {
         TargetProfile::LinuxX64 => cfg!(all(target_os = "linux", target_arch = "x86_64")),
@@ -222,16 +189,6 @@ fn host_supplies_target(target: TargetProfile) -> bool {
     }
 }
 
-/// Match one hosted C-runtime symbol against a binding's normalized locator.
-///
-/// How the platform spells an ordinary C symbol is target data, not operation
-/// data: `libc.so.6` at the profile's GLIBC version, the Mach-O load identity,
-/// or a provider DLL export. `darwin_install_names` carries the accepted
-/// load-identity spellings; `windows_library` names the DLL that exports
-/// `symbol` on Windows, or `None` for an operation this runtime does not
-/// supply there. One table owns this identity so no operation family
-/// restates it. The offer is refused — not errored — when this host supplies
-/// no runtime for the selected target.
 pub(super) fn matches_platform_c_symbol(
     binding: &target_operations::NormalizedForeignCallBinding,
     symbol: &[u8],
@@ -289,9 +246,6 @@ pub(super) fn matches_platform_c_symbol(
     }
 }
 
-/// One explicitly supplied host capability root shared by the receiver and
-/// real component instances of this invocation. Tokens and stream cursors keep
-/// their same owned stores across a checked cross-artifact call.
 pub(super) struct HostContext<'host> {
     output: buffered_output::BufferedStreams,
     input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
@@ -398,8 +352,6 @@ fn bind_numeric_import<'host>(
     instance.bind_import(slot, adapter)
 }
 
-/// Bind independently admitted semantic imports to this existing invocation.
-/// This creates no host environment, execution loop or service delegation.
 pub fn bind_admitted_intrinsics(
     instance: &mut TerminalInstance<'_, '_>,
     admitted: &provider_admission::provider_admission::AdmittedTerminalIntrinsics,
@@ -486,9 +438,6 @@ pub(super) fn bind<'host>(
                         .ok_or(TerminalRuntimeError::InvalidProvision(
                             "foreign host provision names no demanded import",
                         ))?;
-                // The occurrence keeps its portable contract while the foreign
-                // binding names the selected row. Rejoin their retained exact
-                // association once before either host implementation is offered.
                 if !provisions.is_some_and(|provisions| {
                     provisions.matches_host_requirement(
                         declaration,

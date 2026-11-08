@@ -1,4 +1,4 @@
-//! One envelope and resource budget for the composed package policy.
+// Canonical wire framing and resource budget for the composed package policy baseline.
 
 use crate::record::{
     PackagePolicyBaseline, PackagePolicySemanticDependency,
@@ -25,8 +25,6 @@ use selected_providers::encode_service_method;
 use values::identity::encode_nominal;
 
 impl PackagePolicyBaseline {
-    /// Deterministic comparison payload. These bytes grant no acceptance or
-    /// executable authority and contain no replay certificate.
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
         let mut encoder =
             Encoder::policy_bounded(PackagePolicyRecoveryLimits::default().maximum_bytes);

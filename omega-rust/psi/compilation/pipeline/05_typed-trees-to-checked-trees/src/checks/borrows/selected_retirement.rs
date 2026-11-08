@@ -141,7 +141,7 @@ fn before_target(
     // A descendant may use only its own descriptor after forming through this
     // one. Keep the existing lifetime whenever any retained child depends on
     // it, including stored copies and alternatives in a completed call row.
-    let Some(borrow_state) = super::matching_borrow_state(facts, flow) else {
+    let Some(borrow_state) = super::matching_borrow_state(facts.view(), flow) else {
         return false;
     };
     let Some(mut state_loans) = facts.borrow.loan_group(borrow_state.loans) else {

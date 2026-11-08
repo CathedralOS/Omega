@@ -1,3 +1,5 @@
+// Projected selected-conformance application record holding declaration identity, normalized arguments, and target trait application.
+
 use crate::record::{
     PackageReviewContractStaticArgument, PackageReviewNominalIdentity, PackageReviewTypeIdentity,
 };

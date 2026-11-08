@@ -34,7 +34,6 @@ struct NormalExitConstruction {
     exit: checked_trees::FlowClaimJoinExit,
     selected_regions: Vec<checked_trees::CheckedUnitStructuralArgumentPlan>,
     actions: Vec<checked_trees::CheckedNormalCleanupAction>,
-    result_completion: arena::Handle<checked_trees::CheckedNormalResultCompletion>,
 }
 
 fn retain_normal_exits(
@@ -49,7 +48,6 @@ fn retain_normal_exits(
             exit: row.exit,
             selected_regions: owner.normal_exit_regions.insert_many(row.selected_regions),
             actions: owner.actions.insert_many(row.actions),
-            result_completion: row.result_completion,
         })
         .collect::<Vec<_>>();
     checked_trees::CheckedNormalExitCleanups {
@@ -109,12 +107,6 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         state,
         exits,
         state_plan.selected_exit,
-        matches!(
-            state_plan.terminator,
-            checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-                completion: checked_trees::CheckedScalarReturnPlan::Exits(_)
-            }
-        ),
         |root| owner_source(program, facts, state, state_plan, root).map(Some),
     )?;
     Ok(retain_normal_exits(shapes, rows, completion))
@@ -155,7 +147,6 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
         state,
         exits,
         None,
-        plan.scalar_control.is_some(),
         |root| {
             let operations = &plan.operations;
             if root.as_expression().is_some() {
@@ -189,8 +180,6 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
     Some(retain_normal_exits(shapes, rows, completion))
 }
 
-/// The normal-result producer retains selected arm structure. Only actual
-/// result alternatives reach this tree; operand calls keep ordinary completion.
 fn cleanup_rows(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -200,273 +189,6 @@ fn cleanup_rows(
     state: &typed_trees::state::State,
     source_exits: Vec<checked_trees::FlowClaimJoinExit>,
     selected_exit: Option<checked_trees::FlowClaimJoinExit>,
-    scalar_return: bool,
-    mut source_for_owner: impl FnMut(
-        PlaceRoot,
-    ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
-) -> Result<Vec<NormalExitConstruction>, &'static str> {
-    if !scalar_return {
-        return cleanup_rows_at(
-            program,
-            facts,
-            targets,
-            shapes,
-            machine,
-            state,
-            &source_exits,
-            selected_exit,
-            None,
-            source_for_owner,
-        );
-    }
-    fn key(exit: checked_trees::FlowClaimJoinExit) -> Result<(usize, u8), &'static str> {
-        use checked_trees::FlowClaimJoinExitKind::*;
-        Ok((
-            exit.statement_index,
-            match exit.kind {
-                FinalExpression => 0,
-                TransitionTarget => 1,
-                TransitionContinuation => 2,
-                _ => return Err("normal result has no authored outgoing coordinate"),
-            },
-        ))
-    }
-    let mut values = std::collections::BTreeMap::<_, Vec<_>>::new();
-    for row in exits::state_exit_rows(program, facts, machine, state)? {
-        values
-            .entry(key(row.exit)?)
-            .or_default()
-            .push(row.returned_value);
-    }
-    let cases = crate::flow::CleanupCaseSelections::new(facts, machine, state.symbol)
-        .ok_or("normal result has no complete case selection roster")?;
-    let mut rows = Vec::new();
-    for exit in source_exits.iter().copied() {
-        if selected_exit.is_some_and(|selected| selected != exit) {
-            continue;
-        }
-        let mut captures = values
-            .remove(&key(exit)?)
-            .ok_or("normal result has no completed capture")?;
-        captures.sort_unstable_by_key(|value| (value.arena_index(), value.generation()));
-        captures.dedup();
-        let completed =
-            crate::flow::cleanup_result_selections(program, facts, exit, captures, cases.clone())
-                .ok_or("normal result has no complete selected capture graph")?;
-        let role = if exit.kind == checked_trees::FlowClaimJoinExitKind::TransitionContinuation {
-            checked_trees::CheckedScalarExpressionRole::ContinuationReturn
-        } else {
-            checked_trees::CheckedScalarExpressionRole::Return
-        };
-        let mut roots = facts.values.scalar_computations.roots_for_statement_role(
-            state.symbol,
-            u32::try_from(exit.statement_index)
-                .map_err(|_| "normal result statement exceeds u32")?,
-            role,
-        );
-        let root = roots.next();
-        if completed.nodes[0].branches.is_empty() || root.is_none() {
-            rows.extend(cleanup_rows_at(
-                program,
-                facts,
-                targets,
-                shapes,
-                machine,
-                state,
-                &source_exits,
-                Some(exit),
-                None,
-                &mut source_for_owner,
-            )?);
-            continue;
-        }
-        let root = root.ok_or("normal result has no owning computation")?;
-        if roots.next().is_some() || root.machine != machine {
-            return Err("normal result has no unique owning computation");
-        }
-        let mut regions = None;
-        let result_completion = normal_result_tree(
-            program,
-            facts,
-            targets,
-            shapes,
-            machine,
-            state,
-            &source_exits,
-            exit,
-            &completed,
-            0,
-            root.root,
-            &mut source_for_owner,
-            &mut regions,
-            &mut std::collections::BTreeSet::new(),
-        )?;
-        // These leaves add no action or owned-region specialization. Keep the
-        // existing complete continuation owner, including reference endings.
-        let result_completion = if regions.as_ref().is_some_and(Vec::is_empty)
-            && shapes
-                .cleanup_control
-                .result_actions(result_completion)
-                .next()
-                .is_none()
-        {
-            arena::Handle::invalid()
-        } else {
-            result_completion
-        };
-        rows.push(NormalExitConstruction {
-            exit,
-            // Every returning value leaf installs this roster. Its absence
-            // means every retained leaf was declaration-proven NoNormal.
-            selected_regions: regions.unwrap_or_default(),
-            actions: Vec::new(),
-            result_completion,
-        });
-    }
-    Ok(rows)
-}
-
-/// Publish the exact checked result structure with each leaf transaction.
-/// Correspondence and complete coverage are decided here, before lowering.
-#[allow(clippy::too_many_arguments)]
-fn normal_result_tree(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    targets: &[CheckedUnitCallableEntry<'_>],
-    shapes: &mut ShapeCollector<'_>,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    source_exits: &[checked_trees::FlowClaimJoinExit],
-    exit: checked_trees::FlowClaimJoinExit,
-    completed: &crate::flow::CompletedCleanupResults<'_>,
-    cut: usize,
-    computation: checked_trees::CheckedScalarComputationHandle,
-    source_for_owner: &mut impl FnMut(
-        PlaceRoot,
-    ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
-    regions: &mut Option<Vec<checked_trees::CheckedUnitStructuralArgumentPlan>>,
-    active: &mut std::collections::BTreeSet<(u32, u32)>,
-) -> Result<arena::Handle<checked_trees::CheckedNormalResultCompletion>, &'static str> {
-    let plans = &facts.values.scalar_computations;
-    let key = (computation.arena_index(), computation.generation());
-    if !plans.nodes.is_valid(computation) || !active.insert(key) {
-        return Err("normal result has a stale or cyclic computation");
-    }
-    let source = completed
-        .nodes
-        .get(cut)
-        .ok_or("normal result lost its completed cut")?;
-    let node = plans.nodes.get(computation);
-    let result = if validation::expression_normal_completion_possible(program, source.expression)
-        == Some(false)
-    {
-        checked_trees::CheckedNormalResultCompletion::NoNormal { computation }
-    } else if let checked_trees::CheckedScalarComputationKind::Dispatch {
-        source_expression,
-        arms,
-        ..
-    } = &node.kind
-        && !source.branches.is_empty()
-    {
-        if *source_expression != source.expression {
-            return Err("normal result selection changed its source expression");
-        }
-        let arm_span = *arms;
-        let arms = plans
-            .dispatch_arms
-            .span(arm_span)
-            .filter(|arms| !arms.is_empty())
-            .ok_or("normal result selection lost its arm roster")?;
-        let mut retained = Vec::with_capacity(arms.len());
-        let mut seen = std::collections::BTreeSet::new();
-        for (arm_handle, arm) in arm_span.handles().zip(arms) {
-            let key = (arm.source_arm.arena_index(), arm.source_arm.generation());
-            if !seen.insert(key) {
-                return Err("normal result selection repeats a source arm");
-            }
-            let child = *source
-                .branches
-                .get(&key)
-                .ok_or("normal result arm has no completed source capture")?;
-            let result = normal_result_tree(
-                program,
-                facts,
-                targets,
-                shapes,
-                machine,
-                state,
-                source_exits,
-                exit,
-                completed,
-                child,
-                arm.value,
-                source_for_owner,
-                regions,
-                active,
-            )?;
-            retained.push(checked_trees::CheckedNormalResultArm {
-                arm: arm_handle,
-                result,
-            });
-        }
-        if seen.len() != source.branches.len() {
-            return Err("normal result selection omits a completed source arm");
-        }
-        checked_trees::CheckedNormalResultCompletion::Dispatch {
-            computation,
-            arms: shapes
-                .cleanup_control
-                .normal_result_arms
-                .insert_many(retained),
-        }
-    } else {
-        let mut rows = cleanup_rows_at(
-            program,
-            facts,
-            targets,
-            shapes,
-            machine,
-            state,
-            source_exits,
-            Some(exit),
-            Some(&source.result),
-            &mut *source_for_owner,
-        )?;
-        if rows.len() != 1 {
-            return Err("normal result leaf has no unique transaction");
-        }
-        let row = rows
-            .pop()
-            .ok_or("normal result leaf has no unique transaction")?;
-        if let Some(expected) = regions.as_ref() {
-            if expected != &row.selected_regions {
-                return Err("normal result leaves disagree on their selected owned homes");
-            }
-        } else {
-            *regions = Some(row.selected_regions);
-        }
-        checked_trees::CheckedNormalResultCompletion::Value {
-            computation,
-            actions: shapes.cleanup_control.actions.insert_many(row.actions),
-        }
-    };
-    active.remove(&key);
-    Ok(shapes
-        .cleanup_control
-        .normal_result_completions
-        .append(result))
-}
-
-fn cleanup_rows_at(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    targets: &[CheckedUnitCallableEntry<'_>],
-    shapes: &mut ShapeCollector<'_>,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    source_exits: &[checked_trees::FlowClaimJoinExit],
-    selected_exit: Option<checked_trees::FlowClaimJoinExit>,
-    completed_result: Option<&crate::flow::CompletedCleanupResult<'_>>,
     mut source_for_owner: impl FnMut(
         PlaceRoot,
     ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
@@ -487,7 +209,6 @@ fn cleanup_rows_at(
             exit,
             selected_regions: Vec::new(),
             actions: Vec::new(),
-            result_completion: Default::default(),
         })
         .collect::<Vec<_>>();
     let mut retirements = Vec::new();
@@ -573,7 +294,7 @@ fn cleanup_rows_at(
                 disposition.root,
             ));
         }
-        let actions = super::actions::disposition_actions_at(
+        let actions = super::actions::disposition_actions(
             program,
             facts,
             targets,
@@ -581,7 +302,6 @@ fn cleanup_rows_at(
             disposition_handle,
             source.clone(),
             None,
-            completed_result,
         )?;
         if let Some(row) = rows.iter_mut().find(|row| row.exit == disposition.exit) {
             if facts
@@ -697,11 +417,7 @@ pub(in crate::execution::terminal_unit) fn expression_source(
             .iter()
             .any(|(_, value)| value.state == state && value.expression == expression)
             .then_some(
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                    value_dependency: None,
-                    expression,
-                    logical_root_type_identity: None,
-                },
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
             );
     };
     if matching.next().is_some() {

@@ -265,116 +265,182 @@ fn scaled_index(
     Some((value, stride.try_into().ok()?))
 }
 
-fn address(
-    selected: &SelectedFunction,
-    target: &TargetFunction,
-    operation: OperationId,
-    register: VirtualRegisterId,
-    remaining: usize,
-    consumer: &SelectedInstruction,
-) -> Option<Address> {
-    if remaining == 0 {
-        return None;
+/// Follow pointers through one selected body. Spill flow is prepared only
+/// when a real pointer reload needs it, then shared by the body's later queries.
+pub(super) struct AddressReplay<'a> {
+    target: &'a TargetFunction,
+    selected: &'a SelectedFunction,
+    spills: Option<super::spill_values::SpillValues<'a>>,
+    failure: Option<&'static str>,
+}
+impl<'a> AddressReplay<'a> {
+    pub(super) fn new(target: &'a TargetFunction, selected: &'a SelectedFunction) -> Self {
+        Self {
+            target,
+            selected,
+            spills: None,
+            failure: None,
+        }
     }
-    if let VirtualRegisterOrigin::StructuralParameter {
-        place,
-        parameter_index,
-    } = selected.virtual_register(register)?.origin
-    {
-        let parameter = selected
-            .structural
-            .as_ref()?
-            .parameters
-            .get(parameter_index)?;
-        if parameter.semantic.place != place
-            || parameter.semantic.access == terminal_psi::StructuralAccess::Owned
-            || all_instructions(selected).any(|instruction| {
-                instruction.operands.iter().any(|operand| {
-                    operand.virtual_register == register
-                        && matches!(
-                            operand.access,
-                            RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                        )
-                })
-            })
-        {
+    fn at(
+        &mut self,
+        operation: OperationId,
+        register: VirtualRegisterId,
+        consumer: &SelectedInstruction,
+    ) -> Option<Address> {
+        self.failure = None;
+        self.address(
+            operation,
+            register,
+            self.selected.virtual_registers.len() + 1,
+            consumer,
+        )
+    }
+
+    pub(super) fn failure_reason(&self) -> Option<&'static str> {
+        self.failure
+    }
+
+    fn address(
+        &mut self,
+        operation: OperationId,
+        register: VirtualRegisterId,
+        remaining: usize,
+        consumer: &SelectedInstruction,
+    ) -> Option<Address> {
+        let selected = self.selected;
+        let target = self.target;
+        if remaining == 0 {
             return None;
         }
-        return Some(Address {
-            base: AddressBase::BorrowedFormal(place),
-            loads: Vec::new(),
-            offset: 0,
-            indices: Vec::new(),
-        });
-    }
-    if let Some(address) = block_entry_pointer(target, selected, register, consumer) {
-        return Some(address);
-    }
-    let row = definition(selected, operation, register)?;
-    if !precedes(selected, row.id, consumer.id) {
-        return None;
-    }
-    match row.kind {
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset,
-        } => Some(Address {
-            base: AddressBase::Allocation(slot),
-            loads: Vec::new(),
-            offset: u64::from(byte_offset),
-            indices: Vec::new(),
-        }),
-        SelectedInstructionKind::AddressOffset { byte_offset } => {
-            let mut result = address(
-                selected,
-                target,
-                operation,
-                operand(row, 0)?,
-                remaining - 1,
-                row,
-            )?;
-            result.offset = result.offset.checked_add(u64::from(byte_offset))?;
-            Some(result)
+        if let VirtualRegisterOrigin::StructuralParameter {
+            place,
+            parameter_index,
+        } = selected.virtual_register(register)?.origin
+        {
+            let parameter = selected
+                .structural
+                .as_ref()?
+                .parameters
+                .get(parameter_index)?;
+            if parameter.semantic.place != place
+                || parameter.semantic.access == terminal_psi::StructuralAccess::Owned
+                || all_instructions(selected).any(|instruction| {
+                    instruction.operands.iter().any(|operand| {
+                        operand.virtual_register == register
+                            && matches!(
+                                operand.access,
+                                RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+                            )
+                    })
+                })
+            {
+                return None;
+            }
+            return Some(Address {
+                base: AddressBase::BorrowedFormal(place),
+                loads: Vec::new(),
+                offset: 0,
+                indices: Vec::new(),
+            });
         }
-        SelectedInstructionKind::CopyI64 => address(
-            selected,
-            target,
-            operation,
-            operand(row, 0)?,
-            remaining - 1,
-            row,
-        ),
-        SelectedInstructionKind::Load64 { byte_offset } => {
-            let mut result = address(
-                selected,
-                target,
-                operation,
-                operand(row, 0)?,
-                remaining - 1,
-                row,
-            )?;
-            result.offset = result.offset.checked_add(u64::from(byte_offset))?;
-            result
-                .loads
-                .push((result.offset, std::mem::take(&mut result.indices)));
-            result.offset = 0;
-            Some(result)
+        if let Some(address) = block_entry_pointer(target, selected, register, consumer) {
+            return Some(address);
         }
-        SelectedInstructionKind::ByteViewAddress => {
-            let mut result = address(
-                selected,
-                target,
-                operation,
-                operand(row, 0)?,
-                remaining - 1,
-                row,
-            )?;
-            result
-                .indices
-                .push(scaled_index(selected, operation, operand(row, 1)?, row)?);
-            Some(result)
+        if let Some(load) = unique_definition(selected, register)
+            && load.kind == (SelectedInstructionKind::Load64 { byte_offset: 0 })
+            && load.provenance == Default::default()
+        {
+            let pointer = operand(load, 0)?;
+            if let Some(frame) = unique_definition(selected, pointer)
+                && let SelectedInstructionKind::FrameAddress {
+                    slot:
+                        FrameStorageSlotId::Local(home @ LocalStorageSlotId::Spill { register: stored }),
+                    byte_offset: 0,
+                } = frame.kind
+            {
+                // The reload captures this slot's value at the reload, even if a
+                // later store overwrites it before the pointer is consumed.
+                if operand(load, 1) != Some(register)
+                    || operand(frame, 0) != Some(pointer)
+                    || frame.provenance != Default::default()
+                    || selected.virtual_register(pointer)?.origin
+                        != (VirtualRegisterOrigin::SpillAddress {
+                            instruction: frame.id,
+                            register: stored,
+                        })
+                    || !precedes(selected, frame.id, load.id)
+                    || !precedes(selected, load.id, consumer.id)
+                    || !matches!(selected.virtual_register(register)?.origin,
+                    VirtualRegisterOrigin::AbiTransport { instruction, .. }
+                    | VirtualRegisterOrigin::StructuralObservation { instruction, .. }
+                    | VirtualRegisterOrigin::InstructionScratch { instruction, .. }
+                    if instruction == load.id)
+                {
+                    self.failure = Some("pointer reload has no exact private spill address");
+                    return None;
+                }
+                if self.spills.is_none() {
+                    match super::spill_values::SpillValues::new(selected) {
+                        Ok(spills) => self.spills = Some(spills),
+                        Err(reason) => {
+                            self.failure = Some(reason);
+                            return None;
+                        }
+                    }
+                }
+                let writer = match self.spills.as_mut()?.writer(load.id, home) {
+                    Ok(writer) => writer,
+                    Err(reason) => {
+                        self.failure = Some(reason);
+                        return None;
+                    }
+                };
+                // Follow the actual stored operand at its store cut. The slot's
+                // register number identifies storage, not the value it contains.
+                return self.address(operation, operand(writer, 0)?, remaining - 1, writer);
+            }
         }
-        _ => None,
+        let row = definition(selected, operation, register)?;
+        if !precedes(selected, row.id, consumer.id) {
+            return None;
+        }
+        match row.kind {
+            SelectedInstructionKind::FrameAddress {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset,
+            } => Some(Address {
+                base: AddressBase::Allocation(slot),
+                loads: Vec::new(),
+                offset: u64::from(byte_offset),
+                indices: Vec::new(),
+            }),
+            SelectedInstructionKind::AddressOffset { byte_offset } => {
+                let mut result = self.address(operation, operand(row, 0)?, remaining - 1, row)?;
+                result.offset = result.offset.checked_add(u64::from(byte_offset))?;
+                Some(result)
+            }
+            SelectedInstructionKind::CopyI64 => {
+                self.address(operation, operand(row, 0)?, remaining - 1, row)
+            }
+            SelectedInstructionKind::Load64 { byte_offset } => {
+                let mut result = self.address(operation, operand(row, 0)?, remaining - 1, row)?;
+                result.offset = result.offset.checked_add(u64::from(byte_offset))?;
+                result
+                    .loads
+                    .push((result.offset, std::mem::take(&mut result.indices)));
+                result.offset = 0;
+                Some(result)
+            }
+            SelectedInstructionKind::ByteViewAddress => {
+                let mut result = self.address(operation, operand(row, 0)?, remaining - 1, row)?;
+                result
+                    .indices
+                    .push(scaled_index(selected, operation, operand(row, 1)?, row)?);
+                Some(result)
+            }
+            _ => None,
+        }
     }
 }
 
@@ -383,10 +449,12 @@ pub(super) fn retained(
     result: &StructuralOperationResult,
     source: &StructuralArgument,
     correspondence: &abstract_operations::AccessReferenceBacking,
-    target: &TargetFunction,
-    selected: &SelectedFunction,
     geometry: &mut backing_geometry::BackingGeometry<'_>,
+    addresses: &mut AddressReplay<'_>,
 ) -> Option<()> {
+    addresses.failure = None;
+    let target = addresses.target;
+    let selected = addresses.selected;
     geometry
         .proves(target.machine, result.place, source, correspondence)
         .ok()?;
@@ -473,26 +541,12 @@ pub(super) fn retained(
             return None;
         }
     }
-    let captured = address(
-        selected,
-        target,
-        operation,
-        operand(instruction, 1)?,
-        selected.virtual_registers.len() + 1,
-        instruction,
-    );
+    let captured = addresses.at(operation, operand(instruction, 1)?, instruction);
     let captured = captured?;
     if captured != expected {
         return None;
     }
-    let destination = address(
-        selected,
-        target,
-        operation,
-        operand(instruction, 0)?,
-        4,
-        instruction,
-    )?;
+    let destination = addresses.at(operation, operand(instruction, 0)?, instruction)?;
     if destination.offset != 0
         || !destination.indices.is_empty()
         || !destination.loads.is_empty()
@@ -703,11 +757,13 @@ fn geometry_address<T>(
 pub(super) fn borrowed_address_matches(
     operation: OperationId,
     source: &StructuralArgument,
-    target: &TargetFunction,
-    selected: &SelectedFunction,
     consumer: &SelectedInstruction,
     register: VirtualRegisterId,
+    addresses: &mut AddressReplay<'_>,
 ) -> Result<u32, String> {
+    addresses.failure = None;
+    let target = addresses.target;
+    let selected = addresses.selected;
     let (base, root) = address_root(target, selected, source).ok_or_else(|| {
         format!("borrowed pointer {:?} for {:?} has no unique source home; parameter={:?}; allocation={:?}", register, source,
             target.graph.parameters.iter().find(|row| row.place == source.place),
@@ -730,21 +786,15 @@ pub(super) fn borrowed_address_matches(
             register, source
         )
     })?;
-    let actual = address(
-        selected,
-        target,
-        operation,
-        register,
-        selected.virtual_registers.len() + 1,
-        consumer,
-    );
+    let actual = addresses.at(operation, register, consumer);
     if actual.as_ref() != Some(&expected) {
         return Err(format!(
-            "borrowed pointer {:?} for {:?}: expected {:?}; reconstructed {:?}; definitions: {}",
+            "borrowed pointer {:?} for {:?}: expected {:?}; reconstructed {:?}; spill proof: {:?}; definitions: {}",
             register,
             source,
             expected,
             actual,
+            addresses.failure,
             pointer_definitions(selected, register, consumer)
         ));
     }

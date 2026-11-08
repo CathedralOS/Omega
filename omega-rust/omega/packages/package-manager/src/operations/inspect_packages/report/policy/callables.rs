@@ -1,4 +1,4 @@
-//! Callable authority and checked behavior without decoding nominal identities.
+// Summary rendering for callable authority, service reach, synchronous invocations, and checked termination/crash behavior.
 use std::fmt::Write;
 
 use super::{

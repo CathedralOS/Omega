@@ -1,14 +1,26 @@
-//! Prepare source and Build, join its actual return, then seal checked execution.
+/*
+We prepare source and Build continuations, join the application's returned Build
+activation, and seal checked Product execution.
+
+`prepare_checked_source` runs Psi 00-01 through package-owned source preparation
+and retains the immutable parse checkpoint. `prepare_typed_frontier` either
+consumes a retained typed frontier or runs source assembly and Psi 02-03
+(`build_continuation::lower_typed_frontier`).
+*/
+
+/*
+We also provide the explicit 256 MiB compiler worker stack (`compile_thread`) so
+deep recursive parsing, representation walks, and nested build-time product
+queries reach their explicit depth guards deterministically across hosts whose
+default thread stacks are small (such as macOS or Windows). Nested calls on an
+active compiler worker run inline without spawning additional threads.
+*/
 
 pub(crate) mod build_continuation;
-pub(crate) mod compile_thread;
 mod product_queries;
 mod product_selections;
-pub use product_queries::ProductQueries;
 mod source_build;
 mod source_checking;
-pub use source_build::BuildAdvance;
-pub(crate) use source_checking::check_product_source;
 
 pub use compilation_products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
@@ -16,6 +28,9 @@ pub use compilation_products::{
     PreparedPackageBuild, SettledCheckReuse,
 };
 pub use package_compilation::build_execution::RestrictedBuildGrants;
+pub use product_queries::ProductQueries;
+pub use source_build::BuildAdvance;
+pub(crate) use source_checking::check_product_source;
 
 use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::{CompileTimings, StageMeta, counters};
@@ -28,7 +43,77 @@ use package_compilation::PackageCompilationInputs;
 use package_compilation::source_assembly::ImmutableSourceParseCheckpoint;
 use std::path::Path;
 
-/// Psi 00-01 through package-owned source preparation, then retain the result.
+pub(crate) mod compile_thread {
+    use diagnostics::Diagnostic;
+
+    pub const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
+
+    thread_local! {
+        static ON_COMPILER_WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    pub fn run_on_compile_thread<T, Failure>(
+        work: impl FnOnce() -> Result<T, Failure> + Send,
+    ) -> Result<T, Failure>
+    where
+        T: Send,
+        Failure: From<Vec<Diagnostic>> + Send,
+    {
+        if ON_COMPILER_WORKER.get() {
+            return work();
+        }
+        std::thread::scope(|scope| {
+            spawn_compile_worker(scope, work)
+                .map_err(|error| {
+                    Failure::from(vec![Diagnostic::error(format!(
+                        "failed to spawn compiler thread: {error}"
+                    ))])
+                })?
+                .join()
+                .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+        })
+    }
+
+    pub fn spawn_compile_worker<'scope, 'env, T>(
+        scope: &'scope std::thread::Scope<'scope, 'env>,
+        work: impl FnOnce() -> T + Send + 'scope,
+    ) -> std::io::Result<std::thread::ScopedJoinHandle<'scope, T>>
+    where
+        T: Send + 'scope,
+    {
+        std::thread::Builder::new()
+            .name("omega-compile".to_owned())
+            .stack_size(COMPILE_STACK_SIZE)
+            .spawn_scoped(scope, move || {
+                ON_COMPILER_WORKER.set(true);
+                work()
+            })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn scoped_worker_keeps_nested_compilation_on_its_large_stack() {
+            std::thread::scope(|scope| {
+                spawn_compile_worker(scope, || -> Result<(), Vec<Diagnostic>> {
+                    let worker = std::thread::current().id();
+                    let nested = run_on_compile_thread(|| {
+                        Ok::<_, Vec<Diagnostic>>(std::thread::current().id())
+                    })?;
+                    assert_eq!(worker, nested);
+                    Ok(())
+                })
+                .unwrap()
+                .join()
+                .unwrap()
+                .unwrap();
+            });
+        }
+    }
+}
+
 pub(crate) fn prepare_checked_source(
     root_path: &Path,
     package_sources: Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
@@ -55,8 +140,6 @@ pub(crate) fn prepare_checked_source(
     ))
 }
 
-/// Consume retained frontend work or run assembly and Psi 02-03 explicitly.
-/// The product owner revalidates custody on reuse and retains only completed work.
 fn prepare_typed_frontier(
     source: PreparedCheckedSource,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -97,7 +180,6 @@ fn prepare_typed_frontier(
         attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
         diagnostics
     })?;
-    // Preserve the report's inclusive Build ladder after separating preparation.
     timings.add_completed(
         artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
         frontend_started.elapsed().as_micros(),
@@ -281,9 +363,6 @@ pub(super) fn begin_package_build_worker(
     })
 }
 
-/// One admitted source request, held across application-owned Build execution.
-/// Its continuation and selection policy remain opaque; completion consumes the
-/// exact returned activation before any Product checking or realization.
 pub struct SourceCompilation {
     root: std::path::PathBuf,
     target: Option<target::TargetProfile>,
@@ -480,12 +559,6 @@ pub(super) fn select_completed_build(
     }
 }
 
-/// Interpret each diagnostic's authored span against the compilation's
-/// retained source map while that map is still alive: staged path, line,
-/// column, and the owning package's display name. Error paths outside the
-/// map's reach render this record instead of rereading source storage.
-/// `attribute_diagnostics` through a compile failure. Consent requests
-/// carry no diagnostics to attribute.
 fn attribute_failure(
     failure: CompileFailure,
     sources: &source::SourceMap,
@@ -532,7 +605,6 @@ pub(crate) fn attribute_diagnostics(
     }
 }
 
-/// Record an inclusive stage whose subordinate operations also record timings.
 pub(crate) fn timed<T>(
     timings: &mut CompileTimings,
     stage: StageMeta,

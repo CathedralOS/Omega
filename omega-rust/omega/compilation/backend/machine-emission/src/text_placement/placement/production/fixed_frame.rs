@@ -99,10 +99,13 @@ pub(in crate::text_placement::placement) fn place(
                                 &instruction.provenance.edges,
                             )?;
                         }
+                        target_operations::CallSiteOwner::Installation { operation, .. }
+                            if instruction.provenance.operations.as_slice() == [operation]
+                                && instruction.provenance.edges.is_empty() => {}
                         target_operations::CallSiteOwner::CleanupAction { edge, .. }
                             if instruction.provenance.operations.is_empty()
                                 && instruction.provenance.edges.as_slice() == [edge]
-                                && instruction.provenance.fuel.is_empty() => {}
+                                && instruction.provenance.work.is_empty() => {}
                         _ => return Err(TextPlacementError::SourceShapeMismatch),
                     }
                     let callee_section_offset = *offsets
@@ -199,7 +202,7 @@ pub(in crate::text_placement::placement) fn place(
         identity: TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"pending"),
         source_fragments: fragments.identity,
         psi: fragments.psi,
-        fuel_schedule: fragments.fuel_schedule,
+        work_schedule: fragments.work_schedule,
         selected: fragments.selected,
         target: fragments.target,
         semantic_entry: fragments.entry,

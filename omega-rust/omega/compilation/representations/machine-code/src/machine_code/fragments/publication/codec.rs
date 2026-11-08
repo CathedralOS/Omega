@@ -4,7 +4,7 @@ use optimization_core::{
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
     PostAllocationOptimizationManifestIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::WorkScheduleIdentity;
 use target::{NativeTarget, TargetWireIdentityError};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -64,9 +64,9 @@ impl FunctionFragmentEmissionManifest {
             vocabulary_marker,
             program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
         };
-        let fuel_marker = cursor.u32()?;
-        let fuel_schedule = FuelScheduleIdentity::new(fuel_marker)
-            .ok_or(FunctionFragmentEmissionManifestDecodeError::InvalidFuelSchedule)?;
+        let work_marker = cursor.u32()?;
+        let work_schedule = WorkScheduleIdentity::new(work_marker)
+            .ok_or(FunctionFragmentEmissionManifestDecodeError::InvalidWorkSchedule)?;
         let selected =
             selected_instructions::SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
         let post_allocation_manifest =
@@ -87,7 +87,7 @@ impl FunctionFragmentEmissionManifest {
             zero_byte_instruction_spans: cursor.u64()?,
             bytes: cursor.u64()?,
             resolved_conditional_branches: cursor.u64()?,
-            logical_fuel_settlements: cursor.u64()?,
+            logical_work_settlements: cursor.u64()?,
             unresolved_internal_machine_fixups: cursor.u64()?,
         };
         for _ in 0..6 {
@@ -105,7 +105,7 @@ impl FunctionFragmentEmissionManifest {
             source_realization,
             selections,
             psi,
-            fuel_schedule,
+            work_schedule,
             selected,
             post_allocation_manifest,
             post_allocation_machine,
@@ -139,7 +139,7 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
     bytes.extend_from_slice(&record.selections.bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(record.psi.program_fingerprint.as_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, record.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.work_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&record.selected.bytes());
     bytes.extend_from_slice(&record.post_allocation_manifest.bytes());
     bytes.extend_from_slice(&record.post_allocation_machine.bytes());
@@ -167,7 +167,7 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
     );
     crate::codec_bytes::push_encoded(
         &mut bytes,
-        record.statistics.logical_fuel_settlements.to_le_bytes(),
+        record.statistics.logical_work_settlements.to_le_bytes(),
     );
     bytes.extend_from_slice(
         &record

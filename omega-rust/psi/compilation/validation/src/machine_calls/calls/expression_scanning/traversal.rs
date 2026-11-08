@@ -224,16 +224,7 @@ pub(crate) fn validate_value_position_calls(
         StatementNode::Expression(expression) => {
             context.scan_at(
                 *expression,
-                if super::super::unit_returns::unit_return_call_is_admitted(
-                    program,
-                    machine,
-                    state,
-                    *expression,
-                ) {
-                    CallExpressionUse::TerminalResult
-                } else {
-                    CallExpressionUse::Statement
-                },
+                CallExpressionUse::Statement,
                 value_environment,
                 executes,
             );
@@ -398,8 +389,8 @@ impl ScanContext<'_, '_> {
         }
     }
 
-    /// Selected result arms retain a terminal completion. Subjects, patterns
-    /// and ordinary operands remain value uses even when handles are shared.
+    /// Only the direct expression statement may discard Unit. Recursive operands
+    /// remain value uses even if a malformed tree reuses that statement's handle.
     fn scan_at(
         &mut self,
         expression: ExpressionHandle,
@@ -593,13 +584,8 @@ impl ScanContext<'_, '_> {
                         }
                         }
                     };
-                    self.scan_at(
+                    self.scan(
                         arm.value,
-                        if matches!(expression_use, CallExpressionUse::TerminalResult) {
-                            CallExpressionUse::TerminalResult
-                        } else {
-                            CallExpressionUse::Value
-                        },
                         environment,
                         remaining_executes && selected != Some(false),
                     );

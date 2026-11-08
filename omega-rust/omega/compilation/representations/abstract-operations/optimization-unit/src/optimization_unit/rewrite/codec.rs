@@ -119,8 +119,8 @@ pub(super) fn encode_candidate(
                 }
             }
         }
-        encode_len(&mut bytes, row.fuel.len());
-        for settlement in &row.fuel {
+        encode_len(&mut bytes, row.work.len());
+        for settlement in &row.work {
             match settlement.site {
                 PsiProvenance::Operation(operation) => {
                     bytes.push(1);

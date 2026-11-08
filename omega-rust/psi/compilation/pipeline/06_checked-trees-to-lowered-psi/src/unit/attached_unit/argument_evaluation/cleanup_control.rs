@@ -8,12 +8,14 @@
 
 use super::{
     Evaluation, LoweringError, OperationBuffer, Terminator, ValueDeclaration, allocate_dense,
-    block_id, declarations, edge_id,
+    block_id, declarations, edge_id, value_id,
 };
 use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 use crate::unit::unit_cleanup::CleanupRegion;
-use semantic_vocabulary::{BlockId, EdgeId, ProofTerm};
-use terminal_psi::{Block, OperationKind, SuccessorEdge, TerminalAffineCleanupAction};
+use semantic_vocabulary::{BlockId, EdgeId, ProofTerm, ScalarType};
+use terminal_psi::{
+    Block, OperationKind, OperationResult, SuccessorEdge, TerminalAffineCleanupAction,
+};
 
 mod case_observations;
 
@@ -316,21 +318,42 @@ impl Evaluation {
         checked: &checked_trees::CheckedTrees,
         arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
-        regions: &[CleanupRegion],
         values: &mut Vec<ValueDeclaration>,
         next_place: &mut u64,
         places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
-        operations: &mut OperationBuffer,
+        operations: &OperationBuffer,
     ) -> Result<(), LoweringError> {
-        self.cleanup_emission(checked, &mut Vec::new())
+        // Capture names from every original operand before the edge changes
+        // their receiving places. A declaration cannot supply a missing source
+        // namespace, including when the actual roster is genuinely empty.
+        let mut source_names = Vec::with_capacity(arguments.len());
+        for argument in arguments.iter() {
+            source_names.push(
+                if argument.access == terminal_psi::StructuralAccess::Owned {
+                    Some(self.current_claims.source(argument)?.ok_or_else(|| {
+                        LoweringError::MissingCapturedArgumentNamespace {
+                            block: self.current,
+                            argument: argument.clone(),
+                            last_operation: operations
+                                .operations
+                                .last()
+                                .map(|operation| operation.id),
+                        }
+                    })?)
+                } else {
+                    None
+                },
+            );
+        }
+        let arrivals = self
+            .cleanup_emission(checked, &mut Vec::new())
             .capture_arguments(
                 identities,
                 arguments,
                 declarations,
-                regions,
                 values,
                 next_place,
                 places,
@@ -338,7 +361,13 @@ impl Evaluation {
                 next_block,
                 next_edge,
                 operations,
-            )
+            )?;
+        for (place, names) in arrivals.into_iter().zip(source_names) {
+            if let Some(names) = names {
+                self.current_claims.publish(place, names)?;
+            }
+        }
+        Ok(())
     }
 
     /// Flat schedules remain on the completion edge; selected schedules use
@@ -384,32 +413,30 @@ impl Evaluation {
 }
 
 impl CleanupEmission<'_> {
+    /// The fresh receiving places are emitted in the original argument order,
+    /// alongside the edge and its whole parameters. Namespace transport uses
+    /// this producing association rather than reconstructing it afterward.
     pub(crate) fn capture_arguments(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
-        regions: &[CleanupRegion],
         values: &mut Vec<ValueDeclaration>,
         next_place: &mut u64,
         places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
-        operations: &mut OperationBuffer,
-    ) -> Result<(), LoweringError> {
+        operations: &OperationBuffer,
+    ) -> Result<Vec<semantic_vocabulary::PlaceId>, LoweringError> {
         if arguments.len() != declarations.len() {
             return Err(LoweringError::Unsupported(
                 "cleanup capture has no exact structural roster",
             ));
         }
         if arguments.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
-        // All authored operands have completed. Capture the required case
-        // decisions while the original owner is whole, before this edge moves
-        // its selected children into the cleanup continuation.
-        self.capture_transfer_cases(regions, arguments, next_value, operations)?;
         let target = block_id(allocate_dense(next_block)?);
         let parameters = super::declarations(
             &values
@@ -453,9 +480,10 @@ impl CleanupEmission<'_> {
             next_edge,
             operations,
         )?;
+        let arrivals = forwarded.iter().map(|argument| argument.place).collect();
         *self.structural_parameters = captures;
         *arguments = forwarded;
-        Ok(())
+        Ok(arrivals)
     }
 
     pub(crate) fn emit(
@@ -830,7 +858,34 @@ impl CleanupEmission<'_> {
             } else {
                 (join, join_parameters.to_vec())
             };
-            let observation = self.observe_case(condition, next_value, operations)?;
+            let observation = if let Some(observed) = self.retained_case(condition, operations) {
+                observed
+            } else {
+                let value = ValueDeclaration {
+                    id: value_id(allocate_dense(next_value)?),
+                    scalar_type: ScalarType::Boolean,
+                    qualifications: Default::default(),
+                };
+                let producer = operations.push_leaf(
+                    OperationResult::Scalar(value),
+                    OperationKind::StructuralCaseMembership {
+                        source: condition.place,
+                        path: condition.path.clone(),
+                        case: condition.case,
+                    },
+                );
+                operations.storage_observations.cases.push(
+                    crate::emission::operation_emission::buffer::CapturedStructuralCaseObservation {
+                        source: condition.place,
+                        path: condition.path.clone(),
+                        structural_type: condition.structural_type,
+                        case: condition.case,
+                        value,
+                        producer,
+                    },
+                );
+                value
+            };
             // The first discriminator dominates every arrival at this dispatch's
             // join. Observations made inside an arm or its later false-chain do
             // not: preserve only this common scope after the complete dispatch.

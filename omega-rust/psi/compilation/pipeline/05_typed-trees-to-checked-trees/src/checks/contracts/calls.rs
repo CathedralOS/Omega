@@ -1066,7 +1066,7 @@ fn qualified_argument_grants_domain(
     qualified
         && super::exact_scalar_membership(
             program,
-            facts,
+            facts.view(),
             contexts,
             &validation::CanonicalPlace {
                 root: facts::PlaceRoot::Expression(argument),
@@ -1171,12 +1171,12 @@ fn check_lender_domain_restoration(
         for captured in captured_values {
             let mut places = Vec::new();
             if let Some(obs_places) =
-                crate::flow::captured_observation_places(program, &facts.flow, &captured)
+                crate::flow::captured_observation_places(program, facts.flow.view(), &captured)
             {
                 places.extend(obs_places);
             }
             if let Some(val_places) =
-                crate::flow::captured_value_places(program, &facts.flow, &captured)
+                crate::flow::captured_value_places(program, facts.flow.view(), &captured)
             {
                 places.extend(val_places);
             }

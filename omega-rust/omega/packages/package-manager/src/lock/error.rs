@@ -1,3 +1,5 @@
+// Closed failure vocabulary for package lock encoding, recovery, and cross-target structural validation.
+
 use super::HistoricalPackagePolicyError;
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
 use package_evidence::encoding::{PackagePolicyMembershipFailure, PackageReviewEncodingError};

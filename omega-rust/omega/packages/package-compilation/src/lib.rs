@@ -1,28 +1,38 @@
-#![forbid(unsafe_code)]
+/*
+Reconciled package compilation inputs, source-consumption custody, and Build
+execution settlement.
 
-//! Reconciled package compilation inputs and exact source-consumption custody.
-//!
-//! Start at `package_compilation.rs` for input construction and validation.
-//! `source_snapshot` captures the package source a compilation consumed,
-//! `source_consumption` records exactly which of it was read, and
-//! `semantic_bindings` carries the optional standard-library bindings.
-//! `BuildSourceCustody::seal` joins the final checked closure to that source
-//! evidence; `CheckedSourceCustody` owns the generated-source export. Neither
-//! operation reconstructs package custody in the coordinator, and neither
-//! reopens a source file: the frontend read each one once and these records
-//! commit to those bytes.
-//! `compilation_reuse` owns exact source input comparisons, not admission
-//! or scheduling; the compiler consumes those keys without re-projecting them.
-//! `source_imports` resolves source frontiers through exact package scopes;
-//! `source_assembly` loads and parses them through Psi 00/01, retaining one
-//! immutable checkpoint and assembling generated inputs without Build execution.
-//! `toolchain_library` locates and validates the compiler's bundled sources.
-//! `build_execution` owns immutable build inputs, filesystem custody and
-//! output settlement; it consumes interpreter observations, not compiler state.
-//! The source modules live under `source/` and the reuse keys and caches under
-//! `reuse/`; `build_execution` and `package_compilation` stay at the root.
-//! This package is the shared input contract below compilation and package
-//! commands, not a dependency on either application's orchestration.
+We own the shared input contract below both compiler invocations and package
+manager commands. `package_compilation` validates and constructs the immutable
+package dependency graph, target attachments, provider selections, and native
+binding handoffs. `source` captures physical package and toolchain trees once,
+resolves import frontiers through exact package scopes (`source_imports`),
+parses them into an immutable Psi 00/01 checkpoint (`source_assembly`), and
+seals the exact consumed source bytes into `BuildSourceCustody` and
+`CheckedSourceCustody` (`source_consumption`). `build_execution` prepares
+read-only filesystem scopes for `Build` evaluation and settles interpreter
+observations into content-addressed outputs. `reuse` computes exact input
+equivalence keys and maintains the content-verified checked-source metadata
+cache.
+*/
+
+/*
+Neither the compiler coordinator nor the package manager may reopen a source
+file or reconstruct package custody ad hoc after frontend preparation. By
+committing every physical source tree once at capture time and sealing the
+checked closure against those exact bytes, we guarantee that Build evaluation,
+product compilation, and persisted review caches agree on the exact bytes and
+authority boundaries that produced a compile.
+*/
+
+/*
+Start at `package_compilation.rs` for `PackageCompilationInputs` construction
+and admission, `source/source_assembly.rs` for Psi 00/01 source loading,
+`build_execution.rs` for `Build` evaluation scopes and output custody, and
+`reuse.rs` for compilation reuse keys and checked-source caching.
+*/
+
+#![forbid(unsafe_code)]
 
 pub use package_source::local::resolution_observations::CapturedLocalSource;
 pub use source::anonymous_owner::AnonymousSourceCapture;
@@ -73,9 +83,6 @@ pub use source::source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
 };
 
-/// Capture the same complete anonymous namespace that source assembly consumes.
-/// Callers may compare a private checkpoint before parsing, then pass this exact
-/// capture into assembly. Capture grants neither Build nor package authority.
 pub fn capture_anonymous_compilation_source(
     root_path: &std::path::Path,
 ) -> Result<CapturedLocalSource, Vec<diagnostics::Diagnostic>> {

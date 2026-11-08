@@ -160,11 +160,11 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 240 keeps the binder-selected calling owner for inherited callbacks.
 // Marker 242 combines occupied-owner placement and borrowed descriptor instructions.
 // The two earlier 241 layouts are incompatible.
-// Input observation lifetimes and provider application roles share this layout.
-// Layout inputs retain target-owned case-tag size and alignment.
-// Lifecycle placements retain their checked target input for installation.
-// Relocation retains separate source and destination profile requirements.
-pub(crate) const FORMAT_MARKER: u16 = 251;
+// Marker 252 combines installed interrupt registrations and execution kinds
+// with input observation/result lifetimes, provider application roles, target
+// case-tag geometry, lifecycle target inputs and relocation's separate source
+// and destination profile requirements. Both earlier 251 layouts are incompatible.
+pub(crate) const FORMAT_MARKER: u16 = 252;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

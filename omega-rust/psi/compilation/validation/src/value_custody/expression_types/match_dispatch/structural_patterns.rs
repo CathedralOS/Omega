@@ -54,7 +54,6 @@ pub(crate) fn structural_match_pattern_case_for_subject(
     subject: typed_trees::expression::ExpressionHandle,
     pattern: MatchPattern,
 ) -> Option<SymbolHandle> {
-    program.pattern_component(subject)?;
     let reference = structural_match_subject_type_for_subject(program, machine, state, subject)?;
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
     let head = match pattern {
@@ -81,15 +80,11 @@ pub(crate) fn structural_match_pattern_case_for_subject(
         // A record head names the subject's exact declaration. Case payloads
         // cannot be extracted under their sum owner without selecting a case.
         if matches!(pattern, MatchPattern::Destructure(_))
-            && program
-                .data_constructor_definition(
-                    program
-                        .type_reference_table
-                        .peeled_type_reference(reference),
-                    name.symbol,
-                )
-                .is_some_and(|selected| selected.symbol == data.symbol)
-            && program.pattern_component(subject) == Some(language_core::PatternComponent::Fields)
+            && name.symbol == data.symbol
+            && !program
+                .data_members(data)
+                .iter()
+                .any(|member| matches!(member, DataMember::Variant(_)))
         {
             return Some(SymbolHandle::invalid());
         }
@@ -274,30 +269,22 @@ pub(crate) fn validate_for_subject(
         }
     }
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
-    let declared = if case.is_valid() {
+    let mut declared = program
+        .data_members(data)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(field),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if case.is_valid() {
         let variant = program
             .data_members(data)
             .iter()
             .filter_map(DataMember::as_variant)
             .find(|variant| variant.symbol == case)?;
-        program
-            .data_payload_fields(variant)
-            .iter()
-            .collect::<Vec<_>>()
-    } else {
-        program
-            .data_members(data)
-            .iter()
-            .filter_map(|member| match member {
-                DataMember::Field(field) => Some(field),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-    };
-    let has_cases = program
-        .data_members(data)
-        .iter()
-        .any(|member| member.as_variant().is_some());
+        declared.extend(program.data_payload_fields(variant));
+    }
     let fields = expression_table(program).match_fields(pattern.fields);
     let total = structural_match_pattern_is_total(program, MatchPattern::Destructure(pattern));
     let selected_field_symbol = |field_symbol: SymbolHandle| {
@@ -311,30 +298,10 @@ pub(crate) fn validate_for_subject(
             return Some(field_symbol);
         }
         program
-            .data_constructor_field(
-                program
-                    .type_reference_table
-                    .peeled_type_reference(reference),
-                data.symbol,
-                field_symbol,
-            )
+            .data_constructor_field(reference, data.symbol, field_symbol)
             .map(|selected| selected.symbol)
     };
     for (ordinal, field) in fields.iter().enumerate() {
-        if field.component == language_core::PatternComponent::Case {
-            if case.is_valid()
-                || !has_cases
-                || program.pattern_component(subject)
-                    != Some(language_core::PatternComponent::Fields)
-                || fields[..ordinal]
-                    .iter()
-                    .any(|prior| prior.component == language_core::PatternComponent::Case)
-                || matches!(field.action, MatchFieldAction::Equal(_))
-            {
-                diagnostics.push(Diagnostic::error("case component is missing, duplicated, or selected outside its outer data pattern").with_source_span(source_span));
-            }
-            continue;
-        }
         let selected = selected_field_symbol(field.field_symbol);
         let exact = selected.and_then(|selected| {
             declared.iter().find(|declared| {
@@ -342,14 +309,11 @@ pub(crate) fn validate_for_subject(
             })
         });
         if exact.is_none()
-            || fields[..ordinal]
-                .iter()
-                .filter(|prior| prior.component == language_core::PatternComponent::Fields)
-                .any(|prior| {
-                    selected_field_symbol(prior.field_symbol)
-                        .zip(selected)
-                        .is_some_and(|(prior, selected)| prior == selected)
-                })
+            || fields[..ordinal].iter().any(|prior| {
+                selected_field_symbol(prior.field_symbol)
+                    .zip(selected)
+                    .is_some_and(|(prior, selected)| prior == selected)
+            })
         {
             diagnostics.push(
                 Diagnostic::error(format!(
@@ -380,16 +344,11 @@ pub(crate) fn validate_for_subject(
         }
     }
     if !pattern.has_rest
-        && (declared.iter().any(|declared| {
-            !fields.iter().any(|field| {
-                field.component == language_core::PatternComponent::Fields
-                    && selected_field_symbol(field.field_symbol) == Some(declared.symbol)
-            })
-        }) || (!case.is_valid()
-            && has_cases
-            && !fields
+        && declared.iter().any(|declared| {
+            !fields
                 .iter()
-                .any(|field| field.component == language_core::PatternComponent::Case)))
+                .any(|field| selected_field_symbol(field.field_symbol) == Some(declared.symbol))
+        })
     {
         diagnostics.push(
             Diagnostic::error(
@@ -431,9 +390,6 @@ pub fn structural_match_cases_are_covered(
     else {
         return false;
     };
-    if cases.contains(&SymbolHandle::invalid()) {
-        return true;
-    }
     let mut variants = program
         .data_members(data)
         .iter()

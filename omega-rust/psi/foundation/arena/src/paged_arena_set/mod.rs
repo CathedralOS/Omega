@@ -206,6 +206,49 @@ impl<T: Default> PagedArenaSet<T> {
         }
     }
 
+    /// The highest generation this set has a page for or has opened for
+    /// appends. A worker that writes on fresh pages above it can never collide
+    /// with a page the set already holds.
+    pub fn latest_generation(&self) -> u32 {
+        self.additional_pages
+            .last()
+            .map_or(self.current_generation, |(generation, _)| {
+                (*generation).max(self.current_generation)
+            })
+    }
+
+    /// The generation new rows are appended to.
+    pub fn current_generation(&self) -> u32 {
+        self.current_generation
+    }
+
+    /// Split off every additional page at or after `generation` into a new set
+    /// with an empty first page, leaving the earlier pages here and making
+    /// `restored_current` the append generation again. A worker that cloned a
+    /// baseline holding earlier additional pages, then wrote only on pages from
+    /// `generation` up, hands back exactly the pages it produced, and the
+    /// remainder equals the baseline again if the worker touched nothing older.
+    pub fn take_pages_from(&mut self, generation: u32, restored_current: u32) -> Self {
+        assert!(
+            generation > self.first_generation,
+            "split generation must exceed first generation"
+        );
+        let split = self
+            .additional_pages
+            .partition_point(|(page_generation, _)| *page_generation < generation);
+        let pages = self.additional_pages.split_off(split);
+        let mut taken = Self::with_generation(self.first_generation);
+        taken.current_generation = self.current_generation.max(generation);
+        for (page_generation, page) in pages {
+            taken.active_count += page.len();
+            taken.insert_page(page_generation, page);
+        }
+        self.active_count -= taken.active_count;
+        self.index_page_positions();
+        self.current_generation = restored_current;
+        taken
+    }
+
     /// Start a later append page after previously published pages.
     /// Pages are zero-allocated on `begin_page`; the page entry is materialized
     /// lazily on first write (`current_mut`).
@@ -766,6 +809,52 @@ mod tests {
         assert_eq!(parent.get(second), "second page");
         drop(parent);
         assert_eq!(child.get(extension), "child only");
+    }
+
+    // Two workers fork one baseline that already has an additional page, each
+    // writes only on its own later page, and the owner adopts both. The forks'
+    // remainders equal the baseline, and every handle a worker minted resolves
+    // to the same row in the owner afterwards.
+    #[test]
+    fn workers_hand_back_only_pages_from_their_split_generation() {
+        let mut baseline = PagedArenaSet::<String>::new();
+        let prefix = baseline.append("prefix".to_owned());
+        baseline.begin_page(5);
+        let earlier = baseline.append("earlier page".to_owned());
+        baseline.share_pages();
+        let split = baseline.latest_generation() + 1;
+        assert_eq!(split, 6);
+        let restored = baseline.current_generation();
+
+        let mut outputs = Vec::new();
+        let mut minted = Vec::new();
+        for worker in 0..2u32 {
+            let mut fork = baseline.clone();
+            fork.begin_page(split + worker);
+            let handle = fork.append(format!("worker {worker}"));
+            assert_eq!(fork.get(prefix), "prefix");
+            assert_eq!(fork.get(earlier), "earlier page");
+            let pages = fork.take_pages_from(split, restored);
+            assert_eq!(fork, baseline);
+            minted.push(handle);
+            outputs.push(pages);
+        }
+        let mut owner = baseline.clone();
+        for pages in outputs {
+            owner.adopt_additional_pages(pages);
+        }
+        assert_eq!(owner.get(prefix), "prefix");
+        assert_eq!(owner.get(earlier), "earlier page");
+        assert_eq!(owner.get(minted[0]), "worker 0");
+        assert_eq!(owner.get(minted[1]), "worker 1");
+        assert_eq!(
+            owner
+                .iter()
+                .map(|(_, row)| row.as_str())
+                .collect::<Vec<_>>(),
+            ["prefix", "earlier page", "worker 0", "worker 1"]
+        );
+        assert_eq!(owner.len(), 4);
     }
 
     #[test]

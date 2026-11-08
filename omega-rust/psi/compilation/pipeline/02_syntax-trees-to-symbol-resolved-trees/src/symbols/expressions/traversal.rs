@@ -496,7 +496,6 @@ impl ExpressionSymbolContext<'_, '_> {
         let saved = self
             .expression_table
             .insert(ExpressionNode::SavedSubject(TableSavedSubject {
-                component: Default::default(),
                 capture: dispatch.capture,
                 pattern_head: head,
             }));

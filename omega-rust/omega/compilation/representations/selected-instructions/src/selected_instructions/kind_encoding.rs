@@ -15,6 +15,14 @@ use legalized_operations::encode_integer;
 pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) {
     bytes.push(tag);
     match kind {
+        SelectedInstructionKind::InstalledInterruptCpuCheck { gdt_bytes }
+        | SelectedInstructionKind::InstalledInterruptTaskCommit { gdt_bytes } => {
+            crate::codec_bytes::push_encoded(bytes, gdt_bytes.to_le_bytes());
+        }
+        SelectedInstructionKind::InstalledInterruptTablePublication { table_bytes } => {
+            crate::codec_bytes::push_encoded(bytes, table_bytes.to_le_bytes());
+        }
+
         SelectedInstructionKind::RegisterAccess { operation } => {
             crate::codec_bytes::push_encoded(bytes, operation.catalog_tag().to_le_bytes());
         }
@@ -45,6 +53,7 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
         SelectedInstructionKind::Store64 { slot, byte_offset }
         | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
             match slot {
+                crate::FrameStorageSlotId::ActivationBase => bytes.push(4),
                 crate::FrameStorageSlotId::Incoming {
                     parameter_index,
                     abi_stack_byte_offset,
@@ -199,6 +208,7 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::Crash
+        | SelectedInstructionKind::PrivilegedCrash
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnUnit

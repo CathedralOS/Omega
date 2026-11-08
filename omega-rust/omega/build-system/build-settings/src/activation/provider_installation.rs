@@ -1,4 +1,18 @@
-//! Join a source-selected implementation to the waiting activation's static slots.
+/*
+Admit and bind a `Build`-dependency provider artifact to the suspended
+activation's deferred boundary slots (`admit_request`, `prepare`).
+
+When a `Build` activation pauses on `Build::select_provider` readiness,
+`admit_request` checks that the compiled `ProducedBuildProvider` matches the
+exact dependency backing path, requirement declaration identity, and type
+application requested by the paused `BuildProviderRequest`. `prepare` then
+retains the provider's code (`TerminalProgram::retain`), admits target machine
+selections and layouts for the `Build` execution profile, resolves the unique
+`provider_candidates` entry for each demanded boundary slot, completes any
+scalar applications required by that exact slot selection (charging the live
+`Build` invocation account and recording `SourceCompletionAccounting`), and
+produces the `TerminalComponentBinding`s installed into `TerminalInstance`.
+*/
 
 use crate::host::bindings::BuildProviderRequest;
 use build_time_evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
@@ -56,8 +70,6 @@ pub(super) fn prepare<'host, 'code>(
         };
     };
     let module = artifact.view().module();
-    // Keep freshly produced code alive after helper preparation is released;
-    // decoding is an external-byte ingress, not a same-session ownership transfer.
     let program = TerminalProgram::retain(artifact.retain_code());
     let targets = admit_target_machine_selections(artifact.view(), profile.target_name());
     let target_facts = profile
@@ -106,8 +118,6 @@ pub(super) fn prepare<'host, 'code>(
         let requirements = program
             .execution_requirements(Some(&supplies))
             .map_err(|error| format!("Build helper demands: {error:?}"))?;
-        // Complete against this exact slot selection, never the dependency's
-        // Product defaults or a union of independently admitted selections.
         let completed = build_time_evaluation::complete_scalar_applications(
             artifact,
             profile.target_name(),

@@ -18,3 +18,24 @@ pub(crate) fn returning_exits<'checked>(
         .returning_exits(arms, fallback)
         .map_err(LoweringError::Unsupported)
 }
+
+/// Exact normal destinations of this executable scalar control plan. Authored
+/// cleanup rows can also describe dead suffixes; they do not make those exits
+/// executable or justify allocating a completion block for them.
+pub(crate) fn returning_destinations(
+    checked: &CheckedTrees,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
+) -> Result<Vec<CheckedScalarBranchDestination>, LoweringError> {
+    let paths = control
+        .terminator
+        .returning_paths(&flow_facts(checked).guarded_exits)
+        .map_err(LoweringError::Unsupported)?;
+    let mut selected = Vec::new();
+    for path in paths {
+        let destination = path.destination;
+        if !selected.contains(&destination) {
+            selected.push(destination);
+        }
+    }
+    Ok(selected)
+}

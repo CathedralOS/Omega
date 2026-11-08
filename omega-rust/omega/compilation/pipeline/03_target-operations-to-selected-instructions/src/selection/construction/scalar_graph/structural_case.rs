@@ -299,7 +299,7 @@ pub(super) fn build(
                 block: SelectedBlockId((extra_base + ordinal).try_into().map_err(|_| invalid())?),
                 bindings: Vec::new(),
                 structural_bindings: Vec::new(),
-                fuel: Vec::new(),
+                work: Vec::new(),
                 structural_case: None,
             }
         };
@@ -460,7 +460,7 @@ fn successor(
             target: case.target,
             bindings: Vec::new(),
             structural_bindings: case.structural_bindings.clone(),
-            fuel: case.fuel.clone(),
+            work: case.work.clone(),
             cleanup_calls: case.cleanup_calls.clone(),
         },
     )?;

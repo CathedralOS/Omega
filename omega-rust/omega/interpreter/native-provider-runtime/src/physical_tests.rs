@@ -1,3 +1,6 @@
+// Physical tests verifying shared-backing page persistence across process
+// unmapping and cross-process pointer linking inside the provider worker.
+
 use crate::{channel, shared_backing::SharedBacking};
 use bounded_process::{BoundedProcessChild, BoundedProcessLimits, BoundedProcessPrepared};
 use std::{
@@ -48,8 +51,6 @@ fn inherited_worker_shared_home() {
     channel.write_all(&99_u64.to_le_bytes()).unwrap();
     channel.read_exact(&mut command).unwrap();
     assert_eq!(&command, b"D");
-    // Parent's view and original file name are already gone on Unix. This
-    // process still owns the same mapping, so its native pointers remain valid.
     backing.read(0, &mut bytes).unwrap();
     assert_eq!(u64::from_le_bytes(bytes), 99);
     backing.write(0, &101_u64.to_le_bytes()).unwrap();
@@ -64,13 +65,15 @@ fn private_worker_and_host_share_pages_until_each_mapping_retires() {
         .as_nanos();
     let directory =
         std::env::temp_dir().join(format!("omega-native-home-{}-{nonce}", std::process::id()));
-    let mut builder = std::fs::DirBuilder::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
+        let mut builder = std::fs::DirBuilder::new();
         builder.mode(0o700);
+        builder.create(&directory).unwrap();
     }
-    builder.create(&directory).unwrap();
+    #[cfg(not(unix))]
+    std::fs::DirBuilder::new().create(&directory).unwrap();
     let path = directory.join("home");
     let mut backing = SharedBacking::create(&path, 8).unwrap();
     backing.write(0, &37_u64.to_le_bytes()).unwrap();

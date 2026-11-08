@@ -503,8 +503,6 @@ impl ShapeCollector<'_> {
         control.conditions.len()
             + control.paths.len()
             + control.normal_exit_rows.len()
-            + control.normal_result_completions.len()
-            + control.normal_result_arms.len()
             + control.value_completions.len()
             + control.actions.len()
             + control.normal_exit_regions.len()

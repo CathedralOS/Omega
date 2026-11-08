@@ -71,8 +71,8 @@ mod atomic_loads;
 mod boundary_calls;
 mod byte_comparisons;
 mod call_arguments;
+mod call_result_types;
 mod cases;
-mod completions;
 mod coordinate_reads;
 mod declaration_inputs;
 mod dispatch;
@@ -101,15 +101,13 @@ pub(crate) fn build_checked_value_computation_plans(
     proof: &ProofFacts,
     pure: &mut CheckedScalarExpressionPlans,
     exact_integer_casts: &[ExactIntegerCastFact],
-) -> (
-    CheckedScalarComputationPlans,
-    CheckedStructuralValuePlans,
-    checked_trees::CheckedCompletionPlans,
-) {
+) -> (CheckedScalarComputationPlans, CheckedStructuralValuePlans) {
     dispatch_copies::withdraw_captured_pure_roots(program, flow, pure);
+    // Built once: every collector below plans over this same program.
+    let carriers = crate::execution::terminal_unit::types::carrier_index(program);
+    let call_result_types = call_result_types::CallResultTypes::build(program, flow, &carriers);
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = CheckedStructuralValuePlans::default();
-    let mut completions = checked_trees::CheckedCompletionPlans::default();
     for machine in program.machines() {
         let states = program.machine_states(machine);
         for state in states {
@@ -137,7 +135,9 @@ pub(crate) fn build_checked_value_computation_plans(
                 let statement_nodes_start = plans.nodes.storage_slice().len();
                 let mut builder = Builder {
                     program,
-                    shapes: ShapeCollector::new(program),
+                    shapes: ShapeCollector::with_carrier_index(program, carriers.clone()),
+                    carriers: carriers.clone(),
+                    call_result_types: call_result_types.clone(),
                     operators,
                     semantic,
                     flow,
@@ -160,32 +160,10 @@ pub(crate) fn build_checked_value_computation_plans(
                     structural_values: &mut structural_values,
                     statement_nodes_start,
                     root_scope: builder::RootScope::Statement,
-                    dispatch_receivers: Default::default(),
                     scalar_occurrences: Vec::new(),
                     integer_occurrences: Vec::new(),
                 };
                 builder.retain_dispatch_copy_roots();
-                if crate::execution::terminal_unit::types::is_unit(program, state.return_type) {
-                    match statement {
-                        StatementNode::Expression(expression)
-                            if statement_index + 1 == statements.len() =>
-                        {
-                            let _ = builder.record_completion(*expression, &mut completions);
-                        }
-                        StatementNode::Transition(transition) => {
-                            for target in transition.targets() {
-                                if let TransitionTargetNode::Value(expression) =
-                                    program.statement_table.transition_target(target)
-                                {
-                                    let _ =
-                                        builder.record_completion(*expression, &mut completions);
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-
                 // Endpoints are ordinary operands. Capture every occurrence
                 // before constructing consumers, so a call result and a pure
                 // bound supply the same range operation at its authored site.
@@ -240,7 +218,6 @@ pub(crate) fn build_checked_value_computation_plans(
                             statement_index,
                             *expression,
                             *expected,
-                            |_| false,
                         )
                     })
                     .and_then(|(expression, expected)| {
@@ -255,7 +232,6 @@ pub(crate) fn build_checked_value_computation_plans(
                 // scalar element roots cannot also be structural operands.
                 if let Some((expression, expected)) = construction_destination
                     && scalar_elements.is_none()
-                    && !crate::execution::terminal_unit::types::is_unit(program, expected)
                     && (is_scalar_case_value(program, expression, expected)
                         || program.primitive_type_reference(expected).is_none())
                     && let Some(root) = builder.structural_value(expression, expected)
@@ -747,8 +723,7 @@ pub(crate) fn build_checked_value_computation_plans(
     }
     plans.seal();
     structural_values.seal();
-    completions.seal();
-    (plans, structural_values, completions)
+    (plans, structural_values)
 }
 
 /// Source-admitted observations append only after completed effects and final

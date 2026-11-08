@@ -1,3 +1,5 @@
+// Canonical encoding for external callable signatures and external trait/operator/top-level requirements.
+
 use super::super::{declarations::encode_operator_coordinate, identity::encode_nominal};
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::{

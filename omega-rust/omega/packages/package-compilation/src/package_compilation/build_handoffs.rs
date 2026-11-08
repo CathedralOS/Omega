@@ -1,10 +1,10 @@
-//! Complete per-purpose output handoffs from admitted dependency Builds.
-//!
-//! The existing package/target/source-custody roster carries generated Omega
-//! source and executed Product choices together. Each activation exports only
-//! its own outputs. Receiving admission validates their source, declaration
-//! roles and precedence; this carrier grants no private nameability, host
-//! backing or execution authority.
+// Complete per-purpose output handoffs (`PackageBuildHandoff`) from admitted
+// dependency Builds. Each handoff bundles generated Omega source units,
+// retained provider selections, and native binding declarations/intents under
+// one checked activation purpose, target profile, build execution profile,
+// dependency closure, and source-consumption commitment. Every consumer
+// validates closure, purpose, target, and build execution profile before
+// admitting the handoff.
 
 use super::{PackageCompilationInputError, PackageCompilationInputs, PackageDependencyClosure};
 use crate::PackageSourceConsumptionCommitment;
@@ -15,14 +15,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Immutable generated source and Product intent from one admitted package Build.
-/// Construction remains compiler-private: carrying this value proves source
-/// and output custody, not final checking of the generated program or package
-/// admission. Every consumer checks the generated declarations it incorporates.
-/// Clones share the immutable bundle, including paths and dependency metadata;
-/// each consumer still validates its own closure, custody, purpose, effective
-/// target, and build execution profile. Equal product bytes do not establish that the
-/// generator ran under the consumer's admitted build context.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageBuildHandoff {
     contents: Arc<PackageBuildHandoffContents>,
@@ -94,9 +86,6 @@ impl PackageBuildHandoff {
         self.contents.package
     }
 
-    /// The checked activation that produced the bundle, not the import edge's
-    /// relative scope. Ordinary dependencies of a build helper are build
-    /// instances too, even though the helper imports them through `depend`.
     pub fn purpose(&self) -> DependencyPurpose {
         self.contents.purpose
     }
@@ -105,9 +94,6 @@ impl PackageBuildHandoff {
         self.contents.target
     }
 
-    /// The admitted profile that checked and executed the producer's build.
-    /// None denotes the unprofiled host of this in-process compiler run, not
-    /// permission to substitute a catalogued execution profile.
     pub fn build_execution_profile(&self) -> Option<target::TargetProfile> {
         self.contents.build_execution_profile
     }
@@ -124,8 +110,6 @@ impl PackageBuildHandoff {
         &self.contents.sources
     }
 
-    /// The one generated unit selected by exact relative paths. Source imports
-    /// and retained declaration admission share path decoding and ambiguity.
     pub(crate) fn generated_source(
         &self,
         relative_candidates: &[PathBuf],
@@ -146,8 +130,6 @@ impl PackageBuildHandoff {
         Ok(matched)
     }
 
-    /// Own-package executed choices. Inherited rows already have their own
-    /// package/purpose handoff and must not be exported a second time.
     pub fn provider_selections(
         &self,
     ) -> &[build_time_evaluation::provider_declarations::RetainedProviderSelection] {
@@ -268,10 +250,6 @@ impl PackageCompilationInputs {
         }
     }
 
-    /// Relative import scopes are distinct from checked activation purposes.
-    /// Product edges inherit their importing activation; only a build edge
-    /// switches to the execution-profile activation. Construct this finite
-    /// roster from the validated graph, never from supplied output bundles.
     fn dependency_source_instances(&self) -> BTreeSet<(PackageKeyIdentity, DependencyPurpose)> {
         let mut instances = BTreeSet::new();
         let mut pending = vec![(self.source.root, DependencyPurpose::Product)];
@@ -296,9 +274,6 @@ impl PackageCompilationInputs {
         instances
     }
 
-    /// Checked dependency occurrences required by this compilation. Product
-    /// imports inherit the root's purpose; build imports always select Build.
-    /// Producers use the same roster that validates the complete handoff.
     pub fn required_dependency_source_instances(
         &self,
     ) -> BTreeSet<(PackageKeyIdentity, DependencyPurpose)> {
@@ -308,11 +283,6 @@ impl PackageCompilationInputs {
             .collect()
     }
 
-    /// Attach the complete set of fresh compiler-issued generated-source
-    /// bundles for this root's dependencies. Empty bundles are retained so an
-    /// omitted dependency build cannot be confused with a build that handed
-    /// off no generated source. Coverage is per checked purpose, not package:
-    /// identical target profiles or bytes never let one role satisfy another.
     pub fn with_complete_dependency_build_handoffs(
         mut self,
         bundles: Vec<PackageBuildHandoff>,
@@ -363,9 +333,6 @@ impl PackageCompilationInputs {
         self.target.dependency_build_handoffs.values()
     }
 
-    /// Each retained handoff together with the relative source scope in which
-    /// it is consumed. The same build instance can serve both relative scopes
-    /// inside a build helper, but never serves a product activation.
     pub fn dependency_build_handoff_instances(
         &self,
     ) -> impl Iterator<Item = (DependencyPurpose, &PackageBuildHandoff)> {
@@ -409,8 +376,6 @@ impl PackageCompilationInputs {
         }
     }
 
-    /// Generated bytes retain the build context that produced them even when
-    /// their product target and source bytes equal another activation's output.
     pub fn validate_dependency_build_handoff_execution_profile(
         &self,
         execution_profile: Option<target::TargetProfile>,

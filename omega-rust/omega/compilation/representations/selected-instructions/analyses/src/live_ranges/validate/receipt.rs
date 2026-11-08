@@ -47,7 +47,7 @@ fn build_receipt(
         selected: plan.selected,
         liveness: plan.liveness,
         optimization_unit: plan.optimization_unit,
-        fuel_schedule: plan.fuel_schedule,
+        work_schedule: plan.work_schedule,
         virtual_register_count: function_counts
             .iter()
             .map(|counts| counts.virtual_register_count)

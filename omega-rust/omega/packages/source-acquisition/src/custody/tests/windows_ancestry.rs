@@ -1,3 +1,13 @@
+/*
+Windows cache ancestry verification tests (`verify_retained_cache_custody_root`,
+`retain_verified_windows_cache_ancestor`, and `verify_cache_custody_root`).
+
+Because Windows forbids renaming a parent directory while a descendant handle is
+open, `windows_ancestry_reconciles_retained_leaf_after_parent_replacement` moves
+the original parent first, retains the handle at the moved path, and then
+recreates the original path to verify that the retained leaf comparison rejects.
+*/
+
 use crate::custody::platform::retain_verified_windows_cache_ancestor;
 use crate::custody::tree::{
     CacheCustodyKind, verify_cache_custody_root, verify_retained_cache_custody_root,
@@ -52,8 +62,6 @@ fn windows_ancestry_reconciles_retained_leaf_after_parent_replacement() {
     let leaf = root.join("parent/child");
     std::fs::create_dir_all(&leaf).unwrap();
     std::fs::rename(root.join("parent"), root.join("old-parent")).unwrap();
-    // Windows may forbid renaming a parent with a live descendant handle.
-    // Retain the original identity after moving it, then replace its old name.
     let retained = open_absolute_directory_nofollow(&root.join("old-parent/child")).unwrap();
     std::fs::create_dir_all(&leaf).unwrap();
     let error = verify_retained_cache_custody_root(
@@ -75,10 +83,10 @@ fn windows_ancestry_rejects_child_from_a_different_parent() {
     let parent_path = root.join("parent");
     let child_path = parent_path.join("child");
     std::fs::create_dir_all(&child_path).unwrap();
-    let root = root.canonicalize().unwrap();
+    let canonical_root = root.canonicalize().unwrap();
     let parent_path = parent_path.canonicalize().unwrap();
     let child_path = child_path.canonicalize().unwrap();
-    let original_parent = root.join("original-parent");
+    let original_parent = canonical_root.join("original-parent");
     std::fs::rename(&parent_path, &original_parent).unwrap();
     let parent = open_absolute_directory_nofollow(&original_parent).unwrap();
     std::fs::create_dir_all(&child_path).unwrap();

@@ -1,4 +1,7 @@
-//! Validate the complete canonical graph using borrowed rows and bounded scratch.
+// We validate the complete canonical source-closure graph using borrowed rows
+// and bounded scratch storage, checking package-count and request-count limits,
+// canonical ordering, root selection, dependency projection agreement, alias
+// uniqueness per requester and purpose, and reachability/acyclic walk.
 
 use super::super::{
     CanonicalDependencySourceSelection, CanonicalRootSourceSelection,

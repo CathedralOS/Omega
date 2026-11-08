@@ -122,7 +122,21 @@ impl TypedTreeTables {
                             );
                             ReflectedFieldCallOrigin { query, callback }
                         });
+                    let mut installed_interrupt_operation =
+                        call.installed_interrupt_operation.clone();
+                    if let Some(request) = &mut installed_interrupt_operation {
+                        request.invalidate_preparation();
+                        request.registrar = self.expression_table.copy_static_argument_from(
+                            &source_tables.expression_table,
+                            &request.registrar,
+                        );
+                        request.timer_slot = self.expression_table.copy_static_argument_from(
+                            &source_tables.expression_table,
+                            &request.timer_slot,
+                        );
+                    }
                     StatementNode::Call(TableCall {
+                        installed_interrupt_operation,
                         authored_machine_application,
                         static_machine_parameter: call.static_machine_parameter,
                         receiver_root_symbol: call.receiver_root_symbol,
@@ -324,6 +338,18 @@ impl TypedTreeTables {
                     current.receiver_symbol = remapped(current.receiver_symbol, symbols);
                     current.receiver_root_symbol = remapped(current.receiver_root_symbol, symbols);
                     current.target_symbol = remapped(current.target_symbol, symbols);
+                    let mut request = current.installed_interrupt_operation.take();
+                    if let Some(request) = &mut request {
+                        request.invalidate_preparation();
+                        self.expression_table.remap_static_argument_symbols(
+                            &mut request.registrar,
+                            symbols.execution(),
+                        );
+                        self.expression_table.remap_static_argument_symbols(
+                            &mut request.timer_slot,
+                            symbols.execution(),
+                        );
+                    }
                     let mut arguments = std::mem::take(&mut current.machine_arguments);
                     for argument in &mut arguments {
                         self.expression_table
@@ -335,6 +361,7 @@ impl TypedTreeTables {
                         unreachable!();
                     };
                     current.machine_arguments = arguments;
+                    current.installed_interrupt_operation = request;
                     current.reflected_field_origin = reflected_field_origin;
                 }
                 StatementNode::Expression(expression) => {

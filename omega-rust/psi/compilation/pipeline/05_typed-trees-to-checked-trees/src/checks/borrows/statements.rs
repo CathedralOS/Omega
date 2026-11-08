@@ -114,7 +114,7 @@ pub(super) fn check_statement_borrows<'p>(
             }
             let supplying_accesses = super::access_sources::resolve_all(
                 program,
-                facts,
+                facts.view(),
                 loan_occurrences,
                 state_flow,
                 statement,
@@ -233,7 +233,7 @@ pub(super) fn check_statement_borrows<'p>(
             };
             for active_loan_handle in facts.flow.borrow_loan_constraints(formation_constraints) {
                 if super::aliases::same_descriptor(
-                    facts,
+                    facts.view(),
                     loan_occurrences,
                     loan_handle,
                     active_loan_handle,
@@ -367,7 +367,7 @@ pub(super) fn check_statement_borrows<'p>(
         );
         let final_holds = super::reads::final_holds_in_statement(
             program,
-            facts,
+            facts.view(),
             state_flow,
             statement,
             statement_node,

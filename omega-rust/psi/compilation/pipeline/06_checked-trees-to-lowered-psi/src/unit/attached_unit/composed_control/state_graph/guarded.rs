@@ -11,7 +11,6 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
-use super::emission::dispatch_copies::{CompletedCopy, DispatchCopies, complete_dispatch_copies};
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::value_successor;
 use crate::shared::checked_facts::flow_facts;
@@ -184,7 +183,7 @@ pub(super) fn emit_return(
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     destination: &checked_trees::CheckedScalarBranchDestination,
-    returned: &checked_trees::CheckedGuardedReturnValue,
+    operation: &CheckedUnitEffectOperationPlan,
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
     claims: crate::emission::claim_bindings::PublishedClaims<'_>,
@@ -198,23 +197,6 @@ pub(super) fn emit_return(
     owner: symbols::SymbolHandle,
     sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
 ) -> Result<Terminator, LoweringError> {
-    let operation = &returned.operation;
-    let copied_values = DispatchCopies::new(checked, state, owner, catalogs, erased_parameters)
-        .capture(
-            identities,
-            &returned.copied_payloads,
-            parameters,
-            FrameValues {
-                source_value_count: values.len(),
-                evaluation,
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-            },
-            sequence,
-        )?;
     super::super::emission::emit_call_operations(
         identities,
         checked,
@@ -243,21 +225,8 @@ pub(super) fn emit_return(
     }
     let exit = super::cleanup::destination(catalogs.cleanup_control, state, destination)?;
     complete_structural_return(
-        identities,
-        claims,
-        checked,
-        state,
-        exit,
-        operation,
-        catalogs,
-        parameters,
-        evaluation,
-        values,
-        next_value,
-        next_block,
-        next_edge,
-        operations,
-        &copied_values,
+        identities, claims, checked, state, exit, operation, catalogs, parameters, evaluation,
+        values, next_value, next_block, next_edge, operations,
     )
 }
 
@@ -279,7 +248,6 @@ pub(super) fn complete_structural_return(
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
-    copied_values: &[CompletedCopy],
 ) -> Result<Terminator, LoweringError> {
     let binding = return_binding(operation, operations)?;
     let mut regions = super::cleanup::for_exit_regions(
@@ -292,15 +260,6 @@ pub(super) fn complete_structural_return(
         operations,
         &mut regions,
     )?;
-    regions.splice(
-        0..0,
-        complete_dispatch_copies(
-            copied_values,
-            evaluation,
-            operations,
-            &catalogs.structural_types,
-        )?,
-    );
     emit_return_binding(
         identities, checked, binding, regions, catalogs, evaluation, values, next_value,
         next_block, next_edge, operations,

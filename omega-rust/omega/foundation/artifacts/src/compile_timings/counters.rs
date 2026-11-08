@@ -1,15 +1,14 @@
-//! Process-wide compilation activity counters for review diagnostics and tests.
-//!
-//! These measure requests and reuse, not semantic authority or successful checks.
-//! Recording sites own event boundaries. Totals use relaxed independent atomics:
-//! a pair is not a coherent concurrent snapshot, and deltas are not per-invocation
-//! accounting when compilations overlap. Executed (non-memoized) check counts
-//! remain with Psi's repeated-check owner.
+// Process-wide compilation activity counters for review diagnostics and tests.
+//
+// These relaxed atomics measure requests and frontier reuse across the process,
+// not semantic authority or per-invocation snapshots when compilations overlap.
+// Executed (non-memoized) check counts live with Psi's repeated-check owner;
+// comparing `preliminary_check_totals` or `settled_check_totals` against Psi's
+// executed-check counter distinguishes fresh checks from memoized hits.
 
 static CHECKED_COMPILATION_CALLS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 
-/// Monotonic checked-request count for review-pass measurements.
 #[doc(hidden)]
 pub fn checked_compilation_call_count() -> u64 {
     CHECKED_COMPILATION_CALLS.load(std::sync::atomic::Ordering::Relaxed)
@@ -22,32 +21,27 @@ static SOURCE_BUILD_EXECUTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic
 static PROVIDER_DEFAULT_EXECUTIONS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 
-/// Diagnostic purpose of an admitted activation; this grants no execution authority.
 #[derive(Clone, Copy, Debug)]
 pub enum BuildExecutionPurpose {
-    /// The original program or package companion, including its compiler default.
-    Source,
-    /// The separate captured companion that supplies provider defaults.
-    ProviderDefaults,
+    Source,           // Original program or package companion, including its compiler default.
+    ProviderDefaults, // Separate captured companion supplying provider defaults.
 }
+
 static PRODUCT_SOURCE_COMPLETIONS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 static TERMINAL_PRODUCTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static PRODUCT_SOURCE_CHECKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-/// Executed Product judgments, excluding the separate Build language judgment.
 #[doc(hidden)]
 pub fn product_source_check_count() -> u64 {
     PRODUCT_SOURCE_CHECKS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Account a fresh Product check in both its own and the aggregate totals.
 pub fn record_product_source_check(elapsed: std::time::Duration) {
     PRODUCT_SOURCE_CHECKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     record_settled_check(elapsed);
 }
 
-/// Product-adapter Psi production attempts, including independent callback roots.
 #[doc(hidden)]
 pub fn terminal_production_count() -> u64 {
     TERMINAL_PRODUCTIONS.load(std::sync::atomic::Ordering::Relaxed)
@@ -57,25 +51,21 @@ pub fn record_terminal_production() {
     TERMINAL_PRODUCTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
-/// Actual Build machine execution attempts, excluding retained results.
 #[doc(hidden)]
 pub fn build_execution_count() -> u64 {
     BUILD_EXECUTIONS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Product frontend completions, including generated-source incorporation.
 #[doc(hidden)]
 pub fn product_source_completion_count() -> u64 {
     PRODUCT_SOURCE_COMPLETIONS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Build attempts for programs and packages, excluding the separate defaults supplier.
 #[doc(hidden)]
 pub fn source_build_execution_count() -> u64 {
     SOURCE_BUILD_EXECUTIONS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Provider supplier attempts, including activations that pause or refuse.
 #[doc(hidden)]
 pub fn provider_defaults_execution_count() -> u64 {
     PROVIDER_DEFAULT_EXECUTIONS.load(std::sync::atomic::Ordering::Relaxed)
@@ -94,13 +84,11 @@ pub fn record_product_source_completion() {
     PRODUCT_SOURCE_COMPLETIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
-/// Monotonic assemblies entered; a reused typed frontier does not assemble again.
 #[doc(hidden)]
 pub fn source_assembly_invocation_count() -> u64 {
     SOURCE_ASSEMBLY_CALLS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Monotonic exact frontend reuses across checked children.
 #[doc(hidden)]
 pub fn typed_frontier_reuse_count() -> u64 {
     TYPED_FRONTIER_REUSES.load(std::sync::atomic::Ordering::Relaxed)
@@ -109,7 +97,6 @@ pub fn typed_frontier_reuse_count() -> u64 {
 static SETTLED_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static SETTLED_CHECK_MICROS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-/// Monotonic settled-check `(calls, wall microseconds)` totals.
 #[doc(hidden)]
 pub fn settled_check_totals() -> (u64, u64) {
     (
@@ -118,7 +105,6 @@ pub fn settled_check_totals() -> (u64, u64) {
     )
 }
 
-/// Account one settled checking call, whether it succeeded or rejected.
 pub fn record_settled_check(elapsed: std::time::Duration) {
     SETTLED_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     SETTLED_CHECK_MICROS.fetch_add(
@@ -131,10 +117,6 @@ static PRELIMINARY_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic
 static PRELIMINARY_CHECK_MICROS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 
-/// Monotonic `(calls, wall microseconds)` totals of the pre-build
-/// declaration-authority checking calls, including memo hits and rejections.
-/// Compare with Psi's executed-check counts to distinguish fresh checks from
-/// served requests; elapsed time alone does not establish memo reuse.
 #[doc(hidden)]
 pub fn preliminary_check_totals() -> (u64, u64) {
     (
@@ -143,9 +125,6 @@ pub fn preliminary_check_totals() -> (u64, u64) {
     )
 }
 
-/// Account one pre-build checking request, whether it checked, took a retained
-/// judgment, or rejected. Elapsed covers the whole lowering request so review
-/// accounting can weigh requests against executed checks.
 pub fn record_preliminary_check(elapsed: std::time::Duration) {
     PRELIMINARY_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     PRELIMINARY_CHECK_MICROS.fetch_add(
@@ -153,17 +132,15 @@ pub fn record_preliminary_check(elapsed: std::time::Duration) {
         std::sync::atomic::Ordering::Relaxed,
     );
 }
-/// Record entry to the checked-compilation API, including rejected requests.
+
 pub fn record_checked_compilation() {
     CHECKED_COMPILATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
-/// Record an assembly attempt; exact typed-frontier reuse does not assemble.
 pub fn record_source_assembly() {
     SOURCE_ASSEMBLY_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
-/// Record one retained typed frontier consumed by a checked child.
 pub fn record_typed_frontier_reuse() {
     TYPED_FRONTIER_REUSES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }

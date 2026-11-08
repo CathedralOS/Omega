@@ -1,6 +1,12 @@
-//! Opt-in cost observations for one historical local-source lookup.
-//! Counts and clocks are absent unless the review timing flag is set. The
-//! aggregate contains no source paths, digests, identities or per-entry output.
+// Opt-in cost observations (`OMEGA_REVIEW_TIMINGS`) for historical local-source
+// recovery.
+//
+// Counts and clocks are disabled unless `OMEGA_REVIEW_TIMINGS` is set in the
+// environment, and the emitted summary line contains no source paths, digests,
+// or identities. `lock_elapsed` covers lock acquisition including directory
+// opening and custody checks as well as any wait; `verification_elapsed` covers
+// selected-tree custody, rehashing, and surrounding collection/lock identity
+// checks (including failed verifications).
 
 use std::time::{Duration, Instant};
 
@@ -71,14 +77,10 @@ impl RecoveryTimings {
     }
 
     pub(super) fn lock_finished(&mut self, started: Instant) {
-        // Acquisition includes opening/custody checks as well as any wait;
-        // this is not a claim to measure only time blocked on the OS lock.
         self.lock_elapsed = self.lock_elapsed.saturating_add(started.elapsed());
     }
 
     pub(super) fn verification_finished(&mut self, started: Instant) {
-        // Includes selected-tree custody/rehash and its surrounding exact
-        // collection/lock identity checks, including a failing verification.
         self.verification_elapsed = self.verification_elapsed.saturating_add(started.elapsed());
     }
 }

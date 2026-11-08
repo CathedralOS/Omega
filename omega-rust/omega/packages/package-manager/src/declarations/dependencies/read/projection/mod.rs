@@ -1,3 +1,13 @@
+/*
+Editable dependency projection from parsed `build.omg` syntax trees.
+
+`extract_scoped_requests_from_source` projects every unconditional direct
+dependency row in authored order, tagged with the scope it authorizes, so
+edit planning can correlate row positions to one flat list across both
+purposes. We validate the editable shape without treating its literal role as
+source identity or a declaration from an interpreted activation.
+*/
+
 use super::error::DependencyProjectionError;
 use super::policy::{reject_authored_toolchain_vocabulary, reject_unprojected_dependency_syntax};
 use super::{DependencyPurpose, DependencySourceRequest};
@@ -9,10 +19,6 @@ mod declaration;
 
 use declaration::map_build_declaration_error;
 
-/// Every unconditional direct dependency row in authored order, tagged with
-/// the scope it authorizes. Edit planning correlates row positions to this
-/// one flat list across both purposes; the split projection alone cannot
-/// recover the authored interleaving.
 pub(super) fn extract_scoped_requests_from_source(
     source: &str,
 ) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
@@ -52,8 +58,6 @@ fn project_editable_dependencies(
         &dependencies.accepted_sources,
         &dependencies.accepted_aliases,
     )?;
-    // Validate the editable shape without treating its literal role as source
-    // identity or a declaration from an interpreted activation.
     shared::project_build_declaration_in_entry(syntax_trees, build_entry)
         .map_err(map_build_declaration_error)?;
     Ok(dependencies.requests)

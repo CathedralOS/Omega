@@ -212,7 +212,7 @@ impl ValueCallSite<'_, '_> {
     }
 }
 
-/// Selected result arms keep terminal use; evaluated operands remain values.
+/// Only the direct root receives its actual use; descendants are values.
 #[derive(Clone, Copy)]
 enum CallExpressionUse {
     Value,

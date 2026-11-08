@@ -1,3 +1,9 @@
+// Contract unary and binary operator meaning and selection verification. Even when
+// a projection clones expression handles, its selection occurrences must still join
+// unchanged original compiler custody, and `BinaryOperator::CaseMembership` returns
+// `None` from binary operator projection so nominal tag tests are never erased into
+// value equality.
+
 use crate::capture::EvidenceOption;
 use crate::capture::SourceDeclarationInput;
 use crate::capture::api::operators::project_operator_coordinate;
@@ -61,8 +67,6 @@ pub(crate) fn exact_checked_contract_operator_meaning(
     }
 }
 
-/// A projection can clone expression handles, but its selection occurrences
-/// must still join the unchanged compiler custody. This query issues no grant.
 pub(in crate::capture) fn exact_checked_operator_selection(
     compilation: &SourceDeclarationInput<'_>,
     program: &dyn validation::CheckingInput,
@@ -164,8 +168,6 @@ pub(crate) const fn project_contract_binary_operator(
         BinaryOperator::ShiftLeft => PackageReviewContractBinaryOperator::ShiftLeft,
         BinaryOperator::ShiftRight => PackageReviewContractBinaryOperator::ShiftRight,
         BinaryOperator::Subtract => PackageReviewContractBinaryOperator::Subtract,
-        // The review vocabulary does not yet carry a nominal tag operation.
-        // Encoding it as value equality would erase payload-vs-tag meaning.
         BinaryOperator::CaseMembership => return None,
     })
 }

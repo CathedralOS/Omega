@@ -57,7 +57,9 @@ mod calls;
 mod quotient_operations;
 pub use quotient_operations::{CheckedQuotientFormation, CheckedQuotientOperation};
 mod dynamic_conformances;
+mod installed_interrupts;
 mod nominal_machine_uses;
+pub use installed_interrupts::CheckedInstalledInterruptRegistration;
 mod provider_closed_requirements;
 mod provider_instance_publication;
 mod requirement_call_specializations;
@@ -111,7 +113,7 @@ pub use content::{
     ContentClaimTransformationSource, ContentIdentityReshuffleFact,
     ContentPartitionCompositionFact, ContentPartitionInputClaimBinding,
     ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentPartitionReturnFact,
-    ContentProjectionFacts, RetainedBorrowCustodyFact,
+    ContentProjectionFacts, ContentWalkRows, RetainedBorrowCustodyFact,
 };
 pub use content_classes::{ContentClassFacts, ContentClassRow};
 pub use contextual_cleanup::{

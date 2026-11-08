@@ -131,7 +131,7 @@ mod tests {
 
     fn sponsor(bytes: u64) -> BuildEvaluationSponsor {
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         BuildEvaluationSponsor::new_with_measurement(

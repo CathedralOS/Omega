@@ -171,10 +171,10 @@ pub struct FrozenCases {
     /// Capture directory relative to the sample directory. The build that
     /// produced the artifact stays in `build/terminal-compilation` beside it.
     pub directory: &'static str,
-    /// Sponsor fuel for one case. Each sample keeps the allowance it froze
+    /// Sponsor work for one case. Each sample keeps the allowance it froze
     /// under, so a program that exhausted it before still fails rather than
     /// now fitting.
-    pub fuel: u64,
+    pub work: u64,
     /// How this sample states its cases.
     pub cases: Cases,
 }
@@ -247,7 +247,7 @@ struct Invocation {
     product_directory: PathBuf,
     inputs: Vec<PathBuf>,
     cases: Vec<Case>,
-    fuel: u64,
+    work: u64,
     /// Whether this invocation replays frozen cases instead of only capturing.
     comparing: bool,
 }
@@ -316,7 +316,7 @@ fn run(sample: Sample) {
         product_directory,
         inputs,
         cases,
-        fuel,
+        work,
         comparing,
     } = invocation(sample, &arguments);
     fs::create_dir_all(&directory).unwrap();
@@ -343,7 +343,7 @@ fn run(sample: Sample) {
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
             provider_proposal: None,
-            fuel_allowance: fuel,
+            work_budget: work,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(Cursor::new(case.input.clone()))),
             clock: None,
@@ -515,7 +515,7 @@ fn invocation(sample: Sample, arguments: &[String]) -> Invocation {
             product_directory: sample_directory.join("build/terminal-compilation"),
             cases,
             inputs: Vec::new(),
-            fuel: frozen.fuel,
+            work: frozen.work,
             comparing: true,
             sample_directory,
             directory,
@@ -592,7 +592,7 @@ fn invocation(sample: Sample, arguments: &[String]) -> Invocation {
         product_directory: directory.join("product"),
         cases,
         inputs,
-        fuel: 500_000_000,
+        work: 500_000_000,
         comparing: false,
         sample_directory,
         root,

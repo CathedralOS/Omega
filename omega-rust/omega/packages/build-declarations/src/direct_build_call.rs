@@ -1,26 +1,19 @@
-//! The one direct `Build::<operation>(builder, ...)` call shape every
-//! declaration consumer projects from: a static `Build` owner whose explicit
-//! first operand is the entry's `builder` parameter, with no generic,
-//! evidence, operational, or discard modifiers.
+// Validates the canonical direct `Build::<operation>(builder, ...)` call shape
+// shared by role and dependency syntax projectors: a static `Build` owner whose
+// explicit first operand is the root entry's `builder` parameter, with no
+// generic, evidence, operational, or result-discard modifiers.
 
 use crate::build_declaration::{BUILD_TYPE_NAME, BUILDER_PARAMETER_NAME};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::statement::TableCall;
 
-/// How one direct `Build::<operation>(...)` statement departed from the
-/// canonical call shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DirectBuildCallError {
-    /// The owner was not a static `Build` selection, or the explicit first
-    /// operand was not the root build entry's `builder` parameter.
-    WrongReceiver,
-    /// The call carried generic, evidence, operational, or discard modifiers.
-    WrongArguments,
+    WrongReceiver,  // Owner was not static `Build`, or first operand was not `builder`.
+    WrongArguments, // Call carried generic, evidence, operational, or discard modifiers, or omitted `builder`.
 }
 
-/// Validate one direct `Build::<operation>(builder, ...)` call statement and
-/// return its operand expressions after the explicit builder operand.
 pub(crate) fn direct_build_call_operands<'syntax>(
     syntax_trees: &'syntax SyntaxTrees,
     call: &TableCall,

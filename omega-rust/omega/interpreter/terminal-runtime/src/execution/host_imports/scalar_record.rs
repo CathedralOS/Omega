@@ -1,7 +1,6 @@
-//! Admit a complete C record of ordinary 64-bit scalar words.
-//! The host operation supplies its exact scalar contract; this join retains
-//! semantic codecs, ordered native formals, field geometry and the evaluated
-//! calling application before either register or indirect results are offered.
+// We admit complete C records of ordinary 64-bit scalar words by validating
+// their semantic codecs, ordered native formals, 8-byte field geometry, and
+// evaluated calling applications before offering register or indirect results.
 
 use super::super::TerminalRuntimeError;
 use calling_conventions::{
@@ -52,9 +51,6 @@ pub(super) fn admit_c_word_record<const FIELD_COUNT: usize>(
             "C word-record import differs from its exact scalar/nonlinear contract",
         ));
     }
-    // Pending target layout has no effective field codecs. Treating absent
-    // authored storage as C packing would admit equal-size reinterpretations.
-    // Only a target-closed declaration can supply the C field contract here.
     let shape = program
         .structural_type(result.structural_type)
         .ok_or_else(|| invalid("C word-record result declaration is absent"))?;
@@ -243,8 +239,6 @@ fn word_class(scalar: ScalarType) -> Result<BoundaryValueClass, TerminalRuntimeE
     }
 }
 
-/// Native classification retains width/class, not the effective signed/float
-/// codec. Equal-size reinterpretations cannot stand in for the C field type.
 fn has_c_scalar_storage(
     storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
     offset: u64,
@@ -312,6 +306,7 @@ mod tests {
             signed
         ));
     }
+
     #[test]
     fn float_words_reject_equal_sized_integer_codecs() {
         let float = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);

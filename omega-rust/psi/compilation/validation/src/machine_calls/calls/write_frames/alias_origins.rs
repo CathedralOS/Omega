@@ -50,9 +50,8 @@ pub(crate) fn stable_local_reference_alias_origin(
     stored: &[StoredLocalOrigins],
     include_shared: bool,
 ) -> Option<FramePlaceOrigin> {
-    // The exclusive-reference gate both stable-alias lanes run: `include_shared`
-    // admits a shared-reference local, whose access resolves through the
-    // backing-origin lane instead of its initializer.
+    // Effect summaries retain established shared backing when it can carry an
+    // interior write. Full reference queries also retain read-only origins.
     let access = local_declared_reference_access(program, local)?;
     if !access.is_exclusive() && !include_shared {
         let origin = stable_alias_initializer_origin(
@@ -69,11 +68,7 @@ pub(crate) fn stable_local_reference_alias_origin(
             true,
             stored,
         )?;
-        return (origin.source.root.is_valid()
-            && parameters
-                .iter()
-                .any(|parameter| parameter.symbol == origin.source.root))
-        .then_some(origin);
+        return retained_shared_write_root(&origin, parameters).then_some(origin);
     }
     if include_shared {
         return reference_subjects::backing_origin(
@@ -111,12 +106,10 @@ fn local_declared_reference_access(
     crate::value_custody::places::declared_reference_access(program, local.type_reference)
 }
 
-/// The divergent counterpart of [`stable_local_reference_alias_origin`]: an
-/// exclusive-reference local whose initializer resolves to several proven
-/// candidate origins keeps the whole finite set rather than failing closed.
-/// The exclusive-reference gate is identical; only the single-place collapse
-/// is skipped, so callers receive every route a conditional helper result or
-/// match expression admits.
+/// The divergent counterpart of [`stable_local_reference_alias_origin`]: a
+/// reference local whose initializer resolves to several proven candidates
+/// keeps the whole finite set. Shared references retain only established input
+/// or invocation backing, just as the single-origin query does.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn stable_local_reference_alias_origins(
     program: &dyn crate::CheckingInput,
@@ -132,10 +125,7 @@ pub(crate) fn stable_local_reference_alias_origins(
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
     let access = local_declared_reference_access(program, local)?;
-    if !access.is_exclusive() {
-        return None;
-    }
-    stable_alias_initializer_origins(
+    let origins = stable_alias_initializer_origins(
         program,
         current_machine,
         machine_symbols,
@@ -148,7 +138,28 @@ pub(crate) fn stable_local_reference_alias_origins(
         symbols,
         true,
         stored,
-    )
+    )?;
+    if !access.is_exclusive()
+        && !origins
+            .iter()
+            .all(|origin| retained_shared_write_root(origin, parameters))
+    {
+        return None;
+    }
+    Some(origins)
+}
+
+/// Shared references can expose writes through an interior-mutable carrier.
+/// Preserve an already-established input or invocation backing in that effect
+/// summary. This does not grant access or prove distinct invocations disjoint.
+fn retained_shared_write_root(origin: &FramePlaceOrigin, parameters: &[StateParameter]) -> bool {
+    (origin.source.root.is_valid()
+        && parameters
+            .iter()
+            .any(|parameter| parameter.symbol == origin.source.root))
+        || origin.source.result_home().is_some_and(|(call, referent)| {
+            call.is_valid() && referent.is_valid() && origin.source.builtin_coordinates
+        })
 }
 
 /// The single proven origin a binding, target, or argument may name. Divergent
@@ -574,7 +585,7 @@ fn projected_indexed_origins(
 
 /// A member projection keeps an exact origin's path and re-projects its
 /// source; a coarse origin carries the new source only.
-pub(super) fn projected_member_origins(
+fn projected_member_origins(
     program: &dyn crate::CheckingInput,
     origins: Vec<FramePlaceOrigin>,
     expression: ExpressionHandle,

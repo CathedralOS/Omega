@@ -1,9 +1,11 @@
+// RAII wrapper (`KernelHandle`) and error helpers for nullable or
+// `INVALID_HANDLE_VALUE`-sentinel Win32 handles.
+
 use std::io;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 
 use windows_sys::Win32::Foundation::{FALSE, HANDLE, INVALID_HANDLE_VALUE};
 
-/// Owned adaptation of a nullable or sentinel-valued Win32 kernel handle.
 #[derive(Debug)]
 pub(super) struct KernelHandle(OwnedHandle);
 

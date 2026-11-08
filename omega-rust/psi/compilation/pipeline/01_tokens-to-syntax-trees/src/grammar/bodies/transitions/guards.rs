@@ -490,7 +490,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
                 MatchFieldAction::Bind(binding) => Some(binding.clone()),
                 _ => None,
             };
-            (field.member.clone(), binding, field.component)
+            (field.member.clone(), binding)
         })
         .collect::<Vec<_>>();
     let has_rest = parsed_fields.has_rest;
@@ -499,7 +499,6 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     let capture = exprs(syntax_trees).insert_transition_subject(subject);
     let saved = exprs(syntax_trees).insert(ExpressionNode::SavedSubject(
         syntax_trees::expression::TableSavedSubject {
-            component: Default::default(),
             capture,
             pattern_head: head,
         },
@@ -508,9 +507,8 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     // fields (`as name`) bind the new name to the same `subject.member` read.
     let fields = fields
         .into_iter()
-        .filter_map(|(member, binding, component)| {
+        .filter_map(|(member, binding)| {
             binding.map(|binding| DestructureBinding {
-                component,
                 binding,
                 member,
                 case_variant: None,

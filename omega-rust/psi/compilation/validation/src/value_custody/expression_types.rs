@@ -87,7 +87,6 @@ pub use result_type::{
 };
 
 pub(crate) use delivered_types::report_delivered_type_mismatch;
-pub(crate) use delivered_types::report_delivered_type_mismatch_with_component;
 pub use reference_values::borrow_selects_reference_storage;
 pub(crate) use reference_values::{
     StorageWriteAccess, owned_rvalue_exclusive_reference_access,
@@ -268,11 +267,6 @@ fn argument_matches_type_reference_using(
     correspondence: reference_values::ReferenceCorrespondence,
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    if argument.is_valid()
-        && program.pattern_component(argument) != Some(language_core::PatternComponent::Fields)
-    {
-        return false;
-    }
     // A static equality applies to the complete delivered type, including
     // reference shells. Comparing only an outer named carrier loses `T == U`
     // at `&T` calls; the equality never supplies a loan or changes access.

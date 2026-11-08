@@ -17,6 +17,7 @@ mod boundary_application_wire;
 mod callback_application_wire;
 mod calling_signature_wire;
 mod carry_and_suspension_wire;
+mod installed_interrupt_wire;
 mod opaque_representation_wire;
 pub(crate) mod quotient_wire;
 mod recursive_component_wire;
@@ -135,6 +136,7 @@ wire_record! {
         native_layouts: native_layout_wire::Catalog,
         boundary_application_demands: List<BoundaryDemand>,
         callback_applications: List<callback_application_wire::Application>,
+        installed_interrupt_registrations: List<installed_interrupt_wire::Registration>,
         boundary_application_candidates: List<BoundaryCandidate>,
         task_activation_demands: task_activation_wire::Demands,
     }
