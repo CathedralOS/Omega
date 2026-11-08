@@ -1,5 +1,3 @@
-// Bounded recovery for public data declaration shapes, supply modes, invariants, and members.
-
 use super::super::{
     Error,
     contracts::contract_fact,

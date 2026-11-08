@@ -16,8 +16,8 @@ pub(super) const TARGET_ORACLE: &str = "expected_terminal_targets.txt";
 
 /// Long executable witnesses may author a larger sponsor allowance without
 /// changing their program or weakening exhaustion into a successful outcome.
-pub(super) fn work_budget(fixture_dir: &std::path::Path) -> Result<u64, String> {
-    let name = "psi_work_budget.txt";
+pub(super) fn fuel_allowance(fixture_dir: &std::path::Path) -> Result<u64, String> {
+    let name = "terminal_fuel_allowance.txt";
     match std::fs::read_to_string(fixture_dir.join(name)) {
         Ok(text) => text
             .trim()
@@ -122,7 +122,7 @@ pub(super) fn target_installations(
     proposals: &[backend_plan::TerminalTargetProviderProposal],
     root_provisions: &[&compilation_products::TerminalRuntimeProvisions],
     fixture_dir: &std::path::Path,
-    work_budget: u64,
+    fuel_allowance: u64,
 ) -> Observation {
     let expectations = match target_expectations(fixture_dir) {
         Ok(expectations) => expectations,
@@ -195,7 +195,7 @@ pub(super) fn target_installations(
             target: Some(&target),
             provisions,
             provider_proposal,
-            work_budget,
+            fuel_allowance,
             domain_exit: TerminalDomainExitDelegation::Unprovided,
             standard_input: None,
             clock: None,
@@ -271,7 +271,7 @@ pub(super) fn target_installations(
         proposals,
         root_provisions,
         fixture_dir,
-        work_budget,
+        fuel_allowance,
     );
     observation.facts.extend(fences.facts);
     observation.diagnostics.extend(fences.diagnostics);
@@ -308,7 +308,7 @@ pub(super) fn interpret(
     provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
     target: Option<&str>,
     fixture_dir: &std::path::Path,
-    work_budget: u64,
+    fuel_allowance: u64,
     standard_input: Box<dyn std::io::Read + Send>,
 ) -> Observation {
     let clock = match terminal_runtime::TerminalClockSnapshot::capture_host_epoch() {
@@ -341,7 +341,7 @@ pub(super) fn interpret(
         artifact,
         target,
         provisions,
-        work_budget,
+        fuel_allowance,
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: Some(standard_input),
         clock: Some(clock.into()),
@@ -358,7 +358,7 @@ pub(super) fn interpret(
         provisions,
         target,
         &result,
-        work_budget,
+        fuel_allowance,
     ) {
         return Observation::failure(error);
     }

@@ -35,9 +35,6 @@ impl SelectedConstraintKeys {
             self.global_descriptor_table,
             self.task_register_activate,
             self.task_register_read,
-            self.installed_interrupt_cpu_check,
-            self.installed_interrupt_task_commit,
-            self.installed_interrupt_table_publication,
             self.code_segment_reload,
             self.data_segment_reload,
             self.segment_selector_read,
@@ -46,7 +43,6 @@ impl SelectedConstraintKeys {
             self.model_specific_read,
             self.model_specific_write,
             self.processor_halt,
-            self.privileged_crash,
             self.interrupt_control,
             self.memory_fence,
             self.atomic_fence,
@@ -176,15 +172,6 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::SystemRegisterWrite => return self.rows.system_register_write,
             MachineSemanticKind::TaskRegisterActivate => return self.rows.task_register_activate,
             MachineSemanticKind::TaskRegisterRead => return self.rows.task_register_read,
-            MachineSemanticKind::InstalledInterruptCpuCheck => {
-                return self.rows.installed_interrupt_cpu_check;
-            }
-            MachineSemanticKind::InstalledInterruptTaskCommit => {
-                return self.rows.installed_interrupt_task_commit;
-            }
-            MachineSemanticKind::InstalledInterruptTablePublication => {
-                return self.rows.installed_interrupt_table_publication;
-            }
             MachineSemanticKind::CodeSegmentReload => return self.rows.code_segment_reload,
             MachineSemanticKind::DataSegmentReload => return self.rows.data_segment_reload,
             MachineSemanticKind::SegmentSelectorRead => return self.rows.segment_selector_read,
@@ -271,7 +258,6 @@ impl SelectedConstraintKeys {
                 return self.rows.restore_floating_control;
             }
             MachineSemanticKind::Crash => self.rows.crash,
-            MachineSemanticKind::PrivilegedCrash => return self.rows.privileged_crash,
             MachineSemanticKind::HostedExitProcessI32 => return self.rows.hosted_exit_process_i32,
             MachineSemanticKind::Store => return self.rows.store,
             MachineSemanticKind::AddressOffset => return self.rows.address_offset,

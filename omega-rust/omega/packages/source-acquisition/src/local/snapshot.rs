@@ -1,13 +1,4 @@
-// Local snapshot staging, publication, reuse, and topology checks.
-//
-// `publish_local_snapshot_in_retained_collection` locks the target
-// `source-v2-<digest>` slot and either verifies an existing publication left by
-// an earlier invocation (`verify_local_snapshot`) or materializes and verifies a
-// new one (`materialize_local_snapshot_from_open_parent`). Because both branches
-// already hash the published tree once, `finalize_local_tree` compares the
-// resulting `ResolvedLocalSource` identity directly against the proposed tree
-// and re-verifies outer custody and the requested live root without hashing the
-// snapshot bytes a second time.
+//! Local snapshot staging, publication, reuse, and topology checks.
 
 mod address;
 mod materialize;
@@ -178,6 +169,10 @@ fn publish_local_snapshot_in_retained_collection(
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
             Err(error) => return Err(io_error(&publication, error)),
         };
+        // A publication an earlier invocation left on disk is hashed here,
+        // against the live tree's content identity, because its bytes are not
+        // this invocation's output. A publication this call materializes was
+        // verified as it was written, for the same reason.
         let normalized = if publication_exists {
             verify_local_snapshot(&publication, &identity, limits)?
         } else {
@@ -225,6 +220,11 @@ fn finalize_local_tree(
     verify_requested_local_root(requested_root, &captured_live_source.root)?;
     verify_local_cache_custody(publication, limits)?;
 
+    // The publication was hashed once above, either on reuse or as it was
+    // materialized, and `expected_snapshot` is that result. Hashing it a
+    // second time here would ask the same question of the same bytes in the
+    // same call; what remains is the identity comparison that result owes the
+    // tree the caller proposed.
     if !same_source_identity(&expected_snapshot, proposed_source) {
         return Err(local_snapshot_invalid(
             publication,

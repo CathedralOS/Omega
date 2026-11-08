@@ -16,16 +16,16 @@ use crate::checks::multiplicity::linear_validation::claim_provenance::{
     completed_receiving_values, completed_statement_values, written_linear_targets,
     written_owner_targets,
 };
-use crate::checks::multiplicity::selected_evaluation::SelectedEvaluation;
 use crate::checks::multiplicity::selected_evaluation::place_bindings::{
-    SelectionSite, enter_produced,
+    SelectionEntry, SelectionSite, enter_produced,
 };
+use crate::checks::multiplicity::selected_evaluation::{ExpressionRoutes, SelectedEvaluation};
 use crate::checks::multiplicity::{projected_affine, projected_replacements, temporary_results};
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::expressions;
 use crate::published::places::place_at;
-use checked_trees::FlowPermissionEventFact;
+use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
@@ -77,7 +77,7 @@ pub(crate) struct ObservedCustody {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn evaluate_statement_permissions(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     moves: &[crate::flow::DiscoveredMoveEvent],
@@ -106,7 +106,7 @@ pub(crate) fn evaluate_statement_permissions(
     cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
     claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
     conservation_candidates: &[crate::checks::content::ConservationCandidate],
-) -> Result<Option<EvaluatedStorage>, diagnostics::Diagnostic> {
+) -> Result<Option<(EvaluatedStorage, ExpressionRoutes)>, diagnostics::Diagnostic> {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
     if matches!(statement, StatementNode::LocalData(local) if local.role == language_core::LocalBindingRole::ArmPattern)
@@ -263,7 +263,7 @@ pub(crate) fn evaluate_statement_permissions(
     let mut binding_changes = Vec::new();
     let mut source_completions = copy_source_completions(
         program,
-        facts.view(),
+        facts,
         machine_symbol,
         state_symbol,
         statement_index,
@@ -273,7 +273,7 @@ pub(crate) fn evaluate_statement_permissions(
     );
     observed_completions::append(
         program,
-        facts.view(),
+        facts,
         machine_symbol,
         state_symbol,
         statement_index,
@@ -294,6 +294,8 @@ pub(crate) fn evaluate_statement_permissions(
         statement: statement_index,
         evaluation,
     };
+    let routes =
+        ExpressionRoutes::from_steps(program, occurrences, &facts.flow.control, selection_site);
     // Every produced occurrence leaves each departing scope through the same
     // retirement route; the four occurrences (observe, arm-local move,
     // complete, and the statement's own exit) each restated the same
@@ -305,7 +307,10 @@ pub(crate) fn evaluate_statement_permissions(
                 &mut selected,
                 $route,
                 &mut custody,
-                selection_site,
+                SelectionEntry {
+                    site: selection_site,
+                    routes: &routes,
+                },
                 &mut facts.flow.ownership,
                 claim_identities,
                 |branch, current, ownership| {
@@ -492,7 +497,7 @@ pub(crate) fn evaluate_statement_permissions(
                 };
                 projected_affine::append_transfer(
                     program,
-                    facts.view(),
+                    facts,
                     machine_symbol,
                     state_symbol,
                     event,
@@ -825,7 +830,7 @@ pub(crate) fn evaluate_statement_permissions(
                 );
                 if !completed_receiving_values(
                     program,
-                    facts.view(),
+                    facts,
                     machine_symbol,
                     state_symbol,
                     statement_index,
@@ -882,16 +887,19 @@ pub(crate) fn evaluate_statement_permissions(
     for event in &mut permission_events[event_start..] {
         event.evaluation = evaluation;
     }
-    Ok(Some(EvaluatedStorage {
-        binding_changes,
-        transfers,
-        observations,
-        event_start,
-        checked_through,
-        written_targets,
-        calls,
-        projected_scopes,
-    }))
+    Ok(Some((
+        EvaluatedStorage {
+            binding_changes,
+            transfers,
+            observations,
+            event_start,
+            checked_through,
+            written_targets,
+            calls,
+            projected_scopes,
+        },
+        routes,
+    )))
 }
 
 /// Finish the receiving write only after all evaluated source arrivals have
@@ -900,7 +908,7 @@ pub(crate) fn evaluate_statement_permissions(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn complete_statement_permissions(
     program: &dyn validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -941,7 +949,7 @@ pub(crate) fn complete_statement_permissions(
         None,
         places,
         remaining,
-        facts.flow.ownership,
+        &mut facts.flow.ownership,
         permission_events,
         cleanup_dispositions,
     )?;
@@ -1015,7 +1023,7 @@ pub(crate) fn complete_statement_permissions(
     }
     for (expression, source) in completed_receiving_values(
         program,
-        facts.view(),
+        facts,
         machine_symbol,
         state_symbol,
         statement_index,
@@ -1111,7 +1119,7 @@ pub(crate) fn complete_statement_permissions(
 #[allow(clippy::too_many_arguments)]
 fn complete_body_custody(
     program: &dyn validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -1178,7 +1186,7 @@ struct SourceCompletion {
 /// loans stored inside it continue through the independently copied carrier.
 fn copy_source_completions(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
@@ -1337,7 +1345,7 @@ fn copy_source_completions(
 #[allow(clippy::too_many_arguments)]
 fn establish_targets(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,

@@ -1,7 +1,6 @@
-// Expand fixed-array recipes (`expand`, `expand_coordinates`) and check active
-// case overlays (`is_active`) using canonical nominal paths. Capture and decode
-// preserve canonical path order so every ancestor discriminator is visited
-// before its payload.
+//! Expand fixed-array recipes and select active overlays with nominal paths.
+//! The semantic snapshot authenticates the contents; these rows only place
+//! them using the native compiler's already-retained layout.
 
 use super::{encode, invalid_operands, scalar_extent};
 use runtime_abi::{
@@ -168,6 +167,8 @@ pub(super) fn is_active(
 ) -> Result<bool, TerminalEffectRejection> {
     for (position, segment) in path.iter().enumerate() {
         if let Path::Case(case) = segment {
+            // Capture and decode retain canonical path order; decode has
+            // already appended every ancestor before visiting its payload.
             let selector_position = values
                 .binary_search_by(|value| value.path.as_slice().cmp(&path[..position]))
                 .map_err(|_| invalid_operands())?;

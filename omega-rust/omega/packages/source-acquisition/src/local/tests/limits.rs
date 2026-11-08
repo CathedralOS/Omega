@@ -1,7 +1,3 @@
-// Unit tests verifying that local directory collection enforces entry budgets
-// across directories and files without charging excluded root entries (`.git`,
-// `build`, `omega.lock`).
-
 use super::{LocalSourceLimits, SourceResolveError, resolve_local_source, temp_root};
 
 #[test]

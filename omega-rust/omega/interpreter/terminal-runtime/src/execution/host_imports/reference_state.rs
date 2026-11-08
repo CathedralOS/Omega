@@ -1,8 +1,14 @@
-// We admit and execute zero-argument glibc provider-state reference imports
-// (__errno_location, gnu_get_libc_version, and localeconv) by materializing the
-// referent beneath the minted reference carrier without an FFI address: errno
-// begins zeroed, gnu_get_libc_version exposes a stable nonzero cell, and
-// localeconv exposes shared references to the "C" locale decimal point byte.
+//! Exact admitted libc provider-state references: `__errno_location` and
+//! `gnu_get_libc_version`. Their C results are host pointers into provider
+//! state; the interpreter's semantic model supplies the same contract without
+//! an FFI address: a real materialized referent committed beneath the minted
+//! reference carrier. `errno` begins zeroed; the libc version byte is a
+//! stable nonzero guest-visible cell. Neither operation carries arguments.
+//!
+//! Admission keeps the checked signature authoritative: the boundary result
+//! must be a reference whose access matches the operation's C meaning, and
+//! the referent must be a single-field scalar record whose payload type is
+//! the operation's exact semantic type. Everything else declines.
 
 use super::TerminalRuntimeError;
 use calling_conventions::{BoundaryCallingApplication, CallSignature, ValueShape};
@@ -96,6 +102,7 @@ fn select(
             ReferenceStateOperation::Localeconv,
         ),
     ] {
+        // Both names are glibc imports; other C runtimes decline the offer.
         if super::matches_platform_c_symbol(binding, symbol, &[], None)? {
             return Ok(Some(operation));
         }
@@ -180,6 +187,11 @@ fn validate(
             )
         }
         ReferenceStateOperation::LibcVersion => {
+            // The libc version cell is one scalar leaf; admitted referents
+            // may wrap it in layout storage, so the leaf's declared carrier —
+            // not the operation — chooses the integer width. The semantic
+            // model supplies the same stable small version for every
+            // carrier.
             let integer = super::native_word::scalar_leaf_integer(program, *referent)?;
             let value = match integer.sign() {
                 IntegerSign::Signed => IntegerValue::Signed(2),
@@ -199,6 +211,8 @@ fn validate(
     }
 }
 
+/// A host-owned referent whose entire observable content is one scalar leaf:
+/// the provider state record beneath the result descriptor.
 fn scalar_state(
     program: &TerminalProgram,
     referent: semantic_vocabulary::StructuralTypeId,
@@ -216,6 +230,10 @@ fn scalar_state(
     })
 }
 
+/// `localeconv` returns a stable pointer to C's `lconv`, every member a shared
+/// `char *` into provider locale state. The admitted view keeps that exact
+/// shape: each non-erased field is a shared reference to a single-u8 record,
+/// supplied the "C" locale's decimal point byte.
 fn locale_view(
     program: &TerminalProgram,
     referent: semantic_vocabulary::StructuralTypeId,
@@ -257,6 +275,7 @@ fn locale_view(
                 referent: TerminalReferencePayload::ScalarAggregate(TerminalScalarAggregateValue {
                     structural_type: *nested,
                     result_case: None,
+                    // "." under the "C" locale.
                     fields: vec![(
                         path,
                         TerminalScalarValue::Integer {

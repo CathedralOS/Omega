@@ -1,6 +1,4 @@
-// Length-framed encoding and bounded recovery for package policy acceptance rows.
-// Earlier schema-4/5 opaque rows remain historical consent for comparison only, whereas superseded schema-8 rows are rejected with `omega update` guidance because version 9 renumbered builtin slots; both element and string storage are bounded before retaining rows.
-
+//! Length-framed acceptance meanings. No recovery of old compiler IR.
 use super::{
     MAXIMUM_POLICY_TEXT_BYTES,
     framing::{Reader, Writer},
@@ -34,11 +32,14 @@ pub(in crate::lock) fn read(
 ) -> Result<(PackagePolicyAcceptance, usize), Error> {
     let mut reader = Reader::new(text);
     let schema_version = reader.count("acceptance_schema", usize::MAX)?;
+    // Earlier opaque rows remain historical consent, never current approval
+    // for target context or consumer audit policy they did not retain.
     if schema_version != usize::from(PACKAGE_POLICY_ROW_VERSION) && !matches!(schema_version, 4 | 5)
     {
         return Err(Error::UnsupportedVersion);
     }
     let count = reader.count("rows", maximum_rows)?;
+    // Bound both the element allocation and strings before retaining anything.
     let owned = count
         .checked_mul(std::mem::size_of::<PackageAcceptanceRow>())
         .and_then(|bytes| bytes.checked_add(text.len()))
@@ -95,6 +96,9 @@ pub(in crate::lock) fn read(
 mod tests {
     use super::*;
 
+    /// Version 8 rows may encode builtin functions under the slot numbering
+    /// that version 9 replaced. Reading one must refuse with the update
+    /// guidance instead of decoding a possibly different builtin.
     #[test]
     fn superseded_policy_row_schema_rejects_with_recovery_guidance() {
         let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();

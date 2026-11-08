@@ -1,5 +1,5 @@
-// Resolved package source bindings indexed by the resolver's package positions.
-// Compiler frontiers and judgments belong to the compiler invocation rather than these source bindings.
+//! Resolved package source bindings, indexed by the resolver's package positions.
+//! Compiler frontiers and judgments belong to the compiler invocation, not here.
 
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 

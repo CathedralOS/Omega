@@ -1,19 +1,4 @@
-/*
-Request-local package compilation scope (`PackageCompilationScope`) and source-binding assembly.
-
-`PackageCompilationScope` re-roots an immutable `ResolvedPackageSourceClosure` at one
-package key. `Product` dependency edges reach from every package in the scope, whereas
-`Build` dependency edges reach only from the compilation root (`root`), because a
-dependency's own build file resolves in its own compilation where that dependency is
-the root.
-*/
-
-/*
-`compilation_inputs_reusing` captures the root's canonical build-source metadata once
-per `(identity, source_root)` pair and reuses it across passes and purposes for that
-root, consulting the self-verifying `CheckedSourceCache` when a persisted source
-supplies a checked-source cache directory.
-*/
+//! Revalidated package-aware inputs handed from source custody to the compiler.
 
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use package_compilation::{
@@ -22,6 +7,9 @@ use package_compilation::{
 };
 use std::collections::BTreeSet;
 
+/// One request-local re-rooting of immutable package topology. Reusing the
+/// selection does not retain a filesystem-verification verdict: each consumer
+/// still performs its own required source and compiler-input checks.
 pub(crate) struct PackageCompilationScope<'closure> {
     closure: &'closure ResolvedPackageSourceClosure,
     root: &'closure crate::declarations::PackageKey,
@@ -52,6 +40,10 @@ impl<'closure> PackageCompilationScope<'closure> {
         &self.reachable
     }
 
+    /// Build the inputs, capturing the root's canonical build-source index
+    /// only when `root_binding` holds none yet. The snapshot root is immutable
+    /// for the invocation, so every pass and purpose of the same package root
+    /// reads one capture.
     pub(crate) fn compilation_inputs_reusing(
         &self,
         root_binding: &mut Option<PackageSourceBinding>,
@@ -70,6 +62,8 @@ impl<'closure> PackageCompilationScope<'closure> {
                     custody.snapshot_root().to_path_buf(),
                 );
                 if custody.key() == root {
+                    // A same-sized but differently resolved closure keeps
+                    // its stale slot out by identity and snapshot root.
                     if let Some(captured) = root_binding.as_ref().filter(|captured| {
                         captured.identity() == binding.identity()
                             && captured.source_root() == binding.source_root()
@@ -95,6 +89,11 @@ impl<'closure> PackageCompilationScope<'closure> {
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| vec![error])?;
+        // Product edges authorize product imports for every package in scope.
+        // Build edges authorize imports only from the compilation root's build
+        // entry: a dependency's own build context resolves in its own
+        // compilation, where that package is the root, so its build edges are
+        // never projected into a consumer's inputs.
         let dependencies = closure
             .graph()
             .packages()
@@ -163,6 +162,10 @@ fn binding_with_canonical_source_metadata(
     custody: &crate::resolution::source::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
+    // Invocation custody supplies its already-captured bytes and namespace.
+    // A persisted source instead supplies sealed physical backing; its index
+    // may use the checked-source cache. A live checkout stat fingerprint is
+    // never a substitute for the content retained by this invocation.
     let invalid = |reason: String| PackageCompilationInputError::InvalidSourceRoot {
         identity: custody.key().identity(),
         path: custody.snapshot_root().to_path_buf(),
@@ -173,6 +176,11 @@ fn binding_with_canonical_source_metadata(
             .with_captured_source(std::sync::Arc::clone(tree))
             .map_err(invalid);
     }
+    // A resolved custody may name a retained lane directory holding the
+    // persistent checked-source index. Reuse is self-verifying — a retained
+    // record is only replayed when its stat fingerprint still matches — so a
+    // directory that cannot be opened degrades to the cold capture rather
+    // than failing compilation.
     if let Some(directory) = custody.checked_source_cache_dir()
         && let Ok(cache) = package_compilation::CheckedSourceCache::open_or_create(directory)
     {
@@ -183,6 +191,14 @@ fn binding_with_canonical_source_metadata(
     binding.with_canonical_source_metadata().map_err(invalid)
 }
 
+/// The compilation closure of one package root.
+///
+/// Product edges reach from every package. The root's build-purpose edges also
+/// reach: its build entry may import build-scope snapshots, so those packages —
+/// and their own product closures — are compilation inputs. A non-root
+/// package's build edges never reach into a consumer's closure: dependency
+/// build files do not join the compiled program, and the dependency's own
+/// build context resolves when it is the root of its own compilation.
 fn reachable_package_keys(
     closure: &ResolvedPackageSourceClosure,
     root: &crate::declarations::PackageKey,

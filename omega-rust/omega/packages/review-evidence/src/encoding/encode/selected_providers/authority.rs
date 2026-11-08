@@ -1,5 +1,3 @@
-// Canonical encoding for service-method operational authority, invocations, and progress premises.
-
 use super::{Encoder, PackageReviewEncodingError, encode_nominal};
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
 use crate::record::PackagePolicyServiceAuthority;

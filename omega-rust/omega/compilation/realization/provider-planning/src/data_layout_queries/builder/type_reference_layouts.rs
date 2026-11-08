@@ -1,17 +1,5 @@
-/*
-We lay out type references (`layout_type_reference_handle`), monomorphized
-generic data definitions (`layout_generic_data_definition`), and named types
-(`layout_named_type`) under generic bindings.
-
-References to slices (including domain-constrained slices such as `&[u8] in Utf8`)
-size as fat `{ptr, len}` descriptors by unwrapping `Constrained` wrappers before
-inspecting the referee, while references to all other carriers and `dyn Trait`
-selectors size as single pointer words. Monomorphized generic data definitions
-are recorded under their definition symbol on first instantiation; if a second,
-distinct instantiation collides on that symbol, we un-record the symbol entry
-and poison the signature so each use still sizes accurately while downstream
-field-offset resolution cleanly rejects ambiguous generic field access.
-*/
+//! Laying out type references, generic data definitions and named types
+//! under generic bindings.
 
 use crate::data_layout_queries::TypeLayout;
 use crate::data_layout_queries::builder::generic_bindings::{
@@ -28,6 +16,8 @@ use representation_selections::selection_for_opaque;
 use symbols::SymbolHandle;
 
 impl<'program> LayoutBuilder<'program> {
+    /// Lay out a type reference under `bindings`; callers outside any generic
+    /// instance pass no bindings.
     pub(crate) fn layout_type_reference_handle(
         &mut self,
         type_reference: TypeReferenceHandle,
@@ -60,6 +50,22 @@ impl<'program> LayoutBuilder<'program> {
             .type_reference(type_reference)
         {
             TypeReferenceNode::Reference { referee, .. } => {
+                // Borrowed views retain their descriptor: `{ptr, len}` for
+                // slices/text and `{instance, table}` for dynamic traits.
+                // Keeping only the instance pointer loses dispatch identity
+                // and disagrees with calling-policy parameter placement.
+                // Source references remain thin; engine-private scalar loan
+                // descriptors do not change this carrier's observable storage.
+                //
+                // A domain-constrained slice view (`&[u8] in Utf8`) is
+                // `Reference { Constrained { Slice } }`: the constraint is a
+                // compile-time fact that does not change the storage shape, so
+                // the referee must be unwrapped past any `Constrained` wrappers
+                // before deciding sized-ness -- otherwise a `&[u8] in Utf8`
+                // field would be sized as a thin 8-byte pointer while the
+                // call-result/return path (which unwraps Constrained) sizes it
+                // as the fat 16-byte descriptor, and the byte-count mismatch
+                // silently drops the descriptor copy.
                 let mut referee_node = self.program.type_reference_table.type_reference(*referee);
                 while let TypeReferenceNode::Constrained { base_type, .. } = referee_node {
                     referee_node = self.program.type_reference_table.type_reference(*base_type);
@@ -70,6 +76,8 @@ impl<'program> LayoutBuilder<'program> {
                 }
             }
             TypeReferenceNode::Constrained { base_type, .. } => {
+                // Domains classify the carrier; they add no length word,
+                // alignment, or payload offset to an exact fixed array.
                 self.layout_type_reference_handle(*base_type, bindings)
             }
             TypeReferenceNode::FixedArray {
@@ -84,6 +92,10 @@ impl<'program> LayoutBuilder<'program> {
                     return Ok(TypeLayout::default());
                 };
 
+                // `count * element_size` can exceed the addressable size for an absurd
+                // length (`[i32; 5e18]`); use checked arithmetic so a too-large array is a
+                // clean diagnostic, never a compiler panic on `attempt to multiply with
+                // overflow`.
                 let Some(size) = element_layout.size.checked_mul(length) else {
                     return Err(Diagnostic::error(format!(
                         "fixed array `[_; {length}]` is too large: {length} elements of {} \
@@ -98,6 +110,9 @@ impl<'program> LayoutBuilder<'program> {
                 ))
             }
             TypeReferenceNode::Slice { .. } => Ok(fat_descriptor_layout(self.target)),
+            // A selector is one reference to its implementation's immutable
+            // table. It carries no data word: data is always a separate
+            // argument of the call the selector reaches.
             TypeReferenceNode::DynamicTrait { .. } => Ok(pointer_layout(self.target)),
             TypeReferenceNode::Generic {
                 base_symbol,
@@ -116,6 +131,10 @@ impl<'program> LayoutBuilder<'program> {
                 if base_symbol.is_valid()
                     && let Ok(definition) = self.data_definition_by_symbol(*base_symbol)
                 {
+                    // A GENERIC definition (record OR enum -- `Option<T>` included)
+                    // lays out as a recorded monomorphized instance; the shared
+                    // compute path dispatches on the shape internally. Only a
+                    // non-generic definition goes through the plain symbol route.
                     if !definition.type_parameters.is_empty() {
                         return self
                             .layout_generic_data_definition(definition, *arguments, bindings);
@@ -148,6 +167,18 @@ impl<'program> LayoutBuilder<'program> {
         }
     }
 
+    /// Lays out a MONOMORPHIZED instance of a generic data definition and RECORDS
+    /// it in the plan, so downstream field-offset resolution (which looks up
+    /// `data_layouts` by the definition symbol through the type descriptor) works
+    /// on generic instances exactly as on concrete data. Delegates the actual
+    /// field/variant packing to the shared `compute_data_layout` with the
+    /// parameter->argument bindings, so records AND case-bearing shapes
+    /// (`Option<T>`-style enums) are covered by one computation.
+    ///
+    /// STAGE-1 BOUNDARY: the instance is keyed by the DEFINITION symbol, so each
+    /// generic data may be instantiated with ONE argument list per program. A
+    /// second, different instantiation is a clean error (per-instance identity
+    /// through descriptors is the later stage).
     fn layout_generic_data_definition(
         &mut self,
         definition: &'program DataDefinition,
@@ -168,6 +199,7 @@ impl<'program> LayoutBuilder<'program> {
             )));
         }
 
+        // Canonical signature of this instantiation (argument display list).
         let signature = arguments
             .iter()
             .map(|argument| {
@@ -206,21 +238,33 @@ impl<'program> LayoutBuilder<'program> {
             .position(|(symbol, _)| *symbol == definition.symbol);
         match existing {
             Some(index) if self.generic_instance_signatures[index].1 == signature => {
+                // Memo hit: the recorded instance is this one.
                 if let Some((_, data_layout)) = self.data_layout_entry_by_symbol(definition.symbol)
                 {
                     return Ok(data_layout.layout);
                 }
+                // Same signature but nothing recorded: the entry was POISONED by
+                // an earlier collision. Compute sizes fresh; record nothing.
             }
             Some(index) => {
+                // COLLISION: a second, different instantiation. Field offsets
+                // recorded under the definition symbol are now ambiguous, so
+                // UN-RECORD the first instance (downstream field access then
+                // falls back to the pre-existing clean "needs runtime storage
+                // lowering" rejection instead of silently using the wrong
+                // instance's offsets). Sizes stay correct for BOTH: each use
+                // computes its own layout with its own bindings below.
                 if let Some(handle) = self
                     .data_layout_entry_by_symbol(definition.symbol)
                     .map(|(handle, _)| handle)
                 {
                     self.data_layouts.get_mut(handle).symbol = SymbolHandle::invalid();
                 }
-                self.generic_instance_signatures[index].1 = String::new();
+                self.generic_instance_signatures[index].1 = String::new(); // poisoned
             }
             None => {
+                // First instantiation: compute AND record it, keyed by the
+                // definition symbol, so field-offset resolution works natively.
                 self.generic_instance_signatures
                     .push((definition.symbol, signature));
                 self.data_visiting.push(definition.symbol);
@@ -232,6 +276,7 @@ impl<'program> LayoutBuilder<'program> {
             }
         }
 
+        // Poisoned (or collision just detected): size this use privately.
         self.data_visiting.push(definition.symbol);
         let data_layout = self.compute_data_layout(definition, &bindings)?;
         self.data_visiting.pop();
@@ -243,6 +288,10 @@ impl<'program> LayoutBuilder<'program> {
         symbol: SymbolHandle,
         name: &str,
     ) -> Result<TypeLayout, Diagnostic> {
+        // Atomic accessors retain their underlying primitive class for
+        // operation typing, so their generated name parses as primitive here.
+        // The exact typed placed-plan row wins for runtime representation:
+        // this is an address carrier, not an inline atomic resident.
         let compiler_accessor = self
             .data_definition_by_symbol(symbol)
             .ok()

@@ -1,5 +1,4 @@
-// Canonical one-byte wire tags for `target::TargetProfile` in persisted build
-// and review-cache records.
+//! Canonical one-byte tags for target profiles in persisted records.
 
 pub(crate) fn target_profile_tag(profile: target::TargetProfile) -> u8 {
     match profile {
@@ -15,6 +14,7 @@ pub(crate) fn target_profile_tag(profile: target::TargetProfile) -> u8 {
     }
 }
 
+/// Recover a target profile from its canonical evidence tag.
 pub(crate) fn recover_target_profile_tag(tag: u8) -> Option<target::TargetProfile> {
     use target::TargetProfile::*;
     match tag {

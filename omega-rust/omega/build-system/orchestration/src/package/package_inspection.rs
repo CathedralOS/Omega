@@ -1,18 +1,4 @@
-/*
-
-Observational multi-target package audit (`omega audit packages`).
-
-`inspect_packages` opens a read-only `PackageInspectionTransaction` and a
-single `BuildSession` for the invocation, executes and settles the project's
-`build.omg` graph once, and reviews every requested target profile before
-finishing the transaction.
-
-If source discovery fails, we pass `Err(&error)` into each target's review pass
-rather than aborting early: source-discovery refusal is recorded as per-target
-audit report data while finishing the transaction still verifies that no project
-or lock files were modified during the inspection.
-
-*/
+//! Execute an observational target roster under one sponsored session.
 
 use crate::BuildSession;
 use package_manager::PackageSourceBindings;
@@ -21,6 +7,9 @@ use package_manager::operations::{
     PackageInspectionSources, PackageInspectionTransaction, PreparedPackageInspection,
 };
 
+/// Keep package custody alive through every target and staging disposal.
+/// A target's unavailable findings do not hide its siblings; report failures
+/// abort the invocation. Inspection never grants publication or host authority.
 pub fn inspect_packages(
     options: PackageInspectionOptions,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
@@ -55,6 +44,8 @@ pub fn inspect_packages(
     session.dispose(result)
 }
 
+/// Source execution is shared across target findings, including failed targets.
+/// Failure stays report data; the transaction still verifies unchanged files.
 fn resolve_inspection_sources(
     inspection: &PreparedPackageInspection<'_>,
     session: &mut BuildSession,

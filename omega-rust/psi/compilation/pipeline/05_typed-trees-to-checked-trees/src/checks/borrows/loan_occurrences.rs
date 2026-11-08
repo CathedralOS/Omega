@@ -17,7 +17,7 @@ impl<'facts> LoanOccurrences<'facts> {
 
     pub(super) fn for_state(
         program: &dyn validation::CheckingInput,
-        facts: checked_trees::CheckFactsRef<'facts>,
+        facts: &'facts CheckFacts,
         state: &FlowStateFact,
     ) -> Self {
         Self {

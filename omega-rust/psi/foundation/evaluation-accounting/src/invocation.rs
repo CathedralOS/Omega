@@ -3,13 +3,13 @@
 //! Leases are move-only; backing aliases share the owning lease through Arc.
 
 use crate::{BuildEvaluationSponsor, BuildEvaluationUsage};
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 /// Resource category retained by a refused charge, not a parsed diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvaluationResource {
-    Work,
+    Fuel,
     LiveStorage,
     ResultCustody,
     BuildLog,
@@ -20,10 +20,10 @@ pub enum EvaluationResource {
 pub enum EvaluationAccountingError {
     UnsupportedMeasurementIdentity,
     MeasurementSponsorMismatch,
-    ZeroInvocationWorkBudget,
+    ZeroInvocationFuelCeiling,
     AccountUnavailable,
     CounterOverflow(EvaluationResource),
-    BudgetExhausted(EvaluationResource),
+    AllowanceExhausted(EvaluationResource),
     LeaseReleaseExceedsReservation,
     LeaseAccountMismatch,
 }
@@ -37,15 +37,15 @@ impl std::fmt::Display for EvaluationAccountingError {
             Self::MeasurementSponsorMismatch => {
                 formatter.write_str("invocation measurement differs from its aggregate sponsor")
             }
-            Self::ZeroInvocationWorkBudget => {
-                formatter.write_str("evaluation invocation work budget is zero")
+            Self::ZeroInvocationFuelCeiling => {
+                formatter.write_str("evaluation invocation fuel ceiling is zero")
             }
             Self::AccountUnavailable => formatter.write_str("evaluation account is unavailable"),
             Self::CounterOverflow(resource) => {
                 write!(formatter, "evaluation {resource:?} accounting overflowed")
             }
-            Self::BudgetExhausted(resource) => {
-                write!(formatter, "evaluation {resource:?} budget exhausted")
+            Self::AllowanceExhausted(resource) => {
+                write!(formatter, "evaluation {resource:?} allowance exhausted")
             }
             Self::LeaseReleaseExceedsReservation => {
                 formatter.write_str("lease release exceeds held storage")
@@ -58,7 +58,7 @@ impl std::fmt::Display for EvaluationAccountingError {
 }
 impl std::error::Error for EvaluationAccountingError {}
 
-/// Logical Terminal storage schedule, separate from its semantic work schedule.
+/// Logical Terminal storage schedule, separate from its semantic fuel schedule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalStorageScheduleIdentity(u32);
 
@@ -81,7 +81,7 @@ impl TerminalStorageScheduleIdentity {
 pub enum EvaluationMeasurementIdentity {
     CheckedTree,
     TerminalPsi {
-        work_schedule: WorkScheduleIdentity,
+        fuel_schedule: FuelScheduleIdentity,
         storage_schedule: TerminalStorageScheduleIdentity,
     },
 }
@@ -91,9 +91,9 @@ impl EvaluationMeasurementIdentity {
         match self {
             Self::CheckedTree => true,
             Self::TerminalPsi {
-                work_schedule,
+                fuel_schedule,
                 storage_schedule,
-            } => work_schedule.marker() == 1 && storage_schedule.marker() == 1,
+            } => fuel_schedule.marker() == 1 && storage_schedule.marker() == 1,
         }
     }
 
@@ -101,12 +101,12 @@ impl EvaluationMeasurementIdentity {
         match self {
             Self::CheckedTree => schema == 7 && schedule == 1,
             Self::TerminalPsi {
-                work_schedule,
+                fuel_schedule,
                 storage_schedule,
             } => {
                 schema == 8
-                    && schedule == work_schedule.marker()
-                    && work_schedule.marker() == 1
+                    && schedule == fuel_schedule.marker()
+                    && fuel_schedule.marker() == 1
                     && storage_schedule.marker() == 1
             }
         }
@@ -115,7 +115,7 @@ impl EvaluationMeasurementIdentity {
 
 #[derive(Debug, Default)]
 struct InvocationConsumption {
-    work_units: u64,
+    fuel_units: u64,
     build_log_bytes: u64,
     filesystem_operation_attempts: u64,
     live_storage_cells: u64,
@@ -130,11 +130,11 @@ struct InvocationConsumption {
 struct InvocationAccount {
     sponsor: BuildEvaluationSponsor,
     measurement: EvaluationMeasurementIdentity,
-    work_budget: u64,
+    fuel_ceiling: u64,
     consumed: Mutex<InvocationConsumption>,
 }
 
-/// Clone retains the same invocation, never a second budget.
+/// Clone retains the same invocation, never a second allowance.
 #[derive(Debug, Clone)]
 pub struct EvaluationInvocationAccount {
     account: Arc<InvocationAccount>,
@@ -150,10 +150,10 @@ impl BuildEvaluationSponsor {
     pub fn begin_invocation(
         &self,
         measurement: EvaluationMeasurementIdentity,
-        work_budget: u64,
+        fuel_ceiling: u64,
     ) -> Result<EvaluationInvocationAccount, EvaluationAccountingError> {
-        if work_budget == 0 {
-            return Err(EvaluationAccountingError::ZeroInvocationWorkBudget);
+        if fuel_ceiling == 0 {
+            return Err(EvaluationAccountingError::ZeroInvocationFuelCeiling);
         }
         if !measurement.is_current() {
             return Err(EvaluationAccountingError::UnsupportedMeasurementIdentity);
@@ -165,7 +165,7 @@ impl BuildEvaluationSponsor {
             account: Arc::new(InvocationAccount {
                 sponsor: self.clone(),
                 measurement,
-                work_budget,
+                fuel_ceiling,
                 consumed: Mutex::new(InvocationConsumption::default()),
             }),
         })
@@ -210,23 +210,23 @@ impl EvaluationInvocationAccount {
 
     /// Call only at the engine's admitted pre-site charge boundary. Failed
     /// payment changes neither account; semantic execution follows payment.
-    pub fn charge_work(&self, units: u64) -> Result<(), EvaluationAccountingError> {
+    pub fn charge_fuel(&self, units: u64) -> Result<(), EvaluationAccountingError> {
         let (mut shared, mut local) = self.account.consumption()?;
-        let aggregate = shared.work_units.checked_add(units).ok_or(
-            EvaluationAccountingError::CounterOverflow(EvaluationResource::Work),
+        let aggregate = shared.fuel_units.checked_add(units).ok_or(
+            EvaluationAccountingError::CounterOverflow(EvaluationResource::Fuel),
         )?;
-        let invocation = local.work_units.checked_add(units).ok_or(
-            EvaluationAccountingError::CounterOverflow(EvaluationResource::Work),
+        let invocation = local.fuel_units.checked_add(units).ok_or(
+            EvaluationAccountingError::CounterOverflow(EvaluationResource::Fuel),
         )?;
-        if aggregate > self.account.sponsor.limits().work_budget()
-            || invocation > self.account.work_budget
+        if aggregate > self.account.sponsor.limits().maximum_fuel_units()
+            || invocation > self.account.fuel_ceiling
         {
-            return Err(EvaluationAccountingError::BudgetExhausted(
-                EvaluationResource::Work,
+            return Err(EvaluationAccountingError::AllowanceExhausted(
+                EvaluationResource::Fuel,
             ));
         }
-        shared.work_units = aggregate;
-        local.work_units = invocation;
+        shared.fuel_units = aggregate;
+        local.fuel_units = invocation;
         Ok(())
     }
 
@@ -241,7 +241,7 @@ impl EvaluationInvocationAccount {
             EvaluationAccountingError::CounterOverflow(EvaluationResource::BuildLog),
         )?;
         if aggregate > self.account.sponsor.limits().maximum_build_log_bytes() {
-            return Err(EvaluationAccountingError::BudgetExhausted(
+            return Err(EvaluationAccountingError::AllowanceExhausted(
                 EvaluationResource::BuildLog,
             ));
         }
@@ -265,7 +265,7 @@ impl EvaluationInvocationAccount {
                 .limits()
                 .maximum_filesystem_operation_attempts()
         {
-            return Err(EvaluationAccountingError::BudgetExhausted(
+            return Err(EvaluationAccountingError::AllowanceExhausted(
                 EvaluationResource::FilesystemAttempts,
             ));
         }
@@ -284,16 +284,16 @@ impl EvaluationInvocationAccount {
         self.reserve_site(0, cells, payload_bytes)
     }
 
-    /// Stage a semantic site's work and storage together before execution.
-    /// Resource refusal pays neither work nor storage; dropping the lease
-    /// releases storage only, never refunds an executed site's work.
+    /// Stage a semantic site's fuel and storage together before execution.
+    /// Resource refusal pays neither fuel nor storage; dropping the lease
+    /// releases storage only, never refunds an executed site's fuel.
     pub fn reserve_site(
         &self,
-        work_units: u64,
+        fuel_units: u64,
         cells: u64,
         payload_bytes: u64,
     ) -> Result<EvaluationStorageLease, EvaluationAccountingError> {
-        self.increase_site(work_units, cells, payload_bytes)?;
+        self.increase_site(fuel_units, cells, payload_bytes)?;
         Ok(EvaluationStorageLease {
             account: self.clone(),
             cells,
@@ -303,21 +303,23 @@ impl EvaluationInvocationAccount {
 
     fn increase_site(
         &self,
-        work_units: u64,
+        fuel_units: u64,
         cells: u64,
         payload_bytes: u64,
     ) -> Result<(), EvaluationAccountingError> {
         let (mut shared, mut local) = self.account.consumption()?;
         let limits = self.account.sponsor.limits();
-        let aggregate_work = shared.work_units.checked_add(work_units).ok_or(
-            EvaluationAccountingError::CounterOverflow(EvaluationResource::Work),
+        let aggregate_fuel = shared.fuel_units.checked_add(fuel_units).ok_or(
+            EvaluationAccountingError::CounterOverflow(EvaluationResource::Fuel),
         )?;
-        let invocation_work = local.work_units.checked_add(work_units).ok_or(
-            EvaluationAccountingError::CounterOverflow(EvaluationResource::Work),
+        let invocation_fuel = local.fuel_units.checked_add(fuel_units).ok_or(
+            EvaluationAccountingError::CounterOverflow(EvaluationResource::Fuel),
         )?;
-        if aggregate_work > limits.work_budget() || invocation_work > self.account.work_budget {
-            return Err(EvaluationAccountingError::BudgetExhausted(
-                EvaluationResource::Work,
+        if aggregate_fuel > limits.maximum_fuel_units()
+            || invocation_fuel > self.account.fuel_ceiling
+        {
+            return Err(EvaluationAccountingError::AllowanceExhausted(
+                EvaluationResource::Fuel,
             ));
         }
         let aggregate_cells = shared.live_storage_cells.checked_add(cells).ok_or(
@@ -337,12 +339,12 @@ impl EvaluationInvocationAccount {
             || aggregate_bytes > limits.maximum_live_payload_bytes()
             || invocation_bytes > limits.maximum_live_payload_bytes()
         {
-            return Err(EvaluationAccountingError::BudgetExhausted(
+            return Err(EvaluationAccountingError::AllowanceExhausted(
                 EvaluationResource::LiveStorage,
             ));
         }
-        shared.work_units = aggregate_work;
-        local.work_units = invocation_work;
+        shared.fuel_units = aggregate_fuel;
+        local.fuel_units = invocation_fuel;
         shared.live_storage_cells = aggregate_cells;
         shared.live_payload_bytes = aggregate_bytes;
         shared.peak_live_storage_cells = shared.peak_live_storage_cells.max(aggregate_cells);
@@ -379,7 +381,7 @@ impl EvaluationInvocationAccount {
         local.live_payload_bytes -= payload_bytes;
     }
 
-    /// Result publication is an aggregate consumed budget. Dropping a result
+    /// Result publication is an aggregate consumed allowance. Dropping a result
     /// does not refund work already issued; a retry must pay again.
     pub fn charge_result_custody(
         &self,
@@ -409,7 +411,7 @@ impl EvaluationInvocationAccount {
         if aggregate_cells > limits.maximum_result_storage_cells()
             || aggregate_bytes > limits.maximum_result_payload_bytes()
         {
-            return Err(EvaluationAccountingError::BudgetExhausted(
+            return Err(EvaluationAccountingError::AllowanceExhausted(
                 EvaluationResource::ResultCustody,
             ));
         }
@@ -425,8 +427,8 @@ impl EvaluationInvocationAccount {
         let limits = self.account.sponsor.limits();
         let (usage_schema_version, step_schedule_marker) = match self.account.measurement {
             EvaluationMeasurementIdentity::CheckedTree => (7, 1),
-            EvaluationMeasurementIdentity::TerminalPsi { work_schedule, .. } => {
-                (8, work_schedule.marker())
+            EvaluationMeasurementIdentity::TerminalPsi { fuel_schedule, .. } => {
+                (8, fuel_schedule.marker())
             }
         };
         Ok(EvaluationInvocationUsage {
@@ -435,9 +437,9 @@ impl EvaluationInvocationAccount {
                 measurement: self.account.measurement,
                 usage_schema_version,
                 step_schedule_marker,
-                invocation_work_budget: self.account.work_budget,
+                invocation_fuel_ceiling: self.account.fuel_ceiling,
                 sponsor_schema_version: Some(limits.schema_version()),
-                session_work_budget: Some(limits.work_budget()),
+                session_fuel_ceiling: Some(limits.maximum_fuel_units()),
                 session_build_log_byte_ceiling: Some(limits.maximum_build_log_bytes()),
                 session_filesystem_attempt_ceiling: Some(
                     limits.maximum_filesystem_operation_attempts(),
@@ -452,7 +454,7 @@ impl EvaluationInvocationAccount {
                 session_peak_live_filesystem_handles: shared.peak_live_filesystem_handles,
                 session_peak_live_storage_cells: shared.peak_live_storage_cells,
                 session_peak_live_payload_bytes: shared.peak_live_payload_bytes,
-                work_units: local.work_units,
+                fuel_units: local.fuel_units,
                 build_log_bytes: local.build_log_bytes,
                 filesystem_operation_attempts: local.filesystem_operation_attempts,
                 peak_live_storage_cells: local.peak_live_storage_cells,

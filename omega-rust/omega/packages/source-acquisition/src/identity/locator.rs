@@ -1,7 +1,3 @@
-// Strict Git locator parser (`ParsedGitLocator` and `CanonicalPort`) rejecting
-// embedded credentials, query/fragment parameters, path traversal, and invalid
-// host or repository path characters.
-
 use super::{GitTransport, IdentityError};
 
 #[derive(Debug)]

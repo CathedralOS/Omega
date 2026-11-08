@@ -1,6 +1,3 @@
-// Canonical encoding for contract expression bodies across literals, constructors, references, casts, and calls.
-// Call-target tag `3` is retired (the former receiver collection views) and must never be reused.
-
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::values::expressions::Encoder;
 use crate::encoding::encode::values::expressions::encode_contract_evidence_argument;
@@ -268,6 +265,7 @@ pub(super) fn encode_contract_expression_body(
                             Ok(())
                         })?;
                     }
+                    // Tag 3 is retired (the receiver collection views); never reuse it.
                     PackageReviewContractCallTarget::ProofView { name } => {
                         encoder.tag("proof_view", 4);
                         encoder.field("name", |encoder| encoder.string(name))?;

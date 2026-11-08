@@ -24,7 +24,6 @@ pub mod inline_assembly;
 pub mod layout_storage;
 pub mod operator_spelling;
 mod source_semantics;
-pub mod static_interrupts;
 
 pub use atomic::{AtomicOrderingPlan, MemoryOrdering};
 pub use cast_form::CastForm;
@@ -40,5 +39,5 @@ pub use source_semantics::{
     BindingRelevance, CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin,
     CarryAddress, CarryCpu, CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension,
     DataSupplyMode, DomainClassification, DomainPredicatePresence, LocalBindingRole, Multiplicity,
-    ReferenceAccess,
+    PatternComponent, ReferenceAccess,
 };

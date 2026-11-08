@@ -1,6 +1,3 @@
-// Unit tests verifying that materialized snapshot writes, cleanup, and
-// publication stay bound to the retained staging directory handle.
-
 #[cfg(unix)]
 use super::open_absolute_directory_nofollow;
 use super::{

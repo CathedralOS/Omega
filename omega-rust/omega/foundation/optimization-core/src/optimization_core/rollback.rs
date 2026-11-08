@@ -1,10 +1,6 @@
-// Subtractive exact-name optimization rollback overlay (`OptimizationRollback`)
-// and artifact-production settlement (`OptimizationRollbackSettlement`).
-//
-// Release rollback can only subtract exact optimization rules selected by
-// `build.omg`; it can never add, alias, or reorder optimizations. `settle`
-// binds the effective selection and optional `OptimizationRollbackReceipt`
-// together so artifact production and reporting cannot diverge.
+//! Exact-name rollback settlement shared by compilation and release tooling.
+//! Parsing, subtraction and the resulting receipt belong with the canonical
+//! selection vocabulary; product-specific phase admission stays with consumers.
 
 mod receipt;
 mod request;
@@ -14,15 +10,21 @@ pub use request::OptimizationRollbackInputError;
 
 use crate::OptimizationSelections;
 
+/// A release-tooling overlay that can only subtract exact rules selected by
+/// `build.omg`. It cannot add, alias, or reorder an optimization.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OptimizationRollback {
-    requested_disabled: OptimizationSelections, // Canonical set of exact rules requested to be disabled.
+    requested_disabled: OptimizationSelections,
 }
 
+/// Complete artifact-production view of one release rollback request.
+///
+/// The effective selection and optional report receipt are constructed
+/// together so callers cannot reimplement the empty-request identity case.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationRollbackSettlement {
-    effective: OptimizationSelections, // Remaining build-selected rules after subtracting `requested_disabled`.
-    receipt: Option<OptimizationRollbackReceipt>, // Present whenever `requested_disabled` was non-empty.
+    effective: OptimizationSelections,
+    receipt: Option<OptimizationRollbackReceipt>,
 }
 
 impl OptimizationRollbackSettlement {
@@ -36,6 +38,10 @@ impl OptimizationRollbackSettlement {
 }
 
 impl OptimizationRollback {
+    /// Reconstruct the optional public report receipt for compatibility with
+    /// callers that inspect rollback evidence independently. Artifact
+    /// production consumes [`Self::settle`] so effective selection cannot
+    /// detach from this receipt.
     pub fn reconcile(
         &self,
         build_selected: &OptimizationSelections,

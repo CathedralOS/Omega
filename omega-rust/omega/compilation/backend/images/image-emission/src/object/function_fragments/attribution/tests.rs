@@ -528,7 +528,7 @@ fn bridge_continuation_does_not_attribute_the_semantic_edge_twice() {
         block: SelectedBlockId(1),
         source_target: BlockId::new(2).unwrap(),
         bindings: Vec::new(),
-        work: Vec::new(),
+        fuel: Vec::new(),
     };
     let mut jump = fragment.blocks[0].instructions[3].clone();
     jump.instruction = SelectedInstructionId(4);
@@ -641,7 +641,7 @@ fn internal_jump_attributes_its_operation_not_a_fabricated_edge() {
         block: SelectedBlockId(1),
         source_target: BlockId::new(1).unwrap(),
         bindings: Vec::new(),
-        work: Vec::new(),
+        fuel: Vec::new(),
     };
     fragment.blocks[0].instructions[0].control = Control::Jump {
         successor: Box::new(successor.clone()),

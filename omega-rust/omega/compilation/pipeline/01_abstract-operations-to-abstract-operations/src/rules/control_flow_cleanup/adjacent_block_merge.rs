@@ -140,7 +140,7 @@ pub(super) fn adjacent_merge_accounting(
                 node: predecessor.node,
             }),
             &incoming.provenance,
-            &incoming.work,
+            &incoming.fuel,
         )]
     } else if !first.successors.is_empty() {
         first
@@ -154,7 +154,7 @@ pub(super) fn adjacent_merge_accounting(
                         edge: successor.psi_edge,
                     },
                     &incoming.provenance,
-                    &incoming.work,
+                    &incoming.fuel,
                 )
             })
             .collect()

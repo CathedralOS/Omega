@@ -1,8 +1,3 @@
-// Unix integration tests for `run_bounded_process`: duplex stdin/stdout/stderr
-// transfer, per-stream and aggregate output overflow rejection, timeout
-// process-group termination, descendant pipe closure, and overflow reporting on
-// an already-exited zombie group.
-
 #![cfg(unix)]
 
 use super::{
@@ -121,6 +116,8 @@ fn timeout_terminates_the_owned_process_group() {
     let marker = root.join("survived");
     let mut prepared = shell("(sleep 0.75; printf survived > \"$MARKER\") & exec sleep 10");
     prepared.env("MARKER", &marker);
+    // The total deadline includes process setup and cleanup. Leave a real
+    // cleanup interval before checking the timeout and descendant shutdown.
     let started = Instant::now();
     let error = run_bounded_process(
         prepared,
@@ -158,6 +155,10 @@ fn completed_parent_closes_descendant_held_pipes() {
 
 #[test]
 fn output_overflow_of_an_already_exited_child_reports_the_overflow() {
+    // The child prints more than the bound and exits before cleanup runs, so
+    // the group holds only its zombie. The overflow, not a cleanup failure,
+    // must be the reported error on every host (macOS refuses `killpg` on a
+    // zombie-only group with EPERM until the zombie is reaped).
     let error = run_bounded_process(
         shell("printf 0123456789"),
         BoundedProcessInput::Null,

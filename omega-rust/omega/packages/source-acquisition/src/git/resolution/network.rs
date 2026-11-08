@@ -1,5 +1,4 @@
-// Compiler-owned bounded `git fetch` argument construction
-// (`--depth=1 --no-tags --no-recurse-submodules --filter=blob:limit=<max_bytes + 1>`).
+//! Construct the compiler-owned bounded Git fetch invocation.
 
 use crate::limits::LocalSourceLimits;
 use std::ffi::OsString;

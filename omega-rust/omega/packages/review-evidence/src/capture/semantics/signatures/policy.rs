@@ -1,10 +1,4 @@
-/*
-We project scope-preserving public static telescopes and typed policy values.
-
-We project the prepared signature while obtaining semantic absence and
-proof-source associations from the original checked telescope rather than a
-dummy type string.
-*/
+//! Scope-preserving public static telescopes and typed policy values.
 
 use crate::record::{
     PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
@@ -26,6 +20,8 @@ use typed_trees::{
     name::Identifier,
 };
 
+/// Project the prepared signature but obtain semantic absence and proof-source
+/// associations from the original checked telescope, never a dummy type string.
 pub(crate) fn project_type_parameters(
     typed: &dyn ::validation::CheckingInput,
     checked_source: &SourceDeclarationInput<'_>,

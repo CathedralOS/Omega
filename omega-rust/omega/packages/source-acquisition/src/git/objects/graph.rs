@@ -1,6 +1,4 @@
-// Authenticated, payload-free view (`AuthenticatedGitTreeGraph`) of one
-// complete recursive Git tree graph, supporting binary-search lookup by exact
-// slash-separated path bytes.
+//! Authenticated, payload-free view of one complete recursive Git tree graph.
 
 use crate::error::SourceResolveError;
 

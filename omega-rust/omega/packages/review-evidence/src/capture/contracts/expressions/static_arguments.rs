@@ -1,7 +1,3 @@
-// Static argument projection and parameter-kind alignment for runtime and
-// mathematical contract calls across types, generic data applications, integer and
-// named constants, generic binders, concrete machines, and conformance applications.
-
 mod conformance;
 mod const_values;
 

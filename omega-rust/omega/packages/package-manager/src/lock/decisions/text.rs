@@ -1,6 +1,3 @@
-// Canonical ASCII encoding and bounded recovery for historical package policy decision sections across version-1 source-graph indices and version-2 comparison subjects.
-// Each canonical version-1 decision occupies at least 83 bytes, and both allocations are charged against the remaining storage budget before reserving retained rows; exact conflict fingerprints are sorted to reject duplicate conflict ownership across package indices.
-
 use super::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError as Error,
@@ -14,6 +11,9 @@ use std::fmt::Write;
 const HEADER: &str = "omega-policy-decisions 1\n";
 
 impl HistoricalPackagePolicyDecisions {
+    /// Canonical ASCII section. Version 1 indices reference the sorted source
+    /// graph; version 2 subjects identify complete-comparison changes, including
+    /// removed packages. Neither replaces the normalized policy beside history.
     pub fn canonical_text(
         &self,
         subject: &CanonicalSourceClosureSubject,
@@ -80,6 +80,9 @@ impl HistoricalPackagePolicyDecisions {
         Ok(text)
     }
 
+    /// Recover one historical section under the remaining enclosing storage
+    /// budget. Successful usage must be deducted before recovering another
+    /// section; it grants no current candidate or publication authority.
     pub fn recover_text_with_usage(
         text: &str,
         subject: &CanonicalSourceClosureSubject,
@@ -112,9 +115,13 @@ impl HistoricalPackagePolicyDecisions {
         if count > limits.maximum_decisions {
             return Err(Error::DecisionLimitExceeded);
         }
+        // Reject impossible counts before allocating any row storage. Each
+        // canonical decision occupies at least 83 bytes, including its newline.
         if count > body.len() / 83 {
             return Err(Error::InvalidFraming);
         }
+        // Account both allocations before reserving even the retained rows.
+        // Validation below uses one fixed digest per row and no owned keys.
         let usage =
             HistoricalPackagePolicyRecoveryUsage::for_decisions(count, maximum_owned_bytes)?;
         let mut decisions = Vec::new();
@@ -176,6 +183,8 @@ fn validate_decisions(
     {
         return Err(Error::NonCanonicalDecisions);
     }
+    // One exact conflict has one owner even when a record tries to repeat it
+    // under another valid package index.
     let mut fingerprints = Vec::new();
     crate::reserve!(fingerprints, decisions.len(), Error);
     fingerprints.extend(

@@ -1,4 +1,4 @@
-use optimization_unit::{PsiProvenance, WorkSettlement, encode_value_definition_site_identity};
+use optimization_unit::{FuelSettlement, PsiProvenance, encode_value_definition_site_identity};
 use selected_instructions::{SelectedInstructionProvenance, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
@@ -28,7 +28,7 @@ pub(crate) fn encode_terminal_recovery_classification_content(
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
+    push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.policy {
         RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1 => 0,
     });
@@ -157,12 +157,12 @@ fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionProven
             push_encoded(bytes, obligation.get().to_le_bytes());
         },
     );
-    list(bytes, &provenance.work, LABEL, |bytes, settlement| {
-        encode_work(bytes, *settlement);
+    list(bytes, &provenance.fuel, LABEL, |bytes, settlement| {
+        encode_fuel(bytes, *settlement);
     });
 }
 
-fn encode_work(bytes: &mut Vec<u8>, settlement: WorkSettlement) {
+fn encode_fuel(bytes: &mut Vec<u8>, settlement: FuelSettlement) {
     match settlement.site {
         PsiProvenance::Operation(operation) => {
             bytes.push(0);
@@ -189,7 +189,7 @@ mod tests {
     use optimization_core::{
         OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     };
-    use optimization_unit::{PsiProvenance, ValueDefinitionSite, WorkSettlement};
+    use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
     use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
     use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
     use selected_instructions::{
@@ -197,8 +197,8 @@ mod tests {
         SelectedInstructionProvenance, VirtualRegisterId, VirtualRegisterOrigin,
     };
     use semantic_vocabulary::{
-        BlockId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType, ValueId,
-        WorkScheduleIdentity,
+        BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
+        ScalarType, ValueId,
     };
 
     fn plan() -> RecoveryClassificationPlan {
@@ -212,7 +212,7 @@ mod tests {
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([5; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([9; 32]),
             optimization_unit: OptimizationUnitIdentity::from_bytes([6; 32]),
-            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             policy: RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
             budget: OptimizationWorkBudget::new(10, 10, 10, 10, 1).unwrap(),
             usage: OptimizationWorkUsage {
@@ -254,7 +254,7 @@ mod tests {
                                 values: vec![value],
                                 edges: Vec::new(),
                                 obligations: Vec::new(),
-                                work: vec![WorkSettlement {
+                                fuel: vec![FuelSettlement {
                                     site: PsiProvenance::Operation(operation),
                                     units: 13,
                                 }],
@@ -300,7 +300,7 @@ mod tests {
         else {
             unreachable!()
         };
-        provenance.work[0].units += 1;
+        provenance.fuel[0].units += 1;
         future_uses[0].point.0 += 1;
         assert_ne!(baseline, recovery_classification_identity(&changed));
     }

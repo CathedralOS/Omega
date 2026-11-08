@@ -1,33 +1,13 @@
-/*
-
-Dependency-first package frontier scheduler and one-shot `build.omg` executor.
-
-When compiling one or more target `PackagePlan`s (`prepare_packages`), each plan
-contains a dependency-ordered list of `PackageSourceRequest` occurrences ending
-at the root `Product` occurrence:
-1. `validate_order` checks up front that the plan is non-empty, contains no
-   duplicate `(package, purpose)` pairs, places every dependency before its
-   consumers, and ends at a `Product` root.
-2. In each frontier wave, we advance every active plan by one occurrence:
-   joining generated-source handoffs from already-completed dependencies
-   (`join_generated_sources`), preparing the occurrence (`prepare_package_source`
-   — either executing a fresh `build.omg` activation or preparing a `Product`
-   from an already-settled `CompletedBuild`), and recording any independent
-   component packages required by that occurrence (`required_components`).
-3. `complete_components` batch-completes all newly demanded independent
-   component descriptions across all active plans in one cohort call
-   (`compiler.complete_package_components`) before attaching those descriptions
-   to the waiting occurrences.
-
-For single-activation `build.omg` execution (`execute_build` and
-`execute_returned_build`), we step the Terminal Psi guest activation in 1024-step
-quanta, answering any `awaiting_query` product-description requests from the
-retained `ProductQueries` context until the activation returns. Provider
-readiness pauses (`awaiting_provider`) require multi-package dependency
-scheduling and are handled by `source_resolution::readiness::ReadinessScheduler`
-instead; hitting one in one-shot `execute_build` fails closed.
-
-*/
+//! Advance package occurrences dependency-first across all requested products.
+//!
+//! Each occurrence admits its own Build and keeps its generated-byte custody.
+//! Independent components demanded at the same frontier enter source completion
+//! together. A target roster no longer completes its whole chain before sibling
+//! targets can contribute the same dependency source.
+//!
+//! A frontier either prepares its Product root's Build or, for a caller that
+//! compiles that root through its own product request, stops after joining the
+//! dependencies' generated source into the root request.
 
 pub(crate) mod source_resolution;
 
@@ -53,10 +33,12 @@ struct PackageFrontier<Owner> {
     products: Vec<OccurrenceProduct>,
 }
 
+/// How one package plan finished: its root's prepared Build.
 pub(crate) enum PreparedPackageRoot {
     Build(Box<PackageBuild>),
 }
 
+/// One dependency-ordered plan and what to do with its Product root.
 pub(crate) struct PackagePlan {
     pub occurrences: Vec<PackageSourceRequest>,
 }
@@ -95,6 +77,9 @@ struct PendingOccurrence<Owner> {
     failure: Option<CompileFailure>,
 }
 
+/// Run the admitted occurrence while keeping the compiler available for work
+/// requested between steps. Completion validates the entire retained request
+/// ledger; an ignored step cannot erase an outstanding dependency.
 pub(crate) fn execute_package_build(
     compiler: &mut CompilationSession,
     request: CheckedCompileRequest,
@@ -102,6 +87,9 @@ pub(crate) fn execute_package_build(
     execute_returned_build(compiler, request)?.complete(compiler)
 }
 
+/// Application work retained between normal return and the final source join.
+/// Keeping the invocation beside its return prevents the scheduler from
+/// discarding the source continuation and replaying Build after acquisition.
 pub(crate) struct ReturnedPackageBuild {
     pub(crate) invocation: compiler::PackageBuildInvocation,
     pub(crate) returned: Option<build_settings::ReturnedBuild>,
@@ -139,6 +127,8 @@ pub(crate) fn execute_returned_build(
     })
 }
 
+/// Run one admitted activation to return. This is the shared one-shot policy for
+/// source and package consumers; its retained ledger still requires final join.
 pub fn execute_build(
     execution: Option<&mut build_settings::PreparedBuildExecution>,
     mut queries: Option<&mut compiler::ProductQueries>,
@@ -309,6 +299,9 @@ pub(crate) fn prepare_packages<Owner>(
         .collect()
 }
 
+/// Complete actual component demands as one source cohort batch, then retain
+/// each target's own installed description. Descriptions are not shared
+/// authority, even when their source arenas are common.
 fn complete_components<Owner>(
     compiler: &mut CompilationSession,
     pending: &mut [PendingOccurrence<Owner>],
@@ -428,6 +421,8 @@ fn required_components(
     Ok(components)
 }
 
+/// Refuse malformed plans before any Build effect. Order is supplied by the
+/// package resolver; checking it is request admission, not graph reconstruction.
 fn validate_order(request: &[PackageSourceRequest]) -> Result<(), PackageCompileFailure> {
     if request.is_empty() {
         return Err(PackageCompileFailure {

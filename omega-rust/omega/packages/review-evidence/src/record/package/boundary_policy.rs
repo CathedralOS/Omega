@@ -1,8 +1,4 @@
-// Receipt-free D29 boundary application demands and selected application
-// relationships (`PackagePolicyBoundaryApplications`).
-//
-// `selected_plan_index` in `PackagePolicyBoundaryApplicationRealization`
-// indexes into the normalized aggregate's canonical plan order.
+//! Receipt-free D29 demand and selected application relationships.
 
 mod validation;
 
@@ -13,6 +9,7 @@ use crate::record::{
     PackageReviewSymbolicBoundaryApplicationArgument,
 };
 
+/// Inert application relationships; no coverage, execution, or admission claim.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyBoundaryApplications {
     pub(crate) demands: Vec<PackagePolicyBoundaryApplicationDemand>,
@@ -37,6 +34,7 @@ impl PackagePolicyBoundaryApplicationDemand {
     field_projection_accessors!(sliced arguments: &[PackageReviewSymbolicBoundaryApplicationArgument]);
 }
 
+/// Selected provider position is in the normalized aggregate's canonical plan order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyBoundaryApplicationRealization {
     pub(crate) operator_coordinate: PackageReviewOperatorCoordinate,

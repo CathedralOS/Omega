@@ -1,17 +1,6 @@
-/*
-We define materialized boundary signatures (`MaterializedBoundarySignature`),
-the value classes, shapes, and fields a boundary call carries, and the
-borrowed geometry (`BoundaryOpaqueMovementGeometry`) used to rejoin exact
-opaque shape nodes to the top-level semantic occurrence and target placement
-that carries them.
-
-Named layout-owned callback destinations are retained in native-demand order,
-while direct callback parameters have no layout field and contribute no catalog
-entry. Rejoining an opaque shape node consumes a replay-validated plan over an
-acyclic postorder shape graph; equal-looking layouts or an aggregate plan
-digest are insufficient. We also fold the borrowed telescope accessors from
-`native_parameters` directly into `MaterializedBoundarySignature`.
-*/
+//! Boundary signatures: the value classes, shapes and fields a boundary
+//! call carries, the materialized signature, and how signatures are
+//! collected from the typed program and its calling-policy machines.
 
 use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
 use crate::calling_policy_plans::opaque_representations::{
@@ -47,7 +36,9 @@ impl MaterializedBoundarySignature {
     pub fn abi(&self) -> &semantic_vocabulary::CallingAbiIdentity {
         &self.abi
     }
-
+    /// Named layout-owned destinations in native-demand order. Direct callback
+    /// parameters have no layout field and therefore contribute no entry here.
+    /// Typed slot applications survive without retaining a complete LayoutPlan.
     pub fn callback_layout_catalog(&self) -> &[BoundaryCallbackLayoutEntry] {
         &self.callback_layout_catalog
     }
@@ -60,6 +51,9 @@ impl MaterializedBoundarySignature {
         self.native_target
     }
 
+    /// Compiler-derived opaque representations actually used by value while
+    /// materializing this exact boundary signature. An unused build selection
+    /// is deliberately absent.
     pub fn opaque_representation_uses(&self) -> &[BoundaryOpaqueRepresentationUse] {
         &self.opaque_representations
     }
@@ -80,22 +74,9 @@ impl MaterializedBoundarySignature {
         self.result
     }
 
-    pub fn native_parameters(&self) -> &[BoundaryNativeParameter] {
-        &self.native_parameters
-    }
-
-    pub fn callback_binders(&self) -> &[BoundaryCallbackBinder] {
-        &self.callback_binders
-    }
-
-    pub fn callback_demands(&self) -> &[NativeCallbackDemand] {
-        &self.callback_demands
-    }
-
-    pub fn direct_callback_parameters(&self) -> &[BoundaryDirectCallbackParameter] {
-        &self.direct_callback_parameters
-    }
-
+    /// Rejoin one exact opaque shape node to the top-level semantic occurrence
+    /// and target placement that carries it. This consumes a replay-validated
+    /// plan; equal-looking layouts or an aggregate plan digest are not enough.
     pub fn opaque_representation_movement(
         &self,
         representation: &BoundaryOpaqueRepresentationUse,
@@ -124,6 +105,8 @@ impl MaterializedBoundarySignature {
     }
 }
 
+/// Borrowed geometry shared by Source review and canonical ABI publication.
+/// It contains no Source identities or representation-selection authority.
 pub(super) struct BoundaryOpaqueMovementGeometry<'geometry> {
     pub shapes: &'geometry [BoundaryValueShape],
     pub fields: &'geometry [BoundaryValueField],

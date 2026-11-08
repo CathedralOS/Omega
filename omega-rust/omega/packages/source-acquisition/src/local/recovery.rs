@@ -1,12 +1,4 @@
-// Historical local-source recovery from the retained snapshot collection.
-//
-// `recover_cached_local_source_in_lane` locates a previously published snapshot
-// for a canonical local origin and expected `SourceContentDigest` without
-// opening or reading the live origin directory. It first probes the direct
-// `source-v2-<digest>` address (which still consumes one entry from the lookup
-// budget so `maximum_entries == 0` fails closed without scanning), and only on
-// a direct miss scans bounded `source-<digest>` legacy entries. Any matched
-// candidate is locked, custody-checked, and re-verified before returning.
+//! Historical source bytes from the existing local snapshot collection.
 
 use crate::SourceResolveError;
 use crate::custody::lock::CacheEntryLock;
@@ -34,6 +26,13 @@ use crate::limits::LOCAL_SNAPSHOT_LOCK_TIMEOUT;
 mod timings;
 use timings::RecoveryTimings;
 
+/// Recover an old snapshot for a caller-known canonical local origin.
+///
+/// The origin routes cache lookup only; it is never opened or read. The result
+/// describes verified historical bytes, not current live-source resolution.
+/// New publications are addressed by the exact origin and retained content pin.
+/// Only a missing direct candidate enters the bounded legacy raw-key lookup.
+/// Both paths verify the selected tree; neither creates an archive or index.
 pub fn recover_cached_local_source_in_lane(
     canonical_origin: &Path,
     expected: &SourceContentDigest,
@@ -93,6 +92,8 @@ fn recover_bounded(
             Err(error) => return Err(io_error(&publication, error)),
         };
         if direct_exists {
+            // A selected direct entry still consumes one lookup slot. Keep
+            // the existing independent zero-budget refusal without scanning.
             if maximum_entries == 0 {
                 return Err(local_snapshot_invalid(
                     &collection,

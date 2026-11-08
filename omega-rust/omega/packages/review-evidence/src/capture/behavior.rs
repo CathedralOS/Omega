@@ -1,6 +1,4 @@
-// Projection of checked operational effects (crash routes, synchronous
-// invocations, service and installation reach, and termination obligations) into
-// package-review evidence.
+//! Projection of checked operational effects into package-review evidence.
 
 mod crash;
 mod invocations;

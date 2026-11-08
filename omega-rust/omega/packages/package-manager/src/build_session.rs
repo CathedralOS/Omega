@@ -1,21 +1,8 @@
-/*
-Invocation-owned private staging and aggregate Build resource grants.
-
-We borrow one `PackageBuildSession` across review targets and passes rather
-than replenishing its grants. Every fresh compilation attempt receives an
-explicitly sponsored empty directory, and checked results retain immutable
-output custody after session disposal.
-
-The invocation ceilings bound retained compiler resources (deterministic
-Terminal work, BuildLog bytes, canonical filesystem operation attempts, live
-filesystem handles, live interpreter storage cells, live Text backing bytes,
-and retained result cells/bytes) without claiming to bound host CPU time or
-process memory. Fresh invocations choose Terminal measurement units explicitly
-so old tree-measured records remain distinct and cannot pay for new runs. A
-failed accounting commit during directory creation aborts the invocation so
-session disposal removes the private directory before any checked result can
-escape.
-*/
+//! Invocation-owned private staging and aggregate Build resource grants.
+//!
+//! Review targets and passes borrow one session rather than replenishing its grants. Every
+//! fresh compilation attempt receives an explicitly sponsored empty directory;
+//! checked results retain immutable output custody after session disposal.
 
 use std::iter::empty;
 use std::process::id;
@@ -37,15 +24,32 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static PACKAGE_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-const PACKAGE_BUILD_WORK_CEILING: u64 = 100_000_000;
+/// Deterministic Terminal work granted to one complete package
+/// invocation. The sibling limits below bound retained compiler resources; none
+/// claims to bound CPU time or process memory.
+const PACKAGE_BUILD_FUEL_CEILING: u64 = 100_000_000;
+/// Aggregate compiler-owned BuildLog bytes across all invocation passes.
 const PACKAGE_BUILD_LOG_CEILING: u64 = 16 * 1024 * 1024;
+/// Aggregate canonical filesystem operation attempts across all invocation passes.
 const PACKAGE_FILESYSTEM_ATTEMPT_CEILING: u64 = 65_536;
+/// Compiler-owned filesystem resources live concurrently across the package
+/// closure. This does not count unrelated host-process descriptors.
 const PACKAGE_LIVE_FILESYSTEM_HANDLE_CEILING: u64 = 4_096;
+/// Interpreter semantic storage-cell allocations live concurrently across the
+/// package closure. This is a cell count, not a memory-byte claim.
 const PACKAGE_LIVE_CELL_CEILING: u64 = 1_048_576;
+/// Logical bytes held by concurrently live interpreter Text backing buffers.
+/// This is not Vec capacity, allocator overhead, or a process-memory ceiling.
 const PACKAGE_LIVE_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
+/// Aggregate recursive value cells returned by successful evaluations across
+/// all invocation passes.
 const PACKAGE_RESULT_CELL_CEILING: u64 = 1_048_576;
+/// Aggregate Text payload bytes retained by successful build results.
 const PACKAGE_RESULT_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
 
+/// Resource owner for one invocation, including every review target and round.
+/// Borrow this owner through candidate compilation; source preparation and
+/// target-specific authority do not replenish its grants.
 pub struct PackageBuildSession {
     root: PathBuf,
     filesystem_sponsor: FilesystemSponsor,
@@ -64,6 +68,8 @@ impl std::fmt::Debug for PackageBuildSession {
 }
 
 impl PackageBuildSession {
+    /// Reserve private staging and bounded sponsors for one invocation. The
+    /// caller owns disposal after all targets and review rounds have finished.
     pub fn create(build_workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
         fs::create_dir_all(build_workspace).map_err(|error| {
             CompileResolvedPackageReviewsError::BuildStagingCreate {
@@ -94,7 +100,7 @@ impl PackageBuildSession {
                         }
                     })?;
                     let evaluation_limits = BuildEvaluationSponsorLimits::new(
-                        PACKAGE_BUILD_WORK_CEILING,
+                        PACKAGE_BUILD_FUEL_CEILING,
                         PACKAGE_BUILD_LOG_CEILING,
                         PACKAGE_FILESYSTEM_ATTEMPT_CEILING,
                         PACKAGE_LIVE_FILESYSTEM_HANDLE_CEILING,
@@ -104,10 +110,12 @@ impl PackageBuildSession {
                         PACKAGE_RESULT_TEXT_BYTE_CEILING,
                     )
                     .expect("package build ceilings are nonzero");
+                    // A fresh invocation chooses Terminal units explicitly. Old
+                    // tree-measured records remain distinct and cannot pay for it.
                     let evaluation_sponsor = BuildEvaluationSponsor::new_with_measurement(
                         evaluation_limits,
                         EvaluationMeasurementIdentity::TerminalPsi {
-                            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
                             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
                         },
                     )
@@ -144,6 +152,8 @@ impl PackageBuildSession {
         })
     }
 
+    /// Reserve a fresh private output root for this compilation attempt, even
+    /// when another pass already evaluated the same package occurrence.
     pub(crate) fn create_occurrence_directory(
         &mut self,
         key: &crate::declarations::PackageKey,
@@ -154,6 +164,10 @@ impl PackageBuildSession {
         self.create_build_directory(base)
     }
 
+    /// Admit acquired source work before its Build declares a package name.
+    /// Explicit inputs reach this activation before its effects. Absent sponsors
+    /// use the invocation's shared grants; supplied grants are not replenished
+    /// or inherited by dependencies. No permission is created here.
     pub fn source_build_request(
         &mut self,
         capture: &package_compilation::CapturedLocalSource,
@@ -219,6 +233,8 @@ impl PackageBuildSession {
                 error,
             });
         }
+        // A failed accounting commit aborts the invocation. Session disposal
+        // removes the private directory before any checked result can escape.
         prepared.commit().map_err(sponsor_error)?;
         Ok(directory)
     }
@@ -237,10 +253,14 @@ impl PackageBuildSession {
         &self.filesystem_sponsor
     }
 
+    /// Observe or spend the invocation's existing allowance. Cloning this
+    /// sponsor shares its counters; it never creates a fresh budget.
     pub fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
         &self.evaluation_sponsor
     }
 
+    /// Release staging before publishing accepted project files. Closing does
+    /// not create another grant, and this owner cannot admit another Build.
     pub fn close(&mut self) -> Result<(), CompileResolvedPackageReviewsError> {
         if !self.active {
             return Ok(());
@@ -258,6 +278,8 @@ impl PackageBuildSession {
         Ok(())
     }
 
+    /// Finish the invocation on success or failure, retaining an earlier
+    /// operation failure in the diagnostic if staging cleanup also fails.
     pub fn dispose<T, Error>(mut self, result: Result<T, Error>) -> Result<T, Error>
     where
         Error: std::fmt::Display + From<CompileResolvedPackageReviewsError>,

@@ -1,5 +1,3 @@
-// Row counting and whole-baseline row projection across public API, callables, providers, terminal permissions, representation, and authority obligations.
-
 use super::super::{baseline, callable_policy, selected_providers, values};
 use super::Builder;
 use crate::encoding::PackageReviewEncodingError;
@@ -99,6 +97,7 @@ pub(super) fn project(
     builder: &mut Builder,
     policy: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
+    // Adding any aggregate family requires an explicit row-projection decision.
     let PackagePolicyBaseline {
         package,
         target,
@@ -165,6 +164,7 @@ pub(super) fn project(
         demands,
         realizations,
     } = boundary_applications;
+    // Family and closed-application indices remain inside this single association.
     builder.push(
         PackagePolicyRowKind::SelectedProviderAssociation,
         false,
@@ -239,6 +239,7 @@ pub(super) fn project(
         )?;
     }
     for dependency in semantic_dependencies {
+        // Exposure is an independent checked occurrence class. Both can coexist.
         builder.push(
             PackagePolicyRowKind::SemanticDependency,
             false,
@@ -248,6 +249,9 @@ pub(super) fn project(
         )?;
     }
     for (ordinal, request) in restricted_build_requests.iter().enumerate() {
+        // The operation and issue-order ordinal identify the request; the
+        // retained row value carries its complete normalized meaning so a
+        // widened request surfaces as a change under the same key.
         let ordinal = u64::try_from(ordinal)
             .map_err(|_| rejected("restricted build request ordinal overflows"))?;
         builder.push(

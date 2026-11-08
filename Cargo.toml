@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "tools/xtask",
     "tools/benchmark",
     "tools/benchmark/allocation-observation",
     "samples/cli/scientific/sample-runner",
@@ -62,7 +61,7 @@ members = [
     "omega-rust/psi/compilation/psi-compiler/terminal-production",
     "omega-rust/psi/compilation/proof/admission",
     "omega-rust/psi/compilation/representations/terminal-psi/codec",
-    "omega-rust/psi/compilation/representations/terminal-psi/work",
+    "omega-rust/psi/compilation/representations/terminal-psi/fuel",
     "omega-rust/psi/compilation/representations/terminal-psi/semantics",
     "omega-rust/psi/compilation/validation/terminal-installation",
     "omega-rust/psi/interpreter/terminal-interpreter",

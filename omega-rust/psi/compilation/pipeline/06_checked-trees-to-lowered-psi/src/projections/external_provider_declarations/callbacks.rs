@@ -38,9 +38,6 @@ pub struct PreparedCallbackDeclarations {
     pub declarations: CallbackDeclarationRoster,
     requirements: Vec<RequirementCorrespondence>,
     occurrences: Vec<UseCorrespondence>,
-    /// Checked selections explicitly retained by installation operations.
-    /// Retaining these bodies does not admit the installation's backing.
-    installed_uses: Vec<CallbackUseId>,
 }
 
 impl PreparedCallbackDeclarations {
@@ -52,24 +49,7 @@ impl PreparedCallbackDeclarations {
         let mut prepared = Self::default();
         // This is the completed, possibly pruned roster. Preserve all remaining
         // occurrences, including symbolic/dormant uses and duplicate bodies.
-        let ordinary = checked
-            .facts
-            .nominal_machine_uses
-            .uses
-            .iter()
-            .map(|usage| (usage, false));
-        let installed = checked
-            .facts
-            .installed_interrupt_registrations
-            .iter()
-            .flat_map(|registration| {
-                registration
-                    .callbacks
-                    .uses
-                    .iter()
-                    .map(|usage| (usage, true))
-            });
-        for (usage, installed) in ordinary.chain(installed) {
+        for usage in &checked.facts.nominal_machine_uses.uses {
             let classification = checked.callback_declaration(usage);
             let requirement =
                 match prepared.requirements.iter().find(|association| {
@@ -171,9 +151,6 @@ impl PreparedCallbackDeclarations {
                 )
                 .map_err(str::to_owned),
             });
-            if installed {
-                prepared.installed_uses.push(declaration);
-            }
             prepared.occurrences.push(UseCorrespondence {
                 usage: declaration,
                 site: usage.site,
@@ -186,42 +163,6 @@ impl PreparedCallbackDeclarations {
             });
         }
         prepared
-    }
-
-    /// Keep the selected handler available for installation planning. Calling
-    /// selection and checked entry evidence are required here; actual table,
-    /// root and arrival admission remain native installation obligations.
-    pub fn installed_roots(
-        &self,
-        calling_requirements: &[CallbackRequirementId],
-    ) -> Result<Vec<CallbackUseId>, Vec<diagnostics::Diagnostic>> {
-        let mut roots = Vec::new();
-        let mut errors = Vec::new();
-        for &usage in &self.installed_uses {
-            let selected = self.declarations.uses.get(usage);
-            let declaration = self.declarations.declaration(selected);
-            if !declaration.has_checked_entry || !declaration.satisfaction_is_boundary {
-                errors.push(diagnostics::Diagnostic::error(
-                    "interrupt installation requires its checked callback entry contract",
-                ));
-            } else if calling_requirements
-                .iter()
-                .filter(|requirement| **requirement == selected.requirement)
-                .count()
-                != 1
-            {
-                errors.push(diagnostics::Diagnostic::error(
-                    "interrupt installation requires one selected callback calling plan",
-                ));
-            } else {
-                roots.push(usage);
-            }
-        }
-        if errors.is_empty() {
-            Ok(roots)
-        } else {
-            Err(errors)
-        }
     }
 
     /// Match the child selected by the binder as well as the inherited member.

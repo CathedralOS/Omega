@@ -1,5 +1,3 @@
-// Exact single-row lookup helpers for checked callable and synchronous-invocation facts.
-
 use crate::capture::EvidenceOption;
 use diagnostics::Diagnostic;
 
@@ -19,6 +17,8 @@ pub(crate) fn exactly_one<'item, Item>(
     Ok(first)
 }
 
+/// One exact retained synchronous-invocation row for `machine` out of the rows
+/// the caller chose to read (the review program's ledger or its custody copy).
 pub(crate) fn machine_invocation<'item>(
     rows: &'item [checked_trees::MachineSynchronousInvocationFact],
     machine: symbols::SymbolHandle,

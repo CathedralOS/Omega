@@ -42,7 +42,7 @@
 //! Native lowering preserves parent consumption as an ownership effect while
 //! copying only the raw payload into result storage. The operation is neither
 //! erasable nor duplicable. Failure before completion publishes no result or
-//! partial consumption. Logical work schedule identity 1 charges one unit for
+//! partial consumption. Logical fuel schedule identity 1 charges one unit for
 //! the executed operation, as for other semantic operations; it adds no implicit
 //! native metering.
 

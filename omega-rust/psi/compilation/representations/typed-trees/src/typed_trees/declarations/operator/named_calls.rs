@@ -105,39 +105,23 @@ pub fn named_expression_call_candidates<'program>(
         .iter()
         .chain(program.machine_token_bindings())
         .filter(|operator| {
-            named_operator_is_visible_candidate(
-                program,
-                operator,
-                use_site,
-                static_receiver_segments,
-                call.target.as_str(),
-                argument_count,
-                has_value_receiver,
-            )
+            program
+                .symbols
+                .source_reference_can_see_symbol(use_site, operator.symbol)
+                && named_operator_path_matches_call(
+                    program,
+                    operator,
+                    static_receiver_segments,
+                    call.target.as_str(),
+                )
+                && named_operator_arity_fits_call(
+                    program,
+                    operator,
+                    argument_count,
+                    has_value_receiver,
+                )
         })
         .collect()
-}
-
-/// One candidate test shared by expression and statement calls. The three
-/// predicates are pure reads of `program`, so their order cannot change the
-/// result. The leaf-name comparison rejects almost every operator in the
-/// program and costs one string compare, while the visibility query walks
-/// symbol provenance and the source map; testing the name first keeps that
-/// walk to the handful of operators that share the called name.
-fn named_operator_is_visible_candidate(
-    program: &TypedTrees,
-    operator: &OperatorDefinition,
-    use_site: source::SourceSpan,
-    static_receiver_segments: Option<&[&str]>,
-    target_name: &str,
-    argument_count: usize,
-    has_value_receiver: bool,
-) -> bool {
-    named_operator_path_matches_call(program, operator, static_receiver_segments, target_name)
-        && named_operator_arity_fits_call(program, operator, argument_count, has_value_receiver)
-        && program
-            .symbols
-            .source_reference_can_see_symbol(use_site, operator.symbol)
 }
 
 /// Classify a qualifier using the shared ambiguity-checked declaration selection.
@@ -256,15 +240,21 @@ pub fn named_statement_call_candidates<'program>(
         .operators()
         .iter()
         .filter(|operator| {
-            named_operator_is_visible_candidate(
-                program,
-                operator,
-                use_site,
-                static_segments.as_deref(),
-                call.target.as_str(),
-                argument_count,
-                has_value_receiver,
-            )
+            program
+                .symbols
+                .source_reference_can_see_symbol(use_site, operator.symbol)
+                && named_operator_path_matches_call(
+                    program,
+                    operator,
+                    static_segments.as_deref(),
+                    call.target.as_str(),
+                )
+                && named_operator_arity_fits_call(
+                    program,
+                    operator,
+                    argument_count,
+                    has_value_receiver,
+                )
         })
         .collect()
 }

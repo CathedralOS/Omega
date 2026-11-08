@@ -488,7 +488,6 @@ impl Predicate<'_> {
             || !call.evidence_arguments.is_empty()
             || call.quotient_operation.is_some()
             || call.private_layout_operation.is_some()
-            || call.installed_interrupt_operation.is_some()
             || call.layout_query.is_some()
             || call.native_code_layout.is_some()
         {

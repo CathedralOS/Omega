@@ -1,9 +1,11 @@
-// Nominal case-tag observation projection independent of value equality. Authored
-// membership carries carrier/case selections while synthesized tag tests carry an
-// explicit typed operation; we rejoin either form with Psi's exact subject/carrier/case
-// validator before recording the nominal classifier, passing declarations and abstract
-// signatures their exact non-executable subject custody without inventing an
-// attachment or erasing selected declared operator overloads.
+//! Capture nominal tag observation independently of value equality.
+//!
+//! Authored membership has carrier/case selections, not an operator selection;
+//! synthesized tag tests have an explicit typed operation. Rejoin either form
+//! with Psi's exact subject/carrier/case validator before recording the nominal
+//! classifier. The RHS is not evaluated or projected as a constructor. Ordinary
+//! structural equality in proof facts retains its authored operator and does not
+//! require exporting a generated Boolean expansion into the review format.
 
 use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -57,6 +59,9 @@ pub(super) fn checked_case_classifier(
         } => Some((machine_symbol, Some(state_symbol))),
         _ => None,
     };
+    // Declarations and abstract signatures have their own subject custody
+    // without an executable machine. Pass that exact scope to Psi instead of
+    // inventing an attachment or borrowing a same-spelled subject elsewhere.
     let exact_meaning = if let Some((machine_symbol, state_symbol)) = machine_owner {
         let machine = exactly_one(
             compilation
@@ -136,12 +141,14 @@ pub(super) fn checked_case_classifier(
                     .get(occurrence)
                     .is_none_or(|selection| {
                         selection.exposure() != context.selection_exposure
-                            || (binary.operator == BinaryOperator::CaseMembership
-                                && selection.kind() == AuthoredDeclarationSelectionKind::Operator
-                                && selection.target()
-                                    != AuthoredDeclarationSelectionTarget::Intrinsic(
-                                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
-                                    ))
+                        // Generated tag tests may retain source-origin builtin rows,
+                        // but must never erase a selected declared overload.
+                        || (binary.operator == BinaryOperator::CaseMembership
+                            && selection.kind() == AuthoredDeclarationSelectionKind::Operator
+                            && selection.target()
+                                != AuthoredDeclarationSelectionTarget::Intrinsic(
+                                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                                ))
                     })
             })
     {

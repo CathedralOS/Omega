@@ -1,13 +1,4 @@
-/*
-Observational project package inspection (`omega packages`).
-
-`PackageInspectionTransaction` holds the original project file transaction throughout
-inspection without recovering pending publications or altering proposal files.
-`PreparedPackageInspection` acquires the shared source graph once across all admitted
-targets, compares each target's fresh compiler findings against its accepted baseline
-in `omega.lock`, and verifies at `finish` that neither `build.omg` nor `omega.lock`
-changed while inspection ran.
-*/
+//! Fresh project inspection without accepting or publishing package changes.
 
 use super::prepare_project::LOCAL_PROJECT_CONTEXT;
 mod report;
@@ -36,17 +27,26 @@ use target::TargetProfile;
 #[derive(Debug, Clone)]
 pub struct PackageInspectionOptions {
     pub project_root: PathBuf,
-    pub targets: Vec<TargetProfile>, // empty selects every accepted target, or the host for an unlocked project
-    pub details: bool, // include full compiler-owned normalized policy after the readable summary
-    pub offline: bool, // restrict Git acquisition to cached exact pins, without selector refresh
-    pub build_inputs: Option<package_compilation::BuildSourceCaptureRequest>, // caller-selected immutable root inputs relative to the project source root
+    /// Empty selects every accepted target, or the host for an unlocked
+    /// project; a host with no catalogued profile declines with a diagnostic.
+    pub targets: Vec<TargetProfile>,
+    /// Include full compiler-owned normalized policy after the readable summary.
+    pub details: bool,
+    /// Restrict Git acquisition to cached exact pins, without selector refresh.
+    pub offline: bool,
+    /// Caller-selected immutable root inputs, relative to the project source
+    /// root. Dependencies retain their own inventories. Absence preserves the
+    /// ordinary package inventory; selection grants no restricted host access.
+    pub build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
 }
 
 #[derive(Debug)]
 pub struct PackageInspectionOutcome {
     pub report: String,
-    pub complete: bool, // false means at least one target has no fresh compiler findings
-    pub requires_decision: bool, // inspection reports required changes but never resolves their decisions
+    /// False means at least one target has no fresh compiler findings.
+    pub complete: bool,
+    /// Inspection reports required changes but never resolves their decisions.
+    pub requires_decision: bool,
 }
 
 #[derive(Debug)]
@@ -70,6 +70,8 @@ impl From<CompileResolvedPackageReviewsError> for PackageInspectionError {
     }
 }
 
+/// Holds the original project transaction throughout observational review.
+/// Opening never recovers pending publication or changes proposal files.
 pub struct PackageInspectionTransaction {
     files: PackageFileTransaction,
     options: PackageInspectionOptions,
@@ -89,6 +91,8 @@ impl PackageInspectionTransaction {
         self.files.project_root()
     }
 
+    /// Read accepted policy and select targets before opening resolver storage.
+    /// Storage failure becomes unavailable findings per target, not an empty graph.
     pub fn prepare<'inspection>(
         &'inspection self,
         storage: Option<&'inspection SourceResolver>,
@@ -136,6 +140,8 @@ impl PackageInspectionTransaction {
     }
 }
 
+/// Package-owned admission and report state. Application Build executes the
+/// target roster; this owner compares findings and checks final file identity.
 pub struct PreparedPackageInspection<'inspection> {
     identity: Arc<InspectionIdentity>,
     transaction: &'inspection PackageInspectionTransaction,
@@ -150,6 +156,8 @@ pub struct PreparedPackageInspection<'inspection> {
 
 struct InspectionIdentity;
 
+// Full normalized findings include all authored target members. Bound aggregate
+// reporting without truncating contracts or dropping inactive deployments.
 const MAXIMUM_REPORT_BYTES: usize = 64 * 1024 * 1024;
 
 impl PreparedPackageInspection<'_> {
@@ -170,6 +178,8 @@ impl PreparedPackageInspection<'_> {
         self.build_snapshot.as_ref()
     }
 
+    /// Every recovered target shares the same source graph. Acquire its exact
+    /// Git pins once; Product review still checks each target's own baseline.
     pub fn source_acquisitions(
         &self,
     ) -> Result<BuildSourceAcquisitions<'_>, PackageInspectionError> {
@@ -217,6 +227,8 @@ impl PreparedPackageInspection<'_> {
         }
     }
 
+    /// Bind the shared executed closure to this observational transaction.
+    /// This admits no publication and changes neither proposals nor decisions.
     pub fn complete_source_resolution(
         &self,
         resolved: ResolvedBuildSources,
@@ -233,6 +245,8 @@ impl PreparedPackageInspection<'_> {
         })
     }
 
+    /// Join one target's fresh findings or refusal to its accepted baseline.
+    /// Compiler refusal is report data; report failure stops subsequent work.
     pub fn review_target(
         &mut self,
         target: TargetProfile,
@@ -293,6 +307,7 @@ impl PreparedPackageInspection<'_> {
         Ok(())
     }
 
+    /// A report cannot claim completion for unvisited targets or changed files.
     pub fn finish(self) -> Result<PackageInspectionOutcome, PackageInspectionError> {
         if self.completed_targets != self.targets.len() {
             return Err(failure(
@@ -320,6 +335,11 @@ fn select_targets(
                 .iter()
                 .map(PackageLockTarget::target)
                 .collect()),
+            // An unlocked project defaults to the host profile. A host with no
+            // catalogued deployment profile (macOS x86-64) earns the same
+            // ordinary diagnostic the other targetless commands report rather
+            // than the panic `TargetProfile::host` retains for callers that
+            // intrinsically require it.
             None => match TargetProfile::host_if_supported() {
                 Some(host) => Ok(vec![host]),
                 None => Err(failure(
@@ -333,6 +353,8 @@ fn select_targets(
     if requested.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(failure("duplicate inspection target"));
     }
+    // An unaccepted target must be reviewed explicitly through update. Do not
+    // silently resolve a new source graph when a lock is present.
     for target in &requested {
         if accepted.is_some_and(|lock| lock.target(*target).is_none()) {
             return Err(failure(format!(
@@ -345,6 +367,7 @@ fn select_targets(
     Ok(requested)
 }
 
+/// Resolver storage belongs to this inspection, or is borrowed from its caller.
 enum InspectionStorage<'storage> {
     Supplied(&'storage SourceResolver),
     Opened(SourceResolver),

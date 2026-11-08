@@ -1,5 +1,4 @@
-// Policy signature parameter projection with an explicit containing static telescope.
-
+//! Policy signature projection with an explicit containing static telescope.
 use super::Projection;
 use crate::capture::SourceDeclarationInput;
 use crate::capture::semantics::signatures::parameters::CallingContractScope;

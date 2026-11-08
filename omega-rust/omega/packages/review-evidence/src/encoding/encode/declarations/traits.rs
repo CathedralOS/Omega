@@ -1,5 +1,3 @@
-// Canonical encoding for parent trait applications in trait declarations.
-
 use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
 use super::super::values::identity::encode_nominal;

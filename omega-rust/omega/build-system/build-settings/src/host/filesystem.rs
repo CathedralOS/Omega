@@ -1,18 +1,7 @@
-/*
-Evaluated Build filesystem calls over one admitted captured-input scope.
-
-Guest structural shapes carry no filesystem authority on their own. We
-authenticate the activation's original `source`, `inputs`, and `output` facets
-along with activation-minted opaque markers (`BuildPath`, `RequiredOutput`, and
-completion receipts) before delegating any read, write, generated-source
-inclusion, or required-output settlement to `BuildFilesystemRuntime`.
-
-When inspecting a `RequiredOutput` path (`Operation::RequiredPath`), the marker
-supplies activation custody while `TerminalByteSequenceValue::copy` returns an
-independent read-only byte snapshot whose storage lease follows the guest value
-through suspension without holding the host's obligation table or filesystem
-lock.
-*/
+//! Evaluated Build filesystem calls over one admitted captured-input scope.
+//!
+//! Guest shapes carry no authority. Original facets and activation-issued
+//! opaque markers are authenticated before the scope performs an operation.
 
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::FilesystemGrantRootIdentity;
@@ -374,12 +363,18 @@ impl FilesystemAdapter {
                 runtime.fail_output(obligation(1)?, bytes(2)?, &self.host.machine_name)?;
                 Ok(TerminalEffectResult::Unit)
             }
-            Operation::RequiredPath => TerminalByteSequenceValue::copy(
-                runtime.required_path(obligation(0)?)?,
-                Some(&self.host.account),
-            )
-            .map(TerminalEffectResult::ByteSequence)
-            .map_err(|error| error.to_string()),
+            Operation::RequiredPath => {
+                // The marker supplies activation custody; this stable read-only
+                // snapshot supplies bytes only. Its lease follows the returned
+                // view through guest storage and suspension, independently of
+                // the host's obligation table and filesystem lock.
+                TerminalByteSequenceValue::copy(
+                    runtime.required_path(obligation(0)?)?,
+                    Some(&self.host.account),
+                )
+                .map(TerminalEffectResult::ByteSequence)
+                .map_err(|error| error.to_string())
+            }
         }
     }
 }

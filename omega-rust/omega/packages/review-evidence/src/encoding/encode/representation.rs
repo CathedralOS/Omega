@@ -1,4 +1,4 @@
-// Receipt-free representation policy encoding under one aggregate writer budget.
+//! Receipt-free representation policy with one aggregate writer budget.
 
 use super::{
     PackageReviewEncodingError, calling,
@@ -18,6 +18,12 @@ use crate::record::{
     PackageReviewOpaqueRepresentationLifecycleDisposition,
 };
 
+// The opaque-selection join every representation selection and calling opaque
+// use carries: carrier, selected owner, closed application, origin, lifecycle,
+// and copy disposition in one canonical order. The carrier record differs, the
+// encoding does not; `$unresolved_context` names the containing component in
+// the refusal for unresolved selection ownership. The expansion is a value, so
+// a caller may continue with its own trailing fields.
 macro_rules! encode_opaque_representation_fields {
     ($encoder:expr, $record:ident, $unresolved_context:expr) => {{
         ($encoder).field("opaque", |encoder| encode_nominal(encoder, &$record.opaque))?;

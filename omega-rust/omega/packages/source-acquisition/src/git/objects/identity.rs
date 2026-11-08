@@ -1,5 +1,4 @@
-// Git object-ID parsing (`SHA-1` 40-hex and `SHA-256` 64-hex) and collision-
-// checked object hashing (`sha1_checked` for SHA-1, `sha2` for SHA-256).
+//! Git object-ID parsing and collision-checked object hashing.
 
 use crate::error::SourceResolveError;
 use crate::identity::GitObjectIdAlgorithm;

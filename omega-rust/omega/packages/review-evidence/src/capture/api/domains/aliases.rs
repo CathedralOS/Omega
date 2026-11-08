@@ -1,15 +1,3 @@
-/*
-Domain alias expansion and establishment route projection
-(`project_domain_alias_expansion` and `project_domain_establishment_route`).
-
-`project_domain_alias_expansion` expands domain aliases transitively while
-rejecting cycles and empty expansions, mapping `Carry::Portable` and individual
-`CarryPermission` constituents alongside declared domain identities.
-`project_domain_establishment_route` resolves trait/boundary requirements and
-exact-machine issuers, using `machine_callable_identity_text` for exact-machine
-routes so overloaded or attached machines remain distinct.
-*/
-
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
@@ -118,6 +106,8 @@ pub(crate) fn project_domain_establishment_route(
                     "package review exact-machine issuer has multiple declarations",
                 )]);
             }
+            // Callable identity includes overload shape and attached owner;
+            // a display path cannot distinguish declarations with one name.
             let path = compilation
                 .machine_callable_identity_text(declaration)
                 .or_evidence(

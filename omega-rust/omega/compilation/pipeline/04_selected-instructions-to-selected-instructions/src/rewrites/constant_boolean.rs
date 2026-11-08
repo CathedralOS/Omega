@@ -41,7 +41,7 @@
 //! when a definition or clobber precedes the materialization in its own
 //! block, and otherwise the unit's reaching set is the least fixpoint
 //! over predecessor edges. Every crossed edge is transparent — the
-//! successor record's register, storage, case-payload, and work fields
+//! successor record's register, storage, case-payload, and fuel fields
 //! cannot name a condition-state unit — each predecessor contributes its
 //! own last body-or-terminator event or recursively its entry set, and
 //! the entry block contributes the unknown marker because condition state
@@ -95,7 +95,7 @@ use selected_instructions::{
     ConstantBooleanIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::fold_selected_constant_boolean;
 pub(crate) use validation::{measured_steps, surface_sizes};

@@ -14,7 +14,6 @@ use crate::published::places::place_at;
 use language_semantics::PermissionEventSource;
 
 /// How the consuming operation uses the anonymous owner.
-#[derive(Clone)]
 pub(crate) enum TemporaryConsumption {
     /// An evaluated loan retains the whole producing owner, even when its
     /// operand selects a child; the owner dies after the call.
@@ -30,7 +29,6 @@ pub(crate) enum TemporaryConsumption {
     OwnedProjection { path: Vec<facts::PlaceSegment> },
 }
 
-#[derive(Clone)]
 pub(crate) enum TemporaryDestination {
     CallArgument,
     ConstructedChild {
@@ -40,7 +38,6 @@ pub(crate) enum TemporaryDestination {
     },
 }
 
-#[derive(Clone)]
 pub(crate) struct TemporaryOwner {
     pub(crate) expression: typed_trees::expression::ExpressionHandle,
     pub(crate) type_reference: typed_trees::types::TypeReferenceHandle,

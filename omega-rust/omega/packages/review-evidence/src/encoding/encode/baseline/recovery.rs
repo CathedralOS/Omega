@@ -1,4 +1,4 @@
-// Canonical baseline verification encoding using preallocated recovery scratch capacity.
+//! Canonical verification uses only the scratch already charged by recovery.
 
 use super::{Encoder, PackageReviewEncodingError, framed_policy};
 use crate::record::PackagePolicyBaseline;

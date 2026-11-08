@@ -1,17 +1,8 @@
-/*
-Retain and admit selected `Build`-scope provider implementations across Terminal
-artifact production and `Pure` build reuse (`BuildProviderPlans`,
-`BuildProviderInstallation`).
-
-Psi's `CheckedTrees` remain target-neutral. `BuildProviderPlans` sits alongside
-the checked `Build` program, participates in the `CompletedPureBuildInputs`
-equality key, and validates its selected provider adapters and numeric
-intrinsics against the lowered `TerminalExecutionView` before the interpreter
-starts (`BuildProviderPlans::admit`). Because `Build` execution has no admitted
-host/device review identities, numeric rows close their sealed meaning through
-the external catalog while any demanded non-numeric intrinsic remains explicitly
-unsettled and fails closed.
-*/
+//! Retain selected Build implementations through code production and reuse.
+//!
+//! Psi's checked program stays target-neutral. These Omega selections live
+//! beside it, participate in the complete Pure key, and are admitted against
+//! the actual Terminal artifact before its existing executor starts.
 
 use diagnostics::Diagnostic;
 
@@ -106,6 +97,9 @@ impl BuildProviderPlans {
                     })
             })
             .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
+        // Build has no admitted host/device review identities. Numeric rows
+        // close their own sealed meaning through the exact external catalog;
+        // a demanded nonnumeric intrinsic remains explicitly unsettled.
         let unreviewed = self
             .selected
             .plans()

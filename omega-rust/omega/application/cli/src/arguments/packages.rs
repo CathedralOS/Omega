@@ -1,6 +1,4 @@
-// Parse arguments for `omega install` and `omega update`, including `--resume`, `--discard-review`, and `--dangerously-accept-all`.
-
-use super::{parse_build_input, take_text, take_value};
+use super::parse_build_input;
 use package_compilation::BuildSourceCaptureRequest;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
@@ -39,7 +37,7 @@ pub(super) fn parse_arguments(
             .into_string()
             .map_err(|_| "package arguments must be UTF-8 (except --project paths)".to_owned())?;
         match argument.as_str() {
-            "--help" | "-h" => super::set_flag(&mut help, &argument)?,
+            "--help" => super::set_flag(&mut help, &argument)?,
             "--offline" => super::set_flag(&mut offline, &argument)?,
             "--resume" => super::set_flag(&mut resume, &argument)?,
             "--discard-review" => super::set_flag(&mut discard_review, &argument)?,
@@ -163,4 +161,23 @@ pub(super) fn parse_arguments(
         },
         accept_all,
     )))
+}
+
+fn take_value(
+    arguments: &mut impl Iterator<Item = OsString>,
+    flag: &str,
+) -> Result<OsString, String> {
+    let value = arguments
+        .next()
+        .ok_or_else(|| format!("{flag} requires a value"))?;
+    if value.is_empty() || value.as_encoded_bytes().starts_with(b"-") {
+        return Err(format!("{flag} requires a nonempty value, not an option"));
+    }
+    Ok(value)
+}
+
+fn take_text(arguments: &mut impl Iterator<Item = OsString>, flag: &str) -> Result<String, String> {
+    take_value(arguments, flag)?
+        .into_string()
+        .map_err(|_| format!("{flag} requires a UTF-8 value"))
 }

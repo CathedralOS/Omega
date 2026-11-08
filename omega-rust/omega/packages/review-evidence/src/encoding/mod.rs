@@ -1,11 +1,7 @@
-/*
-Canonical byte production and bounded recovery for package-review evidence.
-
-We own stable binary and text framing across the composed package policy baseline and its individual policy components (`external-supply`, `calling`, `representation`, `selected-provider`, `terminal-permission`, and `callable`). Our encoders and recovery readers consume and produce inert evidence under explicit byte, sequence-element, and nesting budgets without inspecting live compiler state or deciding admission authority.
-*/
-/*
-Versioned magic headers and schema version constants live at this boundary so both canonical emission (`encode`) and fail-closed deserialization (`recovery`) agree on one wire identity per component.
-*/
+//! Canonical byte production and bounded recovery for package-review evidence.
+//!
+//! Encoding owns stable framing only. It consumes inert evidence and does not
+//! inspect compiler state or decide whether evidence should be admitted.
 
 mod encode;
 mod recovery;

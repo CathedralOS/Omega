@@ -153,7 +153,7 @@ fn rule_pruned_machine_provenance(
                         input,
                         input,
                         &node.provenance,
-                        &node.work,
+                        &node.fuel,
                     ));
                 }
                 for edge in &node.successors {
@@ -166,7 +166,7 @@ fn rule_pruned_machine_provenance(
                             input,
                             input,
                             &edge.provenance,
-                            &edge.work,
+                            &edge.fuel,
                         ));
                     }
                 }

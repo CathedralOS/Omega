@@ -1,13 +1,8 @@
-/*
-Compiler-boundary assembly of `PackageReviewEvidence` (`project_package_review`).
-
-We verify that the build handoff's package identity, source consumption
-commitment, and selection observation match the checked compilation, project
-`PackagePolicyBaseline`, enforce `maximum_policy_canonical_bytes` before
-nominating semantic bindings (`candidate_service_bindings` and
-`candidate_hosted_exit_bindings`), and return the inert review capsule without
-granting consumer permissions.
-*/
+//! Assemble one package's review evidence at the compiler boundary.
+//!
+//! The caller supplies its remaining canonical policy budget. Enforce it before
+//! binding nomination, preserving the review's resource failure order. Root-wide
+//! accounting, consumer scoping and cache/publication policy remain outside.
 
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::PackageReviewEvidence;
@@ -27,6 +22,7 @@ pub enum PackageReviewProjectionError {
     SemanticBinding(SemanticBindingProjectionError),
 }
 
+/// Project exact checked findings without granting consumer permissions.
 pub fn project_package_review(
     checked: &CheckedCompilation,
     package: PackageKeyIdentity,

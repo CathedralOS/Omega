@@ -11,7 +11,7 @@ use crate::shared::checked_facts::value_facts;
 use crate::shared::terminal_identities::stored_structural_identity;
 use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
-    CheckedStructuralValueHandle, CheckedUnitStructuralArgumentSourcePlan, FlowCallFact,
+    CheckedStructuralValueHandle, FlowCallFact,
 };
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::StructuralTypeDeclaration;
@@ -71,10 +71,7 @@ pub(crate) fn prepare(
             let CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
                 continue;
             };
-            if !matches!(
-                argument.source,
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
-            ) {
+            if argument.source.structural_value_dependency().is_none() {
                 continue;
             }
             let root = produced_value_root(

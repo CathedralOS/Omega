@@ -1,5 +1,4 @@
-// Structural custody checks for `PackagePolicyCallingPlan` (inert record
-// consistency, not compiler certification).
+//! Structural custody checks for inert records, not compiler certification.
 
 mod callbacks;
 mod shapes;

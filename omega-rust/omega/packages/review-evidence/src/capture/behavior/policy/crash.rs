@@ -1,15 +1,3 @@
-/*
-Callable crash policy projection (`crash`, `validate_crash_publication`, and
-`crash_routes`).
-
-Concrete machines own a `MachineContractPlan`, which we cross-check against
-`derive_authored_machine_crash_buckets` and the realized contract envelope
-(including virtual family heads and their members against immutable compiler
-custody). When projecting guarded crash routes in `crash_routes`, we pass `None`
-for the proof-fact handle because crash predicates are ceiling guards rather
-than established requires/ensures facts with proof-place dependencies.
-*/
-
 use super::rejected;
 use crate::capture::contracts::{
     expressions::projection::project_contract_expression, facts::ContractProjectionContext,
@@ -42,6 +30,8 @@ pub(crate) fn crash(
     inferred_causes: &[(SymbolHandle, Vec<checked_trees::CrashCause>)],
 ) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
     let plan = machine_contract_plan(compilation.program, machine)?;
+    // Concrete machines own a MachineContractPlan. Separate capsules belong
+    // only to trait/static signatures, as in the checked call-target owner.
     let derived = derive_authored_machine_crash_buckets(compilation.checking_input, machine)
         .map_err(|diagnostic| vec![diagnostic])?;
     validate_crash_publication(compilation, machine, plan, &derived)?;
@@ -123,6 +113,9 @@ pub(crate) fn crash(
     })
 }
 
+/// Authored declarations retain their own buckets. A virtual head additionally
+/// carries the complete checked family envelope: verify its exact source and
+/// compiler custody instead of rebuilding or flattening its guarded routes.
 fn validate_crash_publication(
     compilation: &PackageReviewInput<'_>,
     machine: &Machine,
@@ -237,6 +230,10 @@ pub(crate) fn crash_routes(
                             context,
                             binders,
                             *expression,
+                            // Crash predicates are ceiling guards, not established
+                            // requires/ensures facts with proof-place dependencies.
+                            // The rederived capsule and exact declaration selections
+                            // retain their custody; do not request nonexistent proof rows.
                             None,
                             0,
                         )?,

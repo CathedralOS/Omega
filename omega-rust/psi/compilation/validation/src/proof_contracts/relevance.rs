@@ -2,11 +2,10 @@
 //! `[erased]` bindings: data fields, case payload fields, signature
 //! parameters, and `let` locals.
 //!
-//! The executable slice supports transparent records and sums, plus closed
-//! synthesized generic-record instances at explicitly typed local
-//! initializers, and closed plain data whose attached machines are ordinary
-//! checked bodies. The full semantic tree remains intact for proofs and
-//! ownership; native lowering later strips erased literal fields from its
+//! The executable slice supports transparent records and sums, including
+//! constructors joined to their exact closed receiving application, and closed
+//! plain data whose attached machines are ordinary checked bodies. The full
+//! semantic tree remains intact for proofs and ownership; native lowering later strips erased literal fields from its
 //! private runtime expression graph and attached-machine storage/topology.
 //!
 //! Every binding occurrence shares one contract

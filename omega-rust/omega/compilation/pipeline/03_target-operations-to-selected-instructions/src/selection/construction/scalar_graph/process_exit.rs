@@ -25,7 +25,7 @@ pub(super) fn build(
         arguments,
         binding,
         structural_arguments,
-        work,
+        fuel,
         effect,
         ownership,
         ..
@@ -97,7 +97,7 @@ pub(super) fn build(
                 edges: vec![*psi_edge],
                 values: vec![source],
                 obligations: call.requirement_obligations.clone(),
-                work: work.clone(),
+                fuel: fuel.clone(),
                 ..Default::default()
             },
         )?;
@@ -144,7 +144,7 @@ pub(super) fn build(
                 edge: *psi_edge,
                 effect: *effect,
                 ownership,
-                work,
+                fuel,
             },
             environment,
             builder,
@@ -190,7 +190,7 @@ pub(super) fn build(
         SelectedInstructionProvenance {
             edges: vec![*psi_edge],
             values: vec![source],
-            work: work.clone(),
+            fuel: fuel.clone(),
             ..Default::default()
         },
     )?;

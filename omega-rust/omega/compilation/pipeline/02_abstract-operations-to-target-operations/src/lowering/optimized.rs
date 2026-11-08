@@ -17,82 +17,10 @@ pub struct ValidatedOptimizedTargetOperations {
     pub(super) optimized: OptimizedAbstractProgram,
     lowering_facts: AdmittedLoweringFacts,
     current_program: Arc<TargetOperationPlan>,
-    installed_stack_requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
-    installed_entry_execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
     pub(super) provider_installation: Option<Box<AdmittedProviderInstallation>>,
 }
 
 impl ValidatedOptimizedTargetOperations {
-    /// Keep privileged termination local to this exact installed private body.
-    /// Final entry composition must still prove its parent installation.
-    pub fn with_installed_entry_execution(
-        mut self,
-        execution: provider_admission::AdmittedInstalledEntryExecution,
-    ) -> Result<Self, &'static str> {
-        let entry = execution.entry().entry();
-        if self.installed_entry_execution.is_some()
-            || entry.psi() != self.current_program.psi
-            || entry.target() != self.current_program.target
-            || entry.machine() != self.current_program.entry
-        {
-            return Err("installed execution differs from the current private object");
-        }
-        self.installed_entry_execution = Some(execution);
-        Ok(self)
-    }
-
-    pub fn installed_entry_execution(
-        &self,
-    ) -> Option<&provider_admission::AdmittedInstalledEntryExecution> {
-        self.installed_entry_execution.as_ref()
-    }
-
-    /// Physical selection may use these capacities only conditionally. Final
-    /// object publication recomputes each one from its exact linked body and
-    /// arrival bridge; this method grants no installation or stack authority.
-    pub fn with_installed_stack_requirements(
-        mut self,
-        mut requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
-    ) -> Result<Self, &'static str> {
-        let cohort = self.lowering_facts.installed_interrupts();
-        let mut entries: Vec<_> = cohort
-            .entries()
-            .iter()
-            .map(|entry| (entry.operation, entry.placement_index))
-            .collect();
-        entries.sort_unstable();
-        requirements.sort_unstable_by_key(|row| (row.operation, row.placement_index));
-        if entries.windows(2).any(|pair| pair[0] == pair[1])
-            || requirements.windows(2).any(|pair| {
-                (pair[0].operation, pair[0].placement_index)
-                    == (pair[1].operation, pair[1].placement_index)
-            })
-        {
-            return Err("installed stack requirement or admitted placement is duplicated");
-        }
-        for requirement in &requirements {
-            if requirement.psi != self.current_program.psi
-                || requirement.target != self.current_program.target
-                || requirement.required_bytes().is_none()
-                || requirement.alignment == 0
-                || !requirement.alignment.is_power_of_two()
-                || entries
-                    .binary_search(&(requirement.operation, requirement.placement_index))
-                    .is_err()
-            {
-                return Err("installed stack requirement has no matching admitted entry");
-            }
-        }
-        self.installed_stack_requirements = requirements;
-        Ok(self)
-    }
-
-    pub fn installed_stack_requirements(
-        &self,
-    ) -> &[installation_evidence::InstalledInterruptStackRequirement] {
-        &self.installed_stack_requirements
-    }
-
     /// The target producer's source-free geometry for borrowed boundary inputs.
     pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
         &self.current_program.borrowed_storage_layouts
@@ -196,9 +124,6 @@ pub fn lower_optimized_to_target_operations(
     if lowering_facts.native_callbacks().psi() != optimized.plan().psi {
         return Err(LoweringError::ForeignNativeCallbackCohort);
     }
-    if lowering_facts.installed_interrupts().psi() != optimized.plan().psi {
-        return Err(LoweringError::ForeignInstalledInterruptCohort);
-    }
     let installed = installation
         .as_ref()
         .map(|value| value as &dyn installation_evidence::ProviderInstallationEvidence);
@@ -217,8 +142,6 @@ pub fn lower_optimized_to_target_operations(
         optimized,
         lowering_facts,
         current_program: Arc::new(program),
-        installed_stack_requirements: Vec::new(),
-        installed_entry_execution: None,
         provider_installation: installation.map(Box::new),
     })
 }

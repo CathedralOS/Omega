@@ -1,12 +1,6 @@
-/*
-Host import adapters for an evaluated Build program.
-
-A running Build machine interacts with the compiler through three bounded host
-surfaces: declaration and provider binding effects (`bindings`), captured-input
-and output filesystem calls (`filesystem`), and project/dependency/log host
-requests (`requests`). Each adapter authenticates its compiler-issued facet or
-activation ticket before recording or executing an effect.
-*/
+//! What a running Build program may call: Build binding effects and product
+//! queries (`bindings`), filesystem access over its admitted captured-input
+//! scope (`filesystem`), and host requests (`requests`).
 
 pub mod bindings;
 pub(crate) mod filesystem;

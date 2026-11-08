@@ -97,61 +97,16 @@ pub(crate) fn check_indexed_accesses(
     // and borrow facts through the pass's shared summary table.
 
     use rayon::prelude::*;
-    let machines = program.machines();
-    let indexed_states: Vec<Vec<bool>> = validation::checking_thread_pool().install(|| {
-        machines
+    let machine_results: Vec<_> = validation::checking_thread_pool().install(|| {
+        program
+            .machines()
             .par_iter()
-            .map(|machine| {
-                program
-                    .machine_states(machine)
+            .filter_map(|machine| {
+                let machine_states = program.machine_states(machine);
+                let state_has_indexed: Vec<bool> = machine_states
                     .iter()
                     .map(|state| state_contains_indexed_expression(program, state))
-                    .collect()
-            })
-            .collect()
-    });
-    // A nested-machine family replays as one transfer and every member gets
-    // the same argument facts, so replay each family root once, and only
-    // when some member indexes. A flat machine is its own root.
-    let families = state_arguments::MachineFamilies::new(program);
-    let mut root_needed = vec![false; machines.len()];
-    for (position, indexed) in indexed_states.iter().enumerate() {
-        if indexed.iter().copied().any(std::convert::identity) {
-            root_needed[families.root(position)] = true;
-        }
-    }
-    let family_argument_facts: Vec<Vec<state_arguments::StateArgumentFacts>> =
-        validation::checking_thread_pool().install(|| {
-            root_needed
-                .par_iter()
-                .enumerate()
-                .map(|(root, needed)| {
-                    if !needed {
-                        return Vec::new();
-                    }
-                    collect_state_argument_facts(
-                        program,
-                        &field_lengths,
-                        &bound_lookup,
-                        &families,
-                        root,
-                        call_frames,
-                        borrows,
-                        flow,
-                        semantic,
-                        operators,
-                        mutation_summaries,
-                    )
-                })
-                .collect()
-        });
-    let machine_results: Vec<_> = validation::checking_thread_pool().install(|| {
-        machines
-            .par_iter()
-            .zip(&indexed_states)
-            .enumerate()
-            .filter_map(|(position, (machine, state_has_indexed))| {
-                let machine_states = program.machine_states(machine);
+                    .collect();
                 if !state_has_indexed
                     .iter()
                     .copied()
@@ -182,7 +137,20 @@ pub(crate) fn check_indexed_accesses(
                         })
                         .collect()
                 };
-                let state_argument_facts = &family_argument_facts[families.root(position)];
+                let state_argument_facts = if non_entry_has_indexed {
+                    collect_state_argument_facts(
+                        program,
+                        &field_lengths,
+                        &bound_lookup,
+                        machine,
+                        call_frames,
+                        &calls,
+                        operators,
+                        mutation_summaries,
+                    )
+                } else {
+                    Vec::new()
+                };
                 let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
                 let loop_invariant_facts =
                     collect_loop_invariant_facts(program, machine, call_frames);
@@ -223,7 +191,7 @@ pub(crate) fn check_indexed_accesses(
                         }
                         {
                             seed_state_requires(program, &mut facts, machine, state);
-                            seed_state_argument_facts(&mut facts, state, state_argument_facts);
+                            seed_state_argument_facts(&mut facts, state, &state_argument_facts);
                             seed_incoming_guard_facts(
                                 program,
                                 machine,

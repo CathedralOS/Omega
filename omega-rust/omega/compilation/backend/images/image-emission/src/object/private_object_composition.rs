@@ -33,10 +33,6 @@ pub fn compose_private_function_objects(
     source: ObjectArtifact,
     private_objects: &[PrivateFunctionObject],
 ) -> Result<ObjectArtifact, Error> {
-    crate::object::object_artifact::installed_stack::validate_installed_stack_requirements(
-        &source,
-        private_objects,
-    )?;
     if private_objects.is_empty() {
         require_definitions(&source.object)?;
         return Ok(source);
@@ -335,9 +331,6 @@ fn append_body(linked: &mut ObjectArtifact, private: &PrivateFunctionObject) -> 
             function,
             body: Arc::clone(body),
             entry_bridge: private.entry_bridge.clone(),
-            entry_effects: private.entry_effects.clone(),
-            inbound: private.inbound.clone(),
-            inbound_ordinals: private.inbound_ordinals.clone(),
             text_offset,
             data_offset,
             symbol_bindings: bindings,
@@ -473,7 +466,6 @@ pub(crate) fn validate_composition(artifact: &ObjectArtifact) -> Result<(), Erro
             .0,
         source,
     )?;
-    let origins = crate::entries::private_entry_origin::EntryOrigins::new(artifact)?;
     let mut inputs = Vec::with_capacity(artifact.private_functions.len());
     for private in &artifact.private_functions {
         let replay = private
@@ -482,15 +474,11 @@ pub(crate) fn validate_composition(artifact: &ObjectArtifact) -> Result<(), Erro
             .as_ref()
             .ok_or(Error::Mismatch("private object lacks fragment custody"))?;
         validate_function_fragment_object_artifact(&replay.0, &private.body)?;
-        origins.verify(private)?;
         crate::entries::callable_entry_transport::validate_entry_transport(private)?;
         inputs.push(PrivateFunctionObject {
             identity: private.identity,
             body: Arc::clone(&private.body),
             entry_bridge: private.entry_bridge.clone(),
-            entry_effects: private.entry_effects.clone(),
-            inbound: private.inbound.clone(),
-            inbound_ordinals: private.inbound_ordinals.clone(),
         });
     }
     let expected = compose_private_function_objects(source.as_ref().clone(), &inputs)?;

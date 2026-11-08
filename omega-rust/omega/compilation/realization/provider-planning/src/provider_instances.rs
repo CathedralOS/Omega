@@ -1,8 +1,7 @@
-// Selected provider source custody and instance projection for explicit
-// inspection and checked-interpreter execution. Equal-looking source from
-// another checked owner is not interchangeable (`Arc::ptr_eq`), whereas derived
-// instance declaration cache state is. Preparing declarations neither reports
-// deferred failures nor admits the projected provider closure.
+//! Retain source for explicit inspection and checked-interpreter execution.
+//! The compilation wrapper owns this record; target execution has only the
+//! same selected plan facts. Instance projection here cannot grant permission
+//! to execute a provider or change the target's selected plans.
 
 use crate::exact_checked_adapter;
 use checked_trees::typed_trees::machine::Machine;
@@ -31,6 +30,8 @@ impl std::fmt::Debug for SelectedProviderSource {
 
 impl PartialEq for SelectedProviderSource {
     fn eq(&self, other: &Self) -> bool {
+        // As with the external-declaration product, equal-looking source from
+        // another checked owner is not interchangeable. Derived cache state is.
         Arc::ptr_eq(self.program(), other.program()) && self.plans == other.plans
     }
 }
@@ -58,6 +59,8 @@ impl SelectedProviderSource {
         &self.plans
     }
 
+    /// Admission remains consumer-owned. Preparing declarations neither reports
+    /// their deferred failures nor admits this projected provider closure.
     pub fn project_instances(&self) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
         let prepared = self.declarations();
         let declarations = self
@@ -95,6 +98,8 @@ struct CheckedAdapterDeclaration<'typed, 'plan> {
     machine: Result<&'typed Machine, Diagnostic>,
 }
 
+/// Invocation scratch: one immutable source judgment per original selected row.
+/// Errors remain data until each existing expansion site consumes that row.
 struct CheckedAdapterDeclarations<'typed, 'plan> {
     rows: Vec<CheckedAdapterDeclaration<'typed, 'plan>>,
 }
@@ -278,6 +283,8 @@ fn prepare_instance_declarations(
     declarations
 }
 
+/// Rendering happens once at the existing plan/review encoding boundary.
+/// The checked declaration producer retains handles in its own identity owner.
 fn render_instance(
     typed: &checked_trees::typed_trees::TypedTrees,
     instance: language_semantics::provider_declarations::ClosedProviderInstance<

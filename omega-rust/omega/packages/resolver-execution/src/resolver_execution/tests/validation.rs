@@ -1,16 +1,6 @@
-// Unit tests for `ResolverExecutionBackend` executable custody and working-root
-// validation.
-//
-// In `every_phase_rejects_relative_noncanonical_oversized_and_executable_roots`,
-// we build `parent_traversal` by appending `\child\..` directly to an
-// `OsString` because `PathBuf::push` silently normalizes `..` under Windows
-// verbatim (`\\?\`) roots, which would bypass the lexical-canonicality rejection
-// under test.
-
 use super::{
     Path, PathBuf, ResolverExecutionBackend, ResolverExecutionPhase, backend, inspection_root,
 };
-
 #[test]
 fn every_preparation_reuses_the_frozen_absolute_executable() {
     let backend = backend();
@@ -100,6 +90,8 @@ fn every_phase_rejects_relative_noncanonical_oversized_and_executable_roots() {
         .executable()
         .parent()
         .expect("resolver executable has parent");
+    // PathBuf::push normalizes `..` under Windows verbatim roots. Preserve
+    // the authored spelling so this actually exercises the rejection.
     let mut parent_traversal = root.as_os_str().to_owned();
     parent_traversal.push(format!(
         "{}child{}..",

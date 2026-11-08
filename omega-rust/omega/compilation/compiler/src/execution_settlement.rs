@@ -1,26 +1,7 @@
-/*
-We settle each requested target's provider selections, boundary calling plans,
-program entry bindings, and independent-component joins against the shared
-checked source and Terminal publication.
-
-Selection reads the target's captured declarations (`PreparedProductTarget`)
-and the shared calling program (`retain_calling_program`), evaluates boundary
-calling plans, settles provider candidates (`provider_planning::settle_checked_providers`),
-rejects reached inert sibling calls, and prepares `SelectedExecution`
-(`selected_dispatch::prepare_selected_execution`).
-*/
-
-/*
-Direct source consumers do not attach a package session's component products,
-so any `Independent` composition demand starts with an explicit unavailability
-error until `retain_independent_component_products` joins the exact verified
-producing component product for this target profile.
-
-Non-executing check stops validate declaration task activations directly against
-the published Terminal module (`check_terminal_task_activations`) without
-re-lowering Checked Psi; executable products validate task activations during
-native proposal construction.
-*/
+//! Choose the code and calling plans for each requested target.
+//! Selection reads saved declarations and the shared Terminal program. This
+//! module then assembles the completed choices and separate source-inspection
+//! access; executable admission and native emission consume the saved result.
 
 use crate::checked::CheckedCompilation;
 use crate::checked::checking::{attribute_diagnostics, timed};
@@ -36,10 +17,17 @@ use provider_planning::target_machines::PreparedProductProviders;
 use selected_dispatch::{ProviderBindingRequest, SelectedExecution, prepare_selected_execution};
 use std::sync::Arc;
 
+/// One refusal as the diagnostic list every step in this module returns: each
+/// provider-inventory query answers once, so its single refusal is the whole
+/// list.
 fn one_refusal<T>(refused: Result<T, Diagnostic>) -> Result<T, Vec<Diagnostic>> {
     refused.map_err(|error| vec![error])
 }
 
+/// One target's completed choices beside shared code and explicit inspection access.
+/// Selection and native declaration preparation are complete; no later
+/// installation phase reopens source or fills in this result. Source-only
+/// consumers request their checked-instance projection at their own boundary.
 pub(crate) struct SelectedProviderCustody {
     pub(crate) terminal_publication: Arc<compilation_products::ProductTerminalPublication>,
     pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
@@ -55,6 +43,9 @@ pub(crate) struct SelectedProviderCustody {
     pub(crate) timings: CompileTimings,
 }
 
+/// A checked source application ready for Terminal production. Review stops
+/// validate task demands directly; executable products use their artifact's
+/// demands in native proposal construction instead.
 pub(crate) struct SelectedProductTarget {
     pub(crate) runtime_policy: Arc<package_evidence::permission_acceptance::PreparedRuntimePolicy>,
     pub(crate) custody: SelectedProviderCustody,
@@ -70,6 +61,8 @@ impl SelectedProductTarget {
     ) -> Result<Self, Vec<Diagnostic>> {
         let runtime_policy = Arc::clone(&prepared.runtime_policy);
         let custody = select_product_providers(source, prepared)?;
+        // Direct source consumers do not attach a package session's products.
+        // Unprepared Independent demands must not look like a complete empty set.
         let mut independent_components = Ok(Vec::new());
         for selected in &custody.execution.selected_provider_provenance {
             if selected
@@ -91,6 +84,9 @@ impl SelectedProductTarget {
         })
     }
 
+    /// Attach only products whose whole descriptive publication and realized
+    /// target answer this selection. Different native proposals under the same
+    /// description remain competing inputs, never a first-match cache hit.
     pub(crate) fn retain_independent_component_products(
         &mut self,
         products: &[Arc<compilation_products::IndependentComponentProduct>],
@@ -120,6 +116,8 @@ impl SelectedProductTarget {
                         })
             });
             let Some(product) = matching.next() else {
+                // Descriptive checking may have no executable product. Actual
+                // production must separately require the complete product set.
                 continue;
             };
             if matching.next().is_some() {
@@ -149,6 +147,9 @@ impl SelectedProductTarget {
             {
                 continue;
             }
+            // Descriptive stops need not have an executable product. Retain a
+            // native-only refusal, but still check every available producing
+            // join now: a bad ABI is not hidden by another missing product.
             let declarations =
                 match &execution.native_provider_sources {
                     Ok(declarations) => declarations,
@@ -250,6 +251,8 @@ impl SelectedProductTarget {
         &self,
         terminal: Option<&terminal_psi::TerminalModule>,
     ) -> Result<(), Vec<Diagnostic>> {
+        // Selection already published Terminal, even when no proof condition
+        // needed evaluation. Read its task demands instead of lowering source again.
         let execution = &self.custody.execution;
         let module = terminal.unwrap_or_else(|| {
             self.custody
@@ -265,6 +268,8 @@ impl SelectedProductTarget {
         )
     }
 
+    /// Assemble the already-prepared result. Executable products discharge task
+    /// demands against Terminal in native proposal construction, not here.
     pub(crate) fn into_checked_compilation(self) -> CheckedCompilation {
         checked_compilation(
             self.custody,
@@ -274,6 +279,9 @@ impl SelectedProductTarget {
     }
 }
 
+/// Publication retains all declaration task obligations, not just executable
+/// reach. Check them against the same canonical identities used by native
+/// admission instead of reopening and lowering the checked source again.
 pub(crate) fn check_terminal_task_activations(
     module: &terminal_psi::TerminalModule,
     providers: &effects::SelectedProviderPlanFacts,
@@ -288,6 +296,8 @@ pub(crate) fn check_terminal_task_activations(
     Ok(())
 }
 
+/// Discovery survives selection failure so package review can acquire the
+/// missing independent component without treating failure as authority.
 pub(crate) struct SelectedCompileOutcome {
     pub(crate) result: Result<SelectedProductTarget, CompileFailure>,
     pub(crate) independent_components: compilation_products::IndependentComponentDiscovery,
@@ -388,6 +398,9 @@ fn select_checked_providers(
     Ok((execution, providers))
 }
 
+/// Prepare the exact provider and ABI inputs for either a product or an
+/// authored-target proof application. Neither use bypasses provider admission;
+/// only executable products need a ProgramEntry and deployment claim.
 fn prepare_target_provider_selection(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
@@ -415,6 +428,8 @@ fn prepare_target_provider_selection(
     )
 }
 
+/// Select this target from saved declarations and shared code, then assemble
+/// source-inspection access for review. Execution admission follows separately.
 fn select_product_providers(
     source: &CheckedProductSource,
     prepared: PreparedProductTarget,
@@ -470,6 +485,8 @@ fn select_product_providers(
     })
 }
 
+/// Assemble source custody and its completed selected execution. This is not
+/// artifact installation: no source query, selection or fallible phase remains.
 fn checked_compilation(
     selection: SelectedProviderCustody,
     retained_checks: RetainedCompilationChecks,
@@ -507,6 +524,8 @@ fn checked_compilation(
     .with_settled_checks(retained_checks)
 }
 
+/// Select one target against the shared source judgment. The consumer chooses
+/// its actual stop; source checking never installs an executable as a side effect.
 pub(crate) fn select_product_target(
     source: &CheckedProductSource,
     prepared: Result<PreparedProductTarget, Vec<Diagnostic>>,

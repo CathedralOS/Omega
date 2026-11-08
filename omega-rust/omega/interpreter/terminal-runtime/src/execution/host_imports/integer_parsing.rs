@@ -1,7 +1,6 @@
-// We admit and execute exact C strtol bindings over captured typed storage.
-// Native C returns an offset into a private input snapshot, and we authenticate
-// that byte cell and the declared output lifetime before publishing the endptr
-// reference output.
+//! Exact C strtol binding over captured typed storage. Native C returns an
+//! offset into a private input snapshot; the interpreter's completion owner
+//! authenticates that cell and the declared output lifetime before publication.
 
 use super::TerminalRuntimeError;
 use super::borrowed_storage::{CapturedStorage, PointerOutputPlan, StorageTransfer};

@@ -1,22 +1,19 @@
-/*
-We assemble one syntax forest (`AssembledSyntax`) with exact package, import, and generated-source custody across the two-phase `Build` and `Product` compilation lifecycle.
-
-`ImmutableSourceParseCheckpoint::prepare` consumes an acquired source capture (or captures physical sources), then parses the authored `build.omg` import closure or the compiler-supplied `<default-build>` template while holding `Product` roots deferred. Calling `assemble` on that checkpoint produces the initial `Build`-scope `AssembledSyntax` along with a `DeferredProductSources` continuation. After the `Build` machine returns and its dependencies settle, `DeferredProductSources::assemble` joins the settled `PackageCompilationInputs`, opens the `Product` roots, attaches dependency-generated source handoffs, seeds target `ProgramEntry` contract sources and implicit `core` vocabulary (`code_layout.omg`, `float_operations.omg`), seals the `Product` source owner, and produces the final `Product`-scope `AssembledSyntax`.
-*/
-
-/*
-Why `Product` roots stay unopened until after the `Build` join:
-Every compilation executes an authored or compiler-supplied `Build` machine before opening `Product` roots so `Product` imports cannot leak names into the initial `Build` name-resolution context, and so `Product` imports can resolve against the dependency graph and generated-source bundles settled by `Build`. Both phases read from the same captured `SourceFileSystem` snapshot without recapturing host files at the join.
-
-Why each preparation reselects a fresh consumer cohort (`reselect_current_sources`):
-Reusing parser `SourceId` coordinates across discovery and final binding would cause the earlier authored-selection ledger to own freshly resolved calls in the new phase. Reselecting current sources mints a fresh consumer cohort while recording `retain_source_rejoin` correspondences so `BuildSourceSelection` and deferred checkpoints track their exact `SourceId` across transitions.
-*/
-
-/*
-Provenance:
-- `BuildSourceSelection` and `<build-prelude>` source identity: `src/source/source_assembly/build_source.rs`.
-- Import discovery, frontier storage, and generated-source admission: `src/source/source_imports.rs`.
-*/
+//! Assemble one source forest with exact package, import and generated-source custody.
+//!
+//! `ImmutableSourceParseCheckpoint::prepare` consumes an acquired capture or
+//! captures sources, then parses the authored Build's import closure or the
+//! ordinary compiler-supplied default. Product roots stay deferred in both cases.
+//! `assemble` admits the selected scope's inputs and prelude. Every selected Build
+//! retains `DeferredProductSources`: after its dependency join, Product imports
+//! and target entry contracts join the same captured namespace and parse prefix.
+//! Product imports cannot supply names to the initial Build context. Each source
+//! frontier goes through Psi's parser; no host source is recaptured at the join.
+//! An initially unbound capture may acquire its exact named package owner on
+//! that separate parsed prefix, before Product resolution. This never rewrites
+//! the checked Build's private invocation identity.
+//! `GeneratedSourceExtension::parse` consumes the activation's admitted output
+//! through that same facade, preserving separate generated-unit forests.
+//! No Build machine executes here; resolution and typing consume the result.
 
 mod build_source;
 pub use build_source::BuildSourceSelection;
@@ -39,18 +36,38 @@ use syntax_trees::SyntaxTrees;
 
 #[derive(Clone)]
 pub struct AssembledSyntax {
-    pub root_sources: Vec<source::SourceId>, // Selected root-package `SourceId`s.
-    pub syntax_trees: SyntaxTrees,           // Parsed syntax forest.
-    pub source_items: Vec<(source::SourceId, Vec<syntax_trees::item::ItemHandle>)>, // Parser-issued authored item roots per source.
-    pub sources: Arc<source::SourceMap>, // Selected `SourceMap` cohort.
-    pub anonymous_owner: Option<crate::AnonymousSourceCapture>, // Unbound anonymous capture carried until `Product` sealing.
-    pub product_sources: Option<DeferredProductSources>, // Deferred `Product` continuation held during `Build` evaluation.
-    pub build_source: Option<BuildSourceSelection>, // Exact authored or compiler-default `Build` source selection.
-    pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>, // Build-prelude aliases and module import bindings.
-    pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>, // Admitted dependency-generated sources keyed by `SourceId`.
-    pub build_scope_sources: HashSet<source::SourceId>, // Sources owned by the `Build` execution scope.
+    pub root_sources: Vec<source::SourceId>,
+    pub syntax_trees: SyntaxTrees,
+    /// Parser-issued source ownership for authored item roots. Later synthesis
+    /// owns its own cohort; diagnostic template spans are not membership.
+    pub source_items: Vec<(source::SourceId, Vec<syntax_trees::item::ItemHandle>)>,
+    pub sources: Arc<source::SourceMap>,
+    /// Anonymous ownership inputs. Initial Build leaves these unbound; the
+    /// joined Product context establishes ownership before resolution/typing.
+    pub anonymous_owner: Option<crate::AnonymousSourceCapture>,
+    /// Product roots remain unopened until the selected Build has returned and
+    /// its dependencies have joined. Both phases retain the same captured bytes.
+    pub product_sources: Option<DeferredProductSources>,
+    /// Exact authored or compiler-default source selected during discovery.
+    /// Its private origin survives source rejoins; a filename or absent named
+    /// role never grants default semantics.
+    pub build_source: Option<BuildSourceSelection>,
+    pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
+    /// Sources the build scope owns: the selected build entry, the
+    /// root-local helpers it transitively imports, and every source of a
+    /// package the root reaches only through build-purpose edges (including
+    /// such a package's own ordinary dependencies) — its physical files and
+    /// the generated source its build handed off alike, since both execute in
+    /// the same host context. Their target-scoped declarations select against
+    /// the admitted build execution profile, never the product target; every
+    /// other source — product packages, dual-purpose packages, and their
+    /// generated dependency source — is product scope.
+    pub build_scope_sources: HashSet<source::SourceId>,
 }
 
+/// Immutable physical source and parse frontier formed before exact target
+/// generated sources or target-scoped imports join compilation.
 #[derive(compiler_storage::Record)]
 pub struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
@@ -61,6 +78,8 @@ pub struct ImmutableSourceParseCheckpoint {
     product_roots: Option<Arc<[PathBuf]>>,
 }
 
+/// The captured source namespace and Build parse prefix, not a Product judgment.
+/// Loading Product imports consumes this continuation after the Build join.
 #[derive(compiler_storage::Record)]
 pub struct DeferredProductSources {
     checkpoint: ImmutableSourceParseCheckpoint,
@@ -75,6 +94,9 @@ impl Clone for DeferredProductSources {
 }
 
 impl DeferredProductSources {
+    /// Inspect the frozen authored Product namespace while Build is paused.
+    /// This does not settle the root, append its generated outputs, or grant
+    /// executable Product authority. The original Build parse prefix is shared.
     pub fn assemble_query(
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,
@@ -181,6 +203,8 @@ impl DeferredProductSources {
         })
     }
 
+    /// Revalidate a sibling's live custody even when its frontend is retained.
+    /// An anonymous capture must join the same named source owner as assembly.
     pub fn admit_inputs(
         &self,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -189,6 +213,10 @@ impl DeferredProductSources {
         checkpoint.admit_product_inputs(package_inputs)
     }
 
+    /// Load Product roots after successful Build return and dependency settlement.
+    /// A previously unbound capture may receive its exact named owner here.
+    /// Already supplied package inputs cannot be replaced. New dependency custody
+    /// still requires the pending executed-request settlement protocol.
     pub fn assemble(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -227,6 +255,9 @@ impl DeferredProductSources {
 }
 
 impl ImmutableSourceParseCheckpoint {
+    /// Source capture normalizes the physical root before parsing. The public
+    /// request may keep a relative or symlink spelling of that same entry;
+    /// resolve both through the retained capture, never through reopened bytes.
     pub fn admit_root(&self, root: &Path) -> Result<(), Vec<Diagnostic>> {
         if root == self.root_path {
             return Ok(());
@@ -262,6 +293,9 @@ impl ImmutableSourceParseCheckpoint {
         self.validate_child(package_inputs)
     }
 
+    /// Sealing changes the Product source instance, not the checked Build's
+    /// source map. Reparse captured bytes under the sealed coordinates before
+    /// any resolver continuation can consume this Product selection.
     fn join_product_inputs(
         &mut self,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -334,6 +368,8 @@ impl ImmutableSourceParseCheckpoint {
         Ok(())
     }
 
+    /// Publish page sharing on the first actual fork. A uniquely consumed
+    /// checkpoint keeps its original allocations without freezing overhead.
     pub fn fork(&mut self) -> Self {
         if let Some(storage) = Arc::get_mut(&mut self.source_storage) {
             storage.syntax_trees.share_pages();
@@ -352,6 +388,8 @@ impl ImmutableSourceParseCheckpoint {
         }
     }
 
+    /// Extend pending Product roots from an admitted completed default
+    /// supplier. This is source seeding, not another parser or Build route.
     pub fn with_toolchain_defaults(
         mut self,
         defaults: &crate::CompletedProviderDefaults,
@@ -376,6 +414,9 @@ impl ImmutableSourceParseCheckpoint {
         &self.root_path
     }
 
+    /// Prepare shared physical sources without Product imports or a child's
+    /// target attachments when an authored Build exists. Target-local generated
+    /// bundles join their respective scope during assembly.
     pub fn prepare_from_sources(
         root_path: &Path,
         package_sources: Option<Arc<crate::PackageCompilationSourceInputs>>,
@@ -412,6 +453,8 @@ impl ImmutableSourceParseCheckpoint {
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
         let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
+        // Every project executes an authored or compiler-supplied Build before
+        // opening Product roots. Default source has no ambient Product names.
         let mut product_roots = Vec::new();
         for (path, scope) in project.sources() {
             if *scope == source::DependencyScope::Product {
@@ -443,6 +486,10 @@ impl ImmutableSourceParseCheckpoint {
         })
     }
 
+    /// Assemble the source set for a child with these package inputs: the
+    /// parsed physical sources, the retained package imports and the
+    /// dependency-generated sources the inputs carry. No target selects
+    /// anything here; each target's package inputs were admitted for it.
     pub fn assemble(
         mut self,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -472,6 +519,8 @@ impl ImmutableSourceParseCheckpoint {
             )?,
             None => Vec::new(),
         };
+        // Every exact-target load shares this storage, queue, root, package
+        // roster, timing sink and catalogue; only the phase differs.
         macro_rules! load_phase {
             ($phase:expr) => {
                 load_imports(
@@ -488,11 +537,19 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(package_inputs) = package_inputs {
             for request in self.package_imports.iter() {
                 let resolved = request.resolve_for_exact_target(package_inputs)?;
+                // A retained request joins its target under the importer's
+                // own checked instance — the same scope its discovery ran
+                // under, so a dual-purpose path loads a second instance
+                // rather than failing a scope claim.
                 imports.enqueue(vec![(resolved.path.clone(), request.importer_scope())])?;
                 source_storage.resolved_imports.push(resolved);
             }
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
+        // Every target's entry contract joins the set; the selected target
+        // only decides which one realizes the program entry later.
+        // Build bindings carry inert paths. Target entry contracts and Product
+        // suppliers are not part of the initial Build name-resolution context.
         let seeds = if deferred_product.is_none() {
             crate::source::source_imports::entry_contract_seeds(package_inputs, &source_storage)?
         } else {
@@ -529,9 +586,21 @@ impl ImmutableSourceParseCheckpoint {
                 load_phase!(PackageImportPhase::ExactTarget(None))?;
             }
         }
+        // Core query results are ordinary source-backed data. Load their
+        // canonical declarations even for an import-free query occurrence;
+        // source discovery neither evaluates the query nor selects a machine.
         let core_root = crate::source::source_imports::bundled_core_root()?;
         let query_types = core_root.join("code_layout.omg");
         imports.seed(query_types, source_scope);
+        // Primitive float spellings select ordinary source declarations and
+        // their exact target satisfiers (numeric_values.md, Primitive surface).
+        // Make that canonical declaration forest available without requiring
+        // an authored import. Loading supplies no selection or provider
+        // authority: normal operand applicability, ambiguity, checked boundary
+        // applications and selected ProviderPlans still own those judgments.
+        // The joined Product forest retains Build declarations too. Supply
+        // implicit vocabulary for each present checked scope, not only the
+        // roots being appended in this phase.
         if sources_mention_floats(&source_storage, source::DependencyScope::Build) {
             imports.seed(
                 core_root.join("float_operations.omg"),
@@ -548,9 +617,17 @@ impl ImmutableSourceParseCheckpoint {
             );
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
+        // A Product preparation follows the completed dependency join, whether
+        // Build was implicit or authored. Retaining an authored Build source
+        // does not leave its Product declarations anonymously owned. Initial
+        // Build preparation still defers this operation until normal return.
         if deferred_product.is_none() {
             source_storage.seal_product_owner(catalogue)?;
         }
+        // Each new preparation gets a fresh consumer cohort. Reusing parser
+        // coordinates across discovery and final binding would make the old
+        // authored-selection ledger own this run's freshly resolved calls.
+        // Dependencies keep their catalogue identities and remain reusable.
         let loaded = source_storage.reselect_current_sources(catalogue)?;
         if let Some(inputs) = package_inputs {
             source_storage
@@ -628,6 +705,9 @@ impl ImmutableSourceParseCheckpoint {
             .filter(|file| file.dependency_scope == source::DependencyScope::Build)
             .map(|file| file.source_id)
             .collect();
+        // Initial authored Build remains unbound. A Product preparation has
+        // sealed its source owner before parsing, after the dependency join.
+        // Supplied graph owners remain authoritative in either case.
         let capture = source_storage.retain_anonymous_owner(&generated_source_custody)?;
         let (sources, anonymous_owner) = match capture {
             Some(capture) => (capture.sources().clone(), Some(capture)),
@@ -652,6 +732,9 @@ impl ImmutableSourceParseCheckpoint {
         Ok((source_file_count, syntax))
     }
 
+    /// Retain the actual Build source coordinates without retaining its later
+    /// generated/import extension twice. The deferred owner keeps its original
+    /// captured namespace and reparses only that admitted source selection.
     fn rejoin_sources(
         &mut self,
         current: &source::SourceMap,
@@ -773,6 +856,10 @@ impl ImmutableSourceParseCheckpoint {
 }
 
 impl GeneratedSourceExtension {
+    /// Parse an admitted generated extension against its exact immutable base.
+    /// Each custody row keeps a separate syntax forest: pre-resolution
+    /// normalization must not synthesize across generated-unit boundaries.
+    /// Base substitution rejects before any loading or parsing.
     pub fn parse(
         self,
         base_sources: &Arc<source::SourceMap>,
@@ -968,6 +1055,8 @@ fn load_source_frontiers(
     Ok(retained_requests)
 }
 
+/// Admit ordinary toolchain-owned source without adding a physical file to the
+/// captured project. Only this source owner can mint default-role selection.
 fn append_default_build(
     storage: &mut SourceStorage,
     timings: &mut CompileTimings,
@@ -1025,6 +1114,7 @@ fn append_build_prelude(
     Ok(bindings)
 }
 
+/// Observe Psi's source work using the package invocation's existing report.
 struct ParsingTimings<'timings>(&'timings mut CompileTimings);
 
 fn sources_mention_floats(

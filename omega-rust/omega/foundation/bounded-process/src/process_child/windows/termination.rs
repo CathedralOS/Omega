@@ -1,5 +1,3 @@
-// Windows Job Object termination and primary-child reaping helpers.
-
 use std::io;
 use std::process::Child;
 

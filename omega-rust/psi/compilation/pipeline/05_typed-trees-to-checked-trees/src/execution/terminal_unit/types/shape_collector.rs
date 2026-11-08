@@ -106,41 +106,7 @@ pub(crate) struct ShapeCollector<'program> {
     /// The symbol-owning closed declaration settled per structural identity,
     /// built once on first use: declaration inventory never changes during
     /// collection, so one index supplies every later route to any identity.
-    canonical_carriers: Option<CarrierIndex>,
-}
-
-/// The symbol-owning closed declaration per structural identity. It is a
-/// pure function of the typed program's declaration inventory, which no
-/// checking pass changes, so one index built from a program serves every
-/// collector over that same program.
-pub(crate) type CarrierIndex = std::sync::Arc<BTreeMap<TypeIdentityId, DataDefinition>>;
-
-/// Index the declaration inventory of `program` once; see `CarrierIndex`.
-pub(crate) fn carrier_index(program: &dyn ::validation::CheckingInput) -> CarrierIndex {
-    let typed = program.typed_program();
-    let mut carriers = BTreeMap::new();
-    for candidate in typed.data_definitions().iter() {
-        let Some(origin) = candidate.generic_instance else {
-            continue;
-        };
-        if matches!(
-            typed.type_reference_table.type_reference(origin),
-            TypeReferenceNode::Generic { base_symbol, .. }
-                if *base_symbol == candidate.symbol
-        ) {
-            continue;
-        }
-        let origin_identity = typed.normalized_type_identity(origin);
-        carriers
-            .entry(origin_identity)
-            .and_modify(|retained: &mut DataDefinition| {
-                if candidate.symbol.arena_index() < retained.symbol.arena_index() {
-                    *retained = candidate.clone();
-                }
-            })
-            .or_insert_with(|| candidate.clone());
-    }
-    std::sync::Arc::new(carriers)
+    canonical_carriers: Option<std::sync::Arc<BTreeMap<TypeIdentityId, DataDefinition>>>,
 }
 
 impl<'program> ShapeCollector<'program> {
@@ -159,17 +125,6 @@ impl<'program> ShapeCollector<'program> {
             unselected_opaque: None,
             canonical_carriers: None,
         }
-    }
-
-    /// A fresh collector over `program` that starts from `carriers`, which the
-    /// caller built with `carrier_index` from this same `program`.
-    pub(crate) fn with_carrier_index(
-        program: &'program dyn ::validation::CheckingInput,
-        carriers: CarrierIndex,
-    ) -> Self {
-        let mut collector = Self::new(program);
-        collector.canonical_carriers = Some(carriers);
-        collector
     }
 
     /// The unselected opaque behind the collector's last shape failure, if
@@ -1258,8 +1213,32 @@ impl<'program> ShapeCollector<'program> {
     /// once from the declaration inventory.
     fn canonical_carriers(&mut self) -> &BTreeMap<TypeIdentityId, DataDefinition> {
         let program = self.program;
-        self.canonical_carriers
-            .get_or_insert_with(|| carrier_index(program))
+        self.canonical_carriers.get_or_insert_with(|| {
+            let typed = program.typed_program();
+            let mut carriers = BTreeMap::new();
+            for candidate in typed.data_definitions().iter() {
+                let Some(origin) = candidate.generic_instance else {
+                    continue;
+                };
+                if matches!(
+                    typed.type_reference_table.type_reference(origin),
+                    TypeReferenceNode::Generic { base_symbol, .. }
+                        if *base_symbol == candidate.symbol
+                ) {
+                    continue;
+                }
+                let origin_identity = typed.normalized_type_identity(origin);
+                carriers
+                    .entry(origin_identity)
+                    .and_modify(|retained: &mut DataDefinition| {
+                        if candidate.symbol.arena_index() < retained.symbol.arena_index() {
+                            *retained = candidate.clone();
+                        }
+                    })
+                    .or_insert_with(|| candidate.clone());
+            }
+            std::sync::Arc::new(carriers)
+        })
     }
 
     pub(in super::super) fn add_data_shape(

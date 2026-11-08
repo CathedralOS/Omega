@@ -1,16 +1,6 @@
-/*
-We compute per-target boundary calling plans (`PreparedBoundaryCallingPlans`)
-and default calling applications (`evaluate_default_calling_applications`) from
-owned original correspondence and canonical Terminal storage.
-
-Target choice and helper selection need no Source owner, catalog, or signature
-traversal. Each policy activation runs in its own sponsor and invocation account
-over immutable code in parallel across worker threads, with results consumed in
-deterministic request order so the first refusal in request order is always the
-one reported. Both authored and default policies publish the complete source-free
-C shape together with its validated plan so opaque representation graphs survive
-into runtime host admission.
-*/
+//! Computing calling plans: evaluating the authored policy at build time,
+//! materializing the boundary signature from the ABI result, and validating
+//! the plan the policy produced.
 
 use crate::calling_policy_plans::boundary_signatures::BoundaryOpaqueMovementGeometry;
 use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
@@ -44,6 +34,8 @@ pub(crate) fn evaluate_default_calling_applications(
             shapes: &geometry.shapes,
             fields: &geometry.fields,
         };
+        // Dispatch formals retain their public identities but do not occupy a
+        // callee argument. Native-only callback lanes are never removed here.
         let mut parameters = Vec::new();
         for parameter in projection.parameters() {
             let shape = match parameter.shape {
@@ -92,7 +84,9 @@ pub(crate) fn evaluate_default_calling_applications(
     }
     Ok(applications)
 }
-
+/// Follow canonical requests over owned original correspondence. Target choice
+/// and helper selection need no Source owner, catalog, or signature traversal.
+/// Invocation admission still precedes activation and deferred review attachment.
 pub fn prepare_boundary_calling_plans(
     target_profile: target::TargetProfile,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
@@ -152,6 +146,8 @@ pub fn prepare_boundary_calling_plans(
                     "calling review lost its complete canonical ABI roster".into(),
                 ));
             }
+            // These are flattened ABI rows, not Source application ordinals:
+            // one application may produce several exact declaration keys.
             for (&signature, original_signature) in signatures.iter().zip(original_signatures) {
                 if signature != original_signature.signature {
                     return Err(diagnostic(
@@ -203,6 +199,8 @@ pub fn prepare_boundary_calling_plans(
     })
 }
 
+/// Source request and review addresses are complete before activation. This
+/// recipe keeps no checked trees alive and can run after their owner is dropped.
 pub struct PreparedBoundaryCallingPlans {
     source_owner: Weak<checked_trees::CheckedTrees>,
     pending: Vec<PreparedCallingPolicy>,
@@ -278,6 +276,11 @@ impl PreparedBoundaryCallingPlans {
         self,
         code: &super::CallingProgram,
     ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
+        // Each policy runs in its own sponsor and invocation account over the
+        // same immutable code, so the activations are independent of each
+        // other and of their order. They run together; their results are then
+        // consumed in request order, so the first refusal in that order is
+        // still the one reported.
         let activate = |policy: &PreparedCallingPolicy| {
             code.require_owner(&self.source_owner)?;
             let instance = policy.canonical_instance(code)?;
@@ -361,6 +364,9 @@ pub(crate) fn boundary_plan_application_identity(
     Ok((application.report_fingerprint, application.commitment))
 }
 
+/// Both authored and default policies publish the complete source-free C shape
+/// together with its validated plan. Returning only a bare plan discarded the
+/// opaque representation graph before the runtime could admit a typed host.
 fn publish_materialized_application(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
@@ -379,6 +385,8 @@ fn publish_materialized_application(
     Ok(application)
 }
 
+/// Run `activate` over `items` on up to one worker per CPU, returning results
+/// in `items` order. A worker that cannot start leaves its share to the caller.
 fn activate_in_parallel<Item: Sync, Output: Send>(
     items: &[Item],
     activate: impl Fn(&Item) -> Output + Sync,
@@ -390,6 +398,7 @@ fn activate_in_parallel<Item: Sync, Output: Send>(
         return items.iter().map(&activate).collect();
     }
     let activate = &activate;
+    // Worker `w` takes items w, w + workers, ...; slots are then read back in order.
     let mut slots: Vec<Option<Output>> =
         std::iter::repeat_with(|| None).take(items.len()).collect();
     std::thread::scope(|scope| {

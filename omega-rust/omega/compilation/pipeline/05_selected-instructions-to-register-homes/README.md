@@ -102,7 +102,7 @@ owning analysis rather than falling back to a weaker recipe.
 
 The leaf-local fixed-use copy policy preflights the complete work budget before
 any insertion, assigns fresh dense instruction IDs, and preserves original
-return work/provenance. A zero-copy result is identity. Fixed-mismatch facts
+return fuel/provenance. A zero-copy result is identity. Fixed-mismatch facts
 alone grant neither moves nor homes; all post-rewrite analyses bind the
 transformed identity and are independently reconstructed.
 

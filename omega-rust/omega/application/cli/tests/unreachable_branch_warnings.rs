@@ -1,18 +1,11 @@
-/*
-
-End-to-end CLI checks for advisory unreachable-branch warnings (`omega --check`).
-
-An unreachable-branch warning is advisory: it is printed to `stderr` while compilation
-still succeeds (`exit 0`). We run `omega --check` on the contract fixtures under
-`tests/omega/pass/contracts/` and count the `warning: unreachable branch:` lines:
-- A transition or match arm that contradicts its machine's `requires` clause
-  warns once.
-- A contradiction inside a generic machine warns once for the authored machine
-  rather than once per instantiation.
-- Consistent branches and branches pruned only after generic specialization stay
-  quiet.
-
-*/
+//! The unreachable-branch warning is advisory and reaches the author on the
+//! compiler's warning channel, standard error, while the program still
+//! compiles. These checks run `omega --check` on the focused fixtures under
+//! `tests/omega/pass/contracts/` and count the warnings each one reports: a
+//! branch that contradicts its machine's entry requirement warns once, while
+//! consistent branches and alternatives removed by generic specialization stay
+//! quiet. Whether each fixture runs, and agrees between the Terminal Psi
+//! interpreter and native code, is the corpus gate's question, not this one.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -25,6 +18,7 @@ fn fixture(name: &str) -> PathBuf {
         .join(name)
 }
 
+/// The unreachable-branch warnings a successful check of `name` reports.
 fn warnings(name: &str) -> Vec<String> {
     let directory = fixture(name);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))

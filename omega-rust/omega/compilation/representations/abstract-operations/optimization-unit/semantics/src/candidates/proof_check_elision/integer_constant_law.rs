@@ -178,7 +178,7 @@ pub(super) fn validate_integer_constant_law_candidate(
     let expected_provenance = [crate::candidates::realized_at_own_site(
         site,
         &node.provenance,
-        &node.work,
+        &node.fuel,
     )];
     if candidate.provenance() != expected_provenance {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);

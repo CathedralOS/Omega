@@ -1038,23 +1038,6 @@ impl<'a> Replay<'a> {
                 let mut replacements = BTreeMap::new();
                 let mut destinations = Vec::new();
                 for effect in &summary.effects {
-                    // An untouched field is reinstalled from its own incoming
-                    // slot. An exclusive loan may already have retired that
-                    // address, so there is no separate value to write back.
-                    // Leaving the pre-call leaf keeps the incoming fact; a
-                    // different supplier that cannot be read still refuses.
-                    if !effect.origins.is_empty()
-                        && effect
-                            .origins
-                            .iter()
-                            .all(|origin| incoming_field_kept(effect, origin))
-                        && effect
-                            .origins
-                            .iter()
-                            .any(|origin| self.substitute(machine, &before, call, origin).is_none())
-                    {
-                        continue;
-                    }
                     let destination =
                         self.actual_contents(call, effect.parameter, &effect.steps)?;
                     super::case_flow::retire_query(
@@ -1086,24 +1069,8 @@ impl<'a> Replay<'a> {
                         }
                     }
                     let mut origins = BTreeSet::new();
-                    let mut dropped_retired_incoming = false;
                     for origin in &effect.origins {
-                        match self.substitute(machine, &before, call, origin) {
-                            Some(substituted) => origins.extend(substituted),
-                            // The field's own incoming descriptor was already
-                            // retired by the loan that reached this call. It is
-                            // not a second live supplier. A real replacement
-                            // in the same effect still stands; an effect that
-                            // only named that retired slot leaves the pre-call
-                            // leaf in place.
-                            None if incoming_field_kept(effect, origin) => {
-                                dropped_retired_incoming = true;
-                            }
-                            None => return None,
-                        }
-                    }
-                    if origins.is_empty() && dropped_retired_incoming {
-                        continue;
+                        origins.extend(self.substitute(machine, &before, call, origin)?);
                     }
                     self.contents_replacements(
                         machine,
@@ -1301,19 +1268,6 @@ impl<'a> Replay<'a> {
         call: &DescriptorInvocation,
         origin: &DescriptorStoredOrigin,
     ) -> Value {
-        if let DescriptorStoredOrigin::Provider(provider) = origin {
-            return self.substitute_provider(machine, state, call, provider);
-        }
-        self.substitute_actuals(machine, state, call.actual_inputs(), origin)
-    }
-
-    pub(super) fn substitute_actuals(
-        &self,
-        machine: &DescriptorMachine,
-        state: &State,
-        actuals: DescriptorActualInputs<'_>,
-        origin: &DescriptorStoredOrigin,
-    ) -> Value {
         match origin {
             DescriptorStoredOrigin::Invocation {
                 carrier_type,
@@ -1324,8 +1278,9 @@ impl<'a> Replay<'a> {
                     projection: projection.clone(),
                 },
             )])),
-            // A pre-invocation input does not inherit a provider's return contract.
-            DescriptorStoredOrigin::Provider(_) => None,
+            DescriptorStoredOrigin::Provider(provider) => {
+                self.substitute_provider(machine, state, call, provider)
+            }
             DescriptorStoredOrigin::AccessFormation {
                 machine,
                 operation,
@@ -1359,7 +1314,7 @@ impl<'a> Replay<'a> {
                 // The formal exported its address. That address is the actual's
                 // slot. Walking the pointee contents instead demands a resident
                 // descriptor, so an access view over ordinary RAM has no origin.
-                let address = actuals
+                let address = call
                     .arguments
                     .get(*position)
                     .and_then(Option::as_ref)
@@ -1369,13 +1324,13 @@ impl<'a> Replay<'a> {
                     _ => self.read_contents(
                         machine,
                         state,
-                        actuals.argument_contents.get(*position)?.as_ref()?,
+                        call.argument_contents.get(*position)?.as_ref()?,
                     ),
                 };
                 self.project(machine, value, Some(projection))
             }
             DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                let mut query = actuals.argument_contents.get(*position)?.as_ref()?.clone();
+                let mut query = call.argument_contents.get(*position)?.as_ref()?.clone();
                 query
                     .steps
                     .extend(path.iter().cloned().map(DescriptorContentsStep::Address));
@@ -1386,7 +1341,7 @@ impl<'a> Replay<'a> {
                 steps,
                 projection,
             } => {
-                let mut query = actuals.argument_contents.get(*position)?.as_ref()?.clone();
+                let mut query = call.argument_contents.get(*position)?.as_ref()?.clone();
                 query.steps.extend_from_slice(steps);
                 self.project(
                     machine,
@@ -1899,18 +1854,6 @@ impl State {
         }
         Some(origins)
     }
-}
-
-/// The effect writes a field back from that same field's incoming descriptor.
-fn incoming_field_kept(effect: &DescriptorStoredEffect, origin: &DescriptorStoredOrigin) -> bool {
-    let DescriptorStoredOrigin::IncomingSlot { position, path } = origin else {
-        return false;
-    };
-    *position == effect.parameter
-        && path.len() == effect.steps.len()
-        && path.iter().zip(&effect.steps).all(|(segment, step)| {
-            matches!(step, DescriptorContentsStep::Address(actual) if actual == segment)
-        })
 }
 
 #[cfg(test)]

@@ -1,5 +1,3 @@
-// Shared callable-shape, behavior-tail, type-parameter, machine-contract, and formal-parameter encoders for public API declarations.
-
 use super::super::{
     callable_policy::{crash_route, termination},
     declarations::{encode_data_properties, encode_type_identity},
@@ -15,6 +13,8 @@ use crate::record::PackagePolicyTypeParameter;
 use crate::record::PackagePolicyTypeParameterKind;
 use crate::record::PackageReviewTypeIdentity;
 
+// The `parameters`+`return_type` field pair every callable-shape encoding
+// restates — the carrier differs per record, the encoding does not.
 macro_rules! encode_callable_shape {
     ($encoder:expr, $parameters:expr, $return_type:expr) => {
         ($encoder).field("parameters", |encoder| {
@@ -35,6 +35,13 @@ macro_rules! encode_callable_shape {
 }
 pub(crate) use encode_callable_shape;
 
+// The published behavior tail every callable-shape encoding restates —
+// contracts, crash routes, service reach with its installation binding,
+// synchronous invocations, suspension, blocking, and termination. A service
+// requirement and a machine parameter signature carry the same tail under the
+// same field names; the carrier record differs, the encoding does not. The
+// expansion is the tail expression of the shape's encoder, so it yields the
+// last field's result.
 macro_rules! encode_callable_behavior_tail {
     ($encoder:expr, $record:ident) => {{
         ($encoder).field("contracts", |encoder| {

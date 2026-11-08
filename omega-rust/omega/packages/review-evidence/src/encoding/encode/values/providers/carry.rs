@@ -1,5 +1,3 @@
-// Canonical encoding for carry policies across suspension, CPU, host-thread, and address axes.
-
 use crate::encoding::encode::encoder::Encoder;
 
 pub(crate) fn encode_carry_policy(encoder: &mut Encoder, policy: language_semantics::CarryPolicy) {

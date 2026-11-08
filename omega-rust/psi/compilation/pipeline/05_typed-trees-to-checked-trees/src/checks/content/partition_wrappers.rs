@@ -164,7 +164,7 @@ pub(super) fn returned_partition_invocations(
         state,
     ) {
         let outgoing = facts.flow.control.outgoing.get(returned_at);
-        let claims = current_returned_claims(program, facts.view(), outgoing, conditions);
+        let claims = current_returned_claims(program, facts, outgoing, conditions);
         let returned_operand = facts.flow.control.operands.get(outgoing.returned_value);
         let alternatives = match returned_operand.completion {
             checked_trees::FlowOperandCompletion::Selected(alternatives) => facts
@@ -617,7 +617,7 @@ fn partition_entry_binding(
     let path = content_segments_to_fact_path(&subject.segments)?;
     let values = crate::flow::captured_operand_values(
         program,
-        facts.flow.view(),
+        &facts.flow,
         &facts.semantic,
         state_flow,
         operand,
@@ -626,7 +626,7 @@ fn partition_entry_binding(
     )?;
     let mut binding = None;
     for value in &values {
-        let actuals = crate::flow::captured_observation_places(program, facts.flow.view(), value)?;
+        let actuals = crate::flow::captured_observation_places(program, &facts.flow, value)?;
         if actuals.is_empty() {
             return None;
         }
@@ -688,7 +688,7 @@ fn partition_entry_binding(
                 selected.extend_from_slice(observation);
                 let captured = crate::flow::captured_operand_values(
                     program,
-                    facts.flow.view(),
+                    &facts.flow,
                     &facts.semantic,
                     state_flow,
                     operand,
@@ -705,7 +705,7 @@ fn partition_entry_binding(
                 expected.segments.extend_from_slice(observation);
                 for captured in &captured {
                     let producers =
-                        crate::flow::captured_value_places(program, facts.flow.view(), captured)?;
+                        crate::flow::captured_value_places(program, &facts.flow, captured)?;
                     if producers.is_empty() {
                         return None;
                     }
@@ -829,7 +829,7 @@ fn instantiate_partition_result_subject(
         selected.extend_from_slice(observation);
         let values = crate::flow::captured_operand_values(
             program,
-            facts.flow.view(),
+            &facts.flow,
             &facts.semantic,
             state_flow,
             operand,
@@ -853,7 +853,7 @@ fn instantiate_partition_result_subject(
             let condition = evidence
                 .conditions
                 .choices(&facts.flow.control, &value.choices)?;
-            let agrees = crate::flow::captured_value_places(program, facts.flow.view(), value)
+            let agrees = crate::flow::captured_value_places(program, &facts.flow, value)
                 .is_some_and(|places| {
                     !places.is_empty() && places.iter().all(|place| place.projected == expected)
                 });

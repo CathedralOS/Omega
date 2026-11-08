@@ -1,7 +1,8 @@
-// Source-boundary guards verifying that `application.rs` owns source-free
-// admission order, that both `object_emission.rs` and `callable_objects.rs`
-// delegate body stages to `pipeline.rs`, and that `fixed_frame.rs` joins layout
-// products without driving compiler stages directly.
+//! Source guards for shared native stage sequencing.
+//!
+//! The order of the representation transforms is not repeated here: each stage
+//! consumes the previous stage's product, so `pipeline.rs` cannot run them out
+//! of order and still type-check.
 
 #[test]
 fn terminal_application_preparation_owns_source_free_admission_order() {

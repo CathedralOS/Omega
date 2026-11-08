@@ -1,7 +1,3 @@
-// Source layout discovery and insertion boundaries for conservative `build.omg` dependency edits.
-// `discover_build_layout` returns `Ok(None)` when no `build` machine exists and `Ok(Some(None))` when a valid `build` machine has a noncanonical signature or body layout requiring manual editing.
-// Dependency declarations belong to the implicit entry before its first transition or nested state; `entry_insertion_start` locates the last top-level semicolon preceding that boundary so adding a dependency never splits a transition or makes the row conditional.
-
 use crate::declarations::dependencies::edit::{
     BUILD_MACHINE_NAME, BUILDER_PARAMETER_NAME, BuildDependencyEditError,
 };
@@ -71,6 +67,8 @@ pub(super) struct DependencyRow {
     pub(super) contains_comment: bool,
 }
 
+/// `None` means no build machine. `Some(None)` means a valid but noncanonical
+/// build signature that must be edited manually.
 pub(super) fn discover_build_layout(
     source: &str,
 ) -> Result<Option<Option<BuildLayout>>, BuildDependencyEditError> {
@@ -124,6 +122,12 @@ pub(super) fn discover_build_layout(
         .unwrap_or_default()
         .to_owned();
     let dependency_rows = dependency_rows(&tokens, body_open, body_close);
+    // Declarations belong to the implicit entry, not after nested states.
+    // Stop before its first transfer so adding a dependency cannot make it
+    // conditional or unreachable. Parsed transition spans start at an arm's
+    // arrow, so recover the enclosing statement from retained delimiters;
+    // inserting directly at the arrow would split the transition itself.
+    // Keyword tokens are also valid identifiers and cannot locate this boundary.
     let states = syntax.items.state_handles(build.states);
     let Some(entry) = states.first().map(|handle| syntax.items.state(*handle)) else {
         return Ok(Some(None));
@@ -159,6 +163,10 @@ pub(super) fn discover_build_layout(
     })))
 }
 
+/// Insert after the last top-level semicolon preceding the parsed boundary.
+/// A closing brace alone is not a boundary: it may end a compound operand.
+/// Keep any intervening standalone blocks with the following transfer rather
+/// than reconstructing their grammar. Reprojection still checks declaration order.
 fn entry_insertion_start(
     tokens: &TokenStream<'_>,
     body_open: usize,

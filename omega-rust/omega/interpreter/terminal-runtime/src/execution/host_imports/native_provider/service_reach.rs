@@ -1,6 +1,29 @@
-// We admit the declared service reach of a native import beyond its owning
-// trait when the host explicitly consents (MatchingHost) and every reached
-// service and parent-closure member belongs to the same declaring package.
+//! Admit the declared service reach of one native import beyond its own trait.
+//!
+//! Reach is a static ceiling and grants no capability. The private sponsor
+//! performs a foreign call on the host, outside every modeled Terminal supply
+//! (filesystem namespace, clock, standard streams, domain exit). Modeled
+//! recognizers dispatch before this sponsor, so the sponsor only ever sees
+//! imports the host does not model. It may perform an additional reached
+//! service only when the host consents explicitly
+//! (`TerminalNativeServiceDelegation::MatchingHost`: native execution of the
+//! same product runs on this host) and the reach is package-local: the owning
+//! trait, every additional service and every member of their canonical parent
+//! closures are declared by the package that declares the owning trait.
+//!
+//! The rule bounds declared service labels, not foreign behavior: a delegated
+//! call does whatever its native body does on this host, and Terminal/native
+//! agreement rests on the embedder's consent that both legs run here. Another
+//! package's or the toolchain's services never pass, so their effects stay
+//! with that owner's boundary and modeled supply (std `Console`, `Clock`,
+//! `TimeHost`, core filesystem services). Std's own raw seams reach std
+//! services; on every hosted target each of those imports is claimed by its
+//! model (clock, descriptor I/O, descriptor mode) before this sponsor runs.
+//!
+//! Ownership is the owner segment of the canonical hermetic service identity
+//! Terminal Psi retains: `package:<digest>::path` or `toolchain::path`. A
+//! missing row, a missing identity or an import without an owning service
+//! refuses.
 
 use crate::execution::TerminalNativeServiceDelegation;
 use semantic_vocabulary::ServiceId;
@@ -8,12 +31,15 @@ use terminal_psi::TerminalModule;
 
 const PACKAGE_OWNER: &str = "package:";
 
+/// The declaring package segment of a package service identity.
 fn package_owner(module: &TerminalModule, service: ServiceId) -> Option<&str> {
     let identity = module.identities.text(module.service(service)?.identity)?;
     let (owner, _) = identity.split_once("::")?;
     owner.starts_with(PACKAGE_OWNER).then_some(owner)
 }
 
+/// The owner-free path of a canonical identity, so diagnostics stay stable
+/// when a package digest changes.
 pub(super) fn identity_path(identity: &str) -> &str {
     identity.split_once("::").map_or(identity, |(_, path)| path)
 }
@@ -61,6 +87,8 @@ pub(super) fn admit_additional_services(
                 .collect::<Vec<_>>()
         ));
     };
+    // The delegated call performs the owning trait's closure as well as the
+    // additional services, so every member of both closures stays local.
     let mut refused = Vec::new();
     for service in std::iter::once(owning_service).chain(additional) {
         let Some(row) = module.service(service) else {
@@ -96,6 +124,10 @@ mod tests {
     const LOCAL: &str = "package:94865ea4";
     const STD: &str = "package:322a3e06";
 
+    /// 1 owning trait and 2 memberless service of the import's package; 3 the
+    /// std `Console` trait; 4 a toolchain filesystem service; 5 a local service
+    /// whose parent closure is std `Console`; 6 a local service whose parent
+    /// is local; 7 has no row.
     fn module() -> TerminalModule {
         let mut identities = TerminalIdentityTableBuilder::default();
         let rows = [
@@ -176,6 +208,7 @@ mod tests {
 
     #[test]
     fn delegated_reach_keeps_the_owning_trait_closure_local() {
+        // The owning trait's own std parent is performed by the same call.
         let refused = admit(Some(5), &[2], MATCHING).unwrap_err();
         assert!(refused.contains("Console"), "{refused}");
         assert!(!refused.contains("Lettering"), "{refused}");
@@ -184,6 +217,7 @@ mod tests {
 
     #[test]
     fn foreign_owned_or_unowned_imports_perform_no_additional_reach() {
+        // A std import reaching a local service is still cross-package.
         let refused = admit(Some(3), &[2], MATCHING).unwrap_err();
         assert!(refused.contains("Lettering"), "{refused}");
         for owning in [None, Some(4), Some(7)] {

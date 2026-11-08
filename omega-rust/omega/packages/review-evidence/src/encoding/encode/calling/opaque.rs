@@ -1,5 +1,3 @@
-// Canonical encoding for opaque representation uses within a calling-policy application.
-
 use super::{Encoder, PackageReviewEncodingError};
 use crate::encoding::encode::declarations::encode_opaque_occurrence;
 use crate::encoding::encode::representation::encode_opaque_representation_fields;

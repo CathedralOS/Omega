@@ -1,4 +1,6 @@
-// Regression tests verifying that trait requirement contract binders start at declared statics without an implicit subject binder.
+//! A trait numbers its declared statics, then each requirement's own. No
+//! implicit subject binder precedes them, so a requirement contract's generic
+//! binder ordinal selects the static that type identities spell `type-parameter:N`.
 
 use crate::record::{
     PackagePolicyPublicApi, PackagePolicyTermination, PackagePolicyTraitRequirement,
@@ -58,6 +60,10 @@ fn binary(
     }
 }
 
+/// The shape of std's
+/// `boundary trait ObjectiveC { machine get_class<const Count: u64>(name: &[u8; Count]) -> u64
+/// requires Count > 0 requires name[Count - 1] == 0; }`: the trait declares no
+/// statics and the requirement declares one, which its contracts name.
 fn objective_c(count_binder: u32) -> PackagePolicyTraitShape {
     use PackageReviewContractBinaryOperator as Operator;
     let count = || Expression::GenericBinder(count_binder);
@@ -125,6 +131,7 @@ fn api(shape: PackagePolicyTraitShape) -> PackagePolicyPublicApi {
 
 #[test]
 fn requirement_contract_binders_start_at_the_declared_statics() {
+    // `Count` is the first static the telescope declares, so it is ordinal 0.
     assert_eq!(
         api(objective_c(0)).validate_canonical_structure(package()),
         Ok(())
@@ -133,6 +140,8 @@ fn requirement_contract_binders_start_at_the_declared_statics() {
 
 #[test]
 fn a_trait_has_no_implicit_subject_binder_before_its_statics() {
+    // Capture once numbered `Count` as 1 behind a subject slot that no
+    // declaration names, which std's own baseline then failed to recover.
     assert_eq!(
         api(objective_c(1)).validate_canonical_structure(package()),
         Err("contract generic binder escapes its static telescope")

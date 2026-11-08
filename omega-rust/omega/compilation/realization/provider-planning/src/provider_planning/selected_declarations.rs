@@ -1,8 +1,6 @@
-// We capture and attach a selected provider implementation's call and effect
-// declarations before Terminal publication. Selection keeps each captured
-// `ProviderDeclarations` result with its original candidate so ABI argument
-// placement can change without reopening source; errors remain deferred until
-// binding checks the selected calls.
+//! Check a selected implementation's calls and effects using declarations saved
+//! before Terminal publication. Selection keeps each result with its original
+//! candidate; argument placement can then change without reopening source.
 
 use checked_trees::provider_declarations::{
     ProviderApplicationView, ProviderDeclarationOrigin, ProviderDeclarationRequest,
@@ -12,6 +10,8 @@ use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use provider_selection::SelectedPlanDeclarations;
 
+/// Save the requirements needed to check an implementation's calls and effects.
+/// Keep failures with the candidate until the build selects it.
 pub(crate) fn capture_plan_declarations(
     checked: &checked_trees::CheckedTrees,
     plan: &ProviderPlan,
@@ -66,6 +66,8 @@ pub(crate) fn capture_plan_declarations(
     Ok(declarations)
 }
 
+/// Attach saved declarations to the final plans, after argument placement is
+/// known. Errors remain deferred until binding checks the selected calls.
 pub fn prepare_selected_plan_declarations<'plans>(
     captured: Vec<
         Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic>,

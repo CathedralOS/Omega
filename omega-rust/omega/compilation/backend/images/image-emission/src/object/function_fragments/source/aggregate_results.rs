@@ -55,7 +55,7 @@ pub(super) fn operation(
     let graph = &target.graph;
     match source {
         // Physical source/selection replay owns the complete reserved backing,
-        // descriptor stores, unsigned admission comparison and retirement work.
+        // descriptor stores, unsigned admission comparison and retirement fuel.
         // The image boundary rejoins the exact current operation and operands;
         // requires_graph_storage_replay prevents a legacy mirror substituting
         // for that retained physical evidence.
@@ -281,7 +281,7 @@ pub(super) fn operation(
             crash_continuations,
             ..
         } => {
-            selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && super::call_target_matches(*callee,row.call.target)
+            selected.calls.iter().filter(|row| row.owner.operation() == Some(*psi_operation) && super::call_target_matches(*callee,row.call.target)
                 && row.call.structural_result.as_ref() == Some(result)
                 && row.call.result_placement == row.call.call_plan.result && row.call.result_placement.is_some()
                 && row.call.crash_continuations == *crash_continuations).count() == 1

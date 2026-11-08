@@ -1,7 +1,8 @@
 //! Object-container manifest codec tests.
 
 use super::{
-    FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerManifestDecodeError,
+    FuelScheduleIdentity, FunctionFragmentObjectContainerManifest,
+    FunctionFragmentObjectContainerManifestDecodeError,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentObjectContainerStage,
     FunctionFragmentObjectContainerStatistics, FunctionFragmentObjectContainerUnavailableData,
     FunctionFragmentTextSectionManifestIdentity, MachineId, NativeTarget, ObjectLocalSymbolId,
@@ -9,7 +10,6 @@ use super::{
     RelocationFreeObjectPlanIdentity, RelocationFreeObjectRelocationRequirements,
     RelocationFreeObjectSymbolPolicy, SelectedInstructionPlanIdentity, SemanticFingerprint,
     TerminalPsiIdentity, TerminalRelocationFreeTextSectionIdentity, VocabularyMarker,
-    WorkScheduleIdentity,
 };
 #[test]
 fn manifest_codec_rejects_wrong_magic_version_and_trailing_bytes() {
@@ -24,7 +24,7 @@ fn manifest_codec_rejects_wrong_magic_version_and_trailing_bytes() {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
         },
-        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         selections: OptimizationSelectionIdentity::from_bytes([2; 32]),
         selected: SelectedInstructionPlanIdentity::from_bytes([3; 32]),
         target: NativeTarget::linux_x64(),

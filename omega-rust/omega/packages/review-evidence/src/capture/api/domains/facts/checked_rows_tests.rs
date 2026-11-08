@@ -1,7 +1,4 @@
-// Differential unit test verifying that `require_exact_checked_fact` using
-// indexed `rows_at_point` lookup matches a full-arena scan across row
-// selection, residual predicate filtering, ownership records, and refusal order.
-
+//! The production requirement against its literal original whole-arena scan.
 use super::*;
 use facts::evidence::FactTable;
 use facts::{DataDefinitionFactRecord, Fact, FactPayload, ProgramPoint};
@@ -123,6 +120,8 @@ fn exact_checked_facts_keep_original_rows_ownership_and_refusal_order() {
             ..Default::default()
         };
         let mut rows = FactTable::default();
+        // Deliberately no contexts/refs: the raw table, not context membership,
+        // is the original authority for complete row selection at this point.
         let handle = rows.append(expected);
         let record = DataDefinitionFactRecord {
             data_symbol: symbol,
@@ -131,6 +130,7 @@ fn exact_checked_facts_keep_original_rows_ownership_and_refusal_order() {
             ..Default::default()
         };
         assert!(compare(&typed, &rows, std::slice::from_ref(&record), symbol, proof).is_ok());
+        // Each residual predicate remains active even inside the selected bucket.
         let mut wrong = expected;
         wrong.origin = facts::FactOrigin::Unknown;
         rows.append(wrong);
@@ -176,6 +176,7 @@ fn exact_checked_facts_keep_original_rows_ownership_and_refusal_order() {
                 .contains("among 0 retained")
         );
         rows.append(expected);
+        // Semantic duplicate failure precedes absent/wrong ownership failure.
         let duplicate = compare(&typed, &rows, &[], symbol, proof).unwrap_err();
         assert!(duplicate[0].contains("2 exact checked definition rows; expected one"));
     }

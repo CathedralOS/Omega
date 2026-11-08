@@ -1,5 +1,4 @@
-// Opaque representation selection and movement-occurrence joins for boundary calling
-// plans, removing all replay receipts afterward.
+//! Exact opaque selection/use joins with all replay receipts removed afterward.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::refusal;

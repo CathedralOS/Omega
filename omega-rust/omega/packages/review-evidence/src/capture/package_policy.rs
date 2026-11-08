@@ -1,14 +1,7 @@
-/*
-Direct assembly of normalized checked package policy (`project_checked_package_policy`).
-
-`PolicyCheckingContexts` borrows separate immutable `CheckingContext` instances
-for the supplied candidate and compiler custody so family heads rederiving
-original declarations never read the candidate's memoized query state. The
-assembled `PackagePolicyBaseline` joins public API, callables, selected
-providers, terminal permissions, representation, external supplies, native
-bindings, dangerous capabilities, semantic dependencies, boundary applications,
-restricted build requests, assumed bindings, and service audits.
-*/
+//! Direct assembly of normalized checked package policy components.
+//!
+//! This does not construct a legacy review capsule, persist proof results, or
+//! admit the package. Every component retains its own checked association owner.
 
 pub(crate) mod assumed_bindings;
 mod authority;
@@ -26,6 +19,9 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
+/// One projection borrows both immutable namespaces for its whole lifetime.
+/// Family heads rederive original declarations repeatedly; their normalization
+/// belongs to custody, independently of the supplied candidate's query state.
 struct PolicyCheckingContexts<'program> {
     candidate: validation::CheckingContext<'program>,
     custody: validation::CheckingContext<'program>,

@@ -1,4 +1,4 @@
-// External executable policy identity and binding vocabulary without evaluation receipts or executable artifacts.
+//! External executable policy identity without evaluation receipts.
 
 mod signatures;
 mod validation;
@@ -11,6 +11,7 @@ pub(crate) use signatures::{
     PackagePolicyExternalCallableSignature, PackagePolicyExternalRequirement,
 };
 
+/// Exact producer identity retained independently of its evaluation history.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyEvaluatedBindingProducer {
     pub(crate) declaration: PackageReviewNominalIdentity,
@@ -27,6 +28,10 @@ impl PackagePolicyEvaluatedBindingProducer {
     }
 }
 
+/// Complete external binding vocabulary for policy comparison.
+///
+/// Typed binding results remain distinct from legacy string and integer
+/// carriers. No variant retains an evaluator receipt or executable artifact.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyExternalBinding {
     NormalizedImport {
@@ -90,6 +95,7 @@ impl From<&PackageReviewExternalBinding> for PackagePolicyExternalBinding {
     }
 }
 
+/// Normalized external-supply finding, not acceptance or proof authority.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyExternalExecutableSupply {
     pub(crate) callable: PackageReviewNominalIdentity,

@@ -378,7 +378,7 @@ fn stored_copy<'facts>(
         && value.expression == local.initial_value
         && value.type_reference == local.type_reference)
         .then(|| {
-            crate::flow::CapturedOperand::recorded(captures.flow.control, statement.stored_value)
+            crate::flow::CapturedOperand::recorded(&captures.flow.control, statement.stored_value)
         })
         .flatten()
         .map(|value| (state_flow, value))

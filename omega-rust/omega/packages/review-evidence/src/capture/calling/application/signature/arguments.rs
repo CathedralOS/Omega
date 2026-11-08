@@ -1,5 +1,4 @@
-// Declared argument category projection and exact inherited substitution environments
-// for calling trait applications.
+//! Declared argument categories and exact inherited substitution environments.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::rejected;

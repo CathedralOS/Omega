@@ -1,4 +1,4 @@
-//! Terminal-carrier footprints preserve loans carried into a successor.
+//! State-jump footprints preserve the loans carried into a successor.
 //! Ordinary returning calls use explicit argument exclusivity, not a
 //! receiver-specific relaxation based on which fields the callee accesses.
 
@@ -33,10 +33,10 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
     diagnostics: &mut Vec<Diagnostic>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    if forwarded_mutable_parent_machine(program, state_flow, call).is_none() {
+    if whole_mutable_jump_machine(program, state_flow, call).is_none() {
         return;
     }
-    let data_access = explicit_carried_data_access(program, facts, state_flow, call);
+    let data_access = explicit_jump_data_access(program, facts, state_flow, call);
     let retained_arguments: Vec<_> = facts
         .borrow
         .argument_accesses
@@ -146,19 +146,20 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
     }
 }
 
-/// A terminal successor receives its existing data permission together with
-/// the child loans it keeps alive. The parent is judged by that successor's footprint;
+/// A local successor receives its data parameter together with the child loans
+/// it keeps alive. The parent is judged by that successor's footprint;
 /// it is not a second independent loan of every field.
 /// Keep the original access roster and its coordinates for operand evaluation
 /// and independent replay. Only one exact retained parent access can use this
 /// judgment, and ordinary returning calls retain their operand exclusivity.
-pub(in crate::checks::borrows::calls) fn explicit_carried_data_access(
+pub(in crate::checks::borrows::calls) fn explicit_jump_data_access(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
 ) -> Option<usize> {
-    let machine = forwarded_mutable_parent_machine(program, state_flow, call)?;
+    super::local_jump(program, state_flow, call)?;
+    let machine = whole_mutable_jump_machine(program, state_flow, call)?;
     retained_subject_access(program, facts, state_flow, call, machine)
 }
 
@@ -204,22 +205,16 @@ fn retained_subject_access(
     matching.next().is_none().then_some(ordinal)
 }
 
-/// A terminal invocation can forward an existing data parent while that parent
-/// stays suspended by its child. This does not authorize fresh overlapping borrow formations
-/// or change any caller-local scope/cleanup boundary.
-fn forwarded_mutable_parent_machine<'p>(
+/// Only a local state jump transfers the current activation's data parent.
+/// Returning calls establish ordinary loans, independent of callee footprints.
+fn whole_mutable_jump_machine<'p>(
     program: &'p dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
 ) -> Option<&'p typed_trees::machine::Machine> {
-    let transfer = flow::terminal_invocation(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        call,
-    )?;
+    super::local_jump(program, state_flow, call)?;
     let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
-    let target = transfer.target;
+    let target = program.state_by_symbol(call.target_symbol)?;
     let parameter = flow::family_data_binding_parameter(
         program,
         machine.symbol,
@@ -235,29 +230,6 @@ fn forwarded_mutable_parent_machine<'p>(
         }
     ) {
         return None;
-    }
-    if super::local_jump(program, state_flow, call).is_none() {
-        // A machine invocation can transport an existing parent permission,
-        // but a newly formed borrow remains an ordinary competing argument.
-        // Terminal position alone supplies neither lineage nor fresh access.
-        let ordinal = typed_trees::signature::state_parameter_position(
-            program.state_parameters(target),
-            parameter.symbol,
-        )?;
-        let actual =
-            *validation::call_site_argument_expressions(program, &transfer.site).get(ordinal)?;
-        if validation::reference_formation_source(program, actual).is_some()
-            || !validation::expression_type_reference_in_state(
-                program,
-                state_flow.state_symbol,
-                call.statement_index,
-                actual,
-            )
-            .and_then(|reference| validation::reference_shell(program, reference))
-            .is_some_and(|shell| shell.access == ReferenceAccess::Mutable)
-        {
-            return None;
-        }
     }
     let receiver = validation::find_call_site(
         program,

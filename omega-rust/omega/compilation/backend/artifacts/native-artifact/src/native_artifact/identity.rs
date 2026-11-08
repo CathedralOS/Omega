@@ -8,15 +8,11 @@ use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
-// v15 distinguishes checked private-image stack provision from incoming
-// stack accesses; the receiver still admits the exact mapped invocation.
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v15\0";
+// v10 commits closed Import coordinates independently of unchanged Terminal bytes.
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v10\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
-    pub(super) physical_entry_requirements: Option<&'a image_emission::PhysicalEntryRequirements>,
     pub(super) terminal_artifact_identity: [u8; 32],
-    pub(super) installation_assumptions:
-        Vec<&'a installation_evidence::InstallationEnvironmentAssumption>,
     pub(super) target: target::NativeTarget,
     pub(super) object_text_bytes: &'a [u8],
     pub(super) image_bytes: &'a [u8],
@@ -95,28 +91,6 @@ pub(super) fn derive_native_artifact_identity(
 ) -> NativeArtifactIdentity {
     let mut digest = DomainDigestEncoder::new(NATIVE_ARTIFACT_IDENTITY_DOMAIN);
     digest.raw(&fields.terminal_artifact_identity);
-    hash_physical_entry_requirements(&mut digest, fields.physical_entry_requirements);
-    digest.u64(fields.installation_assumptions.len() as u64);
-    for row in fields.installation_assumptions {
-        digest.byte(row.condition_tag());
-        digest.raw(row.psi().program_fingerprint.as_bytes());
-        digest.raw(&row.psi().vocabulary_marker.get().to_le_bytes());
-        hash_bytes(&mut digest, row.profile().identity().as_str().as_bytes());
-        digest.raw(&row.entry().get().to_le_bytes());
-        digest.raw(&row.installation().get().to_le_bytes());
-        match row {
-            installation_evidence::InstallationEnvironmentAssumption::Bootstrap(row) => match row.interval {
-                installation_evidence::BootstrapAssumptionInterval::EntryUntilInstallationPublished => digest.byte(0),
-            },
-            installation_evidence::InstallationEnvironmentAssumption::InterruptDelivery(row) => {
-                match row.interval { installation_evidence::InterruptDeliveryInterval::InstalledScopeLifetime => digest.byte(0) }
-                match row.delivery { installation_evidence::X86InterruptDeliveryProfile::ArchitecturalExceptionsAndExternalIrqs => digest.byte(0) }
-            }
-        }
-        digest.raw(row.environment_description_sha256());
-        hash_bytes(&mut digest, row.source_provenance().as_bytes());
-        hash_bytes(&mut digest, row.caller_provenance().as_bytes());
-    }
     // The target's canonical wire identity: architecture, object format,
     // pointer size and alignment, stated once by the target owner.
     digest.raw(&fields.target.wire_identity_bytes());
@@ -366,103 +340,6 @@ fn hash_optional_digest_and_report(
             digest.raw(&[1]);
             digest.raw(&strong_digest);
             digest.raw(&report_fingerprint.to_le_bytes());
-        }
-    }
-}
-
-/// The rule is address-independent. The enclosing native identity commits the
-/// emitted image and its layout; a receiver binds its relocated occurrence.
-fn hash_physical_entry_requirements(
-    digest: &mut DomainDigestEncoder,
-    requirement: Option<&image_emission::PhysicalEntryRequirements>,
-) {
-    let Some(row) = requirement else {
-        digest.byte(0);
-        return;
-    };
-    digest.byte(1);
-    // Closed semantics: mapped code/data plus retained RW backing throughout
-    // the physical invocation and its installed Scopes. This is a requirement,
-    // never a caller-supplied assertion that a runtime mapping exists.
-    digest.byte(0);
-    digest.raw(&row.psi().vocabulary_marker.get().to_le_bytes());
-    digest.raw(row.psi().program_fingerprint.as_bytes());
-    digest.raw(&row.target().wire_identity_bytes());
-    digest.raw(&row.semantic_entry().get().to_le_bytes());
-    digest.raw(&row.adapter().get().to_le_bytes());
-    let contract = row.contract();
-    hash_bytes(
-        digest,
-        contract.target_slot().owner.identity().as_str().as_bytes(),
-    );
-    hash_bytes(
-        digest,
-        contract.target_package().manifest_identity().as_bytes(),
-    );
-    digest.raw(contract.target_package_source_digest().as_bytes());
-    hash_identity_text(
-        digest,
-        contract.identities(),
-        contract.requirement_identity(),
-    );
-    digest.u64(contract.parameter_type_identities().len() as u64);
-    for identity in contract.parameter_type_identities() {
-        hash_identity_text(digest, contract.identities(), *identity);
-    }
-    hash_identity_text(
-        digest,
-        contract.identities(),
-        contract.result_type_identity(),
-    );
-    let mut plan_bytes = Vec::new();
-    legalized_operations::encode_call_plan(&mut plan_bytes, &contract.boundary_entry_plan().call);
-    calling_conventions::encode_state_plan_identity(
-        &mut plan_bytes,
-        &contract.boundary_entry_plan().state,
-    );
-    hash_bytes(digest, &plan_bytes);
-    hash_optional_digest(
-        digest,
-        contract
-            .guaranteed_entry_stack()
-            .map(|row| *row.compatibility_commitment()),
-    );
-    hash_physical_entry_stack(digest, row.stack());
-    let storage = row.retained_storage();
-    for value in [
-        storage.retained_start_offset,
-        storage.saved_state_offset,
-        storage.stack_offset,
-        storage.stack_byte_count,
-        storage.end_offset,
-    ] {
-        digest.u64(value);
-    }
-    digest.u64(row.installed_scopes().len() as u64);
-    for operation in row.installed_scopes() {
-        digest.raw(&operation.get().to_le_bytes());
-    }
-    digest.byte(match row.installed_cpu() {
-        None => 0,
-        Some(image_emission::InstalledPhysicalCpuRequirement::X86LongModeCpl0WithoutCet) => 1,
-    });
-}
-
-fn hash_physical_entry_stack(
-    digest: &mut DomainDigestEncoder,
-    requirement: image_emission::PhysicalEntryStackRequirement,
-) {
-    match requirement {
-        image_emission::PhysicalEntryStackRequirement::CheckedPrivateImage {
-            incoming,
-            minimum_private_stack_bytes,
-        } => {
-            digest.byte(0);
-            digest.u64(incoming.bytes_below_entry_rsp);
-            digest.u64(incoming.readable_bytes_from_entry_rsp);
-            digest.u64(incoming.caller_alignment);
-            digest.u64(incoming.caller_rsp_bias);
-            digest.u64(minimum_private_stack_bytes);
         }
     }
 }

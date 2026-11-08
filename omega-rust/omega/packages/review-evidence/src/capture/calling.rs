@@ -1,5 +1,4 @@
-// Compiler-owned projection of inert calling-contract components (application
-// calling plans, callback layouts/binders, opaque uses, and physical contracts).
+//! Compiler-owned projection of inert calling-contract components.
 
 pub(crate) mod application;
 pub(crate) mod callbacks;

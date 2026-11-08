@@ -135,7 +135,7 @@ pub(super) fn project(
                 psi_edge: *psi_edge,
                 call,
                 declared_result: declared_result.clone(),
-                work: node.work.clone(),
+                fuel: node.fuel.clone(),
                 effect: node.effect,
                 ownership: node.ownership.clone(),
             })
@@ -176,7 +176,7 @@ pub(super) fn project(
                 structural_arguments: structural_arguments.clone(),
                 requirement_obligations: requirement_obligations.clone(),
                 frontier_lower_bound: frontier_lower_bound.clone(),
-                work: node.work.clone(),
+                fuel: node.fuel.clone(),
                 effect: node.effect,
                 ownership: node.ownership.clone(),
             })
@@ -191,7 +191,7 @@ pub(super) fn project(
             cause: *cause,
             site_guard: site_guard.clone(),
             frontier_lower_bound: frontier_lower_bound.clone(),
-            work: node.work.clone(),
+            fuel: node.fuel.clone(),
             effect: node.effect,
             ownership: node.ownership.clone(),
         }),
@@ -214,7 +214,7 @@ pub(super) fn project(
             Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                 edge: *psi_edge,
                 value,
-                work: node.work.clone(),
+                fuel: node.fuel.clone(),
                 effect: node.effect,
                 ownership: node.ownership.clone(),
             }))
@@ -226,7 +226,7 @@ pub(super) fn project(
             Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                 edge: *psi_edge,
                 value: LegalizedScalarReturnValue::Unit,
-                work: node.work.clone(),
+                fuel: node.fuel.clone(),
                 effect: node.effect,
                 ownership: node.ownership.clone(),
             }))
@@ -243,7 +243,7 @@ pub(super) fn project(
                     value: *value,
                     scalar_type: *scalar_type,
                 },
-                work: node.work.clone(),
+                fuel: node.fuel.clone(),
                 effect: node.effect,
                 ownership: node.ownership.clone(),
             }))
@@ -341,7 +341,7 @@ pub(super) fn successor(
         target: edge.target,
         bindings: edge.bindings.clone(),
         structural_bindings,
-        work: edge.work.clone(),
+        fuel: edge.fuel.clone(),
         cleanup_calls: Vec::new(),
     })
 }

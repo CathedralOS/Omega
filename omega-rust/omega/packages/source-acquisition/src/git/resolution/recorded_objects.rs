@@ -1,12 +1,4 @@
-// Recorded commit and root-tree availability checks (`recorded_revision_needs_fetch`)
-// for exact-revision Git resolutions.
-//
-// A healthy cache may lack a historical object without being corrupted. When
-// the recorded commit is present, we immediately authenticate its payload and
-// verify that its root tree edge matches `recorded.tree` (so a wrong expected
-// tree fails closed rather than triggering a fetch). If either the commit or
-// tree is missing, `Offline` returns `GitExactRevisionUnavailable` and
-// `AllowFetch` authorizes a fetch.
+//! A healthy cache may lack a historical object without being corrupted.
 
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
@@ -43,6 +35,7 @@ pub(super) fn recorded_revision_needs_fetch(
         ExactGitObjectKind::Commit,
     )?;
     if commit_present {
+        // A wrong expected tree is a mismatch, not permission to fetch.
         authenticate_git_commit(executor, repository, &recorded.commit, &recorded.tree)?;
     }
     let tree_present = present(

@@ -1,26 +1,7 @@
-/*
-Native process-container lifecycle (`BoundedProcessChild`) from spawn through
-container termination, reaping, and completion.
-
-We place every spawned child inside an OS process container before any child
-instruction runs (a Unix process group via `command-group` or a suspended-start
-Windows Job Object via `windows::WindowsJobChild`). `finish` refuses to return a
-`BoundedProcessCompletion` until both `terminate` (`container_closed == true`)
-and `try_wait` (`status.is_some()`) have succeeded; dropping an unfinished
-`BoundedProcessChild` kills and reaps the container as a fallback.
-
-Why does `terminate` reap and retry once when `self.child.kill()` returns POSIX
-`EPERM` (`group_signal_refused`)?
-- POSIX `ESRCH` (errno 3) alone proves that no process group exists
-  (`native_container_already_absent`).
-- On macOS, `killpg` returns `EPERM` (errno 1) instead of `ESRCH` when every
-  remaining member of the process group is an unreaped zombie. When the primary
-  child exits before `terminate` is called, reaping it with `self.try_wait()?`
-  and retrying `self.child.kill()` once either signals any surviving
-  descendants (`Ok(())`), sees an empty group (`ESRCH` -> `Ok(())`), or
-  preserves `EPERM` if a primary is still mid-exit so the caller's cleanup loop
-  can poll and retry.
-*/
+//! Own the native process container from launch through closure and reaping.
+//!
+//! Explicit completion consumes the child only after closure and reaping;
+//! dropping an unfinished child retains the platform cleanup fallback.
 
 mod completion;
 mod resource_usage;
@@ -54,6 +35,8 @@ pub struct BoundedProcessChild {
 }
 
 impl BoundedProcessChild {
+    /// The actual primary process, for OS-authenticated private endpoint joins.
+    /// A numeric process identity alone grants no invocation or call authority.
     pub fn id(&mut self) -> u32 {
         #[cfg(windows)]
         {
@@ -65,6 +48,8 @@ impl BoundedProcessChild {
         }
     }
 
+    /// Spawn a configured command inside the platform process
+    /// container before any child code may execute.
     pub fn spawn(prepared: BoundedProcessPrepared) -> io::Result<Self> {
         let observe_resources = prepared.should_observe_resources();
         #[cfg(unix)]
@@ -121,6 +106,9 @@ impl BoundedProcessChild {
         self.inner().stderr.take()
     }
 
+    /// Terminate the platform-owned process container. This is a process group
+    /// on Unix and a Job Object on Windows. Calling it after natural primary
+    /// exit intentionally closes descendants that remain in that container.
     pub fn terminate(&mut self) -> io::Result<()> {
         match self.child.kill() {
             Ok(()) => {
@@ -132,6 +120,16 @@ impl BoundedProcessChild {
                 Ok(())
             }
             Err(error) if Self::group_signal_refused(&error) => {
+                // macOS answers EPERM, not ESRCH, when every remaining member
+                // of the group is an unreaped zombie (POSIX reserves EPERM for
+                // a live process this caller may not signal). A primary that
+                // exited before cleanup is exactly that case, so reap it and
+                // retry once: a surviving descendant is then signalled by the
+                // retry, an empty group answers ESRCH and closes, and a live
+                // member this caller genuinely cannot signal still refuses.
+                // A primary still in the middle of exiting is not reapable
+                // yet and refuses again; the caller that owns the cleanup
+                // budget polls and retries `terminate` in that case.
                 self.try_wait()?;
                 match self.child.kill() {
                     Ok(()) => {
@@ -149,6 +147,10 @@ impl BoundedProcessChild {
         }
     }
 
+    /// Whether a `terminate` failure means the platform refused to signal a
+    /// group that still exists (POSIX EPERM). On macOS this is also what an
+    /// exiting-but-not-yet-reapable primary answers, so it is worth retrying
+    /// within the caller's cleanup budget rather than reporting at once.
     pub(crate) fn group_signal_refused(error: &io::Error) -> bool {
         #[cfg(unix)]
         {
@@ -195,6 +197,7 @@ impl BoundedProcessChild {
         Ok(status)
     }
 
+    /// Consume a closed and reaped bounded execution.
     pub fn finish(mut self) -> io::Result<BoundedProcessCompletion> {
         if !self.container_closed {
             return Err(io::Error::new(
@@ -244,6 +247,9 @@ impl Drop for BoundedProcessChild {
 fn native_container_already_absent(error: &io::Error) -> bool {
     #[cfg(unix)]
     {
+        // POSIX ESRCH alone proves that no process group exists. EPERM proves
+        // the opposite: a group exists but this caller cannot signal it, or,
+        // on macOS, its only members are zombies (see `terminate`).
         error.raw_os_error() == Some(3)
     }
     #[cfg(not(unix))]

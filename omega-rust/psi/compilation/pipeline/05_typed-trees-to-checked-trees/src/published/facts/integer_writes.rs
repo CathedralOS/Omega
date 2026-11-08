@@ -46,12 +46,6 @@ pub(super) fn retain_assignment_decision(
     }
 }
 
-/// Record every integer assignment's performed write, machine by machine.
-///
-/// One machine's rows read only `&` inputs and no other machine's rows, so
-/// each machine is derived on the checking pool and the rows are inserted in
-/// roster order afterwards: the same rows in the same order as one serial
-/// pass, whatever the thread count.
 pub(super) fn retain(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
@@ -61,123 +55,99 @@ pub(super) fn retain(
     frames: Option<&validation::CallFrameResolver<'_>>,
     mutation: &mut MutationFacts,
 ) {
-    use rayon::prelude::*;
-    let rows = validation::checking_thread_pool().install(|| {
-        program
-            .machines()
-            .par_iter()
-            .map(|machine| {
-                machine_integer_writes(program, operators, values, flow, semantic, frames, machine)
-            })
-            .collect::<Vec<_>>()
-    });
-    for row in rows.into_iter().flatten() {
-        mutation.integer_writes.insert(row);
-    }
-}
-
-/// One machine's performed integer writes, in state and statement order.
-fn machine_integer_writes(
-    program: &dyn ::validation::CheckingInput,
-    operators: &CheckedOperatorFacts,
-    values: &CheckedValueFacts,
-    flow: &FlowFacts,
-    semantic: &facts::FactPlan,
-    frames: Option<&validation::CallFrameResolver<'_>>,
-    machine: &typed_trees::machine::Machine,
-) -> Vec<PerformedIntegerWrite> {
-    let mut rows = Vec::new();
-    for state in program.machine_states(machine) {
-        let flow_state = flow.control.state(machine.symbol, state.symbol);
-        for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
-            let Some(assignment) = statement.as_assignment() else {
-                continue;
-            };
-            let primitive = validation::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                assignment.target,
-            )
-            .map(|reference| validation::assignment_value_type(program, reference))
-            .and_then(|reference| program.primitive_type_reference(reference));
-            let Some(primitive) = primitive.filter(|primitive| primitive.accepts_integer_literal())
-            else {
-                continue;
-            };
-            let origin = CheckedValueOrigin::StateStatement {
-                machine_symbol: machine.symbol,
-                state_symbol: state.symbol,
-                statement_index,
-                role: CheckedValueStatementRole::AssignmentValue,
-            };
-            let mut ranges = values
-                .expression_values(assignment.value)
-                .map(|(_, value)| value)
-                .filter(|value| value.origin == origin);
-            let integer_range = ranges.next().and_then(|value| {
-                ranges
-                    .next()
-                    .is_none()
-                    .then(|| value.integer_range.clone())
-                    .flatten()
-            });
-            let contexts = flow_state
-                .and_then(|state| {
-                    flow.control
-                        .statements
-                        .span_or_empty(state.statements)
-                        .iter()
-                        .find(|fact| fact.statement_index == statement_index)
-                })
-                .map(|statement| {
-                    flow.semantic_constraint_contexts(statement.pre_store_constraints)
-                        .collect::<Vec<_>>()
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let flow_state = flow.control.state(machine.symbol, state.symbol);
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
+                let Some(assignment) = statement.as_assignment() else {
+                    continue;
+                };
+                let primitive = validation::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    assignment.target,
+                )
+                .map(|reference| validation::assignment_value_type(program, reference))
+                .and_then(|reference| program.primitive_type_reference(reference));
+                let Some(primitive) =
+                    primitive.filter(|primitive| primitive.accepts_integer_literal())
+                else {
+                    continue;
+                };
+                let origin = CheckedValueOrigin::StateStatement {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    statement_index,
+                    role: CheckedValueStatementRole::AssignmentValue,
+                };
+                let mut ranges = values
+                    .expression_values(assignment.value)
+                    .map(|(_, value)| value)
+                    .filter(|value| value.origin == origin);
+                let integer_range = ranges.next().and_then(|value| {
+                    ranges
+                        .next()
+                        .is_none()
+                        .then(|| value.integer_range.clone())
+                        .flatten()
                 });
-            let entry_condition = contexts
-                .as_ref()
-                .and_then(|contexts| entry_path_condition(semantic, contexts, machine.symbol));
-            let operand_writes =
-                frames.map(|frames| frames.statement_value_write_frame(machine, statement));
-            let entry_value = crate::values::lower_entry_scalar(
-                program,
-                operators,
-                machine,
-                state,
-                statement_index,
-                assignment.value,
-                primitive,
-                &|place| {
-                    let paths = operand_writes.as_ref()?.complete_paths()?;
-                    if paths.iter().any(|written| {
-                        validation::frame_paths_overlap(written, &place.label(program))
-                    }) {
-                        return None;
-                    }
-                    super::entry_parameter_place_before_statement(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        statement_index,
-                        place,
-                    )
-                },
-            );
-            rows.push(PerformedIntegerWrite {
-                machine: machine.symbol,
-                state: state.symbol,
-                statement_index,
-                destination: assignment.target,
-                value: assignment.value,
-                primitive_type: Some(primitive),
-                frame: frames.map_or_else(facts::NormalizedWriteFrame::opaque, |frames| {
-                    frames.assignment_write_frame(machine, statement)
-                }),
-                integer_range,
-                entry_value,
-                entry_condition,
-            });
+                let contexts = flow_state
+                    .and_then(|state| {
+                        flow.control
+                            .statements
+                            .span_or_empty(state.statements)
+                            .iter()
+                            .find(|fact| fact.statement_index == statement_index)
+                    })
+                    .map(|statement| {
+                        flow.semantic_constraint_contexts(statement.pre_store_constraints)
+                            .collect::<Vec<_>>()
+                    });
+                let entry_condition = contexts
+                    .as_ref()
+                    .and_then(|contexts| entry_path_condition(semantic, contexts, machine.symbol));
+                let operand_writes =
+                    frames.map(|frames| frames.statement_value_write_frame(machine, statement));
+                let entry_value = crate::values::lower_entry_scalar(
+                    program,
+                    operators,
+                    machine,
+                    state,
+                    statement_index,
+                    assignment.value,
+                    primitive,
+                    &|place| {
+                        let paths = operand_writes.as_ref()?.complete_paths()?;
+                        if paths.iter().any(|written| {
+                            validation::frame_paths_overlap(written, &place.label(program))
+                        }) {
+                            return None;
+                        }
+                        super::entry_parameter_place_before_statement(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            place,
+                        )
+                    },
+                );
+                mutation.integer_writes.insert(PerformedIntegerWrite {
+                    machine: machine.symbol,
+                    state: state.symbol,
+                    statement_index,
+                    destination: assignment.target,
+                    value: assignment.value,
+                    primitive_type: Some(primitive),
+                    frame: frames.map_or_else(facts::NormalizedWriteFrame::opaque, |frames| {
+                        frames.assignment_write_frame(machine, statement)
+                    }),
+                    integer_range,
+                    entry_value,
+                    entry_condition,
+                });
+            }
         }
     }
-    rows
 }

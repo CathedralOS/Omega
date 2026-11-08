@@ -3,10 +3,7 @@
 //! nearest-FMA site - before native realization is allowed to begin.
 
 mod codec;
-pub use codec::{
-    decode_installation_assumptions, encode_installation_assumptions,
-    recover_native_derivation_inputs, retain_native_derivation_inputs,
-};
+pub use codec::{recover_native_derivation_inputs, retain_native_derivation_inputs};
 
 mod component_inputs;
 pub use component_inputs::{
@@ -57,9 +54,6 @@ pub struct TerminalNativeProviders {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeOccurrences {
     pub callbacks: Vec<TerminalCallbackOccurrenceProposal>,
-    /// Separately proposed installed entries; ordinary foreign argument and
-    /// import settlement must not consume these installation destinations.
-    pub installed_interrupts: Vec<crate::InstalledInterruptNativeEntryProposal>,
     /// None retains an unmaterialized target callback, not an empty roster.
     /// Such a Terminal product remains usable, but cannot enter native lowering.
     pub callback_arguments: Option<Vec<crate::NativeCallbackArgumentProposal>>,

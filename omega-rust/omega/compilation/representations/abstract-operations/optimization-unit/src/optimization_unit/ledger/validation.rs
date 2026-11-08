@@ -1,4 +1,4 @@
-//! Independent provenance and work-custody validation.
+//! Independent provenance and fuel-custody validation.
 
 use super::{BTreeSet, InvalidPsiTransformationLedger, ProvenanceRewrite};
 pub(super) fn validate_provenance(
@@ -19,7 +19,7 @@ pub(super) fn validate_provenance(
                 || group
                     .iter()
                     .skip(1)
-                    .any(|row| row.sources != group[0].sources || row.work != group[0].work))
+                    .any(|row| row.sources != group[0].sources || row.fuel != group[0].fuel))
         {
             return Err(InvalidPsiTransformationLedger::NonCanonicalProvenance);
         }
@@ -32,16 +32,16 @@ pub(super) fn validate_provenance(
         if row.input.machine() != row.disposition.site().machine() {
             return Err(InvalidPsiTransformationLedger::NonCanonicalProvenance);
         }
-        let work = row
-            .work
+        let fuel = row
+            .fuel
             .iter()
             .map(|settlement| settlement.site)
             .collect::<BTreeSet<_>>();
-        if work.len() != row.work.len() || work != sources {
-            return Err(InvalidPsiTransformationLedger::WorkProvenanceMismatch);
+        if fuel.len() != row.fuel.len() || fuel != sources {
+            return Err(InvalidPsiTransformationLedger::FuelProvenanceMismatch);
         }
-        if row.work.iter().any(|settlement| settlement.units == 0) {
-            return Err(InvalidPsiTransformationLedger::ZeroWorkSettlement);
+        if row.fuel.iter().any(|settlement| settlement.units == 0) {
+            return Err(InvalidPsiTransformationLedger::ZeroFuelSettlement);
         }
     }
     Ok(())

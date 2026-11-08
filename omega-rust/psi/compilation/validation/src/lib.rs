@@ -365,11 +365,10 @@ pub use machine_calls::effects::{
 };
 pub use machine_calls::machine_parameters::infer_call_type_arguments;
 pub use machine_calls::machine_parameters::{
-    PreparedInstalledInterruptRegistration, PreparedStaticMachineSelections,
-    StaticMachineContractObligation, ValidatedNominalMachineUse, ValidatedNominalMachineUseSite,
-    ValidatedRequirementCallMachineSelection, ValidatedRequirementCallSpecialization,
-    ValidatedRequirementCallTypeBinding, closed_static_call_type_bindings,
-    validate_static_machine_selections,
+    PreparedStaticMachineSelections, StaticMachineContractObligation, ValidatedNominalMachineUse,
+    ValidatedNominalMachineUseSite, ValidatedRequirementCallMachineSelection,
+    ValidatedRequirementCallSpecialization, ValidatedRequirementCallTypeBinding,
+    closed_static_call_type_bindings, validate_static_machine_selections,
 };
 pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
 pub use machine_calls::result_overloads::{

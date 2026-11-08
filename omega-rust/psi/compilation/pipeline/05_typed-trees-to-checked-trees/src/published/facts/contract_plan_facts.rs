@@ -208,18 +208,12 @@ pub(crate) fn build_contract_plans(
                     // machine's Nth parameter encodes as P<N>, so RENAMES never change
                     // the identity (the substitutable contract is positional).
                     let parameter_names = machine_entry_parameter_names(program, machine);
-                    // One spelling of the declaration predicate roster serves the
-                    // runtime requirement package and the rows a return restores,
-                    // which lowering publishes without spelling them again.
-                    let declaration_predicates =
-                        validation::machine_declaration_predicates(program, operators, machine);
                     let crash = build_published_crash_plan(
                         program,
                         machine,
                         &parameter_names,
                         &content_conservation,
                         operators,
-                        &declaration_predicates,
                         exact_integer_casts,
                     )
                     .map_err(|diagnostic| vec![diagnostic])?
@@ -277,11 +271,6 @@ pub(crate) fn build_contract_plans(
                         machine: machine.symbol,
                         closed_scalar_values,
                         crash,
-                        restored_declaration_predicates: declaration_predicates
-                            .into_iter()
-                            .filter(|row| row.restored_on_return)
-                            .map(|row| row.predicate)
-                            .collect(),
                         // No consumer observes these construction coordinates. Family
                         // envelopes settle before each final contract identity is minted.
                         report_fingerprint: 0,
@@ -308,9 +297,9 @@ pub(crate) fn build_contract_plans(
         let sites = operator_crashes_by_machine
             .remove(&plan.machine)
             .unwrap_or_default();
-        // Take the plan rather than copy it: on failure the whole build
-        // returns an error, and nothing reads `machines` again.
-        plan.crash = std::mem::take(&mut plan.crash)
+        plan.crash = plan
+            .crash
+            .clone()
             .with_checked_operators(sites)
             .ok_or_else(|| {
                 vec![diagnostics::Diagnostic::error(
@@ -373,24 +362,11 @@ pub(crate) fn build_contract_plans(
             .or_default()
             .push(*flow);
     }
-    // Hand each contract its capability rows first, in roster order, so that
-    // every envelope is then a pure function of `&` inputs and the envelopes
-    // are built on the checking pool. Collecting keeps roster order.
-    let machine_capabilities = machines
-        .iter()
-        .map(|contract| {
-            capabilities_by_machine
-                .remove(&contract.machine)
-                .unwrap_or_default()
-        })
-        .collect::<Vec<_>>();
-    let realized_envelopes = validation::checking_thread_pool().install(|| {
-        use rayon::prelude::*;
+    let realized_envelopes =
         machines
-            .par_iter()
-            .zip(machine_capabilities)
+            .iter()
             .enumerate()
-            .map(|(machine_index, (contract, capability_rows))| {
+            .map(|(machine_index, contract)| {
                 let machine = program
                     .machines()
                     .get(machine_index)
@@ -452,6 +428,9 @@ pub(crate) fn build_contract_plans(
                     .or_else(|| mutation.for_machine(contract.machine))
                     .map(|fact| fact.state_write_frames.clone())
                     .unwrap_or_default();
+                let capability_rows = capabilities_by_machine
+                    .remove(&contract.machine)
+                    .unwrap_or_default();
                 checked_trees::RealizedMachineContractEnvelope {
                 machine: contract.machine,
                 contract_report_fingerprint: contract.report_fingerprint,
@@ -477,8 +456,7 @@ pub(crate) fn build_contract_plans(
                     ),
             }
             })
-            .collect::<Vec<_>>()
-    });
+            .collect();
     let plans =
         checked_trees::MachineContractPlans::new(machines, crash_capsules, realized_envelopes);
     plans.validate_resource_envelopes().map_err(|error| {

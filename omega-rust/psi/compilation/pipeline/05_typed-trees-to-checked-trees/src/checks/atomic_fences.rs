@@ -79,7 +79,7 @@ pub(crate) fn ordering(
     }
     let captured = crate::flow::captured_operand_values(
         program,
-        facts.flow.view(),
+        &facts.flow,
         &facts.semantic,
         state,
         crate::flow::CapturedOperand::recorded(

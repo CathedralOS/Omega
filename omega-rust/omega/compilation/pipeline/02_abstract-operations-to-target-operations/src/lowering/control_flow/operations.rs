@@ -30,7 +30,6 @@ pub(super) fn lower_operation(
     selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
-    installed_interrupts: Option<&provider_admission::AdmittedInstalledInterruptCohort>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
 ) -> Result<(), LoweringError> {
@@ -691,116 +690,6 @@ pub(super) fn lower_operation(
                         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                     super::run_custody::lower(operation, site, declaration, settlement)
                 }
-                BoundarySettlementRealization::Builtin(BoundaryRealization::StaticInterrupt {
-                    operation: language_core::static_interrupts::StaticInterruptOperation::Install,
-                    ..
-                }) => {
-                    let operation_id = operation
-                        .psi_operation()
-                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                    let invalid = |reason| LoweringError::InvalidInstalledInterrupt {
-                        machine: function.machine,
-                        operation: operation_id,
-                        reason,
-                    };
-                    let scope =
-                        super::interrupt_installation::scope(operation_id, installed_interrupts)
-                            .map_err(|reason| LoweringError::InvalidInstalledInterrupt {
-                                machine: function.machine,
-                                operation: operation_id,
-                                reason,
-                            })?;
-                    let mut calls = Vec::with_capacity(2);
-                    for (role, machine, actual_position) in [
-                        (
-                            target_operations::InstallationCallRole::Validate,
-                            scope.validator(),
-                            0,
-                        ),
-                        (
-                            target_operations::InstallationCallRole::Work,
-                            scope.work(),
-                            5,
-                        ),
-                    ] {
-                        let callee = functions.get(&machine).copied().ok_or_else(|| {
-                            invalid(
-                                "installation helper body is absent from the executable closure",
-                            )
-                        })?;
-                        let [formal] = callee.structural_parameters.as_slice() else {
-                            return Err(invalid(
-                                "installation helper must have one structural formal",
-                            ));
-                        };
-                        if !callee.parameters.is_empty()
-                            || formal.access != terminal_psi::StructuralAccess::SharedBorrow
-                        {
-                            return Err(invalid(
-                                "installation helper must take one shared reference without scalar formals",
-                            ));
-                        }
-                        let signature = super::call_signature::prepare(
-                            site.function.machine,
-                            abstract_operations::AbstractCallSignature::Machine(callee),
-                            target,
-                            site.types,
-                        )?;
-                        let [placement] = signature.parameters.as_slice() else {
-                            return Err(invalid(
-                                "installation helper calling plan must contain one argument placement",
-                            ));
-                        };
-                        let mut actual = scope.arguments()[actual_position].clone();
-                        actual.access = terminal_psi::StructuralAccess::SharedBorrow;
-                        let argument = super::calls::structural_argument(
-                            &actual,
-                            &abstract_operations::StructuralCallFormal::from(formal),
-                            placement,
-                            machine,
-                            site.function,
-                            site.types,
-                            prepared,
-                            parameters_by_place,
-                            site.live,
-                            site.operations,
-                        )?;
-                        calls.push(target_operations::TargetInstallationCall {
-                            role,
-                            callee: machine,
-                            call_plan: signature.call_plan.into_call_plan(),
-                            argument,
-                        });
-                    }
-                    let calls = calls.try_into().map_err(|_| {
-                        invalid("installation requires ordered Validate and Work calls")
-                    })?;
-                    super::interrupt_installation::lower(
-                        operation,
-                        site,
-                        scope,
-                        calls,
-                        boundary_machines.get(boundary).copied().ok_or_else(|| {
-                            invalid("installation boundary declaration is absent")
-                        })?,
-                        settlements
-                            .get(boundary)
-                            .ok_or_else(|| invalid("installation boundary settlement is absent"))?,
-                    )
-                }
-                BoundarySettlementRealization::Builtin(BoundaryRealization::StaticInterrupt {
-                    ..
-                }) => super::static_interrupts::lower(
-                    operation,
-                    site,
-                    boundary_machines
-                        .get(boundary)
-                        .copied()
-                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
-                    settlements
-                        .get(boundary)
-                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
-                ),
                 BoundarySettlementRealization::Builtin(BoundaryRealization::AccessLifecycle {
                     ..
                 }) => {

@@ -5,16 +5,16 @@ use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildEvaluationUsageError,
     EvaluationAccountingError, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 use std::sync::{Arc, Barrier};
 
-fn limits(work: u64, cells: u64, bytes: u64) -> BuildEvaluationSponsorLimits {
-    BuildEvaluationSponsorLimits::new(work, 8, 2, 2, cells, bytes, cells, bytes).unwrap()
+fn limits(fuel: u64, cells: u64, bytes: u64) -> BuildEvaluationSponsorLimits {
+    BuildEvaluationSponsorLimits::new(fuel, 8, 2, 2, cells, bytes, cells, bytes).unwrap()
 }
 
 fn terminal() -> EvaluationMeasurementIdentity {
     EvaluationMeasurementIdentity::TerminalPsi {
-        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     }
 }
@@ -26,44 +26,44 @@ fn sponsor(cells: u64, bytes: u64) -> BuildEvaluationSponsor {
 #[test]
 fn aggregate_identity_refuses_both_engine_substitutions_without_charge() {
     let tree = BuildEvaluationSponsor::new(limits(10, 4, 8));
-    tree.charge_work_unit().unwrap();
+    tree.charge_fuel_unit().unwrap();
     assert!(tree.begin_invocation(terminal(), 10).is_err());
-    assert_eq!(tree.consumed_work_units(), 1);
+    assert_eq!(tree.consumed_fuel_units(), 1);
     let terminal = sponsor(4, 8);
     let invocation = terminal
         .begin_invocation(terminal.measurement(), 10)
         .unwrap();
-    invocation.charge_work(1).unwrap();
+    invocation.charge_fuel(1).unwrap();
     assert!(
         terminal
             .begin_invocation(EvaluationMeasurementIdentity::CheckedTree, 10)
             .is_err()
     );
-    assert!(terminal.charge_work_unit().is_err());
+    assert!(terminal.charge_fuel_unit().is_err());
     assert!(terminal.reserve_live_cell().is_err());
     assert!(terminal.reserve_live_text_bytes(1).is_err());
     assert!(terminal.charge_result_custody(1, 1).is_err());
-    assert_eq!(terminal.consumed_work_units(), 1);
+    assert_eq!(terminal.consumed_fuel_units(), 1);
     assert_eq!(terminal.live_storage_cells(), 0);
     assert_eq!(terminal.live_payload_bytes(), 0);
     assert_eq!(terminal.consumed_result_storage_cells(), 0);
 }
 
 #[test]
-fn rejected_combined_site_changes_neither_work_nor_storage() {
+fn rejected_combined_site_changes_neither_fuel_nor_storage() {
     let sponsor = sponsor(4, 8);
     let invocation = sponsor.begin_invocation(terminal(), 5).unwrap();
     let before = *invocation.snapshot().unwrap().record();
     assert!(invocation.reserve_site(3, 4, 9).is_err());
     assert_eq!(*invocation.snapshot().unwrap().record(), before);
-    assert_eq!(sponsor.consumed_work_units(), 0);
+    assert_eq!(sponsor.consumed_fuel_units(), 0);
     let lease = invocation.reserve_site(3, 4, 8).unwrap();
     assert!(invocation.reserve_site(3, 0, 0).is_err());
-    assert_eq!(sponsor.consumed_work_units(), 3);
+    assert_eq!(sponsor.consumed_fuel_units(), 3);
     drop(lease);
     assert_eq!(sponsor.live_storage_cells(), 0);
     assert_eq!(sponsor.live_payload_bytes(), 0);
-    assert_eq!(sponsor.consumed_work_units(), 3);
+    assert_eq!(sponsor.consumed_fuel_units(), 3);
 }
 
 #[test]
@@ -224,7 +224,7 @@ fn host_charges_are_observed_locally_and_aggregate_refusal_is_atomic() {
 #[test]
 fn unsupported_storage_schedule_is_not_schedule_one_by_default() {
     let identity = EvaluationMeasurementIdentity::TerminalPsi {
-        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         storage_schedule: TerminalStorageScheduleIdentity::new(2).unwrap(),
     };
     assert_ne!(EvaluationMeasurementIdentity::CheckedTree, terminal());
@@ -245,13 +245,13 @@ fn unsupported_storage_schedule_is_not_schedule_one_by_default() {
 }
 
 #[test]
-fn work_reservation_overflow_preserves_both_accounts() {
+fn fuel_reservation_overflow_preserves_both_accounts() {
     let sponsor =
         BuildEvaluationSponsor::new_with_measurement(limits(u64::MAX, 4, 8), terminal()).unwrap();
     let invocation = sponsor.begin_invocation(terminal(), u64::MAX).unwrap();
-    invocation.charge_work(u64::MAX).unwrap();
+    invocation.charge_fuel(u64::MAX).unwrap();
     let before = *invocation.snapshot().unwrap().record();
-    assert!(invocation.charge_work(1).is_err());
+    assert!(invocation.charge_fuel(1).is_err());
     assert!(invocation.reserve_site(1, 1, 1).is_err());
     assert_eq!(*invocation.snapshot().unwrap().record(), before);
 }

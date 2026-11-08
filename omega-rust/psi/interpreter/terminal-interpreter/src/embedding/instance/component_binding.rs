@@ -8,8 +8,8 @@
 use evaluation_accounting::EvaluationInvocationAccount;
 use std::collections::BTreeMap;
 
-use psi_work::WorkMeter;
 use semantic_vocabulary::{BoundaryMachineId, OperationId};
+use terminal_fuel::TerminalFuelMeter;
 use terminal_installation::{AdmittedComponentProvider, AdmittedScalarApplications};
 
 use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
@@ -281,7 +281,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         operation: OperationId,
         arguments: &[TerminalScalarValue],
         structural_operands: &[terminal_psi::StructuralArgument],
-        meter: &mut WorkMeter,
+        meter: &mut TerminalFuelMeter,
     ) -> Result<Option<TerminalExecutionStatus>, String> {
         let pending = self
             .pending

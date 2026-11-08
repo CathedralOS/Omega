@@ -10,10 +10,9 @@ path = "src/lib.rs"
 
 [features]
 test-support = []
-installed-artifact = ["dep:executable-installation"]
+installed-artifact = ["dep:executable-installation", "dep:layout-plans"]
 
 [dependencies]
-language-core = { path = "../../../../../psi/foundation/language-core" }
 provider-admission = { path = "../../../realization/provider-admission" }
 register-model = { path = "../../register-model" }
 machine-emission = { path = "../../machine-emission" }
@@ -28,7 +27,7 @@ abstract-operations = { path = "../../../representations/abstract-operations" }
 optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit/semantics" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
-layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
+layout-plans = { path = "../../../../../psi/foundation/layout-plans", optional = true }
 image = { path = "../image" }
 image-elf = { path = "../image-elf" }
 image-macho = { path = "../image-macho" }
@@ -50,7 +49,7 @@ terminal-psi = { path = "../../../../../psi/compilation/representations/terminal
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-installation = { path = "../../../../../psi/compilation/validation/terminal-installation" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
-psi-work = { path = "../../../../../psi/compilation/representations/terminal-psi/work" }
+terminal-fuel = { path = "../../../../../psi/compilation/representations/terminal-psi/fuel" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]

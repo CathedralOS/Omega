@@ -1,10 +1,7 @@
-// Platform-neutral exit status (`BoundedProcessExitStatus`) and completion
-// record (`BoundedProcessCompletion`) returned after a bounded process
-// container is closed and reaped.
-
 use super::ProcessResourceUsage;
 use std::process::ExitStatus;
 
+/// Platform-neutral status used for ordinary caller control flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundedProcessExitStatus {
     success: bool,
@@ -41,6 +38,8 @@ impl BoundedProcessExitStatus {
     }
 }
 
+/// Ordinary completion returned after the platform process container is closed and
+/// the primary child is reaped. This is control-flow data, not evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedProcessCompletion {
     status: BoundedProcessExitStatus,

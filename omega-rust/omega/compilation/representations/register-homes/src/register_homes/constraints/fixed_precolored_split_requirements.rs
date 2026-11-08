@@ -6,7 +6,7 @@ pub use identity::fixed_precolored_split_requirement_plan_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
-use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 
 use crate::{
@@ -38,7 +38,7 @@ pub struct FixedPrecoloredSplitRequirementPlan {
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub policy: FixedPrecoloredSplitRequirementPolicy,
     pub budget: OptimizationWorkBudget,

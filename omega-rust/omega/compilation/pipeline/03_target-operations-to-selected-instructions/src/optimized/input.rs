@@ -20,11 +20,6 @@ pub struct TargetSelectionInput<'input> {
     pub source: &'input AbstractOperationPlan,
     pub unit: &'input PsiOptimizationUnit,
     pub origins: BoundaryOriginFacts<'input>,
-    pub installed_entry_execution:
-        Option<&'input provider_admission::AdmittedInstalledEntryExecution>,
-    pub installed_interrupts: &'input provider_admission::AdmittedInstalledInterruptCohort,
-    pub installed_stack_requirements:
-        &'input [installation_evidence::InstalledInterruptStackRequirement],
     pub optimization: OptimizationIdentityBundleIdentity,
     pub projection: OptimizedAbstractPlanProjectionIdentity,
     pub manifest: PrePhysicalOptimizationManifestIdentity,

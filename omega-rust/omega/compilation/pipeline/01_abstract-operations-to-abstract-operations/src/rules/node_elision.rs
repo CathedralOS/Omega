@@ -2,7 +2,7 @@
 //!
 //! Dead-scalar and proof-check-elision rules supply their operation classifier
 //! and evidence requirement. The proposal walk joins liveness and effect facts,
-//! then retains affected blocks, provenance and work for independent validation.
+//! then retains affected blocks, provenance and fuel for independent validation.
 //! Value-numbering rules reuse `node_elision_accounting` when they substitute an
 //! existing value before removing a redundant node.
 
@@ -174,7 +174,7 @@ pub(super) fn node_elision_accounting(
             PsiRealizationSite::Node(old),
             PsiRealizationSite::Node(new),
             &node.provenance,
-            &node.work,
+            &node.fuel,
         ));
     }
     let mut affected = vec![block.id];

@@ -69,14 +69,6 @@ pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &SelectedFunction) {
 
                 crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::Installation { operation, role } => {
-                bytes.push(4);
-                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
-                bytes.push(match role {
-                    target_operations::InstallationCallRole::Validate => 0,
-                    target_operations::InstallationCallRole::Work => 1,
-                });
-            }
             target_operations::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,

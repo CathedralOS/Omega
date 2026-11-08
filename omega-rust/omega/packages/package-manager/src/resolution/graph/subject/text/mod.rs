@@ -1,30 +1,37 @@
-/*
-    We render and recover canonical source-closure text records: v2 for
-    `Product` graphs, v3 with `Build`-only catalog execution, and v4 with
-    purpose-tagged demand-time `Product` query dependencies.
-
-    Fixed-order LF-terminated records start with `omega-source-closure <ver>`,
-    then `target`, `root` (role/request/selected source), `packages N` (each
-    source, navigation, `authored N` product requests, and `authored-build M`
-    build requests), `edges N` (requester key, purpose, ordinal, request,
-    resolved alias, selected source), optional `catalog-dependencies N`, and
-    `end`. Provider graphs contain no nested catalog rows; their observations
-    are flattened at the outer level, keeping recovery bounded to two levels.
-    Legacy `omega-source-closure 1` records remain readable as the versioned
-    lock migration and decode as product-only projections and edges before
-    canonically re-encoding as v2 text on their next write.
-
-    String fields are quoted byte strings (`\"`, `\\`, and lowercase `\xhh` for
-    non-printable bytes) so raw caller path spelling is preserved without
-    assuming UTF-8, while semantic string fields still require UTF-8. Only
-    canonical re-encoding is accepted, and both text and reconstructed binary
-    independently obey the same record-byte limit.
-*/
-
-/*
-    Canonical source-closure text representation belongs to the source-closure
-    subject boundary (`resolution/graph/subject/text/mod.rs`).
-*/
+//! Canonical source-closure text: v2 for Product graphs, v3 with catalog execution.
+//!
+//! Fixed-order LF-terminated records start with `omega-source-closure 2`, then
+//! `target`, `root` (role/request/selected source), `packages N` (each source,
+//! navigation, `authored N` product requests, and `authored-build M` build
+//! requests), `edges N` (requester key, purpose, ordinal, request, resolved
+//! alias, selected source), and `end`. Keys expose name and lineage;
+//! resolutions expose commit/tree/content. No field is an encoded binary
+//! subject or admission result. Navigation remains separate from identity.
+//! Version 3 adds `catalog-dependencies N` before `end`: each observer source,
+//! navigation and exact Build request ordinal precedes its closed provider graph
+//! in the same readable text format. These rows do not add Product imports.
+//! Provider graphs contain no nested catalog rows; their observations are
+//! flattened at the outer level, keeping recovery bounded to two levels.
+//! Catalog-free subjects retain v2 text and v7 binary identity unchanged; only
+//! subjects carrying Build-only catalog execution rows use v3 text and v8 binary
+//! identity. Demand-time Product query dependencies use v4 text and v9 binary:
+//! each catalog ordinal is followed by its explicit purpose, keeping Build and
+//! Product ordinal zero distinct. Older versions never gain Product authority.
+//!
+//! Legacy `omega-source-closure 1` records remain readable as the versioned
+//! lock migration: they carry no `authored-build` sections or `purpose` rows
+//! and decode as product-only projections and edges. A recovered version-1
+//! subject canonically re-encodes as version 2 text (and version-7 binary),
+//! so retained locks are upgraded on their next write without broadening the
+//! legacy product semantics they recorded.
+//!
+//! String fields are quoted byte strings: printable ASCII is literal except
+//! `\"` and `\\`; other bytes use lowercase `\xhh`. This preserves raw caller
+//! path spelling without assuming UTF-8. Semantic string fields still require
+//! UTF-8. Decimal counts have no leading zeros. Only canonical re-encoding is
+//! accepted, including field order, spacing, escapes, and the final newline.
+//! Text and reconstructed binary independently obey the same record-byte limit;
+//! existing identity/request/count limits apply before semantic construction.
 
 mod framing;
 mod record;

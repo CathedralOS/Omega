@@ -1,5 +1,4 @@
-// Complete public declaration meaning (`PackagePolicyPublicApi`), independent
-// of legacy review bytes.
+//! Complete public declaration meaning, independent of legacy review bytes.
 
 mod declarations;
 mod getters;

@@ -1,5 +1,3 @@
-// Input, output, capture-limit, and error types for `run_bounded_process`.
-
 use crate::BoundedProcessExitStatus;
 use std::fs::File;
 use std::time::Duration;

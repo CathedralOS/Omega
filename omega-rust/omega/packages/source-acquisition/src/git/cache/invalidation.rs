@@ -1,6 +1,4 @@
-// Capability-relative invalidation of rejected Git cache entries by removing
-// `GIT_CACHE_METADATA` after verifying directory identity and syncing the
-// parent directory on Unix.
+//! Capability-relative invalidation of rejected Git cache entries.
 
 use std::ffi::OsStr;
 use std::path::Path;

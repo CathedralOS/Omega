@@ -1,5 +1,3 @@
-// Bounded recovery for opaque representation availability rows.
-
 use super::{Error, Reader, nominal};
 use crate::encoding::recovery::policy::public_api::conformance_shape;
 use crate::record::PackagePolicyRepresentationAvailability;

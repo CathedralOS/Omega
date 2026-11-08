@@ -124,7 +124,6 @@ class CompilerPilotTests(unittest.TestCase):
                 root = Path(temporary)
                 source = self.retained_producer(root)
                 Path(str(source.runner) + ".compiler-profile.json").write_text("{}")
-                Path(str(source.cli) + ".compiler-profile.json").write_text("{}")
                 stages = []
 
                 def prepare_command(arguments, **options):
@@ -145,20 +144,13 @@ class CompilerPilotTests(unittest.TestCase):
                         patch.object(pilot.shutil, "which", return_value="mbx"), \
                         patch.object(build_slot, "hold") as slot, \
                         patch.object(pilot.subprocess, "run", side_effect=prepare_command) as run, \
-                        patch.object(pilot.corpus_gate, "build_runner", side_effect=build_harness), \
-                        patch.object(pilot.corpus_gate, "record_cargo_build") as record_profile:
+                        patch.object(pilot.corpus_gate, "build_runner", side_effect=build_harness):
                     prepared = pilot.prepare_producer(root / "prepared", need_runner=need_runner)
                     prepared.verify()
                 self.assertEqual(stages, ["check harness", "build CLI", "build harness"]
                                  if need_runner else ["build CLI"])
                 self.assertEqual(slot.call_count, 2 if need_runner else 1)
                 self.assertTrue(all(call.args[0][0] == "mbx" for call in run.call_args_list))
-                if sys.platform.startswith("linux"):
-                    record_profile.assert_called_once_with(
-                        source.cli, (prepared.cli.parent / "cli-build.jsonl").read_text(encoding="utf-8"))
-                    self.assertEqual(Path(str(prepared.cli) + ".compiler-profile.json").read_text(), "{}")
-                else:
-                    record_profile.assert_not_called()
                 self.assertEqual(prepared.cli_profile, source.cli_profile)
                 self.assertEqual(prepared.runner_profile, source.runner_profile if need_runner else None)
                 self.assertEqual(prepared.runner is not None, need_runner)

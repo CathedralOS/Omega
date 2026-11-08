@@ -1,4 +1,4 @@
-// Offline target coordinate validation against backend profiles, keeping host-profile pointer geometry portable across real hosts.
+//! Target coordinates are checked without consulting the recovering host.
 
 use crate::record::{
     PackageReviewRepresentationArchitecture as Architecture,
@@ -14,6 +14,13 @@ impl Target {
             target.profile,
             Profile::CrossPlatformCli | Profile::LocalUnchecked
         ) {
+            // These profiles capture the producer's host target. Comparing to
+            // this process's host would reject portable historical policy, so
+            // the record keeps only what `size_of`/`align_of::<usize>` can
+            // produce: a nonzero power-of-two alignment and a nonzero size
+            // that is a multiple of it. Narrower or wider real hosts (32-bit
+            // or capability-sized pointers) stay canonical; fabricated
+            // geometry does not.
             return if target.pointer_alignment.is_power_of_two()
                 && target.pointer_size != 0
                 && target.pointer_size.is_multiple_of(target.pointer_alignment)

@@ -1,5 +1,7 @@
-// Length-framed commit-intent journal (`PackageFileJournal`) for `build.omg` and `omega.lock` before/after byte pairs.
-// Each present row is `name length\n`, `length` raw bytes, and `\n` (only `before-lock` may be `before-lock absent\n`), and recovery validates the complete envelope before allocating any owned field vectors.
+//! Local recovery bytes for the two fixed package files, without audit authority.
+//!
+//! Each present row is `name length\n`, exactly `length` raw bytes, and `\n`.
+//! Only `before-lock` may instead be `before-lock absent\n` with no payload.
 
 use super::{PackagePublicationError, PackagePublicationLimits};
 
@@ -95,6 +97,7 @@ impl PackageFileJournal {
             return Err(PackagePublicationError::InvalidJournal("trailing bytes"));
         }
 
+        // Validate the complete envelope before allocating any recovered fields.
         Ok(Self {
             before_build: copy_payload(before_build)?,
             after_build: copy_payload(after_build)?,

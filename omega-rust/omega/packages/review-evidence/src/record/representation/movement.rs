@@ -1,4 +1,4 @@
-// Exact replay-validated physical movement and placement for opaque occurrences across boundary calls.
+//! Exact replay-validated physical movement for one opaque occurrence.
 
 use crate::record::accessors::field_projection_accessors;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

@@ -1,10 +1,9 @@
-// Closed boundary-operator application realization projection for the active target.
-// Selected dispatch performs the compiler-private join while this module removes
-// arena handles, filters to the active target population so inactive generic demands
-// never require active specialization plans, attributes authored uses to the
-// reviewed package via the authored-selection ledger, and reconciles specialized
-// token-authored uses whose `Operator` selection resolves to the specialized
-// machine instance while the token spelling binds on the declared template.
+//! Actual D29 closed-application realization review projection.
+//!
+//! Selected dispatch performs the compiler-private join. This module removes
+//! handles, attributes actual authored uses to the reviewed package, and
+//! deduplicates only equal complete semantic rows. It creates no Terminal,
+//! native, admission, or audit claim.
 
 mod compiler_intrinsics;
 
@@ -31,6 +30,8 @@ pub(crate) fn project_boundary_application_realizations(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<CheckedPackageBoundaryApplicationRealizationReview>, Vec<Diagnostic>> {
+    // Select the executable population before deriving physical relationships:
+    // an inactive generic demand must not require an active specialization plan.
     let mut applications = Vec::new();
     for application in &compilation.facts.operators.boundary_applications {
         if application_is_selected(compilation, application.site)? {
@@ -142,6 +143,12 @@ fn project_specialized_checked_body_applications(
                 "specialized boundary application realization has no expression use site",
             )]);
         };
+        // A specialized clone carries two authored levels: a token-authored
+        // use resolves its Operator selection to the specialized machine
+        // instance, named calls resolve to the requirement member, and the
+        // token spelling binds on the declared template. Custody therefore
+        // matches the requirement member with the instance as the alternate
+        // exact target; the realization's own symbols stay specialized.
         let use_kind = token_authored_use_kind(
             compilation,
             expression,
@@ -219,6 +226,9 @@ fn project_specialized_checked_body_applications(
     Ok(())
 }
 
+/// Closed realization rows describe the selected activation, not all checked
+/// bodies. Inactive members retain callable contracts and external-supply
+/// disclosure; they must neither demand nor borrow this activation's plan.
 fn application_is_selected(
     compilation: &PackageReviewInput<'_>,
     site: CheckedBoundaryOperatorApplicationUseSite,
@@ -226,6 +236,8 @@ fn application_is_selected(
     let origin = match site {
         CheckedBoundaryOperatorApplicationUseSite::Expression { origin, .. }
         | CheckedBoundaryOperatorApplicationUseSite::MatchEquality { origin, .. } => origin,
+        // No known machine origin means no proof of inactive scope: keep the
+        // ordinary exact application/plan checks, rather than omit the use.
         CheckedBoundaryOperatorApplicationUseSite::Statement(_) => return Ok(true),
     };
     let Some(machine) = origin.machine_symbol() else {
@@ -249,6 +261,8 @@ fn application_is_selected(
             .iter()
             .any(|original| original.site == site)
     {
+        // A supplied fact cannot invent an inactive caller origin to hide an
+        // active use. The exact expression/arm and origin were checked together.
         return Err(vec![Diagnostic::error(
             "inactive boundary application differs from checked occurrence custody",
         )]);
@@ -336,6 +350,12 @@ fn expression_is_owned_by_package(
     package: PackageKeyIdentity,
 ) -> Result<bool, Vec<Diagnostic>> {
     let span = compilation.typed.expression_table.source_span(expression);
+    // This projection records actual authored applications. Checked lowering
+    // may synthesize applications with an empty provenance span and no
+    // authored-selection custody while deriving contracts; those are compiler
+    // derivations, not package uses. Test and generated fixtures can retain an
+    // empty expression span beside a real authored selection, so the ledger is
+    // the deciding distinction.
     let ownership_span = if span.span.start >= span.span.end {
         let expected_kind = authored_application_selection_kind(use_kind);
         let has_authored_selection = compilation
@@ -393,6 +413,11 @@ pub(super) fn stage_realization(
     Ok(())
 }
 
+/// `requirement_operator` is the declaration an authored selection must
+/// resolve to; `alternate_requirement` is a second accepted target (an invalid
+/// handle means the requirement alone is exact). Specialized applications
+/// supply their machine instance there because a token-authored use resolves
+/// its Operator selection to the instance rather than the requirement member.
 pub(super) fn authored_application_source_span(
     compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
@@ -457,6 +482,17 @@ fn authored_application_selection_kind(
     }
 }
 
+/// A token-authored application of a token-bound machine is rewritten into an
+/// ordinary `Call` node (`bind_selected_operator_calls`); the rewritten node
+/// keeps its authored `Operator` selection occurrence while the operator use
+/// facts record the settled resolution as a named use. The named row names the
+/// declaration the token selected, not the authored surface, so when the site
+/// retains an `Operator` selection resolved to the requirement the use
+/// classifies `FixedToken` under the token binding's spelling instead.
+/// `selection_symbol` is the declaration the retained `Operator` selection
+/// resolves to; `spelling_symbol` is a fallback symbol the token spelling may
+/// bind on (an invalid handle disables it). A specialized machine instance
+/// resolves the selection while its declared template holds the spelling.
 pub(super) fn token_authored_use_kind(
     compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,

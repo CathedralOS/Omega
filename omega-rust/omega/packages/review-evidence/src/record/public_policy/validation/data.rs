@@ -1,5 +1,3 @@
-// Public data shape, invariant, member coordinate, and retired identity validation.
-
 use super::{Result, Scope};
 use crate::record::PackagePolicyDataShape;
 use crate::record::PackageReviewDataField;

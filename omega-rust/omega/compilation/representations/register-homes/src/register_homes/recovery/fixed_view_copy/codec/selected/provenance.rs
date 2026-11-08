@@ -1,4 +1,4 @@
-use optimization_unit::{PsiProvenance, WorkSettlement};
+use optimization_unit::{FuelSettlement, PsiProvenance};
 use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{EdgeId, ObligationId, OperationId, ValueId};
 
@@ -16,7 +16,7 @@ pub(super) fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstru
         bytes,
         provenance.obligations.iter().map(|value| value.get()),
     );
-    encode_work(bytes, &provenance.work);
+    encode_fuel(bytes, &provenance.fuel);
 }
 
 pub(super) fn decode_provenance(
@@ -27,15 +27,15 @@ pub(super) fn decode_provenance(
         values: decode_ids(cursor, ValueId::new)?,
         edges: decode_ids(cursor, EdgeId::new)?,
         obligations: decode_ids(cursor, ObligationId::new)?,
-        work: decode_work(cursor)?,
+        fuel: decode_fuel(cursor)?,
     })
 }
 
-pub(super) use legalized_operations::encode_work;
+pub(super) use legalized_operations::encode_fuel;
 
-pub(super) fn decode_work(
+pub(super) fn decode_fuel(
     cursor: &mut Cursor<'_>,
-) -> Result<Vec<WorkSettlement>, FixedViewCopyDecodeError> {
+) -> Result<Vec<FuelSettlement>, FixedViewCopyDecodeError> {
     decode_list(cursor, |cursor| {
         let tag = cursor.byte()?;
         let raw = cursor.u64()?;
@@ -46,9 +46,9 @@ pub(super) fn decode_work(
             1 => PsiProvenance::Edge(
                 EdgeId::new(raw).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(raw))?,
             ),
-            tag => return Err(FixedViewCopyDecodeError::UnknownWorkSite(tag)),
+            tag => return Err(FixedViewCopyDecodeError::UnknownFuelSite(tag)),
         };
-        Ok(WorkSettlement {
+        Ok(FuelSettlement {
             site,
             units: cursor.u64()?,
         })

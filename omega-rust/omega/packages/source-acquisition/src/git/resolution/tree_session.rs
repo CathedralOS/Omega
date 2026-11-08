@@ -1,11 +1,8 @@
-// Staged workspace discovery (`GitWorkspaceSession`, `GitWorkspaceCatalog`)
-// over one authenticated, pinned Git tree.
-//
-// Build execution may pause between reading the root `build.omg` catalog,
-// requesting member declarations, and materializing a selected member package.
-// `GitWorkspaceSession` holds the authenticated payload-free tree graph and
-// root declaration so only metadata and requested member declarations cross
-// those pauses while unselected package payloads remain unopened.
+//! Staged workspace discovery over one authenticated, pinned Git tree.
+//!
+//! Build execution may suspend between reading the root catalog, requesting
+//! member declarations and selecting a package. Only metadata and requested
+//! declarations cross those pauses; unselected package payloads stay unopened.
 
 use super::GitExactRevisionAcquisition;
 use super::acquisition::{
@@ -38,6 +35,8 @@ pub struct GitWorkspaceSession {
     declaration_limits: GitWorkspaceDeclarationLimits,
 }
 
+/// Exact declaration roster requested after the root Build returns. Selection
+/// remains the caller's semantic decision; this type establishes source custody.
 #[derive(Debug)]
 pub struct GitWorkspaceCatalog {
     session: GitWorkspaceSession,
@@ -188,6 +187,8 @@ impl GitWorkspaceSession {
     }
 
     fn recorded_revision(&self) -> Result<RecordedGitRevision, SourceResolveError> {
+        // These strings were authenticated at acquisition; parse failures still
+        // remain explicit rather than turning resolver invariants into panics.
         let commit = GitCommitId::parse_hex(&self.commit).map_err(|error| {
             SourceResolveError::GitObjectInvalid {
                 oid: self.commit.clone(),

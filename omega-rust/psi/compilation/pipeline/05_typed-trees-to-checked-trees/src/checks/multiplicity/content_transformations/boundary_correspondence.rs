@@ -8,6 +8,7 @@
 use crate::checks::content::content_path;
 use crate::checks::places::place_or_root_in;
 use arena::Handle;
+use checked_trees::CheckFacts;
 use checked_trees::facts::{
     ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
 };
@@ -45,7 +46,7 @@ struct OutputAddress {
 
 pub(super) fn prepare(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     equation: &ContentBodyConservationFact,
 ) -> Result<PreparedCorrespondence, &'static str> {
     let content = &facts.qualifications.content;

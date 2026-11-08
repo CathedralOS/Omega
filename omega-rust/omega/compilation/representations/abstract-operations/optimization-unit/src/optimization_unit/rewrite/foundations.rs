@@ -1,4 +1,4 @@
-use super::{BlockId, EdgeId, MachineId, PsiProvenance, ScalarType, ValueId, WorkSettlement};
+use super::{BlockId, EdgeId, FuelSettlement, MachineId, PsiProvenance, ScalarType, ValueId};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodeLocation {
     pub machine: MachineId,
@@ -37,7 +37,7 @@ impl PsiRealizationSite {
 /// row instead names the node in the input revision that owned a removed source
 /// site; the node itself may survive, as with one rejected conditional edge.
 /// Removal is legal only because the validating rewrite proved that no
-/// execution can reach that source site. Work rows retain the source schedule
+/// execution can reach that source site. Fuel rows retain the source schedule
 /// amount in both cases; only a realized disposition is a logical charge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProvenanceDisposition {
@@ -77,7 +77,7 @@ pub struct ProvenanceRewrite {
     pub input: PsiRealizationSite,
     pub disposition: ProvenanceDisposition,
     pub sources: Vec<PsiProvenance>,
-    pub work: Vec<WorkSettlement>,
+    pub fuel: Vec<FuelSettlement>,
 }
 
 impl ProvenanceRewrite {

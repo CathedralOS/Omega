@@ -1,6 +1,4 @@
-// We construct, validate, and finalize `CanonicalSourceClosureSubject` from
-// resolved target closures and recheck caller recovery limits over retained
-// typed fields without re-parsing or cloning a second subject.
+//! Projection, recovery, validation, and canonical finalization.
 
 use super::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
@@ -17,6 +15,8 @@ use super::usage::Budget;
 use super::validation::{canonical_root_request, validate_subject};
 
 impl CanonicalSourceClosureSubject {
+    /// Recheck caller limits over retained typed fields without recovering or
+    /// cloning a second subject. This is a size/shape check, not acquisition.
     pub(crate) fn validate_recovery_limits(
         &self,
         limits: CanonicalSourceClosureSubjectLimits,

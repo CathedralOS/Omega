@@ -1,4 +1,4 @@
-// `From<Truncated>` adapter for `OptimizationManifestDecodeError`.
+//! Shared bounded cursor for manifest wire decoders.
 
 use super::OptimizationManifestDecodeError;
 

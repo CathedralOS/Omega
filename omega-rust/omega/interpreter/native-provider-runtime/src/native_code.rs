@@ -1,13 +1,7 @@
-/*
-We load compiler-produced native adapter images and invoke them through the
-compiler's fixed two-pointer frame ABI (`NativeForeignFrame`).
-
-Foreign C signatures are never cast at runtime. The worker's authenticated
-parent must have admitted the exact image/export and complete argument/result
-geometry before reaching this physical leaf. Loaded libraries are wrapped in
-`ManuallyDrop` because native constructors can register callbacks that outlive a
-failed symbol lookup or adapter; the dedicated worker exits with code resident.
-*/
+//! The only typed invocation into loaded native code is the compiler's fixed
+//! two-pointer frame ABI. Foreign C signatures are never cast at runtime.
+//! The worker's authenticated parent must have admitted the exact image/export
+//! and complete argument/result geometry before reaching this physical leaf.
 
 use std::{
     alloc::{Layout, alloc_zeroed, dealloc},
@@ -58,6 +52,8 @@ impl NativeValue {
         self.address.as_ptr()
     }
     pub(crate) fn bytes(&self) -> Vec<u8> {
+        // No native call is in flight when the serialized worker copies this
+        // owned direct result; retained referent storage is a different owner.
         unsafe { std::slice::from_raw_parts(self.address.as_ptr(), self.extent).to_vec() }
     }
 }
@@ -71,11 +67,14 @@ impl Drop for NativeValue {
 
 pub(crate) struct LoadedFrame {
     entry: FrameEntry,
-    _library: ManuallyDrop<Library>, // Retained until worker exit so atexit/TLS callbacks never jump into unloaded code.
+    // Native constructors can register callbacks that outlive a failed symbol
+    // lookup or this adapter. The dedicated worker exits with code resident;
+    // unloading before process-exit callbacks is not a valid retirement path.
+    _library: ManuallyDrop<Library>,
 }
 impl LoadedFrame {
-    // SAFETY: the isolated worker has authenticated its producing parent, and
-    // that parent admitted these exact bytes and this fixed-frame export.
+    /// SAFETY: the isolated worker has authenticated its producing parent;
+    /// that parent admitted these exact bytes and this fixed-frame export.
     pub(crate) unsafe fn load(path: &Path, export: &str) -> io::Result<Self> {
         let export = CString::new(export).map_err(|_| {
             io::Error::new(
@@ -85,15 +84,17 @@ impl LoadedFrame {
         })?;
         let library = ManuallyDrop::new(Library::open(path)?);
         let address = library.symbol(&export)?;
+        // The product export has one fixed signature for every foreign plan.
+        // This is not a cast from a runtime-discovered foreign C signature.
         let entry = unsafe { std::mem::transmute::<*mut std::ffi::c_void, FrameEntry>(address) };
         Ok(Self {
             entry,
             _library: library,
         })
     }
-    // SAFETY: each argument names an aligned complete value of this product's
-    // admitted extent; `result` names its complete aligned output storage. Any
-    // native loans name live mapped homes for their full admitted lifetime.
+    /// SAFETY: each argument names an aligned complete value of this product's
+    /// admitted extent; result names its complete aligned output storage. Any
+    /// native loans name live mapped homes for their full admitted lifetime.
     pub(crate) unsafe fn call(&self, arguments: &[*const u8], result: *mut u8) {
         let mut frame = NativeForeignFrame {
             arguments: arguments.as_ptr(),

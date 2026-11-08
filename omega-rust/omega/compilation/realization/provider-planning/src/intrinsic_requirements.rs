@@ -1,8 +1,6 @@
-// Omega plan adapters over Psi's source-owned intrinsic requirement view.
-// Source declaration classification lives in typed trees, while provider schema
-// and plan association remain here. Review's token-only float conformance lane
-// (`closed_float_execution`) is narrower than the complete numeric requirement
-// catalog (`execution_identity`).
+//! Omega plan adapters over Psi's source-owned requirement view.
+//! Source declaration classification lives in typed trees; provider schema and
+//! plan association remain here until their callers consume retained facts.
 
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement as SourceRequirement;
@@ -21,10 +19,13 @@ impl<'typed> std::ops::Deref for IntrinsicRequirement<'typed> {
 }
 
 impl<'typed> IntrinsicRequirement<'typed> {
+    /// Return the source-owned view without copying its semantic identity.
     pub fn into_source(self) -> SourceRequirement<'typed> {
         self.0
     }
 
+    /// Review's token-only float conformance lane is deliberately narrower
+    /// than the complete numeric requirement catalog.
     pub fn closed_float_execution(
         &self,
         typed: &TypedTrees,
@@ -37,6 +38,9 @@ impl<'typed> IntrinsicRequirement<'typed> {
         .then(|| meaning.into())
     }
 
+    /// Classify the existing numeric catalog against the complete signature.
+    /// This supplies meaning only; exact provider/overload/source joins remain
+    /// independent obligations at each admission boundary.
     pub fn execution_identity(
         &self,
         typed: &TypedTrees,
@@ -57,6 +61,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
         SourceRequirement::by_symbol(typed, symbol).map(Self)
     }
 
+    /// Whether a provider-plan schema is exactly this requirement's slot.
     pub(crate) fn schema_binds(
         &self,
         context: crate::ProviderPlanningContext<'_>,
@@ -81,6 +86,12 @@ impl<'typed> IntrinsicRequirement<'typed> {
         }
     }
 
+    /// Whether a selected plan's single schema method and row bind exactly
+    /// this requirement: the operator schema is the overload identity with
+    /// its one `realize` method; the requirement schema is the requirement
+    /// path with its leaf-named method and normalized overload identity. A
+    /// token machine uses that overload identity for its family coordinate's
+    /// schema slot as well.
     pub fn plan_row_binds(
         &self,
         plan: &ProviderPlan,

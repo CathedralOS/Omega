@@ -148,7 +148,7 @@ impl PureEvaluationReceipt {
             SelectedBuildTimeMachineBody::validate_all(self.program.typed(), &self.machine_bodies)?;
             if usage.schema() != checked_interpreter::CURRENT_EVALUATION_USAGE_SCHEMA
                 || usage.schedule() != checked_interpreter::CURRENT_EVALUATION_STEP_SCHEDULE
-                || usage.work_budget() != checked_interpreter::pure_evaluation_step_ceiling()
+                || usage.fuel_ceiling() != checked_interpreter::pure_evaluation_step_ceiling()
             {
                 return Err(
                     "source-completion evaluation policy, usage schema or step schedule changed"
@@ -204,9 +204,9 @@ impl PureEvaluationRecord {
     }
 }
 
-/// The ordinary constant route's fixed Terminal semantic budget. This is
+/// The ordinary constant route's fixed Terminal semantic allowance. This is
 /// deliberately separate from the checked interpreter's step schedule.
-pub(crate) const PURE_PSI_WORK_BUDGET: u64 = 100_000;
+pub(crate) const PURE_TERMINAL_FUEL_CEILING: u64 = 100_000;
 
 /// One Terminal execution with the exact checked source, produced artifact,
 /// selected numeric imports, result and meter actually used by that execution.
@@ -218,8 +218,8 @@ pub struct PureTerminalEvaluationReceipt {
     operators: Vec<SelectedBuildTimeBinaryOperator>,
     program: Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
     outcome: PureTerminalEvaluationOutcome,
-    usage: psi_work::WorkUsage,
-    work_budget: u64,
+    usage: terminal_fuel::TerminalFuelUsage,
+    fuel_ceiling: u64,
 }
 
 #[derive(Debug, Clone, compiler_storage::Record)]
@@ -249,20 +249,20 @@ impl PureTerminalEvaluationReceipt {
         &self.outcome
     }
 
-    pub fn usage(&self) -> &psi_work::WorkUsage {
+    pub fn usage(&self) -> &terminal_fuel::TerminalFuelUsage {
         &self.usage
     }
 
-    pub fn work_budget(&self) -> u64 {
-        self.work_budget
+    pub fn fuel_ceiling(&self) -> u64 {
+        self.fuel_ceiling
     }
 
     pub fn validate_charge(&self) -> Result<(), String> {
-        if self.usage.schedule() != psi_work::WorkSchedule::CURRENT.identity()
-            || self.work_budget != PURE_PSI_WORK_BUDGET
-            || self.usage.total_units() > self.work_budget
+        if self.usage.schedule() != terminal_fuel::TerminalFuelSchedule::CURRENT.identity()
+            || self.fuel_ceiling != PURE_TERMINAL_FUEL_CEILING
+            || self.usage.total_units() > self.fuel_ceiling
         {
-            return Err("source-completion Terminal work policy or schedule changed".to_owned());
+            return Err("source-completion Terminal fuel policy or schedule changed".to_owned());
         }
         let attributed = self
             .usage
@@ -270,7 +270,7 @@ impl PureTerminalEvaluationReceipt {
             .values()
             .try_fold(0_u64, |total, row| total.checked_add(row.units()));
         if attributed != Some(self.usage.total_units()) {
-            return Err("source-completion Terminal work attribution is inconsistent".to_owned());
+            return Err("source-completion Terminal fuel attribution is inconsistent".to_owned());
         }
         if matches!(
             &self.outcome,
@@ -414,7 +414,7 @@ impl EvaluationAccounting {
         machine: symbols::SymbolHandle,
         operators: &[SelectedBuildTimeBinaryOperator],
         execute: impl FnOnce(
-            &mut psi_work::WorkMeter,
+            &mut terminal_fuel::TerminalFuelMeter,
             &mut Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
         ) -> Result<TerminalExecutionResult, String>,
     ) -> Result<TerminalExecutionResult, String> {
@@ -426,7 +426,8 @@ impl EvaluationAccounting {
         }
         let input = self.reserve_invocation(program)?;
         let operators = input.as_ref().map(|_| operators.to_vec());
-        let mut meter = psi_work::WorkMeter::with_budget(PURE_PSI_WORK_BUDGET);
+        let mut meter =
+            terminal_fuel::TerminalFuelMeter::with_allowance(PURE_TERMINAL_FUEL_CEILING);
         let mut artifact = None;
         let evaluation = execute(&mut meter, &mut artifact);
         if let (Some(state), Some((ordinal, source_program)), Some(operators)) =
@@ -446,7 +447,7 @@ impl EvaluationAccounting {
                     },
                 },
                 usage: meter.into_usage(),
-                work_budget: PURE_PSI_WORK_BUDGET,
+                fuel_ceiling: PURE_TERMINAL_FUEL_CEILING,
             };
             receipt.validate_charge()?;
             state

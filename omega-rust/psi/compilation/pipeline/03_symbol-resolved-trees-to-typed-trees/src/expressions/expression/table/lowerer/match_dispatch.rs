@@ -91,6 +91,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                 resolved::expression::MatchFieldAction::Waive => MatchFieldAction::Waive,
             };
             fields.push(typed::expression::TableMatchField {
+                component: field.component,
                 member: lower_name(&field.member),
                 field_symbol: field.field_symbol,
                 action,
@@ -108,6 +109,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         let saved = completed_subject.unwrap_or_else(|| {
             self.target()
                 .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                    component: Default::default(),
                     capture,
                     pattern_head: head,
                 }))
@@ -180,7 +182,21 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         if definition.purpose == resolved::expression::SubjectCapturePurpose::Transition {
             // This is an alias of the dispatch's already completed local, not
             // another expression-match capture or an additional evaluation.
-            return self.lower_value(definition.subject);
+            let subject = self.lower_value(definition.subject)?;
+            if saved.component == language_core::PatternComponent::Fields {
+                return Ok(subject);
+            }
+            if !matches!(
+                self.target().expression(subject),
+                typed::expression::ExpressionNode::Name(_)
+            ) {
+                return Err(Diagnostic::error(
+                    "transition case component lost its completed subject local",
+                ));
+            }
+            let copy = self.target().insert_copy(subject);
+            self.target().set_pattern_component(copy, saved.component);
+            return Ok(copy);
         }
         let capture = self
             .match_captures
@@ -195,6 +211,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
             .target()
             .insert(typed::expression::ExpressionNode::SavedSubject(
                 typed::expression::TableSavedSubject {
+                    component: saved.component,
                     capture,
                     pattern_head,
                 },

@@ -1,5 +1,4 @@
-// Git source acquisition tests organized by resolver invariant, binding
-// fixture storage to the selected system Git executable for deterministic runs.
+//! Git source behavior, organized by the resolver invariant under test.
 
 use super::cache::identity::*;
 use super::executable::executor::test_system_git_executor;
@@ -33,6 +32,7 @@ mod tree_session;
 mod validation;
 mod workspace;
 
+/// Hardened resolver storage bound to the fixture's selected system Git.
 pub(super) fn fixture_storage(storage_base: &Path, request: &GitSourceRequest) -> SourceResolver {
     let executor =
         test_system_git_executor(request.execution_transport()).expect("select fixture Git");

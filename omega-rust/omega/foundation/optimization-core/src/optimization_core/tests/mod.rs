@@ -1,5 +1,4 @@
-// Unit test submodules for `optimization_core` selection codecs, phase
-// projections, and pinned canonical row digests.
+//! Optimizer module role: stage group. Selection codec and projection tests.
 
 mod canonical_rows;
 mod cases;

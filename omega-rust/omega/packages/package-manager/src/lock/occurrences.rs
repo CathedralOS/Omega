@@ -1,5 +1,11 @@
-// Occurrence coverage derived from the canonical source closure.
-// Inside one closure the selected target and build execution profile are section-level facts, so occurrence identity reduces to `(package, purpose)`: the root occurs at `Product`, a `Product` edge propagates every purpose its requester holds, and a `Build` edge contributes `Build` for its selected package.
+//! Occurrence coverage derived from the canonical source closure.
+//!
+//! The roster is the join column between package-keyed records and the exact
+//! authorized occurrences a package serves. Inside one closure the selected
+//! target and build execution profile are section-level facts, so occurrence
+//! identity reduces to (package, purpose): the root occurs at the product
+//! purpose, a product edge propagates every purpose its requester holds, and
+//! a build edge contributes the build purpose for its selected package.
 
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::DependencyPurpose;
@@ -7,6 +13,7 @@ use crate::resolution::graph::CanonicalSourceClosureSubject;
 use std::fmt;
 use target::TargetProfile;
 
+/// Explicit checked context metadata; retaining it grants no compilation authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PackageCheckedContext {
     purpose: DependencyPurpose,
@@ -37,10 +44,12 @@ impl PackageCheckedContext {
     }
 }
 
+/// One package's authorized occurrences: the exact purposes it serves for the
+/// enclosing closure's target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePurposeCoverage {
     package: PackageKey,
-    purposes: Vec<DependencyPurpose>, // sorted nonempty purposes this package occurrence set covers
+    purposes: Vec<DependencyPurpose>,
 }
 
 impl PackagePurposeCoverage {
@@ -48,17 +57,24 @@ impl PackagePurposeCoverage {
         &self.package
     }
 
+    /// Sorted nonempty purposes this package occurrence set covers.
     pub fn purposes(&self) -> &[DependencyPurpose] {
         &self.purposes
     }
 }
 
+/// The complete occurrence roster of one canonical source closure, in the
+/// subject's canonical package order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageOccurrenceRoster {
-    coverages: Vec<PackagePurposeCoverage>, // coverages in the subject's canonical package order
+    coverages: Vec<PackagePurposeCoverage>,
 }
 
 impl PackageOccurrenceRoster {
+    /// Derive the roster by propagating purposes over the validated graph.
+    /// Subjects only exist once validated as one reachable acyclic closure, so
+    /// every package ends with at least one purpose; the check stays total
+    /// rather than assuming it.
     pub fn derive(
         source: &CanonicalSourceClosureSubject,
     ) -> Result<Self, PackageOccurrenceRosterError> {
@@ -112,10 +128,13 @@ impl PackageOccurrenceRoster {
         Ok(Self { coverages })
     }
 
+    /// Coverages in the subject's canonical package order.
     pub(crate) fn coverages(&self) -> &[PackagePurposeCoverage] {
         &self.coverages
     }
 
+    /// The exact purposes one package occurs under, or none when the package
+    /// is absent from the closure.
     pub fn purposes(&self, package: &PackageKey) -> Option<&[DependencyPurpose]> {
         self.coverages
             .binary_search_by(|coverage| coverage.package.cmp(package))
@@ -123,11 +142,13 @@ impl PackageOccurrenceRoster {
             .map(|index| self.coverages[index].purposes.as_slice())
     }
 
+    /// Whether (package, purpose) is an authorized occurrence in the closure.
     pub(crate) fn is_occurrence(&self, package: &PackageKey, purpose: DependencyPurpose) -> bool {
         self.purposes(package)
             .is_some_and(|purposes| purposes.contains(&purpose))
     }
 
+    /// Total (package, purpose) occurrences across the closure.
     pub fn occurrence_count(&self) -> usize {
         self.coverages
             .iter()
@@ -136,8 +157,11 @@ impl PackageOccurrenceRoster {
     }
 }
 
+/// A closed failure while deriving occurrence coverage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PackageOccurrenceRosterError {
+    /// The subject names a package outside its own canonical package set, or
+    /// leaves a package unreachable; validated subjects never exhibit either.
     UnknownPackage,
     UnreachablePackage,
     AllocationFailed,
@@ -156,6 +180,7 @@ impl fmt::Display for PackageOccurrenceRosterError {
 
 impl std::error::Error for PackageOccurrenceRosterError {}
 
+/// Purposes encode as one bitmask in `DependencyPurpose::ALL` order.
 pub(crate) fn purpose_mask_bit(purpose: DependencyPurpose) -> u8 {
     let index = DependencyPurpose::ALL
         .iter()

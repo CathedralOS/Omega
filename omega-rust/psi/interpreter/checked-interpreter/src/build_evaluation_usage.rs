@@ -1,6 +1,6 @@
 //! Transitional checked-tree projection into independently owned accounting data.
 //! The current evaluator supplies real private usage; this projection cannot
-//! reinterpret Terminal work or manufacture live-resource measurements.
+//! reinterpret Terminal fuel or manufacture live-resource measurements.
 
 use crate::{BuildEvaluationSponsor, EvaluationUsage};
 use evaluation_accounting::{
@@ -22,9 +22,9 @@ pub fn capture_checked_build_evaluation_usage(
         measurement: evaluation_accounting::EvaluationMeasurementIdentity::CheckedTree,
         usage_schema_version: usage.schema().schema_version(),
         step_schedule_marker: usage.schedule().marker(),
-        invocation_work_budget: usage.work_budget(),
+        invocation_fuel_ceiling: usage.fuel_ceiling(),
         sponsor_schema_version: sponsor.map(|sponsor| sponsor.limits().schema_version()),
-        session_work_budget: sponsor.map(|sponsor| sponsor.limits().work_budget()),
+        session_fuel_ceiling: sponsor.map(|sponsor| sponsor.limits().maximum_fuel_units()),
         session_build_log_byte_ceiling: sponsor
             .map(|sponsor| sponsor.limits().maximum_build_log_bytes()),
         session_filesystem_attempt_ceiling: sponsor
@@ -44,7 +44,7 @@ pub fn capture_checked_build_evaluation_usage(
         session_peak_live_storage_cells: sponsor.map_or(0, BuildEvaluationSponsor::peak_live_cells),
         session_peak_live_payload_bytes: sponsor
             .map_or(0, BuildEvaluationSponsor::peak_live_text_bytes),
-        work_units: usage.work_units(),
+        fuel_units: usage.fuel_units(),
         build_log_bytes: usage.build_log_bytes(),
         filesystem_operation_attempts: usage.filesystem_operation_attempts(),
         peak_live_storage_cells: usage.peak_live_cells(),

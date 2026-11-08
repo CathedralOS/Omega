@@ -106,9 +106,6 @@ pub struct CheckFacts {
     /// ENT4: exact nominal machine satisfaction selected for each admitted
     /// static machine argument, before specialization consumes its syntax.
     pub nominal_machine_uses: NominalMachineUseFacts,
-    /// Callback selections checked at each explicit installation request.
-    /// Their ordinals are independent of Scope's own generic arguments.
-    pub installed_interrupt_registrations: Vec<crate::CheckedInstalledInterruptRegistration>,
     /// The specialization each generic call's admitted static machine
     /// arguments derived: `Type` substitutions plus each `machine` binder's
     /// selected provider entry. A structural contract emits no nominal use

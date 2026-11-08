@@ -1,6 +1,4 @@
-// Strict parser for a single `<oid> missing\n` or `<oid> <kind> <size>\n`
-// `git cat-file --batch-check` response line with zero stderr and no trailing
-// bytes.
+//! One exact full-OID batch-check line, with no stderr or trailing response.
 
 use super::{
     ExactGitObjectAvailability as Availability, ExactGitObjectKind as Kind, OPERATION,

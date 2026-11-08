@@ -20,5 +20,5 @@ use optimization_core::{
     OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 use terminal_psi::TerminalPsiIdentity;

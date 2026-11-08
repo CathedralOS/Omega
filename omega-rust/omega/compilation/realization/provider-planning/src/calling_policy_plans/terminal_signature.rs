@@ -1,10 +1,8 @@
-// We project canonical declaration storage (`CanonicalCallingSignature`) into a
-// target's policy input (`CallingPolicySignature`) without creating
-// source-shaped placeholders or requiring a checked program. Native-only
-// callback arguments and private storage demands join the same exact published
-// declaration as ordinary semantic formals, and compact requirement report
-// coordinates are checked for collision against exact nominal identities before
-// publishing the materialization context.
+//! Canonical declaration storage to a target's policy input.
+//!
+//! This route never creates source-shaped placeholders or requires a checked
+//! program. Native-only callback arguments and private storage demands join
+//! the same exact published declaration as ordinary semantic formals.
 
 use super::CallingPolicySignature;
 use calling_conventions::validate_fresh_native_parameter_identity;
@@ -33,6 +31,8 @@ pub struct CanonicalOpaqueUse {
 }
 
 impl CanonicalCallingSignature {
+    /// Publish the canonical geometry and its validated plan without attaching
+    /// Source correspondence. Callback custody is retained, not admitted here.
     pub fn native_application(
         self,
         validated: &ValidatedBoundaryEntryPlan,
@@ -85,6 +85,8 @@ impl CanonicalCallingSignature {
         Ok(application)
     }
 
+    /// Project an exact declaration application, including dormant declarations
+    /// requested by a policy that have no emitted boundary invocation.
     pub fn materialize(
         module: &terminal_psi::TerminalModule,
         declaration: semantic_vocabulary::CallingSignatureId,
@@ -119,6 +121,10 @@ impl CanonicalCallingSignature {
             .zip(&telescope.parameters)
             .enumerate()
         {
+            // Parameter storage already names the referent for an
+            // ordinary borrowed formal. An owned reference carrier
+            // names it explicitly; references inside records remain
+            // leaves rather than recursively expanding pointees.
             if let Some(storage_root) = parameter.callback_backing {
                 for layout in callback_storage.for_parameter(layout::CallbackStorageRoot {
                     record: storage_root,
@@ -190,6 +196,9 @@ impl CanonicalCallingSignature {
         )?;
         let binders =
             calling_conventions::TerminalCallingTelescope::callback_bindings(module, telescope)?;
+        // Compact requirement coordinates are report keys, not equality of
+        // nominal requirements. Close the complete exact-name census before
+        // publishing the smaller materialization context.
         let mut requirements = Vec::new();
         for (report, identity) in binders
             .iter()

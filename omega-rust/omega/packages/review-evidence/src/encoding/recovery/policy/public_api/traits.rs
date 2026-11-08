@@ -1,5 +1,3 @@
-// Bounded recovery for public trait shapes, trait requirements, conformance shapes, and operator shapes.
-
 use super::super::{
     Error,
     behavior::synchronous_invocation,

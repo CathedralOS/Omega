@@ -15,7 +15,7 @@ use extents::{
     AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentProviderIssuance,
     ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId,
 };
-use psi_work::WorkMeter;
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstanceCloseError,
     TerminalInstanceError, TerminalProgram, TerminalProviderStorageInput, TerminalStructuralInputs,
@@ -86,7 +86,7 @@ fn exercise(
     .chain(writes.then_some((41, true, true, false, false, 8)))
     {
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -172,7 +172,7 @@ fn exercise(
                     .bind_provider_storage(input)
                     .expect_err("provider binding must reserve both records before publication");
                 assert!(
-                    failure.reason.contains("BudgetExhausted(LiveStorage)"),
+                    failure.reason.contains("AllowanceExhausted(LiveStorage)"),
                     "{}",
                     failure.reason
                 );
@@ -217,7 +217,7 @@ fn exercise(
                 "provider allocation and descriptor must each own one live cell"
             );
         }
-        let mut meter = WorkMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
         let result = loop {
             match instance.invoke(&mut meter) {
                 Ok(TerminalExecutionStatus::SponsorExhausted(_)) => meter.replenish(1).unwrap(),
@@ -234,7 +234,7 @@ fn exercise(
                 .as_ref()
                 .expect_err("field transfer must reserve its complete footprint");
             assert!(
-                format!("{refusal:?}").contains("BudgetExhausted(LiveStorage)"),
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
                 "{refusal:?}"
             );
             assert!(instance.result().is_none());

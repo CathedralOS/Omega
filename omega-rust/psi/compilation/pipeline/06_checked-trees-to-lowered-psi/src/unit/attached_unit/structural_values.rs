@@ -14,7 +14,7 @@
 
 use super::CheckedTrees;
 mod completed_aggregate;
-mod emission;
+pub(crate) mod emission;
 pub(crate) mod field_carrier;
 pub(crate) mod fixed_array;
 mod locals;

@@ -1,7 +1,4 @@
-// Contract call-expression projection preserving exact target, static-argument,
-// evidence-lane, and value-argument custody. Call-site suspend/block
-// acknowledgement is diagnostic audit metadata outside contract identity because
-// fact-position calls have already been checked as total and pure.
+//! Exact target, static-argument, evidence-lane, and value-argument call custody.
 
 use super::super::calls::{
     contract_call_value_receiver, exact_checked_contract_call_target,
@@ -115,6 +112,9 @@ pub(super) fn project_call_expression(
         expression,
         &call.machine_arguments,
     )?;
+    // Call-site suspend/block acknowledgement is diagnostic audit metadata,
+    // explicitly outside contract identity. Fact-position calls have already
+    // been checked as total and pure.
     Ok(PackageReviewContractExpression::Call {
         receiver: contract_call_value_receiver(compilation, call, resolved_symbol)
             .map(child)

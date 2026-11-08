@@ -1,4 +1,4 @@
-// Normalized operational facts (capabilities, crashes, mutations, and termination) sharing the enclosing callable writer budget.
+//! Normalized operational facts share the enclosing callable writer budget.
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::encoder::Encoder;
 use crate::encoding::encode::values::identity::encode_nominal;

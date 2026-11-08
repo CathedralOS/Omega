@@ -1,12 +1,11 @@
-// We build one borrowed predecessor tree over an immutable source closure for a
-// batch of package explanation paths. Entries name graph-owned edges; package
-// keys and aliases are copied only into requested output paths, and authored
-// edge order decides shortest-path ties independent of query order.
+//! One borrowed predecessor tree for a batch of package explanation paths.
 
 use super::ResolvedPackageSourceClosure;
 use super::{DependencyRequestPath, DependencyRequestPathStep};
 use crate::declarations::PackageKey;
 
+/// Local to a comparison over an immutable closure. Entries name graph-owned
+/// edges; package keys and aliases are copied only into requested output paths.
 pub(crate) struct DependencyRequestPaths<'closure> {
     closure: &'closure ResolvedPackageSourceClosure,
     root_position: usize,
@@ -47,6 +46,8 @@ impl<'closure> DependencyRequestPaths<'closure> {
         })
     }
 
+    /// Materialize the same shortest path as a fresh breadth-first search.
+    /// Authored edge order decides ties, independent of output query order.
     pub(crate) fn path(&self, target: &PackageKey) -> Option<DependencyRequestPath> {
         self.closure.custody(target)?;
         let graph = self.closure.graph();

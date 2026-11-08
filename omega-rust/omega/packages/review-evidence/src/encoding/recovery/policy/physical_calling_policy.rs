@@ -1,4 +1,4 @@
-// Inert physical calling-contract recovery without validator or native custody.
+//! Recover an inert physical component, not validator or native custody.
 
 pub(in crate::encoding::recovery) mod placement;
 pub(in crate::encoding::recovery) mod state;

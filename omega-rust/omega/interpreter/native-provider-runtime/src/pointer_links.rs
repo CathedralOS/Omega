@@ -1,13 +1,6 @@
-/*
-We link and compare pointers inside the worker's address space (`link_pointer`,
-`pointer_matches`, `returned_pointer_matches`).
-
-Because shared mappings reside at different virtual addresses in the host and
-worker processes, the sponsor supplies checked `NativeHomeId` and range
-identities rather than raw addresses. When comparing a returned 8-byte word with
-an admitted home range, the word acts purely as an address selector and is never
-dereferenced.
-*/
+//! Link and compare pointers in the worker address space. Shared mappings have
+//! different addresses in each process: the sponsor supplies checked home/range
+//! identities, never a raw address to install or a pointer to dereference.
 
 use crate::{
     native_provider_runtime::{NativeHomeId, NativeProviderError, NativeProviderProcess},
@@ -54,6 +47,9 @@ impl NativeProviderProcess {
         }
     }
 
+    /// Compare an actual returned word with an already admitted home/range in
+    /// the worker. The word is only a selector: it is never dereferenced and
+    /// cannot create a home, access permission or storage lifetime.
     pub fn returned_pointer_matches(
         &mut self,
         value: &[u8],

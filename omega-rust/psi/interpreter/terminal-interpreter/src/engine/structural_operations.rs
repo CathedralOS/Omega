@@ -560,7 +560,7 @@ impl TerminalExecution<'_> {
         };
         if let Some(previous) = self.structural_values.get(&destination) {
             // Reentering the unique literal producer retains the
-            // same immutable value. Work was charged above;
+            // same immutable value. Fuel was charged above;
             // existing aliases keep their exact original bytes.
             if previous.opaque_identity != destination.get()
                 || previous.structural_type != *structural_type

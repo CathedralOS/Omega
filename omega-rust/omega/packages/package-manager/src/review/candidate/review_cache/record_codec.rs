@@ -1,11 +1,6 @@
-/*
-    We encode and decode persisted compiled-review records (`OMGCREV\x01`,
-    version 16). Sequences are `u64` length-prefixed, byte strings are framed,
-    every enum uses a checked tag, and the provider identity table is serialized
-    ahead of every service-schema field that indexes into it so recovery
-    re-mints identical `ProviderIdentityId`s. Unknown tags, retired versions,
-    corrupted trailers, trailing bytes, and sequence overflows all fail closed.
-*/
+//! Record codec. Sequences are u64 length-prefixed; byte strings are framed;
+//! every enum is a checked tag. Unknown tags, trailing bytes and length
+//! overflows are all decode failures.
 
 use super::{CachedCompiledReview, CachedOccurrenceFacts, DEFAULT_MAX_RECORD_BYTES};
 use crate::codec_bytes::{push_count_u64, push_encoded};
@@ -38,6 +33,8 @@ use package_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
+// Entry-field tolerance is retired. Older records may describe provisional
+// reviews and must miss, never acquire complete admission by dropping their flag.
 const RECORD_VERSION: u16 = 16;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
@@ -96,6 +93,7 @@ fn recover_identity(cursor: &mut ObservationCursor<'_>) -> Option<PackageKeyIden
     PackageKeyIdentity::from_digest(cursor_digest(cursor)?)
 }
 
+/// One optional package identity: an absence byte, or `1` then the digest.
 fn encode_optional_identity(identity: Option<&PackageKeyIdentity>, out: &mut Vec<u8>) {
     encode_optional(identity, out, |identity, out| {
         encode_identity(*identity, out)
@@ -497,6 +495,9 @@ fn recover_service_method(
 }
 
 fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
+    // The identity table rides the wire as a roster ahead of every field that
+    // points into it: recovery re-mints the texts in order so a decoded schema
+    // holds the same ids, not merely the same texts.
     push_count_u64(out, schema.declaration.identities.texts().count());
     for text in schema.declaration.identities.texts() {
         encode_string(text, out);
@@ -595,6 +596,9 @@ fn encode_candidate(candidate: &SemanticBindingReviewCandidate, out: &mut Vec<u8
 fn recover_candidate(cursor: &mut ObservationCursor<'_>) -> Option<SemanticBindingReviewCandidate> {
     let binding = recover_binding(cursor)?;
     let service_schema = recover_service_schema(cursor)?;
+    // The constructor's digest invariant is a decode check here: a record
+    // whose schema does not normalize to the binding's declared digest is
+    // corrupt, not a different valid record.
     if binding.normalized_schema_digest()
         != accepted_service_schema_digest(binding.role(), &service_schema)
     {
@@ -771,10 +775,13 @@ fn recover_component_description(
     ))
 }
 
+/// Encode one record's payload.
 pub(super) fn encode_record(
     review: &CachedCompiledReview,
     out: &mut Vec<u8>,
 ) -> Result<(), &'static str> {
+    // A flattened historical wire format cannot retain orphaned or duplicate
+    // attachment coordinates. Refuse the record instead of dropping evidence.
     for candidate in review
         .semantic_binding_candidates
         .iter()
@@ -936,6 +943,10 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
 
 #[cfg(test)]
 mod tests {
+    //! Codec round-trip proofs for interned provider identities: decoding a
+    //! record interns the same canonical texts encoding projected, so a
+    //! recovered record is semantically equal and re-encodes byte-identical.
+
     use super::*;
     use effects::provider_plan::ServiceSurface;
 
@@ -974,6 +985,7 @@ mod tests {
                 commitment,
                 Vec::new(),
             ),
+            // The codec frames policy bytes; policy admission is a separate consumer.
             policy_bytes: vec![17, 29, 43],
             facts: CachedOccurrenceFacts {
                 consumed_units: Vec::new(),

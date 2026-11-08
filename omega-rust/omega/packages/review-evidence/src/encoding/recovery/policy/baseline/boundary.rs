@@ -1,5 +1,3 @@
-// Bounded recovery for boundary application demands and realizations in policy baselines.
-
 use super::super::{
     identity::{nominal, operator_coordinate, type_identity},
     intrinsic,

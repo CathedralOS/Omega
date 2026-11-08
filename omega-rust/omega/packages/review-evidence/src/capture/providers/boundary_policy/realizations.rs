@@ -1,15 +1,3 @@
-/*
-We project boundary application realizations into package policy rows.
-
-Each row's requirement is either a boundary operator or a top-level boundary
-requirement; either species keys the policy row on its own overload coordinate
-(the operator overload, or the requirement's normalized machine overload, both
-result-dispatching named requirements). A requirement machine's token view
-shares its symbol, but the provider slot is the machine, so its coordinate uses
-the machine's named-callable overload identity rather than the operator
-signature.
-*/
-
 use super::super::application_realizations::project_boundary_application_realizations;
 use super::rejected;
 use crate::capture::PackageReviewInput;
@@ -58,6 +46,10 @@ pub(super) fn project(
             .ok_or_else(|| {
                 rejected("a closed application without a canonical selected plan index")
             })?;
+        // The row's requirement is a boundary operator or a top-level boundary
+        // requirement; either species keys the policy row on its own overload
+        // coordinate (the operator overload, or the requirement's normalized
+        // machine overload, both result-dispatching named requirements).
         let requirements = retained
             .provider
             .row_requirements
@@ -79,6 +71,9 @@ pub(super) fn project(
                 "a closed application without one exact selected operator overload",
             ));
         };
+        // A requirement machine's token view shares its symbol, but the
+        // provider slot is the machine: the coordinate uses the machine's
+        // named-callable overload identity, not the operator signature.
         let operator_coordinate = match requirement.as_operator() {
             Some(operator) if requirement.kind == IntrinsicRequirementKind::Operator => {
                 project_operator_coordinate(compilation, operator)?
@@ -160,6 +155,9 @@ pub(super) fn project(
     Ok(rows)
 }
 
+/// The policy coordinate of a top-level boundary requirement: its nominal
+/// identity and the parameter and result dispatch of its normalized machine
+/// overload, the requirement-species twin of the named operator coordinate.
 fn project_requirement_coordinate(
     compilation: &PackageReviewInput<'_>,
     requirement: symbols::SymbolHandle,

@@ -657,7 +657,7 @@ impl Resolver<'_> {
             place.segments.extend_from_slice(path);
             super::access_sources::resolve_captured_all(
                 self.program,
-                self.facts.view(),
+                self.facts,
                 self.loan_occurrences,
                 self.state,
                 operand.statement_index,
@@ -1051,7 +1051,7 @@ impl Resolver<'_> {
                 || crate::checks::storage_path_compatibility(
                     self.program,
                     crate::checks::StorageSelectorFacts {
-                        flow: self.facts.flow.view(),
+                        flow: &self.facts.flow,
                         semantic: &self.facts.semantic,
                     },
                     &crate::borrow::owner_place_segments(&homes.owner_path(self.program, loan)),
@@ -1091,7 +1091,7 @@ impl Resolver<'_> {
             .collect::<Vec<_>>();
         let mut places = super::access_sources::retain_captured_lineage(
             self.program,
-            self.facts.view(),
+            self.facts,
             self.loan_occurrences,
             self.state,
             observation.statement_index,

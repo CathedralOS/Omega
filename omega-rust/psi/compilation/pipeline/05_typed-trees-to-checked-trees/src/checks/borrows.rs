@@ -198,7 +198,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
 }
 
 fn matching_borrow_state<'a>(
-    facts: checked_trees::CheckFactsRef<'a>,
+    facts: &'a CheckFacts,
     state_flow: &FlowStateFact,
 ) -> Option<&'a checked_trees::StateBorrowFact> {
     facts

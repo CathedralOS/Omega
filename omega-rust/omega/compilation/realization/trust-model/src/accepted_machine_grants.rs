@@ -1,11 +1,7 @@
-// We resolve non-provider root trust grants (`resolve_non_provider_trust_grant`)
-// against Psi's `TrustDeclarations` roster and enforce package-level non-provider
-// grant rejection (`reject_package_non_provider_grants`). Provider selectors
-// resolve as a complete pass before non-provider selectors so package-aware
-// compilations reject individual accepted-machine grants while permitting
-// selected provider grants.
+//! Accepted-machine grant selection over Psi's complete declaration roster.
+//! Root package-grant policy belongs to `root_grants`; provider selectors
+//! resolve independently against selected provider plans.
 
-use crate::ResolvedSelectedProviderGrant;
 use diagnostics::Diagnostic;
 use language_semantics::trust_declarations::{AcceptedMachineDeclaration, TrustDeclarations};
 
@@ -18,46 +14,6 @@ struct NonProviderTrustGrantCandidate<'name> {
     subject: NonProviderTrustGrant,
     kind: &'static str,
     name: &'name str,
-}
-
-pub fn reject_package_non_provider_grants(
-    declarations: &TrustDeclarations,
-    root_grants: &[String],
-    provider_plans: &[&effects::provider_plan::ProviderPlan],
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    let provider_grants = crate::resolve_selected_provider_grants(
-        provider_plans,
-        selected_provider_plans,
-        root_grants,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    reject_package_grants_with_providers(declarations, root_grants, &provider_grants)
-}
-
-pub(crate) fn reject_package_grants_with_providers(
-    declarations: &TrustDeclarations,
-    root_grants: &[String],
-    provider_grants: &[ResolvedSelectedProviderGrant],
-) -> Result<(), Vec<Diagnostic>> {
-    for grant in root_grants {
-        if provider_grants
-            .iter()
-            .any(|provider_grant| provider_grant.selector == *grant)
-        {
-            continue;
-        }
-        match resolve_non_provider_trust_grant(declarations, grant)
-            .map_err(|diagnostic| vec![diagnostic])?
-        {
-            NonProviderTrustGrant::AcceptedMachine(_) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "package-aware compilation cannot admit individual accepted machine `{grant}`; package claims require complete package-level review",
-                ))]);
-            }
-        }
-    }
-    Ok(())
 }
 
 pub(crate) fn resolve_non_provider_trust_grant(

@@ -16,7 +16,7 @@ use super::{
     SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v30";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v28";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -155,7 +155,6 @@ fn encode_encoding_row(
                         3
                     });
                     match slot {
-                        selected_instructions::FrameStorageSlotId::ActivationBase => hasher.byte(4),
                         selected_instructions::FrameStorageSlotId::Incoming {
                             parameter_index,
                             abi_stack_byte_offset,

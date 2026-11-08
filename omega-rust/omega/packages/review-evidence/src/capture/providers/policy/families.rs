@@ -1,10 +1,7 @@
-/*
-We project selected provider families into package policy.
-
-Each plan's exact schema kind is retained here: a machine token binding is a
-signature view, not a legacy operator declaration whose identity this
-projection may reconstruct instead.
-*/
+//! Project selected provider families. Retain each plan's exact schema kind
+//! here: a machine token
+//! binding is a signature view, not a legacy operator declaration whose identity
+//! this projection may reconstruct instead.
 
 use super::rejected;
 use crate::capture::PackageReviewInput;

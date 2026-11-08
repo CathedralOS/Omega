@@ -1,18 +1,12 @@
-/*
-Direct dependency rows of the canonical root `Build` entry.
-
-We project dependency edges from direct unconditional `Build::<operation>(builder, ...)`
-statements in `build.omg`. Both the package manager (when interpreting literal
-source requests for acquisition or source-editing commands) and the compiler
-(when binding imports against checked occurrences) share this row grammar so
-neither consumer evaluates arbitrary build control flow or falls back across
-the Product (`depend` / `depend_as`) and Build (`build_depend` /
-`build_depend_as`) scopes.
-
-Conditional `*_when` call names are recognized as dependency vocabulary by
-`is_dependency_call_name` so callers can reject them explicitly as unprojected
-syntax rather than admitting them as unconditional edges.
-*/
+//! Dependency rows of the canonical root `Build` entry.
+//!
+//! Dependency edges are declared as direct unconditional
+//! `Build::<operation>(builder, ...)` statements in `build.omg`. That grammar is
+//! part of the one build-role grammar this crate owns: the package manager
+//! interprets each retained row's literals into source requests for
+//! acquisition, and the compiler consumes the same checked occurrences when
+//! it binds imports. Neither consumer evaluates build code, imports,
+//! helpers, or control flow, and neither may fall back to the other scope.
 
 use std::fmt;
 use syntax_trees::SyntaxTrees;
@@ -22,6 +16,12 @@ use syntax_trees::statement::{StatementHandle, StatementNode};
 use crate::BuildEntrySyntaxProjection;
 use crate::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 
+/// Which authorized context one direct dependency edge serves.
+///
+/// `depend`/`depend_as` rows authorize product imports. `build_depend`/
+/// `build_depend_as` rows authorize the host build context. The two scopes
+/// are distinct: an alias or a package may appear in both, and neither scope
+/// falls back to the other.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum DependencyPurpose {
     Product,
@@ -43,6 +43,13 @@ impl DependencyPurpose {
     }
 }
 
+/// One unconditional `Build` dependency operation that projects an edge.
+///
+/// The operation name selects both the authorized scope and the canonical
+/// argument shape after the explicit builder operand: `depend` and
+/// `build_depend` take one source argument;
+/// `depend_as` and `build_depend_as` take a direct alias literal followed
+/// by one source argument.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DependencyOperation {
     Depend,
@@ -59,6 +66,11 @@ impl DependencyOperation {
         Self::BuildDependAs,
     ];
 
+    /// Classify a `build.omg` call target as an edge-projecting operation.
+    ///
+    /// Conditional `*_when` names are recognized dependency vocabulary but
+    /// never project a row; use [`is_dependency_call_name`] to cover the
+    /// full family when rejecting unprojected syntax.
     pub fn classify(target: &str) -> Option<Self> {
         Some(match target {
             "depend" => Self::Depend,
@@ -78,6 +90,7 @@ impl DependencyOperation {
         }
     }
 
+    /// The authorized context the operation's row serves.
     pub const fn purpose(self) -> DependencyPurpose {
         match self {
             Self::Depend | Self::DependAs => DependencyPurpose::Product,
@@ -85,11 +98,18 @@ impl DependencyOperation {
         }
     }
 
+    /// Whether the row's first argument is a direct alias literal.
     pub const fn takes_alias(self) -> bool {
         matches!(self, Self::DependAs | Self::BuildDependAs)
     }
 }
 
+/// The conditional `*_when` dependency call names.
+///
+/// These are recognized `Build` vocabulary so consumers can reject them
+/// deliberately. A conditional call can never project an unconditional
+/// edge, so [`project_dependency_rows`] leaves them unclassified rather
+/// than admitting them as rows or letting them pass silently.
 pub(crate) const CONDITIONAL_DEPENDENCY_CALL_NAMES: [&str; 4] = [
     "depend_when",
     "depend_as_when",
@@ -97,11 +117,19 @@ pub(crate) const CONDITIONAL_DEPENDENCY_CALL_NAMES: [&str; 4] = [
     "build_depend_as_when",
 ];
 
+/// Whether `target` names any recognized dependency call, including the
+/// conditional forms that never project an edge.
 pub fn is_dependency_call_name(target: &str) -> bool {
     DependencyOperation::classify(target).is_some()
         || CONDITIONAL_DEPENDENCY_CALL_NAMES.contains(&target)
 }
 
+/// One checked dependency occurrence: a direct unconditional
+/// `Build::<operation>(builder, ...)` statement in the root build entry.
+///
+/// The row retains its statement and raw argument handles so a consumer can
+/// tie authored syntax to acquired edges. Interpreting the alias and source
+/// literals is consumer policy, not grammar.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DependencyRow {
     statement: StatementHandle,
@@ -111,6 +139,7 @@ pub struct DependencyRow {
 }
 
 impl DependencyRow {
+    /// The statement carrying this row, in authored order.
     pub const fn statement(&self) -> StatementHandle {
         self.statement
     }
@@ -119,22 +148,34 @@ impl DependencyRow {
         self.operation
     }
 
+    /// The authorized context this row's edge serves.
     pub const fn purpose(&self) -> DependencyPurpose {
         self.operation.purpose()
     }
 
+    /// The direct alias literal for `depend_as`/`build_depend_as` rows.
     pub const fn alias(&self) -> Option<ExpressionHandle> {
         self.alias
     }
 
+    /// The source argument expression, still raw syntax.
     pub const fn source(&self) -> ExpressionHandle {
         self.source
     }
 }
 
+/// How one direct `Build::<operation>(builder, ...)` statement departed from the
+/// dependency row grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DependencyRowError {
+    /// The static owner was not `Build`, or the explicit builder operand was
+    /// not the root build entry's first parameter.
     WrongReceiver,
+    /// The call's canonical argument shape was violated: `depend` and
+    /// `build_depend` take exactly one source argument, `depend_as` and
+    /// `build_depend_as` take one direct alias literal followed by one
+    /// source argument after the builder operand, and no form accepts generic, evidence, operational,
+    /// or discard modifiers.
     WrongArguments,
 }
 
@@ -153,6 +194,16 @@ impl fmt::Display for DependencyRowError {
 
 impl std::error::Error for DependencyRowError {}
 
+/// Project the direct dependency rows of a root build entry previously
+/// validated by [`crate::project_build_entry_syntax`].
+///
+/// Every direct call statement naming an edge-projecting operation on the
+/// `Build` owner becomes one retained row, in authored order. The explicit
+/// first operand must be `builder`; a different operand or a noncanonical
+/// argument shape rejects the whole projection.
+/// Conditional `*_when` calls are recognized vocabulary but carry no
+/// unconditional purpose, so they are not rows: consumers reject them as
+/// unprojected syntax through [`is_dependency_call_name`].
 pub fn project_dependency_rows(
     syntax_trees: &SyntaxTrees,
     build: &BuildEntrySyntaxProjection,

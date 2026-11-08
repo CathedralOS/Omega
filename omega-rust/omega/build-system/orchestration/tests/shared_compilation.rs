@@ -1,24 +1,3 @@
-/*
-Shared `CompilationSession` soundness and reuse tests across `orchestration::check_source`
-invocations.
-
-When a single `compiler::CompilationSession` is shared across multiple source
-checks, it must reuse frozen dependency judgments and declaration pages when
-dependencies match, while failing closed whenever a dependency contract or
-dependency context changes:
-1. `shared_compiler_rechecks_changed_dependency_contract_and_recovers_after_refusal`:
-   tightening a shared dependency's `requires` contract invalidates prior caller
-   checks for every consumer and recovers cleanly when the contract is restored.
-2. `matching_body_hash_with_different_dependency_context_is_refused`: a machine
-   with an identical body (`seven() -> u64 ensures result == 7 { supplied() }`)
-   must not reuse a proof judgment across different `supplied()` definitions.
-3. `second_consumer_reuses_the_dependency_judgment_and_declaration_pages`: two
-   distinct consumers of the same dependency reuse its frozen dependency
-   entailments, frozen body reads (returned-reference origins, binding
-   stability, denotational observation, and return intervals), and shared
-   declaration pages without falsely hitting whole-program reuse.
-*/
-
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::Path;
 

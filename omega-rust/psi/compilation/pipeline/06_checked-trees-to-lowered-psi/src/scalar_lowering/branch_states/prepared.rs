@@ -40,7 +40,7 @@ pub(crate) enum LoweredScalarBranchTerminator {
     Capture {
         target: usize,
         arguments: Vec<LoweredDirectExpression>,
-        source: semantic_vocabulary::PlaceId,
+        source: crate::emission::operation_emission::calls::StructuralValueSource,
         path: Vec<crate::emission::operation_emission::expressions::LoweredElementPathSegment>,
         access: terminal_psi::StructuralAccess,
     },
@@ -377,6 +377,14 @@ pub(crate) enum LoweredScalarEffect {
     ProduceStructuralValue {
         value: checked_trees::CheckedStructuralValueHandle,
         structural_type: StructuralTypeId,
+    },
+    /// Capture a checked existing subject before its ordered pattern operands.
+    CaptureDispatchSubject {
+        expression: checked_trees::expression::ExpressionHandle,
+        source: checked_trees::CheckedUnitStructuralArgumentPlan,
+        alias: checked_trees::expression::ExpressionHandle,
+        place: PlaceId,
+        statement: u32,
     },
     /// Publish another lexical name for an already completed value. This
     /// creates no storage or ownership and never repeats its producer.

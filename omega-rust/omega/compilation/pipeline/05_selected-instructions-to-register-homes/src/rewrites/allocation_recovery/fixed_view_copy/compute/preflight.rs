@@ -24,7 +24,7 @@ pub(super) fn validate_roots(
 ) -> Result<(), FixedViewCopyError> {
     if ranges.plan().selected != selected.identity()
         || ranges.plan().optimization_unit != selected.optimization_unit()
-        || ranges.plan().work_schedule != selected.work_schedule()
+        || ranges.plan().fuel_schedule != selected.fuel_schedule()
         || ranges.plan().target != selected.plan().target
         || legality.receipt().ranges() != ranges.receipt().identity()
         || legality.receipt().register_environment() != register_environment

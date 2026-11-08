@@ -1,7 +1,3 @@
-// Path custody checks for resolver executable selection and working-root
-// preparation: requires absolute, lexically canonical paths within a 32 KiB
-// platform-encoded byte ceiling that sit outside all package-controlled roots.
-
 use std::io;
 use std::path::{Path, PathBuf};
 

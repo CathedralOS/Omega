@@ -1,5 +1,3 @@
-// Canonical encoding for selected provider binding mechanisms and table-field storage correspondence (tag 0 is permanently retired).
-
 use super::{Encoder, PackageReviewEncodingError};
 use crate::encoding::encode::values::{
     external_policy::{encode_locator, encode_producer},
@@ -28,6 +26,8 @@ pub(in crate::encoding) fn binding(
     encoder: &mut Encoder,
     binding: &PackagePolicyProviderBinding,
 ) -> Result<(), PackageReviewEncodingError> {
+    // Tag 0 was `string_backed_import_bootstrap`. It is retired, never
+    // reassigned, and recovery rejects it explicitly.
     match binding {
         PackagePolicyProviderBinding::Syscall { number, evaluated } => {
             encoder.tag("syscall", 1);

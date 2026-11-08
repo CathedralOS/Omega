@@ -1,6 +1,6 @@
 use super::*;
 use terminal_semantics::descriptor_results::{
-    DescriptorAnalysis, ElementPayloadMemberships, element_payload_memberships, terminal_graph_from,
+    DescriptorAnalysis, ElementPayloadMemberships, element_payload_memberships, terminal_graph,
 };
 use terminal_semantics::{
     collection_backing, collection_view_descriptor, element_view_leaf_scalar,
@@ -296,8 +296,7 @@ fn validate_element_memberships(
         .ok_or(CodecError::MalformedStructuralFoundation(
             "view introduction position is absent",
         ))?;
-    // Reuse the producer's complete invocation closure for this introduction.
-    let graph = terminal_graph_from(module, [machine.id]);
+    let graph = terminal_graph(module);
     let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
     let evidence = element_payload_memberships(
         &module.structural_types,

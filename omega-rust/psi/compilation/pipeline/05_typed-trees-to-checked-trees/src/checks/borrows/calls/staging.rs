@@ -191,7 +191,7 @@ impl InvocationBoundary {
         // Every real nested invocation receives its own ordinary borrow
         // judgment at that entry cut. Missing or ambiguous rosters cannot
         // justify omitting a later invocation's check.
-        let Some(borrow_state) = super::super::matching_borrow_state(facts.view(), flow) else {
+        let Some(borrow_state) = super::super::matching_borrow_state(facts, flow) else {
             return false;
         };
         let Some(calls) = facts.borrow.calls.span(borrow_state.calls) else {

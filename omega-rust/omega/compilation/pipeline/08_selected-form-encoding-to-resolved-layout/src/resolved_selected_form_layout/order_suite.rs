@@ -44,7 +44,7 @@ pub(crate) fn successor(target: u32) -> SelectedSuccessor {
         block: SelectedBlockId(target),
         source_target: BlockId::new(u64::from(target) + 1).unwrap(),
         bindings: Vec::new(),
-        work: Vec::new(),
+        fuel: Vec::new(),
     }
 }
 fn jump(source: u32, destination: u32) -> SelectedTerminator {

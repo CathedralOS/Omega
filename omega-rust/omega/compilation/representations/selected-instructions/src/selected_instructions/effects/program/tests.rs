@@ -15,13 +15,13 @@ use crate::{
     SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
 };
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{PsiProvenance, WorkSettlement};
+use optimization_unit::{FuelSettlement, PsiProvenance};
 use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterUnitId, TargetRegisterEnvironmentIdentity,
 };
 use semantic_vocabulary::{
-    EdgeId, MachineId, ObligationId, OperationId, ValueId, WorkScheduleIdentity,
+    EdgeId, FuelScheduleIdentity, MachineId, ObligationId, OperationId, ValueId,
 };
 use target::NativeTarget;
 
@@ -523,7 +523,7 @@ fn plan() -> PreAllocationMachineEffectPlan {
         identity: PreAllocationMachineEffectIdentity::from_bytes([0; 32]),
         selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
         optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
-        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         target: NativeTarget::linux_x64(),
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
         register_constraints: RegisterConstraintCatalogIdentity::from_bytes([4; 32]),
@@ -552,12 +552,12 @@ fn plan() -> PreAllocationMachineEffectPlan {
                         values: vec![ValueId::new(3).unwrap()],
                         edges: vec![EdgeId::new(4).unwrap()],
                         obligations: vec![ObligationId::new(5).unwrap()],
-                        work: vec![
-                            WorkSettlement {
+                        fuel: vec![
+                            FuelSettlement {
                                 site: PsiProvenance::Operation(OperationId::new(2).unwrap()),
                                 units: 7,
                             },
-                            WorkSettlement {
+                            FuelSettlement {
                                 site: PsiProvenance::Edge(EdgeId::new(4).unwrap()),
                                 units: 11,
                             },
@@ -979,7 +979,7 @@ fn byte_view_address_codec_retains_distinct_family_and_source_provenance() {
     row.kind = SelectedInstructionKind::ByteViewAddress;
     row.alternatives[0].key.family = MachineAlternativeFamily::ByteViewAddress;
     row.provenance.operations = vec![OperationId::new(313).unwrap()];
-    row.provenance.work[0].site = PsiProvenance::Operation(OperationId::new(313).unwrap());
+    row.provenance.fuel[0].site = PsiProvenance::Operation(OperationId::new(313).unwrap());
     source.identity = pre_allocation_machine_effect_identity(&source);
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
@@ -998,7 +998,7 @@ fn byte_view_address_codec_retains_distinct_family_and_source_provenance() {
 }
 
 #[test]
-fn codec_rejects_work_settled_against_unclaimed_or_reused_sites() {
+fn codec_rejects_fuel_settled_against_unclaimed_or_reused_sites() {
     // The fixture settles one claimed operation and one claimed edge.
     let source = plan();
     round_trip!(source);
@@ -1009,22 +1009,22 @@ fn codec_rejects_work_settled_against_unclaimed_or_reused_sites() {
         match corruption {
             // Settle an operation the instruction never claims.
             0 => {
-                provenance.work.push(WorkSettlement {
+                provenance.fuel.push(FuelSettlement {
                     site: PsiProvenance::Operation(OperationId::new(97).unwrap()),
                     units: 1,
                 });
             }
             // Settle an edge the instruction never claims.
             1 => {
-                provenance.work.push(WorkSettlement {
+                provenance.fuel.push(FuelSettlement {
                     site: PsiProvenance::Edge(EdgeId::new(97).unwrap()),
                     units: 1,
                 });
             }
             // Settle a claimed site twice.
-            2 => provenance.work.push(provenance.work[0]),
+            2 => provenance.fuel.push(provenance.fuel[0]),
             // A claimed site still owes a nonzero charge.
-            _ => provenance.work[0].units = 0,
+            _ => provenance.fuel[0].units = 0,
         }
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&changed.encode()),
@@ -1289,7 +1289,7 @@ fn structural_call_content_is_authenticated_and_closed() {
 
     let mut invalid_declaration_tag = source.encode();
     // The final instruction ends with four empty provenance rosters, empty
-    // work, and empty alternatives (six u64 lengths). Cleanup precedes them.
+    // fuel, and empty alternatives (six u64 lengths). Cleanup precedes them.
     let declaration_tag = invalid_declaration_tag.len() - 49;
     invalid_declaration_tag[declaration_tag] = u8::MAX;
     assert!(matches!(

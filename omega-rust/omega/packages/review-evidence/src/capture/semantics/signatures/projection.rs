@@ -1,29 +1,30 @@
-/*
-We manage invocation-owned scratch arenas for public and applied signature
-review.
-
-Reifying a signature writes fresh type-reference and parameter rows into an
-arena the capture path owns, while every passthrough row (substituted
-arguments, unchanged subterms, declaration lookups) keeps the source handle
-space. The scratch seeds only the arenas a signature or type-identity read can
-index: trait and implementation telescopes, state signatures and parameters,
-data and proposition declarations, const and domain vocabulary, the operator
-spellings consulted by closed-integer endpoint evaluation, and the expression
-table behind `ConstExpression` and `Range` terms (plus the
-authored-declaration-selection custody those endpoints join through). The
-checked compilation's statement, machine-body, wire, measure, and proof arenas
-stay uncloned.
-
-Public policy and boundary applications share this instantiator. A batch
-retains their read-only vocabulary while each declaration receives fresh
-writable tables so equal-sized substitutions cannot alias revision-keyed
-lookup results. Behavioral contracts and nominal visibility are still read
-from the original review input rather than this projection's reduced tables.
-*/
+//! Invocation-owned preparation for public and applied signature review.
+//!
+//! Reifying a signature writes fresh type-reference and parameter
+//! rows into an arena the capture path owns, while every passthrough row —
+//! substituted arguments, unchanged subterms, declaration lookups — keeps the
+//! source handle space. The scratch therefore seeds exactly the arenas a
+//! signature or type-identity read can index: trait and implementation
+//! telescopes, state signatures and parameters, data/proposition declarations,
+//! const and domain
+//! vocabulary, the operator spellings consulted by closed-integer endpoint
+//! evaluation, and the expression table behind `ConstExpression`/`Range`
+//! terms — plus the authored-declaration-selection custody those endpoints
+//! join through. The checked compilation's statement, machine-body, wire,
+//! measure, and proof arenas — the bulk of a real `TypedTrees` — stay
+//! uncloned.
+//!
+//! Public policy and boundary applications use the same instantiator. A batch
+//! retains their read-only vocabulary, while each declaration receives fresh
+//! writable tables. Behavioral contracts and nominal visibility are still read
+//! from the original review input, not from this projection's reduced tables.
 
 use crate::capture::PackageReviewInput;
 use typed_trees::{TypedTreeTables, TypedTrees};
 
+/// One batch's exact semantic input and reusable read-only signature vocabulary.
+/// Mutable rows and derived indexes never survive between method projections:
+/// equal-sized substitutions can otherwise alias revision-keyed lookup results.
 pub(crate) struct SignatureProjection<'a> {
     compilation: PackageReviewInput<'a>,
     projected: Option<TypedTrees>,
@@ -45,6 +46,11 @@ impl<'a> SignatureProjection<'a> {
         let projected = match self.projected.take() {
             None => trees(&self.compilation),
             Some(previous) => {
+                // Signature instantiation appends only type references, static
+                // parameters and value parameters. Move the immutable arenas,
+                // restore those three source arenas with their source indexes,
+                // and mint fresh program-level indexes and identity interners.
+                // No scratch handle escapes into policy.
                 let source = self.compilation.checking_input;
                 let mut tables = previous.tables;
                 tables.type_reference_table = source.tables.type_reference_table.clone();

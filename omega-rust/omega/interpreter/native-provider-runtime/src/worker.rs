@@ -1,14 +1,7 @@
-/*
-We run the isolated provider worker loop (`run_worker_if_requested`, `Worker`):
-load exact adapter images, attach shared original homes, and serve serialized
-calls.
-
-Code and mappings remain resident inside `ManuallyDrop<Worker>` until
-`std::process::exit`, including across native `atexit` and TLS callbacks.
-On macOS (`__error`) and Windows (`GetLastError`/`SetLastError`), we save and
-restore guest thread error state immediately around native adapter entry so
-worker IPC and loader housekeeping never clobber guest observations.
-*/
+//! One isolated provider incarnation: load exact adapter images, map original
+//! homes, then serve serialized calls. Code and mappings remain resident until
+//! actual process exit, including native process-exit and TLS callbacks.
+//! A failed call or decoder closes the incarnation; it is never replayed.
 
 use crate::{
     channel,
@@ -37,15 +30,28 @@ struct Adapter {
     result: Option<Geometry>,
 }
 pub(crate) struct Worker {
-    adapters: Vec<Adapter>, // Retained through process teardown so atexit/TLS callbacks never see unloaded code.
+    // A Pending never silently moves into a reloaded library's state. The
+    // whole worker is retained through native process teardown, not dropped
+    // before atexit/TLS callbacks can use retained pointers or code.
+    adapters: Vec<Adapter>,
     pub(crate) homes: BTreeMap<u64, SharedBacking>,
     directory: PathBuf,
+    // Guest state is restored to Darwin's authentic TLS slot across protocol
+    // and loader work. __error still returns that slot, never this saved value's
+    // address, including when native code retains the pointer in this incarnation.
     #[cfg(target_os = "macos")]
-    guest_errno: libc::c_int, // Restored into Darwin's live `__error()` TLS slot around native entry.
+    guest_errno: libc::c_int,
+    // Windows also owns guest thread state independently of protocol/loader
+    // calls. GetLastError observes the live worker thread, not a cached API
+    // substitute; this value is restored immediately around native entry.
     #[cfg(windows)]
-    guest_last_error: u32, // Restored via `SetLastError` immediately around native entry.
+    guest_last_error: u32,
 }
 
+/// Internal executable entry used by an embedding sponsor's actual bounded
+/// child. Absence is an ordinary CLI/test invocation. The private endpoint,
+/// exact parent identity and owned directory come from the launcher; standard
+/// streams carry no control requests and cannot forge a successful response.
 pub fn run_worker_if_requested() {
     let Some(endpoint) = std::env::var_os(CHANNEL_ENV) else {
         return;
@@ -96,6 +102,10 @@ pub fn run_worker_if_requested() {
             let tag = cursor.byte()?;
             if tag == 4 {
                 cursor.finish()?;
+                // Acknowledge the retirement request, then exit the dedicated
+                // process with every native library and home still resident.
+                // The sponsor must observe actual exit before retiring its
+                // mappings. This is never a semantic completion receipt.
                 let mut response = Packet::new(0);
                 response.bytes(&[])?;
                 wire::send(&mut stream, &response.0)?;
@@ -125,6 +135,10 @@ pub fn run_worker_if_requested() {
             }
         }
     })();
+    // Never return into an arbitrary embedding runtime after loading native
+    // code. process::exit runs native exit callbacks while the intentionally
+    // retained Worker remains intact; the OS reclaims its mappings afterward.
+    // Errors likewise cannot unmap pointers already retained by a provider.
     std::process::exit(if result.is_ok() { 0 } else { 1 });
 }
 
@@ -175,6 +189,8 @@ impl Worker {
             .open(&path)?;
         file.write_all(bytes)?;
         drop(file);
+        // The authenticated parent supplies a compiler-produced fixed-frame
+        // product. Its complete bytes/hash and export are retained unchanged.
         let entry = unsafe { LoadedFrame::load(&path, export) }?;
         self.adapters.push(Adapter {
             entry,
@@ -259,10 +275,17 @@ impl Worker {
             .as_ref()
             .map_or(std::ptr::null_mut(), NativeValue::pointer);
         #[cfg(target_os = "macos")]
+        // Resolve TLS before restoring guest state. No allocation, loader or
+        // protocol work may intervene between restoration, entry and capture.
         let errno_pointer = unsafe { libc::__error() };
+        // Complete argument extents and pointer/home ranges have been joined
+        // above. The selected provider's behavior remains the admitted trusted
+        // premise; actual native traps kill only this worker incarnation.
         unsafe {
             #[cfg(target_os = "macos")]
             {
+                // __error returns this calling thread's live, aligned c_int
+                // slot. The serialized worker executes the adapter here too.
                 *errno_pointer = self.guest_errno;
             }
             #[cfg(windows)]
@@ -270,10 +293,14 @@ impl Worker {
             adapter.entry.call(&pointers, result_pointer);
             #[cfg(windows)]
             {
+                // Capture every normal return, including successful calls
+                // which may change last-error state. No IPC may intervene.
                 self.guest_last_error = windows_sys::Win32::Foundation::GetLastError();
             }
             #[cfg(target_os = "macos")]
             {
+                // Capture on every normal return: success does not imply an
+                // errno reset, nor does it guarantee errno was unchanged.
                 self.guest_errno = *errno_pointer;
             }
         }

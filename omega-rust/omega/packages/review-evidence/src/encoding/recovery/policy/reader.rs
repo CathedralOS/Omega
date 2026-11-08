@@ -1,6 +1,3 @@
-// Bounded binary reader for policy recovery with element, depth, and owned-storage accounting.
-// `canonical_scratch` charges canonical round-trip verification output against the same caller-owned storage budget as the recovered value.
-
 use super::{Error, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage};
 
 pub(in crate::encoding::recovery) struct Reader<'a> {
@@ -44,6 +41,8 @@ impl<'a> Reader<'a> {
         }
     }
 
+    /// The format check holds canonical output alongside the recovered value.
+    /// Count its requested bytes in the same caller-owned storage budget.
     pub(in crate::encoding::recovery) fn canonical_scratch(
         &mut self,
         bytes: usize,

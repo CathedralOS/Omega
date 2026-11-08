@@ -8,8 +8,8 @@ use selected_instructions::{
     SelectedInstructionProvenance, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
-    ScalarType, ValueId, WorkScheduleIdentity,
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, ScalarType, ValueId,
 };
 
 use super::identity::encode_terminal_recovery_classification_content;
@@ -48,9 +48,9 @@ impl RecoveryClassificationPlan {
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
         let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let optimization_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
-        let raw_work_schedule = cursor.u32()?;
-        let work_schedule = WorkScheduleIdentity::new(raw_work_schedule).ok_or(
-            RecoveryClassificationDecodeError::InvalidWorkSchedule(raw_work_schedule),
+        let raw_fuel_schedule = cursor.u32()?;
+        let fuel_schedule = FuelScheduleIdentity::new(raw_fuel_schedule).ok_or(
+            RecoveryClassificationDecodeError::InvalidFuelSchedule(raw_fuel_schedule),
         )?;
         let policy = match cursor.byte()? {
             0 => RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
@@ -88,7 +88,7 @@ impl RecoveryClassificationPlan {
             register_environment,
             allocator_availability,
             optimization_unit,
-            work_schedule,
+            fuel_schedule,
             policy,
             budget,
             usage,
@@ -343,9 +343,9 @@ fn provenance(
     let values = crate::codec_bytes::decode_list(cursor, value_id)?;
     let edges = crate::codec_bytes::decode_list(cursor, edge_id)?;
     let obligations = crate::codec_bytes::decode_list(cursor, obligation_id)?;
-    let work_count = cursor.length()?;
-    let mut work = Vec::with_capacity(work_count.min(cursor.remaining()));
-    for _ in 0..work_count {
+    let fuel_count = cursor.length()?;
+    let mut fuel = Vec::with_capacity(fuel_count.min(cursor.remaining()));
+    for _ in 0..fuel_count {
         let site = match cursor.byte()? {
             0 => optimization_unit::PsiProvenance::Operation(operation_id(cursor)?),
             1 => optimization_unit::PsiProvenance::Edge(edge_id(cursor)?),
@@ -353,7 +353,7 @@ fn provenance(
                 return Err(RecoveryClassificationDecodeError::UnknownProvenance(tag));
             }
         };
-        work.push(optimization_unit::WorkSettlement {
+        fuel.push(optimization_unit::FuelSettlement {
             site,
             units: cursor.u64()?,
         });
@@ -363,6 +363,6 @@ fn provenance(
         values,
         edges,
         obligations,
-        work,
+        fuel,
     })
 }

@@ -1,4 +1,4 @@
-// Source acquisition and report assembly for read-only package source inspection (`inspect_package_source` and `inspect_package_source_locator`), verifying private resolver storage path identity before and after resolution.
+//! Source acquisition and report assembly for source inspection.
 
 use super::report::PackageSourceInspection;
 use super::request::{PackageSourceInspectionError, PackageSourceRequest, SourceAdapter};
@@ -47,6 +47,7 @@ fn inspect_package_source_with_resolver(
     }
 }
 
+/// Inspect one source using manager-owned private resolver storage.
 pub fn inspect_package_source(
     request: PackageSourceRequest,
     storage: &SourceResolver,
@@ -58,6 +59,7 @@ pub fn inspect_package_source(
     result
 }
 
+/// Parse and inspect one source using manager-owned private resolver storage.
 pub fn inspect_package_source_locator(
     adapter: SourceAdapter,
     locator: impl Into<String>,

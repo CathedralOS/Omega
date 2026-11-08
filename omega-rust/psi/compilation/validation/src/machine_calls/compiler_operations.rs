@@ -7,11 +7,6 @@
 mod build_declarations;
 mod descriptor_declarations;
 mod segment_registers;
-mod static_interrupts;
-pub use static_interrupts::{
-    StaticInterruptContext, StaticInterruptDeclaration, static_interrupt_context,
-    static_interrupt_declaration,
-};
 mod task_register;
 pub use build_declarations::{
     build_operation, build_product_request_intrinsic, is_build_declaration_selection,

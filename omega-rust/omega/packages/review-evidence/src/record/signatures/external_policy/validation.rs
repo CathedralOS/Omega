@@ -1,5 +1,3 @@
-// Canonical structure validation for external executable supply rows and signatures.
-
 use crate::record::package::callable_policy::validation::signature::{
     Result, operator, owned_pair, text, value_type,
 };

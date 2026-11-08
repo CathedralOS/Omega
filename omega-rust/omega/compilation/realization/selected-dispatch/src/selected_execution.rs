@@ -1,52 +1,56 @@
-// Target execution uses saved declarations and selected plans without access
-// to checked source; explicit source inspection and the checked interpreter
-// use a separate owner on CheckedCompilation outside this record.
-//
-// SelectedExecution holds the complete selected implementation data for one
-// target:
-// - selected_native_target returns the native ABI of the selected deployment
-//   profile while keeping profiles that share an ABI (such as windows_x64 and
-//   uefi_x64) distinct in selected_target_profile; semantic-only checking
-//   selects neither and cannot be staged.
-// - program_entry_service_requirements returns boundaries in the selected
-//   entry's checked service reach, nominating exact provider requirements
-//   without constructing a receiver or fields.
-// - accepted_semantic_bindings and terminal_authority_permissions expose
-//   consumer-policy semantic bindings and permission rows resolved and consumed
-//   by this checked package compilation, while candidate_service_binding
-//   constructs a non-authoritative review candidate for one exact package-owned
-//   requirement-only boundary.
+//! Target execution uses saved declarations and selected plans, without access
+//! to checked source. Explicit source inspection lives on the compilation
+//! wrapper, outside this record.
 
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
 use std::sync::Arc;
 
+/// The complete selected implementation data for one target. Source inspection
+/// and the checked interpreter use a separate owner on CheckedCompilation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
-    pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>, // complete direct-call supplies constructed after host bindings resolve
+    /// Complete direct-call supplies, constructed after host bindings resolve.
+    /// Native demand and receiving authority still decide which may execute.
+    pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub selected_provider_plan_facts: Arc<effects::SelectedProviderPlanFacts>,
     pub entry_service_requirements: Vec<symbols::SymbolHandle>,
     pub trust_declarations: Arc<language_semantics::trust_declarations::TrustDeclarations>,
     pub has_proof_obligations: bool,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
     pub external_providers: Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
-    pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>, // refusal remains data so checking-only stops acquire no native-only obligations
+    /// Native handoff and executable exclusion admission demand these source
+    /// identities. A refusal remains data so checking-only stops acquire no
+    /// native-only obligations.
+    pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
-    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>, // exact admitted deployment provider; absence retains the SSE2 baseline
-    pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>, // authored Build grants resolved to exact selected plans
-    pub callback_roots: terminal_psi::PreparedTerminalRoots, // selected canonical declarations for behavior admission, including dormant uses
+    /// Exact admitted deployment provider; absence retains the SSE2 baseline.
+    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    /// Authored Build grants resolved to the exact selected plans.
+    pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
+    /// Selected canonical declarations for behavior admission, including dormant uses.
+    /// Executable callback placement is produced from Terminal, not stored here.
+    pub callback_roots: terminal_psi::PreparedTerminalRoots,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,
 }
 
 impl SelectedExecution {
+    /// Native ABI of the selected deployment profile. Profiles that share an
+    /// ABI, notably `windows_x64` and `uefi_x64`, stay distinct in
+    /// `selected_target_profile`. Semantic-only checking selects neither and
+    /// therefore cannot be staged.
     pub fn selected_native_target(&self) -> Option<target::NativeTarget> {
         self.selected_target_profile
             .map(target::TargetProfile::native_target)
     }
 
+    /// Boundaries in the selected entry's checked service reach. Entry selection
+    /// nominates exact provider requirements; it constructs no receiver or fields.
+    /// A ProgramEntry is root-bound rather than a package callable, so this is
+    /// the consumer's own nomination surface, not a package callable projection.
     pub fn program_entry_service_requirements(&self) -> Vec<symbols::SymbolHandle> {
         self.entry_service_requirements.clone()
     }
@@ -64,6 +68,9 @@ impl SelectedExecution {
             .find(|binding| binding.role() == role)
     }
 
+    /// Exact consumer-policy semantic bindings that were resolved and consumed
+    /// by this checked package compilation. Unconsumed or stale input bindings
+    /// reject before selected execution settles.
     pub fn accepted_semantic_bindings(
         &self,
     ) -> impl ExactSizeIterator<Item = &package_compilation::AcceptedSemanticBinding> {
@@ -72,6 +79,9 @@ impl SelectedExecution {
             .map(crate::ResolvedAcceptedSemanticBinding::accepted)
     }
 
+    /// Permission rows from the exact semantic bindings this execution
+    /// consumed. Proposal construction and accepted-policy admission project
+    /// from the checked source independently, never from each other.
     pub fn terminal_authority_permissions(
         &self,
     ) -> (
@@ -97,6 +107,10 @@ impl SelectedExecution {
         (permissions, identities.build())
     }
 
+    /// Construct a non-authoritative review candidate for one exact package-
+    /// owned requirement-only boundary. Readable role nomination happens
+    /// outside the compiler; this contributes only checked owner, nominal, and
+    /// normalized-schema coordinates for a required bound replay.
     pub fn candidate_service_binding(
         &self,
         role: AcceptedSemanticBindingRole,

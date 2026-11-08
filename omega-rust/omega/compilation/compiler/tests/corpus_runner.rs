@@ -155,12 +155,8 @@ mod checked_interpreter_dispatch;
 mod entry_inputs;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
-#[path = "support/incoming_backing_controls.rs"]
-mod incoming_backing_controls;
 #[path = "support/native_component_descriptions.rs"]
 mod native_component_descriptions;
-#[path = "support/native_entry_controls.rs"]
-mod native_entry_controls;
 #[path = "support/native_fixture_cohort.rs"]
 mod native_fixture_cohort;
 use native_fixture_cohort::retained_native_terminal;
@@ -734,7 +730,7 @@ fn interpret_fixture(
     if checked_interpreter_leg() {
         return interpret_checked_fixture(root_path, fixture_dir, build_dir, &target, rollback);
     }
-    let work_budget = match terminal_execution::work_budget(fixture_dir) {
+    let fuel_allowance = match terminal_execution::fuel_allowance(fixture_dir) {
         Ok(allowance) => allowance,
         Err(error) => return terminal_execution::Observation::failure(error),
     };
@@ -762,7 +758,7 @@ fn interpret_fixture(
         None,
         Some(&target),
         fixture_dir,
-        work_budget,
+        fuel_allowance,
         input,
     )
 }
@@ -955,7 +951,7 @@ fn observe_retained_terminal(
     fixture_dir: &Path,
     roots: &[&compilation_products::TerminalRuntimeProvisions],
 ) -> terminal_execution::Observation {
-    let work_budget = match terminal_execution::work_budget(fixture_dir) {
+    let fuel_allowance = match terminal_execution::fuel_allowance(fixture_dir) {
         Ok(allowance) => allowance,
         Err(error) => return terminal_execution::Observation::failure(error),
     };
@@ -967,7 +963,7 @@ fn observe_retained_terminal(
                 provisions,
                 target,
                 fixture_dir,
-                work_budget,
+                fuel_allowance,
                 input,
             ),
             Err(error) => terminal_execution::Observation::failure(error),
@@ -981,7 +977,7 @@ fn observe_retained_terminal(
             proposals,
             roots,
             fixture_dir,
-            work_budget,
+            fuel_allowance,
         );
         observation.facts.extend(installations.facts);
         observation.diagnostics.extend(installations.diagnostics);
@@ -1334,7 +1330,7 @@ fn check_fail_fixture(
     }
     // Authored host policy, not a source recognizer or production mode. Small
     // sponsor ceilings exercise the real request boundary without allocating
-    // hundreds of megabytes or executing the default work budget.
+    // hundreds of megabytes or executing the default fuel allowance.
     let fixture_root = root_path.parent().expect("fixture has a source directory");
     match fs::read_to_string(fixture_root.join("build_resource_limits.txt")) {
         Ok(contents) => {
@@ -1346,7 +1342,7 @@ fn check_fail_fixture(
                 .and_then(|values| values.try_into().ok())
                 .filter(|values: &[u64; 4]| values.iter().all(|value| *value != 0))
                 .ok_or_else(|| vec![diagnostics::Diagnostic::error(
-                    "build_resource_limits.txt requires four positive integers: work, entries, total bytes, object extent",
+                    "build_resource_limits.txt requires four positive integers: fuel, entries, total bytes, object extent",
                 )])?;
             let evaluation_limits = build_time_evaluation::BuildEvaluationSponsorLimits::new(
                 limits[0],
@@ -1358,12 +1354,12 @@ fn check_fail_fixture(
                 u64::MAX,
                 u64::MAX,
             )
-            .expect("positive authored work and resource ceilings");
+            .expect("positive authored fuel and resource ceilings");
             request.build.evaluation_sponsor = Some(
                 build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
                     evaluation_limits,
                     evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-                        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
                         storage_schedule:
                             evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
                     },
@@ -1435,8 +1431,6 @@ fn check_fail_fixture(
         )?;
         let target_name = discovered.targets.first().cloned();
         let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
-        installation_assumptions: Vec::new(),
-        retain_native_inputs: false,
         image: Default::default(),
         private_entry_ram,
         terminal_authority_policy:
@@ -1771,24 +1765,6 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 };
                 let mut integrity_error = None;
                 if let Ok((executable, receipt, private_entry_ram)) = &built {
-                    if fixture_dir
-                        .join("expected_native_cpu_state_controls.txt")
-                        .is_file()
-                    {
-                        facts.push("native-cpu-state-controls:match".to_owned());
-                    }
-                    if fixture_dir
-                        .join("expected_native_input_backing_controls.txt")
-                        .is_file()
-                    {
-                        facts.push("native-input-backing-controls:match".to_owned());
-                    }
-                    if fixture_dir
-                        .join("expected_native_inline_container_controls.txt")
-                        .is_file()
-                    {
-                        facts.push("native-inline-container-controls:match".to_owned());
-                    }
                     if let Some(receipt) = receipt {
                         facts.push(format!("rollback:{}", space_free(receipt)));
                     }
@@ -2242,6 +2218,14 @@ fn prior_millis() -> std::collections::HashMap<String, u64> {
 
 fn main() {
     terminal_runtime::run_native_provider_worker_if_requested();
+    if env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
+        if env::args_os().count() != 2 {
+            eprintln!("corpus_runner --build-profile takes no arguments");
+            std::process::exit(64);
+        }
+        println!("{}", compiler::compiler_build_profile());
+        return;
+    }
     if env::var_os("NEXTEST").is_some() {
         return;
     }

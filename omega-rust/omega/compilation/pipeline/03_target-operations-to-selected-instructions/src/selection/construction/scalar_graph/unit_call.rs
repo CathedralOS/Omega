@@ -128,7 +128,7 @@ pub(super) fn emit(
                 .chain(call.target.selector())
                 .collect(),
             obligations: call.requirement_obligations.clone(),
-            work: operation.work.clone(),
+            fuel: operation.fuel.clone(),
             ..Default::default()
         },
     )?;

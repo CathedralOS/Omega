@@ -1,13 +1,3 @@
-/*
-We verify machine synchronous-invocation declarations and ceilings against
-checked compilation custody.
-
-A virtual family head has no authored `invokes` clause: its published ceiling
-is the union of every retained member's effective checked ceiling. Source
-review verifies that derivation against immutable compilation custody without
-selecting a deployment or running semantic inference again.
-*/
-
 use crate::capture::PackageReviewInput;
 use crate::capture::behavior::canonical_checked_invocation_targets;
 use crate::capture::semantics::facts::machine_invocation;
@@ -54,6 +44,10 @@ pub(crate) fn validate_machine_invocations(
     Ok(())
 }
 
+/// A virtual family head has no authored invokes clause: its published ceiling
+/// is the union of every retained member's effective checked ceiling. Source
+/// review verifies that derivation against immutable compilation custody; it
+/// neither selects a deployment nor runs semantic inference again.
 fn family_invocation_ceiling(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,

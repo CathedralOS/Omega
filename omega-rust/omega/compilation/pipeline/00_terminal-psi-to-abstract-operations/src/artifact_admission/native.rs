@@ -359,13 +359,6 @@ impl VerifiedNativeArtifactInput {
         self.optimization_input.admitted_native_callbacks = callbacks;
     }
 
-    pub(crate) fn retain_admitted_installed_interrupts(
-        &mut self,
-        entries: provider_admission::AdmittedInstalledInterruptCohort,
-    ) {
-        self.optimization_input.admitted_installed_interrupts = entries;
-    }
-
     pub const fn optimization_input(&self) -> &VerifiedPsiOptimizationInput {
         &self.optimization_input
     }
@@ -468,8 +461,6 @@ fn retain_native_plan(
             admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort::empty(
                 plan.psi,
             ),
-            admitted_installed_interrupts:
-                provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi),
             plan,
             context,
             admitted_assumed_bindings: Vec::new(),

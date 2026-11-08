@@ -477,26 +477,6 @@ fn scalar_leaf_projection(
     })
 }
 
-/// A complete ordinary scalar interpretation whose every stored bit pattern
-/// is a valid value. This supplies neither initialized backing nor read access;
-/// the completed descriptor/load owner must establish those independently.
-pub(crate) fn unrestricted_scalar_read_projection(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<RecastScalarProjection> {
-    let representation = type_representation(program, reference)?;
-    let [leaf] = representation.leaves.as_slice() else {
-        return None;
-    };
-    (leaf.path.is_empty()
-        && leaf.offset == 0
-        && leaf.size == representation.size
-        && leaf.byte_projection
-        && leaf_accepts_all_bits(leaf))
-    .then_some(())?;
-    scalar_leaf_projection(representation.size, leaf)
-}
-
 /// One step from a record root to a normalized leaf: a field by its exact
 /// symbol, or a literal element of a fixed array.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -43,7 +43,7 @@ pub(crate) fn validate_integer_evaluation_candidate(
     let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let site = PsiRealizationSite::Node(patch.location);
-    let accepted_provenance = vec![realized_at_own_site(site, &node.provenance, &node.work)];
+    let accepted_provenance = vec![realized_at_own_site(site, &node.provenance, &node.fuel)];
     require_realized_rows(candidate, &accepted_provenance)?;
 
     let (source_operation, result, scalar_type, evaluated, safety_class) =

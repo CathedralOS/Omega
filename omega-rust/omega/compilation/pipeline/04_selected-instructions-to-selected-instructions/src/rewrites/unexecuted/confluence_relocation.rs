@@ -55,7 +55,7 @@
 //! reached with no predecessor at all, and a plain source block, because
 //! an implementation block's origin carries edge or case work the
 //! bounded audit does not cross. The crossed edge itself must be a plain
-//! semantic successor: case custody, work, and structural transfers are
+//! semantic successor: case custody, fuel, and structural transfers are
 //! boundary effects the move does not cross.
 //!
 //! Between the run's old span and its new one lie only the crossed

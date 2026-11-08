@@ -1,39 +1,8 @@
-/*
-Admission-to-execution protocol for a single `Build` activation
-(`prepare_build_evaluation`, `PreparedBuildEvaluation`).
-
-`prepare_build_evaluation` enforces the strict ordering required before any
-authored `build.omg` code can run:
-1. Entry selection (`select_build_machine`) and package source-consumption
-   commitment derivation require no interpreter or host filesystem resources.
-   When a synthesized default `build` machine is used, we reject `artifact_only`
-   applications or non-empty `required_outputs` requests up front because a
-   default `build` machine cannot stage outputs.
-2. Semantic checking (`admission::checking::prepare_checked_build`) validates the
-   `Build` machine and its helpers before any snapshot capture or host effects.
-   Package authority narrows what is allowed on top of that semantic floor;
-   standalone source never bypasses it.
-3. Filesystem scope preparation (`prepare_filesystem_scope`) and program
-   admission (`admit_build_program`) project any restricted host requests
-   (`RestrictedBuildRequest`). If the caller supplied `restricted_grants`, each
-   request must be admitted before execution; otherwise any non-empty request
-   list halts immediately with `CompileFailure::BuildConsentRequired` before the
-   reviewed action can execute.
-4. Pure build reuse (`PureBuildCompilation::matching_result`): because product
-   bindings and target custody may differ across occurrences, neither a whole
-   checked result nor a prior grant is reusable without fresh admission. Once
-   fresh admission succeeds, if `PureBuildCompilation` holds a completed `Pure`
-   value for the exact `CompletedPureBuildInputs`, we charge its recorded
-   evaluation usage to the current `evaluation_sponsor` and transition straight
-   to `BuildEvaluationState::Complete` without spawning a new interpreter
-   activation.
-
-`PreparedBuildEvaluation` holds the admitted state (`Execute` or `Complete`)
-without borrowing the source map or compiler session, allowing `orchestration`
-to compile dependency packages while the activation is suspended and then rejoin
-the returned activation via `validate_return`, `source_result`,
-`validate_source_join`, and `complete`.
-*/
+//! The complete admission-to-execution protocol for one Build activation.
+//!
+//! Semantic and package admission precede filesystem preparation; projected restricted
+//! requests join caller consent before execution. The result retains the source
+//! commitment and requested authority beside the evaluated configuration.
 
 use crate::activation::CompletedBuildSource;
 use crate::activation::completed_pure_build::CompletedPureBuildInputs;
@@ -50,9 +19,14 @@ use std::path::Path;
 use std::sync::Arc;
 use typed_trees::TypedTrees;
 
+/// Inputs to one activation. Source assembly and typing have already finished;
+/// this operation neither discovers source nor compiles generated continuations.
 pub struct BuildEvaluationRequest<'request> {
-    pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose, // Measurement only; source custody and admission independently establish authority.
-    pub toolchain_defaults: Option<&'request package_compilation::CompletedProviderDefaults>, // Completed core selections for this Build's own admitted execution scope.
+    /// Measurement only; source custody and admission independently establish authority.
+    pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
+    /// Completed core selections for this Build's own admitted execution scope.
+    /// These are defaults; its unfinished Product choices supply no authority.
+    pub toolchain_defaults: Option<&'request package_compilation::CompletedProviderDefaults>,
     pub pure_build_compilation: Option<&'request PureBuildCompilation>,
     pub root_path: &'request Path,
     pub typed: &'request mut TypedTrees,
@@ -65,8 +39,12 @@ pub struct BuildEvaluationRequest<'request> {
         &'request [(source::SourceId, build_output::PackageGeneratedSource)],
     pub execution: BuildExecutionInputs,
     pub artifact_only: bool,
-    pub prior_checks: Vec<&'request psi_compiler::RetainedCheck>, // Scan-ordered prior Build language judgments (own slot chain + equal-projection siblings).
-    pub retain_check: bool, // Retain a successful judgment only when a subsequent review pass will consume it.
+    /// This occurrence's earlier Build language judgment, not grants or effects.
+    /// Prior judgments this invocation may reuse: its own slot's chain plus
+    /// sibling rows whose projections arrived equal. Scan-ordered by custody.
+    pub prior_checks: Vec<&'request psi_compiler::RetainedCheck>,
+    /// Retain a successful judgment only when another review pass will use it.
+    pub retain_check: bool,
 }
 
 pub use compilation_products::EvaluatedBuild;
@@ -80,6 +58,9 @@ enum BuildEvaluationState {
     Execute(PreparedBuildExecution),
 }
 
+/// Admission and host grants retained across caller-owned execution. No source
+/// borrow or compiler-session borrow prevents dependency compilation meanwhile.
+/// A normal return must rejoin this exact invocation before any value is cached.
 pub struct PreparedBuildEvaluation {
     state: BuildEvaluationState,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
@@ -90,6 +71,9 @@ pub struct PreparedBuildEvaluation {
 }
 
 impl PreparedBuildEvaluation {
+    /// Catalog discovery may observe a role before dependency settlement, but
+    /// only from this code owner's actual normal return. This is not success
+    /// evidence for generated outputs or a Product.
     pub fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
         match &self.state {
             BuildEvaluationState::Execute(execution) => execution
@@ -101,7 +85,8 @@ impl PreparedBuildEvaluation {
             .into()),
         }
     }
-
+    /// Read source work only through this occurrence's admitted evaluation.
+    /// Reuse supplies the completed ledger without claiming another execution.
     pub fn source_result<'result>(
         &'result mut self,
         returned: Option<&'result mut crate::ReturnedBuild>,
@@ -149,7 +134,7 @@ impl PreparedBuildEvaluation {
         };
         result.map_err(|reason| vec![Diagnostic::error(reason)].into())
     }
-
+    /// Freshly charged Pure reuse needs no new activation.
     pub fn execution(&mut self) -> Option<&mut PreparedBuildExecution> {
         match &mut self.state {
             BuildEvaluationState::Complete { .. } => None,
@@ -202,6 +187,10 @@ impl PreparedBuildEvaluation {
     }
 }
 
+/// Admit one Build activation without running it. Errors return before any later step:
+/// package rejection precedes filesystem preparation, and consent rejection
+/// precedes all authored Build effects. The activation owns its grant guard through
+/// execution and releases it before returning a source continuation.
 pub fn prepare_build_evaluation(
     request: BuildEvaluationRequest<'_>,
     timings: &mut CompileTimings,
@@ -233,14 +222,16 @@ pub fn prepare_build_evaluation(
     } = execution;
     let build_directory = build_directory.as_deref();
     let snapshot = snapshot.as_ref();
+    // Source-owned entry selection requires no interpreter or host resources.
+    // Source assembly supplies an ordinary default when no Build file exists;
+    // a selected authored file must contain its own one free entry.
     let selected_machine =
         select_build_machine(typed, build_source.map(|source| source.source_id()))?
             .map(|machine| machine.symbol);
     if build_source.is_some_and(|source| source.is_default()) && artifact_only {
         return Err(vec![Diagnostic::error(
             "an artifact-only application requires a build machine that completes at least one required output",
-        )]
-        .into());
+        )].into());
     } else if build_source.is_some_and(|source| source.is_default())
         && snapshot.is_some_and(|snapshot| !snapshot.required_outputs().is_empty())
     {
@@ -249,6 +240,8 @@ pub fn prepare_build_evaluation(
         )]
         .into());
     }
+    // Source commitment is independent of Build admission, including when
+    // defaults apply. It identifies retained bytes, not a checked program.
     let base_source_consumption_commitment = package_inputs
         .map(|packages| {
             package_compilation::derive_package_compilation_subject(
@@ -269,6 +262,9 @@ pub fn prepare_build_evaluation(
             "Build execution requires its source-owned selection",
         )]
     })?;
+    // Every activation checks its helpers before snapshot capture or effects.
+    // Package authority adds to that semantic floor; standalone source cannot
+    // bypass it. Admission below consumes this exact checked program.
     let completed_checks = pure_build_compilation
         .map(PureBuildCompilation::completed_checks)
         .transpose()?
@@ -315,11 +311,20 @@ pub fn prepare_build_evaluation(
             grants.admit(request)?;
         }
     } else if !restricted_build_requests.is_empty() {
+        // Observation without consent stops here, not after executing the
+        // action being reviewed. Private issued snapshot/staging work projects
+        // no restricted request and continues through the ordinary evaluator.
         return Err(CompileFailure::BuildConsentRequired(
             restricted_build_requests,
         ));
     }
+    // Product bindings and target custody may differ, so neither a whole
+    // checked result nor an old grant is reusable. Fresh admission above fixes
+    // the current checked Build meaning; exact equality below permits only its
+    // completed Pure value to be reused.
     let inputs = admitted.pure_consumption_inputs(package_inputs, snapshot, retained_check.clone());
+    // The private Pure owner keeps its own completed judgment even when this
+    // caller did not request a judgment for incremental source compilation.
     let retained_check = retain_check.then_some(retained_check).flatten();
     let reusable = inputs
         .as_ref()
@@ -330,6 +335,9 @@ pub fn prepare_build_evaluation(
     let state = if let Some(completed) = reusable {
         let configuration = completed.configuration.clone();
         let configuration = if let Some(sponsor) = admitted.evaluation_sponsor.as_ref() {
+            // Reusing a value avoids execution, not the current occurrence's
+            // logical cost. Admission above is fresh; charge this account before
+            // publishing, and keep its telemetry out of the retained producer.
             let usage = configuration.evaluation_usage.ok_or_else(|| {
                 vec![Diagnostic::error(
                     "completed Pure Build has no recorded evaluation usage",

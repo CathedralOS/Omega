@@ -1,14 +1,5 @@
-/*
-We resolve the closed progress-profile declaration a termination premise names
-and the subject coordinates that premise certifies.
-
-A termination guarantee is conditional on a closed progress profile, so every
-premise resolves through this owner: an unknown, duplicated, or differently
-classified domain rejects before any producer records a row. A premise subject
-is either an entry parameter position or the nominal identity of the public
-declaration its root names; private roots carry no review coordinate and are
-rejected rather than exporting compiler-local handles.
-*/
+//! The progress-profile declaration a termination premise names, and the
+//! subject coordinates that premise certifies.
 
 use super::nominal_identity;
 use crate::capture::EvidenceOption;
@@ -21,6 +12,12 @@ use symbols::SymbolHandle;
 use typed_trees::domain::DomainDefinition;
 use typed_trees::signature::StateParameter;
 
+/// The exact closed progress-profile declaration a termination premise names.
+///
+/// A termination guarantee is conditional on a closed progress profile, so the
+/// premise resolves through this owner everywhere it is projected: an unknown,
+/// duplicated, or differently classified domain rejects before any producer
+/// records a row. `subject` names the declaring signature in the diagnostic.
 pub(crate) fn progress_profile<'a>(
     compilation: &'a SourceDeclarationInput<'_>,
     profile: SemanticDomainId,
@@ -46,6 +43,9 @@ pub(crate) fn progress_profile<'a>(
     Ok(profile)
 }
 
+/// A premise subject: an entry parameter position, else the identity of the
+/// public declaration its root names. A private root carries no review
+/// coordinate and rejects rather than exporting a compiler-local handle.
 pub(crate) fn premise_subject(
     compilation: &SourceDeclarationInput<'_>,
     parameters: &[StateParameter],
@@ -75,6 +75,7 @@ pub(crate) fn premise_subject(
     nominal_identity(compilation, root).map(PackageReviewProgressSubject::Declaration)
 }
 
+/// The declaration identities a premise subject projects through.
 pub(crate) fn premise_projections(
     compilation: &SourceDeclarationInput<'_>,
     premise: &ProgressPremise,

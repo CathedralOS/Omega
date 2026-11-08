@@ -267,10 +267,6 @@ impl TypedTrees {
                 for argument in call.machine_arguments.iter() {
                     self.collect_static_argument_symbols(argument, symbols);
                 }
-                if let Some(operation) = &call.installed_interrupt_operation {
-                    self.collect_static_argument_symbols(&operation.registrar, symbols);
-                    self.collect_static_argument_symbols(&operation.timer_slot, symbols);
-                }
                 if let Some(operation) = &call.private_layout_operation {
                     self.collect_static_argument_symbols(&operation.selected_slot, symbols);
                 }

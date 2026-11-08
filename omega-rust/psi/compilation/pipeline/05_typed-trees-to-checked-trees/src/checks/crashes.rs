@@ -129,14 +129,10 @@ pub(crate) fn check_operator_invocation_custody(
 
 pub(crate) fn infer_path_conditioned_guard_coverage(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: &mut CheckFacts,
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
-) -> (Vec<(usize, checked_trees::CrashPlan)>, Vec<Diagnostic>) {
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    // Each machine's new crash plan, by contract position, in machine order.
-    // A later machine resolving to a position already updated reads that
-    // update, as when the plans were written in place.
-    let mut updated: Vec<(usize, checked_trees::CrashPlan)> = Vec::new();
     let content_conservation = content_conservation_plans(program);
     let mut integer_types = None;
     let operations_by_machine = operation_sites::collect_by_machine(facts);
@@ -149,14 +145,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         else {
             continue;
         };
-        let crash_plan = updated
-            .iter()
-            .rev()
-            .find(|(position, _)| *position == contract_index)
-            .map_or(
-                &facts.contract_plans.machines()[contract_index].crash,
-                |(_, crash)| crash,
-            );
+        let crash_plan = &facts.contract_plans.machines()[contract_index].crash;
         let operations = operations_by_machine
             .get(&machine.symbol)
             .map(Vec::as_slice)
@@ -355,9 +344,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             .expect("path-conditioned coverage retains valid checked-site identity")
             .with_checked_calls(checked_calls)
             .expect("path-conditioned coverage retains valid checked-call identity");
-        updated.push((contract_index, crash));
+        facts
+            .contract_plans
+            .update_plan(contract_index, |plan| plan.crash = crash);
     }
-    (updated, diagnostics)
+    diagnostics
 }
 
 /// Guard-derived path classification shared by every checked site and checked

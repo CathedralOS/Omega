@@ -15,31 +15,9 @@ pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity
 pub(crate) struct ValidatedLegalizedOperations {
     pub(super) plan: LegalizedOperationPlan,
     pub(super) receipt: LegalizationValidationReceipt,
-    pub(super) installed_stack_requirements:
-        Vec<installation_evidence::InstalledInterruptStackRequirement>,
-    pub(super) installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
-    pub(super) installed_entry_execution:
-        Option<provider_admission::AdmittedInstalledEntryExecution>,
 }
 
 impl ValidatedLegalizedOperations {
-    pub(crate) fn installed_entry_execution(
-        &self,
-    ) -> Option<&provider_admission::AdmittedInstalledEntryExecution> {
-        self.installed_entry_execution.as_ref()
-    }
-
-    pub(crate) fn installed_stack_requirements(
-        &self,
-    ) -> &[installation_evidence::InstalledInterruptStackRequirement] {
-        &self.installed_stack_requirements
-    }
-
-    pub(crate) fn installed_interrupts(
-        &self,
-    ) -> &provider_admission::AdmittedInstalledInterruptCohort {
-        &self.installed_interrupts
-    }
     pub const fn plan(&self) -> &LegalizedOperationPlan {
         &self.plan
     }
@@ -54,7 +32,7 @@ pub(crate) struct LegalizationValidationReceipt {
     pub(super) identity: LegalizedOperationPlanIdentity,
     pub(super) validator: OptimizationValidatorIdentity,
     pub(super) optimization_unit: optimization_core::OptimizationUnitIdentity,
-    pub(super) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+    pub(super) fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
     pub(super) target: target::NativeTarget,
     pub(super) function_count: usize,
 }
@@ -72,8 +50,8 @@ impl LegalizationValidationReceipt {
         self.optimization_unit
     }
 
-    pub const fn work_schedule(self) -> semantic_vocabulary::WorkScheduleIdentity {
-        self.work_schedule
+    pub const fn fuel_schedule(self) -> semantic_vocabulary::FuelScheduleIdentity {
+        self.fuel_schedule
     }
 }
 
@@ -97,10 +75,6 @@ pub struct ReferenceObservationContext {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizationError {
-    InstalledInterruptAssociation {
-        operation: Option<semantic_vocabulary::OperationId>,
-        reason: &'static str,
-    },
     /// The raw target, abstract, and optimization-unit custody disagree, or a
     /// node's own payload violates its representation. This names a producer
     /// or consumer defect, never a missing lowering. `machine` and `operation`

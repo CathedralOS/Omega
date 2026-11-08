@@ -1,4 +1,4 @@
-// Local-source behavior tests grouped by resolver responsibility.
+//! Local-source behavior tests grouped by resolver responsibility.
 
 use super::{operations::*, resolution_observations::*, snapshot::*};
 use crate::error::SourceResolveError;

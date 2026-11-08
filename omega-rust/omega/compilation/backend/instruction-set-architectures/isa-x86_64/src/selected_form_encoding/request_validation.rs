@@ -70,14 +70,6 @@ fn family_and_operand_count(
     kind: Kind,
 ) -> Result<(Family, usize, std::ops::RangeInclusive<u32>), X86_64SelectedFormEncodingError> {
     Ok(match kind {
-        Kind::InstalledInterruptCpuCheck { .. } => (Family::InstalledInterruptCpuCheck, 4, 0..=0),
-        Kind::InstalledInterruptTaskCommit { .. } => {
-            (Family::InstalledInterruptTaskCommit, 3, 0..=0)
-        }
-        Kind::InstalledInterruptTablePublication { .. } => {
-            (Family::InstalledInterruptTablePublication, 2, 0..=0)
-        }
-
         Kind::RegisterAccess { operation } => (
             super::register_access::family(operation)?,
             operation.input_carriers().len() + usize::from(operation.produces_value()),
@@ -103,7 +95,6 @@ fn family_and_operand_count(
         Kind::PortWrite { .. } => (Family::PortWrite, 0, 0..=0),
         Kind::AtomicFence => (Family::AtomicFence, 0, 0..=0),
         Kind::Crash => (Family::Crash, 0, 0..=0),
-        Kind::PrivilegedCrash => (Family::PrivilegedCrash, 0, 0..=0),
         Kind::CompareI64Zero => (Family::CompareI64Zero, 1, 0..=0),
         Kind::CompareI64 => (Family::CompareI64, 2, 0..=0),
         Kind::CompareI64Immediate { .. } => (Family::CompareI64Immediate, 1, 0..=0),

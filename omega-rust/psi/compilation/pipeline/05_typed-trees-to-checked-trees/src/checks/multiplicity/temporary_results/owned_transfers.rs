@@ -5,14 +5,14 @@
 //! settles a child by inventing a replacement claim at its destination.
 use super::owners::{TemporaryConsumption, TemporaryDestination, TemporaryOwner};
 use super::{
-    FlowPermissionEventFact, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    CheckFacts, FlowPermissionEventFact, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionProvenance,
 };
 use language_semantics::PermissionEventSource;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::checks::multiplicity) fn append_owned_transfer(
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     consumer: PermissionEventSource,
@@ -130,7 +130,7 @@ pub(in crate::checks::multiplicity) fn append_owned_transfer(
 
 #[allow(clippy::too_many_arguments)]
 fn append_root_transfer(
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     consumer: PermissionEventSource,
@@ -182,7 +182,7 @@ fn append_root_transfer(
 /// live expression home, without deriving any claim from receiver annotations.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::checks::multiplicity) fn append_stored_transfer(
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement: usize,

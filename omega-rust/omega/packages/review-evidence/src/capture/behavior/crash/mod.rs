@@ -1,4 +1,4 @@
-// Crash route bucket, cause, expression, and permission-frontier projection.
+//! Crash plans, routes, expressions, and permission frontiers.
 
 mod expressions;
 mod permissions;

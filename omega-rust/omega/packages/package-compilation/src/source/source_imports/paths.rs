@@ -1,11 +1,4 @@
-// Physical source path candidates (`<path>.omg`, `<path>/mod.omg`, `<path>.omega`, `<path>/mod.omega`)
-// and root-containment checks for standalone and reconciled package imports.
-//
-// `source_import_candidates` walks from the full relative path up through its parent
-// prefixes so declaration imports (`use pkg::module::Type`) resolve to the longest
-// existing source file prefix. `resolve_reconciled_relative_import` canonicalizes
-// the selected candidate in `SourceFileSystem` and verifies it stays inside
-// `expected_root`.
+//! Physical source candidates and containment checks for import resolution.
 
 use diagnostics::Diagnostic;
 use std::path::{Path, PathBuf};
@@ -137,6 +130,8 @@ pub(super) fn normalize_path(
 }
 
 pub(super) fn source_path_candidates(base_path: &Path) -> Vec<PathBuf> {
+    // An alias-only import selects the package's Product root. An empty
+    // relative path must not nominate the source directory itself as a file.
     if base_path.as_os_str().is_empty() {
         return vec![PathBuf::from("main.omg"), PathBuf::from("mod.omg")];
     }
@@ -154,6 +149,8 @@ pub(super) fn source_path_candidates(base_path: &Path) -> Vec<PathBuf> {
     ]
 }
 
+/// Route a declaration import through its longest existing source prefix.
+/// The parsed module and declaration must still establish its nominal identity.
 pub(super) fn source_import_candidates(relative_path: &Path) -> Vec<PathBuf> {
     let mut candidates = source_path_candidates(relative_path);
     let mut prefix = relative_path.parent();

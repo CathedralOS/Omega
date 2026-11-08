@@ -54,12 +54,8 @@ fn conditions_bind_registers_full_width_and_preserved_flags() {
             assert_eq!(footprint.register_writes, vec![destination]);
             assert!(!footprint.writes_rflags);
             let mut expected = MachineEncodedEffects::fallthrough_v1(vec![], vec![0]);
-            expected.implicit_unit_uses = physical
-                .model()
-                .view_named("condition_flags")
-                .unwrap()
-                .units
-                .clone();
+            expected.implicit_unit_uses =
+                physical.model().view_named("rflags").unwrap().units.clone();
             assert_eq!(footprint.encoded, expected);
             for (other_kind, other_family) in forms() {
                 if kind == other_kind {

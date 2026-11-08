@@ -531,15 +531,7 @@ pub(super) fn capture(
         return Vec::new();
     }
     let contexts = crate::flow::active_context_handles(&build.contexts, contexts);
-    capture_storage_fields(
-        program,
-        semantic,
-        build.operators,
-        state,
-        statement_index,
-        &argument_roots,
-        &contexts,
-    )
+    capture_storage_fields(program, semantic, &argument_roots, &contexts)
 }
 
 /// One completed argument supplies its own value epoch and every possible
@@ -547,9 +539,6 @@ pub(super) fn capture(
 pub(super) fn capture_completed_argument(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
-    operators: &checked_trees::CheckedOperatorFacts,
-    state: &typed_trees::state::State,
-    statement_index: usize,
     completed: &super::CompletedArgumentFacts,
     destination: SymbolHandle,
 ) -> Vec<FieldValue> {
@@ -560,15 +549,7 @@ pub(super) fn capture_completed_argument(
             place.projected.segments.clone(),
             destination,
         )];
-        let found = capture_storage_fields(
-            program,
-            semantic,
-            operators,
-            state,
-            statement_index,
-            &roots,
-            &completed.contexts,
-        );
+        let found = capture_storage_fields(program, semantic, &roots, &completed.contexts);
         common = Some(match common {
             None => found,
             Some(mut previous) => {
@@ -606,9 +587,6 @@ pub(super) fn capture_completed_argument(
 fn capture_storage_fields(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
-    operators: &checked_trees::CheckedOperatorFacts,
-    state: &typed_trees::state::State,
-    statement_index: usize,
     argument_roots: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>, SymbolHandle)],
     contexts: &[facts::FactContextHandle],
 ) -> Vec<FieldValue> {
@@ -797,162 +775,7 @@ fn capture_storage_fields(
             }
         }
     }
-    capture_predicate_bounds(
-        program,
-        semantic,
-        operators,
-        state,
-        statement_index,
-        argument_roots,
-        contexts,
-        &mut fields,
-    );
     fields
-}
-
-/// A completed guard can bound a field without an assigned-bounds payload.
-/// Query its live numeric consequence before rebinding the captured argument;
-/// no predicate expression or caller-local operand crosses the call boundary.
-#[allow(clippy::too_many_arguments)]
-fn capture_predicate_bounds(
-    program: &dyn validation::CheckingInput,
-    semantic: &FactPlan,
-    operators: &checked_trees::CheckedOperatorFacts,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    argument_roots: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>, SymbolHandle)],
-    contexts: &[facts::FactContextHandle],
-    fields: &mut Vec<FieldValue>,
-) {
-    let mut places = Vec::new();
-    for handle in semantic.unique_context_facts(contexts.iter().copied()) {
-        let FactPayload::BooleanPredicate { predicate } = semantic.facts.get(handle).payload else {
-            continue;
-        };
-        if !semantic.boolean_predicates.is_valid(predicate) {
-            continue;
-        }
-        let predicate = semantic.boolean_predicates.get(predicate);
-        if predicate.role != facts::BooleanPredicateRole::CurrentObservation {
-            continue;
-        }
-        for binding in semantic
-            .boolean_predicate_bindings
-            .span_or_empty(predicate.bindings)
-        {
-            if semantic.places.is_valid(binding.place)
-                && let Some(place) = canonical_place_from_semantic_place(
-                    program,
-                    semantic,
-                    semantic.places.get(binding.place),
-                )
-            {
-                places.push(place);
-            }
-        }
-    }
-    places.retain(|place| {
-        argument_roots
-            .iter()
-            .any(|(root, prefix, _)| place.root == *root && place.segments.starts_with(prefix))
-    });
-    places.sort_by(validation::CanonicalPlace::compare_identity);
-    places.dedup();
-    if places.is_empty() {
-        return;
-    }
-    let Some(mut observations) = crate::values::CurrentIntegerBounds::at_statement(
-        program,
-        operators,
-        semantic,
-        contexts,
-        state.symbol,
-        statement_index,
-    ) else {
-        return;
-    };
-    // Index only actual captured rows; global place IDs do not size this table.
-    let mut indexed = fields
-        .iter()
-        .enumerate()
-        .map(|(index, field)| {
-            (
-                validation::CanonicalPlace {
-                    root: field.root,
-                    segments: field.segments.clone(),
-                },
-                index,
-            )
-        })
-        .collect::<Vec<_>>();
-    indexed.sort_by(|(left, _), (right, _)| left.compare_identity(right));
-    let mut additional = Vec::new();
-    for place in places {
-        let Some(primitive) = validation::canonical_place_type_reference(
-            program,
-            state.symbol,
-            statement_index,
-            &place,
-        )
-        .and_then(|reference| {
-            validation::field_domains::readable_type_reference(program, reference)
-        })
-        .and_then(|reference| program.primitive_type_reference(reference)) else {
-            continue;
-        };
-        let Some(carrier) = validation::carrier_integer_range(primitive) else {
-            continue;
-        };
-        let Some(bounds) = observations.at_place(&place, primitive) else {
-            continue;
-        };
-        if validation::integer_range_contains(&bounds, &carrier) {
-            continue;
-        }
-        for (root, prefix, parameter) in argument_roots {
-            if place.root != *root || !place.segments.starts_with(prefix) {
-                continue;
-            }
-            let suffix = &place.segments[prefix.len()..];
-            if !suffix.iter().all(|segment| match segment {
-                facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-                facts::PlaceSegment::Case { variant } => variant.is_valid(),
-                facts::PlaceSegment::FixedIndex { .. } => true,
-                _ => false,
-            }) {
-                continue;
-            }
-            let destination = validation::CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(*parameter),
-                segments: suffix.to_vec(),
-            };
-            if let Ok(position) =
-                indexed.binary_search_by(|(place, _)| place.compare_identity(&destination))
-            {
-                let field = &mut fields[indexed[position].1];
-                field.integer_bounds = Some(match field.integer_bounds.take() {
-                    Some(previous) => facts::IntegerRange {
-                        minimum: previous.minimum.max(bounds.minimum.clone()),
-                        maximum: previous.maximum.min(bounds.maximum.clone()),
-                    },
-                    None => bounds.clone(),
-                })
-                .filter(|bounds| bounds.minimum <= bounds.maximum);
-            } else {
-                additional.push(FieldValue {
-                    root: destination.root,
-                    segments: destination.segments,
-                    literal: ExpressionHandle::invalid(),
-                    predicates: Vec::new(),
-                    integer_bounds: Some(bounds.clone()),
-                    deliveries: Vec::new(),
-                    bounds_growth: 0,
-                    bounds_shrink: 0,
-                });
-            }
-        }
-    }
-    fields.extend(additional);
 }
 
 pub(super) fn append(

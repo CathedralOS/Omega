@@ -1,4 +1,4 @@
-// Closed binding ownership, foreign locator physical validation, and mechanism associations.
+//! Closed binding ownership and mechanism associations.
 use crate::record::PackagePolicyProviderBinding;
 use crate::record::PackagePolicyProviderRow;
 use crate::record::{
@@ -123,6 +123,9 @@ impl PackagePolicyProviderBinding {
     }
 }
 
+// These are the allocation-free physical constraints of target's
+// normalize_foreign_locator. Recovery cannot clone a candidate to invoke its
+// owned constructor outside the shared reader allocation budget.
 fn validate_locator(
     locator: &PackageReviewForeignLocator,
     target: TargetProfile,

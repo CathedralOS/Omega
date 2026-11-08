@@ -1,14 +1,3 @@
-/*
-We project selected provider plan rows into package policy rows.
-
-A toolchain-settled row is realized by the toolchain settlement table rather
-than an authored machine: its provenance retains an `invalid` realization
-symbol by construction, so the row keeps no realization nominal and no
-lifetime partition. A native Build promise has no checked body to substitute
-for an installation-relative reach and retains its independent requirement
-judgment rather than borrowing the Build producer's effects.
-*/
-
 use super::realizations::ReviewedProviderRealization;
 use super::{bindings, rejected};
 use crate::capture::PackageReviewInput;
@@ -55,6 +44,10 @@ pub(super) fn project(
                 declaring_schema,
                 requirement_symbol,
             )?;
+            // A toolchain-settled row is realized by the toolchain settlement
+            // table, not an authored machine: the provenance retains an
+            // `invalid` realization symbol by construction, so the row keeps
+            // no realization nominal and no lifetime partition.
             let realization = if toolchain_settled {
                 if !matches!(origin, provider_planning::ProviderRowRealization::Toolchain) {
                     return Err(rejected(
@@ -97,6 +90,9 @@ pub(super) fn project(
                 bindings::project(compilation, &plan.identities, &row.binding, requirement_symbol,
                     reviewed_realization.as_ref(), toolchain_settled)?
             };
+            // A native promise has no checked body to substitute for an
+            // installation-relative reach. Retain its independent requirement
+            // judgment; do not borrow the Build producer's effects.
             let installation_reach = match realization_symbol {
                 Some(realization) => project_selected_installation_reach(compilation, selected_instances, plan, declaring_schema,
                     requirement_symbol, realization, &requirement)?,

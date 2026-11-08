@@ -4,9 +4,9 @@ use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };
-use psi_work::WorkMeter;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue, StructuralTypeId};
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionStatus, TerminalInstantiation, TerminalProgram, TerminalScalarValue,
     TerminalStorageContents, TerminalStorageObservationError as ObservationError,
@@ -34,7 +34,7 @@ pub(super) fn observe(
             .structural()
             .map(|result| result.structural_type);
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -57,16 +57,17 @@ pub(super) fn observe(
         if instance.observe_result(&[]) != Err(ObservationError::NormalReturnRequired) {
             return Err("result was observable before execution".into());
         }
-        let mut work = WorkMeter::with_invocation(account.clone(), Some(0)).map_err(describe)?;
+        let mut fuel =
+            TerminalFuelMeter::with_invocation(account.clone(), Some(0)).map_err(describe)?;
         if !matches!(
-            instance.invoke(&mut work).map_err(describe)?,
+            instance.invoke(&mut fuel).map_err(describe)?,
             TerminalExecutionStatus::SponsorExhausted(_)
         ) || instance.observe_result(&[]) != Err(ObservationError::NormalReturnRequired)
         {
-            return Err("result observation ignored a work-budget pause".into());
+            return Err("result observation ignored a fuel pause".into());
         }
-        work.replenish(1_000_000).map_err(describe)?;
-        let result = instance.invoke(&mut work).map_err(describe)?;
+        fuel.replenish(1_000_000).map_err(describe)?;
+        let result = instance.invoke(&mut fuel).map_err(describe)?;
         if oracles == ["crash"] {
             if !matches!(result, TerminalExecutionStatus::Crashed(_))
                 || instance.observe_result(&[]) != Err(ObservationError::NormalReturnRequired)

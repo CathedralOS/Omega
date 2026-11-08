@@ -1,5 +1,4 @@
-// Native parameter telescope translation for published boundary calling plans without
-// serializing transient compiler parameter IDs.
+//! Translate the exact authored native telescope without serializing its IDs.
 
 use crate::capture::calling::rejected;
 use crate::record::{

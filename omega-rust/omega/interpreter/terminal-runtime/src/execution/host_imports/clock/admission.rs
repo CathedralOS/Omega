@@ -1,8 +1,8 @@
-// We select exact foreign clock implementations and validate their declarations
-// and ABIs. Kernel syscall numbers are platform data (Linux syscall_64.tbl and
-// asm-generic/unistd.h) rather than requirement names. Scalar carriers and thin
-// loan pointers follow the authored parameter order while storage permissions
-// are checked separately from native pointer representation.
+//! Select exact foreign implementations before validating declaration and ABI.
+//! Kernel syscall numbers are platform data (Linux syscall_64.tbl and
+//! asm-generic/unistd.h), never derived from requirement or provider names.
+//! Scalar carriers and thin loan pointers follow the authored parameter order;
+//! storage permission is checked separately from native pointer representation.
 
 use calling_conventions::{CallSignature, ValueShape};
 use runtime_abi::NativeBorrowedStorageLayout;
@@ -86,8 +86,16 @@ pub(super) fn validate(
     let wide = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
     let signed_wide = IntegerType::new(IntegerSign::Signed, 64).map_err(|_| invalid())?;
     let scalar = ScalarType::Integer;
+    // clockid_t occupies one 32-bit native word. Its declared signedness is
+    // retained in the logical signature, not mistaken for a different ABI.
+    // Both reading operations normalize that exact word in the common owner;
+    // wider integers and address carriers are not equivalent declarations.
     let selector_valid = matches!(signature.scalar_parameters.as_slice(),
         [ScalarType::Integer(integer)] if integer.bits() == 32 && !integer.is_address());
+    // The kernel returns signed-long status; the actual std declarations either
+    // retain i64, retain i32 (poll's C-style status), or discard it as Unit.
+    // All modeled statuses fit either signed carrier. Preserve that declaration
+    // and its evaluated plan rather than creating a Unit-caller fallback route.
     let status_valid = signature.result.is_unit()
         || signature.result.scalar() == Some(scalar(signed))
         || (matches!(namespace, ClockNamespace::Linux)

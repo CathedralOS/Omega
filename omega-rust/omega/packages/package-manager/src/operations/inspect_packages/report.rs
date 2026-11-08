@@ -1,4 +1,4 @@
-// Bounded text report rendering for observational package inspection (`omega packages`), contrasting accepted lock history with fresh compiler findings and build-snapshot settlements.
+//! Readable inspection only; accepted policy remains historical project data.
 
 use crate::Hex;
 use crate::declarations::PackageKey;
@@ -209,6 +209,11 @@ fn checked_context(
     )
 }
 
+/// The build occurrence's captured-source binding and settled outputs: how
+/// many captured inventory entries the build's Source reads were narrowed
+/// to, each required output the build declared and completed against sealed
+/// staged custody, and the sealed staged entries themselves (`--details`
+/// lists every entry; the summary carries their count).
 fn build_snapshot(
     output: &mut Output,
     observation: Option<&build_settings::BuildObservationSummary>,
@@ -299,6 +304,7 @@ fn graph(output: &mut Output, label: &str, source: &CanonicalSourceClosureSubjec
             edge.selected().key().name().as_str(),
             Hex(&edge.selected().key().identity().digest()),
         )?;
+        // Derived Debug quotes every authored string, including locator and revision.
         writeln!(output, "  request {:?}", edge.request())?;
     }
     Ok(())
@@ -311,6 +317,7 @@ fn package_key(output: &mut Output, prefix: &str, key: &PackageKey) -> fmt::Resu
         key.name().as_str(),
         Hex(&key.identity().digest())
     )?;
+    // The review document's helpers are private to its decision renderer.
     match key.source_lineage() {
         SourceLineage::GitHub(source) => {
             writeln!(
@@ -461,6 +468,7 @@ impl fmt::Display for Name<'_> {
             }
             PackageReviewNominalOwner::Unresolved => write!(formatter, "unresolved::")?,
         }
+        // Nominal paths are compiler payloads, never decoded or reconstructed here.
         write!(formatter, "{:?}", self.identity.path())
     }
 }

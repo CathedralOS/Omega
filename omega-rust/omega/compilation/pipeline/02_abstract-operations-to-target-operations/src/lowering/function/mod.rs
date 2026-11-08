@@ -23,7 +23,6 @@ pub(super) fn lower_function(
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
-    installed_interrupts: Option<&provider_admission::AdmittedInstalledInterruptCohort>,
 ) -> Result<TargetFunction, LoweringError> {
     if let Some((operation, boundary)) =
         native_boundaries::unsupported_scalar_call(function, settlements, selected_calls)
@@ -49,6 +48,5 @@ pub(super) fn lower_function(
         selected_calls,
         scalar_abis,
         native_callbacks,
-        installed_interrupts,
     )
 }

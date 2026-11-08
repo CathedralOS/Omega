@@ -12,7 +12,6 @@ pub use provider_admission::{
 pub enum LoweringError {
     /// The callback cohort was admitted for another Terminal program.
     ForeignNativeCallbackCohort,
-    ForeignInstalledInterruptCohort,
     ReferenceCarrierUnavailable {
         machine: MachineId,
         source: terminal_psi::StructuralArgument,
@@ -165,11 +164,6 @@ pub enum LoweringError {
     MultipleNativeCallbackArguments,
     UnknownNativeCallbackArgument(OperationId),
     InvalidNativeCallbackArgument(OperationId),
-    InvalidInstalledInterrupt {
-        machine: MachineId,
-        operation: OperationId,
-        reason: &'static str,
-    },
     MissingNativeCallbackArgument(OperationId),
     IeeeFloatFmaOperandMismatch(ValueId),
     /// Target-neutral custody retains this verified semantic write, but no

@@ -1,10 +1,4 @@
-// Spawn the native child process and decode any `--entry-ram` post-state frames written back over the private runtime observation pipe.
-//
-// When `provisions.private_entry_ram()` is empty, we run `command.output()`
-// directly. Otherwise we expect the exact framed byte count from
-// `bounded_process::capture_private_observation` and require a zero exit status,
-// because the generated entry wrapper only flushes private RAM frames upon normal
-// return from the entry machine.
+//! Join the dedicated native runtime lane to its exact admitted entry roster.
 
 use std::io;
 use std::process::{Command, Output};

@@ -1,11 +1,4 @@
-/*
-We project source-owned service reach, synchronous invocations, and progress
-premises for service declarations without display-name lookup.
-
-Boundary operators expose no service-reach, invocation, or progress rows in
-service schemas; their operator contracts stay separate.
-*/
-
+//! Source-owned service and progress declarations, never display-name lookup.
 use crate::capture::PackageReviewInput;
 use crate::capture::nominal_identity;
 use crate::capture::semantics::services::rejected;
@@ -82,6 +75,8 @@ pub(super) fn project(
             )
         }
         ProviderSchemaDeclaration::BoundaryOperator(_) => {
+            // provider_planning::service_schema::from_typed_operator exposes no service-reach,
+            // invocation or progress rows; operator contracts stay separate.
             return Ok(PackagePolicyServiceAuthority {
                 service_reach: Vec::new(),
                 synchronous_invocations: Vec::new(),

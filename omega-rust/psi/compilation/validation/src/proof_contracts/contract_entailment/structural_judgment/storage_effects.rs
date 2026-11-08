@@ -1821,15 +1821,6 @@ impl StructuralJudge<'_> {
                         .storage_version
                         .is_some_and(|at| !self.current_value_valid(stored, &stored.coordinate, at))
                 {
-                    if super::super::struct_trace() {
-                        eprintln!(
-                            "STRUCT store-preservation-unavailable owner={} coordinate={:?} written={written:?} anchors={:?} version={:?}",
-                            self.program.symbols.display_path(self.machine_symbol, "::"),
-                            stored.coordinate,
-                            stored.current_anchors,
-                            self.storage_version
-                        );
-                    }
                     continue;
                 }
                 let Some(current) = stored.current.clone() else {

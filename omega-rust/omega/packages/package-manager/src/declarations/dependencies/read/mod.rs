@@ -1,15 +1,5 @@
-/*
-Executed dependency ledgers and conservative source-edit parsing for `build.omg`.
-
-Source syntax locates conservative edit windows; it supplies no
-package-resolution authority. `DependencyProjections` splits direct dependency
-requests by their authorized context (`Product` vs. `Build`) so each scope
-retains separate requester-local ordering and alias validation without falling
-back to the other. `PackageSelection` records request custody inside an
-acquired repository source (`Root` when omitted), and `resolved_alias` derives
-the requester-local import name from either an explicit `depend_as` override
-or the dependency's own declared package name.
-*/
+//! Executed dependency ledgers and conservative source-edit parsing.
+//! Source syntax locates edits; it supplies no package-resolution authority.
 
 mod aliases;
 mod error;
@@ -24,15 +14,27 @@ pub(crate) use error::DependencyProjectionError;
 use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
 use build_declarations::BuildRequest;
+/// Which authorized context one direct dependency edge serves.
+///
+/// `depend`/`depend_as` rows authorize product imports. `build_depend`/
+/// `build_depend_as` rows authorize the host build context. The two scopes
+/// are distinct: an alias or a package may appear in both, and neither scope
+/// falls back to the other. The vocabulary lives in `build_declarations`
+/// so package management and the compiler share one grammar.
 pub use build_declarations::DependencyPurpose;
 pub(crate) use extraction::extract_scoped_from_source;
 
+/// Package selection inside one acquired repository source.
+///
+/// Selection is request custody, not source or package identity. Omitting the
+/// source field normalizes to the zero case, `Root`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PackageSelection {
     Root,
     Named(PackageName),
 }
 
+/// One source request, retaining its exact locator and explicit alias.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DependencySourceRequest {
     Path {
@@ -47,6 +49,7 @@ pub(crate) enum DependencySourceRequest {
     },
 }
 
+/// The ordered direct dependency requests within one purpose scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProjectedDependencies {
     authored_dependencies: Vec<DependencySourceRequest>,
@@ -57,6 +60,8 @@ impl ProjectedDependencies {
         &self.authored_dependencies
     }
 
+    /// Validate requester-local aliases after every selected package name is
+    /// known. Names follow [`Self::authored_dependencies`] order.
     pub(crate) fn validate_aliases(
         &self,
         selected_package_names: &[PackageName],
@@ -73,6 +78,11 @@ impl From<Vec<DependencySourceRequest>> for ProjectedDependencies {
     }
 }
 
+/// The direct dependency rows split by their authorized context.
+///
+/// Product rows and build rows retain separate requester-local ordering and
+/// alias scopes. One package may appear in both scopes, and each scope's
+/// aliases are validated independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DependencyProjections {
     product: ProjectedDependencies,
@@ -80,6 +90,8 @@ pub(crate) struct DependencyProjections {
 }
 
 impl DependencyProjections {
+    /// Retain exactly the issued dependency ledger, preserving ordinal order
+    /// within each purpose. No source syntax or unselected branch contributes.
     pub(crate) fn from_executed_requests<'request>(
         requests: impl IntoIterator<Item = &'request BuildRequest>,
     ) -> Result<Self, String> {
@@ -153,6 +165,8 @@ impl DependencyProjections {
         self.product.authored_dependencies().len() + self.build.authored_dependencies().len()
     }
 
+    /// Validate requester-local aliases for one purpose scope after every
+    /// selected package name is known for that scope.
     pub fn validate_aliases(
         &self,
         purpose: DependencyPurpose,
@@ -176,6 +190,7 @@ impl From<ProjectedDependencies> for DependencyProjections {
 }
 
 impl DependencySourceRequest {
+    /// Retain acquisition's exact request in the shared executed vocabulary.
     pub(crate) fn build_request(&self, purpose: DependencyPurpose) -> Result<BuildRequest, String> {
         use build_declarations::{BuildDependencySource, BuildRequest, ProjectName};
         let alias = self
@@ -213,6 +228,12 @@ impl DependencySourceRequest {
         }
     }
 
+    /// Resolve the requester-local import name after source custody has read
+    /// the dependency's own package declaration.
+    ///
+    /// The package-authored name supplies the ordinary alias. An explicit
+    /// `depend_as` alias is only a local name-resolution override and never
+    /// participates in package or source identity.
     pub fn resolved_alias(&self, package_name: &PackageName) -> AliasName {
         self.explicit_alias()
             .cloned()

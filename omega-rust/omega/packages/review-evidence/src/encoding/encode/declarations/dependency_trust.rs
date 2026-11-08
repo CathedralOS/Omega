@@ -1,4 +1,4 @@
-// Shared semantic dependency, authority, target geometry, placement, and machine-register encoding.
+//! Shared semantic dependency, authority, and representation encoding.
 
 mod authority;
 mod geometry;

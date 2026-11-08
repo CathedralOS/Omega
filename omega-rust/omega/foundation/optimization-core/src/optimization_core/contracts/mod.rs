@@ -1,11 +1,9 @@
-// Optimization rule, analysis, work-budget, and verdict contracts.
-//
-// `analysis` defines the closed 21-bit `AnalysisKind` vocabulary and bitsets
-// (`AnalysisSet`, `AnalysisInvalidationSet`); `budget` defines the 5-axis
-// `OptimizationWorkBudget` scaled per `OPTIMIZATION_REFERENCE_EXTENT`;
-// `decision` defines `OptimizationSafetyClass`, `OptimizationReasonCode`, and
-// `OptimizationCandidateVerdict`; and `rule` binds them into the 97-byte
-// `OptimizationRuleContract` (`OMGRUL\0\0` v1).
+//! Optimizer module role: stage group. Stable declarations governing analyses, decisions, work, and rules.
+//!
+//! `analysis` owns required and invalidated fact sets. `decision` owns safety
+//! and candidate dispositions. `budget` owns bounded work. `rule` binds those
+//! families to exact pass and rule identities. All wire decoders share the
+//! closed failures in `error`.
 
 mod analysis;
 mod budget;

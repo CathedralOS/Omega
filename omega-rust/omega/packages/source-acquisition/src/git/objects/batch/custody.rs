@@ -1,6 +1,4 @@
-// Private request-file allocation, capability identity verification, and
-// fail-closed cleanup (`PendingGitBatchRequest`) for `git cat-file` batch
-// operations inside the retained cache parent.
+//! Private request-file allocation, identity verification, and cleanup.
 
 use std::ffi::{OsStr, OsString};
 use std::fs::File;

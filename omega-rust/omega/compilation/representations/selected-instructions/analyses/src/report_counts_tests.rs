@@ -11,7 +11,7 @@ use selected_instructions::{
     LivenessIdentity, SelectedBlockId, SelectedInstructionPlanIdentity, VirtualLiveRange,
     VirtualRegisterId,
 };
-use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use std::sync::Arc;
 
 #[test]
@@ -45,7 +45,7 @@ fn range_receipt_counts_match_fresh_projection_after_partial_carry() {
         selected: SelectedInstructionPlanIdentity::from_canonical_bytes(b"counts"),
         liveness: LivenessIdentity::from_bytes([1; 32]),
         optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([2; 32]),
-        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         target: target::NativeTarget::macos_arm64(),
         functions: vec![function(1), function(2)],
     };

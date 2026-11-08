@@ -1,5 +1,3 @@
-// Canonical encoding for representation target profiles, boundary shape graphs, and opaque occurrences.
-
 use super::encode_value_placement;
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::{

@@ -1,13 +1,4 @@
-// Bounded `git cat-file --batch` execution and request-file lifecycle
-// orchestration (`read_git_blobs_batch`).
-//
-// Because a verified cache entry directory is reopened as immutable custody
-// (and a Windows read-only directory handle cannot create children), we
-// allocate `PendingGitBatchRequest` in the retained mutable `cache_parent` lane
-// beside the entry, verify repository and request-file identities before and
-// after execution, and remove the request file before reconciling results.
-// When `git_batch_plan` returns `None`, every entry is a directory tree and no
-// child process is launched.
+//! Bounded command execution and request lifecycle orchestration.
 
 use std::fs::File;
 #[cfg(test)]
@@ -52,6 +43,9 @@ pub(in crate::git::objects) fn read_git_blobs_batch(
             "Git cache entry has no retained parent",
         )
     })?;
+    // The verified cache entry is reopened as immutable custody. Keep the
+    // transient cat-file request beside it in the retained mutable cache lane;
+    // a Windows read-only directory handle cannot create children.
     let mut request = PendingGitBatchRequest::create(&repository.cache_parent, cache_root)?;
     let operation_result = (|| {
         let request_path = request.display_path.clone();
@@ -102,6 +96,8 @@ pub(crate) fn read_git_blobs_batch_from_path(
     result
 }
 
+/// Derives one batch's output bound and exact request; an empty request means every
+/// entry is a tree, so there is nothing to fetch.
 fn git_batch_plan(
     executor: &GitExecutor,
     entries: &[GitTreeEntry],

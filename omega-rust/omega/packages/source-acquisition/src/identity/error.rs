@@ -1,6 +1,3 @@
-// Closed error vocabulary (`IdentityError`) for Git locator parsing, relative
-// path validation, digest decoding, and lineage-resolution matching.
-
 use std::fmt;
 use std::path::PathBuf;
 

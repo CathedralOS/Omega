@@ -1,5 +1,3 @@
-// Service method records and interned identity tables for selected provider plans.
-
 use crate::record::{
     PackagePolicyCallingPlan, PackagePolicyServiceAuthority, PackagePolicyServiceSignature,
     PackageReviewNominalIdentity,
@@ -30,7 +28,10 @@ pub struct PackagePolicyServiceMethod {
     pub(crate) may_block: bool,
     pub(crate) terminates_guarantee: bool,
     pub(crate) termination_premises: Vec<ServiceProgressPremise>,
-    pub(crate) identities: ProviderIdentityTable, // Interned identities referenced by embedded plan-side fields.
+    /// The interned identities this method's embedded plan-side fields point
+    /// into; capture clones the schema's table, decoding rebuilds an
+    /// equivalent one from the same canonical texts.
+    pub(crate) identities: ProviderIdentityTable,
     pub(crate) calling: Vec<PackagePolicyCallingPlan>,
 }
 

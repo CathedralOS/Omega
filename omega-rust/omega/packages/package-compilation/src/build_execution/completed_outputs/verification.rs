@@ -1,9 +1,13 @@
-// Capability-relative verification of an existing `<build_dir>/completed/<hex>`
-// directory before reusing its published completed-output set. Uses
-// `open_dir_nofollow` and `FollowSymlinks::No` to prevent symlink substitution,
-// rejects hard-link aliases (`nlink != 1`), and compares `manifest.bin` plus
-// every file's mode, length, bytes, and before/after device/inode/timestamp
-// identity against the authoritative `BuildStagedOutputTree`.
+//! Check an earlier host export before reusing its completed-set name.
+//!
+//! The current compile's retained tree remains authoritative. Unlike fresh
+//! materialization, an existing directory is untrusted input: the commit marker,
+//! exact namespace, file kinds, executable modes and bytes must all match. Capability-relative
+//! no-follow opens keep substituted links from selecting unrelated host files.
+//! CapabilityMetadata comparisons detect observed replacement during this check; they do
+//! not freeze a user-selected export or establish snapshot isolation against a
+//! process with the same authority. Consumers retain the manifest-bound bytes,
+//! rather than treating this mutable host directory as new source authority.
 
 use crate::build_execution::message;
 use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};

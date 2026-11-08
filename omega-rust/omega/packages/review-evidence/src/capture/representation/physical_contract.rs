@@ -1,9 +1,4 @@
-/*
-We translate retained physical representation contracts into review evidence.
-
-A recognized target profile that lacks a Rust native realization (such as the
-bootstrap Alpha target) is rejected before interrogating `native_target()`.
-*/
+//! Translation of retained physical representation contracts into review evidence.
 
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
@@ -73,6 +68,9 @@ pub(crate) fn project_representation_target(
         .execution()
         .selected_native_target()
         .or_evidence("representation demand requires a selected native target")?;
+    // A recognized profile can lack a Rust native realization (the
+    // bootstrap Alpha target); such a custody is rejected rather than
+    // interrogating `native_target()`.
     let Some(profile_native) = profile.native_realization() else {
         return Err(vec![Diagnostic::error(format!(
             "native realization for target profile `{}` is not implemented",

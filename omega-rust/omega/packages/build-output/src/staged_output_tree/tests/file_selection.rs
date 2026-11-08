@@ -1,7 +1,3 @@
-// Unit tests for `BuildStagedOutputTree::select_files`, verifying ancestor
-// directory inclusion, canonical ordering, `Arc<[u8]>` byte sharing, and
-// rejection of missing, duplicate, or directory paths.
-
 use super::baseline_tree;
 use crate::empty;
 use crate::staged_output_tree::RetainedStagedOutputEntryKind;

@@ -1,5 +1,4 @@
-// Exact service-schema permissions (`PackagePolicyTerminalPermissions`),
-// recording review policy rather than exercised authority or admission.
+//! Exact service-schema permissions, not exercised authority or admission.
 
 mod generics;
 
@@ -54,7 +53,8 @@ pub struct PackagePolicyTerminalService {
     pub(crate) service: PackageReviewNominalIdentity,
     pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) lifetime_parameter_count: u32,
-    pub(crate) methods: Vec<PackagePolicyServiceMethod>, // Complete schema in original declaration order, including unpermitted methods.
+    /// Complete schema in original declaration order, including unpermitted methods.
+    pub(crate) methods: Vec<PackagePolicyServiceMethod>,
     pub(crate) permissions: Vec<PackagePolicyTerminalPermission>,
 }
 

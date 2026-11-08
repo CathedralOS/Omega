@@ -99,11 +99,11 @@ pub(super) fn observe_portable(
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 mod linux {
     //! Explicit trusted corpus provisions for actual libc carrier exchange and owned entry arrivals.
-    use psi_work::WorkMeter;
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
     use std::collections::BTreeMap;
     use std::sync::{Arc, Mutex};
     use terminal_codec::CanonicalTerminalArtifact;
+    use terminal_fuel::TerminalFuelMeter;
     use terminal_interpreter::{
         TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
         TerminalExecutionResult, TerminalExecutionStatus, TerminalImportAdapter,
@@ -257,7 +257,9 @@ mod linux {
                 )
                 .unwrap();
         }
-        let actual = instance.invoke(&mut WorkMeter::unbounded()).unwrap();
+        let actual = instance
+            .invoke(&mut TerminalFuelMeter::unbounded())
+            .unwrap();
         assert_eq!(
             actual,
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
@@ -291,7 +293,9 @@ mod linux {
                 ..Default::default()
             })
             .unwrap();
-        let status = instance.invoke(&mut WorkMeter::unbounded()).unwrap();
+        let status = instance
+            .invoke(&mut TerminalFuelMeter::unbounded())
+            .unwrap();
         let TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(returned)) =
             status
         else {
@@ -343,7 +347,9 @@ mod linux {
             })
             .unwrap();
         let TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(returned)) =
-            instance.invoke(&mut WorkMeter::unbounded()).unwrap()
+            instance
+                .invoke(&mut TerminalFuelMeter::unbounded())
+                .unwrap()
         else {
             panic!("completed materialized result")
         };

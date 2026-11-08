@@ -1,25 +1,5 @@
-// Review of accepted compiler-intrinsic bindings: resolving the accepted
-// service binding, retaining selected review identities, and producing direct
-// boundary leaves.
-//
-// ResolvedAcceptedSemanticBinding pairs one consumer-supplied semantic binding
-// with its exact ServiceDeclaration record after selected-plan settlement so
-// later consumers cannot search for authority by readable path or retain a
-// source-arena coordinate.
-//
-// retain_selected_compiler_intrinsic_review_identities closes row-aligned
-// package-review identity after checked provider execution is selected.
-// Non-intrinsic and unsupported compiler-intrinsic rows retain None so package
-// review rederives and rejects unsupported children until a closed identity
-// exists. Neither a Build locator nor a settlement table supplies a sealed
-// intrinsic execution identity or an authored completion. Console and
-// ProcessExit roles are independent: a row consumes at most one of them, and a
-// hosted exit realized through target DLL linkage consumes the accepted
-// Console or ProcessExit binding just as an intrinsic exit row does.
-//
-// produce_direct_boundary_leaves constructs complete target-call supplies
-// after host bindings settle, borrowing original source rows from planning and
-// closing every original row before coalescing equal supplies.
+//! Review of accepted compiler-intrinsic bindings: resolving the accepted
+//! service binding and retaining the selected review identities.
 
 use crate::SelectedCompilerIntrinsicExecutionIdentity;
 use crate::compiler_intrinsic::{AcceptedRowBinding, HostedService};
@@ -29,6 +9,10 @@ use provider_planning::SelectedProviderReviewProvenance;
 use provider_planning::service_declarations::{ServiceDeclaration, ServiceDeclarations};
 use std::sync::Arc;
 
+/// One consumer-supplied semantic binding after exact selected-plan
+/// settlement. The raw row remains visible for persistence/review, while the
+/// exact declaration/schema record prevents later consumers from searching
+/// for authority by a readable path or retaining a source-arena coordinate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedAcceptedSemanticBinding {
     accepted: package_compilation::AcceptedSemanticBinding,
@@ -49,6 +33,9 @@ impl ResolvedAcceptedSemanticBinding {
     }
 }
 
+/// Resolve one requirement-only semantic role against an exact package-owned
+/// boundary declaration. Unlike Console execution settlement, this does not
+/// claim or synthesize a provider plan.
 pub(crate) fn resolve_accepted_service_binding(
     services: &ServiceDeclarations,
     binding: &package_compilation::AcceptedSemanticBinding,
@@ -90,6 +77,14 @@ pub(crate) fn resolve_accepted_service_binding(
     })
 }
 
+/// Close row-aligned package-review identity after checked provider execution
+/// has been selected.
+///
+/// The retained sidecar is deliberately separate from the authored
+/// realization-machine declaration. Non-intrinsic rows retain `None`.
+/// Unsupported compiler-intrinsic executions also retain `None`; package
+/// review rederives that unsupported child and rejects it until a closed
+/// identity exists.
 pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     candidates: &[provider_planning::ProviderPlanCandidate],
     external_providers: &psi_terminal_production::ExternalProviderDeclarations,
@@ -178,6 +173,8 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 .enumerate()
         {
             let Some(realization_symbol) = realization_symbol.authored() else {
+                // Neither a Build locator nor a settlement table supplies a
+                // sealed intrinsic execution identity or an authored completion.
                 if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
                     diagnostics.push(Diagnostic::error(
                         "intrinsic row has no exact authored realization",
@@ -194,6 +191,9 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 continue;
             };
             let exit_process = &declarations.exit_process;
+            // Console and canonical ProcessExit roles are independent: a row
+            // consumes at most one of them, and every consuming site tallies
+            // it here.
             let mut accumulate = |diagnostics: &mut Vec<Diagnostic>| {
                 let checked = !completion_leaves.is_empty();
                 let schema_symbol = retained.provider.schema.symbol();
@@ -213,6 +213,11 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 }
             };
             if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
+                // A hosted exit realized through the target's DLL linkage
+                // (Windows: kernel32 `ExitProcess`) consumes the accepted
+                // Console or ProcessExit binding exactly as an intrinsic
+                // exit row does; the binding names the requirement and the
+                // provider row, not the realization behind them.
                 accumulate(&mut diagnostics);
                 rows.push(None);
                 continue;
@@ -321,6 +326,11 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     Ok(resolved)
 }
 
+/// Construct complete target-call supplies after their host bindings settle.
+/// Original source rows remain borrowed from planning; no projected plan is
+/// reused as a public admission identity and no later pass fills execution.
+/// Declaration facts already came from their source owner: this operation
+/// joins target/accepted custody without querying checked trees again.
 pub(crate) fn produce_direct_boundary_leaves(
     external_providers: &psi_terminal_production::ExternalProviderDeclarations,
     selected: &[SelectedProviderReviewProvenance],
@@ -398,6 +408,8 @@ pub(crate) fn produce_direct_boundary_leaves(
             let leaf = input
                 .finish(candidate.plan(), execution)
                 .map_err(|diagnostic| vec![diagnostic])?;
+            // Close every original row before coalescing equal supplies. This
+            // cannot hide a refusal; trust still owns the complete candidates.
             if !leaves.contains(&leaf) {
                 leaves.push(leaf);
             }

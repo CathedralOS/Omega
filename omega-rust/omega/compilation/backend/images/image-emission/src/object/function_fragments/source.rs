@@ -1,49 +1,6 @@
 //! Admission predicates and immutable inputs shared by construction and replay.
 
 mod descriptor_tables;
-mod installed_calls;
-mod installed_interrupts;
-mod privileged_termination;
-mod static_interrupts;
-
-pub(crate) fn invocation_input_sources(
-    source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
-    caller: semantic_vocabulary::MachineId,
-    site: target_operations::CallSiteOwner,
-    callee: semantic_vocabulary::MachineId,
-    origin: &terminal_semantics::descriptor_results::DescriptorSourceOrigin,
-) -> Result<Vec<terminal_semantics::descriptor_results::DescriptorSourceOrigin>, super::Error> {
-    let current = source.source().source().source().source();
-    placed_reference::backing_geometry::observe_inputs(
-        current.optimized_target().optimized().plan(),
-        current.optimized_target().target_operations(),
-        caller,
-        site,
-        callee,
-        origin,
-    )
-    .map_err(super::Error::Mismatch)
-}
-
-/// Query only the selected function retained by this admitted object source.
-pub(crate) fn selected_constant_operand(
-    source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
-    machine: semantic_vocabulary::MachineId,
-    instruction: selected_instructions::SelectedInstructionId,
-    operand: u16,
-) -> Result<Option<u64>, super::Error> {
-    let function = source
-        .source()
-        .source()
-        .source()
-        .source()
-        .selected_plan()
-        .function(machine)
-        .ok_or(super::Error::Mismatch(
-            "constant operand has no retained function",
-        ))?;
-    installed_interrupts::selected_constant_operand(function, instruction, operand)
-}
 
 use super::Error;
 use abstract_operations::{
@@ -57,7 +14,6 @@ mod aggregate_results;
 mod control_flow;
 pub(super) mod placed_reference;
 mod primitive_accesses;
-mod spill_values;
 mod stack_calls;
 mod structural_case;
 mod structural_fields;
@@ -214,16 +170,6 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
     }
     let current = source.source().source().source().source();
     let abstract_plan = current.optimized_target().optimized().plan();
-    privileged_termination::validate(
-        current.optimized_target().installed_entry_execution(),
-        current.selected_plan(),
-    )?;
-    placed_reference::backing_geometry::validate_activation_residence(
-        abstract_plan,
-        current.selected_plan(),
-        current.optimized_target().target_operations(),
-        current.optimized_target().installed_stack_requirements(),
-    )?;
     let geometry_graph = abstract_plan
         .operations()
         .any(|operation| {
@@ -247,12 +193,6 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             graph,
         )
     });
-    let interrupt_helpers =
-        target_operations_to_selected_instructions::PreparedInstalledInterruptHelpers::new(
-            abstract_plan.psi,
-            source.lowering_facts().module(),
-            source.lowering_facts().installed_interrupts(),
-        );
     for fragment in &fragments.functions {
         let (abstracted, targeted) = function(source, fragment.machine)?;
         let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
@@ -260,17 +200,6 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             .selected_plan()
             .function(fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
-        let interrupt_replay = static_interrupts::PreparedHelperReplay::new(selected, targeted)?;
-        installed_calls::validate(abstracted, targeted, selected)?;
-        let installed_scopes = installed_interrupts::validate(
-            source.lowering_facts().module(),
-            source.lowering_facts().installed_interrupts(),
-            current.optimized_target().installed_stack_requirements(),
-            current.selected_plan().target,
-            targeted,
-            selected,
-        )?;
-        let mut addresses = placed_reference::AddressReplay::new(targeted, selected);
         let descriptor_replay = descriptor_tables::DescriptorReplay::new(targeted, selected)
             .map_err(Error::Mismatch)?;
         let structural = selected.structural.as_ref();
@@ -373,14 +302,13 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::ReloadSegmentDescriptors { .. }
                 | AbstractOperation::ActivateTaskRegister { .. }
                 | AbstractOperation::GlobalDescriptorTable { .. } => {
-                    descriptor_replay.validate(operation, &mut addresses).map_err(|reason| Error::UnaccountedOperation {
+                    descriptor_replay.validate(operation).map_err(|reason| Error::UnaccountedOperation {
                         machine: fragment.machine,
                         operation_ordinal,
                         operation_description: format!("{operation:?}: {reason}"),
                     })?;
                     true
                 }
-
                 AbstractOperation::RegisterAccess { psi_operation, event, result, .. } => {
                     let mut instructions = selected.instructions().filter(|instruction| {
                         instruction.provenance.operations.contains(psi_operation)
@@ -468,17 +396,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
                 AbstractOperation::EstablishAccessReference { psi_operation, result, source, correspondence } => {
-                    let retained = geometry.as_mut().is_some_and(|geometry| placed_reference::retained(
-                        *psi_operation, result, source, correspondence, geometry, &mut addresses,
-                    ).is_some());
-                    if !retained && let Some(reason) = addresses.failure_reason() {
-                        return Err(Error::UnaccountedOperation {
-                            machine: fragment.machine,
-                            operation_ordinal,
-                            operation_description: format!("{operation:?}: {reason}"),
-                        });
-                    }
-                    retained
+                    geometry.as_mut().is_some_and(|geometry| placed_reference::retained(
+                        *psi_operation, result, source, correspondence, targeted, selected, geometry,
+                    ).is_some())
                 }
                 AbstractOperation::StructuralCaseMembership { .. }
                 | abstract_operations::establish_record_or_case_pattern!(..)
@@ -513,7 +433,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::CallStructural {psi_operation,callee:abstract_operations::AbstractCallTarget::Dynamic {selector,interface,slot},result:AbstractStructuralCallResult::Scalar(result),..} => {
                     let catalog=&current.optimized_target().optimized().plan().dynamic_dispatch;
                     catalog.interface(*interface).and_then(|interface|interface.slots.get(*slot as usize)).is_some_and(|shape|shape.result.scalar()==Some(result.scalar_type))
-                        && selected.calls.iter().filter(|row|row.owner == target_operations::CallSiteOwner::Operation(*psi_operation)
+                        && selected.calls.iter().filter(|row|row.owner.operation()==Some(*psi_operation)
                             && row.call.target==target_operations::NativeCallTarget::Dynamic {selector:*selector,interface:*interface,slot:*slot}
                             && row.call.result_placement.is_some() && row.call.result_placement==row.call.call_plan.result).count()==1
                 }
@@ -536,7 +456,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         (None, None) => parameter_abi(target).map(|(plan, _, _)| plan),
                         _ => None,
                     };
-                    selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation)
+                    selected.calls.iter().filter(|row| row.owner.operation() == Some(*psi_operation)
                         && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
                         && row.call.result_placement.as_ref().is_some_and(|placement| {
                             body.result.scalar().is_some_and(|returned|
@@ -613,7 +533,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     call_plan.is_some_and(|plan|
                         plan.parameters.len() == arguments.len()
                             && selected.calls.iter().filter(|row|
-                                row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
+                                row.owner.operation() == Some(*psi_operation) && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
                                     && row.call.call_plan == *plan
                                     && row.call.result_placement == plan.result
                                     && row.call.crash_continuations == *crash_continuations
@@ -627,16 +547,14 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     result: AbstractStructuralCallResult::Unit,
                     callee,
                     ..
-                } => selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
+                } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, boundary, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
-                    || installed_scopes.binary_search(psi_operation).is_ok()
                     || program_image_retained(psi_operation, boundary, targeted, selected)
                     || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
                     || access_lifecycle_retained(operation, targeted)
                     || empty_run_release_retained(operation, targeted, abstract_plan)
-                    || static_interrupts::retained(operation, &interrupt_helpers, &interrupt_replay)?
                     || placed_scalar_retained(operation, targeted, selected)
-                    || selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
+                    || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
                 AbstractOperation::InvokeNoNormal {

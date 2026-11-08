@@ -1,11 +1,12 @@
-// Repository-wide census over bundled-library imports in `.omg` sources. The
-// standalone `omega::language::std` and `omega::language::alloc` mount paths are
-// retired outside the libraries themselves: package-aware consumers must reach
-// bundled libraries through declared `build.omg` dependency edges and their
-// requester-local aliases (`omega_language_std`, `alloc`). Fail-tier fixtures
-// (`tests/omega/fail`) and standalone roots without `build.omg` are excluded
-// from missing-edge assertions because their rejection is tested by the
-// compiler itself.
+//! Census over every real library import in the repository. The standalone
+//! `omega::language::std`/`alloc` mount is retired: package-aware consumers
+//! reach bundled libraries through ordinary dependency edges and the
+//! requester-local alias the edge grants (`omega_language_std`, `alloc`).
+//! This inventory is the replacement for the deleted build-file census test:
+//! it covers build-scope sources, fail-tier fixtures and imports below member
+//! directories. A root without `build.omg` is not migration debt — its
+//! imports are compilation errors, not missing edges — and a library needs
+//! no edge to itself.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -44,6 +45,8 @@ fn collect_omega_files(root: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Maps every bundled library package name to its package directory,
+/// discovered from each library's own `Build::package` declaration.
 fn bundled_packages(repo: &Path) -> BTreeMap<String, PathBuf> {
     let mut packages = BTreeMap::new();
     let library_root = repo.join("source/library");
@@ -76,6 +79,8 @@ fn package_name(build_text: &str) -> Option<String> {
     Some(rest[..end].to_string())
 }
 
+/// Every `use <head>::` and every `omega::language::<name>` mount import in
+/// one source file, as (head, is_mount_path) pairs in order of appearance.
 fn imports_of(text: &str) -> Vec<(String, bool)> {
     let mut imports = Vec::new();
     for line in text.lines() {
@@ -100,6 +105,9 @@ fn imports_of(text: &str) -> Vec<(String, bool)> {
     imports
 }
 
+/// The nearest ancestor directory carrying `build.omg`, or `None` for a
+/// standalone root. Member directories fall through to the root that owns
+/// their package — the root's edges grant the aliases they import through.
 fn owning_build_root(file: &Path) -> Option<PathBuf> {
     file.parent()?.ancestors().find_map(|dir| {
         if dir.join("build.omg").is_file() {
@@ -110,6 +118,8 @@ fn owning_build_root(file: &Path) -> Option<PathBuf> {
     })
 }
 
+/// Package directories this root's `build.omg` depends on, resolved against
+/// the root directory.
 fn dependency_dirs(root: &Path) -> Vec<PathBuf> {
     let Ok(text) = fs::read_to_string(root.join("build.omg")) else {
         return Vec::new();
@@ -119,6 +129,7 @@ fn dependency_dirs(root: &Path) -> Vec<PathBuf> {
     let mut rest = text.as_str();
     while let Some(at) = rest.find(marker) {
         rest = &rest[at + marker.len()..];
+        // The location path is the first quoted string inside the record.
         let Some(from) = rest.find('"') else {
             break;
         };
@@ -163,9 +174,15 @@ fn library_imports_ride_declared_edges_not_the_mount() {
         let Ok(text) = fs::read_to_string(source) else {
             continue;
         };
+        // fail-tier fixtures author rejections — including the missing-edge
+        // and mount-path pins — so they join the inventory but carry no
+        // assertions.
         let fail_tier = source.starts_with(repo.join("tests/omega/fail"));
         for (head, is_mount) in imports_of(&text) {
             if is_mount && MOUNTED_LIBRARIES.contains(&head.as_str()) {
+                // The retired mount survives only inside the library it names:
+                // std's own files may keep importing `omega::language::std`
+                // because a package needs no edge to itself.
                 let self_dir = repo.join("source/library").join(&head);
                 if !fail_tier && !is_under(source, &self_dir) {
                     mount_path_offenders.push(format!(
@@ -176,7 +193,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
                 continue;
             }
             let Some(package_dir) = packages.get(&head) else {
-                continue;
+                continue; // not a bundled-library alias
             };
             if is_mount {
                 if !fail_tier {
@@ -188,6 +205,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
                 continue;
             }
             inventoried += 1;
+            // A library's own sources need no edge to themselves.
             if is_under(source, package_dir) {
                 continue;
             }
@@ -195,7 +213,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
                 continue;
             }
             let Some(root) = owning_build_root(source) else {
-                continue;
+                continue; // a root without build.omg is not debt
             };
             let reached = dependency_dirs(&root)
                 .iter()

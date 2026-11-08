@@ -180,8 +180,6 @@ fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
 pub(crate) fn prepare(
     artifact: &crate::ObjectArtifact,
 ) -> Result<Option<PreparedEntry>, Diagnostic> {
-    crate::object::object_artifact::installed_stack::require_installed_root_provision(artifact)
-        .map_err(|error| Diagnostic::error(error.to_string()))?;
     if artifact.physical_entry_binding().is_some() {
         return crate::entries::physical_entry::prepare(artifact).map(Some);
     }

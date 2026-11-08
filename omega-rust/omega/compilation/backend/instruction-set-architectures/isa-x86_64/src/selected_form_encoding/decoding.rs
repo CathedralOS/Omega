@@ -20,7 +20,6 @@ use selected_instructions::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DecodedInstruction {
     Crash,
-    PrivilegedStop,
     SignedDivide {
         divisor: u8,
     },
@@ -526,12 +525,6 @@ pub(crate) fn decode_one(
             6,
         ));
     }
-    if bytes.starts_with(&crate::PRIVILEGED_STOP_BYTES) {
-        return Ok((
-            DecodedInstruction::PrivilegedStop,
-            crate::PRIVILEGED_STOP_BYTES.len(),
-        ));
-    }
     if bytes.starts_with(&[0x0f, 0x0b]) {
         return Ok((DecodedInstruction::Crash, 2));
     }
@@ -927,10 +920,7 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedInstruction],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     let valid = match kind {
-        Kind::InstalledInterruptCpuCheck { .. }
-        | Kind::InstalledInterruptTaskCommit { .. }
-        | Kind::InstalledInterruptTablePublication { .. }
-        | Kind::RegisterAccess { .. } => {
+        Kind::RegisterAccess { .. } => {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
         }
         Kind::PortWrite { .. } => {
@@ -1129,9 +1119,6 @@ pub(crate) fn validate_decoded(
         Kind::NearestIeeeFloatArithmetic { .. } | Kind::FloatResultPolicy { .. } => false,
         Kind::AtomicFence => registers.is_empty() && decoded == [DecodedInstruction::MemoryFence],
         Kind::Crash => registers.is_empty() && decoded == [DecodedInstruction::Crash],
-        Kind::PrivilegedCrash => {
-            registers.is_empty() && decoded == [DecodedInstruction::PrivilegedStop]
-        }
         Kind::MaterializeI64 { value } if alternative.variant == 1 => {
             integer_bits(value)? == 0
                 && decoded
@@ -1989,7 +1976,7 @@ fn operand_views(positions: &[u16], operands: &[RegisterViewId]) -> Vec<Register
 }
 
 /// Every Trapping form reads its row's inputs, defines its result and
-/// scratch, clobbers condition flags, and may stop at its inline UD2.
+/// scratch, clobbers RFLAGS, and may stop at its inline UD2.
 fn trapping_footprint(
     form: TrappingForm,
     operands: &[RegisterViewId],
@@ -2005,7 +1992,7 @@ fn trapping_footprint(
 }
 
 /// Every saturating form reads and writes the positions its shape declares,
-/// clobbers condition flags, and every division additionally clobbers RDX and keeps
+/// clobbers RFLAGS, and every division additionally clobbers RDX and keeps
 /// the architectural fault behaviour of unsigned division. The u64 multiply
 /// shares the division pins but defines RDX as an operand and never faults.
 fn saturating_footprint(
@@ -2018,7 +2005,7 @@ fn saturating_footprint(
     let register_reads = operand_views(&reads, operands);
     let register_writes = operand_views(&writes, operands);
     let mut encoded = MachineEncodedEffects::fallthrough_v1(reads, writes);
-    encoded.implicit_unit_clobbers = units("condition_flags");
+    encoded.implicit_unit_clobbers = units("rflags");
     if form.is_division() {
         // The quotient forms read an explicit RDX input the divider still
         // writes through, so RDX is an implicit clobber there; the remainder
@@ -2062,14 +2049,6 @@ pub(crate) fn footprint(
     // alternative's operand roster. The footprint's register views and the
     // encoded effects both derive from this one list.
     let (reads, writes, writes_rflags): (Vec<u16>, Vec<u16>, bool) = match kind {
-        Kind::InstalledInterruptCpuCheck { .. }
-        | Kind::InstalledInterruptTaskCommit { .. }
-        | Kind::InstalledInterruptTablePublication { .. } => {
-            return super::installed_interrupt::footprint(
-                super::installed_interrupt::Form::from_kind(kind).expect("installed form"),
-                operands,
-            );
-        }
         Kind::RegisterAccess { operation } => {
             return super::register_access::footprint(operation, operands);
         }
@@ -2090,7 +2069,6 @@ pub(crate) fn footprint(
             unreachable!("atomic footprint returned above")
         }
         Kind::PortWrite { .. } | Kind::AtomicFence | Kind::Crash => (Vec::new(), Vec::new(), false),
-        Kind::PrivilegedCrash => (Vec::new(), Vec::new(), true),
         Kind::MaterializeBooleanEqual
         | Kind::MaterializeBooleanU64LessThan
         | Kind::MaterializeBooleanI64LessThan
@@ -2157,8 +2135,6 @@ pub(crate) fn footprint(
         super::port_write::effects()
     } else if kind == Kind::AtomicFence {
         MachineEncodedEffects::atomic_fence_v1()
-    } else if kind == Kind::PrivilegedCrash {
-        MachineEncodedEffects::privileged_stop_v1(&units("rip"), &units("control_flags"))
     } else if kind == Kind::Crash {
         selected_instructions::MachineEncodedEffects::crash_v1(&units("rip"))
     } else if let Kind::AtomicAccess { .. } = kind {
@@ -2192,7 +2168,7 @@ pub(crate) fn footprint(
             | Kind::ConditionalBranchU64LessThan
             | Kind::ConditionalBranchI64LessThan
     ) {
-        let uses = units_of(&["condition_flags", "rip"]);
+        let uses = units_of(&["rflags", "rip"]);
         MachineEncodedEffects {
             external_operand_reads: vec![],
             external_operand_writes: vec![],
@@ -2210,7 +2186,7 @@ pub(crate) fn footprint(
             kind,
             Kind::CompareI64Zero | Kind::CompareI64 | Kind::CompareI64Immediate { .. }
         ) {
-            effects.implicit_unit_defs = units("condition_flags");
+            effects.implicit_unit_defs = units("rflags");
         }
         if matches!(
             kind,
@@ -2227,7 +2203,7 @@ pub(crate) fn footprint(
                 | Kind::BitwiseOrI64
                 | Kind::BitwiseXorI64
         ) {
-            effects.implicit_unit_clobbers = units("condition_flags");
+            effects.implicit_unit_clobbers = units("rflags");
         }
         if matches!(
             kind,
@@ -2237,23 +2213,21 @@ pub(crate) fn footprint(
                 | Kind::MaterializeBooleanU64LessOrEqual
                 | Kind::MaterializeBooleanI64LessOrEqual
         ) {
-            effects.implicit_unit_uses = units("condition_flags");
+            effects.implicit_unit_uses = units("rflags");
         }
         if matches!(kind, Kind::ExactDivideU64 { .. }) {
             effects.implicit_unit_clobbers = units("rdx");
-            effects
-                .implicit_unit_clobbers
-                .extend(units("condition_flags"));
+            effects.implicit_unit_clobbers.extend(units("rflags"));
             effects.implicit_unit_clobbers.sort_unstable();
             effects.implicit_unit_clobbers.dedup();
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         }
         if matches!(kind, exact_wrapping_divrem_set_pattern!(..)) {
-            effects.implicit_unit_clobbers = units("condition_flags");
+            effects.implicit_unit_clobbers = units("rflags");
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         }
         if writes_rflags && matches!(kind, Kind::MaterializeI64 { .. }) {
-            effects.implicit_unit_clobbers = units("condition_flags");
+            effects.implicit_unit_clobbers = units("rflags");
         }
         effects
     };

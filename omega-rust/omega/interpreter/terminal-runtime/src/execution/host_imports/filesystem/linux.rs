@@ -1,7 +1,6 @@
-// We admit and execute exact Linux kernel filesystem syscalls (openat, close,
-// lseek, unlinkat, mkdirat, newfstatat, fstat, and getdents64) under explicit
-// host delegation. Raw OS statuses and descriptor ownership belong to the
-// matching Linux host while authenticated captures provide path and stat bytes.
+//! Exact Linux kernel filesystem entries under explicit host delegation.
+//! Raw OS statuses and descriptor ownership belong to the matching host;
+//! authenticated captures provide bytes, never guest numeric addresses.
 
 use calling_conventions::{CallSignature, ValueShape};
 use runtime_abi::NativeBorrowedStorageLayout;
@@ -128,6 +127,9 @@ enum Operation {
     Stat(NativeBorrowedStorageLayout),
     DirectoryEntries,
     Close,
+    /// `lseek(fd, offset, whence) -> off_t`. The offset is a full signed
+    /// 64-bit kernel cursor, so it cannot share the `i32` scalar narrowing
+    /// used by descriptor-only entries.
     Lseek,
 }
 
@@ -151,6 +153,8 @@ impl LinuxFilesystemImport {
             return Ok(None);
         }
         let call = binding.system_call().expect("matching kernel host");
+        // Numbers are the authored Build syscall rows for `PosixFilesystemLinux`,
+        // not names of the source requirement.
         let operation = match (call.target, call.number) {
             (TargetProfile::LinuxX64, 257) | (TargetProfile::LinuxArm64, 56) => OperationKind::Open,
             (TargetProfile::LinuxX64, 3) | (TargetProfile::LinuxArm64, 57) => OperationKind::Close,
@@ -513,6 +517,7 @@ impl TerminalEffectHandler for LinuxFilesystemImport {
     }
 }
 
+// These are the kernel record sizes, independent of a caller's array capacity.
 fn metadata_extent() -> usize {
     match TargetProfile::host_if_supported() {
         Some(TargetProfile::LinuxArm64) => 128,
