@@ -47434,7 +47434,8 @@ pub(crate) mod structural_judgment {
                 right: StructuralTerm,
                 depth: usize,
             ) -> StructuralJudgment {
-                self.judge_identity_with_budget(left, right, depth, &mut IDENTITY_QUERY_WORK_LIMIT)
+                let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
+                self.judge_identity_with_budget(left, right, depth, &mut remaining)
             }
 
             fn judge_identity_with_budget(

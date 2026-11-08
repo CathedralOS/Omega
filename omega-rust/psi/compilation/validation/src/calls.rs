@@ -13856,7 +13856,7 @@ pub(crate) mod write_frames {
             if !local.symbol.is_valid() {
                 return None;
             }
-            let TypeReferenceNode::Named { symbol, .. } = program
+            let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = program
                 .type_reference_table
                 .type_reference(local.type_reference)
             else {

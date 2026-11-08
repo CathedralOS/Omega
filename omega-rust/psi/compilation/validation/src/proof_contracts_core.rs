@@ -404,7 +404,7 @@ pub mod carrier_contents {
     }
 }
 
-pub(crate) mod proposition_context {
+pub mod proposition_context {
     /*
     Logical connective children retain proposition context. Calls and ordinary
     value expressions keep their declared argument roles; comparison spelling
@@ -433,7 +433,7 @@ pub(crate) mod proposition_context {
                         binary.operator,
                         BinaryOperator::Equal | BinaryOperator::NotEqual
                     ) && [binary.left, binary.right].into_iter().all(|operand| {
-                        super::mathematical_applications::operand_type_reference(program, operand)
+                        crate::mathematical_applications::operand_type_reference(program, operand)
                             .and_then(|reference| program.primitive_type_reference(reference))
                             == Some(PrimitiveType::Bool)
                     })) =>
