@@ -23,7 +23,7 @@ tokens or replay evidence that a stage retains alongside it.
 
 Two additional representation packages belong beneath their program families:
 
-- [`abstract-operations/optimization-unit/`](abstract-operations/optimization-unit/src/optimization_unit.rs)
+- [`abstract-operations/optimization-unit/`](abstract-operations/optimization-unit/src/lib.rs)
   owns `PsiOptimizationUnit`, the reconstructible control-flow, value, ownership,
   and fact representation used for abstract-program rewrites and replay.
   [Omega 00 builds it](../pipeline/00_terminal-psi-to-abstract-operations/src/optimization/mod.rs);
