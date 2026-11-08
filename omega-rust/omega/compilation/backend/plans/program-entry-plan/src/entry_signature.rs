@@ -1,18 +1,14 @@
-//! Source-independent signature for one target-owned `ProgramEntry` slot.
-//!
-//! The source owner captures declaration identity and the completed value
-//! layout. Arena coordinates never cross this boundary. It owns no runtime
-//! value, `Extent`, root authority, placement, or call plan. For the currently admitted
-//! program-storage schema it also retains the exact address-free `Extent`
-//! record graph needed to distinguish its fields from a size-only lookalike.
+/*
+We capture the source-independent declaration and value-layout signature of a
+selected `ProgramEntry` slot, including the address-free `Extent` record graph
+and plan-local identity table needed to compute a durable signature join key
+without crossing frontend arena coordinates.
+*/
 
 use crate::ProgramStorageEntryRootRole;
 
 const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v4\0";
 
-/// Source-path-free identity of one exact checked `ProgramEntry` signature.
-/// Exact declaration ownership, normalized callable/type identities and the
-/// complete target-owned slot and value layout define the durable join key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProgramEntrySignatureIdentity([u8; 32]);
 
@@ -58,8 +54,6 @@ impl ProgramEntryExtentFieldLayout {
     }
 }
 
-/// Exact checked record graph for the ordinary value portion of one
-/// `Extent in Granted`. Domain authority is deliberately absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramEntryExtentValueLayout {
     shape: calling_conventions::ValueShape,
@@ -123,9 +117,7 @@ impl ProgramEntryExtentValueLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramEntryVisibleParameterSignature {
     role: ProgramStorageEntryRootRole,
-    /// Receiver-excluded ordinal in the target schema's visible list. This is
-    /// not a source formal index or an outbound ABI parameter index.
-    visible_parameter_index: usize,
+    visible_parameter_index: usize, // Receiver-excluded ordinal in the target schema's visible list.
     normalized_type_identity: terminal_psi::TerminalIdentityIndex,
     value_shape: calling_conventions::ValueShape,
     extent_value_layout: ProgramEntryExtentValueLayout,
@@ -146,8 +138,6 @@ impl ProgramEntryVisibleParameterSignature {
         self.normalized_type_identity
     }
 
-    /// Exact address-free shape derived from this typed source declaration,
-    /// independently of the physical arrival calling plan.
     pub const fn value_shape(&self) -> calling_conventions::ValueShape {
         self.value_shape
     }
@@ -165,7 +155,6 @@ impl ProgramEntryVisibleParameterSignature {
     }
 }
 
-/// Completed declaration and value-layout evidence for one selected entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntrySignature {
     target_slot: target::ProgramEntrySlotDeclaration,
@@ -175,10 +164,6 @@ pub struct SelectedProgramEntrySignature {
     normalized_callable_identity: terminal_psi::TerminalIdentityIndex,
     visible_parameters: Vec<ProgramEntryVisibleParameterSignature>,
     result: ProgramEntryResultSignature,
-    /// Identity text every `TerminalIdentityIndex` on this signature and its
-    /// bound establishment rows resolves against. The signature is minted
-    /// beside the checked program, before a Terminal module exists; native
-    /// consumers rejoin these indices through the text, never the slot.
     identities: terminal_psi::TerminalIdentityTable,
 }
 
@@ -226,9 +211,6 @@ impl SelectedProgramEntrySignature {
         self.normalized_callable_identity
     }
 
-    /// The plan-local table this signature's identity indices resolve
-    /// against — minted beside the checked program before the module's table
-    /// exists.
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.identities
     }
@@ -241,8 +223,6 @@ impl SelectedProgramEntrySignature {
         self.result
     }
 
-    /// Recompute the canonical signature join identity, including exact package
-    /// or toolchain ownership rather than frontend arena numbering.
     pub fn identity(&self) -> ProgramEntrySignatureIdentity {
         let mut canonical = SOURCE_SIGNATURE_SCHEMA.to_vec();
         push_string(&mut canonical, &self.declaration);
@@ -409,8 +389,6 @@ fn push_optional_calling_convention(
 }
 
 fn push_shape(canonical: &mut Vec<u8>, shape: calling_conventions::ValueShape) {
-    // Exact captured Extent signatures admit only integer shapes; the checked
-    // constructor enforces that closed graph before this identity can exist.
     debug_assert!(matches!(
         shape.class,
         calling_conventions::ValueClass::Integer

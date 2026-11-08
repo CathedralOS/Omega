@@ -17,13 +17,13 @@ Setup is neither instruction selection nor an optimization pass.
 
 ## Ordinary selected control flow
 
-[Legalization](src/legalization/mod.rs) and [selection](src/selection/mod.rs)
+[Legalization](src/legalization.rs) and [selection](src/selection.rs)
 retain ordered instructions, block parameters, explicit jumps/branches/returns,
 virtual registers, exact fixed ABI constraints and machine effects. Roster order
 is not control-flow order. Arithmetic and calls use the same ordinary graph;
 physical register homes, liveness, frame storage and emission are downstream jobs.
 
-[Place declarations](src/legalization/scalar_graph_input/place_declarations.rs)
+[Place declarations](src/legalization_scalar_graph.rs)
 rejoin each runtime place to its exact parameter, result or local producer.
 Primitive locals, byte literals and aggregate results compose without a
 whole-function storage-family classifier. Declaration ordinals count declarations,
@@ -148,9 +148,9 @@ it does not require primitive leaves or imply support for element construction.
 Independent replay derives the complete layout and argument/result ABI again.
 
 Primitive arrays share that aggregate storage and call/return path without a sum
-tag. [Array input](src/selection/scalar_array_input.rs) reconstructs the declared
+tag. [Array input](src/selection_inputs.rs) reconstructs the declared
 dimensions and leaf carrier; constructor selection writes each row-major leaf at
-its exact width. [Aggregate results](src/selection/aggregate_result_input.rs)
+its exact width. [Aggregate results](src/selection_inputs.rs)
 joins both array and sum homes to their retained calling plans. Independent replay
 checks every store, result fragment, and the single constructor work charge.
 Owned arguments load those same homes or copy captured incoming fragments;
@@ -520,7 +520,7 @@ the complete producer/consumer path; adding ABI normalization alone does not
 admit another conversion. Sign-changing casts retain the proof that their
 mathematical value is nonnegative.
 
-[Construction](src/selection/construction/mod.rs) and independent validation
+[Construction](src/selection.rs) and independent validation
 derive separate projections. Replay checks the complete selected content against
 the semantic/optimized input, target plan and register catalog, including exact
 instruction order, ABI copies, call slots, memory accesses and zero-instruction

@@ -1,15 +1,27 @@
-//! Source-free callback geometry. Structural replay checks containment and the
-//! complete ordered nominal path. Authenticity is supplied separately by the
-//! selected, admitted method's application commitment; self-consistency cannot
-//! authenticate a producer's choice of offset.
+/*
+We retain source-free callback layout geometry (`BoundaryCallbackLayout`,
+`CallbackDataGeometry`, `CallbackInlineFieldGeometry`, `CallbackSlotGeometry`),
+arena-backed private callback placement fragments
+(`PrivateCallbackPlacements`), authenticated callback placement admission
+(`authenticated_callback_placements`), and Terminal slot selection recovery
+(`callback_destination_slot`). Structural replay checks containment and the
+complete ordered nominal path, while authenticity comes from joining the
+complete untrusted payload to an independently selected method commitment and
+native layout realization.
+*/
 
+use super::{BoundaryCallingApplication, BoundaryNativeParameterShape};
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::{
-    CallbackRequirementId, LayoutPlanId, LayoutSlotId, NativePlace, callback_layout_field_slot_id,
-    callback_layout_slot_id, callback_requirement_id,
+    BoundaryNativeParameterOrigin, CallbackMaterializationContext, CallbackRequirementId,
+    LayoutPlanId, LayoutSlotId, NativeParameterApplication, NativePlace, StaticMachineBinderId,
+    callback_layout_field_slot_id, callback_layout_slot_id, callback_requirement_id,
 };
 use arena::{Arena, HandleSpan};
+use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
+use layout_plans::LayoutPlacementReport;
 use target::NativeTarget;
+use terminal_psi::TerminalModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallbackDataGeometry {
@@ -48,7 +60,7 @@ pub struct CallbackSlotGeometry {
     pub slot: LayoutSlotId,
     pub requirement: CallbackRequirementId,
     pub conformance_commitment: [u8; 32],
-    pub placements: crate::PrivateCallbackPlacements,
+    pub placements: PrivateCallbackPlacements,
     pub size: u64,
     pub alignment: u64,
 }
@@ -80,7 +92,7 @@ impl Default for BoundaryCallbackLayout {
                 slot: LayoutSlotId::new(1).expect("arena sentinel"),
                 requirement: CallbackRequirementId::new(1).expect("arena sentinel"),
                 conformance_commitment: [0; 32],
-                placements: crate::PrivateCallbackPlacements::default(),
+                placements: PrivateCallbackPlacements::default(),
                 size: 0,
                 alignment: 1,
             },
@@ -122,7 +134,7 @@ impl BoundaryCallbackLayout {
     pub fn field_placements(
         &self,
         target: NativeTarget,
-    ) -> Result<Vec<layout_plans::LayoutPlacementReport>, String> {
+    ) -> Result<Vec<LayoutPlacementReport>, String> {
         let NativePlace::Field {
             layout, field_path, ..
         } = &self.destination
@@ -194,8 +206,6 @@ impl BoundaryCallbackLayout {
     pub(super) fn encode(&self, encoder: &mut DomainDigestEncoder) -> Result<(), String> {
         encoder.u32(self.formal_ordinal);
         encoder.u32(self.native_ordinal);
-        // The destination's nominal parameter is part of the application, not
-        // merely the physical layout/path that happens to receive its pointer.
         match &self.destination {
             NativePlace::Field {
                 parameter,
@@ -260,4 +270,318 @@ impl CallbackDataGeometry {
         encoder.u64(self.size);
         encoder.u64(self.alignment);
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateCallbackPlacements {
+    storage: Arena<LayoutPlacementReport>,
+    placements: HandleSpan<LayoutPlacementReport>,
+}
+
+impl PrivateCallbackPlacements {
+    pub fn new(placements: &[LayoutPlacementReport]) -> Self {
+        let mut storage = Arena::with_capacity(placements.len());
+        let mut span = HandleSpan::empty();
+        for placement in placements {
+            storage.append_to_span(&mut span, *placement);
+        }
+        Self {
+            storage,
+            placements: span,
+        }
+    }
+
+    pub fn as_slice(&self) -> &[LayoutPlacementReport] {
+        self.storage
+            .span(self.placements)
+            .expect("private callback placement storage")
+    }
+}
+
+impl Default for PrivateCallbackPlacements {
+    fn default() -> Self {
+        Self::new(&[])
+    }
+}
+
+pub fn encode_private_callback_placements(
+    bytes: &mut Vec<u8>,
+    placements: &PrivateCallbackPlacements,
+) {
+    bytes.extend_from_slice(&(placements.as_slice().len() as u64).to_le_bytes());
+    for placement in placements.as_slice() {
+        use layout_plans::{IntegerInterpretation, LayoutPlacementReport};
+        match *placement {
+            LayoutPlacementReport::At { offset } => {
+                bytes.push(0);
+                bytes.extend_from_slice(&offset.to_le_bytes());
+            }
+            LayoutPlacementReport::IntegerAt {
+                offset,
+                stored_width,
+                interpretation,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&offset.to_le_bytes());
+                bytes.extend_from_slice(&stored_width.to_le_bytes());
+                bytes.push(match interpretation {
+                    IntegerInterpretation::Signed => 0,
+                    IntegerInterpretation::Unsigned => 1,
+                });
+            }
+            LayoutPlacementReport::Bits {
+                container,
+                container_width,
+                destination_lsb,
+                source_lsb,
+                width,
+            } => {
+                bytes.push(2);
+                for value in [
+                    container,
+                    container_width,
+                    destination_lsb,
+                    source_lsb,
+                    width,
+                ] {
+                    bytes.extend_from_slice(&value.to_le_bytes());
+                }
+            }
+        }
+    }
+}
+
+impl BoundaryCallingApplication {
+    pub fn authenticated_callback_placements(
+        &self,
+        expected_commitment: [u8; 32],
+        binder: StaticMachineBinderId,
+        destination: &NativePlace,
+        parameter: &NativeParameterApplication,
+        context: &CallbackMaterializationContext,
+    ) -> Result<Option<Vec<LayoutPlacementReport>>, String> {
+        if expected_commitment == [0; 32]
+            || self.commitment != expected_commitment
+            || self.recomputed_commitment()? != expected_commitment
+            || !self.callback_context_closed
+        {
+            return Err(
+                "callback application does not match the admitted method commitment".to_owned(),
+            );
+        }
+        let native = self
+            .signature
+            .native_parameters
+            .span(self.signature.native_parameter_rows)
+            .ok_or("callback application has stale native telescope")?;
+        let catalog = self
+            .signature
+            .callback_layouts
+            .span(self.signature.callback_layout_rows)
+            .ok_or("callback application has stale layout catalog")?;
+        let rows = &self.plan.plan().call.callback_materializations;
+        if context.binders.len() != rows.len() || context.demands.len() != rows.len() {
+            return Err(
+                "callback context changed its authenticated application coverage".to_owned(),
+            );
+        }
+        for row in rows {
+            let requirement = match &row.destination {
+                NativePlace::Parameter(identity) => {
+                    let mut matching = native.iter().filter(|entry| entry.identity == *identity);
+                    let entry = matching.next().ok_or("callback parameter is absent")?;
+                    if matching.next().is_some() {
+                        return Err("callback parameter is ambiguous".to_owned());
+                    }
+                    match entry.origin {
+                        BoundaryNativeParameterOrigin::PrivateCallback {
+                            binder,
+                            requirement,
+                        } if binder == row.binder => requirement,
+                        _ => return Err("callback parameter changed its binder origin".to_owned()),
+                    }
+                }
+                NativePlace::Field { .. } => {
+                    let mut matching = catalog
+                        .iter()
+                        .filter(|entry| entry.destination == row.destination);
+                    let entry = matching
+                        .next()
+                        .ok_or("callback destination has no authenticated catalog entry")?;
+                    if matching.next().is_some() {
+                        return Err("callback catalog destination is ambiguous".to_owned());
+                    }
+                    entry.terminal.requirement
+                }
+            };
+            if context
+                .binders
+                .iter()
+                .filter(|entry| entry.binder == row.binder && entry.requirement == requirement)
+                .count()
+                != 1
+                || context
+                    .demands
+                    .iter()
+                    .filter(|entry| {
+                        entry.destination == row.destination && entry.requirement == requirement
+                    })
+                    .count()
+                    != 1
+            {
+                return Err(
+                    "callback context changed an authenticated binder or requirement".to_owned(),
+                );
+            }
+        }
+        if rows
+            .iter()
+            .filter(|row| row.binder == binder && row.destination == *destination)
+            .count()
+            != 1
+        {
+            return Err(
+                "callback occurrence has no unique authenticated binder destination".to_owned(),
+            );
+        }
+        let identity = match destination {
+            NativePlace::Parameter(identity)
+            | NativePlace::Field {
+                parameter: identity,
+                ..
+            } => identity,
+        };
+        let mut matching = native.iter().filter(|entry| entry.identity == *identity);
+        let entry = matching
+            .next()
+            .ok_or("callback root has no native parameter")?;
+        let ordinal = self
+            .call_projection()?
+            .parameter_ordinal(entry.native_ordinal)?
+            .ok_or("dispatch-only formal cannot carry a native callback")?;
+        if matching.next().is_some()
+            || entry.identity != parameter.parameter
+            || usize::try_from(parameter.native_ordinal).ok() != Some(ordinal)
+            || self.plan.plan().call.parameters.get(ordinal) != Some(&parameter.placement)
+            || parameter.shape != parameter.placement.shape
+        {
+            return Err("callback root changed its authenticated parameter application".to_owned());
+        }
+        match destination {
+            NativePlace::Parameter(_) => {
+                if !matches!(entry.shape, BoundaryNativeParameterShape::TargetFunctionPointer { byte_size, alignment }
+                    if usize::from(byte_size) == self.target.pointer_size && usize::from(alignment) == self.target.pointer_alignment)
+                {
+                    return Err("callback parameter changed its target pointer geometry".to_owned());
+                }
+                Ok(None)
+            }
+            NativePlace::Field { .. } => {
+                let layout = catalog
+                    .iter()
+                    .find(|layout| layout.destination == *destination)
+                    .ok_or("callback field has no authenticated geometry")?;
+                if entry.origin
+                    != (BoundaryNativeParameterOrigin::SemanticFormal {
+                        formal_ordinal: layout.formal_ordinal,
+                    })
+                    || entry.native_ordinal != layout.native_ordinal
+                    || !matches!(entry.shape, BoundaryNativeParameterShape::Semantic(_))
+                {
+                    return Err("callback field changed its semantic formal association".to_owned());
+                }
+                Ok(Some(layout.field_placements(self.target)?))
+            }
+        }
+    }
+}
+
+pub fn callback_destination_slot<'module>(
+    module: &'module TerminalModule,
+    target_profile: target::TargetProfile,
+    registrar: &BoundaryCallingApplication,
+    layout: &BoundaryCallbackLayout,
+) -> Result<&'module PrivateCallbackSlotSelection, String> {
+    let signature = module
+        .calling_abi_signature(registrar.abi.id())
+        .ok_or("installed registrar lost its exact declaration ABI")?;
+    if signature.identity(&module.identities)? != registrar.abi {
+        return Err("installed registrar changed its complete declaration ABI".into());
+    }
+    let storage = signature.storage.as_ref().map_err(Clone::clone)?;
+    let formal = storage
+        .telescope
+        .parameters
+        .get(layout.formal_ordinal as usize)
+        .ok_or("installed callback layout has no registrar formal")?;
+    if !matches!(layout.destination, NativePlace::Field { parameter, .. } if parameter == formal.identity)
+        || layout.native_ordinal != formal.native_ordinal
+    {
+        return Err("installed callback layout changed its exact registrar formal".into());
+    }
+    let mut record_id = storage
+        .parameters
+        .get(layout.formal_ordinal as usize)
+        .and_then(|parameter| parameter.callback_backing)
+        .ok_or("installed callback destination has no retained formal backing")?;
+    let mut expected_identity = layout.root.identity.as_str();
+    for field in layout.fields()? {
+        let record = module
+            .native_layouts
+            .record(record_id)
+            .ok_or("installed callback field lost its native record")?;
+        if module.identities.text(record.data_identity) != Some(expected_identity) {
+            return Err("installed callback path changed its owning record application".into());
+        }
+        let mut matching = module
+            .native_layouts
+            .fields(record)?
+            .iter()
+            .filter(|candidate| {
+                module.identities.text(candidate.declaration_identity)
+                    == Some(field.identity.as_str())
+            });
+        let (Some(selected), None) = (matching.next(), matching.next()) else {
+            return Err("installed callback path has no unique declared field".into());
+        };
+        record_id = module
+            .structural_type(record_id)
+            .and_then(|record| record.shape.record_fields())
+            .and_then(|fields| fields.iter().find(|field| field.id == selected.field))
+            .and_then(|field| field.field_type.as_structural())
+            .ok_or("installed callback path does not retain an inline child record")?;
+        expected_identity = &field.child.identity;
+    }
+    let record = module
+        .native_layouts
+        .record(record_id)
+        .ok_or("installed callback slot lost its containing native record")?;
+    if module.identities.text(record.data_identity) != Some(expected_identity) {
+        return Err("installed callback slot changed its containing record application".into());
+    }
+    let realization = module
+        .native_layouts
+        .for_target(record, target_profile.target_name())?
+        .ok_or("installed callback slot has no selected authored layout")?;
+    let mut demands = realization
+        .report
+        .private_callback_demands
+        .iter()
+        .filter(|demand| demand.slot_identity == layout.terminal.identity);
+    let (Some(demand), None) = (demands.next(), demands.next()) else {
+        return Err("installed callback destination has no unique selected slot demand".into());
+    };
+    let slot = &demand.slot_application;
+    slot.validate_identity_encoding()?;
+    if slot.application_commitment != layout.terminal.conformance_commitment
+        || slot.requirement_identity != layout.terminal.requirement_identity
+        || demand.callback_requirement_identity != layout.terminal.requirement_identity
+        || slot.layout_identity != layout.terminal.policy
+        || demand.layout_subject_identity != layout.terminal.policy
+        || demand.placements.as_slice() != layout.terminal.placements.as_slice()
+        || module.identities.text(record.semantic_identity) != Some(slot.semantic_identity.as_str())
+    {
+        return Err("installed callback layout differs from its selected slot demand".into());
+    }
+    Ok(slot)
 }

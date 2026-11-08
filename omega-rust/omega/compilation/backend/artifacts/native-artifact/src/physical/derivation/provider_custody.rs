@@ -1,5 +1,8 @@
-//! Rejoining admitted provider executions and checking the custody of
-//! their port effects, reads, writes and settlement receipts.
+/*
+We rejoin admitted provider executions and validate the physical custody of
+their target-family aliases, privileged port effects, direct port reads, Linux
+write-line byte sequences, and completion receipts.
+*/
 
 use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::evidence::{span, text_relocation_overlaps};
@@ -14,9 +17,6 @@ use target::{Architecture, NativeTarget};
 use target_operations::{ProviderExecutionBinding, ProviderPlanReportIdentity};
 use terminal_psi::OperationKind;
 
-/// Rejoin a selected family alias to this artifact before using its provider
-/// requirement for a physical ledger lookup. The boundary occurrence and its
-/// head contract remain unchanged; only the provider-row address is transported.
 pub(crate) fn validate_family_provider_custody(
     terminal: terminal_psi::TerminalPsiIdentity,
     module: &terminal_psi::TerminalModule,
@@ -84,9 +84,6 @@ pub(crate) fn validate_family_provider_custody(
     Ok(())
 }
 
-/// Rejoin the one retained provider execution an installed settlement names.
-/// The record must identify the selected plan and match exactly one retained
-/// execution on every compact coordinate.
 pub(crate) fn rejoin_admitted_provider_execution(
     requirement_identity: &str,
     selected_plan: &NativeSelectedProviderPlan,
@@ -129,11 +126,6 @@ pub(crate) fn rejoin_admitted_provider_execution(
     .ok_or("installed D41 settlement has an invalid provider execution")
 }
 
-/// Join one `MetadataOnlyPort` settlement to its exact privileged port
-/// effect. The effect operation must be the immediately preceding emitted
-/// operation whose interval ends where the settlement begins, must still
-/// name one exact Terminal port write, and must reproduce its target bytes
-/// across machine, object, and final-image custody.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn metadata_port_effect_custody(
     module: &terminal_psi::TerminalModule,
@@ -226,9 +218,6 @@ pub(crate) fn metadata_port_effect_custody(
     Ok(effect.clone())
 }
 
-/// Replay the exact direct port-read custody: one 16-byte x86-64 `in al, dx`
-/// sequence, one `u8` result in `RAX`, and the exact `0xc3` return edge that
-/// returns the read value.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn direct_port_read_custody(
     object: &image_emission::ObjectArtifact,
@@ -321,9 +310,6 @@ pub(crate) fn direct_port_read_custody(
     Ok(())
 }
 
-/// Replay the exact Linux `write_line` byte custody: one borrowed-view
-/// byte-sequence structural argument, the exact target encoder output, and
-/// the code/data intervals the settlement retains.
 pub(crate) fn linux_write_line_custody_is_exact(
     target: NativeTarget,
     settlement: &machine_code::BoundarySettlementRecord,
@@ -332,11 +318,6 @@ pub(crate) fn linux_write_line_custody_is_exact(
     image_emission::linux_write_line_custody_is_exact(target, settlement, Some(function_bytes))
 }
 
-/// Replay the object validator's completion-custody responsibility after the
-/// verified module has been discarded. The caller already constrained the
-/// execution/realization pair, so this mirrors the argument-path,
-/// receipt-index, receipt-custody, and provider-custody reconstruction
-/// checks exactly.
 pub(crate) fn settlement_completion_custody_is_exact(
     settlement: &machine_code::BoundarySettlementRecord,
     identities: &terminal_psi::TerminalIdentityTable,

@@ -1,6 +1,11 @@
-//! Consistency of a retained native backing interpretation. This joins the
-//! selected placement to the source carrier; it supplies no provider admission,
-//! successful initialization, active loan, or concrete backing address.
+/*
+We validate the consistency of retained native access-reference backings and
+derive borrowed-view formations from compiler-owned lifecycle declarations.
+When a structural carrier is bound to an ordinary RAM, resident, or borrowed-
+extent plan, we verify that its source type, schema, view carrier, storage
+correspondence, and owner base/length fields match the authenticated plan
+without granting provider admission, active loans, or concrete addresses.
+*/
 
 use abstract_operations::AccessReferenceBacking;
 use semantic_vocabulary::StructuralTypeId;
@@ -55,9 +60,6 @@ pub fn validate_backing(
     Ok(())
 }
 
-/// Derive only the Ready leaf of the exact compiler-owned View occurrence.
-/// Reuse this relation for body replay and direct result registration. It
-/// retains interpretation, not a pointer, grant, loan or successful case tag.
 pub fn borrowed_view_formation(
     types: &abstract_operations::StructuralTypeCatalog,
     declaration: &terminal_psi::BoundaryMachineDeclaration,

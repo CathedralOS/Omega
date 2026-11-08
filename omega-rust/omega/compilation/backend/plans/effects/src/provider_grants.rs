@@ -1,5 +1,10 @@
-//! Provider trust grants: resolving selected and authored root grants by
-//! their selector kind.
+/*
+We resolve root provider trust grants against the candidate provider inventory
+and the selected provider closure. Each resolved grant binds its selector kind
+(`PlanName` or `ProviderSlot`) to one exact `ProviderPlan` and its
+domain-separated digest so replay never relies on compact report fingerprints
+alone.
+*/
 
 use crate::provider_plan::{ProviderPlan, ProviderPlanDigest};
 use diagnostics::Diagnostic;
@@ -25,7 +30,6 @@ pub struct ResolvedSelectedProviderGrant {
     pub selected_plan_report_identity: u64,
 }
 
-/// One authored root grant resolved to its complete selected provider plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedAuthoredSelectedProviderGrant {
     pub grant: ResolvedSelectedProviderGrant,
@@ -50,9 +54,6 @@ impl ResolvedSelectedProviderGrant {
         }
     }
 
-    /// Replay this grant against one complete selected plan. The compact
-    /// identity remains a report coordinate; exact structural equality and
-    /// the domain-separated digest retain admission authority.
     pub fn replays_selected_plan(&self, plan: &ProviderPlan) -> bool {
         self.selected_plan_report_identity == plan.report_fingerprint()
             && self.selected_plan_digest == plan.identity_digest()
@@ -60,8 +61,6 @@ impl ResolvedSelectedProviderGrant {
     }
 }
 
-/// Resolve trust selectors against the complete candidate inventory and the
-/// already-selected provider closure.
 pub fn resolve_selected_provider_grants(
     candidates: &[&ProviderPlan],
     selected: &crate::SelectedProviderPlanFacts,
@@ -164,8 +163,6 @@ pub fn resolve_selected_provider_grants(
     Ok(resolved)
 }
 
-/// Resolve provenance-bearing authored grants without weakening the existing
-/// exact selected-plan replay performed by [`resolve_selected_provider_grants`].
 pub fn resolve_authored_selected_provider_grants(
     candidates: &[&ProviderPlan],
     selected: &crate::SelectedProviderPlanFacts,

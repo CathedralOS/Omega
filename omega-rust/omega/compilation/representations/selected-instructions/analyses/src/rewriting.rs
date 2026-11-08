@@ -1,14 +1,209 @@
-//! Rewrite primitives selected optimization and allocation recovery share.
-//!
-//! Instruction construction from a constraint row, the measured-step scans
-//! and budgets every single-function rewrite charges, the declared-pair and
-//! cone probes, the block-edge, operand-probe and selected-operand helpers,
-//! and the receipt and seal macros each validated rewrite expands. The
-//! rewrites themselves stay in the stages that execute them.
+/*
+  Shared instruction-construction, block-edge, operand-probe, and work-budget
+  primitives (`build_instruction`, `insert_block_with_terminator`,
+  `operand_uses_register`) used by selected-instruction optimizations and
+  register-pressure recovery rewrites.
+*/
 
-pub mod block_edges;
-pub mod operand_probes;
-pub mod selected_operands;
+pub mod block_edges {
+
+    pub use selected_instructions::terminator_successors;
+
+    use selected_instructions::{
+        LocalStorageSlotId, SelectedBlock, SelectedCasePayloadTransport, SelectedFunction,
+        SelectedInstruction, SelectedInstructionId, SelectedStructuralTransport, SelectedSuccessor,
+        SelectedValueTransport, VirtualRegisterId, terminator_instruction,
+    };
+
+    pub fn member_position(
+        function: &SelectedFunction,
+        member: SelectedInstructionId,
+    ) -> Option<(usize, usize)> {
+        function
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block_index, block)| {
+                block
+                    .instruction_index(member)
+                    .map(|member_index| (block_index, member_index))
+            })
+    }
+
+    pub fn function_at<E>(
+        plan: &selected_instructions::SelectedInstructionPlan,
+        function_index: usize,
+        miss: E,
+    ) -> Result<&SelectedFunction, E> {
+        plan.functions.get(function_index).ok_or(miss)
+    }
+
+    pub fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
+        block
+            .instructions
+            .iter()
+            .chain(std::iter::once(terminator_instruction(&block.terminator)))
+    }
+
+    pub fn block_instruction_ids(block: &SelectedBlock) -> impl Iterator<Item = u32> + '_ {
+        block_instructions(block).map(|instruction| instruction.id.0)
+    }
+    pub fn edge_surface(successor: &SelectedSuccessor) -> usize {
+        successor.bindings.len()
+            + successor.structural_bindings.len()
+            + successor
+                .structural_case
+                .as_ref()
+                .map_or(0, |case| case.payloads.len())
+    }
+
+    pub fn local_slot_mentions(slot: LocalStorageSlotId, register: VirtualRegisterId) -> bool {
+        matches!(slot, LocalStorageSlotId::Spill { register: subject } if subject == register)
+    }
+
+    pub fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId) -> bool {
+        let binding_mentions = successor
+            .bindings
+            .iter()
+            .any(|binding| match binding.transport {
+                SelectedValueTransport::Registers {
+                    argument,
+                    parameter,
+                } => argument == register || parameter == register,
+                SelectedValueTransport::Unused => false,
+            });
+        let structural_mentions = successor
+            .structural_bindings
+            .iter()
+            .any(|binding| match binding.transport {
+                SelectedStructuralTransport::WholeValue {
+                    argument,
+                    destination,
+                    ..
+                } => argument == register || local_slot_mentions(destination, register),
+                SelectedStructuralTransport::ScalarReference {
+                    base, destination, ..
+                }
+                | SelectedStructuralTransport::Address {
+                    base, destination, ..
+                } => {
+                    local_slot_mentions(destination, register)
+                        || match base {
+                            selected_instructions::SelectedAddressBase::Register(argument) => {
+                                argument == register
+                            }
+                            selected_instructions::SelectedAddressBase::Local(slot) => {
+                                local_slot_mentions(slot, register)
+                            }
+                        }
+                }
+                SelectedStructuralTransport::Unused => false,
+            });
+        let case_mentions = successor.structural_case.as_ref().is_some_and(|case| {
+            case.source
+                .local_slot()
+                .is_some_and(|slot| local_slot_mentions(slot, register))
+                || case.payloads.iter().any(|payload| match payload.transport {
+                    SelectedCasePayloadTransport::Unmaterialized { parameter } => {
+                        parameter == register
+                    }
+                    SelectedCasePayloadTransport::Registers {
+                        argument,
+                        parameter,
+                    } => argument == register || parameter == register,
+                    SelectedCasePayloadTransport::Unused => false,
+                })
+        });
+        binding_mentions || structural_mentions || case_mentions
+    }
+}
+pub mod operand_probes {
+
+    use register_model::RegisterOperandAccess;
+    use selected_instructions::{
+        MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+        MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior, SelectedInstruction,
+        ValidatedMachineEffectCatalog, VirtualRegisterId,
+    };
+
+    pub fn effect_declaration(
+        catalog: &ValidatedMachineEffectCatalog,
+        semantic: MachineSemanticKind,
+        constraint: register_model::RegisterConstraintKey,
+    ) -> Option<&MachineEffectDeclaration> {
+        let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
+            declaration.semantic == semantic && declaration.constraint == constraint
+        });
+        let declaration = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(declaration)
+    }
+
+    pub fn last_definition_before(
+        instructions: &[SelectedInstruction],
+        position: usize,
+        register: VirtualRegisterId,
+    ) -> Option<usize> {
+        instructions[..position].iter().rposition(|instruction| {
+            instruction.operands.iter().any(|operand| {
+                operand.access != RegisterOperandAccess::Use && operand.virtual_register == register
+            })
+        })
+    }
+
+    pub fn isolated_declaration(declaration: &MachineEffectDeclaration) -> bool {
+        declaration.memory == MachineMemoryEffect::NoneV1
+            && declaration.trap == MachineTrapBehavior::NeverV1
+            && declaration.barrier == MachineBarrier::None
+            && declaration.call == MachineCallEffect::NoneV1
+            && declaration.cleanup == MachineCleanupEffect::NoneV1
+    }
+}
+pub mod selected_operands {
+    use selected_instructions::{SelectedInstruction, SelectedOperand, VirtualRegisterId};
+
+    pub fn selected_operand(
+        constraint: &register_model::RegisterOperandConstraint,
+        register: VirtualRegisterId,
+    ) -> SelectedOperand {
+        SelectedOperand {
+            operand: constraint.operand,
+            virtual_register: register,
+            access: constraint.access,
+            class: constraint.class,
+            fixed_view: constraint.fixed_view,
+            tied_to: constraint.tied_to,
+            early_clobber: constraint.early_clobber,
+        }
+    }
+
+    pub fn copy_shaped(
+        id: selected_instructions::SelectedInstructionId,
+        kind: selected_instructions::SelectedInstructionKind,
+        copy: &register_model::RegisterInstructionConstraint,
+        value: selected_instructions::VirtualRegisterId,
+        output: selected_instructions::VirtualRegisterId,
+        provenance: selected_instructions::SelectedInstructionProvenance,
+    ) -> SelectedInstruction {
+        SelectedInstruction {
+            id,
+            kind,
+            constraint: copy.key,
+            operands: copy
+                .operands
+                .iter()
+                .zip([value, output])
+                .map(|(operand, register)| selected_operand(operand, register))
+                .collect(),
+            implicit_uses: copy.implicit_uses.clone(),
+            implicit_defs: copy.implicit_defs.clone(),
+            clobbers: copy.clobbers.clone(),
+            provenance,
+        }
+    }
+}
 
 use crate::rewriting::block_edges::function_at;
 use optimization_core::OptimizationWorkBudget;
@@ -19,38 +214,15 @@ use selected_instructions::{
     SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
 };
 
-/// Explicit applicability of the currently architecture-independent rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegisterAllocationRuleTargetApplicability {
     TargetIndependent,
 }
 
-/// The scan surface every single-function rewrite's measured-step contract
-/// charges first: one step per block plus one per instruction of the
-/// rewritten function, and one step per plan function. Function storage is
-/// shared copy-on-write, so the proposal's plan clone, the transformed plan's
-/// identity and replay's restored-plan comparison each visit an unchanged
-/// function's shared entry once — they rehash and compare only the detached
-/// rewritten body. Charging every instruction of the plan instead made a
-/// required rewrite of a twelve-block function exceed the pass budget once
-/// the program passed a million instructions. Replay over separately
-/// allocated storage still compares the unshared bodies by content; that
-/// comparison is linear in the input it was handed and is not rewrite work.
 pub fn rewrite_scan(plan: &SelectedInstructionPlan, function: &SelectedFunction) -> Option<usize> {
     function_scan(function)?.checked_add(plan.functions.len())
 }
 
-/// The ceilings for a rewrite recovery cannot do without — a spill, split or
-/// rematerialization of one value. They grow with the rewritten function's
-/// extent: the rewrite scan plus every instruction and terminator operand,
-/// memory access and successor-edge transport the audit reads
-/// (`OptimizationWorkBudget::for_extent`). The audit's work is linear in that
-/// extent, so no function is too large to relieve, while work superlinear in
-/// it still exhausts the ceilings. Leaving the transports out capped the
-/// functions a required rewrite could process by their edge surface: the
-/// product typing harness's largest function carried 33,342 transports
-/// against 14,703 operands, and the fixed-occurrence audit's per-transport
-/// charge alone exceeded one reference extent's ceiling.
 pub fn required_rewrite_budget(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
@@ -64,24 +236,16 @@ pub fn required_rewrite_budget(
     Some(budget.for_extent(u64::try_from(extent).ok()?))
 }
 
-/// Every value a function's successor edges transport: each register and
-/// structural binding, and a structural case's tag with each of its
-/// payloads. An audit that reads the edges reads each of these once.
 pub fn function_transports(function: &SelectedFunction) -> Option<usize> {
     function.blocks.total_transport_count()
 }
 
-/// One step per block plus one per instruction in one function — the
-/// scan term every measured-step contract charges before its own audit.
 pub fn function_scan(function: &SelectedFunction) -> Option<usize> {
     function.blocks.iter().try_fold(0usize, |total, block| {
         total.checked_add(block.instructions.len())?.checked_add(1)
     })
 }
 
-/// Charge a measured-step total against the budget: `overflow` when the
-/// count cannot fit the measured-step width, `exceeded` when it passes the
-/// family's own validation cap.
 pub fn charge_steps<E>(
     steps: usize,
     budget: OptimizationWorkBudget,
@@ -94,13 +258,6 @@ pub fn charge_steps<E>(
     Ok(())
 }
 
-/// The target's integer copy row in the classes a rewrite moves a value
-/// between: exactly two operands — an untied, non-early-clobber `Use` at
-/// position 0 in the value's class and its `Def` at position 1 in the
-/// output's class — carrying no implicit unit traffic and no clobber. A row
-/// that is anything else would extend a value identity or destroy state no
-/// proof retired, so every rewrite that replaces a value with a copy reads
-/// this audit from here instead of restating it beside its own admission.
 pub fn integer_copy_row<E>(
     environment: &ValidatedTargetRegisterEnvironment,
     value_class: RegisterClassId,
@@ -125,9 +282,6 @@ pub fn integer_copy_row<E>(
     Ok(row)
 }
 
-/// Whether `row` declares the two operand positions every admission restates:
-/// operand 0 is `first_access` and operand 1 is `second_access`. Class, tie,
-/// and clobber checks stay with the caller; those are that family's contract.
 pub fn declares_pair(
     row: &RegisterInstructionConstraint,
     first_access: RegisterOperandAccess,
@@ -142,13 +296,6 @@ pub fn declares_pair(
         && second.access == second_access
 }
 
-/// A rewrite's candidate carrier in the emitted two-operand form every
-/// pre-allocation rule admits: exactly two operands — a `Use` at position 0 and
-/// `second_access` at position 1 — carrying no implicit unit traffic, no
-/// clobber, and no fixed view, tie, or early clobber riding along that the
-/// rewrite would silently keep on a malformed shape. Returns the two operands
-/// so the caller binds their registers and classes to its own roster; a rule
-/// with an extra condition on either operand checks it after.
 pub fn carrier_pair(
     instruction: &SelectedInstruction,
     second_access: RegisterOperandAccess,
@@ -172,9 +319,6 @@ pub fn carrier_pair(
     Some((first, second))
 }
 
-/// The cone-propagation bound every walked family's measured-step contract
-/// derives from a function and its successor edges — the audits share this
-/// arithmetic verbatim and then add their own per-unit and setup terms.
 pub struct ConePropagation {
     pub function_scan: usize,
     pub edge_count: usize,
@@ -183,10 +327,6 @@ pub struct ConePropagation {
     pub walk_setup_base: usize,
 }
 
-/// Bound the shared entry-set propagation a cone walk performs: elements
-/// cover every event site plus the unknown marker, pops stay under
-/// `blocks × (elements + 1)`, and each pop visits its out-edges at the
-/// widest terminator's union cost.
 pub fn cone_propagation<E>(
     function: &SelectedFunction,
     successors: &[Vec<usize>],
@@ -226,9 +366,6 @@ pub fn cone_propagation<E>(
     })
 }
 
-/// The plan and the function a family audits, once the plan's target has
-/// matched the environment's — both call sites bind the same pair, with the
-/// family's own `SourceMismatch` marking either refusal.
 pub fn plan_function<'source, E>(
     source: &'source impl crate::SelectedProgramView,
     function_index: usize,
@@ -242,9 +379,6 @@ pub fn plan_function<'source, E>(
     Ok((plan, function_at(plan, function_index, mismatch())?))
 }
 
-/// The four receipt identities every family seals the same way: source,
-/// transformed, optimization unit, and work schedule, followed by the
-/// family's own recorded fields.
 #[macro_export]
 macro_rules! receipt {
     ($receipt:ident, $source:expr, $proposed:expr $(, $field:ident : $value:expr)* $(,)?) => {
@@ -258,9 +392,6 @@ macro_rules! receipt {
     };
 }
 
-/// The whole seal body every family ends with: a receipt of the four shared
-/// identities plus the family's recorded fields, beside the proposed plan in
-/// its arc.
 #[macro_export]
 macro_rules! sealed {
     ($validated:ident, $receipt:ident, $source:expr, $proposed:expr $(, $field:ident : $value:expr)* $(,)?) => {
@@ -293,11 +424,6 @@ pub fn instruction(
     }
 }
 
-/// Whether `register`'s only occurrence in `function` is one operand —
-/// the custody a dropped `Def` requires across producer rewrites: the
-/// operand itself is that one occurrence, and any other operand position,
-/// terminator operand, or successor transport naming the register leaves a
-/// surviving read or second definition.
 pub fn register_occurs_once(
     function: &selected_instructions::SelectedFunction,
     register: selected_instructions::VirtualRegisterId,
@@ -363,9 +489,6 @@ pub fn register_occurs_once(
     occurrences == 1
 }
 
-/// Shared byte-envelope for the selected-rewrite receipt identities: the
-/// domain tag, the source and transformed fingerprints, the optimization-unit
-/// fingerprint, then the per-rewrite tail feeds.
 pub fn rewrite_bytes(
     tag: &'static [u8],
     source_selected: impl AsRef<[u8]>,
@@ -382,8 +505,6 @@ pub fn rewrite_bytes(
     bytes
 }
 
-/// Shared boundary-settlement shift for rewrites that remove one instruction:
-/// every settlement past the removed index in the same block shifts down one.
 pub fn shifted_boundary_settlements<E>(
     function: &selected_instructions::SelectedFunction,
     block: selected_instructions::SelectedBlockId,
@@ -412,11 +533,6 @@ pub fn shifted_boundary_settlements<E>(
     Ok(shifted)
 }
 
-/// Shared cone-audited step measurement for the constant folds: the
-/// cone-propagation bases plus the per-unit surface, the reach scan and the
-/// rewrite scan, all saturating through the caller's overflow diagnostic.
-/// Both fold admissions charge this total and both fold validators publish
-/// it, so the fold's measured-step contract is derived once.
 pub fn constant_fold_steps<E>(
     plan: &selected_instructions::SelectedInstructionPlan,
     function: &selected_instructions::SelectedFunction,

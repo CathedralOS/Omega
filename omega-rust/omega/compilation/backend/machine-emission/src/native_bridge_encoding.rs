@@ -1,9 +1,6 @@
-//! Physical register, pointer and frame transfers shared by native adapters.
-//!
-//! These operations encode already-admitted placements. They grant no source
-//! ownership, reference backing, domain membership or foreign-call authority.
-//! Each adapter owns its incoming/outgoing signature and snapshots values before
-//! distributing them; this leaf owns their byte transfers and aligned homes.
+/*
+We provide the physical register, pointer, and stack-frame byte-transfer primitives shared by `native_entry_bridge` and `native_foreign_bridge`. Given already-admitted `ValuePlacement` records, we partition direct register and stack locations into contiguous word pieces (`value_pieces`), allocate 8-byte-aligned or over-aligned snapshot homes inside the adapter frame (`allocate_home`), and emit target-owned x86-64 and AArch64 loads, stores, and aligned address computations (`Encoding`) so incoming values are captured into frame snapshots before any outgoing register or stack home is written.
+*/
 
 use calling_conventions::{
     IndirectPointerLocation, MachineRegister, ValueClass, ValueLocation, ValuePlacement,
@@ -23,7 +20,6 @@ fn frame_offset(base: u32, addend: u32) -> Result<u32, Error> {
     base.checked_add(addend).ok_or(Error::FrameOverflow)
 }
 
-/// The widest of 8, 4, 2, 1 that fits the remaining extent.
 fn widest_word(remaining: u32) -> Result<u32, Error> {
     [8, 4, 2, 1]
         .into_iter()
@@ -39,16 +35,16 @@ pub(crate) enum WordLocation {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ValuePiece {
-    pub(crate) location: WordLocation,
-    pub(crate) value_byte_offset: u32,
-    pub(crate) byte_size: u8,
+    pub(crate) location: WordLocation, // Physical register or stack byte offset holding this piece.
+    pub(crate) value_byte_offset: u32, // Byte offset of this piece within the complete value.
+    pub(crate) byte_size: u8,          // Width in bytes (1, 2, 4, or 8) of this transfer piece.
 }
 
 pub(crate) enum ValueStorage {
     Direct(Vec<ValuePiece>),
     Indirect {
-        pointer: ValuePiece,
-        copy_offset: Option<u32>,
+        pointer: ValuePiece, // Register or stack location carrying the indirect value address.
+        copy_offset: Option<u32>, // Optional caller-owned stack copy offset for indirect arguments.
     },
 }
 
@@ -59,6 +55,7 @@ impl ValueStorage {
             Self::Indirect { pointer, .. } => std::slice::from_ref(pointer),
         }
     }
+
     pub(crate) fn is_indirect(&self) -> bool {
         matches!(self, Self::Indirect { .. })
     }
@@ -109,10 +106,6 @@ pub(crate) fn is_borrowed(class: ValueClass) -> bool {
     )
 }
 
-/// Physical pieces partition one complete byte extent. ABI class selects the
-/// banks, not a different value: owned integer/HFA/SysV records may redistribute
-/// the same admitted storage across different registers. Loan geometry instead
-/// measures a referent or descriptor, and is normalized only to its pointer.
 pub(crate) fn value_pieces(
     placement: &ValuePlacement,
     byte_size: u32,
@@ -171,8 +164,6 @@ pub(crate) fn value_pieces(
             _ => return Err(Error::UnsupportedValueTransport),
         }
     }
-    // Plans are already admitted. This partition check makes this encoder's
-    // extent assumption explicit and prevents reading padding past an extent.
     pieces.sort_by_key(|piece| piece.value_byte_offset);
     let mut end = 0_u32;
     for piece in &pieces {
@@ -202,17 +193,17 @@ pub(crate) fn allocate_word(cursor: &mut u32) -> Result<u32, Error> {
 }
 
 pub(crate) struct Encoding {
-    pub(crate) architecture: Architecture,
-    pub(crate) model: ValidatedPhysicalRegisterModel,
-    pub(crate) scratch: MachineRegister,
-    pub(crate) address_scratch: MachineRegister,
-    pub(crate) aligned_homes: Vec<AlignedHome>,
+    pub(crate) architecture: Architecture, // Target architecture for byte emission.
+    pub(crate) model: ValidatedPhysicalRegisterModel, // Validated physical register model for the target.
+    pub(crate) scratch: MachineRegister, // Primary volatile scratch register for value moves.
+    pub(crate) address_scratch: MachineRegister, // Secondary volatile scratch register for address calculation.
+    pub(crate) aligned_homes: Vec<AlignedHome>, // Over-aligned (>16-byte) frame intervals requiring dynamic masking.
 }
 
 pub(crate) struct AlignedHome {
-    pub(crate) offset: u32,
-    pub(crate) byte_size: u32,
-    pub(crate) alignment: u16,
+    pub(crate) offset: u32, // Unmasked base byte offset of the over-aligned interval in the frame.
+    pub(crate) byte_size: u32, // Logical payload byte size of the value stored in this interval.
+    pub(crate) alignment: u16, // Required power-of-two byte alignment (>16).
 }
 
 pub(crate) fn allocate_home(
@@ -467,8 +458,6 @@ impl Encoding {
         while offset < extent {
             let size = widest_word(extent - offset)?;
             let slot = frame_offset(snapshot, offset)?;
-            // Frame addressing may reuse the base scratch. Reload the saved
-            // pointer after every frame operation, including large offsets.
             if !load {
                 self.memory(bytes, self.scratch, slot, size as u8, true)?;
             }
@@ -562,8 +551,6 @@ impl Encoding {
         pieces: &[ValuePiece],
         snapshot: u32,
     ) -> Result<(), Error> {
-        // Stack stores use excluded scratches; register reloads then restore
-        // every fixed destination without consuming a partly rewritten value.
         for piece in pieces {
             if let WordLocation::Stack(offset) = piece.location {
                 self.copy_word(

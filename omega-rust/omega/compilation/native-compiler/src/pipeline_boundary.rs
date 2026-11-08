@@ -1,6 +1,6 @@
 // Source-boundary guards verifying that `application.rs` owns source-free
 // admission order, that both `object_emission.rs` and `callable_objects.rs`
-// delegate body stages to `pipeline.rs`, and that `fixed_frame.rs` joins layout
+// delegate body stages to `pipeline.rs`, and that `function_realization.rs` joins layout
 // products without driving compiler stages directly.
 
 #[test]
@@ -47,8 +47,7 @@ fn applications_and_callables_use_the_same_body_pipeline() {
 
 #[test]
 fn backend_joins_layout_products_without_driving_compiler_stages() {
-    let backend =
-        include_str!("../../backend/machine-emission/src/function_realization/fixed_frame.rs");
+    let backend = include_str!("../../backend/machine-emission/src/function_realization.rs");
     for stage in [
         "stage_optimized_layout_independent_selected_form_encoding(",
         "stage_optimized_resolved_selected_form_layout(",

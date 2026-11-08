@@ -1,4 +1,10 @@
-//! Exact x86-64 ABI preservation-storage groups.
+/*
+We define and validate the x86-64 ABI callee-saved preservation-storage catalog
+(`x86_64_preservation_storage_catalog`) across System V AMD64 (`linux_x86_64`,
+`macos_x86_64`) and Microsoft x64 (`windows_x86_64`, `uefi_x86_64`), binding
+preserved general-purpose and `XMM6`..`XMM15` vector registers to their
+canonical save/restore groups.
+*/
 
 use register_model::{
     PreservationStorageCatalog, PreservationStorageCatalogValidationError,
@@ -21,9 +27,6 @@ optimization_core::invalid_error_display!(
     "x86-64 preservation-storage catalog"
 );
 
-/// Select and validate the exact preservation-storage catalog for one x86-64
-/// target. Windows and UEFI intentionally share the indistinguishable
-/// Microsoft-x64 `NativeTarget` contract at this layer.
 pub fn x86_64_preservation_storage_catalog(
     model: &ValidatedPhysicalRegisterModel,
     target: NativeTarget,
@@ -215,7 +218,6 @@ mod tests {
                 .unwrap()
                 .identity()
         );
-        // Intel macOS preserves exactly the System V AMD64 callee-saved set.
         assert_eq!(
             system_v.identity(),
             x86_64_preservation_storage_catalog(&model, NativeTarget::macos_x64())

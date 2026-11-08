@@ -1,4 +1,8 @@
-//! Tests for physical evidence derivation.
+/*
+We test physical evidence derivation, structural argument custody joins,
+admitted-provider and hosted-builtin settlement identity encoding, and exact
+physical child coordinate validation across single-field mutations.
+*/
 #[test]
 fn reference_projection_identity_is_distinct_from_owned_paths() {
     use terminal_psi::StructuralPathSegment;
@@ -39,8 +43,6 @@ use semantic_vocabulary::ScalarType;
 use target::NativeTarget;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-/// The canonical test terminal and its one machine: every derivation fixture
-/// below keys off this exact pair, so the fingerprint is the only variable.
 fn fixture_terminal(program_fingerprint: [u8; 32]) -> (TerminalPsiIdentity, MachineId) {
     (
         TerminalPsiIdentity {
@@ -660,9 +662,6 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
     }
 }
 
-/// The bounded structural lane admits only source-rooted borrowed
-/// flat-record projections and rejects every missing, duplicate,
-/// substituted, or role-swapped expected/observed row.
 #[test]
 fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
     use calling_conventions::{MachineRegister, ValueLocation, ValuePlacement, ValueShape};
@@ -674,9 +673,6 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
 
     use crate::physical::derivation::foreign_calls::normalized_foreign_structural_parameter_shapes;
 
-    // Exercise only the non-dispatch operand view. The empty evaluated plan
-    // supplies its enclosing state; the placements below intentionally include
-    // malformed test rows and are not an admitted foreign-call plan.
     fn operand_binding(
         placements: &[ValuePlacement],
     ) -> target_operations::NormalizedForeignCallBinding {
@@ -767,17 +763,12 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         )
     };
 
-    // The exact admitted lane: two source-rooted borrowed flat-record
-    // projections, each placed as one pointer-width word in the observed plan.
     assert_eq!(
         signature(&arguments, &parameters, &placements),
         Ok(Some(vec![pointer, pointer]))
     );
-    // An empty structural signature contributes no parameters.
     assert_eq!(signature(&[], &[], &[]), Ok(Some(Vec::new())));
 
-    // Missing rows reject: a dropped argument cannot cover its declared
-    // formal, and a dropped observed placement cannot realize it.
     assert_eq!(
         signature(&arguments[..1], &parameters, &placements),
         Err("normalized foreign D41 child changed its structural call occurrence")
@@ -791,8 +782,6 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         Err("normalized foreign D41 child changed its structural call custody")
     );
 
-    // Duplicate rows reject: a duplicated formal position and an extra
-    // observed parameter row both break the positional bijection.
     let mut duplicated = parameters.clone();
     duplicated[1].position = 0;
     assert_eq!(
@@ -806,9 +795,6 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         Err("normalized foreign D41 child changed its structural call custody")
     );
 
-    // Substituted rows reject: a changed argument access no longer matches
-    // its formal, and a non-pointer-word observed placement no longer
-    // realizes it.
     let mut substituted = arguments.clone();
     substituted[0].access = StructuralAccess::MutableBorrow;
     assert_eq!(
@@ -840,8 +826,6 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         Err("normalized foreign D41 child changed its structural call custody")
     );
 
-    // Role-swapped rows reject: formal positions or argument order that no
-    // longer line up with the declared signature cannot replay.
     let mut swapped_positions = parameters.clone();
     swapped_positions[0].position = 1;
     swapped_positions[1].position = 0;
@@ -856,8 +840,6 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         Err("normalized foreign D41 child changed its structural call occurrence")
     );
 
-    // Structural lane-local positions rejoin authored native positions even
-    // when scalar parameters precede and separate the borrowed pointers.
     let interleaved_order = [
         BoundaryParameterKind::Scalar,
         BoundaryParameterKind::Structural,
@@ -896,11 +878,6 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         .is_err()
     );
 
-    // Valid but uncovered signature shapes retain no complete evidence: a
-    // callback beside the structural formals, an owned
-    // formal, a non-unrestricted formal, a non-field or empty
-    // projection path, and an argument not rooted at a caller structural
-    // parameter.
     assert_eq!(
         normalized_foreign_structural_parameter_shapes(
             &arguments,
@@ -928,10 +905,6 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
     let mut affine = parameters.clone();
     affine[0].multiplicity = StructuralMultiplicity::Affine;
     assert_eq!(signature(&arguments, &affine, &placements), Ok(None));
-    // A qualified formal stays in the exact lane: domain membership adds no
-    // runtime word, so its referent is still one pointer-width placement, and
-    // that placement is still checked. The qualification itself is bound by
-    // the parent settlement identity, not by this transport signature.
     let mut qualified = parameters.clone();
     qualified[0]
         .qualifications
@@ -966,10 +939,6 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
     assert_eq!(signature(&foreign_root, &parameters, &placements), Ok(None));
 }
 
-/// The admitted-provider parent identity of a normalized foreign call binds
-/// the complete expected structural custody — every authored argument row and
-/// every declared formal row — so a missing, duplicate, substituted, or
-/// role-swapped row cannot replay as the same child.
 #[test]
 fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
     use semantic_vocabulary::{OperationId, PlaceId, StructuralDomainId, StructuralTypeId};
@@ -1074,7 +1043,6 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         )
     };
     let expected = identity(&structural_arguments, &structural_parameters);
-    // Empty structural custody is a distinct parent identity.
     assert_ne!(expected, identity(&[], &[]));
 
     for mutation in 0..6 {
@@ -1127,9 +1095,6 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         );
     }
 
-    // The same structural rows beneath a different occurrence, requirement,
-    // plan, target, execution, plan commitment, locator, or same-stack
-    // custody still produce a distinct parent identity.
     for mutation in 0..8 {
         let changed = match mutation {
             0 => admitted_provider_boundary_trait_settlement_identity(
@@ -1289,14 +1254,6 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
     }
 }
 
-/// The committed child identity is the only byte string the evidence and
-/// artifact identities retain about one physical child, and the
-/// retained-vs-derived comparison is what rejects a missing, duplicate,
-/// stale, substituted, padded, or role-swapped child on replay. Every
-/// retained field — parent role and identity, projection, occurrence role
-/// and identity, all three byte spans, all three byte digests, and the
-/// relocation disposition — must move that identity or a substitution in
-/// the unbound field would replay as the same child.
 #[test]
 fn physical_child_identity_binds_every_retained_field() {
     use boundary_applications::{
@@ -1430,10 +1387,6 @@ fn physical_child_identity_binds_every_retained_field() {
             &relocation,
         )
     };
-    // A mutation names the coordinates it moves; every other coordinate keeps
-    // the committed child's own custody — these three digests and this
-    // resolved internal-call disposition — so each arm below differs from
-    // `expected` in exactly one field.
     let identity = |parent: &PhysicalChildParent,
                     projection: NativeOptimizationProjectionIdentity,
                     occurrence: NativePhysicalOccurrence,
@@ -1452,8 +1405,6 @@ fn physical_child_identity_binds_every_retained_field() {
             PhysicalRelocationDisposition::ResolvedInternalCall,
         )
     };
-    // The other half of the record: a digest or disposition mutation keeps the
-    // committed parent, projection, occurrence and spans.
     let digest_mutation = |machine_digest: [u8; 32],
                            object_digest: [u8; 32],
                            final_image_digest: [u8; 32],
@@ -1480,32 +1431,24 @@ fn physical_child_identity_binds_every_retained_field() {
 
     for mutation in 0..15 {
         let changed = match mutation {
-            // A substituted parent: the same operation beneath a different
-            // selected-plan digest is a different D29 coverage parent.
             0 => identity(
                 &coverage_parent([6; 32]),
                 projection,
                 occurrence,
                 [machine_span, object_span, final_image_span],
             ),
-            // A role-swapped parent: identical identity bytes beneath the
-            // boundary-settlement role tag still cannot collide with the
-            // D29 coverage parent.
             1 => identity(
                 &settlement_parent(parent.identity()),
                 projection,
                 occurrence,
                 [machine_span, object_span, final_image_span],
             ),
-            // A detached projection cannot replay the same child.
             2 => identity(
                 &parent,
                 NativeOptimizationProjectionIdentity::from_canonical_bytes(b"detached projection"),
                 occurrence,
                 [machine_span, object_span, final_image_span],
             ),
-            // Occurrence role swap: the same identity bytes beneath the
-            // boundary tag are not the operator occurrence.
             3 => identity(
                 &parent,
                 projection,
@@ -1514,7 +1457,6 @@ fn physical_child_identity_binds_every_retained_field() {
                 ),
                 [machine_span, object_span, final_image_span],
             ),
-            // A substituted occurrence identity.
             4 => identity(
                 &parent,
                 projection,
@@ -1577,8 +1519,6 @@ fn physical_child_identity_binds_every_retained_field() {
                 [0xB3; 32],
                 PhysicalRelocationDisposition::ResolvedInternalCall,
             ),
-            // A different relocation disposition on identical spans and
-            // digests is a different child.
             _ => digest_mutation(
                 [0xA1; 32],
                 [0xA2; 32],
@@ -1590,12 +1530,6 @@ fn physical_child_identity_binds_every_retained_field() {
     }
 }
 
-/// The normalized-foreign relocation is the one physical-child custody
-/// record no emitted-code replay leg exercises: its locator, boundary
-/// plan, object symbol, relocation origin, byte geometry, addend, kind,
-/// callback custody, and final-image symbol identity must each move the
-/// committed child identity or a substituted import site would replay as
-/// the same child.
 #[test]
 fn physical_child_identity_binds_the_normalized_foreign_relocation() {
     use function_identity::MachineFunctionIdentity;
@@ -1708,8 +1642,6 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
         callback_function: MachineFunctionIdentity::default(),
         relocation: callback_relocation(23),
     });
-    // Every mutation below keeps the committed locator, boundary plan, object
-    // symbol, geometry, and byte geometry; only a named coordinate moves.
     let with_coordinates = |origin: RelocationOrigin,
                             callback: Option<NormalizedForeignCallbackRelocations>,
                             final_image_symbol_identity: [u8; 32]| {
@@ -1759,15 +1691,10 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
 
     for mutation in 0..15 {
         let changed = match mutation {
-            // Substituted locator or boundary-plan custody.
             0 => with_custody([10; 32], [11; 32], ObjectSymbolHandle::from_arena_index(3)),
             1 => with_custody([9; 32], [12; 32], ObjectSymbolHandle::from_arena_index(3)),
-            // Substituted or regenerated object symbol.
             2 => with_custody([9; 32], [11; 32], ObjectSymbolHandle::from_arena_index(4)),
             3 => with_custody([9; 32], [11; 32], ObjectSymbolHandle::from_parts(3, 2)),
-            // Origin drift: a different operation identity, a different
-            // origin namespace carrying the same coordinate, or a
-            // different owning symbol.
             4 => with_coordinates(origin(8), callback, [29; 32]),
             5 => with_coordinates(
                 RelocationOrigin::SemanticEdge {
@@ -1785,13 +1712,10 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
                 callback,
                 [29; 32],
             ),
-            // Byte geometry, addend, and encoding kind.
             7 => with_geometry(14, 4, -4, RelocationKind::X86_64Relative32),
             8 => with_geometry(13, 8, -4, RelocationKind::X86_64Relative32),
             9 => with_geometry(13, 4, -8, RelocationKind::X86_64Relative32),
             10 => with_geometry(13, 4, -4, RelocationKind::Aarch64Branch26),
-            // Callback custody: dropped, swapped encoding, a different
-            // callback function, or a different callback relocation.
             11 => with_callback(None),
             12 => with_callback(Some(
                 NormalizedForeignCallbackRelocations::Aarch64PageAddress {
@@ -1826,8 +1750,6 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
         assert_ne!(changed, expected, "relocation custody mutation {mutation}");
     }
 
-    // The final-image symbol identity is retained beside the relocation
-    // rather than inside it.
     assert_ne!(
         child_identity(with_coordinates(origin(7), callback, [30; 32])),
         expected,
@@ -1835,10 +1757,6 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
     );
 }
 
-/// A projection that repeats one surviving occurrence has already failed
-/// the survivor bijection before any child coordinate is compared, and a
-/// boundary survivor presented under the operator tag is a substituted
-/// occurrence rather than a boundary child.
 #[test]
 fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
     let (terminal, machine) = fixture_terminal([19; 32]);
@@ -1871,7 +1789,6 @@ fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
     let projection = physical_projection();
     let [operator_coordinate, boundary_coordinate] = exact_coordinates(&projection);
 
-    // A boundary survivor repeated as a boundary child.
     assert_eq!(
         validate_exact_physical_child_coordinates(
             &projection,
@@ -1884,8 +1801,6 @@ fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
         Err("native physical evidence contains duplicate optimized occurrences")
     );
 
-    // A boundary survivor's identity presented under the operator tag is
-    // a substituted occurrence, not the boundary child.
     let substituted = PhysicalChildCoordinate {
         projection: projection.identity(),
         occurrence: NativePhysicalOccurrence::Operator(
@@ -1903,7 +1818,6 @@ fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
         Err("native physical child swapped or substituted its semantic parent role")
     );
 
-    // A boundary child carrying the operator parent role is a role swap.
     let swapped = PhysicalChildCoordinate {
         parent_role: 1,
         ..boundary_coordinate
@@ -1957,14 +1871,12 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
             byte_count: 3,
         },
     ];
-    // The encoding is deterministic.
     for subject in &subjects {
         assert_eq!(
             physical_evidence_gap_identity(subject),
             physical_evidence_gap_identity(subject)
         );
     }
-    // Distinct subjects never share an identity.
     for (left_index, left) in subjects.iter().enumerate() {
         for (right_index, right) in subjects.iter().enumerate() {
             if left_index != right_index {
@@ -1976,7 +1888,6 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
             }
         }
     }
-    // A single mutated field inside one variant diverges.
     let NativePhysicalEvidenceGapSubject::UnownedPortEffect {
         machine: moved_machine,
         psi_operation,
@@ -2047,7 +1958,6 @@ fn physical_evidence_gap_names_the_blocking_occurrence() {
         blocked.occurrence(),
         Some(NativePhysicalOccurrence::Operator(operator.identity()))
     );
-    // Machine-level and retained-record subjects carry no occurrence.
     assert_eq!(
         gap(NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
             machine,

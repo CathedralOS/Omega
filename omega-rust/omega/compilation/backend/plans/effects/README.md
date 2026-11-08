@@ -11,16 +11,15 @@ Follow the subordinate owners:
 
 - [providers/](src/provider_evidence/providers/mod.rs): provider plans and their
   canonical encoding.
-- [authority/](src/provider_evidence/authority/mod.rs): terminal mechanisms,
+- [authority.rs](src/provider_evidence/authority.rs): terminal mechanisms,
   physical authority classifications and service permissions.
-- [executable_scopes/](src/provider_evidence/executable_scopes/mod.rs): admitted
-  executable manifests, scope boundaries and static service evidence.
-  [behavior_exclusions.rs](src/provider_evidence/executable_scopes/behavior_exclusions.rs)
-  owns the canonical exclusion union, selected Terminal closure replay and
-  physical exclusion checking against reviewed mechanism dispositions. Build
-  evaluation retains authored selections; this source-free owner consumes the
-  selected plans and evidence without executing a Build or loading source.
-- [component_eras/](src/provider_evidence/component_eras/mod.rs): era membership,
+- [executable_scopes.rs](src/provider_evidence/executable_scopes.rs): admitted
+  executable manifests, scope boundaries, static service evidence, the
+  canonical exclusion union, selected Terminal closure replay and physical
+  exclusion checking against reviewed mechanism dispositions. Build evaluation
+  retains authored selections; this source-free owner consumes the selected
+  plans and evidence without executing a Build or loading source.
+- [component_eras.rs](src/provider_evidence/component_eras.rs): era membership,
   entry ledgers and progress manifests.
 
 The Cargo package remains `effects`. Source-language flow and effect summaries belong to

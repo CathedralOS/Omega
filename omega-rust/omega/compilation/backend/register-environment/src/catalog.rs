@@ -1,9 +1,11 @@
-//! The register facts each target declares: its physical register model,
-//! constraint catalog and conservative baseline reservation profile. The
-//! selected constraint-key roster is not re-declared here: its ISA owner
-//! carries the one roster per target (see `selected_constraint_keys`), and the
-//! allocating environment consumes that same declaration rather than a
-//! projection of it.
+/*
+We select the register facts each target declares: its physical register model,
+instruction constraint catalog, conservative baseline reservation profile, and
+ISA-owned selected constraint-key roster. By consuming the single ISA-declared
+constraint-key roster per target rather than re-deriving a projection here, we
+ensure the allocating environment and machine-effect catalog never diverge on
+declared keys.
+*/
 
 #[cfg(test)]
 use isa_aarch64::{AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL};
@@ -56,17 +58,6 @@ pub(super) fn conservative_baseline_reservation_profile(
     }
 }
 
-/// The target's selected constraint-key roster, resolved by its ISA owner.
-///
-/// One roster exists per target: the machine-effect catalog and this
-/// environment consume the same ISA declaration, so the allocator cannot omit
-/// a key the target declares. While this module re-derived the roster itself,
-/// the Windows x86-64 arm silently dropped four port-register and
-/// model-specific keys the ISA declared and ordinary programs were rejected
-/// with `CatalogSelectedKeysMismatch`.
-///
-/// `None` means the declared (architecture, object format) pair has no ABI for
-/// that ISA; the join reports it as `UnsupportedSelectedInstructionAbi`.
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     match target.architecture {
         Architecture::X86_64 => isa_x86_64::x86_64_selected_constraint_keys(target),
@@ -98,12 +89,6 @@ fn float_result_policy_keys_are_declared_for_every_hosted_target() {
     }
 }
 
-/// Exact scalar-call ABI row selected by one native target. General selected
-/// call lowering is not implemented yet; this mapping makes the future entry
-/// explicit without adding call authority to the current selected CFG.
-///
-/// Only the call-clobber tests read the mapping, so it stays test-gated until a
-/// lowering path can select the row.
 #[cfg(test)]
 pub(super) const fn scalar_call_constraint_key(
     target: NativeTarget,

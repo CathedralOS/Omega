@@ -1,3 +1,10 @@
+/*
+We verify ABI call-clobber, preservation, and machine-effect catalog invariants
+across all supported targets. We provide shared ABI matrix cases (`ScalarAbiCase`)
+and effect-catalog inspection and mutation helpers consumed by the family-specific
+effect test modules.
+*/
+
 use std::collections::BTreeSet;
 
 mod arithmetic_effects;
@@ -48,15 +55,9 @@ struct ScalarAbiCase {
     stack_alignment: u16,
     red_zone_bytes: u16,
     opposite_call: RegisterConstraintKey,
-    /// Ordered integer result views consumed by the selected scalar and
-    /// aggregate return rules: the scalar uses the first, each aggregate
-    /// ordinal extends the prefix by one.
     integer_results: &'static [&'static str],
-    /// ABI floating-point result view used by the selected float return rule.
     float_result: &'static str,
-    /// Constraint-row implicit uses carried by every selected return rule.
     return_uses: &'static [&'static str],
-    /// Constraint-row implicit defs carried by every selected return rule.
     return_defs: &'static [&'static str],
 }
 
@@ -75,9 +76,6 @@ fn named_view<'m>(
         .expect(missing)
 }
 
-/// The Microsoft x86-64 record both COFF targets declare. The two pairs
-/// differ by `NativeTarget` alone: one convention, one call row, and one set
-/// of call-clobbered argument views serve both.
 fn microsoft_x64(target: NativeTarget) -> ScalarAbiCase {
     ScalarAbiCase {
         target,
@@ -152,8 +150,6 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
     ]
 }
 
-/// The validated physical model, preservation convention, effect catalog, and
-/// constraint keys one ABI case expands to.
 fn abi_case_context(
     environment: &super::super::ValidatedTargetRegisterEnvironment,
     case: ScalarAbiCase,
@@ -200,8 +196,6 @@ fn units_for_names(model: &PhysicalRegisterModel, names: &[&str]) -> Vec<Registe
         .collect()
 }
 
-/// The produced effect catalog joined through the ISA's own independent
-/// validator: structural admission plus canonical re-derivation equality.
 fn validated_effects(
     case: ScalarAbiCase,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -222,7 +216,6 @@ fn validated_effects(
     }
 }
 
-/// The produced catalog without admission, for per-fact corruption.
 fn produced_effects(
     case: ScalarAbiCase,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -233,7 +226,6 @@ fn produced_effects(
     }
 }
 
-/// The stack-pointer view the ABI matrix names for this target.
 fn stack_pointer_view(model: &PhysicalRegisterModel, case: ScalarAbiCase) -> &RegisterView {
     named_view(
         model,
@@ -244,20 +236,16 @@ fn stack_pointer_view(model: &PhysicalRegisterModel, case: ScalarAbiCase) -> &Re
     )
 }
 
-/// The condition-codes view the ABI matrix names for this target.
 fn flags_view(model: &PhysicalRegisterModel, case: ScalarAbiCase) -> &RegisterView {
     named_view(
         model,
         case.target,
-        "rflags",
+        "condition_flags",
         "nzcv",
         "the ABI matrix names a flags view",
     )
 }
 
-/// The produced catalog names this exact target, this validated constraint
-/// catalog's root, and this environment's selected keys: provenance, not a
-/// re-derived roster.
 fn binds_catalog_provenance(
     catalog: &ValidatedMachineEffectCatalog,
     case: ScalarAbiCase,
@@ -272,8 +260,6 @@ fn binds_catalog_provenance(
     assert_eq!(catalog.catalog().selected_keys, keys);
 }
 
-/// The one canonical alternative a rule declares, bound to its own family and
-/// admitted by the always-applicable window.
 fn sole_alternative(
     declaration: &MachineEffectDeclaration,
     semantic: MachineSemanticKind,
@@ -291,11 +277,6 @@ fn sole_alternative(
     alternative
 }
 
-/// The selected constraint row and the effect declaration one selected rule
-/// is checked through: the environment owns the row, the produced catalog the
-/// declaration. Several semantics share one constraint key (see
-/// [`declaration_mut`]), so the declaration is addressed by the key and the
-/// semantic the rule realizes; the row by the key alone.
 fn row_and_declaration<'a>(
     environment: &'a ValidatedTargetRegisterEnvironment,
     catalog: &'a ValidatedMachineEffectCatalog,
@@ -317,9 +298,6 @@ fn row_and_declaration<'a>(
     (row, declaration)
 }
 
-/// The (constraint, semantic) coordinate pairs a catalog declares, filtered to
-/// the declarations `owns` admits: the roster one sweep compares its selected
-/// rules against.
 fn declared_pairs(
     catalog: &ValidatedMachineEffectCatalog,
     owns: impl Fn(&MachineEffectDeclaration) -> bool,
@@ -333,9 +311,6 @@ fn declared_pairs(
         .collect()
 }
 
-/// One alternative's encoded effects inside a catalog a test is corrupting:
-/// the declaration is addressed by its key and semantic, the alternative by
-/// its ordinal.
 fn encoded_mut(
     catalog: &mut MachineEffectCatalog,
     key: RegisterConstraintKey,
@@ -345,8 +320,6 @@ fn encoded_mut(
     &mut declaration_mut(catalog, key, semantic).alternatives[index].encoded
 }
 
-/// One encoded rule may take an architectural fault: its encoded trap surface
-/// admits a fault whatever trap policy its declaration states.
 fn assert_faulting_trap(encoded: &MachineEncodedEffects, key: RegisterConstraintKey) {
     assert_eq!(
         encoded.trap,
@@ -355,9 +328,6 @@ fn assert_faulting_trap(encoded: &MachineEncodedEffects, key: RegisterConstraint
     );
 }
 
-/// One encoded rule that touches no memory and leaves the stack alone: its
-/// contribution is register custody plus whatever control and trap shape its
-/// own family declares.
 fn assert_storage_free(encoded: &MachineEncodedEffects, key: RegisterConstraintKey) {
     assert_eq!(
         encoded.memory,
@@ -414,11 +384,6 @@ fn validate_effects(
     }
 }
 
-/// Several semantics share one constraint key — `copy_i64` backs every integer
-/// move and narrow extension, `materialize_boolean` backs every boolean
-/// materialization, and the conditional branches share one row — so a catalog
-/// declaration is addressed by both coordinates: the constraint key its family
-/// selects and the semantic the rule realizes.
 fn declaration_mut(
     catalog: &mut MachineEffectCatalog,
     key: RegisterConstraintKey,
@@ -483,7 +448,6 @@ fn every_supported_target_selects_its_exact_scalar_call_abi() {
     }
 }
 
-/// Whether the target's scalar-call row clobbers every unit `names` names.
 fn call_clobbers(environment: &ValidatedTargetRegisterEnvironment, names: &[&str]) -> bool {
     let row = environment.scalar_call_constraint().unwrap();
     units_for_names(environment.physical().model(), names)
@@ -491,7 +455,6 @@ fn call_clobbers(environment: &ValidatedTargetRegisterEnvironment, names: &[&str
         .all(|unit| row.clobbers.contains(unit))
 }
 
-/// Whether the target's scalar-call row preserves every unit `names` names.
 fn call_preserves(environment: &ValidatedTargetRegisterEnvironment, names: &[&str]) -> bool {
     let row = environment.scalar_call_constraint().unwrap();
     units_for_names(environment.physical().model(), names)
@@ -503,15 +466,11 @@ fn call_preserves(environment: &ValidatedTargetRegisterEnvironment, names: &[&st
 fn platform_abi_differences_are_explicit_call_clobber_facts() {
     let linux_x64 = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     let windows_x64 = baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
-    // The System V row clobbers the second argument register and the low
-    // SIMD view; the Microsoft row preserves both.
     assert!(call_clobbers(&linux_x64, &["rsi", "xmm6"]));
     assert!(call_preserves(&windows_x64, &["rsi", "xmm6"]));
 
     let linux_arm64 = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
     let macos_arm64 = baseline_target_register_environment(NativeTarget::macos_arm64()).unwrap();
-    // Linux reserves x18 as the platform register, so its call row clobbers
-    // it; Darwin neither reserves nor clobbers it.
     assert!(call_clobbers(&linux_arm64, &["x18"]));
     assert!(call_preserves(&macos_arm64, &["x18"]));
     let x18 = units_for_names(linux_arm64.physical().model(), &["x18"]);

@@ -1,4 +1,10 @@
-//! Public failure vocabulary for unit and rewrite validation.
+/*
+We define the failure vocabulary (`OptimizationUnitValidationError`) and
+operation coordinates (`OperationSite`) returned when whole-unit validation,
+ownership frontier replay, value-range verification, or rewrite-candidate
+acceptance rejects an optimization unit or candidate patch.
+*/
+
 use abstract_operations::AtomicCoherenceViolation;
 
 use optimization_core::OptimizationUnitIdentity;
@@ -8,15 +14,11 @@ use semantic_vocabulary::{
     StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 
-/// The operation row a validation error is about: the machine whose function
-/// was rejected, the block inside it, and the index of the node in that block.
-/// One payload row owner keeps the site spelled once for every error family
-/// whose subject is an operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationSite {
-    pub machine: MachineId,
-    pub block: BlockId,
-    pub node: u32,
+    pub machine: MachineId, // Machine whose function contains the rejected operation.
+    pub block: BlockId,     // Basic block containing the rejected operation.
+    pub node: u32,          // Zero-based node index within the block.
 }
 
 impl OperationSite {
@@ -69,7 +71,6 @@ pub enum OptimizationUnitValidationError {
     EntryClaimIndexMismatch(MachineId),
     FunctionResultMismatch(MachineId),
     MissingEntryMachine(MachineId),
-    /// Functions are not strictly increasing by machine; names the first out of order.
     UnorderedMachine(MachineId),
     NonCanonicalPrunedMachineRoster,
     ActivePrunedMachineOverlap(MachineId),
@@ -190,7 +191,6 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: BlockId,
     },
-    /// Blocks are not strictly increasing by ID; names the first out of order.
     UnorderedBlock {
         machine: MachineId,
         block: BlockId,
@@ -321,8 +321,6 @@ pub enum OptimizationUnitValidationError {
     CurrentOwnedPlaceNotLive(OperationSite, PlaceId),
     CurrentWholePlacePartiallyMoved(OperationSite, PlaceId),
     CurrentProjectedMoveOverlap(OperationSite, PlaceId),
-    /// A root lent to a shared address join was moved, released, written,
-    /// exclusively borrowed or discarded while the join could observe it.
     CurrentSharedJoinOriginDisturbed(OperationSite, PlaceId),
     CurrentCleanupMismatch {
         machine: MachineId,
@@ -333,9 +331,6 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         place: PlaceId,
     },
-    /// The replayed loan set rejected an establishment, release, transfer,
-    /// discard, or completed frontier. `node` is present when the violation
-    /// belongs to one operation row rather than an edge or block exit.
     CurrentReferenceCustodyViolation {
         machine: MachineId,
         block: BlockId,

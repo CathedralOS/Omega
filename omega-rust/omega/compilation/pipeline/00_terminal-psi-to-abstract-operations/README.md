@@ -26,7 +26,7 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   dependency. Callback occurrences arrive in the canonical Terminal module;
   callback body receipts and ABI placements still retain source-side identity
   through backend planning, which remains a separate unfinished handoff.
-  Its [proposal constructor](src/retained_terminal/proposal.rs) owns the full
+  Its [proposal constructor](src/retained_terminal.rs) owns the full
   producing sequence: entry settlement, canonical decode, provider demands,
   callback and comparison joins, boundary coverage and registrar imports.
   The compiler supplies completed callback artifacts and borrowed selections;
@@ -35,15 +35,15 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   It does not call compilation or grant native authority. Checked selections
   remain transitional inputs until provider selection itself moves behind
   Terminal Psi.
-  Its [native provider preparation](src/retained_terminal/native_providers.rs)
+  Its [native provider preparation](src/retained_terminal.rs)
   joins package permissions and prepares callbacks, imports and builtins in
   one operation. Derived import evidence remains invocation-owned through
   admission and emission; the compiler forwards the stage's admission request
   without defining a second copy of its custody fields.
-- [native_admission.rs](src/native_admission.rs): the complete native entrance.
+- [native_execution_scope.rs](src/native_execution_scope.rs): the complete native entrance.
   Canonical input preparation, provider settlement and installation, and
   mechanism/exclusion review produce one admitted input before Omega 01.
-  [Provider admission](src/provider_admission/mod.rs) derives each demanded
+  [Provider admission](../../realization/provider-admission/src/provider_admission.rs) derives each demanded
   leaf's mechanism and admits builtins through the receiving policy and target
   catalog; it reads the bindings the proposal derived instead of rejoining them. Omega 02 consumes these facts;
   neither it nor the compiler reconstructs the admission sequence.
@@ -52,7 +52,7 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   admission. Every admitted result retains the exact access-view input roster.
   Extraction into a consumer without roster custody rejects nonempty inputs;
   this check follows verification and lowering, not canonical decode.
-  [Native preparation](src/artifact_admission/native.rs) receives target,
+  [Native preparation](src/artifact_admission.rs) receives target,
   provider, callback and ProgramEntry choices together. It selects the executable
   closure from canonical Terminal through
   [native_execution_scope.rs](src/native_execution_scope.rs), applies selected
@@ -61,7 +61,7 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   cleanup, callbacks, native metadata and dynamic-table address roots retain
   their existing demand and per-block diagnostic order. Explicit artifact
   inspection and independent ownership validation still cover the full catalog.
-- `optimization`: verified optimization-unit construction and proof questions.
+- [optimization.rs](src/optimization.rs): verified optimization-unit construction and proof questions.
 - `provider_installation`: exact selected-adapter and installation custody.
 - [callback_settlement.rs](src/callback_settlement.rs): rejoin a produced
   callback's Terminal interface to its exact selected calling application.
@@ -76,20 +76,20 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   the private channel's import exclusion live here, beside program-entry
   settlement. The coordinator supplies the artifact, placement and calling-plan
   roster; no checked-compilation wrapper or new pipeline stage is involved.
-  Its [registrar-import settlement](src/callback_settlement/registrar_imports.rs)
+  Its [registrar-import settlement](src/callback_settlement.rs)
   joins each ordered callback occurrence to the registrar's separate outbound
   plan and selected import row. The retained-Terminal and direct-native routes
   share this operation; exact operation multiplicity and check-only absence of
   an import remain explicit.
-- [boundary_application_settlement.rs](src/boundary_application_settlement.rs):
+- [settlement.rs](src/settlement.rs):
   select from canonical requirements and checked body candidates using the
   target's Build rows. Intrinsic executions arrive already established by
   provider review. No checked application scope, source declaration lookup,
   const/type reconstruction or intrinsic semantic replay enters this operation.
   The proposal retains the selected coverage and opaque ABI applications;
   native admission consumes them without a second source join.
-- [comparison_settlement.rs](src/comparison_settlement.rs): traverse Terminal
-  comparisons and consume the exact executions already selected by boundary
+  Also traverses Terminal
+  comparisons and consumes the exact executions already selected by boundary
   coverage. A sorted plan-digest index joins the target plans without source
   uses, checked handles or Lowered Psi occurrence records. Integer comparisons
   retain their selected semantic operation, not another lowering emission
@@ -97,11 +97,11 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
 - `lowering`: one operation-by-operation walk for scalar, Unit, and structural
   results. Optimization selection does not change this projection.
 
-[Module lowering](src/lowering/mod.rs) checks entry and structural block bindings,
-then calls [machine lowering](src/lowering/machine.rs) directly.
+[Module lowering](src/lowering.rs) checks entry and structural block bindings,
+then calls [machine lowering](src/lowering.rs) directly.
 That owner prepares block/value rosters, visits blocks in order, dispatches
-[operations](src/lowering/machine/operation/mod.rs) and
-[terminators](src/lowering/machine/terminator.rs), and assembles the abstract
+[operations](src/lowering.rs) and
+[terminators](src/lowering.rs), and assembles the abstract
 function. Scalar, Unit and structural results share this traversal; there is no
 separate forwarding or ordinary-machine route to navigate.
 
@@ -177,7 +177,7 @@ successful optimization are not native-publication claims.
 ## Ranked native admission
 
 Contract: [control flow and ranking](../../../../../wiki/spec/terminal-psi/control_flow.md).
-[native.rs](src/artifact_admission/native.rs) routes natural-ranked modules through ordinary
+[artifact_admission.rs](src/artifact_admission.rs) routes natural-ranked modules through ordinary
 Terminal verification and abstract lowering. That verifier checks the exact
 grouped control-cycle evidence, including slice-decrease proofs; the route does
 not require or manufacture a fixed-work ceiling. The abstract graph retains its

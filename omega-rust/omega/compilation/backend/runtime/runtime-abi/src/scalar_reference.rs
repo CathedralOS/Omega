@@ -1,11 +1,15 @@
-//! Internal scalar loans retain backing geometry independently of semantic type.
-//! The second descriptor word is a codec, not a length or a grant of access.
+/*
+We define the two-word native scalar-reference descriptor layout
+(`ScalarReferenceLayout`) and the second-word storage codec
+(`ScalarStorageCodec`) used by internal scalar loans.
+
+A C pointer output overwrites only the address word at offset 0 while leaving
+the codec word at offset 8 untouched; consumers authenticate that codec against
+the new endpoint before reading or writing backing storage.
+*/
 
 use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
 
-/// The two independent lanes of a native scalar-reference descriptor. A C
-/// pointer output writes the address lane only; its retained storage codec is
-/// unchanged. Consumers must authenticate that codec against the new endpoint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScalarReferenceLayout {
     pub address_byte_offset: u32,
@@ -27,22 +31,15 @@ impl ScalarReferenceLayout {
     };
 }
 
-/// Closed native interpretation of one contiguous scalar storage region.
-/// Integer byte widths include packed, byte-aligned widths such as 24 bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarStorageCodec {
-    Integer {
-        byte_size: u8,
-        sign: IntegerSign,
-    },
+    Integer { byte_size: u8, sign: IntegerSign },
     Boolean,
-    /// Canonical address storage only; this codec grants no integer authority.
-    Address,
+    Address, // Canonical 64-bit address storage; grants no integer arithmetic authority.
     IeeeFloat(IeeeFloatFormat),
 }
 
 impl ScalarStorageCodec {
-    /// Convert admitted scalar geometry, excluding non-fixed integer carriers.
     pub fn from_scalar(scalar: ScalarType) -> Option<Self> {
         match scalar {
             ScalarType::Boolean => Some(Self::Boolean),
@@ -74,8 +71,6 @@ impl ScalarStorageCodec {
         }
     }
 
-    /// Low eight bits give byte width; bits 8/9/10 select signed/float/Boolean.
-    /// Invalid integer widths have no ABI encoding.
     pub const fn encode(self) -> Option<u64> {
         match self {
             Self::Integer {

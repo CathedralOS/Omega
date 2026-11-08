@@ -1,5 +1,12 @@
-//! Install authorities, receipts, installed code, its registry authority
-//! and installation diagnostics.
+/*
+We represent the installation transition carriers (`InstallAuthority`,
+`InstallationReceipt`, `InstalledCode`, `InstallationError`) and W^X
+enforcement status (`WxEnforcement`).
+
+Failed transitions return their linear inputs (`ValidatedPlacement`,
+`InstallAuthority`, `InstallationReceipt`) inside `InstallationError` so
+custody is never silently dropped.
+*/
 
 use crate::authority_digests::{
     ArtifactId, CodePlacementId, FinalValidationId, InstallationFactDigest, InstallationScopeId,
@@ -10,17 +17,10 @@ use crate::placement::ValidatedPlacementEvidence;
 use layout_plans::{EntryStubId, PlacementConstraints, RelocationTarget};
 use target::Architecture;
 
-/// One-shot authority to install one exact validated placement. Required
-/// facts are open provider vocabulary — the receiver names in advance the
-/// provider-canonical claims the contracted write-to-execute operation must
-/// establish, such as its exact cache-order and instruction-fetch completion
-/// facts — while instruction-fetch visibility and the W^X transition remain
-/// mandatory lifecycle gates. An authority demanding no facts admits any
-/// receipt that satisfies the lifecycle gates.
 #[derive(Debug, PartialEq, Eq)]
 pub struct InstallAuthority {
     pub(crate) validated: ValidatedPlacementEvidence,
-    pub(crate) required_facts: std::collections::BTreeSet<InstallationFactDigest>,
+    pub(crate) required_facts: std::collections::BTreeSet<InstallationFactDigest>, // Provider-canonical claims required in addition to mandatory visibility and W^X gates.
 }
 
 impl InstallAuthority {
@@ -31,8 +31,6 @@ impl InstallAuthority {
         }
     }
 
-    /// Names the provider-canonical facts the installation receipt must
-    /// establish, the same contract retirement authorities already impose.
     pub fn with_required_facts(
         mut self,
         required_facts: impl IntoIterator<Item = InstallationFactDigest>,
@@ -49,10 +47,6 @@ pub enum WxEnforcement {
     Unsupported,
 }
 
-/// Provider result of the one contracted write-to-execute operation. Beyond
-/// the mandatory visibility and W^X claims it reports the provider-canonical
-/// facts the operation established; the install gate requires the authority's
-/// demanded set to appear here rather than recording assertions unchallenged.
 #[derive(Debug, PartialEq, Eq)]
 pub struct InstallationReceipt {
     pub(crate) installed: InstalledCodeId,
@@ -78,7 +72,6 @@ impl InstallationReceipt {
         }
     }
 
-    /// Records the provider-canonical facts the operation established.
     pub fn with_established_facts(
         mut self,
         established_facts: impl IntoIterator<Item = InstallationFactDigest>,
@@ -106,8 +99,6 @@ impl InstallationError {
     }
 }
 
-/// Linear installed claim. It exposes identity/reporting only; callable entry
-/// references are derived by the separate CFI/entry-reference gate.
 #[derive(Debug)]
 pub struct InstalledCode {
     pub(crate) identity: InstalledCodeId,
@@ -120,18 +111,14 @@ impl InstalledCode {
         self.validated.frozen.artifact.artifact.0.identity
     }
 
-    /// Exact installation scope carried by this admitted placement.
     pub const fn installation_scope(&self) -> InstallationScopeId {
         self.validated.frozen.placement.scope
     }
 
-    /// Exact placement constraints retained by this installed occurrence.
-    /// The projection is descriptive evidence — normalized range, alignment,
-    /// phase, regime, and scope identities — and grants no placement or
-    /// execute authority.
     pub const fn placement_constraints(&self) -> PlacementConstraints {
         self.validated.frozen.placement.constraints
     }
+
     pub fn architecture(&self) -> Architecture {
         self.validated.frozen.artifact.artifact.0.architecture
     }
@@ -148,8 +135,6 @@ impl InstalledCode {
         self.wx
     }
 
-    /// Returns a sealed target only for an entry admitted with this installed
-    /// artifact. The numeric address stays private to writer execution.
     pub fn selected_entry_target(
         &self,
         identity: EntryStubId,

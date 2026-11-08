@@ -1,10 +1,11 @@
-//! Replay provider executions against exact Terminal requirements and selected plans.
-//!
-//! Artifact owners supply their already replayed boundary-settlement and foreign-call
-//! rows: the direct product uses image rows, while dynamic ELF uses object rows.
-//! This owner reconstructs the required executions, checks foreign stack custody,
-//! and compares the complete report set. It does not choose an image lane or grant
-//! provider authority.
+/*
+We replay provider executions against canonical Terminal boundary declarations,
+foreign-call bindings, and selected provider plans (`replay_provider_executions`).
+We reconstruct required execution report keys from boundary settlements and
+foreign calls, verify same-stack contributions and system-call bindings against
+selected plan commitments, and confirm that the artifact's reported
+`NativeProviderExecution` roster matches the required set in canonical order.
+*/
 
 use std::collections::BTreeSet;
 
@@ -117,16 +118,12 @@ pub(super) fn replay_provider_executions(
     .map_err(ProviderExecutionReplayError::Shared)
 }
 
-/// Rejoin an external call's mechanism to its exact selected provider plan.
-/// Kernel entries carry no opaque user-stack receipt or user-space control envelope.
 pub(super) fn validate_foreign_provider_binding(
     requirement: &str,
     foreign: &ObjectForeignCall,
     selected_provider_plans: &[NativeSelectedProviderPlan],
     _identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), &'static str> {
-    // The admitted contribution indexes the selection facts table carried
-    // beside the plan's family realizations, never the module's table.
     let selected_plan = selected_provider_plans
         .iter()
         .find(|plan| {
@@ -173,9 +170,6 @@ pub(super) fn validate_foreign_provider_binding(
     Ok(())
 }
 
-/// Structural failures shared by the two artifact products. Preserve each
-/// product's existing diagnostic spelling; report and stack rejections retain
-/// the same text in both.
 pub(super) enum ProviderExecutionReplayError {
     AbsentSettlementBoundary,
     MissingForeignOperationOwner,
@@ -230,7 +224,6 @@ impl ProviderExecutionReplayError {
 
 type ProviderExecutionReportKey = (String, u64, u64, u64, u64, u64);
 
-/// Rejoin one replayed execution to its exact selected plan and required key.
 fn required_report_key(
     requirement: &str,
     execution: machine_code::ProviderExecutionRecord,

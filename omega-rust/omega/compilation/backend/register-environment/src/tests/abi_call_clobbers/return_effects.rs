@@ -1,3 +1,10 @@
+/*
+We verify that the machine-effect catalog declares the exact ABI result-register
+custody, link-register/stack-pointer implicit uses, and return control barriers
+for every selected unit, scalar, float, and aggregate return rule across all
+supported targets, and rejects per-fact corruptions.
+*/
+
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
     abi_case_context, assert_faulting_trap, assert_storage_free,
@@ -14,9 +21,6 @@ use selected_instructions::{
     MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
-/// Every selected return rule key with the semantic family the effect
-/// catalog must declare for it. The sweep is keyed off the validated
-/// environment's selection, never off the effect producer's own roster.
 fn selected_return_rules(
     environment: &crate::ValidatedTargetRegisterEnvironment,
 ) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
@@ -39,10 +43,6 @@ fn selected_return_rules(
         .collect()
 }
 
-/// The declared ABI result views one selected return rule consumes, in
-/// operand order. Scalar integer and float returns read their single ABI
-/// home, a Unit return reads none, and each aggregate ordinal extends the
-/// ordered integer-result prefix by one view.
 fn expected_result_views(
     case: ScalarAbiCase,
     environment: &crate::ValidatedTargetRegisterEnvironment,
@@ -62,8 +62,6 @@ fn expected_result_views(
     }
 }
 
-/// Every selected return rule on every declared target/ABI pair is bound to
-/// the preservation convention and return mechanism that pair declares.
 #[test]
 fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
     for case in scalar_abi_cases() {
@@ -76,9 +74,6 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
             case.convention
         );
 
-        // Return authority is declared for exactly the selected return rules:
-        // no selected rule may lack a return declaration and no other
-        // declaration may claim a return semantic.
         let declared = declared_pairs(&catalog, |declaration| {
             matches!(
                 declaration.semantic,
@@ -105,8 +100,6 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
             assert_eq!(declaration.trap, MachineTrapBehavior::NeverV1, "{key:?}");
             assert_eq!(declaration.memory, MachineMemoryEffect::NoneV1, "{key:?}");
 
-            // ABI operand structure: dense operand numbers of Use operands
-            // pinned to the declared result views; a Unit return has none.
             let expected_views = expected_result_views(case, &environment, *key);
             assert_eq!(row.operands.len(), expected_views.len(), "{key:?}");
             for (position, (operand, name)) in
@@ -131,8 +124,6 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
                 );
             }
 
-            // A return may only implicitly touch volatile or architecturally
-            // fixed control state, and it never clobbers anything itself.
             assert_eq!(
                 row.implicit_uses,
                 units_for_names(model, case.return_uses),
@@ -152,15 +143,11 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
             );
             assert!(row.clobbers.is_empty(), "{key:?}");
 
-            // One canonical alternative replays the exact ABI return
-            // mechanism for this target.
             let alternative = sole_alternative(declaration, *semantic, *key);
             let encoded = &alternative.encoded;
             assert!(encoded.external_operand_reads.is_empty(), "{key:?}");
             assert!(encoded.external_operand_writes.is_empty(), "{key:?}");
             assert!(encoded.implicit_unit_clobbers.is_empty(), "{key:?}");
-            // Encoded implicit state refines, and stays inside, the
-            // constraint row's conservative custody.
             assert!(
                 encoded
                     .implicit_unit_uses
@@ -215,8 +202,6 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
                 Architecture::Aarch64 => {
                     let link = model.view_named("x30").unwrap();
                     let program_counter = model.view_named("pc").unwrap();
-                    // The constraint row retains frame custody of `sp`; the
-                    // encoded `ret` itself reads only the link register.
                     assert_eq!(encoded.implicit_unit_uses, link.units, "{key:?}");
                     assert_eq!(encoded.implicit_unit_defs, program_counter.units, "{key:?}");
                     assert_storage_free(encoded, *key);
@@ -236,10 +221,6 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
     }
 }
 
-/// Every selected return rule replays its encoded control form: a return
-/// encoded as fall-through, stripped of its return-address read, or carrying
-/// a forged clobber must reject for every rule on every declared target/ABI
-/// pair.
 #[test]
 fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
     for case in scalar_abi_cases() {
@@ -247,8 +228,6 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
         let convention = convention_for(case, environment.physical());
         let catalog = produced_effects(case, environment.constraints());
         for (key, semantic) in selected_return_rules(&environment) {
-            // A return encoded as ordinary fall-through fails the encoded
-            // control/barrier join.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).control =
                 MachineEncodedControlEffect::FallThroughV1;
@@ -258,10 +237,6 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
                 "{key:?} fall-through return must reject"
             );
 
-            // Dropping the encoded return-address read understates the
-            // row's contracted uses: an indirect-register return may narrow
-            // to a non-empty subset, and a use list that reads nothing has
-            // dropped the read its control effect still performs.
             let mut corrupted = catalog.clone();
             let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
             assert!(
@@ -275,8 +250,6 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
                 "{key:?} lost return-address use must reject"
             );
 
-            // A forged clobber outside the return row's empty clobber set
-            // fails structural admission before canonical replay runs.
             let mut corrupted = catalog.clone();
             let row = environment.constraint(key).unwrap();
             assert!(row.clobbers.is_empty(), "{key:?}");

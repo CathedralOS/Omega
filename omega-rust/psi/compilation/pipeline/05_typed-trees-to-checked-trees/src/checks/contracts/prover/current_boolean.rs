@@ -8,7 +8,7 @@ use crate::published::facts::boolean_predicates::{BoundPredicate, inferred_boole
 use crate::published::facts::contract_occurrences::append_expression_occurrences;
 use crate::published::places::place_at;
 use crate::published::semantic::places::call_contract_argument_projection;
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 use validation::CanonicalPlace;
 
 use facts::{FactOrigin, FactPayload, FactPlan, ProgramPoint, ScalarValue};
@@ -24,6 +24,13 @@ pub(crate) struct BooleanValueQueries<'scope> {
     contexts: &'scope [facts::FactContextHandle],
     point: ProgramPoint,
     predicates: OnceCell<Vec<BoundPredicate>>,
+    /// Each root's assignments in these contexts, read once for every query.
+    /// The borrowed plan cannot change while this batch exists.
+    assignments: RefCell<crate::values::RootAssignmentObservations<'scope>>,
+    /// The Boolean facts of these contexts with their reconstructed places, in
+    /// context order. Every query used to re-scan all facts and rebuild every
+    /// Boolean fact's place; a whole-aggregate transfer asks once per member.
+    boolean_facts: OnceCell<Vec<(Option<CanonicalPlace>, &'scope facts::Fact)>>,
 }
 
 impl<'scope> BooleanValueQueries<'scope> {
@@ -41,7 +48,25 @@ impl<'scope> BooleanValueQueries<'scope> {
             contexts,
             point,
             predicates: OnceCell::new(),
+            assignments: RefCell::new(crate::values::RootAssignmentObservations::new(
+                program, semantic, contexts,
+            )),
+            boolean_facts: OnceCell::new(),
         }
+    }
+
+    /// The recorded or proved Boolean at `actual`, from this batch's prepared inputs.
+    fn ordinary_at_place(&self, actual: &CanonicalPlace) -> Option<bool> {
+        let scalar = self.assignments.borrow_mut().scalar_value(actual);
+        let facts = self
+            .boolean_facts
+            .get_or_init(|| boolean_facts(self.program, self.semantic, self.contexts).collect());
+        ordinary_boolean_value_from(
+            self.program,
+            scalar,
+            facts.iter().map(|(place, fact)| (place.as_ref(), *fact)),
+            actual,
+        )
     }
 
     pub(crate) fn at_place(&self, actual: &CanonicalPlace) -> Option<bool> {
@@ -102,7 +127,7 @@ impl<'scope> BooleanValueQueries<'scope> {
         {
             return None;
         }
-        if let Some(value) = ordinary_boolean_value_at_place(program, semantic, contexts, actual) {
+        if let Some(value) = self.ordinary_at_place(actual) {
             return Some(value);
         }
         let predicates = self.predicates.get_or_init(|| {
@@ -115,18 +140,9 @@ impl<'scope> BooleanValueQueries<'scope> {
             )
         });
         inferred_boolean_at_place(predicates, actual, |place| {
-            ordinary_boolean_value_at_place(program, semantic, contexts, place)
+            self.ordinary_at_place(place)
                 .map(ScalarValue::Boolean)
-                .or_else(|| {
-                    crate::values::scalar_value_at_place(
-                        program,
-                        semantic,
-                        contexts
-                            .iter()
-                            .map(|context| semantic.contexts.get(*context)),
-                        place,
-                    )
-                })
+                .or_else(|| self.assignments.borrow_mut().scalar_value(place))
         })
     }
 }
@@ -142,42 +158,61 @@ pub(crate) fn boolean_value_at_place(
     BooleanValueQueries::new(program, operators, semantic, contexts, point).at_place(actual)
 }
 
-fn ordinary_boolean_value_at_place(
+/// The Boolean facts of `contexts`, in context order, each with the place it
+/// is stored at. Facts without a place cannot describe any queried place and
+/// are left out; a place that does not reconstruct stays `None` and matches
+/// nothing.
+fn boolean_facts<'plan>(
+    program: &'plan dyn ::validation::CheckingInput,
+    semantic: &'plan FactPlan,
+    contexts: &'plan [facts::FactContextHandle],
+) -> impl Iterator<Item = (Option<CanonicalPlace>, &'plan facts::Fact)> + 'plan {
+    contexts
+        .iter()
+        .flat_map(move |context| {
+            semantic
+                .context_view(semantic.contexts.get(*context))
+                .facts()
+        })
+        .filter(|fact| {
+            matches!(
+                fact.payload,
+                FactPayload::BooleanExpression(_)
+                    | FactPayload::ContractBooleanExpression { .. }
+                    | FactPayload::BooleanValue { .. }
+            )
+        })
+        .filter_map(move |fact| {
+            let place = fact.place.as_place()?;
+            Some((
+                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place)),
+                fact,
+            ))
+        })
+}
+
+/// The value a stored Boolean is recorded or proved to hold at `actual`.
+/// `scalar` is the current-value snapshot of `actual`; `facts` are the
+/// contexts' Boolean facts with their places, in context order.
+fn ordinary_boolean_value_from<'plan>(
     program: &dyn ::validation::CheckingInput,
-    semantic: &FactPlan,
-    contexts: &[facts::FactContextHandle],
+    scalar: Option<ScalarValue>,
+    facts: impl IntoIterator<Item = (Option<&'plan CanonicalPlace>, &'plan facts::Fact)>,
     actual: &CanonicalPlace,
 ) -> Option<bool> {
-    let mut retained = match super::scalar_value_at_place(
-        program,
-        semantic,
-        contexts
-            .iter()
-            .map(|context| semantic.contexts.get(*context)),
-        actual,
-    ) {
+    let mut retained = match scalar {
         Some(ScalarValue::Boolean(value)) => Some(value),
         Some(_) => return None,
         None => None,
     };
-    for fact in contexts.iter().flat_map(|context| {
-        semantic
-            .context_view(semantic.contexts.get(*context))
-            .facts()
-    }) {
+    for (place, fact) in facts {
         let (expression, value) = match fact.payload {
             FactPayload::BooleanExpression(expression)
             | FactPayload::ContractBooleanExpression { expression, .. } => (expression, true),
             FactPayload::BooleanValue { expression, value } => (expression, value),
             _ => continue,
         };
-        let Some(place) = fact.place.as_place() else {
-            continue;
-        };
-        if canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
-            .as_ref()
-            != Some(actual)
-        {
+        if place != Some(actual) {
             continue;
         }
         let matches_subject = |candidate| {

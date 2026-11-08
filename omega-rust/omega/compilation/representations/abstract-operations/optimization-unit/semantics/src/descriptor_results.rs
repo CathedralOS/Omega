@@ -1,6 +1,13 @@
-//! Current Phi operations and successor bindings adapted to the shared kernel.
-//! Catalog rows authenticate declarations; one cohort graph owns both returned
-//! origins and position-sensitive stored descriptor effects.
+/*
+We adapt current abstract and optimization-unit function bodies into cohort
+descriptor flow graphs (`DescriptorMachine`) for views, ordinary references,
+and borrowed storage. By reconstructing place definitions, scalar payload reads
+and writes, call guarantees, and escaped-invocation invalidations directly from
+current operations rather than retained source summaries, we let optimization
+and target-lowering consumers query returned descriptor origins and access
+results after transformations have mutated the program.
+*/
+
 use abstract_operations::{AbstractOperation as O, StructuralCopyPath};
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
@@ -20,8 +27,869 @@ use terminal_semantics::descriptor_results::{
     writable_descriptor_slots,
 };
 
-pub mod access_results;
-mod scalar_expressions;
+pub mod access_results {
+    use abstract_operations::AbstractOperation;
+    use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
+    use terminal_psi::{
+        StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
+        StructuralTypeShape,
+    };
+    use terminal_semantics::borrowed_storage::Projection;
+    use terminal_semantics::descriptor_lifetimes::descriptor_path;
+    use terminal_semantics::descriptor_results::{DescriptorResultSlot, DescriptorStoredOrigin};
+
+    #[derive(Debug)]
+    pub enum Source {
+        Captured(abstract_operations::AccessReferenceBacking),
+        Incoming(StructuralArgument),
+    }
+
+    #[derive(Debug)]
+    pub struct ResultSlot {
+        pub path: Vec<StructuralPathSegment>,
+        pub sources: Vec<Option<Source>>,
+    }
+
+    pub fn summarize<'operation>(
+        types: &abstract_operations::StructuralTypeCatalog,
+        boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+        parameters: &[StructuralParameterDeclaration],
+        result_type: StructuralTypeId,
+        slots: &[DescriptorResultSlot],
+        formation: impl Fn(MachineId, OperationId) -> Option<&'operation AbstractOperation>,
+    ) -> Option<Vec<ResultSlot>> {
+        slots
+            .iter()
+            .map(|slot| {
+                let path = descriptor_path(types, result_type, &slot.path)?;
+                let StructuralTypeShape::Reference { referent, access } =
+                    terminal_semantics::runtime_structural_path_tip(
+                        types.iter(),
+                        result_type,
+                        &path,
+                    )?
+                    .shape
+                else {
+                    return None;
+                };
+                let sources = slot
+                    .origins
+                    .iter()
+                    .map(|origin| match origin {
+                        DescriptorStoredOrigin::AccessFormation {
+                            machine,
+                            operation,
+                            place,
+                            carrier,
+                            projection,
+                        } => {
+                            if projection != &Projection::new(&[]) || *carrier != referent {
+                                return None;
+                            }
+                            let formation = formation(*machine, *operation)?;
+                            if let AbstractOperation::BoundaryCall {
+                                psi_operation,
+                                boundary,
+                                result:
+                                    abstract_operations::AbstractBoundaryResult::Structural(result),
+                                ..
+                            } = formation
+                            {
+                                let declaration =
+                                    boundaries.iter().find(|row| row.id == *boundary)?;
+                                let (_, backing) =
+                                    crate::access_references::borrowed_view_formation(
+                                        types,
+                                        declaration,
+                                        result,
+                                    )?;
+                                if psi_operation != operation
+                                    || result.place != *place
+                                    || backing.carrier() != *carrier
+                                {
+                                    return None;
+                                }
+                                return Some(Some(Source::Captured(backing)));
+                            }
+                            let AbstractOperation::EstablishAccessReference {
+                                psi_operation,
+                                result,
+                                correspondence,
+                                ..
+                            } = formation
+                            else {
+                                return None;
+                            };
+                            if psi_operation != operation
+                                || result.place != *place
+                                || correspondence.carrier() != *carrier
+                                || !terminal_psi::find_structural_type(
+                                    types,
+                                    result.structural_type,
+                                )
+                                .is_some_and(|declaration| {
+                                    matches!(declaration.shape,
+                                    StructuralTypeShape::Reference { referent, .. }
+                                        if referent == *carrier)
+                                })
+                            {
+                                return None;
+                            }
+                            Some(Some(Source::Captured(correspondence.clone())))
+                        }
+                        DescriptorStoredOrigin::Parameter {
+                            position,
+                            projection,
+                        } => {
+                            if projection != &Projection::new(&[]) {
+                                return None;
+                            }
+                            let parameter = parameters.get(*position)?;
+                            if parameter.structural_type != referent
+                                || !access.admits(parameter.access)
+                            {
+                                return None;
+                            }
+                            Some(Some(Source::Incoming(StructuralArgument {
+                                place: parameter.place,
+                                path: Vec::new(),
+                                access,
+                            })))
+                        }
+                        DescriptorStoredOrigin::IncomingSlot { position, path } => {
+                            let parameter = parameters.get(*position)?;
+                            let mut path = descriptor_path(types, parameter.structural_type, path)?;
+                            let StructuralTypeShape::Reference {
+                                referent: incoming,
+                                access: ceiling,
+                            } = terminal_semantics::runtime_structural_path_tip(
+                                types.iter(),
+                                parameter.structural_type,
+                                &path,
+                            )?
+                            .shape
+                            else {
+                                return None;
+                            };
+                            if incoming != referent || !access.admits(ceiling) {
+                                return None;
+                            }
+                            path.push(StructuralPathSegment::Referent);
+                            Some(Some(Source::Incoming(StructuralArgument {
+                                place: parameter.place,
+                                path,
+                                access,
+                            })))
+                        }
+                        DescriptorStoredOrigin::Empty => Some(None),
+                        _ => None,
+                    })
+                    .filter_map(|source| match source {
+                        Some(None) => None,
+                        Some(Some(source)) => Some(Some(source)),
+                        None => Some(None),
+                    })
+                    .collect();
+                Some(ResultSlot { path, sources })
+            })
+            .collect()
+    }
+
+    pub fn resolve<Interpretation: PartialEq>(
+        slots: &[ResultSlot],
+        path: &[StructuralPathSegment],
+        incoming: impl Fn(&StructuralArgument) -> Option<Interpretation>,
+        captured: impl Fn(&abstract_operations::AccessReferenceBacking) -> Interpretation,
+    ) -> Option<Result<Interpretation, ConflictingInterpretations>> {
+        let mut matching = slots.iter().filter(|slot| slot.path == path);
+        let slot = matching.next()?;
+        if matching.next().is_some() {
+            return Some(Err(ConflictingInterpretations));
+        }
+        derive(slot.sources.iter().map(|source| match source {
+            Some(Source::Captured(correspondence)) => Some(captured(correspondence)),
+            Some(Source::Incoming(source)) => incoming(source),
+            None => None,
+        }))
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct ConflictingInterpretations;
+
+    fn derive<Interpretation: PartialEq>(
+        alternatives: impl IntoIterator<Item = Option<Interpretation>>,
+    ) -> Option<Result<Interpretation, ConflictingInterpretations>> {
+        let mut selected = None;
+        let mut incomplete = false;
+        for candidate in alternatives {
+            let Some(candidate) = candidate else {
+                incomplete = true;
+                continue;
+            };
+            if selected
+                .as_ref()
+                .is_some_and(|selected| selected != &candidate)
+            {
+                return Some(Err(ConflictingInterpretations));
+            }
+            selected = Some(candidate);
+        }
+        if incomplete { None } else { selected.map(Ok) }
+    }
+
+    pub fn agree<Interpretation: PartialEq>(
+        alternatives: impl IntoIterator<Item = Option<Interpretation>>,
+    ) -> Option<Interpretation> {
+        let mut selected = None;
+        for candidate in alternatives {
+            let candidate = candidate?;
+            if selected
+                .as_ref()
+                .is_some_and(|selected| selected != &candidate)
+            {
+                return None;
+            }
+            selected = Some(candidate);
+        }
+        selected
+    }
+
+    pub fn reconcile<Interpretation: PartialEq>(
+        public: Option<Interpretation>,
+        private: Option<Result<Interpretation, ConflictingInterpretations>>,
+    ) -> Option<Interpretation> {
+        match (public, private) {
+            (_, Some(Err(ConflictingInterpretations))) => None,
+            (Some(public), Some(Ok(private))) => (public == private).then_some(private),
+            (Some(interpretation), None) | (None, Some(Ok(interpretation))) => Some(interpretation),
+            (None, None) => None,
+        }
+    }
+}
+mod scalar_expressions {
+    use super::{O, kernel};
+    use optimization_unit::{OptimizationEdge, OptimizationNode, PsiOptimizationFunction};
+    use semantic_vocabulary::{BlockId, IntegerValue, ScalarTerm as T, ScalarType, ValueId};
+    use std::collections::BTreeMap;
+
+    mod case_conditions {
+        use super::*;
+        use std::collections::BTreeSet;
+        use terminal_psi::StructuralTypeDeclaration;
+        use terminal_semantics::descriptor_results::{DescriptorCasePredicate, DescriptorMachine};
+
+        #[cfg(test)]
+        mod tests {
+            use abstract_operations::{
+                AbstractBlockEntry, AbstractFunction, AbstractFunctionResult,
+                AbstractOperation as Operation, AbstractParameter, AbstractResult,
+                AbstractStructuralCallResult, AbstractSuccessor, ValueBinding,
+            };
+            use semantic_vocabulary::{
+                BlockId, EdgeId, MachineId, OperationId, PlaceId, ScalarType, StructuralCaseId,
+                StructuralTypeId, ValueId,
+            };
+            use std::borrow::Cow;
+            use terminal_psi::{
+                StructuralAccess, StructuralArgument, StructuralCaseDeclaration,
+                StructuralMultiplicity, StructuralParameterDeclaration, StructuralStoreDisposition,
+                StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,
+            };
+            use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
+            use terminal_semantics::descriptor_results::{
+                DescriptorCasePredicate, DescriptorMachine,
+            };
+
+            fn parameter(
+                place: u64,
+                position: u32,
+                access: StructuralAccess,
+            ) -> StructuralParameterDeclaration {
+                StructuralParameterDeclaration {
+                    place: PlaceId::new(place).unwrap(),
+                    position,
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                }
+            }
+
+            fn replacement(destination: u64, source: u64) -> Operation {
+                Operation::StoreStructuralField {
+                    disposition: StructuralStoreDisposition::ReplaceDiscardable,
+                    psi_operation: OperationId::new(2).unwrap(),
+                    destination: parameter(destination, 0, StructuralAccess::MutableBorrow).into(),
+                    path: Vec::new(),
+                    field: None,
+                    value: StructuralArgument {
+                        place: PlaceId::new(source).unwrap(),
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    },
+                }
+            }
+
+            fn function(
+                machine: u64,
+                parameters: Vec<StructuralParameterDeclaration>,
+                block_entries: Vec<AbstractBlockEntry>,
+                operations: Vec<Operation>,
+            ) -> AbstractFunction {
+                AbstractFunction {
+                    machine: MachineId::new(machine).unwrap(),
+                    attachment: None,
+                    nominal_cleanup_subject: None,
+                    entry: block_entries[0].block,
+                    parameters: Vec::new(),
+                    structural_parameters: parameters,
+                    result: AbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    block_entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries,
+                    operations,
+                }
+            }
+
+            fn forwarded_graph(intervening: Vec<Operation>, forwarded: u64) -> DescriptorMachine {
+                let block = |number| BlockId::new(number).unwrap();
+                let successor = |number| AbstractSuccessor {
+                    psi_edge: EdgeId::new(number).unwrap(),
+                    target: block(number + 1),
+                    bindings: Vec::new(),
+                    structural_bindings: Vec::new(),
+                    cleanup_actions: Vec::new(),
+                };
+                let mut operations = vec![Operation::StructuralCaseMembership {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    result: AbstractResult {
+                        value: ValueId::new(1).unwrap(),
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    source: PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    case: StructuralCaseId::new(1).unwrap(),
+                }];
+                operations.extend(intervening);
+                operations.push(Operation::Jump {
+                    psi_edge: EdgeId::new(1).unwrap(),
+                    target: block(2),
+                    bindings: vec![ValueBinding {
+                        parameter: ValueId::new(2).unwrap(),
+                        argument: ValueId::new(forwarded).unwrap(),
+                        scalar_type: ScalarType::Boolean,
+                    }],
+                    structural_bindings: Vec::new(),
+                    cleanup_actions: Vec::new(),
+                });
+                let conditional = operations.len();
+                operations.push(Operation::Conditional {
+                    condition: ValueId::new(2).unwrap(),
+                    when_true: successor(2),
+                    when_false: successor(3),
+                });
+                operations.extend([4, 5].map(|number| Operation::ReturnUnit {
+                    psi_edge: EdgeId::new(number).unwrap(),
+                    cleanup_actions: Vec::new(),
+                }));
+                let entries = [0, conditional, conditional + 1, conditional + 2]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, operation_offset)| AbstractBlockEntry {
+                        block: block(index as u64 + 1),
+                        structural_parameters: Vec::new(),
+                        parameters: if index == 1 {
+                            vec![AbstractParameter {
+                                value: ValueId::new(2).unwrap(),
+                                scalar_type: ScalarType::Boolean,
+                            }]
+                        } else {
+                            Vec::new()
+                        },
+                        operation_offset,
+                    })
+                    .collect();
+                let caller = function(
+                    1,
+                    vec![
+                        parameter(1, 0, StructuralAccess::MutableBorrow),
+                        parameter(2, 1, StructuralAccess::Owned),
+                    ],
+                    entries,
+                    operations,
+                );
+                let callee = function(
+                    2,
+                    vec![
+                        parameter(3, 0, StructuralAccess::MutableBorrow),
+                        parameter(4, 1, StructuralAccess::Owned),
+                    ],
+                    vec![AbstractBlockEntry {
+                        block: block(5),
+                        structural_parameters: Vec::new(),
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    vec![
+                        replacement(3, 4),
+                        Operation::ReturnUnit {
+                            psi_edge: EdgeId::new(6).unwrap(),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                );
+                let functions = [caller, callee]
+                    .iter()
+                    .map(optimization_unit::reconstruct_psi_optimization_function_seed)
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                let types = [StructuralTypeDeclaration {
+                    id: StructuralTypeId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(1),
+                    shape: StructuralTypeShape::Sum {
+                        cases: [1, 2]
+                            .map(|number| StructuralCaseDeclaration {
+                                id: StructuralCaseId::new(number).unwrap(),
+                                identity: TerminalIdentityIndex(number as u32 + 1),
+                                fields: Vec::new(),
+                            })
+                            .to_vec(),
+                    },
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    copyable: true,
+                    descriptor_cleanup: false,
+                    scalar_restriction: None,
+                }];
+                crate::descriptor_results::optimized_reference_catalog_graph(
+                    &functions,
+                    [],
+                    &types,
+                    &Default::default(),
+                    |_, node| Some(Cow::Borrowed(&node.operation)),
+                )
+                .unwrap()
+                .remove(0)
+            }
+
+            fn expected_polarities(truth: bool) -> Vec<(DescriptorCasePredicate, bool)> {
+                let predicate = DescriptorCasePredicate {
+                    subject: DescriptorLocation::whole(PlaceId::new(1).unwrap()),
+                    case: StructuralCaseId::new(1).unwrap(),
+                };
+                vec![(predicate.clone(), truth), (predicate, !truth)]
+            }
+
+            #[test]
+            fn forwarded_case_membership_preserves_both_edge_polarities() {
+                let graph = forwarded_graph(Vec::new(), 1);
+                assert_eq!(
+                    graph.case_successors.get(&(BlockId::new(2).unwrap(), 0)),
+                    Some(&expected_polarities(true)),
+                );
+            }
+
+            #[test]
+            fn forwarded_negated_case_membership_reverses_edge_polarities() {
+                let graph = forwarded_graph(
+                    vec![Operation::BooleanNot {
+                        psi_operation: OperationId::new(2).unwrap(),
+                        result: ValueId::new(3).unwrap(),
+                        operand: ValueId::new(1).unwrap(),
+                    }],
+                    3,
+                );
+                assert_eq!(
+                    graph.case_successors.get(&(BlockId::new(2).unwrap(), 0)),
+                    Some(&expected_polarities(false)),
+                );
+            }
+
+            #[test]
+            fn saved_case_membership_does_not_survive_replacement_or_call() {
+                let call = Operation::CallStructural {
+                    psi_operation: OperationId::new(2).unwrap(),
+                    callee: MachineId::new(2).unwrap().into(),
+                    arguments: Vec::new(),
+                    structural_arguments: vec![
+                        StructuralArgument {
+                            place: PlaceId::new(1).unwrap(),
+                            path: Vec::new(),
+                            access: StructuralAccess::MutableBorrow,
+                        },
+                        StructuralArgument {
+                            place: PlaceId::new(2).unwrap(),
+                            path: Vec::new(),
+                            access: StructuralAccess::Owned,
+                        },
+                    ],
+                    claim_transfers: Vec::new(),
+                    result: AbstractStructuralCallResult::Unit,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                };
+                for (operation, intervening) in [("replacement", replacement(1, 2)), ("call", call)]
+                {
+                    let graph = forwarded_graph(vec![intervening], 1);
+                    assert!(
+                        !graph
+                            .case_successors
+                            .contains_key(&(BlockId::new(2).unwrap(), 0)),
+                        "saved membership survived an intervening {operation}",
+                    );
+                }
+            }
+        }
+        type Position = (BlockId, usize);
+
+        #[derive(Clone, PartialEq, Eq)]
+        struct CapturedTest {
+            observation: Position,
+            predicate: DescriptorCasePredicate,
+            truth: bool,
+        }
+
+        impl ScalarExpressions<'_> {
+            pub(in crate::descriptor_results) fn retain_case_conditions(
+                &self,
+                types: &[StructuralTypeDeclaration],
+                graph: &mut DescriptorMachine,
+            ) {
+                let mut conditions = Vec::new();
+                for block in self.blocks.values() {
+                    for (index, node) in block.nodes.iter().enumerate() {
+                        let O::Conditional {
+                            condition,
+                            when_true,
+                            when_false,
+                        } = &node.operation
+                        else {
+                            continue;
+                        };
+                        let Some(test) = self.case_test(
+                            types,
+                            graph,
+                            *condition,
+                            (block.id, index),
+                            &mut BTreeSet::new(),
+                        ) else {
+                            continue;
+                        };
+                        let predicates = node
+                            .successors
+                            .iter()
+                            .map(|edge| {
+                                let truth = if edge.psi_edge == when_true.psi_edge
+                                    && edge.target == when_true.target
+                                {
+                                    test.truth
+                                } else if edge.psi_edge == when_false.psi_edge
+                                    && edge.target == when_false.target
+                                {
+                                    !test.truth
+                                } else {
+                                    return None;
+                                };
+                                Some((test.predicate.clone(), truth))
+                            })
+                            .collect::<Option<Vec<_>>>();
+                        if let Some(predicates) =
+                            predicates.filter(|predicates| predicates.len() == 2)
+                            && let Ok(index) = u32::try_from(index)
+                        {
+                            conditions.push(((block.id, index), predicates));
+                        }
+                    }
+                }
+                graph.case_successors.extend(conditions);
+            }
+
+            fn case_test(
+                &self,
+                types: &[StructuralTypeDeclaration],
+                graph: &DescriptorMachine,
+                value: ValueId,
+                position: Position,
+                active: &mut BTreeSet<(ValueId, Position)>,
+            ) -> Option<CapturedTest> {
+                if !active.insert((value, position)) {
+                    return None;
+                }
+                let result = (|| {
+                    if let Some(definition) = self.definitions.get(&value) {
+                        let node = definition.node;
+                        let (block, index) = definition.position;
+                        if block != position.0
+                            || index >= position.1
+                            || !self.unchanged(graph, position.0, index + 1, position.1)
+                        {
+                            return None;
+                        }
+                        return match &node.operation {
+                            O::StructuralCaseMembership {
+                                source, path, case, ..
+                            } => {
+                                let subject =
+                                    terminal_semantics::descriptor_lifetimes::descriptor_location(
+                                        types,
+                                        *source,
+                                        *graph.place_types.get(source)?,
+                                        path,
+                                        None,
+                                    )?;
+                                Some(CapturedTest {
+                                    observation: (block, index),
+                                    predicate: DescriptorCasePredicate {
+                                        subject,
+                                        case: *case,
+                                    },
+                                    truth: true,
+                                })
+                            }
+                            O::BooleanNot { operand, .. } => {
+                                let mut test =
+                                    self.case_test(types, graph, *operand, (block, index), active)?;
+                                test.truth = !test.truth;
+                                Some(test)
+                            }
+                            _ => None,
+                        };
+                    }
+                    if self.owners.get(&value) != Some(&position.0)
+                        || !self.unchanged(graph, position.0, 0, position.1)
+                    {
+                        return None;
+                    }
+                    let incoming = self.incoming.get(&position.0)?;
+                    let mut selected = None;
+                    for incoming in incoming {
+                        if !incoming.edge.structural_bindings.is_empty() {
+                            return None;
+                        }
+                        let actual = incoming.edge.binding(value)?.argument;
+                        let test = self.case_test(types, graph, actual, incoming.source, active)?;
+                        if selected.as_ref().is_some_and(|selected| selected != &test) {
+                            return None;
+                        }
+                        selected = Some(test);
+                    }
+                    selected
+                })();
+                active.remove(&(value, position));
+                result
+            }
+
+            fn unchanged(
+                &self,
+                graph: &DescriptorMachine,
+                block: BlockId,
+                start: usize,
+                end: usize,
+            ) -> bool {
+                let Some(nodes) = self
+                    .blocks
+                    .get(&block)
+                    .and_then(|block| block.nodes.get(start..end))
+                else {
+                    return false;
+                };
+                nodes.iter().enumerate().all(|(offset, node)| {
+                    let Ok(index) = u32::try_from(start + offset) else {
+                        return false;
+                    };
+                    let position = (block, index);
+                    graph.flow.get(&position).is_some_and(|step| {
+                        step.definitions.is_empty()
+                            && step.derivations.is_empty()
+                            && !step.may_escape
+                            && !graph.calls.contains_key(&position)
+                            && !graph.contents_transfers.contains_key(&position)
+                            && !graph.payload_invalidations.contains_key(&position)
+                            && node.ownership.is_empty()
+                    })
+                })
+            }
+        }
+    }
+    struct ScalarDefinition<'function> {
+        node: &'function OptimizationNode,
+        position: (BlockId, usize),
+    }
+
+    struct IncomingEdge<'function> {
+        source: (BlockId, usize),
+        edge: &'function OptimizationEdge,
+    }
+
+    pub(super) struct ScalarExpressions<'function> {
+        entry: BlockId,
+        types: BTreeMap<ValueId, ScalarType>,
+        definitions: BTreeMap<ValueId, ScalarDefinition<'function>>,
+        booleans: BTreeMap<ValueId, bool>,
+        integers: BTreeMap<ValueId, (ScalarType, IntegerValue)>,
+        owners: BTreeMap<ValueId, BlockId>,
+        incoming: BTreeMap<BlockId, Vec<IncomingEdge<'function>>>,
+        blocks: BTreeMap<BlockId, &'function optimization_unit::OptimizationBlock>,
+    }
+
+    impl<'function> ScalarExpressions<'function> {
+        pub(super) fn new(function: &'function PsiOptimizationFunction) -> Self {
+            let types = function
+                .parameters
+                .iter()
+                .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+                .chain(function.block_nodes().flat_map(|node| &node.definitions))
+                .map(|value| (value.value, value.scalar_type))
+                .collect();
+            let mut reader = Self {
+                entry: function.entry,
+                types,
+                definitions: BTreeMap::new(),
+                booleans: BTreeMap::new(),
+                integers: BTreeMap::new(),
+                owners: BTreeMap::new(),
+                incoming: BTreeMap::new(),
+                blocks: function
+                    .blocks
+                    .iter()
+                    .map(|block| (block.id, block))
+                    .collect(),
+            };
+            for block in &function.blocks {
+                for parameter in &block.parameters {
+                    reader.owners.entry(parameter.value).or_insert(block.id);
+                }
+                for (index, node) in block.nodes.iter().enumerate() {
+                    for definition in &node.definitions {
+                        reader
+                            .definitions
+                            .entry(definition.value)
+                            .or_insert(ScalarDefinition {
+                                node,
+                                position: (block.id, index),
+                            });
+                    }
+                    match node.operation {
+                        O::BooleanConstant { result, value, .. } => {
+                            reader.booleans.entry(result).or_insert(value);
+                        }
+                        O::IntegerConstant {
+                            result,
+                            scalar_type,
+                            value,
+                            ..
+                        } => {
+                            reader
+                                .integers
+                                .entry(result)
+                                .or_insert((scalar_type, value));
+                        }
+                        _ => {}
+                    }
+                    for edge in &node.successors {
+                        reader
+                            .incoming
+                            .entry(edge.target)
+                            .or_default()
+                            .push(IncomingEdge {
+                                source: (block.id, index),
+                                edge,
+                            });
+                    }
+                }
+            }
+            reader
+        }
+
+        fn literal(&self, value: ValueId) -> Option<T> {
+            if let Some(&literal) = self.booleans.get(&value) {
+                return Some(T::Boolean(literal));
+            }
+            let (scalar_type, literal) =
+                terminal_semantics::scalar_constant_value(value, |value| {
+                    if let Some(&(scalar_type, literal)) = self.integers.get(&value) {
+                        return Some(terminal_semantics::ScalarConstantOrigin::Literal(
+                            scalar_type,
+                            literal,
+                        ));
+                    }
+                    let owner = *self.owners.get(&value)?;
+                    if owner == self.entry {
+                        return None;
+                    }
+                    let incoming = self
+                        .incoming
+                        .get(&owner)
+                        .into_iter()
+                        .flatten()
+                        .map(|incoming| {
+                            incoming.edge.binding(value).map(|binding| binding.argument)
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
+                })?;
+            let ScalarType::Integer(integer) = scalar_type else {
+                return None;
+            };
+            Some(T::Integer {
+                scalar_type: integer,
+                value: literal,
+            })
+        }
+
+        pub(super) fn expression(&self, value: ValueId) -> Option<T> {
+            let types = &self.types;
+            kernel::scalar_payload_expression(value, &|value| {
+                let scalar_type = *types.get(&value)?;
+                if let Some(literal) = self.literal(value) {
+                    return Some((scalar_type, Some(literal)));
+                }
+                let term = |value| Some(Box::new(T::value(value, *types.get(&value)?)));
+                let integer = |value| types.get(&value)?.as_integer();
+                let denotation = self.definitions.get(&value).and_then(|definition| {
+                    let node = definition.node;
+                    Some(match &node.operation {
+                        O::IntegerArithmetic {
+                            arithmetic,
+                            scalar_type,
+                            left,
+                            right,
+                            ..
+                        } => arithmetic.scalar_term(*scalar_type, *term(*left)?, *term(*right)?),
+                        O::BooleanNot { operand, .. } => T::BooleanNot {
+                            operand: term(*operand)?,
+                        },
+                        O::BooleanEqual { left, right, .. } => T::BooleanEqual {
+                            left: term(*left)?,
+                            right: term(*right)?,
+                        },
+                        O::IntegerEqual { left, right, .. } => T::IntegerEqual {
+                            scalar_type: integer(*left)?,
+                            left: term(*left)?,
+                            right: term(*right)?,
+                        },
+                        O::IntegerLessThan { left, right, .. } => T::IntegerLessThan {
+                            scalar_type: integer(*left)?,
+                            left: term(*left)?,
+                            right: term(*right)?,
+                        },
+                        O::IntegerLessOrEqual { left, right, .. } => T::IntegerLessOrEqual {
+                            scalar_type: integer(*left)?,
+                            left: term(*left)?,
+                            right: term(*right)?,
+                        },
+                        _ => return None,
+                    })
+                });
+                Some((scalar_type, denotation))
+            })
+        }
+    }
+}
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use abstract_operations::AbstractFunction;
 use optimization_unit::OptimizationNode;
@@ -34,9 +902,6 @@ use terminal_psi::TerminalDynamicDispatchCatalog;
 use terminal_semantics::descriptor_lifetimes::canonical_descriptor_location;
 use terminal_semantics::runtime_structural_path_tip;
 
-/// Adapt current flat abstract bodies through the same block reconstruction
-/// and descriptor flow used by optimization-unit consumers. No retained source
-/// summary supplies origin authority after transformations.
 pub fn abstract_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
@@ -52,7 +917,6 @@ pub fn abstract_catalog_graph<'function, 'boundary>(
     )
 }
 
-/// Ordinary reference-pointer contents reconstructed from current flat bodies.
 pub fn abstract_reference_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
@@ -68,9 +932,6 @@ pub fn abstract_reference_catalog_graph<'function, 'boundary>(
     )
 }
 
-/// Current flat bodies with both reference contents and view backing. A
-/// residence consumer must not mistake the descriptor's own home for the
-/// storage reached through its captured pointer.
 pub fn abstract_borrowed_storage_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
@@ -86,7 +947,6 @@ pub fn abstract_borrowed_storage_catalog_graph<'function, 'boundary>(
     )
 }
 
-/// The complete inventory for post-effect caller membership queries.
 pub fn optimized_borrowed_storage_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
@@ -127,8 +987,6 @@ fn abstract_graph_with_slots<'function, 'boundary>(
     )
 }
 
-/// Adapt flat current bodies with their independently selected execution and
-/// explicit guarded-boundary obligations. Portable callers use the default API.
 pub fn abstract_reference_catalog_graph_with_boundary_preservation<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
@@ -165,12 +1023,6 @@ pub(crate) fn optimized_graph(unit: &PsiOptimizationUnit) -> Option<Vec<Descript
     )
 }
 
-/// Prepare current executable bodies once, without retained producer summaries.
-/// `operation` chooses the execution relation available to this consumer.
-/// Portable consumers retain boundary declarations; realization consumers can
-/// supply an independently admitted callee using the same call-flow adapter.
-/// Selection cannot change operands or result custody. No body is cloned and
-/// no signature-only loan claim substitutes for an executable return origin.
 pub fn optimized_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
@@ -192,8 +1044,6 @@ pub fn optimized_catalog_graph<'function, 'boundary>(
     )
 }
 
-/// Independently track ordinary pointer slots, using the same executable flow
-/// and call substitution as view backing. This grants no copy or access rights.
 pub fn optimized_reference_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
@@ -214,12 +1064,6 @@ pub fn optimized_reference_catalog_graph<'function, 'boundary>(
     )
 }
 
-/// Reference storage may survive an opaque boundary only when the realization
-/// supplies a specific independently discharged preservation obligation. This
-/// callback grants no portable fact: selected Omega bodies must instead use
-/// `operation` to supply their actual executable call relation. A guarded foreign
-/// implementation must emit its exact guard and every receiving audit must
-/// reconstruct the guard from the authenticated binding and byte geometry.
 pub fn optimized_reference_catalog_graph_with_boundary_preservation<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
@@ -279,8 +1123,6 @@ fn catalog_graph<'function, 'boundary>(
             .collect::<Option<Vec<_>>>()
     };
     let initial = build(None)?;
-    // Only current projected dynamic invocations can read selector_graph.
-    // Their absence makes the initial adaptation the complete result.
     if !functions.iter().any(|function| {
         function.block_nodes().any(|node| {
             operation(function, node).is_some_and(|operation| {
@@ -312,10 +1154,6 @@ pub fn call_origins(
     )
 }
 
-/// An aggregate owns its returned carrier while each shared byte slot retains
-/// independently replayed nonlocal backing. Rebuild from current functions:
-/// an optimizer's changed constructor, arrival or callee cannot reuse Terminal
-/// provenance. Root descriptors and reference returns keep their own contracts.
 pub(crate) fn owned_aggregate_descriptor_returns_with_graph(
     function: &PsiOptimizationFunction,
     graph: Option<&[DescriptorMachine]>,
@@ -344,11 +1182,6 @@ pub(crate) fn owned_aggregate_descriptor_returns_with_graph(
         })
 }
 
-/// The escape tail every unavailable or unpreserved invocation shares: an
-/// invocation whose reachable indirect contents may change is recorded as an
-/// unresolved contents write, and every writable slot it can still reach is
-/// defined. Unknown replacement invalidates contained slots; it never invents
-/// a source for their later reads.
 fn record_escaped_invocation(
     place_types: &BTreeMap<PlaceId, StructuralTypeId>,
     unresolved_contents_writes: &mut BTreeSet<(BlockId, u32)>,
@@ -589,8 +1422,6 @@ fn adapt(
                 ..
             } = operation
                 && let Some(value) = scalar_expressions.expression(value.value)
-                // Runtime selectors keep their typed invalidation below; only
-                // an exact coordinate establishes a new stored scalar fact.
                 && let Some(destination) = location(destination.place(), path, Some(*field))
             {
                 graph
@@ -679,9 +1510,6 @@ fn adapt(
                     ));
                 }
             }
-            // Payload footprints are typed observations, never fabricated
-            // exact addresses for dynamic selectors. Unknown writes remain
-            // explicit and retire evidence conservatively in membership replay.
             let payload_query = |root, path: &[StructuralPathSegment], field| {
                 let mut query = kernel::descriptor_contents_query(
                     types,
@@ -861,11 +1689,6 @@ fn adapt(
                     correspondence,
                     ..
                 } if slot_kind.tracks_references() => {
-                    // A placed presentation is not a typed alias to the source
-                    // schema. Retain its formation through reference transport
-                    // without letting ordinary slot traversal reinterpret it.
-                    // Physical geometry belongs to the formation's actual
-                    // source; this token supplies no allocation guarantee.
                     graph.originations.entry(position).or_default().push((
                         DescriptorLocation::whole(result.place),
                         kernel::DescriptorCallOrigin::AccessFormation {
@@ -880,10 +1703,6 @@ fn adapt(
                 O::EstablishElementView { result, source, .. }
                 | O::EstablishReference { result, source, .. } => {
                     let destination = DescriptorLocation::whole(result.place);
-                    // A folded byte window selects backing contents, not a
-                    // descriptor slot address. Keep its extent as a projection
-                    // on the derivation; the original operation still supplies
-                    // the independently checked array type and range bounds.
                     let (path, mut projection) = match source.path.split_last() {
                         Some((range @ StructuralPathSegment::FixedRange { .. }, path))
                             if matches!(operation, O::EstablishElementView { .. }) =>
@@ -903,8 +1722,6 @@ fn adapt(
                             *region,
                         )
                     {
-                        // Retyped element coordinates cannot refine source
-                        // geometry, including an already narrowed fixed window.
                         projection
                             .get_or_insert_with(|| Projection::new(&[]))
                             .forget_address();
@@ -917,9 +1734,6 @@ fn adapt(
                             path,
                         );
                     if let Some(alternatives) = alternatives {
-                        // Every fixed element stays a storage origin. A
-                        // projection would turn that address into backing
-                        // contents and lose the pointer the callee loads.
                         for alternative in alternatives {
                             step.derivations.push((alternative, destination.clone()));
                         }
@@ -1006,8 +1820,6 @@ fn adapt(
                     } else {
                         step.may_escape = true;
                     }
-                    // Copying an aggregate makes fresh carrier storage while
-                    // its descendant descriptor slots retain their backing.
                     if (kernel::is_descriptor(types.iter(), result.structural_type)
                         || types.iter().any(|ty| {
                             ty.id == result.structural_type
@@ -1102,7 +1914,6 @@ fn adapt(
                     ) {
                         step.definitions.push(destination.clone());
                         step.derivations.push((source, destination.clone()));
-                        // Reseating contents retains the destination storage home.
                         if destination.path.is_empty()
                             && !kernel::is_descriptor(
                                 types.iter(),
@@ -1307,8 +2118,6 @@ fn adapt(
                         result,
                         &graph.place_types,
                     )?;
-                    // Replay skips an incomplete invocation, so neither an
-                    // exact selection nor a catalog union may remove its fence.
                     let complete_contents = call.argument_contents.iter().all(Option::is_some);
                     let effects_machine = effects_machine.filter(|_| complete_contents);
                     if let kernel::DescriptorInvocationTarget::Public {
@@ -1395,10 +2204,6 @@ fn adapt(
                             )
                         });
                         if let Some(result) = descriptor_result {
-                            // Claim bindings record which linear custody the
-                            // result transports; backing provenance follows the
-                            // same descriptor slots whether or not a claim rides
-                            // along, so they constrain nothing here.
                             let expected = callee.result.structural()?;
                             if result.structural_type != expected.structural_type
                                 || result.multiplicity != expected.multiplicity
@@ -1435,9 +2240,6 @@ fn adapt(
                             )?;
                         }
                     } else {
-                        // An unavailable body supplies no stored-origin summary.
-                        // Its signature still proves that a scalar/Unit result
-                        // and closed writable storage cannot retain an alias.
                         let declarations = types.iter().map(|ty| (ty.id, ty)).collect();
                         let mut closed_storage = BTreeMap::new();
                         let closed = matches!(
@@ -1507,9 +2309,6 @@ fn adapt(
                             },
                         ));
                     }
-                    // The same completion judgment Terminal's descriptor flow
-                    // applies: a declared, receipt-free call returning no
-                    // descriptor custody cannot retain or replace a lent view.
                     let mut declarations = boundaries
                         .iter()
                         .filter(|declaration| declaration.id == *boundary);
@@ -1588,8 +2387,6 @@ fn adapt(
                     structural_arguments,
                     ..
                 } => {
-                    // Observe exact entry actuals; no output, normal descriptor
-                    // contract or post-call state exists at this transfer.
                     step.inputs.clear();
                     for argument in structural_arguments {
                         step.inputs.push(
@@ -1742,9 +2539,6 @@ fn adapt(
                         {
                             return None;
                         }
-                        // Case payloads are fresh scalar captures, not SSA
-                        // operands from the predecessor. Keep their facts
-                        // unknown and retain the surrounding storage history.
                         Vec::new()
                     } else {
                         target
@@ -1836,8 +2630,6 @@ fn adapt(
     Some(graph)
 }
 
-/// Coordinate precision is distinct from backing identity. A representation
-/// view can rename fields or change index units while borrowing the same home.
 pub(crate) fn element_coordinates_preserved<'a>(
     function: &PsiOptimizationFunction,
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
@@ -1848,9 +2640,6 @@ pub(crate) fn element_coordinates_preserved<'a>(
     let Some(root) = structural_source_contract(function, source.place) else {
         return false;
     };
-    // A fixed byte window changes extent, not the backing's element type.
-    // Its range stays on the loan projection; only declaration lookup strips
-    // that final presentation. Byte coordinates require an exact u8 element.
     let path = match source.path.split_last() {
         Some((StructuralPathSegment::FixedRange { .. }, backing)) => {
             if !types.clone().any(|declaration| {
@@ -1873,8 +2662,6 @@ pub(crate) fn element_coordinates_preserved<'a>(
     terminal_semantics::collection_view_preserves_coordinates(types, collection.id, element, region)
 }
 
-/// Reuse the current-graph scalar adapter for exact captured address queries.
-/// This returns analysis scratch, never a producer-provided coordinate fact.
 pub fn captured_scalar_ordering(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
@@ -1885,8 +2672,6 @@ pub fn captured_scalar_ordering(
     .into_ordering()
 }
 
-/// Apply an exact current call signature once for payload and ordering facts.
-/// The two consumers project different consequences, not different call rules.
 pub(crate) fn scalar_call_guarantees<'function>(
     operation: &O,
     callee: &impl Fn(MachineId) -> Option<&'function PsiOptimizationFunction>,

@@ -83,16 +83,16 @@ pub(super) fn inspect(
             .iter()
             .enumerate()
         {
-            if let Some(invocation) = operation.module_invocation() {
-                if invocation.site == InvocationSite::InvokeNoNormal(*edge) {
-                    source_sites.push((
-                        (
-                            block.block,
-                            u32::try_from(offset).map_err(|_| "control position overflow")?,
-                        ),
-                        invocation,
-                    ));
-                }
+            if let Some(invocation) = operation.module_invocation()
+                && invocation.site == InvocationSite::InvokeNoNormal(*edge)
+            {
+                source_sites.push((
+                    (
+                        block.block,
+                        u32::try_from(offset).map_err(|_| "control position overflow")?,
+                    ),
+                    invocation,
+                ));
             }
         }
     }
