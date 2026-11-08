@@ -6178,6 +6178,7 @@ mod indexes {
             indexed: &TableIndexedExpression,
             diagnostics: &mut Vec<Diagnostic>,
             obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+            bounds: &mut ::validation::CollectionBoundsDemands,
         ) -> BoundsCheckResult {
             let spelling = match program.expression_table.expression(indexed.index) {
                 ExpressionNode::Range(_) => OperatorSpelling::Range,
@@ -6352,7 +6353,7 @@ mod indexes {
                     .is_some();
             if builtin_geometry
                 && facts.collection_bounds.is_some_and(|observations| {
-                    observations.proves(state, facts.statement_index, expression)
+                    observations.proves(bounds, state, facts.statement_index, expression)
                 })
             {
                 diagnostics.truncate(diagnostic_count);
@@ -6972,9 +6973,26 @@ mod indexes {
             the target closure to discharge against its closed value.
         */
         obligations: Vec<checked_trees::ConstantRecipeObligation>,
+        /*
+            The collection-bound demands this pass asked the machine's
+            observations about. The provisional pass hands them to
+            `resolve_deferred`, and the resolved table seeds the second pass.
+        */
+        bounds: ::validation::CollectionBoundsDemands,
     }
 
     impl IndexVerdicts {
+        pub(super) fn with_bounds(bounds: ::validation::CollectionBoundsDemands) -> Self {
+            Self {
+                bounds,
+                ..Self::default()
+            }
+        }
+
+        pub(super) fn take_bounds(&mut self) -> ::validation::CollectionBoundsDemands {
+            std::mem::take(&mut self.bounds)
+        }
+
         pub(super) fn extend(&mut self, other: Self) {
             self.verdicts.extend(other.verdicts);
             self.obligations.extend(other.obligations);
@@ -7081,6 +7099,7 @@ mod indexes {
                 indexed,
                 &mut failures,
                 &mut Vec::new(),
+                &mut self.verdicts.bounds,
             );
             if verdict == self::validation::BoundsCheckResult::ProvenScalar && failures.is_empty() {
                 return;
@@ -7110,6 +7129,7 @@ mod indexes {
                 indexed,
                 self.diagnostics,
                 &mut self.verdicts.obligations,
+                &mut self.verdicts.bounds,
             );
             let coordinate = self
                 .transfer
@@ -11053,9 +11073,9 @@ pub(crate) fn check_indexed_accesses(
                     collect_loop_invariant_facts(program, machine, call_frames);
                 let collection_bounds =
                     validation::CollectionBoundsObservations::new(program, machine);
-                let check = || {
+                let check = |bounds: ::validation::CollectionBoundsDemands| {
                     let mut machine_diagnostics = Vec::new();
-                    let mut machine_verdicts = indexes::IndexVerdicts::default();
+                    let mut machine_verdicts = indexes::IndexVerdicts::with_bounds(bounds);
                     for ((state, calls), has_indexed) in machine_states
                         .iter()
                         .zip(&calls)
@@ -11115,12 +11135,14 @@ pub(crate) fn check_indexed_accesses(
                     }
                     (machine_diagnostics, machine_verdicts)
                 };
-                let provisional = check();
+                let (provisional_diagnostics, mut provisional_verdicts) =
+                    check(::validation::CollectionBoundsDemands::default());
+                let mut bounds = provisional_verdicts.take_bounds();
                 let (machine_diagnostics, machine_verdicts) =
-                    if collection_bounds.resolve_deferred() {
-                        check()
+                    if collection_bounds.resolve_deferred(&mut bounds) {
+                        check(bounds)
                     } else {
-                        provisional
+                        (provisional_diagnostics, provisional_verdicts)
                     };
                 Some((machine_diagnostics, machine_verdicts))
             })
