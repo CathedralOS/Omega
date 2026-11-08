@@ -402,6 +402,20 @@ impl<'program> CallFrameResolver<'program> {
                         .map(|origins| origins.into_iter().map(LocalWriteSource::from).collect())
                 })
             };
+            if origins.is_none()
+                && std::env::var("OMEGA_STATE_REFERENCE_DIAGNOSTICS")
+                    .is_ok_and(|selected| selected == program.symbols.name(machine.symbol))
+            {
+                let coordinate = frames::frame_place_path(program, *argument);
+                eprintln!(
+                    "CHECKSITE call-argument-origin-refused machine={} expression={argument:?} argument={index} prefix_present={} preceding_effect={preceding_effect} changes_origins={changes_origins} raw_root={:?} storage_root={:?} selector_count={:?}",
+                    program.symbols.name(machine.symbol),
+                    prefix.is_some(),
+                    crate::canonical_place_from_expression(program, *argument).map(|place| place.root),
+                    coordinate.as_ref().map(|origin| origin.source.root),
+                    coordinate.as_ref().map(|origin| origin.source.segments.len()),
+                );
+            }
             result.push(origins);
             preceding_effect |= changes_origins;
         }

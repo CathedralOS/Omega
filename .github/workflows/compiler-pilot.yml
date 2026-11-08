@@ -241,6 +241,7 @@ jobs:
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
           OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
           OMEGA_COMPILER_PILOT_INSPECTION_MACHINE: ${{ inputs.inspection_machine }}
+          OMEGA_STATE_REFERENCE_DIAGNOSTICS: edit
         run: python tools/ci/compiler_pilot.py --phase consume
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)

@@ -1423,6 +1423,31 @@ pub fn named_place_loans(
         statement_index,
         selection,
     )
+    .inspect_err(|reason| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+            return;
+        }
+        eprintln!(
+            "CHECKSITE named-storage-loans-refused machine={machine:?} state={:?} statement={statement_index} owner={owner:?} reference={reference:?} selection_len={} reason={reason}",
+            state.symbol, selection.len(),
+        );
+        // Report only metadata belonging to this failed join. Its exact
+        // Result reason is retained above; these rows do not retry admission.
+        if let Some(borrowing) = facts.borrow.unique_state_borrow(machine, state.symbol)
+            && let Some(group) = facts.borrow.storage_loans(borrowing, facts::PlaceRoot::Symbol(owner), statement_index as usize)
+            && let Some(loans) = facts.borrow.loan_group(group)
+        {
+            eprintln!("CHECKSITE named-storage-loan-group group={group:?} shown_at_most=4");
+            for (handle, loan) in loans.take(4) {
+                let path = facts.borrow.loan_owner_path(loan);
+                let shown = path.iter().take(8).collect::<Vec<_>>();
+                eprintln!(
+                    "CHECKSITE named-storage-loan loan={handle:?} formation={:?} storage_owner={:?} root={:?} statement={} path={shown:?} path_truncated={}",
+                    loan.formation_expression, loan.storage_owner, loan.root, loan.statement_index, path.len() > 8,
+                );
+            }
+        }
+    })
     .ok()
 }
 
