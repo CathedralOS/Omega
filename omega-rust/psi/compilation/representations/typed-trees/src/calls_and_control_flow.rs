@@ -1983,11 +1983,14 @@ pub mod control_flow {
                 machine,
                 conformance,
             )?;
-            if let Some(requirement) = program.machines().iter().find(|requirement| {
-                requirement.symbol == operator.symbol
-                    && requirement.supply_mode
-                        == language_semantics::MachineSupplyMode::TopLevelRequirement
-            }) {
+            if let Some(requirement) =
+                program
+                    .machines_with_symbol(operator.symbol)
+                    .find(|requirement| {
+                        requirement.supply_mode
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                    })
+            {
                 return Some(SatisfiedDeclaration::TopLevelRequirement(requirement));
             }
             Some(SatisfiedDeclaration::Operator(operator))

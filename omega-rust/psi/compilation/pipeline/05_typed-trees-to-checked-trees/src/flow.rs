@@ -9720,10 +9720,10 @@ mod carried_semantic_dependencies {
         let Some(root_symbol) = root.as_symbol() else {
             return Exposure::PrivateImplementation;
         };
-        let Some(machine) = program.machines().iter().find(|machine| {
-            machine.symbol == machine_symbol
-                && (machine.is_public || machine.supply_mode.is_boundary_declaration())
-        }) else {
+        let Some(machine) = program
+            .machines_with_symbol(machine_symbol)
+            .find(|machine| machine.is_public || machine.supply_mode.is_boundary_declaration())
+        else {
             return Exposure::PrivateImplementation;
         };
         let Some(entry) = program.machine_states(machine).first() else {

@@ -1965,13 +1965,7 @@ pub(crate) mod expression_scanning {
                 return;
             }
             if let Some(query) = &call.native_code_layout {
-                let selected = program.machines().iter().find(|machine| {
-                    machine.symbol == query.operand.symbol
-                        || program
-                            .machine_states(machine)
-                            .iter()
-                            .any(|state| state.symbol == query.operand.symbol)
-                });
+                let selected = program.machine_by_own_or_state_symbol(query.operand.symbol);
                 if let Some(machine) = selected {
                     if crate::proof_only_classification(program)
                         .is_proof_machine(program.typed_program(), machine)

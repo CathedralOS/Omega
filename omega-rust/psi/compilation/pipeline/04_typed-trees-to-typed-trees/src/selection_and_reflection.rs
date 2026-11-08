@@ -267,12 +267,7 @@ pub(crate) mod selection {
                     actual_state.return_type,
                     proposals,
                 );
-                let provider = program.machines().iter().find(|machine| {
-                    program
-                        .machine_states(machine)
-                        .iter()
-                        .any(|state| state.symbol == selected.symbol)
-                });
+                let provider = program.machine_containing_state(selected.symbol);
                 if let Some(provider) = provider {
                     let provider_binders: Vec<_> = program
                         .machine_type_parameters(provider)

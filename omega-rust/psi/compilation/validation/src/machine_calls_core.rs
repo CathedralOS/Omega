@@ -5774,10 +5774,7 @@ pub mod effects {
             if !target_symbol.is_valid() {
                 return None;
             }
-            program.machines().iter().find(|machine| {
-                typed_trees::state::state_by_symbol(program.machine_states(machine), target_symbol)
-                    .is_some()
-            })
+            program.machine_containing_state(target_symbol)
         }
 
         fn resolve_discard_callee(

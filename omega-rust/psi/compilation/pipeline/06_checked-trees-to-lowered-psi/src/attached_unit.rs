@@ -6793,11 +6793,13 @@ pub(crate) mod inner {
                     signature,
                 },
                 [] => {
-                    match checked.typed.machines().iter().find(|machine| {
-                        machine.symbol == boundary_symbol
-                            && machine.supply_mode
+                    match checked
+                        .typed
+                        .machines_with_symbol(boundary_symbol)
+                        .find(|machine| {
+                            machine.supply_mode
                                 == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    }) {
+                        }) {
                         Some(requirement) => CatalogRequirement::TopLevel(requirement),
                         None => match checked.typed.operators().iter().find(|operator| {
                             operator.is_boundary && operator.symbol == boundary_symbol

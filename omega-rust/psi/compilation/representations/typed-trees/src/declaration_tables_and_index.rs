@@ -1669,6 +1669,31 @@ pub mod declaration_index {
             self.with_state_positions_for_symbol(symbol, |positions| positions.to_vec())
         }
 
+        /// The first machine, in table order, that declares a state named
+        /// `state`: the answer a scan of every machine's states would give,
+        /// read from the state index instead. Index rows keep table order.
+        pub fn machine_containing_state(&self, state: SymbolHandle) -> Option<&machine::Machine> {
+            let position = self.with_state_position_index(|index| {
+                index
+                    .first(state)
+                    .map(|(machine_position, _)| *machine_position)
+            })?;
+            Some(&self.machines()[position as usize])
+        }
+
+        /// Every machine declared as `symbol`, in table order. A symbol can
+        /// name several rows (a template and its requirement, say), so callers
+        /// that also test supply mode or parameters filter this instead of
+        /// scanning the whole table.
+        pub fn machines_with_symbol(
+            &self,
+            symbol: SymbolHandle,
+        ) -> impl Iterator<Item = &machine::Machine> + '_ {
+            self.machine_positions_for_symbol(symbol)
+                .into_iter()
+                .map(|position| &self.machines()[position as usize])
+        }
+
         pub fn machine_by_own_or_state_symbol(
             &self,
             symbol: SymbolHandle,
@@ -2594,11 +2619,7 @@ pub(crate) mod declaration_tables {
         ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
             let mut visited = Vec::new();
             loop {
-                let machine = self.machines().iter().find(|machine| {
-                    self.machine_states(machine)
-                        .iter()
-                        .any(|state| state.symbol == entry)
-                })?;
+                let machine = self.machine_containing_state(entry)?;
                 if visited.iter().any(|(symbol, _)| *symbol == machine.symbol) {
                     return None;
                 }

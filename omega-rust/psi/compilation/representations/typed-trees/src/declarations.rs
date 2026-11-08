@@ -2512,11 +2512,8 @@ pub mod numeric_intrinsics {
                 return None;
             }
             let machine = self.machine(symbol).or_else(|| {
-                self.machines().iter().find(|machine| {
-                    self.machine_states(machine)
-                        .first()
-                        .is_some_and(|entry| entry.symbol == symbol)
-                })
+                self.machine_by_entry_state_symbol(symbol)
+                    .map(|(machine, _)| machine)
             });
             if let Some(machine) = machine {
                 if machine.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement

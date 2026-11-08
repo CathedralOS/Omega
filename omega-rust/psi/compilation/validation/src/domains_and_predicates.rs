@@ -13138,14 +13138,9 @@ pub mod default_domains {
         Vec<(String, Option<symbolic_values::LiteralValue>)>,
         Vec<(String, symbolic_values::SymbolicValue)>,
     )> {
-        let machine = program.machine(target).or_else(|| {
-            program.machines().iter().find(|machine| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == target)
-            })
-        })?;
+        let machine = program
+            .machine(target)
+            .or_else(|| program.machine_containing_state(target))?;
         let state = program.machine_states(machine).first()?;
         let statements = program.statement_table.statements(state.statement_nodes);
         let expression = match statements {
