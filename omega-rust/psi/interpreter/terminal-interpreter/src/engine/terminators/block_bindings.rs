@@ -21,6 +21,9 @@
 //! custody, and before destinations are installed. Otherwise a captured call
 //! result appears to leak its claim, or retirement removes a fresh binding.
 
+use crate::boundary::structural_inputs::case_membership::{
+    case_projection_with_checked_membership_is_active, stored_case_at_projection,
+};
 use crate::engine::custody::{
     BlockArgumentProvenance, bind_active_block_arguments, bind_active_structural_arguments,
     bind_affine_frontier, bind_arguments, projected_ownership_claims,
@@ -841,8 +844,37 @@ impl TerminalExecution<'_> {
             descriptor_arguments,
             &resolved_arguments,
             &provenance,
-            &self.structural_types(),
-            self.structural_cases.as_map(),
+            &|argument_index, rows| {
+                let source = &descriptor_arguments[argument_index];
+                let mut active = Vec::new();
+                for row in rows {
+                    let is_active = case_projection_with_checked_membership_is_active(
+                    &self.structural_types(),
+                    resolved_arguments[argument_index].structural_type,
+                    &row.path,
+                    &|prefix| {
+                        // Conditions name the selected value, while a Referent
+                        // crosses the original descriptor's captured backing.
+                        // Resolve before cleanup or destination rebinding; this
+                        // metadata query grants no payload read/write access.
+                        let mut selected = Vec::with_capacity(source.path.len() + prefix.len());
+                        selected.extend_from_slice(&source.path);
+                        selected.extend_from_slice(prefix);
+                        let carrier = self.resolve_case_guard_carrier(source.place, &selected)?;
+                        Ok(stored_case_at_projection(
+                            &self.structural_types(),
+                            &carrier,
+                            self.structural_cases.as_map(),
+                            &[],
+                        ))
+                    },
+                    )?;
+                    if is_active {
+                        active.push(row.clone());
+                    }
+                }
+                Ok(active)
+            },
             self.account.as_ref(),
         )
         .map_err(|error| {
