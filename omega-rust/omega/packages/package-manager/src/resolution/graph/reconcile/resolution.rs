@@ -1,4 +1,12 @@
-//! Bounded traversal, custody reconciliation, and conflict path collection.
+// We drive bounded source-closure traversal, custody reconciliation, and
+// conflict-path collection. A `PendingSourceResolution` owns the traversal
+// until its selected source has a declaration, allowing acquisition to yield to
+// application-owned `Build` execution without a compiler callback, provisional
+// key, or second graph reconciliation. Acquisition identity exists before the
+// `Build`-produced package name, so executed-source adapters reuse their
+// invocation's first capture while graph reconciliation validates every alias,
+// role, edge, and cycle. Empty dependency rosters are drained iteratively so a
+// wide frontier never turns into a chain of recursive resumes.
 
 use super::super::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
@@ -38,9 +46,6 @@ struct ObservedCustody {
     origins: Vec<CustodyOrigin>,
 }
 
-/// A request owns the traversal until its selected source has a declaration.
-/// Acquisition can therefore yield to application-owned Build execution without
-/// a compiler callback, a provisional key, or a second graph reconciliation.
 pub(crate) enum SourceClosureStep {
     Request(PendingSourceResolution),
     Complete(ResolvedPackageSourceClosure),
@@ -52,9 +57,6 @@ struct SourceClosureTraversal {
     root_role: BuildDeclarationKind,
     limits: PackageSourceClosureLimits,
     accepted: BTreeMap<PackageKey, PackageSourceCustody>,
-    // Acquisition identity exists before the Build-produced package name.
-    // Executed-source adapters reuse their invocation's first capture; graph
-    // reconciliation still validates every alias, role, edge and cycle.
     acquired:
         BTreeMap<(package_source::SourceLineage, PackageSourceNavigation), PackageSourceCustody>,
     observed: BTreeMap<PackageKey, Vec<ObservedCustody>>,
@@ -79,8 +81,6 @@ struct RequesterResolution {
     selected: Vec<SelectedDependency>,
 }
 
-/// The exact outstanding occurrence and its continuation. Consuming this value
-/// supplies one result or fails the traversal; observing a request cannot skip it.
 pub(crate) struct PendingSourceResolution {
     owner: RequesterResolution,
     purpose: DependencyPurpose,
@@ -220,8 +220,6 @@ impl SourceClosureTraversal {
             if count != 0 {
                 return requester.advance();
             }
-            // Empty rosters need no external work. Drain them iteratively;
-            // a wide frontier must not become a chain of recursive resumes.
             self = requester.join()?;
         }
         self.finish().map(SourceClosureStep::Complete)

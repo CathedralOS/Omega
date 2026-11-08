@@ -9,7 +9,7 @@ impl BuildEvaluationSponsor {
     /// Engine/schedule identities must match. Filesystem-observing evaluations
     /// require their own custody protocol and cannot use this operation.
     ///
-    /// Cumulative fuel, log and result custody are spent again. Recorded live
+    /// Cumulative work, log and result custody are spent again. Recorded live
     /// demand is admitted beside current reservations and immediately retired;
     /// no execution storage is allocated. Returned telemetry retains invocation
     /// counts with this sponsor's policy and peaks, never the producer's account.
@@ -31,14 +31,14 @@ impl BuildEvaluationSponsor {
             "build-evaluation cached-usage sponsor account is unavailable".to_owned()
         })?;
         // Calculate every axis before changing any counters. A result-custody
-        // refusal cannot spend fuel, and concurrent hits cannot both spend the
-        // same remaining allowance. Historical aggregate peaks are not costs.
-        let fuel = charged_total(
-            consumed.fuel_units,
-            usage.fuel_units,
-            limits.maximum_fuel_units(),
-            "aggregate fuel",
-            "fuel units",
+        // refusal cannot spend work, and concurrent hits cannot both spend the
+        // same remaining budget. Historical aggregate peaks are not costs.
+        let work = charged_total(
+            consumed.work_units,
+            usage.work_units,
+            limits.work_budget(),
+            "aggregate work",
+            "work units",
         )?;
         let log = charged_total(
             consumed.build_log_bytes,
@@ -76,7 +76,7 @@ impl BuildEvaluationSponsor {
             "bytes",
         )?;
         usage.sponsor_schema_version = Some(limits.schema_version());
-        usage.session_fuel_ceiling = Some(limits.maximum_fuel_units());
+        usage.session_work_budget = Some(limits.work_budget());
         usage.session_build_log_byte_ceiling = Some(limits.maximum_build_log_bytes());
         usage.session_filesystem_attempt_ceiling =
             Some(limits.maximum_filesystem_operation_attempts());
@@ -92,7 +92,7 @@ impl BuildEvaluationSponsor {
         usage
             .validate()
             .map_err(|reason| format!("invalid current evaluation usage: {reason:?}"))?;
-        consumed.fuel_units = fuel;
+        consumed.work_units = work;
         consumed.build_log_bytes = log;
         consumed.result_storage_cells = cells;
         consumed.result_payload_bytes = bytes;

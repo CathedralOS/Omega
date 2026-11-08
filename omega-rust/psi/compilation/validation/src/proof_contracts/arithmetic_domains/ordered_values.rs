@@ -218,25 +218,10 @@ impl Operand {
         state: Option<&State>,
         written: &[String],
     ) -> bool {
-        self.survives_storage_writes_by(
-            program,
-            state,
-            &|path| written.iter().any(|write| place_paths_overlap(path, write)),
-            written.is_empty(),
-        )
-    }
-
-    pub(super) fn survives_storage_writes_by(
-        &self,
-        program: &dyn CheckingInput,
-        state: Option<&State>,
-        overlaps: &impl Fn(&str) -> bool,
-        empty: bool,
-    ) -> bool {
         // A call's conservative storage frame cannot retarget an immutable
         // copied scalar or private descriptor observation. Their declaration-
         // checked snapshot identity supplies this distinction, never spelling.
-        if self.survives_path_query(overlaps, empty)
+        if self.survives(written)
             || state.is_some_and(|state| self.is_immutable_snapshot(program, state))
         {
             return true;
@@ -244,48 +229,40 @@ impl Operand {
         match self {
             Self::Binary { operands, .. } => operands
                 .iter()
-                .all(|value| value.survives_storage_writes_by(program, state, overlaps, empty)),
+                .all(|value| value.survives_storage_writes(program, state, written)),
             Self::Call { arguments, .. } => arguments
                 .iter()
-                .all(|value| value.survives_storage_writes_by(program, state, overlaps, empty)),
+                .all(|value| value.survives_storage_writes(program, state, written)),
             _ => false,
         }
     }
 
     fn survives_paths(&self, written: &[String]) -> bool {
-        self.survives_path_query(
-            &|path| written.iter().any(|write| place_paths_overlap(path, write)),
-            written.is_empty(),
-        )
-    }
-
-    fn survives_path_query(&self, overlaps: &impl Fn(&str) -> bool, empty: bool) -> bool {
-        if empty {
-            return true;
-        }
-        self.survives_paths_by(overlaps)
-    }
-
-    fn survives_paths_by(&self, overlaps: &impl Fn(&str) -> bool) -> bool {
         match self {
-            Self::Place { path, .. } => !overlaps(path),
+            Self::Place { path, .. } => {
+                !written.iter().any(|write| place_paths_overlap(path, write))
+            }
             Self::Field { receiver, .. } => self.static_path().map_or_else(
-                || receiver.survives_paths_by(overlaps),
-                |path| !overlaps(&path),
+                || receiver.survives_paths(written),
+                |path| {
+                    !written
+                        .iter()
+                        .any(|write| place_paths_overlap(&path, write))
+                },
             ),
             Self::Integer(..) => true,
-            Self::Call { arguments, .. } => arguments
-                .iter()
-                .all(|value| value.survives_paths_by(overlaps)),
+            Self::Call { arguments, .. } => {
+                arguments.iter().all(|value| value.survives_paths(written))
+            }
             #[cfg(test)]
-            Self::CompletedCall { .. } => false,
-            Self::CollectionLength(collection) => collection.survives_paths_by(overlaps),
+            Self::CompletedCall { .. } => written.is_empty(),
+            Self::CollectionLength(collection) => collection.survives(written),
             Self::Indexed {
                 collection, index, ..
-            } => collection.survives_paths_by(overlaps) && index.survives_paths_by(overlaps),
-            Self::Binary { operands, .. } => operands
-                .iter()
-                .all(|value| value.survives_paths_by(overlaps)),
+            } => collection.survives(written) && index.survives(written),
+            Self::Binary { operands, .. } => {
+                operands.iter().all(|value| value.survives_paths(written))
+            }
         }
     }
 

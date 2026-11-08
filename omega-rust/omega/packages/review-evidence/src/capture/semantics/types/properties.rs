@@ -1,4 +1,4 @@
-//! Projection from typed declaration storage into stable property evidence.
+// Projection from typed declaration storage into stable data-property evidence.
 
 use crate::record::PackageReviewDataProperties;
 

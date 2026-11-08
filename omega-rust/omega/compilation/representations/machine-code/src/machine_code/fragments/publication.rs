@@ -14,7 +14,7 @@ use optimization_core::{
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
     PostAllocationOptimizationManifestIdentity,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
+use semantic_vocabulary::WorkScheduleIdentity;
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
@@ -39,7 +39,7 @@ pub struct FunctionFragmentEmissionStatistics {
     pub zero_byte_instruction_spans: u64,
     pub bytes: u64,
     pub resolved_conditional_branches: u64,
-    pub logical_fuel_settlements: u64,
+    pub logical_work_settlements: u64,
     pub unresolved_internal_machine_fixups: u64,
 }
 
@@ -50,7 +50,7 @@ pub struct FunctionFragmentEmissionManifest {
     pub source_realization: FunctionRelativeOptimizationRealizationManifestIdentity,
     pub selections: OptimizationSelectionIdentity,
     pub psi: TerminalPsiIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub selected: selected_instructions::SelectedInstructionPlanIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     pub post_allocation_machine: physical_instructions::PostAllocationMachineIdentity,

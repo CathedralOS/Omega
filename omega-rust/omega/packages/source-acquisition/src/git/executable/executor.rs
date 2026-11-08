@@ -1,4 +1,12 @@
-//! Frozen Git path and concrete command, time, output, and process budgets.
+// Frozen Git execution backend and concrete launch, wall-clock, and captured-
+// output budgets for a single Git resolution.
+//
+// `GitExecutor` wraps a `ResolverExecutionBackend` bound to the frozen
+// `PrimaryGitSelection` outside all package-controlled roots. Each child launch
+// claims one slot from `maximum_launches` (`begin_launch`) and receives a
+// `GitCommandDeadline` that records whether `GIT_COMMAND_TIMEOUT` or the
+// remaining whole-resolution wall-clock budget capped the child's timeout so
+// timeouts are projected accurately.
 
 use super::budget::GitCapturedOutputBudget;
 use super::selection::PrimaryGitSelection;
@@ -15,8 +23,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-/// Retain which ceiling supplied the child deadline, including its cleanup
-/// reserve. Cleanup can complete before the resolution's wall-clock deadline.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GitCommandDeadline {
     timeout: Duration,

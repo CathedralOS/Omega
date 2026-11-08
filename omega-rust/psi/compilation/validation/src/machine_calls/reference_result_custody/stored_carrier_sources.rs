@@ -123,7 +123,7 @@ fn select(
                     value,
                     source: CheckedUnitStructuralArgumentPlan {
                         projection_evaluations: Default::default(),
-                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { value_dependency: None, expression: child.expression, logical_root_type_identity: None },
+                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression: child.expression },
                         path: Vec::new(),
                         type_identity: crate::stored_structural_type_identity(program, child.type_reference, &[], &[]),
                         access: match access {

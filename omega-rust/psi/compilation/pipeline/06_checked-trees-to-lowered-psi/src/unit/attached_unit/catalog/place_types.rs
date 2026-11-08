@@ -78,21 +78,11 @@ fn collect_scope<'plans>(
         };
         if let Terminator::Guarded { return_values, .. } = &control.terminator {
             for operation in return_values {
-                collector.operations(
-                    std::iter::once(&operation.operation),
-                    &mut namespace.clone(),
-                )?;
-            }
-        }
-        if let Terminator::CompleteExpression { completion } = &control.terminator {
-            for operations in completion.expression.invocation_scopes() {
-                collector.operations(operations.iter(), &mut namespace.clone())?;
+                collector.operations(std::iter::once(operation), &mut namespace.clone())?;
             }
         }
         for arm in control.terminator.return_arms() {
-            for scope in arm.operation_scopes() {
-                collector.operations(scope.into_iter(), &mut namespace.clone())?;
-            }
+            collector.operations(arm.operation_dependencies(), &mut namespace.clone())?;
         }
         for successor in control.successors() {
             for transfer in &successor.transfers {
@@ -452,26 +442,7 @@ fn source_type(
                 .filter(|result| result.binding_ordinal == binding_ordinal)
                 .map(|result| result.type_identity)
         }),
-        Source::StructuralExpression {
-            expression,
-            value_dependency: Some(value),
-            ..
-        } => value_facts(checked)
-            .structural_values
-            .root_for_value_home(value, expression)
-            .filter(|root| root.state == state && statement == Some(root.statement_ordinal))
-            .map(|root| stored_structural_identity(checked, root.type_reference)),
-        Source::StructuralExpression {
-            value_dependency: None,
-            logical_root_type_identity: Some(identity),
-            ..
-        } => Some(identity),
-        Source::StructuralExpression {
-            expression,
-            value_dependency: None,
-            logical_root_type_identity: None,
-            ..
-        } => statement
+        Source::StructuralExpression { expression } => statement
             .and_then(|statement| {
                 value_facts(checked)
                     .structural_values

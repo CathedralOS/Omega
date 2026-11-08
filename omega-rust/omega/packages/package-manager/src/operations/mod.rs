@@ -1,14 +1,14 @@
-//! Complete package-manager operations composed from lower-level owners.
-//!
-//! [`begin_local_project_preparation`] admits a project with `build.omg`;
-//! [`admit_project_compilation`] returns compiler inputs and custody without
-//! executing them. Application Build owns ordinary compilation. [`inspect_source`]
-//! acquires and inspects one source without
-//! admitting it. [`review_package_change`]
-//! checks an install/update candidate and joins its comparison and project
-//! decisions to a proposed source lock section. [`stage_build_dependency_edit`]
-//! prepares a declaration edit without changing live source. File transactions belong beside
-//! these operations rather than in the command-line binary.
+/*
+Complete package-manager operations composed from lower-level source, review, and lock owners.
+
+`begin_local_project_preparation` admits a local project with `build.omg`, and
+`admit_project_compilation` returns the compiler inputs and custody without executing
+them so application Build owns ordinary compilation scheduling. `inspect_source`
+acquires and inspects a single source without admitting it, `review_package_change`
+checks an install/update candidate and joins its comparison and project decisions to
+a proposed source lock section, and `stage_build_dependency_edit` prepares a declaration
+edit on a candidate snapshot without mutating the live checkout.
+*/
 
 mod accepted_compilation;
 pub(crate) use accepted_compilation::compiler_input_identity;

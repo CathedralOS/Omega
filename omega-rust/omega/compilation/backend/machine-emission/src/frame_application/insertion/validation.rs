@@ -69,7 +69,7 @@ fn same_plan_roots(
     candidate: &FunctionFragmentEmissionPlan,
 ) -> bool {
     source.psi == candidate.psi
-        && source.fuel_schedule == candidate.fuel_schedule
+        && source.work_schedule == candidate.work_schedule
         && source.selected == candidate.selected
         && source.target == candidate.target
         && source.entry == candidate.entry
@@ -191,7 +191,7 @@ fn validate_function(
                     candidate_row,
                     architecture,
                     physical,
-                    &block_offsets,
+                    |block| block_offsets.get(&block).copied(),
                 )?;
             } else if candidate_row.branch.is_some() || candidate_row.bytes != source_row.bytes {
                 return Err(FrameApplicationError::ArtifactMismatch);

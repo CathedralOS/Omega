@@ -1,3 +1,12 @@
+/*
+We verify machine `suspends` and `blocks` keyword custody and operational
+interfaces against checked compilation facts.
+
+For virtual target-family heads, the retained transitive rows on each member
+already account for public contracts and private inferred effects independently
+across suspension and blocking.
+*/
+
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::source::locations::canonical_source_span_location;
@@ -33,8 +42,6 @@ pub(crate) fn validate_machine_operational(
         if (member_suspension, member_blocking) != original {
             return Err(rejected());
         }
-        // The retained transitive rows already account for public contracts
-        // and private inferred effects, independently for the two axes.
         may_suspend |= member_suspension.checked_may_suspend;
         may_block |= member_blocking.checked_may_block;
     }

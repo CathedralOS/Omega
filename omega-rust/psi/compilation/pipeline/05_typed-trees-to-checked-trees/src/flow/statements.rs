@@ -104,7 +104,6 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             storage_snapshot,
             value_observations: HandleSpan::empty(),
             operator_invocations: HandleSpan::empty(),
-            owned_case_selections: HandleSpan::empty(),
             stored_value: Handle::invalid(),
             store_target: Handle::invalid(),
             stored_destination: Handle::invalid(),

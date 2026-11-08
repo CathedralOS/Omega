@@ -40,12 +40,12 @@ use crate::storage::scalar_storage::ScalarStorageRows;
 use crate::storage::structural_identities::LocalStructuralIdentities;
 use crate::storage::structural_storage::HostStructuralPayload;
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use psi_work::WorkMeter;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, PlaceId,
     StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     NominalAffineCleanup, OperationKind, StructuralAffineDiscard, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
@@ -74,7 +74,7 @@ pub(crate) enum OperationFlow {
 /// Resumable execution state created from canonical terminal-Psi artifact
 /// sections.
 ///
-/// Fuel exhaustion never advances `next_operation` or the current terminator,
+/// Work exhaustion never advances `next_operation` or the current terminator,
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
 pub struct TerminalExecution<'artifact> {
@@ -87,7 +87,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) failure: Option<TerminalInterpretError>,
     pub(crate) provider_storage: RuntimeProviderStorage,
     /// Entry storage may be supplied only before the first resume, including
-    /// a resume which exhausts its fuel without executing an operation.
+    /// a resume which exhausts its work without executing an operation.
     pub(crate) entry_storage_open: bool,
     /// Explicit host acceptance of returned loans. Their sources are captured
     /// from final entry storage before the first resume, never at return time.
@@ -1045,7 +1045,7 @@ impl<'artifact> TerminalExecution<'artifact> {
     /// component provider and the empty roster is this lane's exact roster.
     pub fn resume(
         &mut self,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         self.resume_with_components(meter, handler, &mut ComponentBindings::new())
@@ -1053,7 +1053,7 @@ impl<'artifact> TerminalExecution<'artifact> {
 
     pub(crate) fn resume_with_components(
         &mut self,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
         handler: &mut impl TerminalEffectHandler,
         components: &mut ComponentBindings<'_, 'artifact>,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
@@ -1098,7 +1098,7 @@ impl<'artifact> TerminalExecution<'artifact> {
 
     fn resume_operations(
         &mut self,
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
         handler: &mut impl TerminalEffectHandler,
         components: &mut ComponentBindings<'_, 'artifact>,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
@@ -1155,7 +1155,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 self.collect_retired_descriptor_storage(None);
                 // A component call already paid its parent operation before
                 // entering the retained child. Only the child's next step is
-                // charged after suspension; neither effects nor call fuel replay.
+                // charged after suspension; neither effects nor call work replay.
                 let pending_component = matches!(
                     &operation.kind,
                     terminal_psi::OperationKind::BoundaryCall { boundary, .. }
@@ -1248,7 +1248,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         }
                                         // The supplied model completes every access in program
                                         // order. Record this exact event only after admission;
-                                        // ordinary fuel/next-operation progress prevents replay.
+                                        // ordinary work/next-operation progress prevents replay.
                                         self.effects.push(crate::boundary::effects::TerminalEffect::MemoryFence { operation: operation.id, kind });
                                         OperationFlow::Advance
                                     }

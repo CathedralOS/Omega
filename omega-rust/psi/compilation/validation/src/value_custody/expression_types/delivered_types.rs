@@ -498,36 +498,6 @@ pub(crate) fn report_delivered_type_mismatch(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    report_delivered_type_mismatch_with_component(
-        program,
-        scope,
-        value,
-        destination,
-        Some(language_core::PatternComponent::Fields),
-        owner,
-        diagnostics,
-    );
-}
-
-pub(crate) fn report_delivered_type_mismatch_with_component(
-    program: &dyn crate::CheckingInput,
-    scope: SymbolHandle,
-    value: ExpressionHandle,
-    destination: TypeReferenceHandle,
-    component: Option<language_core::PatternComponent>,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if crate::value_custody::pattern_components::report_delivery(
-        program,
-        value,
-        destination,
-        component,
-        owner,
-        diagnostics,
-    ) {
-        return;
-    }
     if let Some(delivered) = delivered_type_conflict(program, scope, value, destination) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} expects `{}`, but the value is delivered as `{}`",

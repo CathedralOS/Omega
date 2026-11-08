@@ -15,9 +15,16 @@ pub(super) fn construct_optimized_instruction_selection(
     (ValidatedLegalizedOperations, ValidatedSelectedInstructions),
     OptimizedSelectionPipelineError,
 > {
-    let legalized =
-        legalize_target_operations(input.target, input.source, input.unit, input.origins)
-            .map_err(OptimizedSelectionPipelineError::Legalization)?;
+    let legalized = legalize_target_operations(
+        input.target,
+        input.source,
+        input.unit,
+        input.origins,
+        input.installed_interrupts,
+        input.installed_entry_execution,
+        input.installed_stack_requirements,
+    )
+    .map_err(OptimizedSelectionPipelineError::Legalization)?;
     let selection_constraints = selection_constraints(&legalized, register_environment);
     let selected = select_instructions(&legalized, &selection_constraints, register_environment)
         .map_err(OptimizedSelectionPipelineError::Selection)?;

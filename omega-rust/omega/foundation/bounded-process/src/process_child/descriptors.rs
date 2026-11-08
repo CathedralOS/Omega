@@ -1,4 +1,13 @@
-//! Ambient Unix descriptor closure for bounded children.
+// Ambient Unix descriptor closure (`mark_ambient_close_on_exec`) and explicit
+// descriptor retention (`retain_descriptors`) for bounded children.
+//
+// On Linux we mark descriptors `3..=u32::MAX` `CLOEXEC` in one
+// `SYS_close_range` syscall inside `pre_exec`. On macOS/BSD we enumerate
+// `/dev/fd` in the parent before fork and set `FD_CLOEXEC` on each descriptor
+// `>= 3` inside `pre_exec`. `retain_descriptors` is registered after
+// `mark_ambient_close_on_exec` so its `pre_exec` closure runs second and clears
+// `FD_CLOEXEC` on the explicitly retained descriptor numbers without
+// renumbering them.
 
 use std::io;
 use std::os::unix::process::CommandExt;
@@ -6,6 +15,8 @@ use std::process::Command;
 
 pub(crate) fn mark_ambient_close_on_exec(command: &mut Command) -> io::Result<()> {
     #[cfg(target_os = "linux")]
+    // SAFETY: `SYS_close_range` with `CLOSE_RANGE_CLOEXEC` is async-signal-safe
+    // and only mutates descriptor flags >= 3 in the forked child before exec.
     unsafe {
         command.pre_exec(|| {
             let result = libc::syscall(
@@ -24,6 +35,8 @@ pub(crate) fn mark_ambient_close_on_exec(command: &mut Command) -> io::Result<()
     #[cfg(not(target_os = "linux"))]
     {
         let ambient_descriptors = ambient_descriptors()?;
+        // SAFETY: the pre_exec closure performs only async-signal-safe `fcntl`
+        // calls over the pre-allocated `ambient_descriptors` slice.
         unsafe {
             command.pre_exec(move || {
                 for descriptor in &ambient_descriptors {
@@ -46,13 +59,6 @@ pub(crate) fn mark_ambient_close_on_exec(command: &mut Command) -> io::Result<()
     Ok(())
 }
 
-/// Keep the listed parent descriptors open across exec while every other
-/// ambient descriptor closes. Register after `mark_ambient_close_on_exec`:
-/// `pre_exec` closures run in registration order inside the child, so this
-/// clears close-on-exec on exactly the retained set. A descriptor keeps its
-/// parent-assigned number — no relocation or renumbering happens in the
-/// child, which is what lets a supervisor agree fixed descriptor identities
-/// with the new image ahead of time.
 pub(crate) fn retain_descriptors(
     command: &mut Command,
     retained: Vec<std::os::fd::RawFd>,
@@ -60,6 +66,8 @@ pub(crate) fn retain_descriptors(
     if retained.is_empty() {
         return Ok(());
     }
+    // SAFETY: the pre_exec closure performs only async-signal-safe `fcntl`
+    // calls over the pre-allocated `retained` slice.
     unsafe {
         command.pre_exec(move || {
             for descriptor in &retained {

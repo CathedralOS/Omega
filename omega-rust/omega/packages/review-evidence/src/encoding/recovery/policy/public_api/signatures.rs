@@ -1,3 +1,5 @@
+// Bounded recovery for public type parameters, machine parameter contracts, and machine signatures.
+
 use super::super::{
     Error,
     behavior::synchronous_invocation,

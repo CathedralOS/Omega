@@ -6,7 +6,7 @@
 
 /// The nine pipeline-custody identities every staged optimized receipt
 /// re-proves — terminal psi, target, entry, optimization bundle, projection,
-/// manifest, optimization unit, fuel schedule, and the validated register
+/// manifest, optimization unit, work schedule, and the validated register
 /// environment. Downstream stages embed this record rather than repeating
 /// its fields, so a custody mint copies `upstream.core()` whole.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,8 +25,8 @@ pub struct StagedOptimizedCustodyCore {
     pub manifest: optimization_core::PrePhysicalOptimizationManifestIdentity,
     /// Optimization-unit identity of the staged result.
     pub optimization_unit: optimization_core::OptimizationUnitIdentity,
-    /// Fuel-schedule identity of the staged result.
-    pub fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
+    /// Work-schedule identity of the staged result.
+    pub work_schedule: semantic_vocabulary::WorkScheduleIdentity,
     /// Validated target-register-environment identity of the staged result.
     pub register_environment: register_model::TargetRegisterEnvironmentIdentity,
 }
@@ -65,9 +65,9 @@ macro_rules! staging_custody_core_accessors {
         pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
             self.core.optimization_unit
         }
-        /// Fuel-schedule identity of the staged result.
-        pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-            self.core.fuel_schedule
+        /// Work-schedule identity of the staged result.
+        pub const fn work_schedule(self) -> WorkScheduleIdentity {
+            self.core.work_schedule
         }
         /// Validated target-register-environment identity of the staged result.
         pub const fn register_environment(

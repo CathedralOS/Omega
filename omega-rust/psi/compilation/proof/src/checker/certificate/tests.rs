@@ -255,10 +255,10 @@ fn guarded_argument_certificate_rejects_a_dropped_premise() {
     assert!(certificate.verify().is_err());
 }
 
-/// The refold leg's certificate for `fuel - 1`: premises `2 <= fuel` (the
-/// `fuel > 1` guard) and `fuel <= 128` (declared), mapped through the affine
-/// witness to `1 <= fuel - 1 <= 127`, claimed against `u8 [0..=127]`.
-fn fuel_decrement_certificate(seed: u64) -> super::BoundedValueCertificate {
+/// The refold leg's certificate for `work - 1`: premises `2 <= work` (the
+/// `work > 1` guard) and `work <= 128` (declared), mapped through the affine
+/// witness to `1 <= work - 1 <= 127`, claimed against `u8 [0..=127]`.
+fn work_decrement_certificate(seed: u64) -> super::BoundedValueCertificate {
     let integer_type = u8_type();
     let value = ValueId::new(seed).expect("value id");
     let place = ScalarTerm::value(value, ScalarType::Integer(integer_type));
@@ -292,7 +292,7 @@ fn fuel_decrement_certificate(seed: u64) -> super::BoundedValueCertificate {
 
 #[test]
 fn affine_refold_bound_verifies_under_the_kernel() {
-    let certificate = fuel_decrement_certificate(41);
+    let certificate = work_decrement_certificate(41);
     let fact = certificate.verify().expect("kernel accepts");
     assert_eq!(fact.proposition, certificate.obligation.proposition);
     let AcceptedFactRoute::CertificateDerived { acceptance, .. } = fact.route else {
@@ -308,9 +308,9 @@ fn affine_refold_bound_verifies_under_the_kernel() {
 
 #[test]
 fn affine_refold_rejects_a_wrong_mapped_endpoint() {
-    let mut certificate = fuel_decrement_certificate(42);
-    // Forge: claim `5 <= fuel - 1` where the cited premise `2 <= fuel` maps
-    // only to `1 <= fuel - 1`; the kernel's affine map must refuse it.
+    let mut certificate = work_decrement_certificate(42);
+    // Forge: claim `5 <= work - 1` where the cited premise `2 <= work` maps
+    // only to `1 <= work - 1`; the kernel's affine map must refuse it.
     let step = middle_leg(&mut certificate);
     let ProofRule::IntegerAffineBound { .. } = step.rule else {
         panic!("affine leg");
@@ -325,9 +325,9 @@ fn affine_refold_rejects_a_wrong_mapped_endpoint() {
 
 #[test]
 fn affine_refold_rejects_a_foreign_witness_root() {
-    let mut certificate = fuel_decrement_certificate(43);
+    let mut certificate = work_decrement_certificate(43);
     // Forge: repoint the affine witness at a different atom, so the cited
-    // `2 <= fuel` premise no longer binds the witness's root.
+    // `2 <= work` premise no longer binds the witness's root.
     let step = middle_leg(&mut certificate);
     let ProofRule::IntegerAffineBound { witness, .. } = &mut step.rule else {
         panic!("affine leg");
@@ -339,7 +339,7 @@ fn affine_refold_rejects_a_foreign_witness_root() {
 
 #[test]
 fn affine_refold_gap_stays_uncovered() {
-    // Premise `1 <= fuel` maps to `0 <= fuel - 1`, which cannot reach a
+    // Premise `1 <= work` maps to `0 <= work - 1`, which cannot reach a
     // `[1, 127]` target's lower endpoint: the leg emits nothing rather than a
     // certificate the kernel would refuse.
     let integer_type = u8_type();

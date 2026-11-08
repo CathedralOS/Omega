@@ -55,6 +55,17 @@ pub fn x86_64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if let Some(form) =
+                    crate::selected_form_encoding::installed_interrupt::Form::from_semantic(
+                        semantic,
+                    )
+                {
+                    return Ok(
+                        crate::selected_form_encoding::installed_interrupt::declaration(
+                            form, constraint,
+                        ),
+                    );
+                }
                 if semantic == Semantic::MemoryFence {
                     return Ok(crate::selected_form_encoding::memory_fence::declaration(
                         constraint,
@@ -76,6 +87,15 @@ pub fn x86_64_machine_effect_catalog(
                     return Ok(crate::selected_form_encoding::atomic_fence::declaration(
                         constraint,
                     ));
+                }
+                if semantic == Semantic::PrivilegedCrash {
+                    return Ok(
+                        crate::selected_form_encoding::crash::privileged_declaration(
+                            constraints.catalog().constraint(constraint).ok_or(
+                                X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch,
+                            )?,
+                        ),
+                    );
                 }
                 if semantic == Semantic::Crash {
                     return Ok(crate::selected_form_encoding::crash::declaration(
@@ -216,6 +236,11 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             global_descriptor_table: Some(crate::X86_64_GLOBAL_DESCRIPTOR_TABLE),
             task_register_activate: Some(crate::X86_64_TASK_REGISTER_ACTIVATE),
             task_register_read: Some(crate::X86_64_TASK_REGISTER_READ),
+            installed_interrupt_cpu_check: Some(crate::X86_64_INSTALLED_INTERRUPT_CPU_CHECK),
+            installed_interrupt_task_commit: Some(crate::X86_64_INSTALLED_INTERRUPT_TASK_COMMIT),
+            installed_interrupt_table_publication: Some(
+                crate::X86_64_INSTALLED_INTERRUPT_TABLE_PUBLICATION,
+            ),
             code_segment_reload: Some(crate::X86_64_CODE_SEGMENT_RELOAD),
             data_segment_reload: Some(crate::X86_64_DATA_SEGMENT_RELOAD),
             segment_selector_read: Some(crate::X86_64_SEGMENT_SELECTOR_READ),
@@ -240,6 +265,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             atomic_compare_exchange: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE),
             atomic_compare_exchange_once: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE),
             crash: crate::X86_64_CRASH,
+            privileged_crash: Some(crate::X86_64_PRIVILEGED_CRASH),
             load_packed: Some(crate::X86_64_LOAD_PACKED),
             store_packed: Some(crate::X86_64_STORE_PACKED),
             call_aggregate: match abi {
@@ -549,6 +575,12 @@ fn alternative(
 }
 
 fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
+    if semantic == Semantic::PrivilegedCrash {
+        return selected_instructions::MachineEncodedEffects::privileged_stop_v1(
+            &units("rip"),
+            &units("control_flags"),
+        );
+    }
     if semantic == Semantic::Crash {
         return selected_instructions::MachineEncodedEffects::crash_v1(&units("rip"));
     }
@@ -559,6 +591,15 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         return crate::selected_form_encoding::ieee_float_arithmetic::effects(form);
     }
     let (reads, writes) = match semantic {
+        Semantic::InstalledInterruptCpuCheck
+        | Semantic::InstalledInterruptTaskCommit
+        | Semantic::InstalledInterruptTablePublication => {
+            return crate::selected_form_encoding::installed_interrupt::effects(
+                crate::selected_form_encoding::installed_interrupt::Form::from_semantic(semantic)
+                    .expect("installed semantic"),
+            );
+        }
+
         Semantic::PortRegisterRead
         | Semantic::PortRegisterWrite
         | Semantic::ModelSpecificRead
@@ -609,7 +650,7 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
         Semantic::NearestIeeeFloatArithmetic(_) => {
             unreachable!("float arithmetic effects returned above")
         }
-        Semantic::Crash => (Vec::new(), Vec::new()),
+        Semantic::Crash | Semantic::PrivilegedCrash => (Vec::new(), Vec::new()),
         Semantic::CompareI64Zero | Semantic::CompareI64Immediate => (vec![0], vec![]),
         Semantic::CompareI64 => (vec![0, 1], vec![]),
         Semantic::MaterializeI64 | Semantic::ImageAddress => (vec![], vec![0]),
@@ -696,7 +737,7 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
             | Semantic::MaterializeBooleanI64LessThan
             | Semantic::MaterializeBooleanU64LessOrEqual
             | Semantic::MaterializeBooleanI64LessOrEqual => (
-                units("rflags"),
+                units("condition_flags"),
                 vec![],
                 vec![],
                 MachineEncodedMemoryEffect::NoneV1,
@@ -706,7 +747,7 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
             ),
             Semantic::CompareI64Zero | Semantic::CompareI64 | Semantic::CompareI64Immediate => (
                 vec![],
-                units("rflags"),
+                units("condition_flags"),
                 vec![],
                 MachineEncodedMemoryEffect::NoneV1,
                 MachineEncodedStackEffect::UnchangedV1,
@@ -716,7 +757,7 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
             Semantic::ExactDivideU64 | Semantic::SaturatingDivide(_) => (
                 vec![],
                 vec![],
-                units_of(&["rdx", "rflags"]),
+                units_of(&["rdx", "condition_flags"]),
                 MachineEncodedMemoryEffect::NoneV1,
                 MachineEncodedStackEffect::UnchangedV1,
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -730,7 +771,7 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
             | Semantic::SaturatingRemainder(_) => (
                 vec![],
                 vec![],
-                units("rflags"),
+                units("condition_flags"),
                 MachineEncodedMemoryEffect::NoneV1,
                 MachineEncodedStackEffect::UnchangedV1,
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -754,7 +795,7 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
             | Semantic::WrappingSubtractI64 => (
                 vec![],
                 vec![],
-                units("rflags"),
+                units("condition_flags"),
                 MachineEncodedMemoryEffect::NoneV1,
                 MachineEncodedStackEffect::UnchangedV1,
                 MachineEncodedTrapBehavior::NeverV1,
@@ -772,7 +813,7 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
             Semantic::ConditionalBranchNonZero
             | Semantic::ConditionalBranchU64LessThan
             | Semantic::ConditionalBranchI64LessThan => {
-                let uses = units_of(&["rflags", "rip"]);
+                let uses = units_of(&["condition_flags", "rip"]);
                 (
                     uses,
                     units("rip"),
@@ -807,7 +848,7 @@ fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
             Semantic::MaterializeI64 if variant == 1 => (
                 vec![],
                 vec![],
-                units("rflags"),
+                units("condition_flags"),
                 MachineEncodedMemoryEffect::NoneV1,
                 MachineEncodedStackEffect::UnchangedV1,
                 MachineEncodedTrapBehavior::NeverV1,
@@ -864,6 +905,9 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::ControlRegisterWrite => crate::encoder_resolved(1, Some(40)),
         Semantic::TaskRegisterActivate => crate::encoder_resolved(1, Some(512)),
         Semantic::TaskRegisterRead => crate::encoder_resolved(1, Some(8)),
+        Semantic::InstalledInterruptCpuCheck
+        | Semantic::InstalledInterruptTaskCommit
+        | Semantic::InstalledInterruptTablePublication => crate::encoder_resolved(1, Some(2048)),
         Semantic::CodeSegmentReload | Semantic::DataSegmentReload => {
             crate::encoder_resolved(1, Some(512))
         }
@@ -880,6 +924,7 @@ fn size(semantic: Semantic) -> Size {
             unreachable!("float arithmetic uses its dedicated declaration")
         }
         Semantic::Crash => Size::ExactBytes(2),
+        Semantic::PrivilegedCrash => Size::ExactBytes(4),
         Semantic::MaterializeBooleanEqual
         | Semantic::MaterializeBooleanU64LessThan
         | Semantic::MaterializeBooleanI64LessThan

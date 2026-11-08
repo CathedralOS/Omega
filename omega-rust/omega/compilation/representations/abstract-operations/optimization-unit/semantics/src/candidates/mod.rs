@@ -158,7 +158,7 @@ impl ValidatedPsiRewrite {
         self.validator
     }
 
-    /// Validator-accepted source disposition and fuel accounting. Consumers
+    /// Validator-accepted source disposition and work accounting. Consumers
     /// must ledger this value rather than re-reading the proposal.
     pub fn provenance(&self) -> &[ProvenanceRewrite] {
         &self.provenance
@@ -171,19 +171,19 @@ impl ValidatedPsiRewrite {
 
 /// The unit's function at `machine`, or CandidateLocationMissing.
 /// One realized-at rewrite shared by every candidate family's site stamp:
-/// the disposition lands at `realized_at` while provenance and fuel move over
+/// the disposition lands at `realized_at` while provenance and work move over
 /// from the stamped source.
 pub(crate) fn provenance_realized_at(
     input: optimization_unit::PsiRealizationSite,
     realized_at: optimization_unit::PsiRealizationSite,
     sources: &[optimization_unit::PsiProvenance],
-    fuel: &[optimization_unit::FuelSettlement],
+    work: &[optimization_unit::WorkSettlement],
 ) -> ProvenanceRewrite {
     ProvenanceRewrite {
         input,
         disposition: optimization_unit::ProvenanceDisposition::RealizedAt(realized_at),
         sources: sources.to_vec(),
-        fuel: fuel.to_vec(),
+        work: work.to_vec(),
     }
 }
 
@@ -194,9 +194,9 @@ pub(crate) fn provenance_realized_at(
 pub(crate) fn realized_at_own_site(
     site: optimization_unit::PsiRealizationSite,
     sources: &[optimization_unit::PsiProvenance],
-    fuel: &[optimization_unit::FuelSettlement],
+    work: &[optimization_unit::WorkSettlement],
 ) -> ProvenanceRewrite {
-    provenance_realized_at(site, site, sources, fuel)
+    provenance_realized_at(site, site, sources, work)
 }
 
 /// The proven-unreachable mirror of [`realized_at_own_site`]: a site the
@@ -204,9 +204,9 @@ pub(crate) fn realized_at_own_site(
 pub(crate) fn proven_unreachable_at_own_site(
     site: optimization_unit::PsiRealizationSite,
     sources: &[optimization_unit::PsiProvenance],
-    fuel: &[optimization_unit::FuelSettlement],
+    work: &[optimization_unit::WorkSettlement],
 ) -> ProvenanceRewrite {
-    provenance_proven_unreachable_at(site, site, sources, fuel)
+    provenance_proven_unreachable_at(site, site, sources, work)
 }
 
 /// One proven-unreachable rewrite: the mirror of `provenance_realized_at` for
@@ -215,13 +215,13 @@ pub(crate) fn provenance_proven_unreachable_at(
     input: optimization_unit::PsiRealizationSite,
     unreachable_at: optimization_unit::PsiRealizationSite,
     sources: &[optimization_unit::PsiProvenance],
-    fuel: &[optimization_unit::FuelSettlement],
+    work: &[optimization_unit::WorkSettlement],
 ) -> ProvenanceRewrite {
     ProvenanceRewrite {
         input,
         disposition: optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(unreachable_at),
         sources: sources.to_vec(),
-        fuel: fuel.to_vec(),
+        work: work.to_vec(),
     }
 }
 
@@ -317,7 +317,7 @@ pub(crate) fn sweep_output_nodes(
 
 /// The candidate's realized rows must be exactly the independently
 /// reconstructed roster: the same rows in the same order, each carrying the
-/// input site, disposition and sources the replay derived, and each its fuel
+/// input site, disposition and sources the replay derived, and each its work
 /// settlement.
 pub(crate) fn require_realized_rows(
     candidate: &PsiRewriteCandidate,
@@ -334,8 +334,8 @@ pub(crate) fn require_realized_rows(
     {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
-    if paired.any(|(actual, expected)| actual.fuel != expected.fuel) {
-        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
+    if paired.any(|(actual, expected)| actual.work != expected.work) {
+        return Err(OptimizationUnitValidationError::CandidateWorkMismatch);
     }
     Ok(())
 }
@@ -385,7 +385,7 @@ pub(crate) fn realize_node_provenance<'node>(
             block,
             node: u32::try_from(node_index).ok()?,
         });
-        realized.push(realized_at_own_site(site, &node.provenance, &node.fuel));
+        realized.push(realized_at_own_site(site, &node.provenance, &node.work));
     }
     Some(())
 }
@@ -404,7 +404,7 @@ pub(crate) fn retire_node_custody(
         .get_mut(node_index)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     receiver.provenance.extend_from_slice(&retired.provenance);
-    receiver.fuel.extend_from_slice(&retired.fuel);
+    receiver.work.extend_from_slice(&retired.work);
     Ok(())
 }
 

@@ -1,3 +1,6 @@
+// Contract atomic-load expression projection, admitting only pure load orderings
+// (`NoOrdering`, `Receive`, `GlobalOrder`) and rejecting mutation-bearing atomics.
+
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{PackageReviewAtomicLoadOrdering, PackageReviewContractExpression};
 use diagnostics::Diagnostic;

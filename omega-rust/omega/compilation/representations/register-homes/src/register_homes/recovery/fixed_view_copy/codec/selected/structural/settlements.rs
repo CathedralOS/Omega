@@ -25,7 +25,7 @@ use super::declarations::{
 use super::provider;
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_ids, decode_list, length},
-    selected::provenance::{decode_fuel, encode_fuel},
+    selected::provenance::{decode_work, encode_work},
 };
 use selected_instructions::SelectedBoundarySettlementPayload;
 
@@ -105,7 +105,7 @@ pub(super) fn encode_boundary_settlement(
     for receipt in &settlement.completion_receipts {
         encode_completion_receipt(bytes, receipt);
     }
-    encode_fuel(bytes, &settlement.fuel);
+    encode_work(bytes, &settlement.work);
     encode_effect(bytes, settlement.effect);
     encode_ownership(bytes, &settlement.ownership);
     Ok(())
@@ -173,7 +173,7 @@ pub(super) fn decode_boundary_settlement(
             arguments,
             completion_claim_sources,
             completion_receipts,
-            fuel: decode_fuel(cursor)?,
+            work: decode_work(cursor)?,
             effect: decode_effect(cursor)?,
             ownership: decode_ownership(cursor)?,
         },

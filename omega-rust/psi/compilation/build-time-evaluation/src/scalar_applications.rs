@@ -7,8 +7,8 @@
 //! and target admission before ordinary execution.
 
 use crate::evaluation_accounting::CanonicalScalarEvaluationReceipt;
+use psi_work::WorkMeter;
 use semantic_vocabulary::ScalarApplicationId;
-use terminal_fuel::TerminalFuelMeter;
 use terminal_installation::{ScalarApplicationClosure, TerminalScalarValue};
 use terminal_installation::{ScalarApplicationObservations, ScalarConditionSelection};
 use terminal_interpreter::{
@@ -105,13 +105,11 @@ fn complete_scopes(
                 .and_then(Option::as_ref),
             |job, admission| {
                 let observations = admission.observations();
-                let ceiling = crate::evaluation_accounting::PURE_TERMINAL_FUEL_CEILING;
+                let ceiling = crate::evaluation_accounting::PURE_PSI_WORK_BUDGET;
                 let mut meter = match sponsor {
-                    Some(account) => {
-                        TerminalFuelMeter::with_invocation(account.clone(), Some(ceiling))
-                            .map_err(|error| format!("scalar evaluation sponsorship: {error:?}"))?
-                    }
-                    None => TerminalFuelMeter::with_allowance(ceiling),
+                    Some(account) => WorkMeter::with_invocation(account.clone(), Some(ceiling))
+                        .map_err(|error| format!("scalar evaluation sponsorship: {error:?}"))?,
+                    None => WorkMeter::with_budget(ceiling),
                 };
                 let values = observations.values().observed().collect();
                 let result = execute_entry(job, admission, &mut meter);
@@ -143,7 +141,7 @@ pub fn evaluate_scalar_applications<'artifact>(
     observations: &mut ScalarApplicationObservations<'artifact>,
     value_scope: &str,
     requested: &[ScalarApplicationId],
-    meter: &mut TerminalFuelMeter,
+    meter: &mut WorkMeter,
 ) -> Result<ScalarConditionSelection<'artifact>, String> {
     evaluate_scope(
         observations,
@@ -159,7 +157,7 @@ pub fn evaluate_scalar_applications_with_address_model<'artifact>(
     value_scope: &str,
     requested: &[ScalarApplicationId],
     address_model: Option<&terminal_installation::ScalarAddressModel>,
-    meter: &mut TerminalFuelMeter,
+    meter: &mut WorkMeter,
 ) -> Result<ScalarConditionSelection<'artifact>, String> {
     evaluate_scope(
         observations,
@@ -229,7 +227,7 @@ struct EntryObservation {
 fn execute_entry(
     job: &demand::Job,
     admission: &terminal_installation::AdmittedScalarEntry<'_, '_>,
-    meter: &mut TerminalFuelMeter,
+    meter: &mut WorkMeter,
 ) -> Result<EntryObservation, String> {
     let demand::Execution::Entry {
         machine,

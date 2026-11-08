@@ -1,4 +1,5 @@
-//! Git error projection over the shared bounded-process execution boundary.
+// Bounded child-process capture and `BoundedProcessRunError` to
+// `SourceResolveError` projection for sealed Git commands.
 
 use crate::SourceResolveError;
 use crate::git::executable::budget::GitCapturedOutputBudget;
@@ -10,7 +11,7 @@ use bounded_process::{
 use resolver_execution::ResolverPreparedExecution;
 use std::time::Duration;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn run_command_bounded(
     command: ResolverPreparedExecution,
     operation: &str,
@@ -28,7 +29,7 @@ pub(crate) fn run_command_bounded(
     )
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn run_command_bounded_with_budget(
     command: ResolverPreparedExecution,
     operation: &str,

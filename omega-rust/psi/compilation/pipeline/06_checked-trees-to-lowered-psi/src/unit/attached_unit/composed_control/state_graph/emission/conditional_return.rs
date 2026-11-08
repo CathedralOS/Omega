@@ -28,29 +28,6 @@ enum PreparedArmCompletion {
     Structural(StructuralBinding),
 }
 
-#[derive(Clone, Copy)]
-enum OrdinaryArm<'a> {
-    EvaluateNoNormal {
-        operations: &'a checked_trees::CheckedOperandSequence,
-    },
-    EvaluateUnit {
-        operations: &'a checked_trees::CheckedOperandSequence,
-    },
-    Crash {
-        statement_ordinal: &'a u32,
-    },
-    Unit,
-    Structural(&'a checked_trees::CheckedUnitEffectOperationPlan),
-    Scalar {
-        statement_ordinal: &'a u32,
-    },
-    Call {
-        operands: &'a checked_trees::CheckedOperandSequence,
-        operation: &'a checked_trees::CheckedUnitEffectOperationPlan,
-        completions: &'a checked_trees::CheckedOperandSequence,
-    },
-}
-
 impl StateGraphEmission<'_, '_> {
     /// Lower the return arm of a `ConditionalReturn` terminator and stage
     /// the edge the state's decision takes into it.
@@ -74,51 +51,6 @@ impl StateGraphEmission<'_, '_> {
         operations: &mut OperationBuffer,
         sequence: &crate::unit::attached_unit::composed_control::emission::OperationSequence,
     ) -> Result<SuccessorEdge, LoweringError> {
-        let ordinary = match return_arm {
-            checked_trees::CheckedConditionalReturnArm::Completion(plan) => {
-                return self.completion_expression(
-                    identities,
-                    position,
-                    state_parameters,
-                    arm_namespace,
-                    established,
-                    payload_parameters,
-                    dispatch_discards,
-                    plan,
-                    evaluation,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                    sequence,
-                );
-            }
-            checked_trees::CheckedConditionalReturnArm::EvaluateNoNormal { operations, .. } => {
-                OrdinaryArm::EvaluateNoNormal { operations }
-            }
-            checked_trees::CheckedConditionalReturnArm::EvaluateUnit { operations, .. } => {
-                OrdinaryArm::EvaluateUnit { operations }
-            }
-            checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
-                OrdinaryArm::Crash { statement_ordinal }
-            }
-            checked_trees::CheckedConditionalReturnArm::Unit { .. } => OrdinaryArm::Unit,
-            checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
-                OrdinaryArm::Structural(operation)
-            }
-            checked_trees::CheckedConditionalReturnArm::Scalar {
-                statement_ordinal, ..
-            } => OrdinaryArm::Scalar { statement_ordinal },
-            checked_trees::CheckedConditionalReturnArm::Call {
-                operands,
-                operation,
-                completions,
-            } => OrdinaryArm::Call {
-                operands,
-                operation,
-                completions,
-            },
-        };
         let checked = self.checked;
         let plan = self.plan;
         let state = &plan.states[position];
@@ -169,12 +101,8 @@ impl StateGraphEmission<'_, '_> {
             .retain(|(_, value)| decided.contains(value));
         operations.storage_observations.field_bytes.clear();
         operations.storage_observations.cases.clear();
-        let completion = match ordinary {
-            OrdinaryArm::EvaluateNoNormal {
-                operations: selected,
-                ..
-            }
-            | OrdinaryArm::EvaluateUnit {
+        let completion = match return_arm {
+            checked_trees::CheckedConditionalReturnArm::EvaluateNoNormal {
                 operations: selected,
                 ..
             } => {
@@ -196,27 +124,29 @@ impl StateGraphEmission<'_, '_> {
                     operations,
                     &mut sequence,
                 )?;
-                let terminator =
-                    if let Some(terminator) = operations.take_invocation_completion(next_edge)? {
-                        terminator
-                    } else if matches!(ordinary, OrdinaryArm::EvaluateUnit { .. }) {
-                        Terminator::ReturnUnit {
-                            edge: edge_id(allocate_dense(next_edge)?),
-                            cleanup_actions: Vec::new(),
-                        }
-                    } else {
-                        return unsupported("stopped return operand lost its exact invocation");
-                    };
-                PreparedArmCompletion::Edge(terminator)
+                PreparedArmCompletion::Edge(
+                    operations.take_invocation_completion(next_edge)?.ok_or(
+                        LoweringError::Unsupported(
+                            "stopped return operand lost its exact invocation",
+                        ),
+                    )?,
+                )
             }
-            OrdinaryArm::Crash { statement_ordinal } => PreparedArmCompletion::Edge(
-                self.crash_completion(identities, position, *statement_ordinal, next_edge)?,
-            ),
-            OrdinaryArm::Unit => PreparedArmCompletion::Edge(Terminator::ReturnUnit {
-                edge: edge_id(allocate_dense(next_edge)?),
-                cleanup_actions: Vec::new(),
-            }),
-            OrdinaryArm::Structural(operation) => {
+            checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
+                PreparedArmCompletion::Edge(self.crash_completion(
+                    identities,
+                    position,
+                    *statement_ordinal,
+                    next_edge,
+                )?)
+            }
+            checked_trees::CheckedConditionalReturnArm::Unit { .. } => {
+                PreparedArmCompletion::Edge(Terminator::ReturnUnit {
+                    edge: edge_id(allocate_dense(next_edge)?),
+                    cleanup_actions: Vec::new(),
+                })
+            }
+            checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
                 super::super::super::emission::emit_call_operations(
                     identities,
                     checked,
@@ -245,7 +175,7 @@ impl StateGraphEmission<'_, '_> {
             // The selected arm evaluates its operands and invokes its call
             // once. Ordinary completion then forwards the exact result the
             // call bound, with cleanup appropriate to that result's custody.
-            OrdinaryArm::Call {
+            checked_trees::CheckedConditionalReturnArm::Call {
                 operands,
                 operation,
                 completions,
@@ -318,7 +248,7 @@ impl StateGraphEmission<'_, '_> {
             }
             // The arm alone evaluates the value checking retained under its
             // `Return` role, then disposes the roots a scalar return does.
-            OrdinaryArm::Scalar {
+            checked_trees::CheckedConditionalReturnArm::Scalar {
                 statement_ordinal, ..
             } => {
                 let role = CheckedScalarExpressionRole::Return;

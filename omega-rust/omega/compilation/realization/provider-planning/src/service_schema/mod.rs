@@ -1,7 +1,8 @@
-//! Attach target calling evidence to Psi-owned boundary declarations.
-//!
-//! No neutral signature, claim, reach or inherited receiver construction lives
-//! here. Psi supplies the surface and exact ordered requirement correspondence.
+// Target calling evidence attachment and replay correspondence for Psi-owned
+// boundary declarations. Psi supplies the neutral surface and exact ordered
+// requirement correspondence; replay joins compare both the canonical
+// requirement/trait path and `trait_package_identity` so same-spelled boundary
+// operators or traits from different packages cannot substitute for one another.
 
 use crate::ProviderPlanningContext;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
@@ -14,8 +15,6 @@ use effects::provider_plan::{ServiceCallingApplication, ServiceCallingPlan, Serv
 
 pub use checked_trees::typed_trees::service_declarations::projection::is_product_declaration;
 
-/// Source formation already fixed both the neutral surface and attachment
-/// coordinates. Targets attach evidence without projecting that source again.
 pub(crate) fn attach_calling(
     prepared: &PreparedServiceSurface<'_>,
     calling_plans: &[BoundaryCallingPlanRealization],
@@ -83,14 +82,6 @@ pub fn from_typed_boundary_requirement(
     Some(ServiceSchema::from_declaration(projected.declaration))
 }
 
-/// Whether a service schema binds exactly this boundary-operator coordinate.
-///
-/// [`checked_trees::typed_trees::operator::boundary_operator_requirement_identity`] is
-/// deliberately package-blind: two packages may declare same-spelled,
-/// same-signature boundary operators whose canonical identities are equal.
-/// Every replay join must therefore compare the retained package identity
-/// too, or a foreign declaration could substitute for the selected
-/// coordinate.
 pub fn schema_binds_exact_boundary_operator(
     context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
@@ -106,9 +97,6 @@ pub fn schema_binds_exact_boundary_operator(
             == schema.declaration.trait_package_identity
 }
 
-/// Whether a service schema binds exactly this boundary trait declaration.
-/// Trait names share the same package-blind replay hazard as operator
-/// requirement identities.
 pub fn schema_binds_exact_boundary_trait(
     context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
@@ -124,8 +112,6 @@ pub fn schema_binds_exact_boundary_trait(
             == schema.declaration.trait_package_identity
 }
 
-/// Whether a service schema binds exactly this top-level boundary
-/// requirement machine.
 pub fn schema_binds_exact_boundary_requirement(
     context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
@@ -151,15 +137,10 @@ pub fn schema_binds_exact_boundary_requirement(
         return false;
     }
     from_typed_boundary_requirement(context, requirement).is_some_and(|candidate| {
-        // Ids only carry meaning inside the table that minted them;
-        // the candidate interns in its own table, so compare the
-        // resolved text, never the raw ids.
         candidate.identity_text(candidate.declaration.trait_name) == schema_trait_name
     })
 }
 
-/// A generated scalar accessor has its own compiler-catalog declaration role.
-/// It does not make ordinary bodyless boundary machines intrinsic candidates.
 pub fn from_sealed_accessor(
     context: ProviderPlanningContext<'_>,
     accessor: &crate::SealedAccessor,

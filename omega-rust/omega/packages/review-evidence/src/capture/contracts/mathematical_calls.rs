@@ -1,6 +1,7 @@
-//! Review mathematical calls with the same checker that admits source contracts.
-//! Mathematical functions may be partly applied or return another function, so
-//! a runtime machine's parameter-count check cannot validate these calls.
+// Mathematical call application verification using the same proof checker that
+// admits source contracts. Because mathematical functions may be partially applied
+// or return another function, a runtime machine's parameter-count check cannot
+// validate these calls.
 
 use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;

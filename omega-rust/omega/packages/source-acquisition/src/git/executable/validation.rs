@@ -1,4 +1,6 @@
-//! Ordinary regular-file and launchability checks for the selected primary Git.
+// Regular-file and launchability checks for the selected primary Git binary
+// (executable mode bits on Unix; direct `git.exe` rather than `.cmd`/`.bat`
+// wrappers on Windows).
 
 use crate::SourceResolveError;
 use std::path::Path;

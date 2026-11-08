@@ -46,58 +46,42 @@ pub(crate) fn dispatch_arm_contexts<Context: Clone>(
         .match_arms(dispatch.arms)
         .iter()
         .map(|arm| {
-            dispatch_arm_context(
-                expression,
-                dispatch.subject,
-                arm.pattern,
-                &mut remaining,
-                &mut form_pattern,
-                &mut select,
-            )
+            let mut selected = remaining.clone();
+            let condition = match arm.pattern {
+                MatchPattern::Value(pattern) if form_pattern(&remaining, pattern) => {
+                    Some(DispatchCondition::Equality {
+                        subject: dispatch.subject,
+                        pattern,
+                    })
+                }
+                MatchPattern::Destructure(pattern)
+                    if form_pattern(&remaining, pattern.condition) =>
+                {
+                    Some(DispatchCondition::Predicate(pattern.condition))
+                }
+                _ => None,
+            };
+            if let Some(condition) = condition {
+                select(
+                    &mut selected,
+                    DispatchSelection {
+                        expression,
+                        condition,
+                        matched: true,
+                    },
+                );
+                select(
+                    &mut remaining,
+                    DispatchSelection {
+                        expression,
+                        condition,
+                        matched: false,
+                    },
+                );
+            }
+            selected
         })
         .collect()
-}
-
-/// Select one already-associated authored arm from the remaining paths. The
-/// caller owns its actual operand execution; this step retains only facts
-/// justified by that completed pattern and its exact true or false outcome.
-pub(crate) fn dispatch_arm_context<Context: Clone>(
-    expression: ExpressionHandle,
-    subject: ExpressionHandle,
-    pattern: MatchPattern,
-    remaining: &mut Context,
-    form_pattern: &mut impl FnMut(&Context, ExpressionHandle) -> bool,
-    select: &mut impl FnMut(&mut Context, DispatchSelection),
-) -> Context {
-    let mut selected = remaining.clone();
-    let condition = match pattern {
-        MatchPattern::Value(pattern) if form_pattern(remaining, pattern) => {
-            Some(DispatchCondition::Equality { subject, pattern })
-        }
-        MatchPattern::Destructure(pattern) if form_pattern(remaining, pattern.condition) => {
-            Some(DispatchCondition::Predicate(pattern.condition))
-        }
-        _ => None,
-    };
-    if let Some(condition) = condition {
-        select(
-            &mut selected,
-            DispatchSelection {
-                expression,
-                condition,
-                matched: true,
-            },
-        );
-        select(
-            remaining,
-            DispatchSelection {
-                expression,
-                condition,
-                matched: false,
-            },
-        );
-    }
-    selected
 }
 
 pub(crate) fn dispatch_arm_environments(
@@ -121,7 +105,47 @@ pub(crate) fn dispatch_arm_environments(
         environment,
         |_, _| true,
         |selected, selection| {
-            narrow_dispatch_selection(program, machine, state, dispatch, selected, selection)
+            match selection.condition {
+                DispatchCondition::Equality { subject, pattern } => {
+                    let comparison = TableBinaryExpression {
+                        left: subject,
+                        operator: BinaryOperator::Equal,
+                        right: pattern,
+                    };
+                    guard_narrowing::narrow_environment_by_comparison(
+                        program,
+                        machine,
+                        state,
+                        selected,
+                        expression,
+                        &comparison,
+                        selection.matched,
+                    );
+                }
+                DispatchCondition::Predicate(condition) => {
+                    guard_narrowing::narrow_environment_by_condition(
+                        program,
+                        machine,
+                        state,
+                        selected,
+                        condition,
+                        selection.matched,
+                    );
+                }
+            }
+            // The captured value and its source agree until a write changes
+            // the source. Rebind the predicate's captured paths now; the full
+            // dispatch write frame below then withdraws every unstable source
+            // consequence before an arm can consume it. Capture paths retain
+            // their own identity and never become global source aliases.
+            if dispatch.capture.is_valid()
+                && let Some(source) = super::place_path(program, dispatch.subject)
+            {
+                let anchor = expression_table(program)
+                    .value_capture(dispatch.capture)
+                    .value_anchor;
+                selected.copy_path_facts(&super::place_paths::capture_path(anchor), &source);
+            }
         },
     )
     .into_iter()
@@ -133,58 +157,4 @@ pub(crate) fn dispatch_arm_environments(
         selected
     })
     .collect()
-}
-
-/// Publish the same selected comparison facts for expression checking and
-/// state arrivals. The caller subsequently retires every source consequence
-/// changed by the actual evaluated prefix before an arm can consume it.
-pub(crate) fn narrow_dispatch_selection(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    dispatch: &TableMatchExpression,
-    selected: &mut ValueEnvironment,
-    selection: DispatchSelection,
-) {
-    match selection.condition {
-        DispatchCondition::Equality { subject, pattern } => {
-            let comparison = TableBinaryExpression {
-                left: subject,
-                operator: BinaryOperator::Equal,
-                right: pattern,
-            };
-            guard_narrowing::narrow_environment_by_comparison(
-                program,
-                machine,
-                state,
-                selected,
-                selection.expression,
-                &comparison,
-                selection.matched,
-            );
-        }
-        DispatchCondition::Predicate(condition) => {
-            guard_narrowing::narrow_environment_by_condition(
-                program,
-                machine,
-                state,
-                selected,
-                condition,
-                selection.matched,
-            );
-        }
-    }
-    // The captured value and its source agree until a write changes
-    // the source. Rebind the predicate's captured paths now; the caller's
-    // evaluated write frame then withdraws every unstable source consequence
-    // before an arm can consume it. Capture paths retain
-    // their own identity and never become global source aliases.
-    if dispatch.capture.is_valid()
-        && let Some(source) = super::place_path(program, dispatch.subject)
-    {
-        let anchor = expression_table(program)
-            .value_capture(dispatch.capture)
-            .value_anchor;
-        selected.copy_path_facts(&super::place_paths::capture_path(anchor), &source);
-    }
 }

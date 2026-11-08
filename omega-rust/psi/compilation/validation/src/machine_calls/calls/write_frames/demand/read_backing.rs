@@ -18,6 +18,35 @@ pub(crate) struct CapturedStorageReadBacking {
 }
 
 impl CallFrameResolver<'_> {
+    /// Authenticate the performed scalar event separately from any equation
+    /// about its current bytes. The ordered capture remains complete even when
+    /// several physical source cells contribute an unknown scalar value.
+    pub(crate) fn completed_scalar_read(
+        &self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> bool {
+        let result = (|| {
+            let (owner, completed) = self
+                .completed_read_value(machine, expression)
+                .ok_or("scalar read has no complete ordered value")?;
+            if owner != state.symbol {
+                return Err("scalar read capture belongs to another state");
+            }
+            completed.scalar_read_completed(self.program, state)
+        })();
+        if let Err(reason) = result {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT completed-scalar-read-refused expression={expression:?} reason={reason}"
+                );
+            }
+            return false;
+        }
+        true
+    }
+
     /// Contents are observed through this exact completed value's descriptor.
     /// Suppliers and selectors come from its performed evaluation; another
     /// pointer in the suffix uses the captured post-evaluation inventory.

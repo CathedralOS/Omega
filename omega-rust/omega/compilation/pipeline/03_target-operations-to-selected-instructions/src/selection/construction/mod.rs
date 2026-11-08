@@ -20,18 +20,30 @@ pub(super) fn build_plan(
     let catalog = environment.constraints();
     require_key_rows(&constraints.keys, catalog)?;
     let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(target);
+    let interrupt_helpers =
+        crate::installed_interrupts::PreparedHelperCohort::new(legalized.installed_interrupts());
     let mut functions = target
         .scalar_functions
         .iter()
         .enumerate()
         .map(|(index, source)| {
-            scalar_graph::build_with_environment(index, source, constraints, environment, &backings)
+            scalar_graph::build_with_environment(
+                index,
+                source,
+                constraints,
+                environment,
+                &backings,
+                legalized.installed_interrupts(),
+                legalized.installed_stack_requirements(),
+                &interrupt_helpers,
+                legalized.installed_entry_execution(),
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
     functions.sort_by_key(|function| function.machine);
     Ok(SelectedInstructionPlan {
         psi: target.psi,
-        fuel_schedule: target.fuel_schedule,
+        work_schedule: target.work_schedule,
         target: target.target,
         entry: target.entry,
         functions: functions.into(),

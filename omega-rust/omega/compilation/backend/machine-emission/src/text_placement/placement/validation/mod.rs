@@ -26,7 +26,7 @@ pub(super) fn check(
     if section.identity != section.recomputed_identity()
         || section.source_fragments != fragments.identity
         || section.psi != fragments.psi
-        || section.fuel_schedule != fragments.fuel_schedule
+        || section.work_schedule != fragments.work_schedule
         || section.selected != fragments.selected
         || section.target != fragments.target
         || section.semantic_entry != fragments.entry

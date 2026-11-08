@@ -17,7 +17,7 @@ target = { path = "../../compilation/backend/target" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
-terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
+psi-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 target-operations = { path = "../../compilation/representations/target-operations" }
 calling-conventions = { path = "../../compilation/backend/calling-conventions" }

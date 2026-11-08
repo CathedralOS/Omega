@@ -1,8 +1,21 @@
-//! Exchange the calling vocabulary with retained Terminal code.
-//!
-//! Descriptor labels decode compiler-owned vocabulary; they never select a
-//! callable or establish a nominal qualification. Entry selection and storage
-//! formation remain the interpreter's artifact-bound admission operations.
+/*
+Marshal calling-policy `BuildTimeValue` arguments and results across the
+Terminal interpreter boundary (`input_contents`, `result_value`).
+
+`input_contents` projects an encoded calling-policy signature (`BuildTimeValue`)
+into the formal parameter's `StructuralTypeId` namespace (`TerminalStructuralContents`),
+sorting paths canonically so the interpreter can verify field completeness,
+stored scalar widths, predicates, erased-field exclusions, and memory custody
+before materializing storage. When matching sum variants (`BuildTimeValue::Case`),
+we strip any leading `Type::` prefix from the compiler-owned descriptor label
+because the formal `StructuralTypeId` already owns the case namespace. When
+writing unsigned integer scalars (`<= 64` bits), we reinterpret the `i64`
+carrier bit-pattern as `u64` because `BuildTimeValue::Int` transports `u64` IDs
+and bitmasks in two's-complement form.
+
+`result_value` observes the completed structural return value from the
+`TerminalInstance` using only the instance's own canonical structural catalog.
+*/
 
 use build_time_evaluation::BuildTimeValue;
 use semantic_vocabulary::{
@@ -14,9 +27,6 @@ use terminal_interpreter::{
 };
 use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
 
-/// Project a plain vocabulary argument into the exact formal's declaration
-/// namespace. The SDK subsequently checks completeness, stored widths,
-/// predicates, erased obligations and custody before publishing any storage.
 pub(super) fn input_contents(
     program: &TerminalProgram<'_>,
     structural_type: StructuralTypeId,
@@ -66,9 +76,6 @@ fn write_structural(
             },
         ) => write_fields(program, fields, supplied, path, values),
         (StructuralTypeShape::Sum { cases }, BuildTimeValue::Case { variant, payload }) => {
-            // These are compiler-owned descriptor labels. The exact formal
-            // type already owns the case namespace; an enum prefix does not
-            // resolve or select another source declaration.
             let variant = variant.rsplit("::").next().unwrap_or(variant);
             let mut matching = cases
                 .iter()
@@ -170,8 +177,6 @@ fn write_scalar(
                 value: if integer.sign() == semantic_vocabulary::IntegerSign::Signed {
                     IntegerValue::Signed(i128::from(*value))
                 } else {
-                    // The existing calling vocabulary transports u64 bit
-                    // patterns through BuildTimeValue::Int, including IDs.
                     IntegerValue::Unsigned(u128::from(*value as u64))
                 },
             }
@@ -188,8 +193,6 @@ fn write_scalar(
     Ok(())
 }
 
-/// Decode the actual completed result. Paths and tags come from this
-/// invocation's canonical catalog; no template or checked tree is consulted.
 pub(super) fn result_value(
     instance: &TerminalInstance<'_, '_>,
     structural_type: StructuralTypeId,

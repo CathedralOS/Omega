@@ -174,10 +174,6 @@ impl TerminalEffectHandler for Host {
 }
 
 fn main() {
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return;
-    }
     for (project, region_control) in [
         (
             "samples/cli/facts/foreign_reference_result/local/main.omg",
@@ -230,7 +226,7 @@ fn main() {
             };
             for &mode in modes {
                 let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-                    fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                    work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
                     storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
                 };
                 let limits = BuildEvaluationSponsorLimits::new(
@@ -288,11 +284,8 @@ fn main() {
                     )
                     .unwrap();
                 let result = instance.invoke(
-                    &mut terminal_fuel::TerminalFuelMeter::with_invocation(
-                        account.clone(),
-                        Some(100_000),
-                    )
-                    .unwrap(),
+                    &mut psi_work::WorkMeter::with_invocation(account.clone(), Some(100_000))
+                        .unwrap(),
                 );
                 if mode == Mode::Good {
                     assert_eq!(
@@ -333,7 +326,7 @@ fn main() {
                     assert!(
                         instance
                             .invoke(
-                                &mut terminal_fuel::TerminalFuelMeter::with_invocation(
+                                &mut psi_work::WorkMeter::with_invocation(
                                     account.clone(),
                                     Some(100_000)
                                 )

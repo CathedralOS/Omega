@@ -1,3 +1,11 @@
+// Domain-tagged identity builders (`external_psi_decision_schema_identity`,
+// `psi_target_neutral_decision_target_identity`, `log_identity`) and shared
+// context/action encoders for external decision schema v2.
+//
+// `versioned_domain` embeds `codec::VERSION` directly into every schema,
+// context, point, and log domain string so bumping the wire version moves all
+// derived identities in lockstep.
+
 use crate::{
     OptimizationDecisionLogIdentity, OptimizationDecisionSchemaIdentity,
     OptimizationDecisionTargetIdentity,
@@ -6,8 +14,6 @@ use crate::{
 use super::codec::VERSION;
 use super::{ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionPoint};
 
-/// Bytes of one external-schema identity domain: the format name, the single
-/// wire-version source, and the family's terminator convention.
 pub(super) fn versioned_domain(prefix: &str, terminated: bool) -> Vec<u8> {
     let mut domain = format!("{prefix}.v{VERSION}").into_bytes();
     if terminated {
@@ -16,14 +22,6 @@ pub(super) fn versioned_domain(prefix: &str, terminated: bool) -> Vec<u8> {
     domain
 }
 
-/// Closed feature schema for target-neutral Psi policy decisions. Its domain
-/// carries [`VERSION`], so a wire-version bump moves the schema identity with
-/// the wire format.
-///
-/// Candidate rows contain only canonical identities, signed structural cost,
-/// the authoritative rule-analysis set, and authoritative typed fact
-/// references. Paths, pointers, authored names, arena order, and debug text
-/// remain unrepresentable.
 pub fn external_psi_decision_schema_identity() -> OptimizationDecisionSchemaIdentity {
     OptimizationDecisionSchemaIdentity::from_canonical_bytes(&versioned_domain(
         "omega.external-psi-decision-schema",
@@ -31,8 +29,6 @@ pub fn external_psi_decision_schema_identity() -> OptimizationDecisionSchemaIden
     ))
 }
 
-/// Psi rules run before target selection. That absence is an explicit context
-/// identity rather than an omitted or all-zero target field.
 pub fn psi_target_neutral_decision_target_identity() -> OptimizationDecisionTargetIdentity {
     OptimizationDecisionTargetIdentity::from_canonical_bytes(&versioned_domain(
         "omega.psi-target-neutral-decision-context",

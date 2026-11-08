@@ -1,3 +1,14 @@
+// Dangerous-authority audit classes, slack records, installation reach, crash
+// routes, and termination premises for reviewed packages.
+//
+// Core dangerous-authority classes require exact toolchain provenance, while
+// `ConsumerAudit` requires an executed root registration for the exact boundary
+// identity. Neither classifies exercised physical authority or grants
+// permission. `PackageReviewDangerousAuthoritySlack` records a dangerous
+// service present in a callable's published ceiling but absent from its checked
+// transitive body reach. Crash route guards (`Expression`) retain selected
+// nominal package identity for abstract public-operator crash ceilings.
+
 pub(crate) use super::authority_expressions::{
     PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,
     PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
@@ -8,11 +19,6 @@ pub(crate) use super::authority_expressions::{
 use super::{contracts::PackageReviewContractExpression, identity::PackageReviewNominalIdentity};
 use crate::record::accessors::field_projection_accessors;
 
-/// Core critical-service or consuming-root audit policy for a reviewed package.
-///
-/// Core classes require exact toolchain provenance; custom classification
-/// requires an executed root registration for the exact boundary identity.
-/// Neither classifies exercised physical authority or grants permission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewDangerousAuthorityClass {
     Filesystem,
@@ -25,19 +31,12 @@ pub enum PackageReviewDangerousAuthorityClass {
     ConsumerAudit,
 }
 
-/// One exact reached/invoked service requiring core or consuming-root audit.
-/// This is review evidence, not an authority grant.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewDangerousAuthority {
     pub(crate) class: PackageReviewDangerousAuthorityClass,
     pub(crate) service: PackageReviewNominalIdentity,
 }
 
-/// A dangerous service present in a checked callable's published ceiling but
-/// absent from that callable's checked transitive body reach.
-///
-/// This is review guidance, not a claim that the declaration is malicious or
-/// that bodyless supply failed to realize anything.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewDangerousAuthoritySlack {
     pub(crate) class: PackageReviewDangerousAuthorityClass,
@@ -94,9 +93,6 @@ pub(crate) struct PackageReviewCrashPredicate {
 pub(crate) enum PackageReviewCrashRouteGuard {
     Truth,
     Predicate(PackageReviewCrashPredicate),
-    /// Exact structural guard for an abstract public-operator crash ceiling.
-    /// Unlike runtime crash-predicate bytes, this retains selected nominal
-    /// package identity for calls, members, and declared overloads.
     Expression(PackageReviewContractExpression),
 }
 

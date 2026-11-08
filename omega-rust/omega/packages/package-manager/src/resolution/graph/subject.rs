@@ -1,11 +1,24 @@
-//! Canonical, recoverable subject of one complete resolved source closure.
-//!
-//! [`CanonicalSourceClosureSubject`] and the requests, selections, limits,
-//! fingerprint and error it is made of are defined here; `construction`
-//! builds one from an exact resolved closure, `encoding` writes and reads
-//! its canonical bytes, `validation` replays it against its limits,
-//! `request_view` and `text` present it, and `usage` accounts the budget a
-//! recovery spends.
+/*
+    We define `CanonicalSourceClosureSubject`, the canonical, recoverable,
+    non-admitting subject of one complete resolved source closure, together
+    with its requests, selections, resource limits, domain-separated
+    fingerprint, and recovery error.
+
+    The subject binds every package key and immutable resolution, the exact
+    root request, every requester-local dependency request occurrence, and
+    execution-only catalog provider graphs. Snapshot roots, cache paths,
+    transport execution observations, compiler evidence, certificates,
+    decisions, and artifacts are intentionally absent. Binary subject encoding
+    v9 tags catalog dependencies by purpose for demand-time `Product` queries,
+    while `Build`-only catalog subjects retain v8 and catalog-free subjects
+    retain v7 so existing identities and decisions do not change merely for a
+    new encoder.
+*/
+
+/*
+    Canonical source-closure subject representation belongs to the package
+    graph boundary (`resolution/graph/subject.rs`).
+*/
 
 mod catalog;
 mod construction;
@@ -31,21 +44,10 @@ use crate::resolution::source::PackageSourceNavigation;
 use encoding::encode_hex;
 
 pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
-/// Version of the binary subject encoding.
-///
-/// v9 tags catalog dependencies by purpose for demand-time Product queries.
-/// Build-only catalog subjects retain v8; catalog-free subjects retain v7.
-/// Existing identities and decisions do not change merely for a new encoder.
 pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 9;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
-/// Canonical, non-admitting subject for one exact resolved source closure.
-///
-/// The subject binds every package key and immutable resolution, the exact root
-/// request, and every requester-local dependency request occurrence. Snapshot
-/// roots, cache paths, transport execution observations, compiler evidence,
-/// certificates, decisions, and artifacts are intentionally absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CanonicalSourceClosureSubject {
     pub(super) target_profile: TargetProfile,
@@ -60,8 +62,6 @@ pub(crate) struct CanonicalSourceClosureSubject {
 }
 
 impl CanonicalSourceClosureSubject {
-    /// Compare every target-independent source field without allocation.
-    /// Target-scoped encoded bytes and fingerprints are deliberately excluded.
     pub(crate) fn same_source_graph(&self, other: &Self) -> bool {
         self.root == other.root
             && self.packages == other.packages
@@ -140,9 +140,6 @@ impl CanonicalSourceClosureSubject {
     }
 }
 
-/// Execution-only source custody used to observe a workspace declaration.
-/// The provider closure is closed independently and grants no Product import.
-/// Nested catalog dependencies are flattened into the enclosing subject.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CanonicalCatalogDependency {
     pub(crate) observer: ResolvedSourceIdentity,
@@ -153,7 +150,6 @@ pub(crate) struct CanonicalCatalogDependency {
     pub(crate) provider: CanonicalSourceClosureSubject,
 }
 
-/// Exact caller request for the root source, before normalized selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CanonicalRootSourceRequest {
     Git {
@@ -164,18 +160,14 @@ pub(crate) enum CanonicalRootSourceRequest {
     WorkspaceMember {
         workspace_root_source: SourceLineage,
         member_path: SourceRelativePath,
-        /// Exact platform-encoded caller spelling. This is not a cache path.
-        requested_workspace_root: Vec<u8>,
+        requested_workspace_root: Vec<u8>, // Exact platform-encoded caller spelling (not a cache path)
     },
     ExternalLocal {
-        /// Exact platform-encoded caller spelling. Canonical local lineage is
-        /// retained independently in the selected package key.
-        requested_root: Vec<u8>,
+        requested_root: Vec<u8>, // Exact platform-encoded caller spelling; canonical lineage lives in the selected key
         source_context: ExternalSourceContext,
     },
 }
 
-/// One exact root request joined directly to the immutable source it selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CanonicalRootSourceSelection {
     pub(super) request: CanonicalRootSourceRequest,
@@ -197,7 +189,6 @@ impl CanonicalRootSourceSelection {
     }
 }
 
-/// Exact authored source request for one dependency occurrence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CanonicalDependencySourceRequest {
     Path {
@@ -247,8 +238,6 @@ impl From<&DependencySourceRequest> for CanonicalDependencySourceRequest {
     }
 }
 
-/// One requester-owned dependency request joined to its graph edge and exact
-/// immutable selection. Distinct diamond occurrences remain distinct rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CanonicalDependencySourceSelection {
     pub(super) requester: PackageKey,
@@ -264,13 +253,10 @@ impl CanonicalDependencySourceSelection {
         &self.requester
     }
 
-    /// Which authorized context this edge belongs to.
     pub const fn purpose(&self) -> DependencyPurpose {
         self.purpose
     }
 
-    /// Zero-based position in the requester's authored rows for this edge's
-    /// purpose scope.
     pub const fn dependency_index(&self) -> usize {
         self.dependency_index
     }
@@ -288,7 +274,6 @@ impl CanonicalDependencySourceSelection {
     }
 }
 
-/// A closed error from projection or strict canonical recovery.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CanonicalSourceClosureSubjectError {
     message: &'static str,
@@ -308,10 +293,6 @@ impl fmt::Display for CanonicalSourceClosureSubjectError {
 
 impl std::error::Error for CanonicalSourceClosureSubjectError {}
 
-/// Domain-separated identity of one complete canonical source-closure question.
-///
-/// This identifies the question only. It is not source authenticity, package
-/// admission, a compiler result, or a package instance.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct CanonicalSourceClosureSubjectFingerprint(pub(super) [u8; 32]);
 
@@ -331,7 +312,6 @@ const ABSOLUTE_DEPENDENCY_REQUEST_LIMIT: usize = 256 * 1024;
 const ABSOLUTE_IDENTITY_BYTE_LIMIT: usize = 1024 * 1024;
 const ABSOLUTE_REQUEST_BYTE_LIMIT: usize = 1024 * 1024;
 
-/// Resource ceilings for one canonical resolved-source question.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CanonicalSourceClosureSubjectLimits {
     pub maximum_record_bytes: usize,
@@ -369,7 +349,6 @@ impl CanonicalSourceClosureSubjectLimits {
     }
 }
 
-/// Hex digit count for an object id under the repository's hash algorithm.
 fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
     match algorithm {
         package_source::GitObjectIdAlgorithm::Sha1 => 40,

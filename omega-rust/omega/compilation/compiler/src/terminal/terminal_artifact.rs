@@ -1,7 +1,20 @@
-//! Reuse the published Terminal program for every target application.
-//! Each target checks its own entry, permissions and native plan. Named
-//! inspection has a separate source-producing entrance because it may request
-//! different functions from the executable program.
+/*
+We batch and reuse the published `PortableTerminalProgram` across target
+applications that share a checked source and Psi optimization projection.
+
+`produce_retained_terminal_artifacts` partitions requests first by shared
+checked source (`shares_source`) so target provider publications cover the full
+set of requested realization scopes, and then by equal Psi production inputs
+(`shares_production`).
+*/
+
+/*
+For each production cohort, we obtain the shared `PortableTerminalProgram` once
+(`produce_shared_terminal`), attach each application's entry and callback roots
+(`attach_application`), enforce authored behavior exclusions (`policy.admit`),
+and publish the target's provider proposals before restoring the caller's
+request order.
+*/
 
 use super::behavior_exclusions::TerminalBehaviorExclusions;
 use super::product_code::ProductCodeSource;
@@ -21,9 +34,6 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "CanonicalTerminalArtifact",
 );
 
-/// Attach a target using saved entry and provider facts. Ordinary requests can
-/// access the publication and its identity, but cannot inspect source through
-/// this view.
 pub(crate) struct TerminalProductionView<'a> {
     source_identity: compilation_products::ProductSourceIdentity,
     publication: &'a compilation_products::ProductTerminalPublication,
@@ -127,8 +137,6 @@ impl PartialEq for TerminalProductUse<'_> {
 impl Eq for TerminalProductUse<'_> {}
 
 impl<'a> TerminalProductRequest<'a> {
-    /// Named inspection may choose different roots. Keep its source-producing
-    /// entrance explicit; ordinary target requests can only read published code.
     pub(crate) fn inspection(
         selection: &'a mut SelectedProviderCustody,
         name: &'a str,
@@ -220,9 +228,6 @@ impl ProducedTerminalProduct {
     }
 }
 
-/// Admission retains the request's entry and composition policy together.
-/// The position is only for restoring caller order after source-cohort work;
-/// it never indexes another table to recover semantic identity.
 struct PreparedTerminalProduct<'a> {
     position: usize,
     request: TerminalProductRequest<'a>,
@@ -259,8 +264,6 @@ impl<'a> PreparedTerminalProduct<'a> {
             view.native_sources,
             entry.source_signature().target_slot().owner,
         );
-        // Firmware starts in the selected adapter, not the semantic continuation.
-        // Admit its behavior and callbacks while retaining the semantic receipt.
         let physical_adapter = entry.physical_adapter();
         let provider_publication =
             prepare_target_provider_publication(view, request.use_kind, requested_scopes);
@@ -275,9 +278,6 @@ impl<'a> PreparedTerminalProduct<'a> {
     }
 
     fn shares_production(&self, other: &Self) -> bool {
-        // The publication slot is per-target custody, not product identity:
-        // equal fixed Psi projections let the cohort produce through the first
-        // member's slot while each report keeps its own admissions.
         self.request.use_kind == other.request.use_kind
             && self.request.view.publication.optimizations().project_psi()
                 == other.request.view.publication.optimizations().project_psi()
@@ -320,16 +320,10 @@ impl<'a> PreparedTerminalProduct<'a> {
     }
 }
 
-/// Invocation-local sharing, not a cache: source custody and checked arenas
-/// must identify the same checked owner and exact consumed source. Preparation
-/// keeps each request with its policy; cohorts own applications, not indices.
 pub(crate) fn produce_retained_terminal_artifacts(
     requests: Vec<TerminalProductRequest<'_>>,
 ) -> Vec<Result<ProducedTerminalProduct, Vec<Diagnostic>>> {
     let mut outcomes = Vec::with_capacity(requests.len());
-    // Realization belongs to the checked Source request domain, not to one
-    // optimization/use-specific artifact cohort. Keep requests with their
-    // author-order position; no declaration association is inferred by index.
     let mut source_cohorts: Vec<Vec<(usize, TerminalProductRequest<'_>)>> = Vec::new();
     for (position, request) in requests.into_iter().enumerate() {
         match source_cohorts
@@ -376,9 +370,6 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     .target_name()
                     .to_owned(),
             );
-            // Preparation retains every requested sibling proposal. Only
-            // successfully prepared requests expand actual scalar demand;
-            // another target's preparation failure remains its own outcome.
             match cohorts
                 .iter_mut()
                 .find(|cohort| cohort[0].shares_production(&application))
@@ -403,17 +394,12 @@ pub(crate) fn produce_retained_terminal_artifacts(
             timings.add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
             *cohort[0].request.view.timings = timings;
             for application in &mut cohort[1..] {
-                // Each report shows the shared cost; stage rows remain on the
-                // producing request, not fabricated per-target executions.
                 application
                     .request
                     .view
                     .timings
                     .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
             }
-            // Descriptive consumers borrow one portable owner. Inspection also
-            // consumes its exact source-issued Build companions; checking borrows
-            // only the artifact. Neither creates an application receipt.
             if cohort[0].request.use_kind != TerminalProductUse::Application {
                 match produced {
                     Err(diagnostics) => {
@@ -450,44 +436,43 @@ pub(crate) fn produce_retained_terminal_artifacts(
                             .attach_application(&custody, &mut PsiStageTimings::new(&mut timings));
                         *application.request.view.timings = timings;
                         let outcome = produced.and_then(|produced| {
-                                if let Some(policy) = &application.policy {
-                                    policy.admit(program.artifact().semantic_module(), &mut produced.roots.into_iter())?;
-                                }
-                                let receipt = produced.receipt?.ok_or_else(|| {
-                                    vec![Diagnostic::error(
-                                        "terminal-artifact production retained no checked ProgramEntry receipt",
-                                    )]
-                                })?;
-                                Ok(ProducedTerminalProduct::Application(TerminalApplication {
-                                    physical_entry_adapter: application
-                                        .request
-                                        .view
-                                        .entry
-                                        .and_then(|entry| entry.physical_adapter())
-                                        .is_some(),
-                                    provider_proposals: application.provider_publication.publish(
-                                        program.artifact().view(),
-                                        application.request.selections.identity(),
-                                        &realization_scopes,
-                                    ),
-                                    artifact: Arc::clone(program.artifact()),
-                                    receipt,
-                                }))
-                            });
+                            if let Some(policy) = &application.policy {
+                                policy.admit(
+                                    program.artifact().semantic_module(),
+                                    &mut produced.roots.into_iter(),
+                                )?;
+                            }
+                            let receipt = produced.receipt?.ok_or_else(|| {
+                                vec![Diagnostic::error(
+                                    "terminal-artifact production retained no checked ProgramEntry receipt",
+                                )]
+                            })?;
+                            Ok(ProducedTerminalProduct::Application(TerminalApplication {
+                                physical_entry_adapter: application
+                                    .request
+                                    .view
+                                    .entry
+                                    .and_then(|entry| entry.physical_adapter())
+                                    .is_some(),
+                                provider_proposals: application.provider_publication.publish(
+                                    program.artifact().view(),
+                                    application.request.selections.identity(),
+                                    &realization_scopes,
+                                ),
+                                artifact: Arc::clone(program.artifact()),
+                                receipt,
+                            }))
+                        });
                         outcomes.push((application.position, outcome));
                     }
                 }
             }
         }
     }
-    // Cohorts can interleave in the input. Restore only the externally promised
-    // request order; all semantic associations traveled with the application.
     outcomes.sort_unstable_by_key(|(position, _)| *position);
     outcomes.into_iter().map(|(_, outcome)| outcome).collect()
 }
 
-/// Reuse the shared publication for ordinary requests. Named inspection alone
-/// may produce a different program from its explicitly supplied source.
 fn produce_shared_terminal(
     cohort: &[PreparedTerminalProduct<'_>],
     timings: &mut CompileTimings,
@@ -508,10 +493,6 @@ fn produce_shared_terminal(
     view.publication.require_published(first.request.selections)
 }
 
-/// Bare Terminal publication still has no component process carrier. A native
-/// request may produce its portable input only when the exact independently
-/// verified products are retained; actual native/ABI/resource/loader admission
-/// follows source-free. Catalog code retention grants no local provider supply.
 fn admit_terminal_production<'a>(
     selected_program_entry: Option<
         &'a provider_planning::program_entry::SelectedCompilerProgramEntry,
@@ -528,8 +509,6 @@ fn admit_terminal_production<'a>(
     } else {
         provider_planning::verify_selected_compositions_are_realized(provenance)?;
     }
-    // Preserve the build operand's lexical package choice, including when
-    // another package contains a machine with the same display name.
     selected_program_entry.ok_or_else(|| {
         vec![Diagnostic::error(
             "terminal-artifact production requires one exact selected program entry",
@@ -537,9 +516,6 @@ fn admit_terminal_production<'a>(
     })
 }
 
-/// Join Source-produced choices with this use's actual receipt and request
-/// roster. Inspection selects against its own artifact instead of reusing the
-/// Product receipt. No declaration lookup or candidate derivation remains here.
 fn prepare_target_provider_publication(
     source: &TerminalProductionView<'_>,
     use_kind: TerminalProductUse<'_>,
@@ -557,8 +533,6 @@ fn prepare_target_provider_publication(
     )
 }
 
-/// Check declarations through the ordinary Terminal producer without inventing
-/// an executable product entry. Only the retained conditions demand evaluation.
 pub(crate) fn check_terminal_conditions(
     selection: &mut SelectedProviderCustody,
 ) -> Result<Option<ProducedTerminalProduct>, Vec<Diagnostic>> {

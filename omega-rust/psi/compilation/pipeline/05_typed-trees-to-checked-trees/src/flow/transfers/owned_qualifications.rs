@@ -4,12 +4,14 @@
 //! until the call/custody checker validates their exact producing invocation.
 
 use arena::HandleSpan;
+use checked_trees::FlowSemanticContextRef;
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceHandle, ProgramPoint};
 
 pub(in crate::flow) fn append_owned_qualification_transfer(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
-    active: &[facts::FactContextHandle],
+    contexts: &crate::flow::FlowBuildContext,
+    active: HandleSpan<FlowSemanticContextRef>,
     source_expression: typed_trees::expression::ExpressionHandle,
     source: PlaceHandle,
     destination: PlaceHandle,
@@ -20,7 +22,7 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
     let ProgramPoint::Statement {
         machine_symbol,
         state_symbol,
-        statement_index,
+        ..
     } = point
     else {
         return;
@@ -30,18 +32,10 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
     else {
         return;
     };
-    let source = *semantic.places.get(source);
-    // A completed expression's own facts name that exact result, independent
-    // of whether it came from a call or a constructor. Reusing storage facts
-    // still requires the canonical builtin coordinate owner; a selected call
-    // cannot borrow its arguments' or a same-spelled place's memberships.
-    let exact_result = source.root == facts::PlaceRoot::Expression(source_expression)
-        && source.segments.is_empty();
-    if !exact_result
-        && !validation::value_has_builtin_coordinates(program, machine, state, source_expression)
-    {
+    if !validation::value_has_builtin_coordinates(program, machine, state, source_expression) {
         return;
     }
+    let source = *semantic.places.get(source);
     let destination = *semantic.places.get(destination);
     let source_segments = semantic
         .place_segments
@@ -51,37 +45,26 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
         .place_segments
         .span_or_empty(destination.segments)
         .to_vec();
-    if !crate::flow::place_cases_are_selected(
+    if !crate::flow::source_transfer_cases_selected(
         program,
         semantic,
+        contexts,
         active,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        &validation::CanonicalPlace {
-            root: source.root,
-            segments: source_segments.clone(),
-        },
+        point,
+        source.root,
+        source_segments.clone(),
     ) {
         return;
     }
-    let candidates = active
-        .iter()
-        .flat_map(|context| {
-            semantic
-                .context_view(semantic.contexts.get(*context))
-                .facts()
-        })
-        .filter(|fact| {
+    let candidates =
+        crate::flow::context::active_context_facts_matching(contexts, semantic, active, |fact| {
             (fact.payload.domain_membership().is_some()
                 || matches!(fact.payload, FactPayload::FloatPredicate { .. }))
                 && fact
                     .place
                     .as_place()
                     .is_some_and(|place| semantic.places.get(place).root == source.root)
-        })
-        .copied()
-        .collect::<Vec<_>>();
+        });
     for fact in candidates {
         // A cast's target describes the whole value, so it erases only the
         // source's own membership; a field keeps its declared domains.

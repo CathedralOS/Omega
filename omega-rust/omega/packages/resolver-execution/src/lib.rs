@@ -1,12 +1,20 @@
-//! Process custody for compiler-owned package-source resolution.
-//!
-//! Start at `resolver_execution.rs` for executable selection and phase preparation.
-//!
-//! A backend freezes one absolute executable path outside package-controlled
-//! roots. Prepared commands retain structured arguments, environment changes,
-//! working directory, standard-stream custody, resource limits, and
-//! shared platform-owned process-container cleanup. Nothing in this crate is
-//! canonical package evidence.
+/*
+Process custody for compiler-owned package-source resolution.
+
+We freeze one absolute, lexically canonical resolver executable path outside
+all package-controlled roots before any package input can influence command
+construction, then prepare per-phase `BoundedProcessPrepared` invocations bound
+to one validated working directory.
+
+Why delegate child lifecycle and resource ceilings to `bounded-process`?
+Resolver execution needs the exact same process-group / Windows Job Object
+containment, descriptor hygiene, and CPU/memory/file ceilings as other bounded
+helper processes, while keeping executable custody and working-root separation
+specific to source-resolution phases (`TransportDiscovery`,
+`RepositoryInitialization`, `Fetch`, `RepositoryInspection`). Nothing in this
+crate produces canonical package evidence; git command policy belongs to
+`source-acquisition`.
+*/
 
 #![deny(unsafe_op_in_unsafe_fn)]
 

@@ -19,13 +19,10 @@ pub type CheckedScalarComputationHandle = Handle<CheckedScalarComputation>;
 pub enum CheckedDispatchSubject {
     Scalar(CheckedScalarComputationHandle),
     Structural {
-        /// Exact subject occurrence whose ordered place selectors completed.
-        expression: ExpressionHandle,
         value: crate::CheckedStructuralValueHandle,
         place: crate::CheckedUnitStructuralArgumentPlan,
-        /// Completed-home name for lexical SavedSubject reads or, for a
-        /// tag-only place observation, its exact private subject occurrence.
-        /// A produced value needs no alias when no payload binding reads it.
+        /// A completed-home alias for lexical SavedSubject reads. Zero for
+        /// dispatches that introduce no payload bindings.
         alias: ExpressionHandle,
     },
 }

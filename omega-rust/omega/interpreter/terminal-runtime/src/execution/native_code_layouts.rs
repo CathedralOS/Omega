@@ -1,7 +1,7 @@
-//! A reference execution may inspect its explicitly retained completed image.
-//! The native owner checks final instruction attribution and relocations. This
-//! adapter preserves that image's identity and linked coordinate space without
-//! guessing a process load slide or requesting another compilation.
+// Inspect an explicitly retained completed `NativeArtifact` to construct the
+// interpreter's `TerminalNativeCodeLayoutEnvironment`. Private object machine
+// numbers are local to their own semantic artifacts, so we filter to layouts
+// matching this root's `TerminalPsiIdentity` without private function indirection.
 
 use super::{TerminalRuntimeError, TerminalRuntimeRequest};
 use terminal_interpreter::{
@@ -35,9 +35,6 @@ pub(super) fn inspect(
     let descriptions = image.inspect_native_code_layouts().map_err(|diagnostic| {
         TerminalRuntimeError::missing("native-code-layout", diagnostic.message)
     })?;
-    // Private object machine numbers are local to their own semantic artifacts.
-    // They can supply a component only when that component has its own exact
-    // completed-image input; they are never aliases of this root's rows.
     let layouts = descriptions
         .into_iter()
         .filter(|layout| layout.private_function.is_none() && layout.terminal_psi == semantic)

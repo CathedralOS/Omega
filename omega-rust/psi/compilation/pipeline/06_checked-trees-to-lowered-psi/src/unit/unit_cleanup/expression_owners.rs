@@ -39,9 +39,8 @@ pub(crate) fn expression_cleanup_regions<'action>(
             .id)
         },
         |identities, source, path| {
-            let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                expression, ..
-            } = source
+            let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
+                source
             else {
                 return unsupported("value completion lost its expression owner");
             };

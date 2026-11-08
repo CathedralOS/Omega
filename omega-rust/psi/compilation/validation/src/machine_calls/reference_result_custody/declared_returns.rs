@@ -16,6 +16,22 @@ use semantic_vocabulary::ReferenceOriginExtent;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
 
+/// A recognized context operation supplies a descriptor from its invocation,
+/// not an address inside the acknowledgement. The separate lifetime relation
+/// still keeps the acknowledgement borrowed until the view's last use.
+/// This record does not discharge the installed-root association.
+pub fn installed_context_sources(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> Result<Option<Vec<CheckedReturnedReferencePlan>>, &'static str> {
+    if crate::compiler_operations::static_interrupt_context(program, target)?.is_none() {
+        return Ok(None);
+    }
+    let result = crate::call_target_return_type(program, target)
+        .ok_or("installed context has no retained return type")?;
+    invocation_returned_sources(program, result).map(Some)
+}
+
 pub fn returned_sources(
     program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
@@ -62,30 +78,7 @@ pub fn returned_sources(
         }
         ViewReturnSource::NotApplicable if result_leaves.is_empty() => return Ok(Vec::new()),
         ViewReturnSource::NotApplicable => {
-            return result_leaves
-                .into_iter()
-                .map(|leaf| {
-                    Ok(CheckedReturnedReferencePlan {
-                        path: leaf.path.clone(),
-                        source: CheckedReferenceOriginSourcePlan {
-                            root: checked_trees::CheckedReferenceOriginRoot::Invocation {
-                                carrier_type: program.normalized_type_identity(return_type),
-                            },
-                            entry_reference_hops: 0,
-                            path: leaf
-                                .source
-                                .path
-                                .iter()
-                                .cloned()
-                                .map(CheckedReferenceOriginProjection::Exact)
-                                .collect(),
-                            extent: ReferenceOriginExtent::Projected,
-                            type_identity: leaf.source.type_identity,
-                            access: leaf.source.access,
-                        },
-                    })
-                })
-                .collect();
+            return invocation_sources(program, return_type, result_leaves);
         }
         ViewReturnSource::Ambiguous(_) => {
             return Err("public reference result lifetime relation is ambiguous");
@@ -179,4 +172,50 @@ pub fn returned_sources(
         .all(|leaf| output.iter().any(|origin| origin.path == leaf.path))
         .then_some(output)
         .ok_or("public lifetime relation omits a returned reference leaf")
+}
+
+/// The invocation supplies its descriptor independently of formal-input pointer
+/// geometry. The caller still retains any separate declared lifetime debts.
+pub(super) fn invocation_returned_sources(
+    program: &dyn crate::CheckingInput,
+    return_type: TypeReferenceHandle,
+) -> Result<Vec<CheckedReturnedReferencePlan>, &'static str> {
+    let leaves = record_carrier_sources(
+        program,
+        return_type,
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 },
+    )
+    .ok_or("invocation result has no complete reference carrier roster")?;
+    invocation_sources(program, return_type, leaves)
+}
+
+fn invocation_sources(
+    program: &dyn crate::CheckingInput,
+    return_type: TypeReferenceHandle,
+    result_leaves: Vec<checked_trees::CheckedReferenceResultSourcePlan>,
+) -> Result<Vec<CheckedReturnedReferencePlan>, &'static str> {
+    result_leaves
+        .into_iter()
+        .map(|leaf| {
+            Ok(CheckedReturnedReferencePlan {
+                path: leaf.path.clone(),
+                source: CheckedReferenceOriginSourcePlan {
+                    root: checked_trees::CheckedReferenceOriginRoot::Invocation {
+                        carrier_type: program.normalized_type_identity(return_type),
+                    },
+                    entry_reference_hops: 0,
+                    path: leaf
+                        .source
+                        .path
+                        .iter()
+                        .cloned()
+                        .map(CheckedReferenceOriginProjection::Exact)
+                        .collect(),
+                    extent: ReferenceOriginExtent::Projected,
+                    type_identity: leaf.source.type_identity,
+                    access: leaf.source.access,
+                },
+            })
+        })
+        .collect()
 }

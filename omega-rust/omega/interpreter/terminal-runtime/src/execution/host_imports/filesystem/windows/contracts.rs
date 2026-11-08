@@ -1,5 +1,6 @@
-//! Exact Windows OS entry contracts. Complete semantic records and selected
-//! calling/storage recipes qualify each overload before any native effect.
+// We define exact Windows OS entry contracts (kernel32.dll and ntdll.dll),
+// qualifying each overload's complete semantic record and calling/storage
+// recipes before any native effect.
 
 use super::super::super::native_provider::IntegerRecordField;
 use super::super::super::{admit_exact_foreign_call, matches_platform_c_symbol};
@@ -24,7 +25,7 @@ pub(super) fn select(
     layouts: &[NativeBorrowedStorageLayout],
 ) -> Result<Option<Contract>, TerminalRuntimeError> {
     use Formal::{ByteView, IntegerRecord, IntegerReference, Signed, Unsigned, UnsignedArray};
-    use IntegerRecordField::{Array, Scalar};
+    use IntegerRecordField::{Array, ReferenceArray, ReferenceRecord, Scalar};
     use IntegerSign::{Signed as I, Unsigned as U};
     use StructuralAccess::{MutableBorrow, SharedBorrow};
     let path = UnsignedArray(4096, 16, SharedBorrow);
@@ -323,13 +324,128 @@ pub(super) fn select(
             Signed(32),
             Effect::Path { count: 2 },
         ),
+        (
+            b"ntdll.dll",
+            b"NtQueryDirectoryFile",
+            &[
+                Signed(64),
+                Unsigned(64),
+                Unsigned(64),
+                Unsigned(64),
+                IntegerRecord {
+                    fields: &[Scalar(I, 64), Scalar(U, 64)],
+                    access: MutableBorrow,
+                },
+                IntegerRecord {
+                    fields: &[Scalar(U, 64), Scalar(U, 32), Array(U, 16, 4096)],
+                    access: MutableBorrow,
+                },
+                Unsigned(32),
+                Unsigned(32),
+                Unsigned(8),
+                Unsigned(64),
+                Unsigned(8),
+            ],
+            Signed(32),
+            Effect::Directory {
+                class: 12,
+                bytes: 8208,
+            },
+        ),
+        (
+            b"ntdll.dll",
+            b"NtQueryDirectoryFile",
+            &[
+                Signed(64),
+                Unsigned(64),
+                Unsigned(64),
+                Unsigned(64),
+                IntegerRecord {
+                    fields: &[Scalar(I, 64), Scalar(U, 64)],
+                    access: MutableBorrow,
+                },
+                IntegerRecord {
+                    fields: &[
+                        Scalar(U, 64),
+                        Scalar(U, 64),
+                        Scalar(U, 64),
+                        Scalar(U, 64),
+                        Scalar(U, 64),
+                        Scalar(I, 64),
+                        Scalar(I, 64),
+                        Scalar(U, 32),
+                        Scalar(U, 32),
+                        Array(U, 16, 4096),
+                    ],
+                    access: MutableBorrow,
+                },
+                Unsigned(32),
+                Unsigned(32),
+                Unsigned(8),
+                Unsigned(64),
+                Unsigned(8),
+            ],
+            Signed(32),
+            Effect::Directory {
+                class: 1,
+                bytes: 8256,
+            },
+        ),
+        (
+            b"ntdll.dll",
+            b"NtOpenFile",
+            &[
+                IntegerReference(I, 64, MutableBorrow),
+                Unsigned(32),
+                IntegerRecord {
+                    fields: &[
+                        Scalar(U, 32),
+                        Scalar(U, 32),
+                        Scalar(I, 64),
+                        ReferenceRecord(
+                            &[
+                                Scalar(U, 16),
+                                Scalar(U, 16),
+                                Scalar(U, 32),
+                                ReferenceArray(U, 16, 4096, SharedBorrow),
+                            ],
+                            SharedBorrow,
+                        ),
+                        Scalar(U, 32),
+                        Scalar(U, 32),
+                        Scalar(U, 64),
+                        Scalar(U, 64),
+                    ],
+                    access: SharedBorrow,
+                },
+                IntegerRecord {
+                    fields: &[Scalar(I, 64), Scalar(U, 64)],
+                    access: MutableBorrow,
+                },
+                Unsigned(32),
+                Unsigned(32),
+            ],
+            Signed(32),
+            Effect::OpenRelative,
+        ),
+        (
+            b"kernel32.dll",
+            b"SetFileInformationByHandle",
+            &[
+                Signed(64),
+                Unsigned(32),
+                IntegerRecord {
+                    fields: &[Scalar(U, 8)],
+                    access: SharedBorrow,
+                },
+                Unsigned(32),
+            ],
+            Signed(32),
+            Effect::Disposition,
+        ),
     ];
     let mut candidates = Vec::new();
-    for &(library, symbol, parameters, result, effect) in rows
-        .iter()
-        .chain(super::directory::ROWS.iter())
-        .chain(super::removal::ROWS.iter())
-    {
+    for &(library, symbol, parameters, result, effect) in rows {
         if !matches_platform_c_symbol(binding, symbol, &[], Some(library))? {
             continue;
         }
@@ -374,9 +490,6 @@ fn validate_entry(
         parameters: parameters.iter().copied().map(shape).collect(),
         result: Some(shape(result)),
     };
-    // One semantic view carries two complete words. The real C API consumes
-    // the low DWORD of the count register; its source requirement proves that
-    // the full live length fits. Other C operands retain their ordinary slots.
     let mut expected = if matches!(symbol, b"ReadFile" | b"WriteFile") {
         let physical = CallSignature {
             parameters: vec![ValueShape::integer(8, 8); 5],
@@ -408,8 +521,6 @@ fn validate_entry(
             format!("Windows entry geometry: {error}"),
         )
     })?;
-    // The source's final OVERLAPPED word is eight bytes; the count-output
-    // pointer occupies the fourth register after the expanded view.
     if matches!(symbol, b"ReadFile" | b"WriteFile") {
         expected.parameters[2].shape = ValueShape::integer(8, 8);
     }

@@ -1,17 +1,25 @@
-//! Installation composes a canonical boundary call with its selected candidate.
-//!
-//! Psi owns operand types, availability, paths, access and source custody.
-//! Installation joins the exact retained call to its selected conformance and
-//! substitutes candidate completion/content claims across machine namespaces.
-//! Requiring the caller's consumed value to be an unchanged entry parameter
-//! would repeat a narrower ownership judgment and reject ordinary locals or
-//! relocated values. Historical content provenance remains a separate demand;
-//! this join neither creates a claim nor supplies a missing content contract.
+// Installed provider call replay and required claim-content projection joining.
+//
+// Psi owns operand types, availability, paths, access, and source custody.
+// Installation joins the exact retained call to its selected conformance and
+// substitutes candidate completion and content claims across machine
+// namespaces. Requiring the caller's consumed value to be an unchanged entry
+// parameter would repeat a narrower ownership judgment and reject ordinary
+// locals or relocated values.
+//
+// For content claims, the canonical operation and completion receipt
+// authenticate current custody. Claim identity survives moves and admitted
+// qualification introduction, so a later home may carry additional independent
+// content projections; `claim_content_projections` selects projections on the
+// required formal at the argument-relative path without establish-time history
+// scanning.
 
-use super::AdmittedInstalledProviderCall;
-use super::error::ProviderInstallationError;
+use super::{AdmittedInstalledProviderCall, ProviderInstallationError};
 use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractOperationPlan};
-use terminal_psi::ProviderCandidateConformance;
+use terminal_psi::{
+    ClaimContentProjection, ProviderCandidateConformance, StructuralParameterDeclaration,
+    StructuralPathQualification, StructuralPathSegment, TerminalModule,
+};
 
 pub(super) fn replay_installed_provider_calls(
     plan: &AbstractOperationPlan,
@@ -205,9 +213,6 @@ pub(super) fn replay_installed_provider_calls(
             {
                 return Err(malformed());
             }
-            // Caller and provider claims live in different namespaces. Reuse
-            // ordinary return-path correspondence instead of requiring a
-            // claim-free result or manufacturing issuance from its type.
             if let terminal_psi::OperationResult::Structural(result) = &terminal_operation.result
                 && !terminal_semantics::result_claim_paths_match_returns(
                     &result
@@ -233,8 +238,6 @@ pub(super) fn replay_installed_provider_calls(
                 arguments: terminal_arguments,
                 structural_arguments: terminal_structural_arguments,
                 completion_receipts: terminal_completion_receipts,
-                // Discharged by Psi checking against the declaration;
-                // the provider refinement check covers the candidate's own rows.
                 requirement_obligations: _,
             } = &terminal_operation.kind
             else {
@@ -261,10 +264,6 @@ pub(super) fn replay_installed_provider_calls(
                 return Err(malformed());
             }
             for receipt in completion_receipts {
-                // Claim IDs belong to different machine namespaces and their
-                // numeric order is not correspondence. The checked current
-                // argument-relative region joins the caller's receipt to the
-                // candidate's formal, including projected owned children.
                 let mut matches = expected_claims.iter().filter(|(position, path, _)| {
                     *position == receipt.argument_index && *path == receipt.path.as_slice()
                 });
@@ -275,12 +274,6 @@ pub(super) fn replay_installed_provider_calls(
                 let source = completion_claim_sources
                     .iter()
                     .find(|source| source.claim == receipt.claim);
-                // The exact canonical call already supplies its owned operand
-                // and caller-local completion claim. Entry metadata describes
-                // historical ingress, not current custody: a local producer
-                // or a relocated value need not still occupy an entry home.
-                // Installation joins that receipt to the candidate's formal;
-                // it does not reconstruct the caller's ownership judgment.
                 let content_mismatch =
                     |reason| ProviderInstallationError::InstalledContentClaimMismatch {
                         caller: caller.machine,
@@ -294,7 +287,7 @@ pub(super) fn replay_installed_provider_calls(
                     .get(receipt.argument_index as usize)
                     .ok_or_else(malformed)?;
                 let required_projections =
-                    super::claim_content::projections(module, required_parameter, &receipt.path)
+                    claim_content_projections(module, required_parameter, &receipt.path)
                         .map_err(content_mismatch)?;
                 if let Some(candidate_content) = terminal_candidate
                     .content_entry_claims
@@ -352,8 +345,33 @@ pub(super) fn replay_installed_provider_calls(
     Ok(calls)
 }
 
-/// Candidate and caller result places are scoped to different machines. Join
-/// their signatures without substituting either place for the other.
+fn claim_content_projections(
+    module: &TerminalModule,
+    parameter: &StructuralParameterDeclaration,
+    path: &[StructuralPathSegment],
+) -> Result<Vec<ClaimContentProjection>, &'static str> {
+    let (selected, _) = StructuralPathQualification::select(
+        &parameter.qualifications,
+        &parameter.projected_qualifications,
+        path,
+    );
+    let mut projections = Vec::new();
+    for domain in selected {
+        let declaration = module
+            .structural_domain(domain)
+            .ok_or("required content qualification is absent from the module")?;
+        if let Some(projection) = &declaration.content_projection {
+            projections.push(ClaimContentProjection {
+                projection: projection.identity,
+                algebra: projection.algebra.clone(),
+            });
+        }
+    }
+    projections.sort();
+    projections.dedup();
+    Ok(projections)
+}
+
 fn replays_result(
     occurrence: &terminal_psi::OperationResult,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
@@ -384,9 +402,6 @@ fn replays_result(
             AbstractFunctionResult::Unit,
             terminal_psi::TerminalMachineResult::Unit,
         ) => true,
-        // A scalar provider returns exactly the boundary's primitive; the
-        // call occurrence binds that primitive, and the candidate's abstract
-        // and Terminal results agree on it.
         (
             terminal_psi::OperationResult::Scalar(occurrence),
             terminal_psi::BoundaryMachineResult::Scalar(boundary),
@@ -407,20 +422,14 @@ fn replays_result(
             candidate == terminal_candidate
                 && occurrence.structural_type == boundary.structural_type
                 && candidate.structural_type == boundary.structural_type
-                // The body carries actual return claims in its own namespace.
-                // Installation joins their typed paths, never numeric IDs.
                 && occurrence.multiplicity == boundary.multiplicity
                 && candidate.multiplicity == boundary.multiplicity
-                // Route-authorized ensures mint caller-side result
-                // qualifications at the call occurrence; the mint must equal
-                // the boundary's declared result qualifications exactly. The
-                // provider covers them by conformance — a conformer's own
-                // ensures mint at its return, not on the signature's static
-                // result qualifications — joined above by the
-                // abstract/terminal equality.
                 && occurrence.qualifications == boundary.qualifications
                 && occurrence.projected_qualifications == boundary.projected_qualifications
-                && boundary.projected_qualifications.iter().all(|row| candidate.projected_qualifications.contains(row))
+                && boundary
+                    .projected_qualifications
+                    .iter()
+                    .all(|row| candidate.projected_qualifications.contains(row))
         }
         _ => false,
     }

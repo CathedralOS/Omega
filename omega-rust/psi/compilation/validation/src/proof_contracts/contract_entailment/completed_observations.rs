@@ -257,6 +257,10 @@ pub(super) struct CompletedObservation<FoldState, Fold, Succeeds> {
     complete: bool,
     observed: bool,
     halted: bool,
+    /// A member of a shared walk observes with its own fresh query state, so
+    /// it never reads resolutions, prepared premises or traces that another
+    /// member of the same walk wrote.
+    isolated: bool,
 }
 
 impl<FoldState, Fold, Succeeds> CompletedObservation<FoldState, Fold, Succeeds>
@@ -295,7 +299,16 @@ where
             complete: true,
             observed: false,
             halted: false,
+            isolated: false,
         }
+    }
+
+    /// This fold as one member of a shared walk: each observation it receives
+    /// gets `StructuralJudge::with_fresh_query_state`, exactly the query state
+    /// its solo walk would start from, never one another member has filled.
+    pub(super) fn isolated(mut self) -> Self {
+        self.isolated = true;
+        self
     }
 
     /// The fold's result when a shared walk that `recognized` the prefix gave
@@ -338,6 +351,11 @@ where
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (_, machine, state, judge, environment) = observation;
+        let judge = if self.isolated {
+            judge.with_fresh_query_state()
+        } else {
+            judge
+        };
         let Some(outcomes) = judge.completed_statement_paths(
             self.site.statement_index,
             self.expression,

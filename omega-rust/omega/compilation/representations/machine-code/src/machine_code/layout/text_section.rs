@@ -16,7 +16,7 @@ use optimization_core::{
 use selected_instructions::{
     MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
@@ -54,7 +54,7 @@ pub struct RelocationFreeTextSectionPlacement {
     pub identity: TerminalRelocationFreeTextSectionIdentity,
     pub source_fragments: FunctionFragmentEmissionIdentity,
     pub psi: TerminalPsiIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub target: NativeTarget,
     pub semantic_entry: MachineId,

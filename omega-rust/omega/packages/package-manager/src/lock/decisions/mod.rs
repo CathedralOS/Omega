@@ -1,4 +1,15 @@
-//! Source-scoped historical decisions and their bounded text representation.
+/*
+Source-scoped historical policy decisions and their bounded text representation.
+
+`HistoricalPackagePolicyDecisions` records inert policy history for one exact
+source subject, including its target. Recovery trusts the project's authors to
+record decisions and validates structure and source association rather than
+whether an audit occurred. Complete-policy subjects (`RootRole`,
+`SourceReplacement`, and `Row`) do not index the candidate graph so removed
+packages and replaced roots need no invented owner. There is deliberately no
+conversion to a fresh root-policy resolution: rejections remain rejections and
+merely recording one cannot permit its publication.
+*/
 
 mod policy;
 mod text;
@@ -7,8 +18,6 @@ use crate::resolution::graph::CanonicalSourceClosureSubjectFingerprint;
 use crate::review::ReviewOnlyRootPolicyDisposition;
 use std::fmt;
 
-/// A retained change coordinate. Complete-policy subjects do not index the
-/// candidate graph: removed packages and replaced roots need no invented owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum HistoricalPackagePolicyDecisionSubject {
     LegacyConflict {
@@ -20,7 +29,6 @@ pub(crate) enum HistoricalPackagePolicyDecisionSubject {
     Row([u8; 32]),
 }
 
-/// One recorded project choice, not a fresh candidate-bound authorization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct HistoricalPackagePolicyDecision {
     subject: HistoricalPackagePolicyDecisionSubject,
@@ -28,7 +36,6 @@ pub(crate) struct HistoricalPackagePolicyDecision {
 }
 
 impl HistoricalPackagePolicyDecision {
-    /// Version 1 document reference only, never an index for a modern change.
     pub const fn package_index(&self) -> Option<usize> {
         match self.subject {
             HistoricalPackagePolicyDecisionSubject::LegacyConflict { package_index, .. } => {
@@ -38,7 +45,6 @@ impl HistoricalPackagePolicyDecision {
         }
     }
 
-    /// Version 1 conflict only. Modern records expose their typed `subject`.
     pub const fn conflict(&self) -> Option<[u8; 32]> {
         match self.subject {
             HistoricalPackagePolicyDecisionSubject::LegacyConflict { conflict, .. } => {
@@ -49,12 +55,6 @@ impl HistoricalPackagePolicyDecision {
     }
 }
 
-/// Inert policy history for one exact source subject, including its target.
-///
-/// Recovery trusts the project's authors to record decisions. It validates
-/// structure and source association, not whether an audit occurred. There is
-/// deliberately no conversion to a fresh root-policy resolution. Rejections
-/// remain rejections; merely recording one cannot permit its publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct HistoricalPackagePolicyDecisions {
     source_subject: CanonicalSourceClosureSubjectFingerprint,
@@ -73,9 +73,6 @@ impl HistoricalPackagePolicyDecisions {
     }
 }
 
-/// Requested recovery storage and retained decision count for an enclosing
-/// lock budget. Version 1 also counts duplicate-fingerprint validation scratch;
-/// version 2 needs no scratch. Input text and the source subject remain borrowed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct HistoricalPackagePolicyRecoveryUsage {
     owned_bytes: usize,
@@ -109,7 +106,6 @@ impl HistoricalPackagePolicyRecoveryUsage {
         decisions: usize,
         maximum_owned_bytes: usize,
     ) -> Result<Self, HistoricalPackagePolicyError> {
-        // Version 2 checks strict subject order in one pass, without scratch.
         let owned_bytes = decisions
             .checked_mul(std::mem::size_of::<HistoricalPackagePolicyDecision>())
             .filter(|bytes| *bytes <= maximum_owned_bytes)
@@ -121,7 +117,6 @@ impl HistoricalPackagePolicyRecoveryUsage {
     }
 }
 
-/// Callers may lower these ceilings but cannot raise the format's hard limits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct HistoricalPackagePolicyLimits {
     maximum_bytes: usize,
@@ -150,7 +145,6 @@ impl Default for HistoricalPackagePolicyLimits {
     }
 }
 
-/// Fixed diagnostics never echo authored record text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum HistoricalPackagePolicyError {
     ByteLimitExceeded,

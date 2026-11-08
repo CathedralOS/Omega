@@ -263,7 +263,12 @@ fn trapping_forms_match_independent_assembler_for_every_form() {
     let catalog =
         crate::x86_64_machine_effect_catalog(target::NativeTarget::linux_x64(), &constraints)
             .unwrap();
-    let rflags = physical.model().view_named("rflags").unwrap().units.clone();
+    let condition_flags = physical
+        .model()
+        .view_named("condition_flags")
+        .unwrap()
+        .units
+        .clone();
     for (index, form) in TrappingForm::ALL.into_iter().enumerate() {
         let shape = TrappingShape::of(form);
         let declared = &catalog
@@ -315,7 +320,7 @@ fn trapping_forms_match_independent_assembler_for_every_form() {
             );
             assert!(footprint.writes_rflags);
             assert_eq!(footprint.encoded, declared.encoded, "{form:?}");
-            assert_eq!(footprint.encoded.implicit_unit_clobbers, rflags);
+            assert_eq!(footprint.encoded.implicit_unit_clobbers, condition_flags);
             assert_eq!(
                 footprint.encoded.trap,
                 MachineEncodedTrapBehavior::TrappingIntegerV1

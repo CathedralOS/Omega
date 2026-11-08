@@ -50,18 +50,6 @@ impl ReturnCoverage {
         Some(builder.graph)
     }
 
-    /// A selected body supplies completion, while the relation owner still
-    /// validates every body equation and retains every possible origin.
-    pub(super) fn alternatives(states: impl IntoIterator<Item = SymbolHandle>) -> Option<Self> {
-        let mut nodes: Vec<_> = states.into_iter().map(Coverage::Call).collect();
-        if nodes.is_empty() {
-            return None;
-        }
-        let root = nodes.len();
-        nodes.push(Coverage::Any((0..root).collect()));
-        Some(Self { nodes, root })
-    }
-
     pub(super) fn dependencies(&self) -> impl Iterator<Item = SymbolHandle> + '_ {
         self.nodes.iter().filter_map(|node| match node {
             Coverage::Call(state) => Some(*state),

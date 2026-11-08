@@ -1,18 +1,11 @@
-//! Keep completed review timings available when a package command is interrupted.
-//!
-//! Setting `OMEGA_REVIEW_TIMINGS` prints a start note and then a
-//! `stage=<name> micros=<elapsed>` line as each stage finishes. A timed-out
-//! `omega install|update|audit packages` therefore retains completed work and
-//! names the stages that were still running. Buffering these observations until
-//! the outer command returns would lose them when that process is killed.
-//! Normal invocations perform only one environment-variable check per stage;
-//! measurements describe cost, never a verdict.
-//!
-//! A compile or check that asked for `--timings` requests the same stages
-//! through [`requested`] for the duration of its candidate compilation, so
-//! the per-pass and per-package lines print beside the command's stage
-//! ladder without the variable. `install|update|audit packages` still reach
-//! them only through the variable.
+/*
+    We emit stage start notes and completion durations (`stage=<name>
+    micros=<elapsed>`) immediately on drop whenever `OMEGA_REVIEW_TIMINGS` is
+    set or a compile/check requests `--timings` through `requested`. Emitting
+    each stage immediately ensures that an interrupted or timed-out package
+    command retains completed stage timings and identifies which stage was still
+    running when the process terminated.
+*/
 
 use std::borrow::Cow;
 use std::cell::Cell;
@@ -21,54 +14,35 @@ use std::time::Instant;
 const TIMINGS_VARIABLE: &str = "OMEGA_REVIEW_TIMINGS";
 
 thread_local! {
-    /// A caller on this thread asked for review timings for a bounded scope.
     static REQUESTED: Cell<bool> = const { Cell::new(false) };
-    /// Live stage guards on this thread. A stage nested inside another
-    /// (for example triage inside source-review assembly) reports its own
-    /// duration; the outermost stage also reports the run total.
     static ACTIVE: Cell<usize> = const { Cell::new(0) };
 }
 
-/// Measures one review stage from construction to drop.
 pub(crate) struct StageTiming {
     name: Cow<'static, str>,
     started: Instant,
 }
 
-/// Record stage `name` for this invocation when `OMEGA_REVIEW_TIMINGS` is
-/// set; does nothing otherwise. Stages are named for the operation their
-/// entry point performs (`candidate_compilation`, `policy_comparison`, ...).
 pub(crate) fn stage(name: &'static str) -> Option<StageTiming> {
     enabled().then(|| StageTiming::start(name))
 }
 
-/// The same measurement for a stage whose name carries its subject -- the
-/// review pass, or one package occurrence inside it. The name is built only
-/// when the variable is set, so an ordinary run still pays one env-var check
-/// and no formatting.
 pub(crate) fn subject_stage(name: impl FnOnce() -> String) -> Option<StageTiming> {
     enabled().then(|| StageTiming::start_owned(Cow::Owned(name())))
 }
 
-/// Record review stages on this thread while the returned guard lives when
-/// `requested` is true, as the variable does for a whole run. Dropping the
-/// guard restores the previous request, so nested scopes compose.
 pub(crate) fn requested(requested: bool) -> Option<RequestedTimings> {
     requested.then(|| RequestedTimings {
         previous: REQUESTED.with(|flag| flag.replace(true)),
     })
 }
 
-/// Emit one `note=<line>` observation while timings are enabled — a count or
-/// identity that has no duration of its own, such as how many occurrences a
-/// pass compiled fresh versus carried or reused at the typed frontier.
 pub(crate) fn note(line: impl FnOnce() -> String) {
     if enabled() {
         eprintln!("omega_review_timings note={}", line());
     }
 }
 
-/// A scope in which a caller asked for review timings.
 pub(crate) struct RequestedTimings {
     previous: bool,
 }
@@ -84,7 +58,6 @@ fn enabled() -> bool {
 }
 
 impl StageTiming {
-    /// `stage`'s unconditional half.
     fn start(name: &'static str) -> Self {
         Self::start_owned(Cow::Borrowed(name))
     }
@@ -102,8 +75,6 @@ impl StageTiming {
 impl Drop for StageTiming {
     fn drop(&mut self) {
         let microseconds = u64::try_from(self.started.elapsed().as_micros()).unwrap_or(u64::MAX);
-        // Emit completed work immediately: a killed child never drops its
-        // outermost guard, so buffering until then loses the useful evidence.
         eprintln!(
             "omega_review_timings stage={} micros={microseconds}",
             self.name

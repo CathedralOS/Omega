@@ -641,7 +641,6 @@ impl SyntaxCopy<'_> {
             .match_fields(pattern.fields)
             .iter()
             .map(|field| TableMatchField {
-                component: field.component,
                 member: field.member.clone(),
                 action: match &field.action {
                     MatchFieldAction::Bind(binding) => MatchFieldAction::Bind(binding.clone()),
@@ -727,7 +726,6 @@ impl SyntaxCopy<'_> {
             }
             ExpressionNode::SavedSubject(saved) => {
                 ExpressionNode::SavedSubject(TableSavedSubject {
-                    component: saved.component,
                     capture: self.copy_match_subject(other, saved.capture),
                     pattern_head: self.copy_expression_handle(other, saved.pattern_head),
                 })

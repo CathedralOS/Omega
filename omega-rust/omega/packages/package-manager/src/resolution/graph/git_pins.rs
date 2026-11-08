@@ -1,4 +1,4 @@
-//! Preserve accepted repository revisions while selected sources are updated.
+// Git selection policy (`GitResolutionOptions` and `GitDependencyPins`) preserving accepted repository revisions for unselected packages while refreshing selected repositories as a unit.
 
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{
@@ -10,11 +10,6 @@ use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{GitSourceRequest, ImmutableSourceResolution};
 use std::fmt;
 
-/// Git selection policy for one complete dependency traversal.
-///
-/// Offline resolution requires an unchanged accepted request and verified cached
-/// objects. It forbids new or refreshed Git selections and overrides preserved
-/// pins' exact-fetch permission. Local Path dependencies remain available.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct GitResolutionOptions<'a> {
     pub pins: Option<GitDependencyPins<'a>>,
@@ -27,8 +22,6 @@ pub(crate) struct RecordedGitSource<'a> {
 }
 
 impl<'a> GitResolutionOptions<'a> {
-    /// Select accepted immutable objects, or permit ordinary selector resolution.
-    /// Executed source acquisition consumes this policy before fetching bytes.
     pub(crate) fn recorded(
         &self,
         request: &GitSourceRequest,
@@ -55,12 +48,6 @@ impl<'a> GitResolutionOptions<'a> {
     }
 }
 
-/// A borrowed resolution policy, not an acceptance or compiler-review result.
-///
-/// Unchanged locator/revision requests retain their recorded commit and tree.
-/// Selected packages refresh their repository as a unit: Git workspace members
-/// and their relative Path edges cannot use different commits of that repository.
-/// New or changed requests resolve normally and still undergo graph reconciliation.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GitDependencyPins<'a> {
     accepted: &'a CanonicalSourceClosureSubject,
@@ -69,10 +56,6 @@ pub(crate) struct GitDependencyPins<'a> {
 }
 
 impl<'a> GitDependencyPins<'a> {
-    /// An empty selection preserves every unchanged Git request (installation).
-    /// To update everything, use ordinary unpinned resolution instead.
-    /// The acquisition setting controls missing *preserved* pins only; new and
-    /// explicitly refreshed requests use the normal network resolver.
     pub fn new(
         accepted: &'a CanonicalSourceClosureSubject,
         updates: &'a [PackageKey],

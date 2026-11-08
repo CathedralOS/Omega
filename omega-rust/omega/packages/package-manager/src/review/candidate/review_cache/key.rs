@@ -1,6 +1,15 @@
-//! The key a compiled-review record is filed under, and the provenance
-//! digests a record stores so a lookup can prove it was filed for the live
-//! package key and source resolution.
+/*
+    We derive the domain-separated SHA-256 key (`compiled_review_key`) under
+    which a compiled-review record is filed, along with the `lineage_digest` and
+    `resolution_digest` stored inside the record so a lookup can prove it was
+    filed for the live package key and source resolution.
+
+    The key binds package identity, occurrence purpose, checked context (target
+    plus admitted build profile), checked entry path, the compiler input
+    identity recorded by the lock, and the content digests of the complete
+    compilation inputs and build snapshot. Failure to establish the exact
+    compiler and injected library identity yields `None` (a cache miss).
+*/
 
 use crate::declarations::DependencyPurpose;
 use package_compilation::review_record_encoding::purpose_tag;
@@ -14,12 +23,6 @@ use std::path::Path;
 
 const RECORD_KEY_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-KEY-V3\0";
 
-/// The SHA-256 key over everything a persisted review depends on: package
-/// identity, occurrence purpose, the checked context (target plus admitted
-/// build profile), the checked entry path, the compiler input identity the
-/// lock records (build-produced compiler digest plus selected toolchain
-/// library content), and the content digests of the complete compilation
-/// inputs and the build snapshot.
 pub(crate) fn compiled_review_key(
     package: PackageKeyIdentity,
     purpose: DependencyPurpose,
@@ -29,8 +32,6 @@ pub(crate) fn compiled_review_key(
     inputs: &PackageCompilationInputs,
     snapshot: &build_settings::BuildSnapshotRequest,
 ) -> Option<[u8; 32]> {
-    // A cache is optional. Failure to identify exact compiler and injected
-    // library inputs is a miss, never a weaker release/developer-name key.
     let compiler_identity = crate::operations::compiler_input_identity().ok()?;
     Some(compiled_review_key_with_identity(
         package,
@@ -111,10 +112,6 @@ mod tests {
     use semantic_vocabulary::PackageKeyIdentity;
     use std::path::{Path, PathBuf};
 
-    /// Records are content-named by this key, so a different key is a miss.
-    /// The live key must bind exactly the compiler input identity the lock
-    /// records: a review one compiler issued never stands in for another's,
-    /// while the same compiler finds its own record.
     #[test]
     fn compiled_review_key_binds_the_locked_compiler_input_identity() {
         let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();

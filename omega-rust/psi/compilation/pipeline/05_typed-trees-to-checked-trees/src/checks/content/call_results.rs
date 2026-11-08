@@ -247,7 +247,7 @@ pub(super) fn check_call_result_qualifications(
             // private routes authorize content transition, not fresh storage.
             match private_access_result_contract(program, &invocation, domain, semantic_domain, path) {
                 Ok(true) => {
-                    if result_claim(program, facts, &invocation, path).is_none() {
+                    if result_claim(program, facts.view(), &invocation, path).is_none() {
                         primitive_error = Some(Diagnostic::error(
                             "placement primitive result has no exact owned result claim",
                         ));
@@ -417,7 +417,7 @@ pub(super) fn check_call_result_qualifications(
                 failure_reason = Some("the qualified domain has no retained content projection for conservation");
                 return None;
             };
-            if result_claim(program, facts, &invocation, path).is_none() {
+            if result_claim(program, facts.view(), &invocation, path).is_none() {
                 failure_reason = Some("the qualified result path has no exact owned result claim");
                 return None;
             }
@@ -435,12 +435,12 @@ pub(super) fn check_call_result_qualifications(
                 let mut consumed = Vec::new();
                 let mut returned = Vec::new();
                 for transfer in outcome {
-                    let Some(input) = input_claim(program, facts, &invocation, parameters,
+                    let Some(input) = input_claim(program, facts.view(), &invocation, parameters,
                         transfer.parameter, &transfer.input, projection) else {
                             failure_reason = Some("the placement outcome has no exact consumed backing claim");
                             return None;
                         };
-                    let Some(output) = result_claim(program, facts, &invocation, &transfer.output) else {
+                    let Some(output) = result_claim(program, facts.view(), &invocation, &transfer.output) else {
                         failure_reason = Some("the placement outcome has no exact returned backing claim");
                         return None;
                     };
@@ -508,7 +508,7 @@ pub(super) fn check_call_result_qualifications(
                 for path in qualified_input_paths(program, parameter.type_reference, projection) {
                     if let Some(identity) = input_claim(
                         program,
-                        facts,
+                        facts.view(),
                         &invocation,
                         parameters,
                         position,
@@ -700,7 +700,13 @@ fn replay_equation(
             return false;
         }
         let Some(identity) = input_claim(
-            program, facts, invocation, parameters, position, &path, projection,
+            program,
+            facts.view(),
+            invocation,
+            parameters,
+            position,
+            &path,
+            projection,
         ) else {
             return false;
         };
@@ -721,7 +727,7 @@ fn replay_equation(
             return false;
         };
         includes_required |= path == required_path;
-        let Some(identity) = result_claim(program, facts, invocation, &path) else {
+        let Some(identity) = result_claim(program, facts.view(), invocation, &path) else {
             return false;
         };
         if output_identities.contains(&identity) {
@@ -984,7 +990,13 @@ fn consumes_qualified_input(
             .iter()
             .any(|path| {
                 input_claim(
-                    program, facts, invocation, parameters, position, path, projection,
+                    program,
+                    facts.view(),
+                    invocation,
+                    parameters,
+                    position,
+                    path,
+                    projection,
                 )
                 .is_some()
             })
@@ -1036,7 +1048,7 @@ fn owned_claim_path(
 
 pub(super) fn input_claim(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     invocation: &Invocation<'_>,
     parameters: &[StateParameter],
     position: usize,
@@ -1049,7 +1061,7 @@ pub(super) fn input_claim(
         .flow
         .control
         .state(invocation.machine, invocation.state)?;
-    let call_flow = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
+    let call_flow = crate::flow::call_flows(facts.flow.control, state_flow.calls)
         .iter()
         .find(|call| {
             call.statement_index == invocation.statement
@@ -1057,15 +1069,15 @@ pub(super) fn input_claim(
                 && call.target_symbol == invocation.target_symbol(program)
         })?;
     let (operands, receiver_offset) =
-        crate::flow::captured_call_operands(program, &facts.flow, state_flow, call_flow)?;
+        crate::flow::captured_call_operands(program, facts.flow, state_flow, call_flow)?;
     operands.get(position + receiver_offset)?;
     let values = crate::flow::captured_operand_values(
         program,
-        &facts.flow,
-        &facts.semantic,
+        facts.flow,
+        facts.semantic,
         state_flow,
         crate::flow::CapturedOperand::recorded(
-            &facts.flow.control,
+            facts.flow.control,
             call_flow
                 .operands
                 .handle_at(u32::try_from(position + receiver_offset).ok()?),
@@ -1076,7 +1088,7 @@ pub(super) fn input_claim(
     let [value] = values.as_slice() else {
         return None;
     };
-    let places = crate::flow::captured_observation_places(program, &facts.flow, value)?;
+    let places = crate::flow::captured_observation_places(program, facts.flow, value)?;
     let [place] = places.as_slice() else {
         return None;
     };
@@ -1087,9 +1099,9 @@ pub(super) fn input_claim(
     // The transfer joins below still owe current custody of this exact claim.
     let contexts = crate::flow::operand_contexts(
         program,
-        &facts.flow.contexts,
-        &facts.flow.control,
-        &facts.semantic,
+        facts.flow.contexts,
+        facts.flow.control,
+        facts.semantic,
         value.observation.row(),
         value.observation_type,
         call_flow.entry_constraints,
@@ -1159,7 +1171,7 @@ pub(super) fn input_claim(
 
 pub(super) fn result_claim(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     invocation: &Invocation<'_>,
     path: &[PlaceSegment],
 ) -> Option<PermissionClaimIdentity> {
@@ -1209,7 +1221,7 @@ pub(super) fn result_claim(
 
 fn unique_claim(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     invocation: &Invocation<'_>,
     evaluation: checked_trees::FlowPermissionEvaluation,
     kind: PermissionEventKind,

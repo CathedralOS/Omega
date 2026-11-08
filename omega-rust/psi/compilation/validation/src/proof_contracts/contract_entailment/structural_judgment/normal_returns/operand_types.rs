@@ -207,3 +207,27 @@ pub(super) fn prefix_receiving_types(
     };
     Some(vec![reference])
 }
+
+/// A selected builtin scalar operation reads reference operands as it
+/// evaluates them. Reference construction and ordinary call arguments retain
+/// their descriptors; result types alone do not request a read.
+pub(super) fn selected_scalar_reads(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    node: &ExpressionNode,
+) -> [Option<TypeReferenceHandle>; 2] {
+    let ExpressionNode::Binary(binary) = node else {
+        return [None; 2];
+    };
+    if !crate::has_builtin_binary_expression_meaning(program, machine, Some(state), expression) {
+        return [None; 2];
+    }
+    [binary.left, binary.right].map(|operand| {
+        let reference = crate::expression_result_type_reference(program, machine, state, operand)?;
+        crate::reference_shell(program, reference)?;
+        crate::value_custody::expression_types::scalar_observation_meaning(program, reference)?;
+        Some(reference)
+    })
+}

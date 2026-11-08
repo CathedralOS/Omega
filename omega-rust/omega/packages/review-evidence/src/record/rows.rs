@@ -1,3 +1,7 @@
+// Compiler-validated package-relative source coordinates used only to explain a
+// canonical review row; absolute resolver or cache paths never enter these
+// records.
+
 use super::identity::PackageReviewToolchainSourceIdentity;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -6,8 +10,6 @@ pub(crate) enum PackageReviewSourceLocationRole {
     Suspension,
     Blocking,
     ServiceReach,
-    /// Exact authored operator application that demanded one reviewed
-    /// role-specific realization.
     BoundaryApplicationUse,
 }
 
@@ -17,8 +19,6 @@ pub(crate) enum PackageReviewSourceLocationOwner {
     Toolchain(PackageReviewToolchainSourceIdentity),
 }
 
-/// Compiler-validated package-relative source coordinate used only to explain
-/// a canonical review row. Absolute resolver/cache paths never enter it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct PackageReviewSourceLocation {
     pub(crate) owner: PackageReviewSourceLocationOwner,

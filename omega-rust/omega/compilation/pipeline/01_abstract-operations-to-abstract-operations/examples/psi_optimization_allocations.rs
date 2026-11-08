@@ -119,11 +119,8 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
             .into_optimization_input()
     })
     .expect("verify for optimizer admission");
-    build_verified_psi_optimization_unit(
-        input,
-        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-    )
-    .expect("build optimization unit")
+    build_verified_psi_optimization_unit(input, psi_work::WorkSchedule::CURRENT.identity())
+        .expect("build optimization unit")
 }
 
 fn recompute_cost(unit: &optimization_unit::PsiOptimizationUnit) -> (u128, usize, usize) {

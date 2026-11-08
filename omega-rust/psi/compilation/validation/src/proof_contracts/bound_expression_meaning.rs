@@ -982,6 +982,15 @@ fn operand_type_at_depth(
     // and locals keep ordinary evaluation-snapshot narrowing. Anonymous literal and
     // unresolved computed types remain wildcard candidates, never an assumed
     // copy of the other operand's carrier that could hide an overload.
+    let computed_result = || match state {
+        Some(state) => crate::expression_result_type_reference(program, machine, state, expression),
+        None => crate::parameter_expression_result_type_reference(
+            program,
+            machine.symbol,
+            program.state_parameters(program.machine_states(machine).first()?),
+            expression,
+        ),
+    };
     let reference = match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
             // A bound capture keeps its producer's carrier. This query reads
@@ -1019,25 +1028,14 @@ fn operand_type_at_depth(
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::Borrow(_) => {
             // Computed operands use the same selected-result query as value
-            // checking. Reconstructing only fixed-integer syntax here lost
-            // proof Int and turned embeds/sums into wildcard overload inputs.
-            // The query retains the actual selected carrier; it neither
-            // borrows a peer's type nor supplies a range or membership fact.
-            match state {
-                Some(state) => {
-                    crate::expression_result_type_reference(program, machine, state, expression)
-                }
-                None => crate::parameter_expression_result_type_reference(
-                    program,
-                    machine.symbol,
-                    program.state_parameters(program.machine_states(machine).first()?),
-                    expression,
-                ),
-            }
+            // checking. A formed reference retains its complete prepared shell;
+            // its underlying place or an unknown wildcard cannot replace it
+            // during operator selection. This supplies no read or value fact.
+            computed_result()
         }
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => computed_result(),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
-        // Unknown operands cannot borrow another operand's carrier.
         _ => None,
     }?;
     program

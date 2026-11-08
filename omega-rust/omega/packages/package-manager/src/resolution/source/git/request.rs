@@ -1,4 +1,4 @@
-//! One package selection over one validated Git acquisition request.
+// We pair one validated `GitSourceRequest` with its `PackageSelection`.
 
 use crate::declarations::dependencies::read::PackageSelection;
 use package_source::{GitSourceRequest, GitTransportProfile};

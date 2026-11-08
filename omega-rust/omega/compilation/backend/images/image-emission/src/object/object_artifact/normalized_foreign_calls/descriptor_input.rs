@@ -37,7 +37,7 @@ pub(super) fn validate(
                 && instruction.provenance.values.as_slice() == [count]
         });
     let (guard_position, instruction) = guards.next()?;
-    if guards.next().is_some() || !instruction.provenance.fuel.is_empty() {
+    if guards.next().is_some() || !instruction.provenance.work.is_empty() {
         return None;
     }
     let [bound, input, output, scratch] = instruction.operands.as_slice() else {
@@ -73,7 +73,7 @@ pub(super) fn validate(
             })
         || materialize.provenance.operations.as_slice() != [operation]
         || materialize.provenance.values.as_slice() != [count]
-        || !materialize.provenance.fuel.is_empty()
+        || !materialize.provenance.work.is_empty()
         || materialize.operands.as_slice().first()?.virtual_register != bound.virtual_register
         || materialize.operands.len() != 1
         || bound_register.scalar_type != ScalarType::Integer(guard.count_type)

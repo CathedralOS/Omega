@@ -259,7 +259,7 @@ pub(super) fn lower(
         }
         // A Trapping primitive is an ordered definition of its own: it is
         // never folded here, even over literal operands, because its crash
-        // site and fuel must survive exactly as Terminal owns them.
+        // site and work must survive exactly as Terminal owns them.
         AbstractOperation::TrappingInteger {
             psi_operation,
             result,
@@ -414,7 +414,7 @@ pub(super) fn lower(
             else {
                 return Err(LoweringError::ValueTypeMismatch(*result));
             };
-            // The ordered graph still owns this negation's operation and fuel.
+            // The ordered graph still owns this negation's operation and work.
             // Folding a literal or cancelling nested negations here would lose
             // that occurrence without an optimizer rewrite and its evidence.
             provenance.operations.push(*psi_operation);

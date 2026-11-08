@@ -5,7 +5,7 @@ use super::super::selected_retirement::before_call;
 use super::super::statements::local_jump;
 use super::super::statements::local_loan_ends_before_successor;
 use super::super::statements::source_exiting_without_local_loan_carriers;
-use super::receiver::explicit_jump_data_access;
+use super::receiver::explicit_carried_data_access;
 use super::staging::InvocationBoundary;
 use super::staging::access_released_in_prefix;
 use super::staging::completed_observation_before_terminal_transfer;
@@ -173,7 +173,8 @@ pub(super) fn check_call_access_conflicts<'p>(
         .span_or_empty(borrow_call.accesses)
         .iter()
         .collect();
-    let data_access = explicit_jump_data_access(program, facts, state_flow, borrow_call);
+    let data_access = explicit_carried_data_access(program, facts, state_flow, borrow_call);
+    let internal_jump = local_jump(program, state_flow, borrow_call).is_some();
     let exiting_source =
         source_exiting_without_local_loan_carriers(program, state_flow, borrow_call, call_frames);
     let boundary = InvocationBoundary::at(program, facts, state_flow, borrow_call);
@@ -296,13 +297,31 @@ pub(super) fn check_call_access_conflicts<'p>(
             {
                 continue;
             }
-            // A local jump forwards the activation's exact data parent. It
+            // A terminal transfer forwards an existing exact data parent. It
             // does not establish a second independent whole-record loan while
             // staging the other operands. The successor footprint judges each
-            // retained child's lifetime; a completed copy holds no child loan.
+            // retained child's lifetime; caller-local closure stays separate.
             // Ordinary calls and pairs between other operands stay exclusive.
-            if (data_access == Some(index) && other_access.end_before_access.is_none())
-                || (data_access == Some(other_index) && access.end_before_access.is_none())
+            if (data_access == Some(index)
+                && other_access.end_before_access.is_none()
+                && carried_child_is_within_parent(
+                    program,
+                    state_flow,
+                    borrow_call,
+                    access,
+                    &operand_backings[index],
+                    &operand_backings[other_index],
+                ))
+                || (data_access == Some(other_index)
+                    && access.end_before_access.is_none()
+                    && carried_child_is_within_parent(
+                        program,
+                        state_flow,
+                        borrow_call,
+                        other_access,
+                        &operand_backings[other_index],
+                        &operand_backings[index],
+                    ))
             {
                 continue;
             }
@@ -515,7 +534,32 @@ pub(super) fn check_call_access_conflicts<'p>(
             // Returning calls establish every explicit argument loan. A
             // callee's field footprint cannot shrink a whole-record loan,
             // even when another argument forwards its borrowed child.
-            if data_access == Some(index) {
+            if data_access == Some(index)
+                && (internal_jump
+                    || accesses.iter().enumerate().any(|(child_index, child)| {
+                        child_index != index
+                            && child.end_before_access.is_none()
+                            && operand_backings[child_index].places.iter().all(|backing| {
+                                backing.lineage.contains(loan_handle)
+                                    && backing.place.incoming_reference == loan.incoming_reference
+                                    && backing.place.incoming_owner_path
+                                        == facts
+                                            .borrow
+                                            .access_segments
+                                            .span_or_empty(loan.incoming_owner_path)
+                                    && backing.place.root == loan.root
+                                    && backing.place.segments == facts.borrow.loan_segments(loan)
+                            })
+                            && carried_child_is_within_parent(
+                                program,
+                                state_flow,
+                                borrow_call,
+                                access,
+                                &operand_backings[index],
+                                &operand_backings[child_index],
+                            )
+                    }))
+            {
                 continue;
             }
             // Only the operand's own retained lineage is exempt; every other
@@ -557,4 +601,53 @@ pub(super) fn check_call_access_conflicts<'p>(
             )));
         }
     }
+}
+
+/// A carried parent stays suspended by its actual descendant; it is not a
+/// second exclusive permission to the same whole value. Every retained origin
+/// and parent lineage must agree, and a stored pointer crossing cannot turn
+/// storage reached through that pointer into an owned child of its carrier.
+fn carried_child_is_within_parent(
+    program: &dyn validation::CheckingInput,
+    state: &FlowStateFact,
+    call: &BorrowCallFact,
+    access: &checked_trees::BorrowArgumentAccessFact,
+    parent: &place_access::ArgumentBackings,
+    child: &place_access::ArgumentBackings,
+) -> bool {
+    let Some(reference) = validation::expression_type_reference_in_state(
+        program,
+        state.state_symbol,
+        call.statement_index,
+        access.expression,
+    )
+    .and_then(|reference| validation::reference_shell(program, reference)) else {
+        return false;
+    };
+    !parent.places.is_empty()
+        && !child.places.is_empty()
+        && parent.places.iter().all(|parent| {
+            child.places.iter().all(|child| {
+                let prefix = parent.place.segments.len();
+                parent.place.root == child.place.root
+                    && parent.place.incoming_reference == child.place.incoming_reference
+                    && parent.place.incoming_owner_path == child.place.incoming_owner_path
+                    && prefix < child.place.segments.len()
+                    && parent.place.segments.iter().zip(&child.place.segments).all(
+                        |(parent, child)| {
+                            crate::flow::canonical_place_segments_equal(program, *parent, *child)
+                        },
+                    )
+                    && parent
+                        .lineage
+                        .iter()
+                        .all(|loan| child.lineage.contains(loan))
+                    && validation::owned_projection_type_reference(
+                        program,
+                        reference.referee,
+                        &child.place.segments[prefix..],
+                    )
+                    .is_some()
+            })
+        })
 }

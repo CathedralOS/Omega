@@ -1,9 +1,8 @@
-//! Complete a named, nonexecuting inspection from the shared Terminal batch.
-//!
-//! Inspection preserves declaration conditions and task obligations but does not
-//! require a ProgramEntry or acquire native permissions. Exact source-issued
-//! Build companions remain available to explicit inspection execution consumers;
-//! they cannot be reconstructed from externally loaded artifact bytes.
+// We complete a named, non-executing machine inspection (`InspectionCompilation`)
+// from the shared Terminal batch. Inspection evaluates declaration proof
+// conditions and task obligations without requiring a `ProgramEntry` or native
+// permissions, preserving source-issued Build companions for explicit inspection
+// execution consumers.
 
 use super::{CompilationOutput, CompilationProductError};
 use crate::execution_settlement::SelectedProductTarget;

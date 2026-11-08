@@ -622,9 +622,9 @@ pub(crate) fn build_checked_unit_effect_plans(
         })
         .flatten()
         .filter_map(|argument| match argument.as_place()?.source {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                expression, ..
-            } => Some(expression),
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+                Some(expression)
+            }
             _ => None,
         })
         .flat_map(|expression| {

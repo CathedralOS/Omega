@@ -1,6 +1,10 @@
-//! The build declaration: the authoritative project role a `build.omg`
-//! declares, the package, application and workspace forms it takes, and the
-//! validated names and member paths inside them.
+// Validated project roles (`Package`, `Application`, `Workspace`) declared by
+// `build.omg`, along with canonical `ProjectName` (lowercase snake_case) and
+// portable relative `WorkspaceMemberPath` newtypes.
+//
+// `ApplicationDeclaration::artifact_only` is a boolean modifier on an
+// application role (`Build::artifact_only(builder)`), never a fourth project
+// role: executable output remains the default until the modifier appears once.
 
 use crate::syntax_projection::{is_portable_path_byte, is_snake_case};
 use std::fmt;
@@ -25,7 +29,6 @@ pub(crate) const ARTIFACT_ONLY_MACHINE_NAME: &str = "artifact_only";
 pub struct ProjectName(String);
 
 impl ProjectName {
-    /// Validate a borrowed spelling without constructing an owned diagnostic.
     pub fn is_valid(value: &str) -> bool {
         is_snake_case(value)
     }
@@ -139,11 +142,7 @@ pub struct PackageDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationDeclaration {
     pub name: ProjectName,
-    /// One direct unconditional `Build::artifact_only(builder)` statement in the
-    /// root build entry selected this application modifier. Artifact-only is
-    /// an application flag, never a fourth project role: executable output
-    /// remains the default until the modifier appears exactly once.
-    pub artifact_only: bool,
+    pub artifact_only: bool, // Set when `Build::artifact_only(builder)` appears once in the root build entry.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

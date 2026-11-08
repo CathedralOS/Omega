@@ -1,4 +1,11 @@
-//! Exact declaring-schema joins for selected provider requirements.
+/*
+We join selected provider requirements to their exact declaring schema.
+
+The selected schema owns provider and calling policy, while an inherited
+requirement retains its own declaring schema. Only exact reachable symbols
+establish that association, and repeated inheritance paths to the same
+declaration do not multiply owners.
+*/
 
 use crate::capture::SourceDeclarationInput;
 use crate::capture::refusal;
@@ -6,9 +13,6 @@ use diagnostics::Diagnostic;
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
-/// The selected schema owns provider/calling policy. An inherited requirement
-/// retains its own declaring schema; only exact reachable symbols establish
-/// that association. Repeated paths to the same declaration do not add owners.
 pub(crate) fn provider_requirement_schema(
     compilation: &SourceDeclarationInput<'_>,
     schema: ProviderSchemaDeclaration,

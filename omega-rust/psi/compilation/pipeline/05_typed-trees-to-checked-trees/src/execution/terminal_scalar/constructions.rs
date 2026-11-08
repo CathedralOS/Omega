@@ -250,7 +250,6 @@ pub(crate) fn retain_shapes(
                 ComputationKind::Dispatch { subject, arms, .. } => {
                     pending.extend(subject.scalar_operands(&plans.operands));
                     if let checked_trees::CheckedDispatchSubject::Structural { value, .. } = subject
-                        && value.is_valid()
                     {
                         retain_operand!(
                             structural_values.nodes.get(*value).type_reference,
@@ -323,21 +322,18 @@ pub(crate) fn retain_shapes(
                             argument,
                         ) = argument
                             && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                                expression, value_dependency: Some(value), .. } = argument.source
+                                expression,
+                            } = argument.source
                         {
-                            // Checking retains the actual producer independently
-                            // of the home used to read it. A selected copy may
-                            // depend on a captured-copy root rather than the
-                            // older subject behind its saved expression.
-                            let root = structural_values.root_for_value_home(value, expression).ok_or_else(|| {
-                                format!("call {handle:?} expression {expression:?} value {value:?} has no completed structural dependency")
+                            // A saved home is an alias of a completed subject,
+                            // not another producer root. Its catalog dependency
+                            // is the original retained value; executable reads
+                            // still use the saved anchor and never replay it.
+                            let root = structural_values.completed_expression_dependency(
+                                &program.expression_table, state, None, expression,
+                            ).ok_or_else(|| {
+                                format!("call {handle:?} expression {expression:?} has no completed structural dependency")
                             })?;
-                            if root.state != state
-                                || !structural_values.nodes.is_valid(value)
-                                || structural_values.nodes.get(value).expression != expression
-                            {
-                                return Err(format!("call {handle:?} expression {expression:?} has a different retained producer {value:?}"));
-                            }
                             if argument.path.is_empty() {
                                 let producer_identity = validation::structural_type_identity(
                                     program, root.type_reference, &[], &[],

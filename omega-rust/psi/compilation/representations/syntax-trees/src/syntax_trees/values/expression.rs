@@ -648,7 +648,6 @@ pub struct MatchSubjectCapture {
     compiler_storage::Record,
 )]
 pub struct TableSavedSubject {
-    pub component: language_core::PatternComponent,
     pub capture: Handle<MatchSubjectCapture>,
     /// Exact head of the selected structural pattern. Member resolution uses
     /// its declaration identity, not the last component of a spelled path.
@@ -697,7 +696,6 @@ pub struct TableDestructurePattern {
     Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
 )]
 pub struct TableMatchField {
-    pub component: language_core::PatternComponent,
     pub member: Identifier,
     pub action: MatchFieldAction,
 }

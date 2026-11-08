@@ -15,7 +15,7 @@ const RECEIVER_MEMBER_KINDS: &[SymbolKind] = &[
     SymbolKind::Variant,
 ];
 
-/// A data head selects common fields; a case head selects only its payload.
+/// A structural head selects its common fields and this case's payload.
 /// Sibling payload namespaces never participate, and duplicate spellings do
 /// not become declaration-order selection.
 pub(in crate::symbols) fn pattern_field_symbol(
@@ -26,10 +26,15 @@ pub(in crate::symbols) fn pattern_field_symbol(
     if !head.is_valid() {
         return SymbolHandle::invalid();
     }
-    let mut fields = symbols
-        .child_handles(head)
+    let parent = if symbols.get(head).kind == SymbolKind::Variant {
+        symbols.get(head).parent
+    } else {
+        SymbolHandle::invalid()
+    };
+    let mut fields = [head, parent]
         .into_iter()
-        .flatten()
+        .filter(|owner| owner.is_valid())
+        .flat_map(|owner| symbols.child_handles(owner).into_iter().flatten())
         .filter(|field| {
             symbols.get(*field).kind == SymbolKind::Field && symbols.name(*field) == spelling
         });
@@ -72,9 +77,6 @@ pub(in crate::symbols) fn resolve_expression_table_member_symbol(
     member: &symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     if let ExpressionNode::SavedSubject(saved) = expression_table.expression(receiver) {
-        if saved.component == language_core::PatternComponent::Case {
-            return SymbolHandle::invalid();
-        }
         let head = expression_table
             .name_path_node(saved.pattern_head)
             .map(|path| path.symbol)

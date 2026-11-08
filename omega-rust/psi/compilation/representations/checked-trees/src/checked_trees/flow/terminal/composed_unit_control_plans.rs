@@ -79,17 +79,6 @@ pub fn state_position(
     states.iter().position(|candidate| candidate.state == state)
 }
 
-/// One selected return and the payload copies completed before its operands.
-/// The producer joins the exact outgoing target; lowering consumes this list.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedGuardedReturnValue {
-    pub statement_ordinal: u32,
-    pub is_continuation: bool,
-    pub transition_target: typed_trees::statement::TransitionTargetHandle,
-    pub operation: CheckedUnitEffectOperationPlan,
-    pub copied_payloads: Vec<crate::CheckedSelectedPayloadCopy>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedControlResultPlan {
     Unit,
@@ -259,8 +248,6 @@ pub enum CheckedStateContractRequirement {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedComposedUnitControlStatePlan {
-    /// Admitted payload births for the exact selected outgoing targets.
-    pub selected_copies: Vec<crate::CheckedSelectedPayloadCopies>,
     pub state: SymbolHandle,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
@@ -317,11 +304,6 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     /// selected value branches and declaration-owned external completion.
     EvaluateNoNormal,
     ReturnUnit,
-    /// A result-less expression selects ordinary call completions. Unit has
-    /// no fabricated scalar or structural return home.
-    CompleteExpression {
-        completion: CheckedUnitCompletionPlan,
-    },
     /// Complete a scalar-result machine with the same completion an ordinary
     /// single-state body retains; see `CheckedScalarReturnPlan`.
     ReturnScalar {
@@ -337,7 +319,7 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     Guarded {
         arms: arena::HandleSpan<CheckedScalarGuardedExit>,
         fallback: Option<CheckedScalarBranchDestination>,
-        return_values: Vec<CheckedGuardedReturnValue>,
+        return_values: Vec<CheckedUnitEffectOperationPlan>,
     },
     Jump {
         successor: CheckedStructuralControlSuccessorPlan,
@@ -430,39 +412,31 @@ impl CheckedComposedUnitControlTerminatorPlan {
             return Some(false);
         }
         Some(match self {
-            Self::CompleteExpression { completion } => completion.expression.normal_continuation,
             Self::InvokeNoNormal { .. } | Self::EvaluateNoNormal | Self::Crash { .. } => false,
             Self::Guarded {
                 arms,
                 fallback,
                 return_values,
             } => {
-                let arms = guarded_exits.exits.span(*arms)?;
-                if return_values.len() != arms.len() + usize::from(fallback.is_some()) {
-                    return None;
-                }
-                let destinations = arms
+                let normal = |destination: &CheckedScalarBranchDestination| match destination {
+                    CheckedScalarBranchDestination::Crash { .. }
+                    | CheckedScalarBranchDestination::InvokeNoNormal { .. } => false,
+                    CheckedScalarBranchDestination::Return {
+                        statement_ordinal, ..
+                    } => return_values
+                        .iter()
+                        .find(|operation| {
+                            operation.source_statement_index() == Some(*statement_ordinal)
+                        })
+                        .is_none_or(CheckedUnitEffectOperationPlan::has_normal_continuation),
+                    CheckedScalarBranchDestination::Jump(_) => true,
+                };
+                guarded_exits
+                    .exits
+                    .span(*arms)?
                     .iter()
-                    .map(|arm| &arm.destination)
-                    .chain(fallback.iter());
-                let mut normal = false;
-                for (destination, returned) in destinations.zip(return_values) {
-                    let CheckedScalarBranchDestination::Return {
-                        statement_ordinal,
-                        is_continuation,
-                    } = destination
-                    else {
-                        return None;
-                    };
-                    if returned.statement_ordinal != *statement_ordinal
-                        || returned.is_continuation != *is_continuation
-                        || returned.operation.source_statement_index() != Some(*statement_ordinal)
-                    {
-                        return None;
-                    }
-                    normal |= returned.operation.has_normal_continuation();
-                }
-                normal
+                    .any(|arm| normal(&arm.destination))
+                    || fallback.as_ref().is_some_and(normal)
             }
             Self::ConditionalCompletion {
                 when_true,
@@ -520,7 +494,6 @@ impl CheckedComposedUnitControlTerminatorPlan {
         }
         let abandons = CheckedConditionalReturnArm::abandons_custody;
         Some(match self {
-            Self::CompleteExpression { completion } => completion.abandons_custody,
             Self::Crash { .. } => true,
             Self::ConditionalCompletion {
                 when_true,
@@ -578,7 +551,6 @@ impl CheckedComposedUnitControlTerminatorPlan {
         guarded_exits: &crate::CheckedGuardedExitPlans,
     ) -> Option<bool> {
         if has_external_completion(operations)
-            || matches!(self, Self::CompleteExpression { completion } if completion.expression.invocation_scopes().into_iter().any(|operations| has_external_completion(operations.iter())))
             || self
                 .return_arms()
                 .iter()
@@ -593,8 +565,7 @@ impl CheckedComposedUnitControlTerminatorPlan {
     /// Return, crash, and value exits contribute no edges.
     pub fn successors(&self) -> Vec<&CheckedStructuralControlSuccessorPlan> {
         match self {
-            Self::CompleteExpression { .. }
-            | Self::InvokeNoNormal { .. }
+            Self::InvokeNoNormal { .. }
             | Self::EvaluateNoNormal
             | Self::ReturnUnit
             | Self::ReturnScalar { .. }
@@ -655,8 +626,7 @@ impl CheckedComposedUnitControlTerminatorPlan {
                     CheckedClosedSumCaseOutcomePlan::Return(_) => None,
                 })
                 .collect(),
-            Self::CompleteExpression { .. }
-            | Self::InvokeNoNormal { .. }
+            Self::InvokeNoNormal { .. }
             | Self::EvaluateNoNormal
             | Self::ReturnUnit
             | Self::ReturnScalar { .. }
@@ -725,19 +695,8 @@ impl CheckedComposedUnitControlStatePlan {
     /// Complete operation dependencies, not runtime evaluation order.
     pub fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
         let selected: Vec<_> = match &self.terminator {
-            CheckedComposedUnitControlTerminatorPlan::CompleteExpression { completion } => {
-                completion
-                    .expression
-                    .invocation_scopes()
-                    .into_iter()
-                    .flat_map(|operations| operations.iter())
-                    .collect()
-            }
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
-                return_values
-                    .iter()
-                    .map(|returned| &returned.operation)
-                    .collect()
+                return_values.iter().collect()
             }
             _ => self
                 .terminator
@@ -790,153 +749,9 @@ impl CheckedComposedUnitControlStatePlan {
     }
 }
 
-/// A result-less selection owns each selected call transaction. The source
-/// handle records provenance; consumers do not join it back to a call roster.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedUnitCompletionPlan {
-    pub statement_ordinal: u32,
-    pub expression: CheckedUnitCompletionExpression,
-    pub abandons_custody: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedUnitCompletionExpression {
-    pub source: crate::CheckedCompletionExpressionHandle,
-    pub expression: typed_trees::expression::ExpressionHandle,
-    pub normal_continuation: bool,
-    pub kind: CheckedUnitCompletionKind,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub enum CheckedUnitCompletionKind {
-    Invocation(crate::CheckedOperandSequence),
-    Selection(CheckedUnitCompletionSelection),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub enum CheckedUnitCompletionSelection {
-    Scalar {
-        subject: crate::CheckedScalarComputationHandle,
-        arms: Vec<CheckedUnitScalarCompletionArm>,
-    },
-    Structural {
-        expression: typed_trees::expression::ExpressionHandle,
-        value: crate::CheckedStructuralValueHandle,
-        place: crate::CheckedUnitStructuralArgumentPlan,
-        alias: typed_trees::expression::ExpressionHandle,
-        arms: Vec<CheckedUnitStructuralCompletionArm>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedUnitScalarCompletionArm {
-    pub source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
-    pub condition: CheckedUnitScalarCompletionCondition,
-    pub completion: CheckedUnitCompletionExpression,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub enum CheckedUnitScalarCompletionCondition {
-    Boolean(crate::CheckedScalarComputationHandle),
-    Integer(crate::CheckedScalarComputationHandle),
-    Predicate(crate::CheckedScalarComputationHandle),
-    Default,
-}
-
-impl CheckedUnitScalarCompletionCondition {
-    pub fn computation(&self) -> Option<crate::CheckedScalarComputationHandle> {
-        match self {
-            Self::Boolean(value) | Self::Integer(value) | Self::Predicate(value) => Some(*value),
-            Self::Default => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedUnitStructuralCompletionArm {
-    pub source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
-    pub predicate: Option<crate::CheckedScalarComputationHandle>,
-    pub completion: CheckedUnitCompletionExpression,
-}
-
-impl CheckedUnitCompletionExpression {
-    pub fn subject(&self) -> Option<crate::CheckedDispatchSubject> {
-        let CheckedUnitCompletionKind::Selection(selection) = &self.kind else {
-            return None;
-        };
-        Some(match selection {
-            CheckedUnitCompletionSelection::Scalar { subject, .. } => {
-                crate::CheckedDispatchSubject::Scalar(*subject)
-            }
-            CheckedUnitCompletionSelection::Structural {
-                expression,
-                value,
-                place,
-                alias,
-                ..
-            } => crate::CheckedDispatchSubject::Structural {
-                expression: *expression,
-                value: *value,
-                place: place.clone(),
-                alias: *alias,
-            },
-        })
-    }
-
-    pub fn arms(
-        &self,
-    ) -> impl DoubleEndedIterator<Item = (Option<crate::CheckedScalarComputationHandle>, &Self)>
-    {
-        let (scalar, structural) = match &self.kind {
-            CheckedUnitCompletionKind::Invocation(_) => (None, None),
-            CheckedUnitCompletionKind::Selection(CheckedUnitCompletionSelection::Scalar {
-                arms,
-                ..
-            }) => (Some(arms.as_slice()), None),
-            CheckedUnitCompletionKind::Selection(CheckedUnitCompletionSelection::Structural {
-                arms,
-                ..
-            }) => (None, Some(arms.as_slice())),
-        };
-        scalar
-            .into_iter()
-            .flatten()
-            .map(|arm| (arm.condition.computation(), &arm.completion))
-            .chain(
-                structural
-                    .into_iter()
-                    .flatten()
-                    .map(|arm| (arm.predicate, &arm.completion)),
-            )
-    }
-
-    pub fn invocation_scopes(&self) -> Vec<&crate::CheckedOperandSequence> {
-        let mut pending = vec![self];
-        let mut scopes = Vec::new();
-        while let Some(expression) = pending.pop() {
-            match &expression.kind {
-                CheckedUnitCompletionKind::Invocation(operations) => scopes.push(operations),
-                CheckedUnitCompletionKind::Selection(CheckedUnitCompletionSelection::Scalar {
-                    arms,
-                    ..
-                }) => pending.extend(arms.iter().rev().map(|arm| &arm.completion)),
-                CheckedUnitCompletionKind::Selection(
-                    CheckedUnitCompletionSelection::Structural { arms, .. },
-                ) => pending.extend(arms.iter().rev().map(|arm| &arm.completion)),
-            }
-        }
-        scopes
-    }
-}
-
+/// The completion arm of a `ConditionalReturn`.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedConditionalReturnArm {
-    Completion(CheckedUnitCompletionPlan),
-    /// Ordinary prepared calls complete without a materialized result value.
-    EvaluateUnit {
-        statement_ordinal: u32,
-        operations: crate::CheckedOperandSequence,
-    },
     /// A required operand stops before this arm's enclosing invocation enters.
     /// The exact evaluated prefix owns its calls; no parent call is published.
     EvaluateNoNormal {
@@ -945,15 +760,11 @@ pub enum CheckedConditionalReturnArm {
     },
     /// Selected abnormal completion. The exact authored crash site owns its
     /// cause and frontier; it supplies neither a result nor normal cleanup.
-    Crash {
-        statement_ordinal: u32,
-    },
+    Crash { statement_ordinal: u32 },
     /// Normal Unit completion at this authored transition, with the same
     /// ownership disposal as a Unit-returning state. It is not a jump to a
     /// synthesized source state or a value producer with a dummy scalar.
-    Unit {
-        statement_ordinal: u32,
-    },
+    Unit { statement_ordinal: u32 },
     /// The arm's `EstablishStructuralValue` producer, in the same local child
     /// storage `Guarded::return_values` uses.
     Structural(CheckedUnitEffectOperationPlan),
@@ -982,9 +793,6 @@ pub enum CheckedConditionalReturnArm {
 
 impl CheckedConditionalReturnArm {
     pub fn has_normal_continuation(&self) -> bool {
-        if let Self::Completion(plan) = self {
-            return plan.expression.normal_continuation;
-        }
         !matches!(self, Self::Crash { .. } | Self::EvaluateNoNormal { .. })
             && self
                 .operation_dependencies()
@@ -995,9 +803,6 @@ impl CheckedConditionalReturnArm {
     /// carries its admitted completion even though its source result is Unit;
     /// reach alone and ordinary returning Unit calls do not authorize this.
     pub fn abandons_custody(&self) -> bool {
-        if let Self::Completion(plan) = self {
-            return plan.abandons_custody;
-        }
         matches!(self, Self::Crash { .. }) || has_external_completion(self.operation_dependencies())
     }
 
@@ -1006,12 +811,10 @@ impl CheckedConditionalReturnArm {
     pub fn operation(&self) -> Option<&CheckedUnitEffectOperationPlan> {
         match self {
             Self::Structural(operation) | Self::Call { operation, .. } => Some(operation),
-            Self::Completion(_)
-            | Self::Crash { .. }
+            Self::Crash { .. }
             | Self::Unit { .. }
             | Self::Scalar { .. }
-            | Self::EvaluateNoNormal { .. }
-            | Self::EvaluateUnit { .. } => None,
+            | Self::EvaluateNoNormal { .. } => None,
         }
     }
 
@@ -1020,57 +823,27 @@ impl CheckedConditionalReturnArm {
     pub fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
         let operands = match self {
             Self::Call { operands, .. } => Some(operands),
-            Self::EvaluateNoNormal { operations, .. } | Self::EvaluateUnit { operations, .. } => {
-                Some(operations)
-            }
+            Self::EvaluateNoNormal { operations, .. } => Some(operations),
             _ => None,
         };
-        let completions = match self {
-            Self::Completion(plan) => Some(plan),
-            _ => None,
-        };
-        completions
+        operands
             .into_iter()
-            .flat_map(|plan| plan.expression.invocation_scopes())
-            .flat_map(|operations| operations.iter())
+            .flat_map(|operands| operands.iter())
+            .chain(self.operation())
             .chain(
-                operands
-                    .into_iter()
-                    .flat_map(|operands| operands.iter())
-                    .chain(self.operation())
-                    .chain(
-                        match self {
-                            Self::Call { completions, .. } => Some(completions),
-                            _ => None,
-                        }
-                        .into_iter()
-                        .flat_map(|completions| completions.iter()),
-                    ),
-            )
-    }
-
-    /// Mutually exclusive calls may reuse private result ordinals. Catalog
-    /// consumers prepare each invocation against the same predecessor scope.
-    pub fn operation_scopes(&self) -> Vec<Vec<&CheckedUnitEffectOperationPlan>> {
-        match self {
-            Self::Completion(plan) => plan
-                .expression
-                .invocation_scopes()
+                match self {
+                    Self::Call { completions, .. } => Some(completions),
+                    _ => None,
+                }
                 .into_iter()
-                .map(|operations| operations.iter().collect())
-                .collect(),
-            _ => vec![self.operation_dependencies().collect()],
-        }
+                .flat_map(|completions| completions.iter()),
+            )
     }
 
     /// The authored transition ordinal this arm completes at, when the arm
     /// retains one.
     pub fn statement_ordinal(&self) -> Option<u32> {
         match self {
-            Self::Completion(plan) => Some(plan.statement_ordinal),
-            Self::EvaluateUnit {
-                statement_ordinal, ..
-            } => Some(*statement_ordinal),
             Self::Crash { statement_ordinal }
             | Self::Unit { statement_ordinal }
             | Self::EvaluateNoNormal {

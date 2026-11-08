@@ -1,19 +1,14 @@
-//! Evidence establishing which package root was selected from one source.
+// We retain recheckable source-selection evidence establishing which package
+// root was selected from one source (`Root`, `GitWorkspace`, or `HistoricalGit`
+// for old-source comparison).
 
 use super::git::workspace::{GitWorkspaceSelectionError, GitWorkspaceSelectionEvidence};
 use std::fmt;
 
-/// Recheckable source-selection evidence retained outside package source bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PackageSourceSelectionEvidence {
-    /// The source root itself is the selected package.
     Root,
-    /// A declared member was selected from an authenticated Git workspace.
     GitWorkspace(GitWorkspaceSelectionEvidence),
-    /// SDK-issued bytes for an accepted historical pin/navigation. The retained
-    /// resolver object authenticates acquisition, not a fresh Build declaration.
-    /// Only old-source comparison receives this custody; snapshot rendering
-    /// verifies materialized content before and after reading it.
     HistoricalGit {
         _source: std::sync::Arc<package_source::ResolvedGitSource>,
     },
@@ -35,10 +30,6 @@ impl PackageSourceSelectionEvidence {
     }
 }
 
-/// Why retained source-selection evidence no longer replays.
-///
-/// The cause vocabulary stays crate-internal: callers outside this crate
-/// report the refusal through [`fmt::Display`] rather than re-deriving it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageSourceSelectionEvidenceError(PackageSourceSelectionEvidenceFailure);
 

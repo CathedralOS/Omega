@@ -1,4 +1,5 @@
-//! Exact checked occurrence join for closed conformance static arguments.
+// Exact checked occurrence join and closed-cohort validation for conformance static
+// arguments in contract calls.
 
 use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;

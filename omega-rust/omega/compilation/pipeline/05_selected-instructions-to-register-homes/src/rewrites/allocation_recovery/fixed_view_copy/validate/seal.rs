@@ -19,7 +19,7 @@ pub(crate) fn seal_validation(
         source_evidence: plan.source_evidence,
         transformed_selected: selected_instruction_plan_identity(&plan.transformed),
         optimization_unit: selected.optimization_unit(),
-        fuel_schedule: selected.fuel_schedule(),
+        work_schedule: selected.work_schedule(),
         policy: plan.policy,
         usage: plan.usage,
         function_count: plan.transformed.functions.len(),

@@ -1,4 +1,5 @@
-//! Build edit planning and source-qualified update selection.
+// Plan `build.omg` dependency edits and source-qualified update selections (`install` and `update`).
+// Because one authored alias may select a different package per dependency scope (`Product` vs. `Build`), `--to` requires that selection to resolve to a single package and updates every root-authored Git edge sharing that package's repository lineage in lockstep.
 
 use super::{PackageCommandError, PackageCommandKind, failure};
 use crate::declarations::{
@@ -16,8 +17,7 @@ use std::path::Path;
 pub(super) struct Plan {
     pub kind: PackageCommandKind,
     pub replacement: BuildFileReplacement,
-    /// None refreshes all selectors; Some(empty) preserves every accepted pin.
-    pub updates: Option<Vec<PackageKey>>,
+    pub updates: Option<Vec<PackageKey>>, // `None` refreshes all selectors; `Some(empty)` preserves every accepted pin
 }
 
 pub(super) fn install(
@@ -65,8 +65,6 @@ pub(super) fn update(
     let mut proposed_source = before.to_owned();
     if let Some(revision) = revision {
         let subject = subject.expect("selected update has an accepted graph");
-        // One authored spelling may select a different package per scope, so
-        // retargeting to a single requested revision requires one selection.
         let updates = updates.as_ref().expect("--to has one selection");
         let [selected] = updates.as_slice() else {
             return Err(failure(
@@ -74,9 +72,6 @@ pub(super) fn update(
             ));
         };
         let mut replaced = false;
-        // Every root-authored edge selecting this package's lineage moves:
-        // both scopes' rows for a dual-purpose package must agree on the
-        // revision because one source pin cannot split across purposes.
         for edge in subject.dependency_requests().iter().filter(|edge| {
             edge.requester() == subject.root().selected().key()
                 && edge.selected().key().source_lineage() == selected.source_lineage()
@@ -193,10 +188,6 @@ fn select_packages(
 ) -> Result<Vec<PackageKey>, PackageCommandError> {
     let mut selected = Vec::new();
     for name in names {
-        // Aliases are authorized per dependency scope: product and build rows
-        // may select different packages under one spelling. An update
-        // selection refreshes every distinct package the alias authorizes;
-        // `--to` above requires that selection to be exactly one package.
         let mut aliased = subject
             .dependency_requests()
             .iter()

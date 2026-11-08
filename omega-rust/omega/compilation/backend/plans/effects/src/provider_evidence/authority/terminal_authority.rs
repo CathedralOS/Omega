@@ -10,6 +10,9 @@ use std::collections::BTreeSet;
 /// cannot be represented here has no closed terminal-mechanism identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompilerIntrinsicExecutionIdentity {
+    /// Installed interrupt machinery, admitted separately from ordinary provider
+    /// proposals. Installation publishes CPU state; helpers use existing roots.
+    StaticInterrupt(language_core::static_interrupts::StaticInterruptOperation),
     /// Exact toolchain-owned `Console::exit_process(i32) -> Unit` execution
     /// selected for one canonical supported host target. The complete provider
     /// plan and target catalog retain its OS-specific realization identity.
@@ -228,6 +231,10 @@ pub fn compiler_intrinsic_execution_identity_bytes(
 ) -> Vec<u8> {
     let mut bytes = vec![0_u8; 8];
     match identity {
+        CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation) => {
+            bytes[0] = 16;
+            bytes[1] = operation.code();
+        }
         CompilerIntrinsicExecutionIdentity::TaskRegisterActivate => bytes[0] = 12,
         CompilerIntrinsicExecutionIdentity::TaskRegisterRead => bytes[0] = 13,
         CompilerIntrinsicExecutionIdentity::SegmentReload(kind) => {

@@ -1,3 +1,5 @@
+// Structural validation of callable contract clauses, facts, propositions, and evidence interfaces.
+
 use super::{signature::*, signature_expressions::expression};
 use crate::record::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,

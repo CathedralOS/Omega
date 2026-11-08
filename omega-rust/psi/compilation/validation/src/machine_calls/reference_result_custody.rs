@@ -53,7 +53,9 @@ mod declared_returns;
 mod source_paths;
 pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
-pub use declared_returns::returned_sources as declared_return_sources;
+pub use declared_returns::{
+    installed_context_sources, returned_sources as declared_return_sources,
+};
 pub use source_paths::{parameter_reference_origin_path, reference_origin_path};
 
 // An owned formal has a compact type DAG but its returned-origin roster is
@@ -1261,7 +1263,7 @@ fn declared_input_reference(
 /// still proves the actual descriptor's access and backing lifetime.
 pub fn stored_carrier_ingress_is_complete(
     program: &dyn CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     parameter: SymbolHandle,
@@ -1526,6 +1528,7 @@ pub fn storage_place_loans(
     record_leaf_loan_groups(
         program, facts, reference, owner, &captured, selection, homes,
     )
+    .ok_or("the activated storage loans have no complete typed leaf grouping")
 }
 
 /// Authenticate a reference slot's first installed descriptor. A declaration
@@ -1720,49 +1723,40 @@ fn record_leaf_loan_groups(
     loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
     homes: crate::completed_storage::InstalledLoanHomes<'_>,
-) -> Result<Vec<RecordLeafLoans>, &'static str> {
+) -> Option<Vec<RecordLeafLoans>> {
     let source = match owner {
         facts::PlaceRoot::Symbol(symbol) => {
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
         }
         facts::PlaceRoot::Expression(expression) => {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                value_dependency: None,
-                expression,
-                logical_root_type_identity: None,
-            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
         }
-        _ => return Err("stored reference owner has no executable source form"),
+        _ => return None,
     };
-    let sources = record_carrier_sources(program, reference, source)
-        .ok_or("stored reference type has no complete descriptor frontier")?;
+    let sources = record_carrier_sources(program, reference, source)?;
     let mut grouped_count = 0usize;
     let mut output = Vec::with_capacity(sources.len());
     for source in sources
         .into_iter()
         .filter(|source| source.path.starts_with(selection))
     {
-        let declared_path = loan_owner_path(program, reference, &source.path)
-            .ok_or("stored reference leaf has no typed owner path")?;
-        let owner_path = crate::corresponding_loan_owner_path(program, reference, &declared_path)
-            .ok_or("stored reference leaf does not fit its carrier")?;
-        let access = source
-            .source
-            .access
-            .borrow_access_kind()
-            .ok_or("stored reference leaf has no borrowing access")?;
+        let owner_path = crate::corresponding_loan_owner_path(
+            program,
+            reference,
+            &loan_owner_path(program, reference, &source.path)?,
+        )?;
+        let access = source.source.access.borrow_access_kind()?;
         let mut group = arena::HandleSpan::empty();
         let mut formation = None;
         let mut has_pointer = false;
         for handle in loans.iter().copied() {
             let loan = facts.borrow.loans.get(handle);
-            let captured_path = crate::corresponding_loan_owner_path(
+            if crate::corresponding_loan_owner_path(
                 program,
                 reference,
                 homes.owner_path(program, loan).as_ref(),
-            )
-            .ok_or("captured loan owner path does not fit its carrier")?;
-            if captured_path != owner_path {
+            )? != owner_path
+            {
                 continue;
             }
             let dependency = loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency;
@@ -1771,7 +1765,7 @@ fn record_leaf_loan_groups(
                 || formation.is_some_and(|statement| statement != loan.statement_index)
                 || (!group.is_empty() && !group.is_followed_by(handle))
             {
-                return Err("stored reference loans disagree on owner, access or formation group");
+                return None;
             }
             has_pointer |= !dependency;
             formation = Some(loan.statement_index);
@@ -1780,32 +1774,18 @@ fn record_leaf_loan_groups(
             } else {
                 group.start()
             };
-            group = arena::HandleSpan::from_parts(
-                start,
-                group
-                    .count()
-                    .checked_add(1)
-                    .ok_or("stored reference loan group exceeds its count representation")?,
-            );
-            grouped_count = grouped_count
-                .checked_add(1)
-                .ok_or("stored reference loan accounting exceeds usize")?;
+            group = arena::HandleSpan::from_parts(start, group.count().checked_add(1)?);
+            grouped_count = grouped_count.checked_add(1)?;
         }
         if group.is_empty() {
             continue;
         }
         if !has_pointer {
-            // Signature lifetime dependencies remain in the borrow facts.
-            // They describe retained inputs, not an executable descriptor
-            // to install in this value's storage.
-            continue;
+            return None; // Input obligations cannot supply a descriptor leaf.
         }
         output.push((source, group));
     }
-    if grouped_count != loans.len() {
-        return Err("activated storage loan has no corresponding typed reference leaf");
-    }
-    Ok(output)
+    (grouped_count == loans.len()).then_some(output)
 }
 
 /// The loan segments a borrowed initializer source projects under its
@@ -2127,7 +2107,6 @@ fn active_record_loans(
             state: state.symbol,
         },
     )
-    .ok()
 }
 
 /// The call's reference-record destination parameters and its returned leaf

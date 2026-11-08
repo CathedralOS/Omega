@@ -1,15 +1,13 @@
-//! Keep each selected implementation tied to its checked declarations.
-//!
-//! Build interpretation and native publication both need the same exact map
-//! and realizing machine identities. Close them while source is available;
-//! later consumers join those records to their actual Terminal artifact.
-//! These declarations describe selection and grant no execution authority.
+// Declaration-identity closure for selected provider implementations. Closes
+// the selecting nominal map and row-aligned numeric-intrinsic realization
+// identities while source custody is available so Build interpretation and
+// native publication can join those records to the Terminal artifact without
+// granting execution authority.
 
 use crate::{ProviderPlanningContext, SelectedProviderReviewProvenance};
 use backend_plan::TerminalTargetProviderPlan;
 use diagnostics::Diagnostic;
 
-/// Retain the selecting owner while its exact source custody is available.
 pub(crate) fn close_selecting_declaration(
     context: ProviderPlanningContext<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
@@ -37,9 +35,6 @@ fn close_nominal_declaration(
         })
 }
 
-/// Close exact declaration columns together with their whole plan.
-/// Preparation retains these identities without granting selection authority;
-/// public target proposals and immediate native production share this owner.
 pub(crate) fn close_provider_declarations(
     context: ProviderPlanningContext<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
@@ -81,9 +76,6 @@ pub(crate) fn close_provider_declarations(
     })
 }
 
-/// Retain every selected plan's complete, row-aligned declaration identities.
-/// This is source correspondence only. Receiving installation and host binding
-/// must still admit the resulting records against the exact Terminal artifact.
 pub fn retain_selected_provider_declarations(
     context: ProviderPlanningContext<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],

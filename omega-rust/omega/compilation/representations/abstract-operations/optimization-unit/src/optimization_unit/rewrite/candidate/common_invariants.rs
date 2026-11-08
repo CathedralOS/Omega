@@ -50,7 +50,7 @@ pub(super) fn validate(
                 || group
                     .iter()
                     .skip(1)
-                    .any(|row| row.sources != group[0].sources || row.fuel != group[0].fuel))
+                    .any(|row| row.sources != group[0].sources || row.work != group[0].work))
         {
             return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
         }
@@ -60,16 +60,16 @@ pub(super) fn validate(
         if row.input.machine() != row.disposition.site().machine() {
             return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
         }
-        let fuel = row
-            .fuel
+        let work = row
+            .work
             .iter()
             .map(|settlement| settlement.site)
             .collect::<BTreeSet<_>>();
-        if fuel.len() != row.fuel.len()
-            || fuel != sources
-            || row.fuel.iter().any(|settlement| settlement.units == 0)
+        if work.len() != row.work.len()
+            || work != sources
+            || row.work.iter().any(|settlement| settlement.units == 0)
         {
-            return Err(PsiRewriteCandidateError::FuelProvenanceMismatch);
+            return Err(PsiRewriteCandidateError::WorkProvenanceMismatch);
         }
     }
     if matches!(

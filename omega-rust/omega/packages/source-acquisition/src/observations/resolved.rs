@@ -1,3 +1,14 @@
+/*
+Resolved Git source custody (`ResolvedGitSource`), operation-local reuse pins
+(`GitAcquisitionPin`), and pending resolution records (`PendingResolvedGitSource`).
+
+`ResolvedGitSource` describes the authored request, accepted objects,
+materialized source, immutable snapshot, and enforced bounds without fetch
+process telemetry. `GitAcquisitionPin` prevents a later workspace member
+selection in the same manager traversal from refetching or drifting away from
+the exact commit and root tree already authenticated for that request.
+*/
+
 use crate::git::request::GitTransportProfile;
 use crate::git::workspace::GitWorkspaceProjectionCustody;
 use crate::identity::{GitObjectIdAlgorithm, SourceLineage, SourceRelativePath};
@@ -7,11 +18,6 @@ use std::path::{Path, PathBuf};
 
 use super::storage::GitRetainedStorageCustody;
 
-/// Direct custody for one resolved Git source.
-///
-/// Every field describes the authored request, accepted objects, materialized
-/// source, immutable snapshot, or a concrete enforced bound. Fetch-process
-/// telemetry is deliberately absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedGitSource {
     pub(crate) requested_locator: String,
@@ -30,11 +36,6 @@ pub struct ResolvedGitSource {
     pub(crate) retained_storage: GitRetainedStorageCustody,
 }
 
-/// Operation-local reuse pin for one already resolved Git acquisition.
-///
-/// This is not lock evidence. It only prevents a later member selection in the
-/// same manager traversal from refetching or drifting away from the exact
-/// commit and root tree already authenticated for that request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitAcquisitionPin {
     requested_locator: String,

@@ -1,4 +1,5 @@
-//! Closed callable behavior vocabulary, without proof coordinates.
+// Closed callable behavior vocabulary recovery without proof coordinates.
+
 use super::Error;
 use crate::encoding::recovery::policy::identity::nominal;
 use crate::encoding::recovery::policy::reader::Reader;

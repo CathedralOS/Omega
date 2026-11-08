@@ -734,6 +734,18 @@ pub(super) fn clone_single_specialized_machine(
                     continue;
                 };
                 let applications = StaticArgumentCall::Statement(call).applications();
+                let mut request = call.installed_interrupt_operation.take();
+                if let Some(request) = &mut request {
+                    request.invalidate_preparation();
+                    expressions_of_mut(program)
+                        .remap_static_argument_symbols(&mut request.registrar, realized);
+                    expressions_of_mut(program)
+                        .remap_static_argument_symbols(&mut request.timer_slot, realized);
+                }
+                let StatementNode::Call(call) = program.statement_table.statement_mut(handle)
+                else {
+                    unreachable!();
+                };
                 let mut arguments = std::mem::take(&mut call.machine_arguments);
                 for argument in &mut arguments {
                     expressions_of_mut(program).remap_static_argument_symbols(argument, realized);
@@ -743,6 +755,7 @@ pub(super) fn clone_single_specialized_machine(
                     unreachable!();
                 };
                 call.machine_arguments = arguments;
+                call.installed_interrupt_operation = request;
                 for application in applications {
                     // The retained actuals include symbol-only Value bindings,
                     // not just the authored argument rows. Keep the statement
@@ -858,8 +871,8 @@ pub(super) fn clone_single_specialized_machine(
             let Some(call) = program.statement_table.statement(handle).as_call() else {
                 continue;
             };
-            let mut arguments = call.machine_arguments.clone();
-            let applications = StaticArgumentCall::Statement(call).applications();
+            let mut call = call.clone();
+            let applications = StaticArgumentCall::Statement(&call).applications();
             for application in applications {
                 let mut authored_arguments = expressions_of(program)
                     .static_machine_application_arguments(application)
@@ -875,11 +888,25 @@ pub(super) fn clone_single_specialized_machine(
                     .clone_from_slice(&authored_arguments);
                 copy_application_binding_type_payloads(source, program, application, rebinding)?;
             }
-            copy_static_argument_type_payloads(source, program, &mut arguments, rebinding)?;
-            let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
+            copy_static_argument_type_payloads(
+                source,
+                program,
+                &mut call.machine_arguments,
+                rebinding,
+            )?;
+            for argument in call.request_static_arguments_mut() {
+                copy_static_argument_type_payloads(
+                    source,
+                    program,
+                    std::slice::from_mut(argument),
+                    rebinding,
+                )?;
+            }
+            let StatementNode::Call(destination) = program.statement_table.statement_mut(handle)
+            else {
                 unreachable!();
             };
-            call.machine_arguments = arguments;
+            *destination = call;
         }
     }
     copy_cloned_expression_type_payloads(source, program, expression_start, rebinding)?;
@@ -1316,23 +1343,19 @@ pub(super) fn copy_cloned_expression_type_payloads<'scope>(
         .filter_map(|(handle, expression)| match expression {
             ExpressionNode::Call(call) => Some((
                 handle,
-                call.machine_arguments.clone(),
-                call.native_code_layout.clone(),
+                call.clone(),
                 StaticArgumentCall::Expression(handle, call).applications(),
-                call.requirement_application,
-                call.exact_coercion_target,
             )),
             _ => None,
         })
         .collect::<Vec<_>>();
-    for (handle, mut arguments, mut native_query, applications, requirement, coercion_target) in
-        calls
-    {
-        // These are type-table payloads too: the applied trait qualifier and
-        // exact-coercion destination belong to this specialized caller, not
-        // the generic template whose expression tree was copied.
-        let requirement = copy_type_reference(source, program, requirement, symbols)?;
-        let coercion_target = copy_type_reference(source, program, coercion_target, symbols)?;
+    for (handle, mut call, applications) in calls {
+        // Every selected type belongs to this specialized caller, including
+        // operands retained by compiler-owned requests.
+        call.requirement_application =
+            copy_type_reference(source, program, call.requirement_application, symbols)?;
+        call.exact_coercion_target =
+            copy_type_reference(source, program, call.exact_coercion_target, symbols)?;
         for application in applications {
             let mut authored_arguments = expressions_of(program)
                 .static_machine_application_arguments(application)
@@ -1343,22 +1366,20 @@ pub(super) fn copy_cloned_expression_type_payloads<'scope>(
                 .clone_from_slice(&authored_arguments);
             copy_application_binding_type_payloads(source, program, application, symbols)?;
         }
-        copy_static_argument_type_payloads(source, program, &mut arguments, symbols)?;
-        if let Some(query) = &mut native_query {
+        copy_static_argument_type_payloads(source, program, &mut call.machine_arguments, symbols)?;
+        for argument in call.request_static_arguments_mut() {
             copy_static_argument_type_payloads(
                 source,
                 program,
-                std::slice::from_mut(&mut query.operand),
+                std::slice::from_mut(argument),
                 symbols,
             )?;
         }
-        let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle) else {
+        let ExpressionNode::Call(destination) = expressions_of_mut(program).expression_mut(handle)
+        else {
             unreachable!();
         };
-        call.machine_arguments = arguments;
-        call.native_code_layout = native_query;
-        call.requirement_application = requirement;
-        call.exact_coercion_target = coercion_target;
+        *destination = call;
     }
     let cast_payloads = expressions_of(program)
         .iter_expressions_from(expression_start)

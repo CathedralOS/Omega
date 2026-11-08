@@ -1,7 +1,4 @@
-//! Package commands and package Builds: `package_commands` schedules review
-//! work, `package_compilation` schedules admitted package Builds,
-//! `package_inspection` runs an observational target roster, and
-//! `package_review` runs a review pass dependency-first.
+// Package workflow modules: `package_commands` drives install/update review loops, `package_compilation` compiles admitted package plans, `package_inspection` runs `omega audit packages`, and `package_review` executes dependency-first review rounds.
 
 pub(crate) mod package_commands;
 pub(crate) mod package_compilation;

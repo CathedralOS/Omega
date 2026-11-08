@@ -23,7 +23,7 @@ pub(super) fn collect_assignment_calls(
     statement_index: usize,
     assignment: &typed_trees::statement::TableAssignment,
     calls: &[checked_trees::FlowCallFact],
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     let owner = program.machine_by_symbol(machine)?;
     // A scalar computation owns its call occurrences whether its value
@@ -110,7 +110,7 @@ pub(super) fn collect_constructor_calls(
     statement_index: usize,
     statement: &StatementNode,
     calls: &[checked_trees::FlowCallFact],
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     let construction_destination = match statement {
         StatementNode::LocalData(local) if !local.is_mutable => {
@@ -206,28 +206,48 @@ pub(super) fn collect_constructor_calls(
     Some(())
 }
 
-pub(super) fn statement_computation_prefix(
+/// A separately scheduled invocation owns its scalar operand calls through
+/// the same computation roots as an invocation in the statement sequence.
+/// A transition guard retains its own earlier computation. The two schedules
+/// share an occurrence ledger so neither can claim a call the other executes.
+/// Remaining occurrences must belong to this invocation's arm: a sibling
+/// arm's calls run only when this arm does not, and a structural argument
+/// owns the calls nested under its value, including a qualification cast.
+pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    statement_index: usize,
+    call: &checked_trees::FlowCallFact,
     calls: &[checked_trees::FlowCallFact],
-) -> Option<(super::CallOccurrenceLedger<'static>, Option<usize>)> {
+    predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+) -> Option<()> {
+    if facts.flow.control.is_retired(state, call)
+        || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
+    {
+        return None;
+    }
+    let site = validation::find_call_site(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
     let mut consumed = super::CallOccurrenceLedger::default();
     let owner = program.machine_by_symbol(machine)?;
     let source_state = program
         .machine_states(owner)
         .iter()
         .find(|source| source.symbol == state)?;
-    let mut guard_maximum = None;
     if let Some(StatementNode::Transition(transition)) = program
         .statement_table
-        .statement_at(source_state, statement_index)
+        .statement_at(source_state, call.statement_index)
         && let typed_trees::statement::TransitionGuardNode::When(expression) = transition.guard
     {
         let plans = &facts.values.scalar_computations;
-        let statement_ordinal = u32::try_from(statement_index).ok()?;
+        let statement_ordinal = u32::try_from(call.statement_index).ok()?;
         let mut roots =
             plans.roots_for_statement_role(state, statement_ordinal, ExpressionRole::Guard);
         if let Some(root) = roots.next() {
@@ -245,7 +265,7 @@ pub(super) fn statement_computation_prefix(
                 program,
                 facts,
                 state,
-                statement_index,
+                call.statement_index,
                 root.root,
                 calls,
                 0,
@@ -253,32 +273,29 @@ pub(super) fn statement_computation_prefix(
             )?;
             if consumed.iter().any(|handle| {
                 let guard_call = facts.flow.control.calls.get(*handle);
-                validation::transition_call_target(
-                    program,
-                    owner,
-                    source_state,
-                    statement_index,
-                    guard_call.call_ordinal,
-                )
-                .is_none_or(|target| target.is_valid())
+                guard_call.call_ordinal >= call.call_ordinal
+                    || validation::transition_call_target(
+                        program,
+                        owner,
+                        source_state,
+                        call.statement_index,
+                        guard_call.call_ordinal,
+                    )
+                    .is_none_or(|target| target.is_valid())
             }) {
                 return None;
             }
-            guard_maximum = consumed
-                .iter()
-                .map(|handle| facts.flow.control.calls.get(*handle).call_ordinal)
-                .max();
         }
     }
     let statement = program
         .statement_table
-        .statement_at(source_state, statement_index)?;
+        .statement_at(source_state, call.statement_index)?;
     collect_constructor_calls(
         program,
         facts,
         machine,
         source_state,
-        statement_index,
+        call.statement_index,
         statement,
         calls,
         &mut consumed,
@@ -289,69 +306,14 @@ pub(super) fn statement_computation_prefix(
             facts,
             machine,
             source_state,
-            statement_index,
+            call.statement_index,
             assignment,
             calls,
             &mut consumed,
         )?;
     }
-    Some((consumed, guard_maximum))
-}
-
-/// A separately scheduled invocation owns its scalar operand calls through
-/// the same computation roots as an invocation in the statement sequence.
-/// A transition guard retains its own earlier computation. The two schedules
-/// share an occurrence ledger so neither can claim a call the other executes.
-/// Remaining occurrences must belong to this invocation's arm: a sibling
-/// arm's calls run only when this arm does not, and a structural argument
-/// owns the calls nested under its value, including a qualification cast.
-pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    call: &checked_trees::FlowCallFact,
-    calls: &[checked_trees::FlowCallFact],
-    predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
-    selected: Option<&mut super::SelectedInvocationAccounting>,
-) -> Option<()> {
-    if facts.flow.control.is_retired(state, call)
-        || !match selected.as_deref() {
-            Some(selected) => selected.contains_leaf(facts, machine, state, call, calls),
-            None => calls.iter().any(|candidate| std::ptr::eq(candidate, call)),
-        }
-    {
-        return None;
-    }
-    let site = validation::find_call_site(
-        program,
-        machine,
-        state,
-        call.statement_index,
-        call.call_ordinal,
-    )?;
-    let arguments = validation::call_site_argument_expressions(program, &site);
-    let owner = program.machine_by_symbol(machine)?;
-    let source_state = program.state_in_machine(owner, state)?;
-    let (mut consumed, guard_maximum) = match selected.as_deref() {
-        Some(selected) => selected.operand_ledger(),
-        None => statement_computation_prefix(
-            program,
-            facts,
-            machine,
-            state,
-            call.statement_index,
-            calls,
-        )?,
-    };
-    if guard_maximum.is_some_and(|ordinal| ordinal >= call.call_ordinal) {
-        return None;
-    }
     for nested in structural_operands::for_call(program, facts, owner, source_state, call)? {
-        if !match selected.as_deref() {
-            Some(selected) => selected.contains_call(facts, nested),
-            None => calls.iter().any(|source| std::ptr::eq(source, nested)),
-        } {
+        if !calls.iter().any(|source| std::ptr::eq(source, nested)) {
             return None;
         }
         let handle = facts.flow.control.calls.handle_of(nested)?;
@@ -401,20 +363,6 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         calls,
         &mut consumed,
     )?;
-    if selected.is_some() {
-        if selected.as_deref()?.operands_reschedule_producer(
-            program,
-            facts,
-            call,
-            &consumed.calls,
-            predecessors,
-        )? {
-            return None;
-        }
-        // Release the borrowed common prefix before joining branch-local work.
-        let calls = consumed.calls;
-        return selected?.account(facts, call, &calls);
-    }
     let scheduled_subject = |candidate: &checked_trees::FlowCallFact| {
         scheduled_dispatch_subject(
             program,
@@ -474,7 +422,7 @@ fn consume_operand_value_calls(
     call: &checked_trees::FlowCallFact,
     arguments: &[typed_trees::expression::ExpressionHandle],
     calls: &[checked_trees::FlowCallFact],
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     let statement_ordinal = u32::try_from(call.statement_index).ok()?;
     let minimum = u32::try_from(call.call_ordinal.checked_add(1)?).ok()?;
@@ -528,7 +476,7 @@ fn operand_value_nests_calls(kind: &checked_trees::CheckedStructuralValueKind) -
 
 /// The active arm's preparation already scheduled this call, including a
 /// call retained inside a structural value rather than as its own operation.
-pub(super) fn scheduled_by_active_arm(
+fn scheduled_by_active_arm(
     candidate: &checked_trees::FlowCallFact,
     predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> bool {
@@ -544,7 +492,7 @@ pub(super) fn scheduled_by_active_arm(
 
 /// A call that completes or evaluates a different arm of this transition.
 /// Guard calls keep the zero target and stay on every arm's roster.
-pub(super) fn other_transition_arm(
+fn other_transition_arm(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -580,42 +528,28 @@ pub(super) fn scheduled_dispatch_subject(
     calls: &[checked_trees::FlowCallFact],
     predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> bool {
-    super::dispatch_producers::authenticated_producer(
+    let Some((statement, expression)) = validation::saved_dispatch_call(
         program,
-        facts,
         state,
-        candidate,
-        |statement, expression| {
-            let mut producers = calls.iter().filter(|producer| {
-                producer.statement_index == statement && producer.authored_expression == expression
-            });
-            let producer = producers.next()?;
-            producers.next().is_none().then_some(producer)
-        },
-        |producer| {
-            scheduled_owner_count(
-                program,
-                facts,
-                machine,
-                state,
-                producer,
-                calls,
-                predecessors,
-            )
-        },
-    )
-    .is_some_and(|producer| producer < (invocation.statement_index, invocation.call_ordinal))
-}
-
-fn scheduled_owner_count(
-    program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    producer: &checked_trees::FlowCallFact,
-    calls: &[checked_trees::FlowCallFact],
-    predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
-) -> Option<usize> {
+        candidate.statement_index,
+        candidate.authored_expression,
+    ) else {
+        return false;
+    };
+    let mut producers = calls.iter().filter(|producer| {
+        producer.statement_index == statement && producer.authored_expression == expression
+    });
+    let Some(producer) = producers.next() else {
+        return false;
+    };
+    if producers.next().is_some()
+        || facts.flow.control.is_retired(state.symbol, producer)
+        || producer.target_symbol != candidate.target_symbol
+        || (producer.statement_index, producer.call_ordinal)
+            >= (invocation.statement_index, invocation.call_ordinal)
+    {
+        return false;
+    }
     let mut owners = 0;
     for operation in predecessors {
         let Some(planned) = operation.call() else {
@@ -625,9 +559,11 @@ fn scheduled_owner_count(
             candidate.statement_index == planned.coordinate.statement_index as usize
                 && candidate.call_ordinal == planned.coordinate.call_ordinal as usize
         });
-        let prior = occurrences.next()?;
+        let Some(prior) = occurrences.next() else {
+            return false;
+        };
         if occurrences.next().is_some() || facts.flow.control.is_retired(state.symbol, prior) {
-            return None;
+            return false;
         }
         if std::ptr::eq(prior, producer) {
             owners += 1;
@@ -638,15 +574,17 @@ fn scheduled_owner_count(
         }
         // Scalar operand invocations execute in the preceding call's retained
         // computation roots rather than as separate structural operations.
-        let site = validation::find_call_site(
+        let Some(site) = validation::find_call_site(
             program,
             machine.symbol,
             state.symbol,
             prior.statement_index,
             prior.call_ordinal,
-        )?;
+        ) else {
+            return false;
+        };
         let mut consumed = super::CallOccurrenceLedger::default();
-        collect_argument_calls(
+        if collect_argument_calls(
             program,
             facts,
             machine.symbol,
@@ -655,7 +593,11 @@ fn scheduled_owner_count(
             validation::call_site_argument_expressions(program, &site),
             calls,
             &mut consumed,
-        )?;
+        )
+        .is_none()
+        {
+            return false;
+        }
         if consumed
             .iter()
             .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), producer))
@@ -663,7 +605,7 @@ fn scheduled_owner_count(
             owners += 1;
         }
     }
-    Some(owners)
+    owners == 1
 }
 
 pub(super) fn collect_argument_calls(
@@ -674,7 +616,7 @@ pub(super) fn collect_argument_calls(
     call: &checked_trees::FlowCallFact,
     arguments: &[typed_trees::expression::ExpressionHandle],
     calls: &[checked_trees::FlowCallFact],
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     let register_operation = program
         .symbols
@@ -836,7 +778,7 @@ pub(super) fn collect_range_calls(
     site: checked_trees::CheckedSubsliceSite,
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<bool> {
     let plans = &facts.values.scalar_computations;
     let statement_ordinal = u32::try_from(statement).ok()?;
@@ -883,7 +825,7 @@ pub(super) fn collect_structural_argument_calls(
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
     visits: &mut Vec<ComputationVisit>,
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     // Formation and argument admission already own storage, type and access.
     // This collector owns only executable projection operands. Anonymous
@@ -918,7 +860,7 @@ pub(super) fn collect_owned_root_calls(
     statement_index: usize,
     root: &checked_trees::CheckedScalarComputationRoot,
     calls: &[checked_trees::FlowCallFact],
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     if root.machine != machine {
         return None;
@@ -944,7 +886,7 @@ pub(super) fn collect_root_calls(
     root: CheckedScalarComputationHandle,
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     collect(
         program,
@@ -968,13 +910,16 @@ pub(super) fn collect(
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
     visits: &mut Vec<ComputationVisit>,
-    consumed: &mut super::CallOccurrenceLedger<'_>,
+    consumed: &mut super::CallOccurrenceLedger,
 ) -> Option<()> {
     let plans = &facts.values.scalar_computations;
     if !plans.nodes.is_valid(handle) {
         return None;
     }
-    if let Some(minimum) = consumed.accounted_minimum(state, statement, handle) {
+    if let Some(minimum) = consumed.accounted_computations.iter().find_map(|entry| {
+        (entry.state == state && entry.statement == statement && entry.computation == handle)
+            .then_some(entry.minimum_call_ordinal)
+    }) {
         if minimum.is_some_and(|ordinal| ordinal < minimum_call_ordinal) {
             return None;
         }

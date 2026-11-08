@@ -1,3 +1,6 @@
+// Public domain declaration projection (`project_public_domains`) and semantic
+// role verification (`project_domain_semantic_roles`).
+
 use super::aliases::{project_domain_alias_expansion, project_domain_establishment_route};
 use super::facts::project_domain_predicate_facts;
 use crate::capture::PackageReviewInput;

@@ -1,8 +1,7 @@
-//! Attach exact checked instances to whole selected plans, without source.
-//!
-//! Psi supplies declaration groups; this owner decides selected cardinality,
-//! template-row agreement and complete closed-requirement coverage. Failures
-//! stay deferred until the same row/application asks for them.
+// Attach exact checked instances to whole selected plans without source.
+// Psi supplies declaration groups; this owner decides selected cardinality,
+// template-row agreement, and complete closed-requirement coverage while keeping
+// failures deferred until the same row or application asks for them.
 
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
@@ -23,15 +22,12 @@ pub struct GenericProviderInstanceDeclarations {
     pub required_instances: Vec<String>,
 }
 
-/// Owned declaration payload, prepared once alongside the immutable plan roster.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanInstanceDeclarations {
     pub rows: Vec<ProviderInstanceRowDeclarations>,
     pub generic_templates: Vec<GenericProviderInstanceDeclarations>,
 }
 
-/// Borrow the original plan and its owned declaration payload together.
-/// No checked program, source symbol or machine reference reaches this owner.
 pub struct ProviderInstanceDeclarations<'plan> {
     pub plan: &'plan ProviderPlan,
     pub instances: &'plan ProviderPlanInstanceDeclarations,

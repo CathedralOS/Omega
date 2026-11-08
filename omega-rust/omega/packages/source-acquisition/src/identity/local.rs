@@ -1,3 +1,16 @@
+/*
+Workspace-member and external-local source lineages (`WorkspaceMemberLineage`,
+`SourceRelativePath`, `ExternalLocalLineage`) and domain digests
+(`WorkspaceLineageIdentity`, `ExternalSourceContext`, `SourceContentDigest`).
+
+`ExternalLocalLineage::recovery_owned_bytes` budgets lexical recovery's
+normalized `PathBuf` and possible error path copy (allowing 2 bytes per input
+byte for UTF-16 host path representations plus fixed error text, while the moved
+canonical UTF-8 input is charged by the caller). `from_canonical_path` binds an
+already-canonical path from source acquisition or a bounded review baseline by
+validating the lexical invariant without re-consulting the live filesystem.
+*/
+
 use super::{IdentityError, SourceLineage, decode_hex, encode_hex, hash_field};
 use sha2::{Digest, Sha256};
 use std::path::{Component, Path, PathBuf};
@@ -64,10 +77,6 @@ pub struct ExternalLocalLineage {
 }
 
 impl ExternalLocalLineage {
-    /// Payload allowance for lexical recovery's normalized `PathBuf` and its
-    /// possible error path copy. Each path allows two bytes per input byte for
-    /// hosts whose owned path representation uses UTF-16; the fixed error text
-    /// is included. The moved canonical UTF-8 input is charged by the caller.
     #[doc(hidden)]
     pub fn recovery_owned_bytes(path: &str) -> Option<usize> {
         path.len()
@@ -105,12 +114,6 @@ impl ExternalLocalLineage {
         })
     }
 
-    /// Bind an already-canonical path from source acquisition or a bounded
-    /// review baseline without consulting a later version of the filesystem.
-    ///
-    /// This does not establish that the path still exists or recover source
-    /// custody. It only validates the lexical invariant previously established
-    /// by the source adapter.
     #[doc(hidden)]
     pub fn from_canonical_path(
         canonical_path: String,

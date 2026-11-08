@@ -1,3 +1,6 @@
+// Canonical lock serialization with verbatim length-delimited child sections and single-pass recoverability accounting.
+// Each child section is decoded once against `Budget` and immediately dropped so only records recoverable under the active ceilings can be emitted.
+
 use super::super::PackageLockTarget;
 use super::super::{
     HistoricalPackagePolicyLimits, PackageLock, PackageLockError as Error,
@@ -8,15 +11,10 @@ use super::{HEADER, budget::Budget, framing::Writer};
 use crate::lock::PackagePolicyOccurrence;
 
 impl PackageLock {
-    /// Diffable child texts remain verbatim, with explicit byte lengths to
-    /// delimit them. No whole child becomes an opaque escaped payload.
     pub fn canonical_text(&self) -> Result<String, Error> {
         self.canonical_text_with_limits(PackageLockRecoveryLimits::default())
     }
 
-    /// Emit only records recoverable under these ceilings. Each child is
-    /// decoded once for exact resource accounting and immediately dropped;
-    /// no duplicate full lock or acceptance certificate is constructed.
     pub(crate) fn canonical_text_with_limits(
         &self,
         limits: PackageLockRecoveryLimits,
@@ -43,8 +41,6 @@ impl PackageLock {
             for occurrence in &target.occurrences {
                 let policy = occurrence.acceptance();
                 let context = occurrence.context();
-                // Validation established source order; each package is visited
-                // once even when both purposes retain independent consent.
                 while target
                     .source
                     .packages()
