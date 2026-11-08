@@ -123,23 +123,23 @@ marks them critical. Audit registration changes presentation and acceptance,
 not reach, inheritance, authority or attenuation.
 
 Suspension, blocking, and crashes retain their independent rules. On published
-surfaces omitted `suspends` means never parks and omitted `blocks` means never
-blocks a worker. Their call-site markers are checked against a known bound, so
-a published surface authors them; private checked bodies may omit them to
-request inference. An omitted `crashes` clause is inferred from the checked
-body, private or public, and defers to the selected implementation on a
-bodyless non-boundary requirement. `crashes none` promises no route and rejects
-a body or selection that has one. An inferred public route that a body edit
-introduces therefore propagates to callers that imposed no constraint, and
-the published contract changes with it. Across packages the change arrives
-through the [dependency update](../packages/acceptance.md#ordinary-compilation)
-boundary, which has no crash-specific approval of its own. Crash policy is
-decided deliberately at two places: `crashes none` on the surface that
-commits to crash-freedom, where such an edit rejects, and
+surfaces omitted `suspends` means never parks, omitted `blocks` means never
+blocks a worker, and omitted `crashes` means no crash route, exactly as
+`crashes none`. Private checked bodies may omit any of the three to request
+inference. On a bodyless non-boundary requirement omitted `crashes` defers to
+the selected implementation, and `crashes none` admits only crash-free
+selections. Suspension and blocking are authored on published surfaces because
+their call-site markers are checked against a known bound. Crashes are authored
+there because a trap needs no additional authority and no marker, so inference
+would let a helper edit widen a public contract to a domain-ending outcome
+without any author touching that surface; a public machine that can crash
+states its causes and guards, and callers permit or disprove them. Service
+reach remains inferred on public bodies: a body cannot reach beyond the
+authority it holds, admission policy and
 [build-level behavior exclusions](../build/behavior_exclusions.md#two-independent-checks)
-where the requirement belongs to the whole executable, where any route in the
-selected closure rejects at admission. A public generic that admits a suspending or
-blocking callback declares the corresponding ceiling. Its published
+govern service use, and an authored `reaches` ceiling stays available for a
+narrower promise. A public generic that admits a suspending, blocking or
+crashing callback declares the corresponding ceiling. Its published
 [dependency terms](#static-binder-contract-dependencies) separately record
 which static selections contribute each possibility.
 
@@ -354,18 +354,21 @@ target and the current consumer set contribute nothing.
 | --- | --- | --- | --- | --- |
 | `reaches` | union of fixed services and binder rows | infer | defer to the selection | fixed services plus the selected published rows |
 | `suspends`, `blocks` | OR of the fixed contribution and binder flags | private infers; public means never | never | fixed contribution OR the selected published flags |
-| `crashes` | per cause, union of fixed and binder routes, then path-fact disproof | infer | defer to the selection | fixed routes plus the selected published routes, disproved routes removed |
+| `crashes` | per cause, union of fixed and binder routes, then path-fact disproof | private infers; public means none | defer to the selection | fixed routes plus the selected published routes, disproved routes removed |
 | `terminates` | own progress AND binder promises | no guarantee | no promise | the guarantee once every binder premise is discharged by a selected published promise |
 | suspension carry | conditions over the suspension term | derived | derived | discharged where substitution removes the suspension |
 | result relations | proof-only relation per binder, composed along value flow | authored claim or none | the requirement's guarantee bounds it | the selected published relation under the authored claim |
 
-One rule produces that table. Omission derives the answer wherever the
-compiler can derive it safely. Suspension and blocking have call-site
-acknowledgement markers that are checked against a known bound, so a published
-surface and a requirement author them. Termination is a positive promise, and a
+One rule produces that table. Omission derives the answer wherever derivation
+cannot widen a public surface without an author's hand. Suspension and
+blocking have call-site acknowledgement markers that are checked against a
+known bound, so a published surface and a requirement author them. A crash
+needs no additional authority and no marker, so a published surface authors
+it too, while a requirement defers. Termination is a positive promise, and a
 promise that silently disappears on a body edit is worse than an effect that
-appears, so it stays authored. Every other axis infers on a body and defers on
-a requirement. An explicit empty value, `reaches none`, `crashes none`,
+appears, so it stays authored. Reach infers on a body and defers on a
+requirement: a body cannot reach beyond the authority it holds, and an
+authored ceiling remains available for a narrower promise. An explicit empty value, `reaches none`, `crashes none`,
 `suspends false` or `blocks false`, promises the empty value and rejects any
 body or selection that violates it. Boundary requirements and runtime callable
 types author every axis; they have no body to infer from and no static
@@ -713,9 +716,10 @@ the body's fixed routes together with each binder's routes, mapped through the
 call site's actuals. Applications substitute the selected callbacks' published
 routes and then apply the disproof above. A requirement that omits `crashes`
 admits any selection and contributes that selection's published routes; a
-requirement stating `crashes none` admits only crash-free selections. The
-wrapper's own omitted clause publishes the composed term. A published surface
-that must stay crash-free for every selection states `crashes none`.
+requirement stating `crashes none` admits only crash-free selections. A public
+wrapper that admits crashing selections states `crashes Trap` or `crashes
+Abort` as its ceiling; the composed term still decides which applications
+carry a route. A private wrapper's omitted clause publishes the composed term.
 
 Only a body inside the same fingerprinted verification unit may supply a local
 body summary; otherwise use the published ceiling. Reuse of published judgments

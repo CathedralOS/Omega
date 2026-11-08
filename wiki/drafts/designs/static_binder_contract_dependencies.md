@@ -29,9 +29,12 @@ acceptance are complete.
   so published surfaces and requirements author them. Termination is a promise,
   so it stays authored. Reach and crashes infer on bodies and defer on
   requirements.
-- Crash row. Omitted `crashes` infers on private and public bodies and defers
-  on non-boundary requirements. Routes compose per cause and then use the
-  existing path-fact disproof. `crashes none` is the explicit empty promise.
+- Crash row (amended 2026-11-08). Omitted `crashes` on a public checked
+  machine means `crashes none`; a private body infers; a non-boundary
+  requirement defers to the selection. A trap needs no authority and no marker,
+  so public surfaces author it like `suspends` and `blocks`, while reach stays
+  inferred because a body cannot exceed held authority. Routes compose per
+  cause and then use the existing path-fact disproof.
 - Termination row. Authored `terminates` on a generic whose requirement
   publishes no guarantee carries a binder premise. A selection that publishes
   `terminates` discharges it; a silent selection stays admissible with no
@@ -88,8 +91,9 @@ acceptance are complete.
    private body fact into a public result.
 2. Reach onto the same representation. Keep the deferred/explicit/finite
    distinctions and installation-bound rows unchanged.
-3. Crash row. Infer public bodies; defer requirements; enforce `crashes none` on
-   private bodies and requirements; compose routes per cause (a Boolean per
+3. Crash row. Public omission means none, as the compiler already enforces;
+   infer private bodies; defer requirements; enforce `crashes none` on private
+   bodies and requirements; compose routes per cause (a Boolean per
    cause is sufficient for the first cut, guard mapping through call-site
    actuals is the precision step); apply disproof after substitution.
 4. Carry row on the shared suspension term, as already specified.
