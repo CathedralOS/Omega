@@ -75,12 +75,14 @@ const OWNER_COUNT: usize = 19;
 /// The owners sibling contexts rebuild with equal contents in a fresh
 /// allocation. A completed query may accept such an owner when its contents
 /// are completely equal (`CompleteEq`) to the retained one; every other owner
-/// must be the same allocation. Retained weakly, like `InputOwner`, so an old
-/// context's payload is released once nothing else holds it.
+/// must be the same allocation. Retained strongly, unlike `InputOwner`: the
+/// sibling that built the retained copy is usually gone by the time an equal
+/// one asks, so a weak handle would already be dead. The completed table lives
+/// for one judge tree, which bounds what this keeps alive.
 macro_rules! content_owners {
     ($($index:literal $field:ident: $type:ty),* $(,)?) => {
         struct RetainedContents<'program> {
-            $($field: Weak<$type>,)*
+            $($field: Arc<$type>,)*
             lengths: [usize; CONTENT_OWNER_COUNT],
             marker: std::marker::PhantomData<&'program ()>,
         }
@@ -91,14 +93,10 @@ macro_rules! content_owners {
 
         impl<'program> RetainedContents<'program> {
             /// Whether owner `index` of the roster holds completely equal
-            /// contents in both; `false` for an owner matched by identity only
-            /// or a retained payload already released.
+            /// contents in both; `false` for an owner matched by identity only.
             fn same_contents(&self, index: usize, current: &CurrentContents<'_>) -> bool {
                 match index {
-                    $($index => self
-                        .$field
-                        .upgrade()
-                        .is_some_and(|retained| retained.complete_eq(current.$field)),)*
+                    $($index => self.$field.complete_eq(current.$field),)*
                     _ => false,
                 }
             }
@@ -107,7 +105,7 @@ macro_rules! content_owners {
         impl<'current> CurrentContents<'current> {
             fn retain<'program>(&self) -> RetainedContents<'program> {
                 RetainedContents {
-                    $($field: Arc::downgrade(self.$field),)*
+                    $($field: Arc::clone(self.$field),)*
                     lengths: self.lengths(),
                     marker: std::marker::PhantomData,
                 }
