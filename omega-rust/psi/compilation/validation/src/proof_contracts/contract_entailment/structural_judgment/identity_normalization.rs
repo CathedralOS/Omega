@@ -347,11 +347,14 @@ impl<'value> IdentitySubstitutions<'value> {
                 let [left_head, right_head] = self.rows[row].heads;
                 let [other_left, other_right] = other.values;
                 let [other_left_head, other_right_head] = other.heads;
+                // Conclusions often share a small established value even
+                // when their source expressions have different structure.
+                // Check that common RHS before decomposing the sources.
                 for (pair, ((left, left_head), (right, right_head))) in [
+                    ((right, right_head), (other_right, other_right_head)),
                     ((left, left_head), (other_left, other_left_head)),
                     ((left, left_head), (other_right, other_right_head)),
                     ((right, right_head), (other_left, other_left_head)),
-                    ((right, right_head), (other_right, other_right_head)),
                 ]
                 .into_iter()
                 .enumerate()

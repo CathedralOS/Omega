@@ -244,12 +244,8 @@ ensures
     }
 }
 
-// mul's right-successor law -- citation-free: rearrange mode normalizes
-// `add(b, add(prev, mul(prev, b)))` onto the goal's other side without the
-// three cited rewrites (comm, assoc, comm) it would otherwise need. After
-// unfolding and the inductive hypothesis, both sides flatten to the same
-// addend multiset under Nat's CommutativeSemiring conformance, and the
-// msr_step sub-state deletes entirely.
+// mul's right-successor law. The step cites the checked addition laws to
+// align b + (prev + mul(prev, b)) with prev + (b + mul(prev, b)).
 machine mul_succ_right(a: Nat, b: Nat) -> Nat
 terminates by a
 ensures
@@ -257,7 +253,14 @@ ensures
 {
     transition a {
         Nat::Zero -> Nat::Zero
-        Nat::Succ { prev } -> Nat::Succ { prev: mul_succ_right(prev, b) }
+        Nat::Succ { prev } -> msr_step(prev, b)
+    }
+
+    machine msr_step(prev: Nat, b: Nat) -> Nat {
+        add_comm(b, prev);
+        add_assoc(b, prev, mul(prev, b));
+        add_assoc(prev, b, mul(prev, b));
+        transition { _ -> Nat::Succ { prev: mul_succ_right(prev, b) } }
     }
 }
 
