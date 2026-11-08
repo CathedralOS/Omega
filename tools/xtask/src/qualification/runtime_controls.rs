@@ -392,7 +392,7 @@ impl Replay {
                 !value.file_type().is_file()
                     || !permissions_match(&value.permissions(), &file.permissions)
             });
-            if actual.as_ref().map_or(true, |value| value != expected) || permissions_changed {
+            if actual.as_ref() != Ok(expected) || permissions_changed {
                 self.preserve_input(file, &format!("{phase}-{point}"))?;
                 errors.push(format!(
                     "{phase} source changed at {point}: {}",

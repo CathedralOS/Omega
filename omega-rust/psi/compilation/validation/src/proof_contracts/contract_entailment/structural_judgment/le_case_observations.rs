@@ -18,7 +18,7 @@ impl StructuralJudge<'_> {
             .machine_by_symbol(self.machine_symbol)
             .or_else(|| self.program.machine_holding_state(self.machine_symbol))?;
         match machine.name.as_str() {
-            "mod" => Some(0),
+            "use_agreement" => Some(0),
             "rat_close_triangle_split" => Some(1),
             "nat_gap_triangle" => Some(2),
             _ => None,
@@ -35,14 +35,14 @@ impl StructuralJudge<'_> {
         terms: &[(&str, &StructuralTerm)],
         detail: std::fmt::Arguments<'_>,
     ) -> bool {
-        static MAIN: [AtomicUsize; 34] = [const { AtomicUsize::new(0) }; 34];
-        static STEP: [AtomicUsize; 34] = [const { AtomicUsize::new(0) }; 34];
-        static TRIANGLE: [AtomicUsize; 34] = [const { AtomicUsize::new(0) }; 34];
+        static MAIN: [AtomicUsize; 36] = [const { AtomicUsize::new(0) }; 36];
+        static STEP: [AtomicUsize; 36] = [const { AtomicUsize::new(0) }; 36];
+        static TRIANGLE: [AtomicUsize; 36] = [const { AtomicUsize::new(0) }; 36];
         let Some(owner) = self.le_case_trace_owner() else {
             return false;
         };
         let (name, counters) = match owner {
-            0 => ("mod", &MAIN),
+            0 => ("use_agreement", &MAIN),
             1 => ("rat_close_triangle_split", &STEP),
             _ => ("nat_gap_triangle", &TRIANGLE),
         };
@@ -80,6 +80,8 @@ impl StructuralJudge<'_> {
             "prepare-refusal" => (31, 8),
             "raw-direct-verdict" => (32, 4),
             "normalized-direct-verdict" => (33, 4),
+            "call-capture" => (34, 12),
+            "call-bindings" => (35, 8),
             _ => (12, 4),
         };
         let event = counters[index].fetch_add(1, Ordering::Relaxed);
@@ -109,6 +111,9 @@ fn trace_term(side: &str, value: &StructuralTerm, depth: usize, remaining: &mut 
     }
     *remaining -= 1;
     match value {
+        StructuralTerm::Identity { carrier, .. } => {
+            eprintln!("IDCASE {side} depth={depth} identity_carrier={carrier:?}")
+        }
         StructuralTerm::Application {
             result_type,
             target,

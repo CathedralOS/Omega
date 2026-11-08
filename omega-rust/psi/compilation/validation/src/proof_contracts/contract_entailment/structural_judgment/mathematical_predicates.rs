@@ -40,13 +40,58 @@ impl StructuralJudge<'_> {
                     capture,
                     None,
                 )?;
-                Some(Self::substitute_call_term(
-                    &value,
-                    bindings,
-                    machine_bindings,
-                ))
+                let instantiated = Self::substitute_call_term(&value, bindings, machine_bindings);
+                self.trace_le_case(
+                    "call-capture",
+                    &[("source", &value), ("actual", &instantiated)],
+                    format_args!("owner={owner:?} expression={expression:?} capture={capture:?}"),
+                );
+                Some(instantiated)
             },
         );
+        if self.le_case_trace_enabled() {
+            let prepared = self
+                .program
+                .prepared_mathematics()
+                .is_some_and(|view| view.application(expression).is_some());
+            if let Some(predicate) = &predicate {
+                self.trace_le_case(
+                    "predicate-formation",
+                    &[("predicate", predicate)],
+                    format_args!(
+                        "owner={owner:?} expression={expression:?} prepared={} formed=true",
+                        prepared
+                    ),
+                );
+            } else {
+                self.trace_le_case(
+                    "predicate-formation",
+                    &[],
+                    format_args!(
+                        "owner={owner:?} expression={expression:?} prepared={} formed=false",
+                        prepared
+                    ),
+                );
+            }
+            let total = self
+                .captured_result_equations
+                .iter()
+                .filter(|row| row.is_data_identity())
+                .count();
+            for (index, row) in self
+                .captured_result_equations
+                .iter()
+                .filter(|row| row.is_data_identity())
+                .enumerate()
+                .take(12)
+            {
+                self.trace_le_case(
+                    "typed-row",
+                    &[("left", &row.left), ("right", &row.right)],
+                    format_args!("predicate entry row={index} total={total}"),
+                );
+            }
+        }
         predicate.map_or(StructuralJudgment::Unknown, |predicate| {
             self.judge_observed_predicate(predicate, 0)
         })

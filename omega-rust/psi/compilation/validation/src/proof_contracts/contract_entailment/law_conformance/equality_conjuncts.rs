@@ -177,7 +177,6 @@ pub(super) fn trace_law_source(
                     for (slot, application) in
                         typed_trees::references::StaticArgumentCall::Expression(expression, call)
                             .applications()
-                            .into_iter()
                             .enumerate()
                     {
                         let bindings = crate::frozen_program::expression_table(program)
