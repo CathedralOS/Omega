@@ -31,6 +31,7 @@ SelectedAgreement satisfies ValueRepresentation<u8, NoResources, Frame, WriteErr
 {
     machine round_trip(request: RepresentationRequest<u8, NoResources>)
         -> Result<RepresentationRequest<u8, NoResources>, RepresentationError<WriteError, ReadError>>
+    terminates
     ensures result in Result::Ok
     ensures core::Identity<u8>(result.value.value, request.value)
     {
@@ -40,6 +41,7 @@ SelectedAgreement satisfies ValueRepresentation<u8, NoResources, Frame, WriteErr
         }
         machine restore(frame: Frame)
             -> Result<RepresentationRequest<u8, NoResources>, RepresentationError<WriteError, ReadError>>
+        terminates
         requires frame.tag == 165u8
         {
             transition Read::try_from(frame) {
@@ -113,6 +115,7 @@ data BufferFailure<'buffer> { output: &'buffer mut [u8]; }
 WriteBuffer<'buffer> satisfies TryFrom<RepresentationRequest<u8, Buffer<'buffer>>, BufferedFrame<'buffer>, BufferFailure<'buffer>> {
     machine try_from(request: RepresentationRequest<u8, Buffer<'buffer>>)
         -> Result<BufferedFrame<'buffer>, BufferFailure<'buffer>>
+    terminates
     ensures result in Result::Ok && result.value.output[0u64] == 165u8
         && result.value.output[1u64] == request.value
     {
@@ -124,6 +127,7 @@ WriteBuffer<'buffer> satisfies TryFrom<RepresentationRequest<u8, Buffer<'buffer>
 ReadBuffer<'buffer> satisfies TryFrom<BufferedFrame<'buffer>, RepresentationRequest<u8, Buffer<'buffer>>, BufferFailure<'buffer>> {
     machine try_from(frame: BufferedFrame<'buffer>)
         -> Result<RepresentationRequest<u8, Buffer<'buffer>>, BufferFailure<'buffer>>
+    terminates
     ensures frame.output[0u64] != 165u8 || result in Result::Ok
     ensures result in Result::Err || result.value.value == frame.output[1u64]
     {
@@ -141,6 +145,7 @@ BufferedAgreement<'buffer> satisfies Representation<u8, Buffer<'buffer>, Buffere
     machine round_trip(request: RepresentationRequest<u8, Buffer<'buffer>>)
         -> Result<RepresentationRequest<u8, Buffer<'buffer>>,
             RepresentationError<BufferFailure<'buffer>, BufferFailure<'buffer>>>
+    terminates
     ensures result in Result::Ok
     ensures core::Identity<u8>(result.value.value, request.value)
     {
@@ -151,6 +156,7 @@ BufferedAgreement<'buffer> satisfies Representation<u8, Buffer<'buffer>, Buffere
         machine restore(frame: BufferedFrame<'buffer>)
             -> Result<RepresentationRequest<u8, Buffer<'buffer>>,
                 RepresentationError<BufferFailure<'buffer>, BufferFailure<'buffer>>>
+        terminates
         requires frame.output[0u64] == 165u8
         ensures result in Result::Ok && result.value.value == frame.output[1u64]
         {
@@ -168,6 +174,7 @@ machine use_selected<'buffer,
     (request: RepresentationRequest<u8, Buffer<'buffer>>)
     -> Result<RepresentationRequest<u8, Buffer<'buffer>>,
         RepresentationError<BufferFailure<'buffer>, BufferFailure<'buffer>>>
+terminates
 ensures result in Result::Ok
 ensures core::Identity<u8>(result.value.value, request.value)
 { Agreement::round_trip(request) }

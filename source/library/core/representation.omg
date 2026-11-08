@@ -1,3 +1,5 @@
+use omega::language::core::conversion;
+
 // Compiler-owned relationship between provider-backed opaque semantics and a
 // concrete physical representation. A named implementation names both as
 // ordinary trait arguments: `Opaque` is the boundary-opaque declaration and
@@ -9,4 +11,68 @@
 // source-authored ABI numbers, supplies layout.
 
 public trait OpaqueRepresentation<Opaque, Representation> {
+}
+
+// A conversion carries its semantic value and all caller-supplied resources.
+// A resource type's ordinary domain states capacity and other admission bounds.
+public data RepresentationRequest<Value, Resources> {
+    value: Value;
+    resources: Resources;
+}
+
+// Preserve each map's error carrier rather than silently coercing errors.
+// Resource-backed error values retain their own declared ownership obligations.
+public data RepresentationError<EncodingError, DecodingError> {
+    case Encoding(error: EncodingError);
+    case Decoding(error: DecodingError);
+}
+
+// A completed round trip succeeds and preserves the semantic value for every
+// admitted request. Its resource type and exact selected maps retain their
+// ordinary capacity, effect and custody contracts.
+public trait Representation<Value, Resources, Frame, EncodingError, DecodingError,
+    Encode satisfies TryFrom<RepresentationRequest<Value, Resources>, Frame, EncodingError>,
+    Decode satisfies TryFrom<Frame, RepresentationRequest<Value, Resources>, DecodingError>>
+{
+    machine round_trip(request: RepresentationRequest<Value, Resources>)
+        -> Result<RepresentationRequest<Value, Resources>, RepresentationError<EncodingError, DecodingError>>
+    terminates
+    ensures result in Result::Ok
+    ensures core::Identity<Value>(result.value.value, request.value);
+}
+
+// Mathematical laws may repeat these calls only when their complete invocation
+// is a stable value computation. Ordinary TryFrom and Representation stay open
+// to explicit buffers, effects and other resource contracts.
+public trait ValueConversion<Source, Destination, Error> = TryFrom<Source, Destination, Error> {
+    machine * reaches none suspends false blocks false terminates;
+}
+public trait RepresentationValidity<Frame> {
+    machine valid(frame: Frame) -> bool reaches none suspends false blocks false terminates;
+}
+
+// This stronger contract ties coverage, validity and exact preservation to the
+// selected maps. It is for mathematical values; it does not reinterpret mutable
+// resource requests as repeatable values or establish their custody by identity.
+public trait ValueRepresentation<Value, Resources, Frame, EncodingError, DecodingError,
+    Encode satisfies ValueConversion<RepresentationRequest<Value, Resources>, Frame, EncodingError>,
+    Decode satisfies ValueConversion<Frame, RepresentationRequest<Value, Resources>, DecodingError>,
+    Validity satisfies RepresentationValidity<Frame>>
+    : Representation<Value, Resources, Frame, EncodingError, DecodingError, Encode, Decode>
+{
+    machine encode_covers(request: RepresentationRequest<Value, Resources>) reaches none terminates
+    ensures Encode::try_from(request) in Result::Ok;
+    machine encode_valid(request: RepresentationRequest<Value, Resources>, frame: Frame) reaches none terminates
+    requires core::Identity<Result<Frame, EncodingError>>(Encode::try_from(request), Result::Ok { value: frame })
+    ensures Validity::valid(frame);
+    machine decode_covers(frame: Frame) reaches none terminates
+    requires Validity::valid(frame)
+    ensures Decode::try_from(frame) in Result::Ok;
+    machine decode_rejects(frame: Frame) reaches none terminates
+    requires !Validity::valid(frame)
+    ensures Decode::try_from(frame) in Result::Err;
+    machine round_trip_preserves(request: RepresentationRequest<Value, Resources>, frame: Frame) reaches none terminates
+    requires core::Identity<Result<Frame, EncodingError>>(Encode::try_from(request), Result::Ok { value: frame })
+    ensures core::Identity<Result<RepresentationRequest<Value, Resources>, DecodingError>>(
+        Decode::try_from(frame), Result::Ok { value: request });
 }
