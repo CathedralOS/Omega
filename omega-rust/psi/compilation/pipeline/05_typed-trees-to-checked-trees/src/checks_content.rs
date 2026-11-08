@@ -174,7 +174,7 @@ mod body_conservation {
                                 invocation.target,
                                 invocation.expression,
                                 invocation.arguments,
-                                plan,
+                                &plan,
                                 &mut remaining,
                             );
                             trace_transfer(
@@ -606,7 +606,7 @@ mod body_conservation {
                                 machine,
                                 state,
                                 completed_value,
-                                &plan,
+                                plan,
                             )
                         },
                         |candidate| candidate.admitted,
