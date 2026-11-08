@@ -44,11 +44,36 @@ impl<'program> DeclarationCorrespondence<'program> {
             {
                 declared
             }
-            None => return None,
+            None => {
+                super::equality_conjuncts::trace_law_source(
+                    program,
+                    machine.symbol,
+                    "setup",
+                    &[],
+                    format_args!(
+                        "reason=no-applied-signature requirement={:?} declaration={:?} substitutions={}",
+                        declared.symbol,
+                        application.declaration.symbol,
+                        application.substitutions.len()
+                    ),
+                );
+                return None;
+            }
         };
         let requirement_parameters = program.state_signature_parameters(requirement);
         let provider_parameters = program.state_parameters(entry);
         if requirement_parameters.len() != provider_parameters.len() {
+            super::equality_conjuncts::trace_law_source(
+                program,
+                machine.symbol,
+                "setup",
+                &[],
+                format_args!(
+                    "reason=parameter-count required={} provided={}",
+                    requirement_parameters.len(),
+                    provider_parameters.len()
+                ),
+            );
             return None;
         }
         let invocation_parameters = crate::machine_calls::static_arguments::invocation_parameters(
@@ -69,10 +94,23 @@ impl<'program> DeclarationCorrespondence<'program> {
                 let Some(original) = program.proof_facts.get(handle).as_expression() else {
                     continue;
                 };
-                let applied = program
+                let Some(applied) = program
                     .applied_signature_contract_fact(declared, requirement, handle)
-                    .and_then(ProofFact::as_expression)?;
-                pair_conjuncts(
+                    .and_then(ProofFact::as_expression)
+                else {
+                    super::equality_conjuncts::trace_law_source(
+                        program,
+                        machine.symbol,
+                        "setup",
+                        &[*original],
+                        format_args!(
+                            "reason=no-applied-clause requirement={:?} fact={handle:?}",
+                            declared.symbol
+                        ),
+                    );
+                    return None;
+                };
+                let paired = pair_conjuncts(
                     program,
                     (
                         declared.symbol,
@@ -82,7 +120,17 @@ impl<'program> DeclarationCorrespondence<'program> {
                     *original,
                     *applied,
                     &mut applied_clauses,
-                )?;
+                );
+                if paired.is_none() {
+                    super::equality_conjuncts::trace_law_source(
+                        program,
+                        machine.symbol,
+                        "setup",
+                        &[*original, *applied],
+                        format_args!("reason=clause-shape requirement={:?}", declared.symbol),
+                    );
+                }
+                paired?;
             }
         }
         Some(Self {
@@ -157,7 +205,7 @@ impl<'program> DeclarationCorrespondence<'program> {
         provided_scope: (SymbolHandle, &[StateParameter]),
         provided: ExpressionHandle,
     ) -> bool {
-        self.source_correspondence.matching_operation_payloads(
+        let matched = self.source_correspondence.matching_operation_payloads(
             program,
             self.required_scope(),
             required,
@@ -165,7 +213,17 @@ impl<'program> DeclarationCorrespondence<'program> {
             provided_scope,
             provided,
             &self.provider_binders,
-        )
+        );
+        if !matched {
+            super::equality_conjuncts::trace_law_source(
+                program,
+                provided_scope.0,
+                "payload",
+                &[required, provided],
+                format_args!("route=identity-law-fallback"),
+            );
+        }
+        matched
     }
 
     pub(super) fn matching_conjuncts(
