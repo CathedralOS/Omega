@@ -688,6 +688,14 @@ revalidation. Inferred and authored copies of the same requirement normalize
 identically; binder renaming or wrapper extraction alone does not change it.
 Diagnostics expose the inferred clause and the forwarding use that requires it.
 
+A wrapper's machine contract also retains the callee's
+[conditional suspension-carry obligations](effects.md#conditional-suspension-carry).
+Re-express conditions over the wrapper's exact callback binders and substitute
+the corresponding resource subjects and provenance. These rows constrain the
+enclosing application; they do not strengthen F's originating requirement.
+Preserve scoped local acquisitions as such rather than exposing a caller-supplied
+permission for them. Ordinary forwarding cannot discard an unresolved condition.
+
 ## Invocation-lifetime families
 
 A static callable requirement can bind invocation lifetimes independently of

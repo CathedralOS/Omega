@@ -358,12 +358,11 @@ acknowledgements remain permitted.
 The template acknowledgement and the instantiated operational envelope are
 retained separately through checking and lowering.
 
-Carry, loan, invariant-window and outcome checks inside the generic body also
-use those upper bounds. A synchronous application cannot repair an invalid
-generic body. Ordinary loans may cross a permitted suspension when their
-preservation obligations hold; forbidden live resources or unclosed windows
-still reject. This decision introduces no conditional carry obligations.
-Use a narrower originating callback contract when the body needs that guarantee.
+The body retains the [conditional suspension carry](#conditional-suspension-carry)
+obligations derived below. Ordinary ownership, access, invariant-window and
+outcome checks still apply at the call, including when a selected callback cannot
+suspend. A narrower originating callback contract can state that guarantee
+directly.
 
 ```omega
 public machine apply<machine F>(value: u32) -> u32
@@ -415,6 +414,51 @@ opaque trust expenditure but cannot erase the abstract service from callers.
 Ordinary traits and wrappers cannot hide reach, blocking, or suspension.
 Possessing authority cannot bypass a published ceiling, and listing a service
 cannot create its required capability.
+
+#### Conditional suspension carry
+
+Named decision: `conditional-callback-carry`, ratified 2026-11-07. A generic may
+retain a value across a static callback under the condition that, if the call
+can suspend, the value permits that crossing. Derive this condition during the
+single parametric body check; no new source clause or runtime test is introduced.
+This supersedes the unconditional suspension-permission check for such sites.
+
+Use the call site's normalized suspension dependency: the existing finite OR of
+fixed contributions and exact callback projections. A forwarded call can depend
+on several binders. For each live value or resource claim whose suspension
+permission is not already established, retain the suspension-axis carry
+obligation guarded by that expression. Constant false requires no suspension
+permission. Constant true, including a fixed independent suspension contribution,
+requires it unconditionally. A non-constant condition can remain in the generic
+contract until selection; no observed consumer set or private-body inspection
+discharges it.
+
+Each conditional row belongs to the enclosing generic machine's contract, not
+to the callback requirement. Retain the exact call site, symbolic live subject
+or claim identity, provenance, required suspension permission and condition.
+Local acquisition subjects retain their declaration and invocation scope;
+forwarding substitutes both callback binders and resource subjects/provenance.
+Caller-visible subjects are checked with their corresponding arguments. A
+helper-local claim uses its own acquisition contract and retained evidence;
+the caller cannot manufacture a permission for that private claim.
+
+Applications substitute selected published callback contracts and applicable
+type/resource evidence. A false condition discharges only its guarded carry
+obligation. Otherwise establish the required permission under the ordinary carry
+rules, including `Carry::AcrossSuspend` where the claim requires it, or reject.
+An unresolved condition may propagate through another checked generic contract;
+it cannot be silently erased or deferred to runtime at a closed application.
+Permission evidence must retain its valid provenance and cannot override an
+explicit suspension-forbidden type policy. Diagnose the exact resource, crossing
+and selected callback contributions that prevent admission.
+
+Only suspension permission is conditional here. Ownership, loan access and
+lifetimes, invariant-window fences, outcome/cancellation paths, CPU/thread/address
+preservation and obligations caused by the ordinary call keep their existing
+rules. A synchronous callback does not excuse an unfinished invariant exposed
+by that call. Blocking does not acquire this conditional rule. The
+`suspends false` refinement remains available for an explicitly synchronous
+callback requirement.
 
 ## Direct synchronous invocation
 
@@ -565,6 +609,11 @@ buckets. Proof may discharge legality or enable optimization; it cannot shrink
 an authored export, rewrite its guards, or change interface identity.
 Specializing a published reach or operational dependency is contract
 substitution, not proof-based shrinking of an authored opaque ceiling.
+Conditional suspension-carry rows are part of the enclosing machine's published
+operational contract and interface identity, including their normalized subjects,
+provenance and conditions. Forwarding and specialization preserve or discharge
+them by exact substitution. Changed dependencies require ordinary revalidation;
+they do not change installation-bound service rows.
 Stable syntactic/control-flow normalization is
 not heuristic entailment. Exact authored member/keyword spans explain review;
 inferred rows and parent closure receive no invented source locations.
@@ -585,7 +634,8 @@ installation-row declaration form.
 [Installed roots](../build/external_roots.md#installation-bound-reach) owns
 manifest and lineage requirements; equal rows never establish protocol identity.
 
-Automatic dependency propagation is limited to the specified reach unions
-and suspension/blocking OR summaries. It introduces neither arbitrary
+Automatic dependency propagation is limited to the specified reach unions,
+suspension/blocking OR summaries and conditional suspension-carry obligations.
+It introduces neither arbitrary
 callback-contract projections nor new source acknowledgement syntax.
 No anonymous-machine or lambda surface is accepted.

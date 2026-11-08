@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Conditional callback carry](designs/conditional_callback_carry.md):
+  migration and acceptance for one generic resource helper across synchronous
+  and suspending callbacks, with exact conditional suspension permissions.
+
 - [Deferred callback reach](designs/deferred_callback_reach.md):
   migration and acceptance for inferred service rows through static machine and
   conformance selections, with an explicit service-free requirement audit.
