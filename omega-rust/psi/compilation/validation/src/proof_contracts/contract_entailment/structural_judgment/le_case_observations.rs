@@ -33,8 +33,8 @@ impl StructuralJudge<'_> {
         terms: &[(&str, &StructuralTerm)],
         detail: std::fmt::Arguments<'_>,
     ) -> bool {
-        static MAIN: [AtomicUsize; 24] = [const { AtomicUsize::new(0) }; 24];
-        static STEP: [AtomicUsize; 24] = [const { AtomicUsize::new(0) }; 24];
+        static MAIN: [AtomicUsize; 25] = [const { AtomicUsize::new(0) }; 25];
+        static STEP: [AtomicUsize; 25] = [const { AtomicUsize::new(0) }; 25];
         let Some(owner) = self.le_case_trace_owner() else {
             return false;
         };
@@ -66,6 +66,7 @@ impl StructuralJudge<'_> {
             "representative-cache-hit" => (21, 48),
             "representative-cache-miss" => (22, 48),
             "head-classification" => (23, 8),
+            "discovered-target-equality-skip" => (24, 48),
             _ => (12, 4),
         };
         let event = counters[index].fetch_add(1, Ordering::Relaxed);

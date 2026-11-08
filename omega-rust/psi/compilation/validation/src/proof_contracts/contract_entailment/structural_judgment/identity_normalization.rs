@@ -245,8 +245,15 @@ impl<'value> IdentitySubstitutions<'value> {
                     let target = self.normalized[component]
                         .as_ref()
                         .unwrap_or(self.rows[component].values[1]);
-                    if !self.active[component] && !value.same_resolution_payload(target) {
-                        return Ok(Some(component));
+                    if !self.active[component] {
+                        if !value.same_resolution_payload(target) {
+                            return Ok(Some(component));
+                        }
+                        judge.trace_le_case(
+                            "discovered-target-equality-skip",
+                            &[("value", value)],
+                            format_args!("row={index} component={component} cached={} depth={depth} remaining={remaining}", self.normalized[component].is_some()),
+                        );
                     }
                     break;
                 }
