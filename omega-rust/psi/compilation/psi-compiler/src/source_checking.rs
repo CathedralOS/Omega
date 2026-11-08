@@ -1,10 +1,12 @@
-//! Prepare and check one complete typed program under fresh invocation authority.
-//!
-//! Product and Build consumers supply admission data, not a preparation/checking
-//! sequence. Retained language judgments are matched here against their exact
-//! preparation inputs; package authority is admitted even when work is reused.
-//! Product root selection consumes the successful result, so it cannot hide an
-//! invalid authored body. Host effects and provider dispatch are not inputs.
+/*
+    Whole-program and library-slice preparation, retained-judgment matching, and
+    Psi 05 checking under fresh invocation authority.
+
+    We admit opaque representations and source-completion inputs, match retained
+    checked programs and library slices against exact preparation inputs, and
+    produce `CheckedSource` and `SelectedCheckedSource` records prior to product
+    pruning.
+*/
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -13,9 +15,561 @@ use language_semantics::declaration_selection::{
 use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
-mod constant_entries;
-mod library_slice;
-mod retained_check;
+mod constant_entries {
+    pub(super) fn retain_evaluation_entries(
+        program: &mut typed_trees::TypedTrees,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        let mut entries = Vec::new();
+        for declaration in program.const_declarations() {
+            if declaration.evaluated_value.is_some() || !declaration.evaluation_entry.is_valid() {
+                continue;
+            }
+            if !program
+                .tables
+                .machines
+                .is_valid(declaration.evaluation_entry)
+            {
+                return Err(vec![diagnostics::Diagnostic::error(
+                    "retained constant lost its complete evaluation entry",
+                )]);
+            }
+            let entry = program.tables.machines.get(declaration.evaluation_entry);
+            if program.machine_by_symbol(entry.symbol).is_none() {
+                entries.push(entry.clone());
+            }
+        }
+        for entry in entries {
+            program.push_machine(entry);
+        }
+        Ok(())
+    }
+}
+mod library_slice {
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source::{SourceFile, SourceOrigin};
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub struct LibrarySliceRequest {
+        pub root_package: Option<PackageKeyIdentity>,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct LibrarySliceKey([u8; 32]);
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub struct LibrarySliceTotals {
+        pub distinct: u64,
+        pub computed: u64,
+    }
+
+    static COMPUTED: AtomicU64 = AtomicU64::new(0);
+    static DISTINCT: Mutex<Vec<LibrarySliceKey>> = Mutex::new(Vec::new());
+
+    pub fn library_slice_totals() -> LibrarySliceTotals {
+        let distinct = DISTINCT
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .len();
+        LibrarySliceTotals {
+            distinct: distinct as u64,
+            computed: COMPUTED.load(Ordering::Relaxed),
+        }
+    }
+
+    pub(super) fn record_computed(key: LibrarySliceKey) {
+        COMPUTED.fetch_add(1, Ordering::Relaxed);
+        let mut distinct = DISTINCT
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Err(position) = distinct.binary_search(&key) {
+            distinct.insert(position, key);
+        }
+    }
+
+    pub(super) struct SliceAdmission<'input> {
+        pub completion: &'input validation::source_completion::SourceCompletionAdmission<'input>,
+        pub layout_scopes: &'input [build_time_evaluation::FixedLayoutTargetScope],
+        pub representations: &'input [representation_selections::OpaqueRepresentationSelection],
+        pub asm_authority: Option<validation::AsmAuthorityAdmission>,
+        pub wire_demands: &'input [language_semantics::wire::WireCompatibilityDemand],
+    }
+
+    impl LibrarySliceRequest {
+        pub(super) fn key(
+            &self,
+            program: &typed_trees::TypedTrees,
+            admission: &SliceAdmission<'_>,
+        ) -> Option<LibrarySliceKey> {
+            let sources = program.symbols.source_map()?;
+            let mut slice: Vec<SliceSource> = sources
+                .selected_files()
+                .filter(|file| self.in_slice(file))
+                .map(SliceSource::of)
+                .collect();
+            if slice.is_empty() {
+                return None;
+            }
+            slice.sort();
+            let mut digest =
+                optimization::digest_encoder::DomainDigestEncoder::new(b"omega-library-slice-v1\0");
+            digest.len(slice.len());
+            for source in &slice {
+                source.encode(&mut digest);
+            }
+            let in_slice = |symbol: symbols::SymbolHandle| {
+                program
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .and_then(|span| program.symbols.source_file(span))
+                    .is_some_and(|file| self.in_slice(file))
+            };
+            encode_completion(&mut digest, admission.completion);
+            digest.len(admission.layout_scopes.len());
+            for scope in admission.layout_scopes {
+                digest.bytes(scope.target.as_bytes());
+                match &scope.facts {
+                    Some(facts) => {
+                        digest.byte(1);
+                        digest.bytes(facts.profile.as_bytes());
+                        digest.u64(facts.pointer_size);
+                        digest.u64(facts.pointer_alignment);
+                        digest.u64(facts.case_tag_size);
+                        digest.u64(facts.case_tag_alignment);
+                        digest.byte(u8::from(facts.little_endian));
+                    }
+                    None => digest.byte(0),
+                }
+                match &scope.entry_declarations {
+                    Some(entries) => {
+                        digest.byte(1);
+                        let mut paths: Vec<String> = entries
+                            .iter()
+                            .map(|entry| portable_symbol(program, *entry))
+                            .collect();
+                        paths.sort();
+                        digest.len(paths.len());
+                        for path in &paths {
+                            digest.bytes(path.as_bytes());
+                        }
+                    }
+                    None => digest.byte(0),
+                }
+                let mut providers: Vec<Vec<u8>> = scope
+                    .provider_declarations
+                    .iter()
+                    .map(portable_provider_selection)
+                    .collect();
+                providers.sort();
+                digest.len(providers.len());
+                for provider in &providers {
+                    digest.bytes(provider);
+                }
+            }
+            let mut representations: Vec<([u8; 32], String)> = admission
+                .representations
+                .iter()
+                .filter(|selection| in_slice(selection.opaque()))
+                .map(|selection| {
+                    (
+                        selection.rederived_selected_application_commitment(),
+                        portable_symbol(program, selection.opaque()),
+                    )
+                })
+                .collect();
+            representations.sort();
+            digest.len(representations.len());
+            for (commitment, opaque) in &representations {
+                digest.raw(commitment);
+                digest.bytes(opaque.as_bytes());
+            }
+            match admission.asm_authority {
+                Some(authority) => {
+                    digest.byte(1);
+                    digest.bytes(format!("{authority:?}").as_bytes());
+                }
+                None => digest.byte(0),
+            }
+            let mut wire: Vec<String> = admission
+                .wire_demands
+                .iter()
+                .map(|demand| format!("{demand:?}"))
+                .collect();
+            wire.sort();
+            digest.len(wire.len());
+            for demand in &wire {
+                digest.bytes(demand.as_bytes());
+            }
+            Some(LibrarySliceKey(digest.finish()))
+        }
+
+        fn in_slice(&self, file: &SourceFile) -> bool {
+            file.origin == SourceOrigin::Toolchain
+                || file
+                    .package_identity
+                    .is_some_and(|package| Some(package) != self.root_package)
+        }
+    }
+
+    #[derive(PartialEq, Eq, PartialOrd, Ord)]
+    struct SliceSource {
+        package: [u8; 32],
+        path: String,
+        scope: u8,
+        stratum: u8,
+        content: [u8; 32],
+    }
+
+    impl SliceSource {
+        fn of(file: &SourceFile) -> Self {
+            let relative = file
+                .path
+                .strip_prefix(&file.package_root)
+                .unwrap_or(&file.path);
+            let mut content = optimization::digest_encoder::DomainDigestEncoder::new(
+                b"omega-library-source-v1\0",
+            );
+            content.bytes(file.source.as_bytes());
+            Self {
+                package: file
+                    .package_identity
+                    .map(PackageKeyIdentity::digest)
+                    .unwrap_or([0; 32]),
+                path: relative.to_string_lossy().replace('\\', "/"),
+                scope: file.dependency_scope as u8,
+                stratum: file.resolution_stratum as u8,
+                content: content.finish(),
+            }
+        }
+
+        fn encode(&self, digest: &mut optimization::digest_encoder::DomainDigestEncoder) {
+            digest.raw(&self.package);
+            digest.bytes(self.path.as_bytes());
+            digest.byte(self.scope);
+            digest.byte(self.stratum);
+            digest.raw(&self.content);
+        }
+    }
+
+    fn encode_completion(
+        digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+        completion: &validation::source_completion::SourceCompletionAdmission<'_>,
+    ) {
+        use validation::source_completion::SourceCompletionAdmission;
+        match completion {
+            SourceCompletionAdmission::None => digest.byte(0),
+            SourceCompletionAdmission::AcceptedProcessExit {
+                package,
+                declaration_path,
+            } => {
+                digest.byte(1);
+                digest.raw(&package.digest());
+                digest.bytes(declaration_path.as_bytes());
+            }
+            SourceCompletionAdmission::DiscoverProcessExit => digest.byte(2),
+        }
+    }
+
+    fn portable_symbol(program: &typed_trees::TypedTrees, symbol: symbols::SymbolHandle) -> String {
+        let owner = program
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| program.symbols.source_file(span))
+            .map(|file| match file.package_identity {
+                Some(package) => hex(&package.digest()),
+                None => format!("{:?}", file.origin),
+            })
+            .unwrap_or_default();
+        format!("{owner}::{}", program.symbols.display_path(symbol, "::"))
+    }
+
+    fn portable_provider_selection(
+        selection: &build_time_evaluation::provider_declarations::ProviderSelection,
+    ) -> Vec<u8> {
+        use build_time_evaluation::provider_declarations::{
+            ProviderSelectionIdentity, ProviderSelectionSubject,
+        };
+        fn identity(text: &mut String, identity: &ProviderSelectionIdentity) {
+            let package = identity
+                .package
+                .map(|package| hex(&package.digest()))
+                .unwrap_or_default();
+            text.push_str(&format!(
+                "{package}|{}|{:?}|{}\n",
+                identity.canonical_path, identity.application_identity, identity.applied
+            ));
+        }
+        let mut text = String::new();
+        text.push_str(
+            selection
+                .target
+                .map(|target| target.canonical_name())
+                .unwrap_or("portable"),
+        );
+        text.push('\n');
+        match &selection.subject {
+            ProviderSelectionSubject::BoundaryTrait(subject) => {
+                text.push_str("trait\n");
+                identity(&mut text, subject);
+            }
+            ProviderSelectionSubject::BoundaryRequirement(subject) => {
+                text.push_str("requirement\n");
+                identity(&mut text, subject);
+            }
+            ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
+                let package = family
+                    .package
+                    .map(|package| hex(&package.digest()))
+                    .unwrap_or_default();
+                text.push_str(&format!("family\n{package}|{}\n", family.canonical_path));
+                for coordinate in family.coordinates() {
+                    text.push_str(&format!(
+                        "{}|{}\n",
+                        coordinate.requirement_identity, coordinate.static_parameter_count
+                    ));
+                }
+            }
+        }
+        identity(&mut text, &selection.provider_type);
+        text.push_str(&format!("{:?}", selection.composition_mode));
+        text.into_bytes()
+    }
+
+    fn hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{LibrarySliceRequest, SliceSource};
+        use semantic_vocabulary::PackageKeyIdentity;
+        use source::{
+            DependencyScope, SourceFile, SourceId, SourceOrigin, SourceResolutionStratum,
+        };
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        fn file(
+            root: &str,
+            path: &str,
+            origin: SourceOrigin,
+            package: Option<PackageKeyIdentity>,
+            text: &str,
+        ) -> SourceFile {
+            SourceFile {
+                source_id: SourceId(0),
+                path: PathBuf::from(root).join(path),
+                package_root: PathBuf::from(root),
+                package_identity: package,
+                dependency_scope: DependencyScope::Product,
+                origin,
+                resolution_stratum: SourceResolutionStratum::Base,
+                source: Arc::from(text),
+            }
+        }
+
+        #[test]
+        fn the_slice_is_every_source_except_the_root_package() {
+            let root = PackageKeyIdentity::from_digest([1; 32]);
+            let dependency = PackageKeyIdentity::from_digest([2; 32]);
+            let request = LibrarySliceRequest { root_package: root };
+            let core = file("/core", "option.omg", SourceOrigin::Toolchain, None, "");
+            let std = file("/std", "console.omg", SourceOrigin::User, dependency, "");
+            let main = file("/app", "main.omg", SourceOrigin::User, root, "");
+            assert!(request.in_slice(&core));
+            assert!(request.in_slice(&std));
+            assert!(!request.in_slice(&main));
+            let standalone = LibrarySliceRequest::default();
+            let loose = file("/app", "main.omg", SourceOrigin::User, None, "");
+            assert!(standalone.in_slice(&core));
+            assert!(!standalone.in_slice(&loose));
+        }
+
+        #[test]
+        fn a_slice_source_is_named_by_package_relative_path_and_bytes() {
+            let package = PackageKeyIdentity::from_digest([2; 32]);
+            let here = SliceSource::of(&file("/a/std", "x.omg", SourceOrigin::User, package, "m"));
+            let moved = SliceSource::of(&file("/b/std", "x.omg", SourceOrigin::User, package, "m"));
+            let edited =
+                SliceSource::of(&file("/a/std", "x.omg", SourceOrigin::User, package, "n"));
+            assert!(here == moved);
+            assert!(here != edited);
+        }
+    }
+}
+mod retained_check {
+    use build_time_evaluation::FixedLayoutTargetScope;
+    use std::sync::Arc;
+
+    #[derive(Debug, Clone)]
+    pub struct RetainedCheck {
+        pub(super) judgment: typed_trees_to_checked_trees::RetainedCheck,
+        pub(super) layout_evaluation: Option<Arc<LayoutEvaluationInput>>,
+    }
+
+    pub(super) struct LayoutEvaluationInput {
+        pub(super) program: typed_trees::TypedTrees,
+        pub(super) scopes: Vec<FixedLayoutTargetScope>,
+        pub(super) authority: validation::RecordedDeclarationAuthority,
+    }
+
+    impl std::fmt::Debug for LayoutEvaluationInput {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter
+                .debug_struct("LayoutEvaluationInput")
+                .field("scopes", &self.scopes.len())
+                .finish_non_exhaustive()
+        }
+    }
+
+    impl LayoutEvaluationInput {
+        pub(super) fn capture(
+            program: &typed_trees::TypedTrees,
+            scopes: &[FixedLayoutTargetScope],
+            authority: Option<&dyn validation::DeclarationSelectionAuthority>,
+        ) -> Option<Self> {
+            Some(Self {
+                program: program.clone(),
+                scopes: scopes.to_vec(),
+                authority: validation::RecordedDeclarationAuthority::capture(authority).ok()?,
+            })
+        }
+
+        pub(super) fn matches(
+            &self,
+            program: &typed_trees::TypedTrees,
+            scopes: &[FixedLayoutTargetScope],
+            authority: Option<&dyn validation::DeclarationSelectionAuthority>,
+        ) -> bool {
+            self.scopes == scopes
+                && validation::RecordedDeclarationAuthority::capture(authority)
+                    .is_ok_and(|current| current == self.authority)
+                && self.program == *program
+        }
+    }
+
+    impl RetainedCheck {
+        pub fn same_judgment(&self, other: &Self) -> bool {
+            self.judgment.same_judgment(&other.judgment)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::LayoutEvaluationInput;
+        use build_time_evaluation::FixedLayoutTargetScope;
+        use semantic_vocabulary::PackageKeyIdentity;
+        use std::collections::BTreeMap;
+
+        struct Scoped(BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>);
+
+        impl validation::DeclarationSelectionAuthority for Scoped {
+            fn allows_declaration_selection(
+                &self,
+                requester: PackageKeyIdentity,
+                owner: PackageKeyIdentity,
+            ) -> bool {
+                requester == owner
+                    || self
+                        .0
+                        .get(&requester)
+                        .is_some_and(|owners| owners.contains(&owner))
+            }
+            fn package_label(&self, _identity: PackageKeyIdentity) -> String {
+                String::new()
+            }
+            fn declaration_selection_scope(
+                &self,
+            ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
+                Some(self.0.clone())
+            }
+        }
+
+        struct Opaque;
+
+        impl validation::DeclarationSelectionAuthority for Opaque {
+            fn allows_declaration_selection(
+                &self,
+                _requester: PackageKeyIdentity,
+                _owner: PackageKeyIdentity,
+            ) -> bool {
+                true
+            }
+            fn package_label(&self, _identity: PackageKeyIdentity) -> String {
+                String::new()
+            }
+        }
+
+        fn scope(target: &str, pointer_size: u64) -> FixedLayoutTargetScope {
+            FixedLayoutTargetScope {
+                target: target.to_owned(),
+                facts: Some(layout_plans::LayoutTargetFacts {
+                    profile: target.to_owned(),
+                    pointer_size,
+                    pointer_alignment: pointer_size,
+                    case_tag_size: 4,
+                    case_tag_alignment: 4,
+                    little_endian: true,
+                }),
+                entry_declarations: None,
+                provider_declarations: Vec::new(),
+            }
+        }
+
+        fn package(marker: u8) -> PackageKeyIdentity {
+            PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero digest")
+        }
+
+        #[test]
+        fn layout_evaluation_input_matches_only_the_same_targets_and_authority() {
+            let program = typed_trees::TypedTrees::default();
+            let scopes = [scope("linux_x86_64", 8), scope("macos_arm64", 8)];
+            let authority = Scoped(BTreeMap::from([(package(1), vec![package(1), package(2)])]));
+            let input = LayoutEvaluationInput::capture(&program, &scopes, Some(&authority))
+                .expect("a predicate with an exported scope is comparable");
+            assert!(input.matches(&program, &scopes, Some(&authority)));
+
+            let another_target = [scope("linux_x86_64", 8), scope("linux_arm64", 8)];
+            assert!(!input.matches(&program, &another_target, Some(&authority)));
+            let other_facts = [scope("linux_x86_64", 8), scope("macos_arm64", 4)];
+            assert!(!input.matches(&program, &other_facts, Some(&authority)));
+            assert!(!input.matches(&program, &scopes[..1], Some(&authority)));
+
+            let wider = Scoped(BTreeMap::from([(
+                package(1),
+                vec![package(1), package(2), package(3)],
+            )]));
+            assert!(!input.matches(&program, &scopes, Some(&wider)));
+            assert!(!input.matches(&program, &scopes, None));
+            assert!(!input.matches(&program, &scopes, Some(&Opaque)));
+        }
+
+        #[test]
+        fn another_program_under_the_same_targets_and_authority_misses() {
+            let program = typed_trees::TypedTrees::default();
+            let scopes = [scope("linux_x86_64", 8)];
+            let authority = Scoped(BTreeMap::from([(package(1), vec![package(1)])]));
+            let input = LayoutEvaluationInput::capture(&program, &scopes, Some(&authority))
+                .expect("a predicate with an exported scope is comparable");
+            let mut other = typed_trees::TypedTrees::default();
+            other.push_data_definition(Default::default());
+            assert!(!input.matches(&other, &scopes, Some(&authority)));
+            assert!(input.matches(&program, &scopes, Some(&authority)));
+        }
+
+        #[test]
+        fn a_predicate_without_a_comparison_scope_is_never_captured() {
+            let program = typed_trees::TypedTrees::default();
+            let scopes = [scope("linux_x86_64", 8)];
+            assert!(LayoutEvaluationInput::capture(&program, &scopes, Some(&Opaque)).is_none());
+            let absent = LayoutEvaluationInput::capture(&program, &scopes, None)
+                .expect("an absent predicate is comparable");
+            assert!(absent.matches(&program, &scopes, None));
+            assert!(!absent.matches(&program, &scopes, Some(&Opaque)));
+        }
+    }
+}
 
 pub use library_slice::{
     LibrarySliceKey, LibrarySliceRequest, LibrarySliceTotals, library_slice_totals,
@@ -27,7 +581,6 @@ pub use typed_trees_to_checked_trees::CheckedTreeProductSelection;
 static WHOLE_PROGRAM_REUSE_HITS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 
-/// Exact typed-input and preparation-admission matches. A different program misses.
 pub fn whole_program_reuse_hits() -> u64 {
     WHOLE_PROGRAM_REUSE_HITS.load(std::sync::atomic::Ordering::Relaxed)
 }
@@ -39,18 +592,12 @@ fn record_whole_program_reuse() {
 static RETAINED_LAYOUT_MATCH_HITS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 
-/// Whole-program reuses taken before fixed-layout evaluation, a subset of
-/// [`whole_program_reuse_hits`].
 pub fn retained_layout_match_hits() -> u64 {
     RETAINED_LAYOUT_MATCH_HITS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Evaluated source permissions and representation custody for this invocation.
-/// These are not provider selections or execution authority.
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
-    /// Exact entries already selected by Build. Each entry must establish its
-    /// own input compatibility, independently of ordinary calls to that body.
     pub external_roots: &'request [symbols::SymbolHandle],
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
@@ -62,9 +609,6 @@ pub struct SourceAdmission<'request> {
     pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
 }
 
-/// Retained execution custody, not permission to mint semantic-copy facts.
-/// Authored and generated source may have completed since Build selected these
-/// applications; checking must reclose them against the final typed graph.
 #[derive(Default)]
 pub struct ProductRepresentationInput<'request> {
     pub activation: Option<symbols::SymbolHandle>,
@@ -105,25 +649,20 @@ impl ProductRepresentationInput<'_> {
     }
 }
 
-/// Consume a complete typed program. Previous judgments belong to the same
-/// invocation; the first is the incremental predecessor, followed by siblings.
 pub struct CheckRequest<'request> {
     pub program: typed_trees::TypedTrees,
     pub admission: SourceAdmission<'request>,
     pub previous: &'request [&'request RetainedCheck],
     pub retain: bool,
-    /// Names the library slice for the reuse counters. It changes no judgment.
     pub library_slice: LibrarySliceRequest,
 }
 
-/// Successful language judgment, before optional whole-product root selection.
 pub struct CheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
     pub retained: Option<RetainedCheck>,
     pub reused: bool,
 }
 
-/// Shared source product with the exact optional root-selection evidence.
 #[derive(Clone)]
 pub struct SelectedCheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
@@ -136,8 +675,6 @@ pub struct SelectedCheckedSource {
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let mut program = self.program;
-        // A retained language judgment cannot bypass final application custody.
-        // Reclosure also derives copy properties; callers cannot supply them.
         let representations = self.admission.representations.admit(&program)?;
         let slice_key = {
             self.library_slice.key(
@@ -167,8 +704,6 @@ impl CheckRequest<'_> {
             .with_external_roots(self.admission.external_roots);
         let admission = preparation.admission();
         let layout_authority = self.admission.layout_selection_authority.as_deref();
-        // A judgment whose layout evaluation saw this exact input judged the
-        // program that evaluation would produce; take it before evaluating.
         let evaluated = if self.admission.layout_scopes.is_empty() {
             None
         } else {
@@ -180,9 +715,6 @@ impl CheckRequest<'_> {
                     .judges_preparation_admission(&admission, self.admission.external_roots)
             })
         };
-        // Evaluation leaves a program without fixed-layout storage unchanged, so
-        // the ordinary input match already finds its judgment. Copying the
-        // whole program to compare it earlier would buy nothing.
         let layout_evaluation = match evaluated {
             Some(_) => None,
             None if self.retain
@@ -231,8 +763,6 @@ impl CheckRequest<'_> {
                 &outcome.checked.typed,
                 self.admission.declarations,
             )?;
-            // A judgment matched after evaluation keeps the input this request
-            // just captured, so the next equal request can match it early.
             (
                 outcome,
                 prior.layout_evaluation.clone().or(layout_evaluation),
@@ -244,9 +774,6 @@ impl CheckRequest<'_> {
             let retained_input = self.retain.then(|| (Arc::new(program.clone()), admission));
             let (program, preparation) =
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
-            // Whole-value lifecycle demands become concrete through the same
-            // specialization as ordinary calls. Add geometry only: preparation's
-            // executable bodies and mathematical judgments remain unchanged.
             let program = build_time_evaluation::retain_access_lifecycle_plans(
                 program,
                 self.admission.declarations,
@@ -292,16 +819,10 @@ impl CheckRequest<'_> {
 }
 
 impl CheckedSource {
-    /// Select all authored Product roots after checking, or retain the complete
-    /// checked program when no pruning was requested. An explicit empty root set
-    /// remains an invalid request, not permission to skip checking or selection.
     pub fn select_product(
         self,
         roots: Option<Vec<symbols::SymbolHandle>>,
     ) -> Result<SelectedCheckedSource, Vec<Diagnostic>> {
-        // Defaults describe every authored target, including declarations root
-        // pruning may remove. Decode them from the checked source before pruning;
-        // realization later chooses a row without reading declaration bodies.
         let provider_defaults =
             build_time_evaluation::provider_declarations::retain_provider_defaults(
                 build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
@@ -320,11 +841,6 @@ impl CheckedSource {
     }
 }
 
-/// Invocation-owned Product selections over already-shared checked programs.
-/// Root pruning is a transform, not a new judgment. Equal roots of the same
-/// immutable input retain its one output rather than cloning and pruning it
-/// once per realization. Authority admission happens before this operation.
-/// The portable Terminal code of those shared outputs is likewise produced once.
 #[derive(Default)]
 pub struct ProductSelections {
     entries: Vec<SelectedProduct>,
@@ -338,7 +854,6 @@ struct SelectedProduct {
 }
 
 impl ProductSelections {
-    /// The invocation's shared portable productions, for each Product publication.
     pub fn portable_productions(&self) -> Arc<crate::PortableProductions> {
         Arc::clone(&self.productions)
     }

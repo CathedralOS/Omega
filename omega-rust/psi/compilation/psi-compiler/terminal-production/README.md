@@ -5,7 +5,7 @@ This Psi-owned operation sequences checked-program lowering, optimization and
 canonical publication. Product consumers call it directly; there is no Omega
 Terminal-production wrapper or alternative stage sequence.
 
-Enter [terminal_production.rs](src/terminal_production.rs):
+Enter [lib.rs](src/lib.rs):
 `checked-trees-to-lowered-psi` -> `lowered-psi-to-lowered-psi` ->
 `lowered-psi-to-terminal-psi`. `LoweredPsi` belongs to representations.
 Publication consumes the validated optimization-stage result.
