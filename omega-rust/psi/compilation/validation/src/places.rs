@@ -5302,6 +5302,9 @@ pub use declared_symbols::{
     runtime_field_subject, state_scoped_name_symbol, structural_member_identity,
 };
 pub(crate) mod canonical_projection {
+    pub(crate) use syntax_queries::ProjectionSyntaxQueries;
+    use syntax_queries::{literal_arm_bindings, states_naming};
+
     use super::contextual_projection::contextual_canonical_place_from_expression;
     use super::member_resolution::effective_member_symbol;
     use crate::CheckingInput;
@@ -5309,7 +5312,7 @@ pub(crate) mod canonical_projection {
     use typed_trees::types::TypeReferenceNode;
 
     use super::declared_symbols::first_valid_name_path_symbol;
-    use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
+    use checked_trees::expression::{ExpressionHandle, ExpressionNode};
     use symbols::{SymbolHandle, SymbolKind};
 
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -5598,7 +5601,7 @@ pub(crate) mod canonical_projection {
             return None;
         }
         let mut element = None;
-        for state_symbol in states {
+        for state_symbol in states.iter().copied() {
             let machine_symbol = program.symbols.get(state_symbol).parent;
             let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
             let (lower, upper) =
@@ -5679,20 +5682,9 @@ pub(crate) mod canonical_projection {
         program: &dyn CheckingInput,
         endpoint: ExpressionHandle,
     ) -> Option<Vec<(ExpressionHandle, i64)>> {
-        let mut bindings = Vec::new();
-        for state_symbol in states_naming(program, endpoint) {
-            let machine_symbol = program.symbols.get(state_symbol).parent;
-            let Some((_, state)) = program.machine_state(machine_symbol, state_symbol) else {
-                continue;
-            };
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                for (_, root) in program.tables.expression_roots(statement) {
-                    collect_arm_bindings(program, root, endpoint, &mut bindings);
-                }
-            }
-        }
+        let bindings = literal_arm_bindings(program, endpoint);
         let mut consistent = Vec::new();
-        for (subject, value) in bindings {
+        for (subject, value) in bindings.iter().copied() {
             if let Some((_, prior)) = consistent
                 .iter()
                 .find(|(existing, _)| same_match_subject(program, *existing, subject))
@@ -5707,63 +5699,6 @@ pub(crate) mod canonical_projection {
         Some(consistent)
     }
 
-    fn collect_arm_bindings(
-        program: &dyn CheckingInput,
-        root: ExpressionHandle,
-        endpoint: ExpressionHandle,
-        bindings: &mut Vec<(ExpressionHandle, i64)>,
-    ) {
-        let mut nodes = Vec::new();
-        crate::queries::expression_traversal::collect_expression_tree(program, root, &mut nodes);
-        for node in nodes {
-            let ExpressionNode::Match(dispatch) = expression_table(program).expression(node) else {
-                continue;
-            };
-            let mut patterns = Vec::new();
-            for arm in expression_table(program).match_arms(dispatch.arms) {
-                let MatchPattern::Value(pattern) = arm.pattern else {
-                    continue;
-                };
-                patterns.push(pattern);
-                let Some(value) = expression_table(program)
-                    .integer_node(pattern)
-                    .and_then(|literal| literal.value_i64())
-                else {
-                    continue;
-                };
-                if crate::queries::expression_traversal::expression_has_inert_prefix(
-                    program, &patterns, arm.value, endpoint,
-                ) {
-                    bindings.push((dispatch.subject, value));
-                }
-            }
-        }
-    }
-
-    fn states_naming(program: &dyn CheckingInput, endpoint: ExpressionHandle) -> Vec<SymbolHandle> {
-        let mut nodes = Vec::new();
-        crate::queries::expression_traversal::collect_expression_tree(
-            program, endpoint, &mut nodes,
-        );
-        let mut states = Vec::new();
-        for node in nodes {
-            let ExpressionNode::Name(path) = expression_table(program).expression(node) else {
-                continue;
-            };
-            if !path.head_symbol.is_valid() {
-                continue;
-            }
-            let declaration = program.symbols.get(path.head_symbol);
-            if !matches!(declaration.kind, SymbolKind::Parameter | SymbolKind::Local) {
-                continue;
-            }
-            if !states.contains(&declaration.parent) {
-                states.push(declaration.parent);
-            }
-        }
-        states
-    }
-
     fn folded_coordinate(
         program: &dyn CheckingInput,
         expression: ExpressionHandle,
@@ -5772,12 +5707,13 @@ pub(crate) mod canonical_projection {
         if !expression.is_valid() {
             return None;
         }
-        let mut states = states_naming(program, expression);
-        if states.is_empty() {
-            states.push(SymbolHandle::invalid());
-        }
+        let states = states_naming(program, expression);
         let mut result = None;
-        for state_symbol in states {
+        for state_symbol in states
+            .iter()
+            .copied()
+            .chain(states.is_empty().then_some(SymbolHandle::invalid()))
+        {
             let machine_symbol = if state_symbol.is_valid() {
                 program.symbols.get(state_symbol).parent
             } else {
@@ -6158,7 +6094,203 @@ pub(crate) mod canonical_projection {
         }
         Some(place)
     }
+
+    pub(crate) mod syntax_queries {
+        //! Flow sweeps revisit selectors without changing their source associations.
+        //! Retain those associations for the frozen input, including empty results.
+        //! These rows select no executable arm and establish no numeric or flow fact:
+        //! subject consistency, standing bounds and completed-call judgments remain
+        //! with the projection query that consumes them.
+
+        use crate::CheckingInput;
+        use crate::frozen_program::{expression_table, frozen_memo, once_lock_rows};
+        use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
+        use std::sync::{Arc, OnceLock};
+        use symbols::{SymbolHandle, SymbolKind};
+
+        #[derive(Default)]
+        struct EndpointAssociations {
+            naming_states: OnceLock<Arc<[SymbolHandle]>>,
+            literal_arm_bindings: OnceLock<Arc<[(ExpressionHandle, i64)]>>,
+        }
+
+        pub(crate) struct ProjectionSyntaxQueries {
+            endpoints: Vec<(ExpressionHandle, EndpointAssociations)>,
+            state_matches: Vec<(SymbolHandle, OnceLock<Arc<[ExpressionHandle]>>)>,
+        }
+
+        impl ProjectionSyntaxQueries {
+            fn of(program: &dyn CheckingInput) -> Self {
+                let mut endpoints: Vec<_> = expression_table(program)
+                    .iter_backing_expressions()
+                    .map(|(handle, _)| (handle, EndpointAssociations::default()))
+                    .collect();
+                endpoints.sort_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
+                let state_matches = once_lock_rows(program.machines().iter().flat_map(|machine| {
+                    program
+                        .machine_states(machine)
+                        .iter()
+                        .map(|state| state.symbol)
+                }));
+                Self {
+                    endpoints,
+                    state_matches,
+                }
+            }
+
+            fn endpoint(&self, endpoint: ExpressionHandle) -> Option<&EndpointAssociations> {
+                self.endpoints
+                    .binary_search_by_key(
+                        &(endpoint.arena_index(), endpoint.generation()),
+                        |(handle, _)| (handle.arena_index(), handle.generation()),
+                    )
+                    .ok()
+                    .map(|position| &self.endpoints[position].1)
+            }
+
+            fn matches(
+                &self,
+                program: &dyn CheckingInput,
+                state: SymbolHandle,
+            ) -> Arc<[ExpressionHandle]> {
+                let compute = || state_match_nodes(program, state);
+                match self.state_matches.binary_search_by_key(
+                    &(state.arena_index(), state.generation()),
+                    |(symbol, _)| (symbol.arena_index(), symbol.generation()),
+                ) {
+                    Ok(position) => self.state_matches[position].1.get_or_init(compute).clone(),
+                    Err(_) => compute(),
+                }
+            }
+        }
+
+        fn state_match_nodes(
+            program: &dyn CheckingInput,
+            state: SymbolHandle,
+        ) -> Arc<[ExpressionHandle]> {
+            let machine = program.symbols.get(state).parent;
+            let Some((_, state)) = program.machine_state(machine, state) else {
+                return Arc::from([]);
+            };
+            let mut matches = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                for (_, root) in program.tables.expression_roots(statement) {
+                    let mut nodes = Vec::new();
+                    crate::queries::expression_traversal::collect_expression_tree(
+                        program, root, &mut nodes,
+                    );
+                    // Each root owns its traversal. A shared handle in another root
+                    // remains another candidate, in the original order.
+                    matches.extend(nodes.into_iter().filter(|node| {
+                        matches!(
+                            expression_table(program).expression(*node),
+                            ExpressionNode::Match(_)
+                        )
+                    }));
+                }
+            }
+            Arc::from(matches)
+        }
+
+        fn queries(program: &dyn CheckingInput) -> Arc<ProjectionSyntaxQueries> {
+            frozen_memo(
+                program,
+                |memos| &memos.projection_syntax,
+                || ProjectionSyntaxQueries::of(program),
+            )
+        }
+
+        pub(super) fn states_naming(
+            program: &dyn CheckingInput,
+            endpoint: ExpressionHandle,
+        ) -> Arc<[SymbolHandle]> {
+            let compute = || {
+                let mut nodes = Vec::new();
+                crate::queries::expression_traversal::collect_expression_tree(
+                    program, endpoint, &mut nodes,
+                );
+                let mut states = Vec::new();
+                for node in nodes {
+                    let ExpressionNode::Name(path) = expression_table(program).expression(node)
+                    else {
+                        continue;
+                    };
+                    if !path.head_symbol.is_valid() {
+                        continue;
+                    }
+                    let declaration = program.symbols.get(path.head_symbol);
+                    if matches!(declaration.kind, SymbolKind::Parameter | SymbolKind::Local)
+                        && !states.contains(&declaration.parent)
+                    {
+                        states.push(declaration.parent);
+                    }
+                }
+                Arc::from(states)
+            };
+            if program.checking_memos().is_none() {
+                return compute();
+            }
+            let queries = queries(program);
+            match queries.endpoint(endpoint) {
+                Some(row) => row.naming_states.get_or_init(compute).clone(),
+                None => compute(),
+            }
+        }
+
+        pub(super) fn literal_arm_bindings(
+            program: &dyn CheckingInput,
+            endpoint: ExpressionHandle,
+        ) -> Arc<[(ExpressionHandle, i64)]> {
+            let queries = program.checking_memos().map(|_| queries(program));
+            let compute = || {
+                let mut bindings = Vec::new();
+                for state in states_naming(program, endpoint).iter().copied() {
+                    let matches = match &queries {
+                        Some(queries) => queries.matches(program, state),
+                        None => state_match_nodes(program, state),
+                    };
+                    for node in matches.iter().copied() {
+                        let ExpressionNode::Match(dispatch) =
+                            expression_table(program).expression(node)
+                        else {
+                            continue;
+                        };
+                        let mut patterns = Vec::new();
+                        for arm in expression_table(program).match_arms(dispatch.arms) {
+                            let MatchPattern::Value(pattern) = arm.pattern else {
+                                continue;
+                            };
+                            patterns.push(pattern);
+                            let Some(value) = expression_table(program)
+                                .integer_node(pattern)
+                                .and_then(|literal| literal.value_i64())
+                            else {
+                                continue;
+                            };
+                            // Keep every preceding pattern and every executable
+                            // occurrence. A failed effectful pattern cannot grant the
+                            // captured subject's equality to a later storage read.
+                            if crate::queries::expression_traversal::expression_has_inert_prefix(
+                                program, &patterns, arm.value, endpoint,
+                            ) {
+                                bindings.push((dispatch.subject, value));
+                            }
+                        }
+                    }
+                }
+                Arc::from(bindings)
+            };
+            match queries
+                .as_ref()
+                .and_then(|queries| queries.endpoint(endpoint))
+            {
+                Some(row) => row.literal_arm_bindings.get_or_init(compute).clone(),
+                None => compute(),
+            }
+        }
+    }
 }
+pub(crate) use canonical_projection::ProjectionSyntaxQueries;
 pub use canonical_projection::{
     CanonicalPlace, canonical_collection_element_place, canonical_place_from_expression,
     canonical_place_from_expression_in_state, element_place_segment, index_place_segment,

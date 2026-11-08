@@ -10,6 +10,7 @@
 */
 
 mod joins {
+    use super::PermissionEvents;
     /*
         Bind returned custody to an exact call occurrence, separately from lineage.
         A callee-local establishment needs this correspondence even with one exit:
@@ -48,6 +49,7 @@ mod joins {
     use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
     mod selected_storage {
+        use super::PermissionEvents;
         /*
             Expand the complete storage frontier for one selected control decision.
             A destination name continues one of its exact arrivals; it is not a new
@@ -62,10 +64,7 @@ mod joins {
         };
         use crate::checks::multiplicity::owned_selection::terminal_arm_route;
         use crate::checks::ownership_occurrences::{EvaluationBranch, routes_compatible};
-        use checked_trees::{
-            FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEventFact,
-            FlowSelectionPlaceBinding,
-        };
+        use checked_trees::{FlowClaimJoinExit, FlowClaimJoinExitKind, FlowSelectionPlaceBinding};
         use symbols::SymbolHandle;
 
         pub(super) fn selection_routes_agree(
@@ -105,7 +104,7 @@ mod joins {
             program: &dyn validation::CheckingInput,
             facts: checked_trees::CheckFactsRef<'_>,
             state: &typed_trees::state::State,
-            events: &[FlowPermissionEventFact],
+            events: &PermissionEvents<'_>,
             maps: &[CheckedClaimOutcomeMap],
             active: &mut Vec<SymbolHandle>,
             visited: &[JoinedOccurrence],
@@ -571,7 +570,7 @@ mod joins {
         program: &dyn ::validation::CheckingInput,
         facts: checked_trees::CheckFactsRef<'_>,
         state: &typed_trees::state::State,
-        events: &[FlowPermissionEventFact],
+        events: &PermissionEvents<'_>,
         maps: &[CheckedClaimOutcomeMap],
         active: &mut Vec<SymbolHandle>,
         path: &[PlaceSegment],
@@ -763,7 +762,7 @@ mod joins {
         state: &typed_trees::state::State,
         identity: PermissionClaimIdentity,
         ownership: &FlowOwnershipFacts,
-        events: &[FlowPermissionEventFact],
+        events: &PermissionEvents<'_>,
     ) -> Option<CheckedClaimOutcomeSource> {
         let definitions = events
             .iter()
@@ -832,7 +831,7 @@ mod joins {
         call: &typed_trees::expression::TableCallExpression,
         target: &typed_trees::state::State,
         source: &CheckedClaimOutcomeSource,
-        events: &[FlowPermissionEventFact],
+        events: &PermissionEvents<'_>,
     ) -> Result<Vec<BoundSource>, &'static str> {
         let CheckedClaimOutcomeSource::Input {
             parameter_symbol,
@@ -965,7 +964,7 @@ mod joins {
         program: &dyn ::validation::CheckingInput,
         facts: checked_trees::CheckFactsRef<'_>,
         state: &typed_trees::state::State,
-        events: &[FlowPermissionEventFact],
+        events: &PermissionEvents<'_>,
         maps: &[CheckedClaimOutcomeMap],
         active: &mut Vec<SymbolHandle>,
         visited: &[JoinedOccurrence],
@@ -1249,9 +1248,10 @@ mod joins {
         let borrow = &facts.borrow;
         let ownership = &facts.flow.ownership;
         let maps = derive_checked_claim_outcome_maps(program, borrow, ownership, events)?;
+        let events = &PermissionEvents::prepare(events, &ownership.segments);
         let mut receipts = Vec::new();
         let mut prepared_frontiers: Vec<PreparedCalleeFrontier> = Vec::new();
-        for event in events {
+        for event in events.iter() {
             if event.kind != PermissionEventKind::Establish
                 || event.access != PermissionAccess::Owned
                 || !event.obligation_live
@@ -1776,6 +1776,657 @@ mod joins {
         failures
     }
 }
+mod event_queries {
+    //! A return summary should search the permission rows for its actual argument,
+    //! not every event in unrelated states. A batch borrows one immutable event and
+    //! segment snapshot; its sorted associations retain original row ordinals.
+    //! Candidate outcome maps remain separate and are read afresh by the caller.
+    //!
+    //! Recording asks once before appending the next event, so it borrows the
+    //! current rows directly. Reconciliation and return discovery prepare repeated
+    //! queries once, then drop the associations before rewriting those rows.
+
+    use super::permission_event_statement_index;
+    use checked_trees::FlowPermissionEventFact;
+    use language_semantics::{PermissionClaimIdentity, PermissionProvenance};
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    use symbols::SymbolHandle;
+
+    struct SortedRows {
+        rows: Vec<(u64, usize)>,
+    }
+
+    impl SortedRows {
+        fn new(rows: impl Iterator<Item = (u64, usize)>) -> Self {
+            let mut rows = rows.collect::<Vec<_>>();
+            // The ordinal breaks ties, including hash collisions. A query therefore
+            // sees the same order as filtering the original complete event slice.
+            rows.sort_unstable();
+            Self { rows }
+        }
+
+        fn matching(&self, key: u64) -> &[(u64, usize)] {
+            let first = self.rows.partition_point(|row| row.0 < key);
+            let count = self.rows[first..].partition_point(|row| row.0 == key);
+            &self.rows[first..first + count]
+        }
+    }
+
+    fn key_hash(value: impl Hash) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        value.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    struct EventAssociations {
+        statements: SortedRows,
+        origins: SortedRows,
+        places: SortedRows,
+        places_across_statements: SortedRows,
+    }
+
+    pub(super) struct PermissionEvents<'events> {
+        events: &'events [FlowPermissionEventFact],
+        associations: Option<EventAssociations>,
+    }
+
+    impl<'events> PermissionEvents<'events> {
+        pub(super) fn recorded(events: &'events [FlowPermissionEventFact]) -> Self {
+            Self {
+                events,
+                associations: None,
+            }
+        }
+
+        pub(super) fn prepare(
+            events: &'events [FlowPermissionEventFact],
+            segments: &'events arena::PagedArenaSet<facts::PlaceSegment>,
+        ) -> Self {
+            let statements =
+                SortedRows::new(events.iter().enumerate().filter_map(|(ordinal, event)| {
+                    let statement = permission_event_statement_index(event.source)?;
+                    Some((key_hash((event.state_symbol, statement)), ordinal))
+                }));
+            let origins = SortedRows::new(events.iter().enumerate().map(|(ordinal, event)| {
+                (
+                    key_hash((event.state_symbol, event.claim_identity, event.provenance)),
+                    ordinal,
+                )
+            }));
+            let places = SortedRows::new(events.iter().enumerate().map(|(ordinal, event)| {
+                let statement = permission_event_statement_index(event.source);
+                (
+                    key_hash((
+                        event.state_symbol,
+                        statement,
+                        event.root,
+                        segments.span_or_empty(event.segments),
+                    )),
+                    ordinal,
+                )
+            }));
+            let places_across_statements =
+                SortedRows::new(events.iter().enumerate().map(|(ordinal, event)| {
+                    (
+                        key_hash((
+                            event.state_symbol,
+                            event.root,
+                            segments.span_or_empty(event.segments),
+                        )),
+                        ordinal,
+                    )
+                }));
+            Self {
+                events,
+                associations: Some(EventAssociations {
+                    statements,
+                    origins,
+                    places,
+                    places_across_statements,
+                }),
+            }
+        }
+
+        pub(super) fn iter(&self) -> std::slice::Iter<'events, FlowPermissionEventFact> {
+            self.events.iter()
+        }
+
+        pub(super) fn at_statement(
+            &self,
+            state: SymbolHandle,
+            statement: usize,
+        ) -> EventCandidates<'_> {
+            self.candidates(
+                self.associations
+                    .as_ref()
+                    .map(|rows| rows.statements.matching(key_hash((state, statement)))),
+            )
+        }
+
+        pub(super) fn at_origin(
+            &self,
+            state: SymbolHandle,
+            identity: PermissionClaimIdentity,
+            provenance: PermissionProvenance,
+        ) -> EventCandidates<'_> {
+            self.candidates(self.associations.as_ref().map(|rows| {
+                rows.origins
+                    .matching(key_hash((state, identity, provenance)))
+            }))
+        }
+
+        pub(super) fn at_place(
+            &self,
+            state: SymbolHandle,
+            statement: Option<usize>,
+            root: facts::PlaceRoot,
+            path: &[facts::PlaceSegment],
+        ) -> EventCandidates<'_> {
+            self.candidates(self.associations.as_ref().map(|rows| {
+                rows.places
+                    .matching(key_hash((state, statement, root, path)))
+            }))
+        }
+
+        // Preservation must consider earlier statements. Its broader candidates
+        // must not make exact argument queries scan the history of the same place.
+        pub(super) fn at_place_across_statements(
+            &self,
+            state: SymbolHandle,
+            root: facts::PlaceRoot,
+            path: &[facts::PlaceSegment],
+        ) -> EventCandidates<'_> {
+            self.candidates(self.associations.as_ref().map(|rows| {
+                rows.places_across_statements
+                    .matching(key_hash((state, root, path)))
+            }))
+        }
+
+        fn candidates<'query>(
+            &'query self,
+            rows: Option<&'query [(u64, usize)]>,
+        ) -> EventCandidates<'query> {
+            EventCandidates {
+                events: self.events,
+                rows,
+                position: 0,
+            }
+        }
+    }
+
+    /// Hashes select candidates only. Every caller retains its full original typed
+    /// equality, permission, liveness and uniqueness predicates, including when a
+    /// colliding row is offered by one of these associations.
+    pub(super) struct EventCandidates<'query> {
+        events: &'query [FlowPermissionEventFact],
+        rows: Option<&'query [(u64, usize)]>,
+        position: usize,
+    }
+
+    impl<'query> Iterator for EventCandidates<'query> {
+        type Item = &'query FlowPermissionEventFact;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let ordinal = match self.rows {
+                Some(rows) => rows.get(self.position)?.1,
+                None => self.position,
+            };
+            let event = self.events.get(ordinal)?;
+            self.position += 1;
+            Some(event)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{PermissionEvents, SortedRows, key_hash, permission_event_statement_index};
+        use checked_trees::FlowPermissionEventFact;
+        use language_semantics::{
+            PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+            PermissionProvenance,
+        };
+        use std::cell::Cell;
+        use symbols::SymbolHandle;
+
+        fn rows(
+            count: usize,
+        ) -> (
+            Vec<FlowPermissionEventFact>,
+            arena::PagedArenaSet<facts::PlaceSegment>,
+        ) {
+            let mut segments = arena::PagedArenaSet::default();
+            let events = (0..count)
+                .map(|ordinal| {
+                    let state = SymbolHandle::from_parts(
+                        (ordinal % 8 + 1) as u32,
+                        (ordinal / 8 % 2 + 1) as u32,
+                    );
+                    let source = if ordinal % 3 == 0 {
+                        PermissionEventSource::StateEntry
+                    } else {
+                        PermissionEventSource::Statement {
+                            statement_index: ordinal / 16 % 4,
+                        }
+                    };
+                    FlowPermissionEventFact {
+                        state_symbol: state,
+                        source,
+                        expression: typed_trees::expression::ExpressionHandle::from_parts(
+                            (ordinal + 1) as u32,
+                            1,
+                        ),
+                        kind: if ordinal % 3 == 0 {
+                            PermissionEventKind::Establish
+                        } else {
+                            PermissionEventKind::Transfer
+                        },
+                        access: if ordinal % 5 == 0 {
+                            PermissionAccess::Shared
+                        } else {
+                            PermissionAccess::Owned
+                        },
+                        claim_identity: PermissionClaimIdentity::Established {
+                            machine_symbol: SymbolHandle::from_parts(1, 1),
+                            state_symbol: state,
+                            source: PermissionEventSource::StateEntry,
+                            ordinal: (ordinal % 13) as u32,
+                        },
+                        provenance: PermissionProvenance::Established {
+                            machine_symbol: SymbolHandle::from_parts(1, 1),
+                            state_symbol: state,
+                            source,
+                        },
+                        root: facts::PlaceRoot::Symbol(SymbolHandle::from_parts(
+                            45,
+                            (ordinal % 2 + 1) as u32,
+                        )),
+                        segments: segments.insert_many([
+                            facts::PlaceSegment::Field {
+                                symbol: SymbolHandle::from_parts(22, 1),
+                            },
+                            facts::PlaceSegment::FixedIndex { index: ordinal % 7 },
+                        ]),
+                        obligation_live: ordinal % 11 != 0,
+                        ..FlowPermissionEventFact::default()
+                    }
+                })
+                .collect();
+            (events, segments)
+        }
+
+        fn compare_batches(
+            events: &[FlowPermissionEventFact],
+            segments: &arena::PagedArenaSet<facts::PlaceSegment>,
+        ) -> (usize, usize, usize) {
+            let recorded = PermissionEvents::recorded(events);
+            let preparation_start = std::time::Instant::now();
+            let prepared = PermissionEvents::prepare(events, segments);
+            let preparation_elapsed = preparation_start.elapsed();
+            let indexed_rows = prepared.associations.as_ref().map_or(0, |rows| {
+                rows.statements.rows.len()
+                    + rows.origins.rows.len()
+                    + rows.places.rows.len()
+                    + rows.places_across_statements.rows.len()
+            });
+            eprintln!(
+                "permission event preparation: {} source rows across four passes; {} indexed rows; {:?}",
+                events.len(),
+                indexed_rows,
+                preparation_elapsed
+            );
+            let direct_scans = Cell::new(0);
+            let prepared_scans = Cell::new(0);
+            let matched = Cell::new(0);
+            for event in events.iter().step_by(31) {
+                let statement = permission_event_statement_index(event.source);
+                let path = segments.span_or_empty(event.segments);
+                let same_place = |candidate: &&FlowPermissionEventFact| {
+                    candidate.state_symbol == event.state_symbol
+                        && permission_event_statement_index(candidate.source) == statement
+                        && candidate.root == event.root
+                        && segments.span_or_empty(candidate.segments) == path
+                        && candidate.kind == event.kind
+                        && candidate.access == PermissionAccess::Owned
+                        && candidate.obligation_live
+                };
+                let direct = recorded
+                    .at_place(event.state_symbol, statement, event.root, path)
+                    .inspect(|_| direct_scans.set(direct_scans.get() + 1))
+                    .filter(same_place)
+                    .collect::<Vec<_>>();
+                let indexed = prepared
+                    .at_place(event.state_symbol, statement, event.root, path)
+                    .inspect(|_| prepared_scans.set(prepared_scans.get() + 1))
+                    .filter(same_place)
+                    .collect::<Vec<_>>();
+                assert_eq!(indexed, direct);
+                matched.set(matched.get() + direct.len());
+                // Absence searches all earlier establishments, not one exact
+                // statement. The last equal-position row must still win.
+                let inactive = |candidate: &&FlowPermissionEventFact| {
+                    candidate.state_symbol == event.state_symbol
+                        && candidate.kind == PermissionEventKind::Establish
+                        && candidate.access == PermissionAccess::Owned
+                        && !candidate.obligation_live
+                        && candidate.claim_identity == PermissionClaimIdentity::Unknown
+                        && candidate.root == event.root
+                        && segments.span_or_empty(candidate.segments) == path
+                        && matches!(candidate.source,
+                            PermissionEventSource::Statement { statement_index } if statement_index < 5)
+                };
+                let latest = |candidate: &&FlowPermissionEventFact| {
+                    permission_event_statement_index(candidate.source).unwrap_or(0)
+                };
+                let direct = recorded
+                    .at_place_across_statements(event.state_symbol, event.root, path)
+                    .inspect(|_| direct_scans.set(direct_scans.get() + 1))
+                    .filter(inactive)
+                    .max_by_key(latest);
+                let indexed = prepared
+                    .at_place_across_statements(event.state_symbol, event.root, path)
+                    .inspect(|_| prepared_scans.set(prepared_scans.get() + 1))
+                    .filter(inactive)
+                    .max_by_key(latest);
+                assert_eq!(indexed, direct);
+                matched.set(matched.get() + usize::from(direct.is_some()));
+                let same_origin = |candidate: &&FlowPermissionEventFact| {
+                    candidate.state_symbol == event.state_symbol
+                        && candidate.claim_identity == event.claim_identity
+                        && candidate.provenance == event.provenance
+                        && candidate.kind == PermissionEventKind::Establish
+                        && candidate.access == PermissionAccess::Owned
+                        && candidate.obligation_live
+                };
+                let direct = recorded
+                    .at_origin(event.state_symbol, event.claim_identity, event.provenance)
+                    .inspect(|_| direct_scans.set(direct_scans.get() + 1))
+                    .filter(same_origin)
+                    .collect::<Vec<_>>();
+                let indexed = prepared
+                    .at_origin(event.state_symbol, event.claim_identity, event.provenance)
+                    .inspect(|_| prepared_scans.set(prepared_scans.get() + 1))
+                    .filter(same_origin)
+                    .collect::<Vec<_>>();
+                assert_eq!(indexed, direct);
+                matched.set(matched.get() + direct.len());
+                // State-entry source lookup stops on its first exact match. Compare
+                // rows actually consumed by find, not a full-scan estimate.
+                let same_entry = |candidate: &&FlowPermissionEventFact| {
+                    candidate.state_symbol == event.state_symbol
+                        && candidate.claim_identity == event.claim_identity
+                        && candidate.provenance == event.provenance
+                        && candidate.source == PermissionEventSource::StateEntry
+                        && candidate.kind == PermissionEventKind::Establish
+                        && candidate.access == PermissionAccess::Owned
+                };
+                let direct = recorded
+                    .at_origin(event.state_symbol, event.claim_identity, event.provenance)
+                    .inspect(|_| direct_scans.set(direct_scans.get() + 1))
+                    .find(same_entry);
+                let indexed = prepared
+                    .at_origin(event.state_symbol, event.claim_identity, event.provenance)
+                    .inspect(|_| prepared_scans.set(prepared_scans.get() + 1))
+                    .find(same_entry);
+                assert_eq!(indexed, direct);
+                matched.set(matched.get() + usize::from(direct.is_some()));
+                if let Some(statement) = statement {
+                    let same_statement = |candidate: &&FlowPermissionEventFact| {
+                        candidate.state_symbol == event.state_symbol
+                            && permission_event_statement_index(candidate.source) == Some(statement)
+                            && candidate.kind == PermissionEventKind::Transfer
+                            && candidate.access == PermissionAccess::Owned
+                            && candidate.obligation_live
+                    };
+                    let direct = recorded
+                        .at_statement(event.state_symbol, statement)
+                        .inspect(|_| direct_scans.set(direct_scans.get() + 1))
+                        .filter(same_statement)
+                        .collect::<Vec<_>>();
+                    let indexed = prepared
+                        .at_statement(event.state_symbol, statement)
+                        .inspect(|_| prepared_scans.set(prepared_scans.get() + 1))
+                        .filter(same_statement)
+                        .collect::<Vec<_>>();
+                    assert_eq!(indexed, direct);
+                    matched.set(matched.get() + direct.len());
+                }
+            }
+            (direct_scans.get(), prepared_scans.get(), matched.get())
+        }
+
+        #[test]
+        fn immutable_event_associations_preserve_query_batches_and_rebuilds() {
+            let (mut events, mut segments) = rows(4096);
+            // Equal path values in separately allocated ranges are interchangeable
+            // for the old slice comparison; range-handle hashing would lose rows.
+            assert_ne!(events[1].segments, events[1345].segments);
+            assert_eq!(
+                segments.span_or_empty(events[1].segments),
+                segments.span_or_empty(events[1345].segments)
+            );
+            let mut inactive = events[0].clone();
+            inactive.segments = segments.insert_many([
+                facts::PlaceSegment::Field {
+                    symbol: SymbolHandle::from_parts(22, 1),
+                },
+                facts::PlaceSegment::Case {
+                    variant: SymbolHandle::from_parts(83, 1),
+                },
+            ]);
+            events[0].segments = inactive.segments;
+            inactive.kind = PermissionEventKind::Establish;
+            inactive.access = PermissionAccess::Owned;
+            inactive.claim_identity = PermissionClaimIdentity::Unknown;
+            inactive.obligation_live = false;
+            inactive.source = PermissionEventSource::Statement { statement_index: 1 };
+            events.push(inactive.clone());
+            inactive.source = PermissionEventSource::Statement { statement_index: 3 };
+            events.push(inactive.clone());
+            // A distinct segment range with the same values must participate in
+            // the same latest-position tie, using its actual original ordinal.
+            inactive.segments =
+                segments.insert_many(segments.span_or_empty(inactive.segments).to_vec());
+            events.push(inactive.clone());
+            let last_tie = events.len() - 1;
+            let mut excluded = inactive.clone();
+            excluded.source = PermissionEventSource::Statement { statement_index: 5 };
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.obligation_live = true;
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.claim_identity = events[1].claim_identity;
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.kind = PermissionEventKind::Transfer;
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.access = PermissionAccess::Shared;
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.state_symbol = SymbolHandle::from_parts(
+                inactive.state_symbol.arena_index(),
+                inactive.state_symbol.generation() + 1,
+            );
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.root = facts::PlaceRoot::Symbol(SymbolHandle::from_parts(45, 9));
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.segments = segments.insert_many([
+                facts::PlaceSegment::Field {
+                    symbol: SymbolHandle::from_parts(22, 1),
+                },
+                facts::PlaceSegment::Case {
+                    variant: SymbolHandle::from_parts(83, 2),
+                },
+            ]);
+            events.push(excluded);
+            let selected = |events: &[FlowPermissionEventFact]| {
+                let prepared = PermissionEvents::prepare(events, &segments);
+                prepared
+                    .at_place_across_statements(
+                        inactive.state_symbol,
+                        inactive.root,
+                        segments.span_or_empty(inactive.segments),
+                    )
+                    .filter(|event| {
+                        event.state_symbol == inactive.state_symbol
+                            && event.root == inactive.root
+                            && segments.span_or_empty(event.segments)
+                                == segments.span_or_empty(inactive.segments)
+                            && event.kind == PermissionEventKind::Establish
+                            && event.access == PermissionAccess::Owned
+                            && !event.obligation_live
+                            && event.claim_identity == PermissionClaimIdentity::Unknown
+                            && matches!(event.source,
+                                PermissionEventSource::Statement { statement_index } if statement_index < 5)
+                    })
+                    .max_by_key(|event| permission_event_statement_index(event.source))
+                    .map(|event| {
+                        events.iter().position(|row| std::ptr::eq(row, event))
+                            .expect("candidate belongs to the borrowed event slice")
+                    })
+            };
+            assert_eq!(selected(&events), Some(last_tie));
+            let start = std::time::Instant::now();
+            let (direct_scans, prepared_scans, matched) = compare_batches(&events, &segments);
+            eprintln!(
+                "permission event table: {} prepared source rows; direct {} visited rows; prepared {} visited rows; {} matched rows; comparison {:?}",
+                events.len(),
+                direct_scans,
+                prepared_scans,
+                matched,
+                start.elapsed()
+            );
+            assert!(prepared_scans < direct_scans / 8);
+            events[last_tie].obligation_live = true;
+            assert_eq!(selected(&events), Some(last_tie - 1));
+            // A new immutable snapshot sees changed keys and filtering fields. No
+            // association can remain borrowed across these actual mutations.
+            for event in events.iter_mut().step_by(5) {
+                event.state_symbol = SymbolHandle::from_parts(
+                    event.state_symbol.arena_index(),
+                    event.state_symbol.generation() + 1,
+                );
+                event.provenance = PermissionProvenance::Unknown;
+                event.obligation_live = !event.obligation_live;
+            }
+            compare_batches(&events, &segments);
+            compare_batches(&[], &segments);
+
+            // Replacing the same local at many statements must not broaden an
+            // exact-statement query to the complete history of that storage.
+            let (mut repeated, repeated_segments) = rows(1024);
+            let place = repeated[1].clone();
+            for (statement_index, event) in repeated.iter_mut().enumerate() {
+                event.state_symbol = place.state_symbol;
+                event.root = place.root;
+                event.segments = place.segments;
+                event.source = PermissionEventSource::Statement { statement_index };
+            }
+            let start = std::time::Instant::now();
+            let prepared = PermissionEvents::prepare(&repeated, &repeated_segments);
+            let preparation_elapsed = start.elapsed();
+            let recorded = PermissionEvents::recorded(&repeated);
+            let mut direct_scans = 0;
+            let mut prepared_scans = 0;
+            let path = repeated_segments.span_or_empty(place.segments);
+            for statement in 0..repeated.len() {
+                let exact = |candidate: &&FlowPermissionEventFact| {
+                    candidate.state_symbol == place.state_symbol
+                        && permission_event_statement_index(candidate.source) == Some(statement)
+                        && candidate.root == place.root
+                        && repeated_segments.span_or_empty(candidate.segments) == path
+                };
+                let direct = recorded
+                    .at_place(place.state_symbol, Some(statement), place.root, path)
+                    .inspect(|_| direct_scans += 1)
+                    .filter(exact)
+                    .collect::<Vec<_>>();
+                let indexed = prepared
+                    .at_place(place.state_symbol, Some(statement), place.root, path)
+                    .inspect(|_| prepared_scans += 1)
+                    .filter(exact)
+                    .collect::<Vec<_>>();
+                assert_eq!(indexed, direct);
+                assert_eq!(indexed.len(), 1);
+            }
+            assert_eq!(direct_scans, repeated.len() * repeated.len());
+            assert_eq!(prepared_scans, repeated.len());
+            eprintln!(
+                "repeated place table: {} source rows across four preparation passes; {} exact-statement queries; direct {} visited rows; prepared {} visited rows; preparation {:?}",
+                repeated.len(),
+                repeated.len(),
+                direct_scans,
+                prepared_scans,
+                preparation_elapsed,
+            );
+        }
+
+        #[test]
+        fn colliding_event_keys_keep_original_order_and_exact_filtering() {
+            let (events, segments) = rows(80);
+            let mut prepared = PermissionEvents::prepare(&events, &segments);
+            let selected = &events[17];
+            let statement =
+                permission_event_statement_index(selected.source).expect("statement fixture");
+            // All rows deliberately occupy the requested hash bucket. The full
+            // original predicate still distinguishes their states and statements.
+            prepared
+                .associations
+                .as_mut()
+                .expect("prepared fixture")
+                .statements = SortedRows::new(
+                (0..events.len())
+                    .rev()
+                    .map(|ordinal| (key_hash((selected.state_symbol, statement)), ordinal)),
+            );
+            let actual = prepared
+                .at_statement(selected.state_symbol, statement)
+                .filter(|event| {
+                    event.state_symbol == selected.state_symbol
+                        && permission_event_statement_index(event.source) == Some(statement)
+                })
+                .collect::<Vec<_>>();
+            let expected = events
+                .iter()
+                .filter(|event| {
+                    event.state_symbol == selected.state_symbol
+                        && permission_event_statement_index(event.source) == Some(statement)
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected);
+            assert_eq!(actual.first().copied(), expected.first().copied());
+            let path = segments.span_or_empty(selected.segments);
+            prepared
+                .associations
+                .as_mut()
+                .expect("prepared fixture")
+                .places_across_statements =
+                SortedRows::new((0..events.len()).rev().map(|ordinal| {
+                    (
+                        key_hash((selected.state_symbol, selected.root, path)),
+                        ordinal,
+                    )
+                }));
+            let same_place = |event: &&FlowPermissionEventFact| {
+                event.state_symbol == selected.state_symbol
+                    && event.root == selected.root
+                    && segments.span_or_empty(event.segments) == path
+                    && permission_event_statement_index(event.source) == Some(statement)
+            };
+            let actual = prepared
+                .at_place_across_statements(selected.state_symbol, selected.root, path)
+                .filter(same_place)
+                .collect::<Vec<_>>();
+            let expected = events.iter().filter(same_place).collect::<Vec<_>>();
+            assert_eq!(actual, expected);
+        }
+    }
+}
+use event_queries::PermissionEvents;
+
 use crate::flow::literal_expression_projections;
 use crate::shared::collections::push_unique;
 use crate::shared::collections::unique_in_order;
@@ -1944,8 +2595,9 @@ impl ClaimOutcomePreparation {
             event.claim_identity = PermissionClaimIdentity::Unknown;
             return;
         }
+        let permission_events = PermissionEvents::recorded(permission_events);
         if let Some((_, _, provenance, identity)) =
-            call_result_origin_rewrite(program, segments, event, permission_events, &self.maps)
+            call_result_origin_rewrite(program, segments, event, &permission_events, &self.maps)
         {
             event.provenance = provenance;
             event.claim_identity = identity;
@@ -2018,6 +2670,7 @@ pub(crate) fn derive_checked_claim_outcome_maps(
     if candidate_states.is_empty() {
         return Ok(Vec::new());
     }
+    let permission_events = &PermissionEvents::prepare(permission_events, &ownership.segments);
     let state_count = candidate_states.len();
     let derive = |maps: &[CheckedClaimOutcomeMap]| {
         candidate_states
@@ -2092,7 +2745,7 @@ fn derive_claim_outcome_hypothesis(
     state: &typed_trees::state::State,
     expected_paths: Vec<Vec<facts::PlaceSegment>>,
     ownership: &checked_trees::FlowOwnershipFacts,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> Option<ClaimOutcomeHypothesis> {
     let segments = &ownership.segments;
@@ -2296,7 +2949,7 @@ struct ClaimAbsence<'a> {
     program: &'a dyn ::validation::CheckingInput,
     state: &'a typed_trees::state::State,
     ownership: &'a checked_trees::FlowOwnershipFacts,
-    events: &'a [FlowPermissionEventFact],
+    events: &'a PermissionEvents<'a>,
     maps: &'a [CheckedClaimOutcomeMap],
     writes: Option<joins::InactivePlaceWrites>,
 }
@@ -2321,7 +2974,11 @@ impl ClaimAbsence<'_> {
                         statement,
                         &place,
                         self.ownership,
-                        self.events,
+                        self.events.at_place_across_statements(
+                            self.state.symbol,
+                            place.root,
+                            &place.segments,
+                        ),
                     )
                 })
                 .is_some()
@@ -2523,7 +3180,7 @@ fn claim_outcomes_for_named_transition(
     target_symbol: SymbolHandle,
     arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> Vec<CheckedClaimOutcomeEntry> {
     let Some(target_state) = validation::call_target_state(program, target_symbol) else {
@@ -2566,7 +3223,7 @@ fn claim_outcomes_for_expression(
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
     ownership: &checked_trees::FlowOwnershipFacts,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
     known_maps: &[CheckedClaimOutcomeMap],
     output_prefix: &[facts::PlaceSegment],
 ) -> Vec<CheckedClaimOutcomeEntry> {
@@ -2591,7 +3248,7 @@ fn claim_outcomes_for_expression(
     ) && let Some(place) = place_at(program, state.symbol, statement_index, expression)
     {
         let found = permission_events
-            .iter()
+            .at_statement(state.symbol, statement_index)
             .filter(|event| {
                 event.state_symbol == state.symbol
                     && permission_event_statement_index(event.source) == Some(statement_index)
@@ -2820,7 +3477,7 @@ fn claim_outcomes_for_owned_selection(
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
     ownership: &checked_trees::FlowOwnershipFacts,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
     output_prefix: &[facts::PlaceSegment],
 ) -> Vec<CheckedClaimOutcomeEntry> {
     let Some((_, receipt)) = ownership.owned_selection_at(state.symbol, statement_index as u32)
@@ -2888,7 +3545,7 @@ fn claim_outcome_source_for_event(
     state: &typed_trees::state::State,
     event: &FlowPermissionEventFact,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
 ) -> CheckedClaimOutcomeSource {
     claim_outcome_source_for_identity(
         program,
@@ -2906,18 +3563,20 @@ fn claim_outcome_source_for_identity(
     claim_identity: PermissionClaimIdentity,
     provenance: PermissionProvenance,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
 ) -> CheckedClaimOutcomeSource {
     if claim_identity != PermissionClaimIdentity::Unknown
         && provenance != PermissionProvenance::Unknown
-        && let Some(entry) = permission_events.iter().find(|candidate| {
-            candidate.state_symbol == state.symbol
-                && candidate.source == PermissionEventSource::StateEntry
-                && candidate.kind == PermissionEventKind::Establish
-                && candidate.access == PermissionAccess::Owned
-                && candidate.claim_identity == claim_identity
-                && candidate.provenance == provenance
-        })
+        && let Some(entry) = permission_events
+            .at_origin(state.symbol, claim_identity, provenance)
+            .find(|candidate| {
+                candidate.state_symbol == state.symbol
+                    && candidate.source == PermissionEventSource::StateEntry
+                    && candidate.kind == PermissionEventKind::Establish
+                    && candidate.access == PermissionAccess::Owned
+                    && candidate.claim_identity == claim_identity
+                    && candidate.provenance == provenance
+            })
         && let Some(parameter_symbol) = entry.root.as_symbol()
         && parameter_for_symbol(program, state, parameter_symbol).is_some()
     {
@@ -2936,7 +3595,7 @@ fn claim_origin_for_source(
     state: &typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
 ) -> Option<(PermissionProvenance, PermissionClaimIdentity)> {
     match source {
         CheckedClaimOutcomeSource::Established {
@@ -2951,7 +3610,12 @@ fn claim_origin_for_source(
         } => {
             let origins = unique_in_order(
                 permission_events
-                    .iter()
+                    .at_place(
+                        state.symbol,
+                        None,
+                        facts::PlaceRoot::Symbol(*parameter_symbol),
+                        path,
+                    )
                     .filter(|event| {
                         event.state_symbol == state.symbol
                             && event.source == PermissionEventSource::StateEntry
@@ -2982,7 +3646,7 @@ fn bind_claim_outcome_source_at_call(
     target_state: &typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
     maps: &[CheckedClaimOutcomeMap],
 ) -> Option<CheckedClaimOutcomeSource> {
     bind_claim_outcome_source_at_arguments(
@@ -3007,7 +3671,7 @@ fn bind_claim_outcome_source_at_arguments(
     target_state: &typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
     maps: &[CheckedClaimOutcomeMap],
 ) -> Option<CheckedClaimOutcomeSource> {
     let source = bind_claim_outcome_source_at_arguments_raw(
@@ -3041,7 +3705,7 @@ fn resolve_claim_outcome_source(
     state: &typed_trees::state::State,
     mut source: CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
-    events: &[FlowPermissionEventFact],
+    events: &PermissionEvents<'_>,
     maps: &[CheckedClaimOutcomeMap],
 ) -> Option<CheckedClaimOutcomeSource> {
     let mut visited = Vec::new();
@@ -3058,14 +3722,17 @@ fn resolve_claim_outcome_source(
         }
         visited.push((claim_identity, provenance));
         let mut forwarded = Vec::new();
-        for event in events.iter().filter(|event| {
-            event.state_symbol == state.symbol
-                && event.kind == PermissionEventKind::Establish
-                && event.access == PermissionAccess::Owned
-                && event.obligation_live
-                && event.claim_identity == claim_identity
-                && event.provenance == provenance
-        }) {
+        for event in events
+            .at_origin(state.symbol, claim_identity, provenance)
+            .filter(|event| {
+                event.state_symbol == state.symbol
+                    && event.kind == PermissionEventKind::Establish
+                    && event.access == PermissionAccess::Owned
+                    && event.obligation_live
+                    && event.claim_identity == claim_identity
+                    && event.provenance == provenance
+            })
+        {
             let Some((statement, expression, path)) = receiving_value(program, segments, event)
             else {
                 continue;
@@ -3117,7 +3784,7 @@ fn bind_claim_outcome_source_at_arguments_raw(
     target_state: &typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
 ) -> Option<CheckedClaimOutcomeSource> {
     let CheckedClaimOutcomeSource::Input {
         parameter_symbol,
@@ -3143,7 +3810,12 @@ fn bind_claim_outcome_source_at_arguments_raw(
     place.segments.extend_from_slice(&projection.remaining);
     let sources = unique_in_order(
         permission_events
-            .iter()
+            .at_place(
+                caller_state.symbol,
+                Some(statement_index),
+                place.root,
+                &place.segments,
+            )
             .filter(|event| {
                 event.state_symbol == caller_state.symbol
                     && permission_event_statement_index(event.source) == Some(statement_index)
@@ -3209,6 +3881,7 @@ pub(crate) fn call_result_origin_rewrites(
     if maps.is_empty() {
         return Vec::new();
     }
+    let permission_events = &PermissionEvents::prepare(permission_events, segments);
     permission_events
         .iter()
         .filter_map(|event| {
@@ -3221,7 +3894,7 @@ fn call_result_origin_rewrite(
     program: &dyn validation::CheckingInput,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     event: &FlowPermissionEventFact,
-    permission_events: &[FlowPermissionEventFact],
+    permission_events: &PermissionEvents<'_>,
     maps: &[CheckedClaimOutcomeMap],
 ) -> Option<(
     PermissionProvenance,

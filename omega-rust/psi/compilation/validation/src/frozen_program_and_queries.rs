@@ -1196,6 +1196,10 @@ pub mod frozen_program {
     #[doc(hidden)]
     #[derive(Default)]
     pub struct CheckingMemos {
+        /// Naming and match-prefix associations depend only on frozen typed
+        /// tables, never changing flow or numeric facts.
+        pub(crate) projection_syntax:
+            OnceLock<Arc<crate::value_custody::places::ProjectionSyntaxQueries>>,
     pub(crate) case_guarantee_eligibility: OnceLock<Arc<CaseGuaranteeEligibility>>,
     pub(crate) provider_applications: OnceLock<Arc<Vec<crate::ProviderApplicationAssociation>>>,
     pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
@@ -1438,6 +1442,7 @@ pub mod frozen_program {
 
         fn retain_typed_tree_memos(self) -> Self {
             Self {
+                projection_syntax: self.projection_syntax,
                 requirement_satisfiers: self.requirement_satisfiers,
                 erased_initializers: self.erased_initializers,
                 mathematical_expression_nodes: self.mathematical_expression_nodes,
@@ -1475,6 +1480,7 @@ pub mod frozen_program {
 
         fn clone_typed_tree_memos(&self) -> Self {
             Self {
+                projection_syntax: self.projection_syntax.clone(),
                 requirement_satisfiers: self.requirement_satisfiers.clone(),
                 erased_initializers: self.erased_initializers.clone(),
                 mathematical_expression_nodes: self.mathematical_expression_nodes.clone(),

@@ -1576,6 +1576,119 @@ pub(crate) mod arithmetic_judgment {
                 Polynomial::atom("quotient".to_owned()),
                 constant(4),
             )]));
+            // Preparation changes query work, never the visible arithmetic premises.
+            let x = Polynomial::atom("x".to_owned());
+            let square = x.checked_mul(&x).unwrap();
+            let mut engine = Engine::for_explicit_bindings(&program);
+            engine.bounds = vec![
+                (x.clone(), BigInt::zero()),
+                (square.clone(), BigInt::from_i64(3)),
+            ];
+            engine.refresh_difference_bounds();
+            let cases = [
+                (constant(2), 1, true),
+                (x, 0, true),
+                (square.clone(), 2, true),
+                (square, 4, false),
+                (Polynomial::atom("unrelated".to_owned()), 1, false),
+            ];
+            let mut deferred = super::LowerBoundQueries::direct(&engine);
+            for (position, (goal, minimum, expected)) in cases.iter().enumerate() {
+                let minimum = BigInt::from_i64(*minimum);
+                let direct =
+                    super::LowerBoundQueries::direct(&engine).prove_at_least(goal, &minimum);
+                let prepared = engine.lower_bound_queries().prove_at_least(goal, &minimum);
+                assert_eq!(direct, *expected);
+                assert_eq!(prepared, direct);
+                assert_eq!(
+                    deferred.prove_with_deferred_preparation(goal, &minimum),
+                    direct
+                );
+                assert_eq!(deferred.prepared_exact_bounds().is_empty(), position < 2);
+            }
+
+            let mut conditional = Engine::for_explicit_bindings(&program);
+            let selected = conditional
+                .conditional_value(vec![
+                    super::ConditionalValueArm {
+                        conditions: vec![],
+                        value: constant(0),
+                    },
+                    super::ConditionalValueArm {
+                        conditions: vec![],
+                        value: constant(2),
+                    },
+                ])
+                .unwrap();
+            // Each mode gets its own allowance: cloning an engine intentionally shares
+            // the original counter, so using that shared counter would hide double work.
+            let agreement = |engine: &Engine<'_>, goal: &Polynomial, minimum, allowance| {
+                let mut outcomes = Vec::new();
+                for mode in 0..3 {
+                    let mut candidate = engine.clone();
+                    candidate.conditional_work_remaining =
+                        std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(allowance));
+                    let minimum = BigInt::from_i64(minimum);
+                    let answer = match mode {
+                        0 => super::LowerBoundQueries::direct(&candidate)
+                            .prove_at_least(goal, &minimum),
+                        1 => candidate
+                            .lower_bound_queries()
+                            .prove_at_least(goal, &minimum),
+                        _ => super::LowerBoundQueries::direct(&candidate)
+                            .prove_with_deferred_preparation(goal, &minimum),
+                    };
+                    outcomes.push((
+                        answer,
+                        candidate
+                            .conditional_work_remaining
+                            .load(std::sync::atomic::Ordering::Relaxed),
+                    ));
+                }
+                assert!(outcomes.iter().all(|outcome| *outcome == outcomes[0]));
+                let mut reference = engine.clone();
+                reference.conditional_work_remaining =
+                    std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(allowance));
+                if let Some(answer) =
+                    reference.conditional_lower_bound(goal, &BigInt::from_i64(minimum))
+                {
+                    assert_eq!(
+                        outcomes[0],
+                        (
+                            answer,
+                            reference
+                                .conditional_work_remaining
+                                .load(std::sync::atomic::Ordering::Relaxed,)
+                        )
+                    );
+                } else {
+                    assert_eq!(outcomes[0].1, allowance);
+                }
+                outcomes[0]
+            };
+            assert!(agreement(&conditional, &selected, 0, 1000).0);
+            assert!(!agreement(&conditional, &selected, 1, 1000).0);
+            assert!(
+                !agreement(
+                    &conditional,
+                    &Polynomial::atom("unrelated".to_owned()),
+                    1,
+                    1000
+                )
+                .0
+            );
+            // Exhausted conditional work is definitive false, even when a matrix bound
+            // alone would prove the goal. It must not turn into an unresolved prefix.
+            conditional
+                .bounds
+                .push((selected.clone(), BigInt::from_i64(1)));
+            conditional.refresh_difference_bounds();
+            let (atom, _, _) = selected.as_single_atom().unwrap();
+            assert_eq!(
+                conditional.matrix_bound(&atom, super::ZERO_ATOM),
+                Some(BigInt::from_i64(1))
+            );
+            assert_eq!(agreement(&conditional, &selected, 1, 0), (false, 0));
         }
     }
     pub(crate) mod difference_matrix {
@@ -2269,30 +2382,50 @@ pub(crate) mod arithmetic_judgment {
                     return false;
                 }
                 let consequence = {
-                    let queries = self.lower_bound_queries();
+                    // These few queries share unchanged premises. Defer the full
+                    // bound index until a simple query cannot resolve, then release
+                    // the borrowed view before installing any consequence.
+                    let mut queries = super::LowerBoundQueries::direct(self);
                     let dividend = self.substituted(left);
                     let divisor = self.substituted(right);
                     match operator {
                         BinaryOperator::Divide
-                            if queries.prove_at_least(&dividend, &BigInt::zero())
-                                && queries.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
+                            if queries
+                                .prove_with_deferred_preparation(&dividend, &BigInt::zero())
+                                && queries.prove_with_deferred_preparation(
+                                    &divisor,
+                                    &BigInt::from_i64(1),
+                                ) =>
                         {
-                            let strict = queries.prove_at_least(&dividend, &BigInt::from_i64(1))
-                                && queries.prove_at_least(&divisor, &BigInt::from_i64(2));
+                            let strict = queries
+                                .prove_with_deferred_preparation(&dividend, &BigInt::from_i64(1))
+                                && queries.prove_with_deferred_preparation(
+                                    &divisor,
+                                    &BigInt::from_i64(2),
+                                );
                             Some((
                                 dividend.sub(&self.substituted(value)),
                                 BigInt::from_i64(i64::from(strict)),
                             ))
                         }
                         BinaryOperator::ShiftRight
-                            if queries.prove_at_least(&dividend, &BigInt::from_i64(1))
-                                && queries.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
+                            if queries.prove_with_deferred_preparation(
+                                &dividend,
+                                &BigInt::from_i64(1),
+                            ) && queries.prove_with_deferred_preparation(
+                                &divisor,
+                                &BigInt::from_i64(1),
+                            ) =>
                         {
                             Some((dividend.sub(&self.substituted(value)), BigInt::from_i64(1)))
                         }
                         BinaryOperator::Modulo
-                            if queries.prove_at_least(&dividend, &BigInt::zero())
-                                && queries.prove_at_least(&divisor, &BigInt::from_i64(1)) =>
+                            if queries
+                                .prove_with_deferred_preparation(&dividend, &BigInt::zero())
+                                && queries.prove_with_deferred_preparation(
+                                    &divisor,
+                                    &BigInt::from_i64(1),
+                                ) =>
                         {
                             Some((divisor.sub(&self.substituted(value)), BigInt::from_i64(1)))
                         }
@@ -3237,9 +3370,42 @@ pub(crate) mod arithmetic_judgment {
             }
 
             pub(crate) fn prove_at_least(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
-                if let Some(proved) = self.engine.conditional_lower_bound(polynomial, bound) {
+                if let Some(proved) = self.simple_lower_bound(polynomial, bound) {
                     return proved;
                 }
+                self.prove_after_simple_prefix(polynomial, bound)
+            }
+
+            /// Short batches need no full premise index when existing conditions
+            /// and bounds answer every question. Prepare only when unresolved,
+            /// within this immutable engine borrow; retain no query verdict.
+            pub(crate) fn prove_with_deferred_preparation(
+                &mut self,
+                polynomial: &Polynomial,
+                bound: &BigInt,
+            ) -> bool {
+                if let Some(proved) = self.simple_lower_bound(polynomial, bound) {
+                    return proved;
+                }
+                if self.prepared.is_none() {
+                    self.prepared = Some(PreparedBoundsRef::Owned(PreparedLowerBoundIndex::new(
+                        self.engine,
+                    )));
+                }
+                self.prove_after_simple_prefix(polynomial, bound)
+            }
+
+            fn simple_lower_bound(&self, polynomial: &Polynomial, bound: &BigInt) -> Option<bool> {
+                // Conditional dependencies own a shared work allowance and may return a
+                // definitive false. Probe exactly once, before any other proof route.
+                if let Some(proved) = self.engine.conditional_lower_bound(polynomial, bound) {
+                    return Some(proved);
+                }
+                self.prove_local_lower_bound(polynomial, bound)
+                    .then_some(true)
+            }
+
+            fn prove_after_simple_prefix(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
                 if self.prove_base_lower_bound(polynomial, bound) {
                     return true;
                 }
@@ -3265,23 +3431,8 @@ pub(crate) mod arithmetic_judgment {
                 polynomial: &Polynomial,
                 bound: &BigInt,
             ) -> bool {
-                if let Some((positive, negative, constant)) = polynomial.as_atom_difference()
-                    && let Some(best) = self.engine.matrix_bound(&positive, &negative)
-                    && best.add(&constant) >= *bound
-                {
+                if self.prove_local_lower_bound(polynomial, bound) {
                     return true;
-                }
-                if let Some((atom, sign, constant)) = polynomial.as_single_atom() {
-                    let other = if sign == 1 {
-                        self.engine.matrix_bound(&atom, ZERO_ATOM)
-                    } else {
-                        self.engine.matrix_bound(ZERO_ATOM, &atom)
-                    };
-                    if let Some(best) = other
-                        && best.add(&constant) >= *bound
-                    {
-                        return true;
-                    }
                 }
                 if self.exact_bound_at_least(polynomial, bound) {
                     return true;
@@ -3333,6 +3484,36 @@ pub(crate) mod arithmetic_judgment {
                 self.horner_interval(polynomial, 0)
                     .low
                     .is_some_and(|low| low >= *bound)
+            }
+
+            fn prove_local_lower_bound(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
+                // This is the constant case of the independent interval enclosure.
+                // Failure stays unresolved: other premises may still prove the goal.
+                if polynomial
+                    .constant_value()
+                    .is_some_and(|constant| constant >= *bound)
+                {
+                    return true;
+                }
+                if let Some((positive, negative, constant)) = polynomial.as_atom_difference()
+                    && let Some(best) = self.engine.matrix_bound(&positive, &negative)
+                    && best.add(&constant) >= *bound
+                {
+                    return true;
+                }
+                if let Some((atom, sign, constant)) = polynomial.as_single_atom() {
+                    let other = if sign == 1 {
+                        self.engine.matrix_bound(&atom, ZERO_ATOM)
+                    } else {
+                        self.engine.matrix_bound(ZERO_ATOM, &atom)
+                    };
+                    if let Some(best) = other
+                        && best.add(&constant) >= *bound
+                    {
+                        return true;
+                    }
+                }
+                false
             }
 
             fn affine_difference_lower_bound(&self, polynomial: &Polynomial) -> Option<BigInt> {

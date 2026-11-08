@@ -855,6 +855,25 @@ pub mod declaration_index {
         }
 
         impl crate::TypedTrees {
+            /// Borrow one call's producer-maintained rows in their original order.
+            /// Full application and caller identities select the group; the
+            /// consuming query still checks every target and binding predicate.
+            pub(crate) fn find_requirement_invocation(
+                &self,
+                application: crate::static_applications::StaticMachineApplicationHandle,
+                lexical_owner: SymbolHandle,
+                mut matches: impl FnMut(&AppliedCallableSignature) -> bool,
+            ) -> Option<&AppliedCallableSignature> {
+                // Original matching rows required a valid application. Skipping this
+                // impossible group leaves the caller's outer/closed fallbacks intact.
+                if !application.is_valid() {
+                    return None;
+                }
+                self.applied_callable_signatures
+                    .requirement_rows(application, lexical_owner)
+                    .find_map(|(_, row)| matches(row).then_some(row))
+            }
+
             pub(crate) fn with_requirement_application_index<R>(
                 &self,
                 run: impl FnOnce(&RequirementApplicationIndex) -> R,
