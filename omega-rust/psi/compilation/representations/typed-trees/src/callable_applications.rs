@@ -2550,8 +2550,9 @@ pub(crate) mod namespaces {
     impl CallableApplication {
         pub(crate) fn namespace_symbols(
             &self,
-            program: &TypedTrees,
+            program: &mut TypedTrees,
             binder: SymbolHandle,
+            expressions: &[crate::expression::ExpressionHandle],
         ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, &'static str> {
             let selected = if let Some((_, argument)) = self
                 .static_arguments
@@ -2570,7 +2571,59 @@ pub(crate) mod namespaces {
             } else {
                 return Ok(Vec::new());
             };
-            program.selected_implementation_namespace_symbols(binder, &selected)
+            if !selected.names_implementation(&program.symbols) {
+                return Err("applied requirement namespace needs an implementation operand");
+            }
+            if selected.application.is_none() {
+                return program.selected_implementation_namespace_symbols(binder, &selected);
+            }
+            let owner = program.symbols.get(binder).parent;
+            let mut calls = Vec::new();
+            for handle in expressions {
+                let Some(call) = program.expression_table.call_node(*handle) else {
+                    continue;
+                };
+                if !program
+                    .expression_table
+                    .name_path_node(call.receiver)
+                    .is_some_and(|path| path.head_symbol == binder)
+                {
+                    continue;
+                }
+                program
+                    .evidence_bound_requirement(owner, binder, call.target_symbol)
+                    .map_err(|_| "applied namespace call lost its source bound")?
+                    .ok_or("applied namespace call lost its exact requirement")?;
+                calls.push((*handle, call.receiver));
+            }
+            if calls.is_empty() || expressions.iter().any(|handle| {
+                matches!(program.expression_table.expression(*handle), crate::expression::ExpressionNode::Name(path) if path.head_symbol == binder)
+                    && !calls.iter().any(|(_, receiver)| receiver == handle)
+            }) {
+                return Err("applied namespace needs a complete qualified call");
+            }
+            let qualifier = if selected.type_reference.is_valid() {
+                selected.type_reference
+            } else {
+                let owner = self
+                    .trait_region_application
+                    .as_ref()
+                    .map_or(self.static_argument_owner, |(scope, _)| {
+                        scope.argument_owner()
+                    });
+                program.static_operand_type_reference_in_scope(&selected, owner)?
+            };
+            // Keep the complete selected operand on each call. Psi04's ordinary
+            // qualified-selection owner checks its application and public row.
+            for (handle, _) in calls {
+                let crate::expression::ExpressionNode::Call(call) =
+                    program.expression_table.expression_mut(handle)
+                else {
+                    unreachable!();
+                };
+                call.requirement_application = qualifier;
+            }
+            program.implementation_namespace_symbols(binder, selected.symbol)
         }
     }
 
@@ -2589,7 +2642,16 @@ pub(crate) mod namespaces {
                     "applied requirement namespace needs its complete selected application",
                 );
             }
-            let mut symbols = vec![(binder, selected.symbol)];
+            self.implementation_namespace_symbols(binder, selected.symbol)
+        }
+
+        fn implementation_namespace_symbols(
+            &self,
+            binder: SymbolHandle,
+            selected: SymbolHandle,
+        ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, &'static str> {
+            let program = self;
+            let mut symbols = vec![(binder, selected)];
             let owner = program.symbols.get(binder).parent;
             for child in program.symbols.child_handles(binder).into_iter().flatten() {
                 if program.symbols.get(child).kind != SymbolKind::State {
@@ -2600,7 +2662,7 @@ pub(crate) mod namespaces {
                     .map_err(|_| "applied requirement namespace lost its authored bound")?
                     .ok_or("applied requirement namespace lost its requirement")?;
                 let mut candidates = Vec::new();
-                if let Some(conformance) = program.conformance_by_symbol(selected.symbol) {
+                if let Some(conformance) = program.conformance_by_symbol(selected) {
                     candidates.extend(
                         conformance
                             .rows
@@ -2612,15 +2674,15 @@ pub(crate) mod namespaces {
                             .map(|row| row.requirement),
                     );
                 } else {
-                    let selected_owner = program.symbols.get(selected.symbol).parent;
+                    let selected_owner = program.symbols.get(selected).parent;
                     for target in program
                         .symbols
-                        .child_handles(selected.symbol)
+                        .child_handles(selected)
                         .into_iter()
                         .flatten()
                     {
                         if let Some(bound) = program
-                            .evidence_bound_requirement(selected_owner, selected.symbol, target)
+                            .evidence_bound_requirement(selected_owner, selected, target)
                             .map_err(|_| "selected namespace lost its authored bound")?
                             && bound.signature.symbol == requirement.signature.symbol
                             && bound.application.declaration.symbol
@@ -3205,7 +3267,7 @@ pub(crate) mod payloads {
                             == symbols::SymbolKind::ConformanceParameter
                         && !symbols.iter().any(|(source, _)| *source == binder)
                     {
-                        symbols.extend(self.namespace_symbols(program, binder)?);
+                        symbols.extend(self.namespace_symbols(program, binder, &rows)?);
                     }
                 }
             }
