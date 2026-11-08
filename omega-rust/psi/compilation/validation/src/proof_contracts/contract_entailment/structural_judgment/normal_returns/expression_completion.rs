@@ -40,6 +40,7 @@ impl<'program> StructuralJudge<'program> {
                     expression,
                     reference,
                     demand,
+                    scalar_read: None,
                 }],
                 environment,
                 scope,

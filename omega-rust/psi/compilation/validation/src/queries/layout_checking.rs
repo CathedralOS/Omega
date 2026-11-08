@@ -27,6 +27,14 @@ impl<'a> LayoutCheckingContext<'a> {
 }
 
 impl CheckingInput for LayoutCheckingContext<'_> {
+    fn has_active_recast_formation(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        depth: usize,
+    ) -> bool {
+        self.input.has_active_recast_formation(expression, depth)
+    }
+
     fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
         self.input.external_invocation_roots()
     }
