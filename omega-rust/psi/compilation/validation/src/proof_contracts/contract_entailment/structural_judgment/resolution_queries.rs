@@ -18,7 +18,9 @@ use std::sync::{Arc, Mutex};
 use symbols::SymbolHandle;
 
 pub(super) struct ApplicationResolution<'program> {
-    application: StructuralTerm,
+    /// Shared with the read every enclosing query records for this same
+    /// entry, so one resolution copies the application once, not twice.
+    application: Arc<StructuralTerm>,
     fingerprint: u64,
     depth: usize,
     context: StructuralJudge<'program>,
@@ -350,6 +352,7 @@ impl<'program> StructuralJudge<'program> {
             for read in reads.as_slice() {
                 self.observe_application_read(
                     &read.application,
+                    &mut Some(Arc::clone(&read.application)),
                     read.fingerprint,
                     read.was_active,
                     read.specification_terms,
@@ -471,16 +474,17 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
+    /// `retained` is the shared copy of `application` if the caller has one;
+    /// otherwise the first new read allocates it there for the caller and
+    /// every later observer to share.
     fn observe_application_read(
         &self,
         application: &StructuralTerm,
+        retained_application: &mut Option<Arc<StructuralTerm>>,
         fingerprint: u64,
         was_active: bool,
         specification_terms: bool,
     ) {
-        // Enclosing queries observe the same complete payload. Allocate it
-        // only for the first new read, then share it with later observers.
-        let mut retained_application = None;
         let mut observation = self.resolution_observations.as_deref();
         while let Some(current) = observation {
             let local = self.locally_active_application(
@@ -530,14 +534,21 @@ impl<'program> StructuralJudge<'program> {
     ) -> Option<Self> {
         let fingerprint = fingerprint(application);
         let active = self.application_is_active(application, fingerprint);
-        self.observe_application_read(application, fingerprint, active, self.specification_terms);
+        let mut retained = None;
+        self.observe_application_read(
+            application,
+            &mut retained,
+            fingerprint,
+            active,
+            self.specification_terms,
+        );
         if active {
             return None;
         }
         let context = self.resolution_input_context();
         let mut resolving = self.clone();
         resolving.active_application = Some(Arc::new(ApplicationResolution {
-            application: application.clone(),
+            application: retained.unwrap_or_else(|| Arc::new(application.clone())),
             fingerprint,
             depth: depth.max(self.application_resolution_depth()),
             context,
@@ -1707,6 +1718,7 @@ mod completed_read_roster_tests {
             for application in [&first, &second] {
                 computing.observe_application_read(
                     application,
+                    &mut None,
                     fingerprint(application),
                     false,
                     computing.specification_terms,
