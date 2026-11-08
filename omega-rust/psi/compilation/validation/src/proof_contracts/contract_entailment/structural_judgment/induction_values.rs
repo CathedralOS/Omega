@@ -25,8 +25,8 @@ impl StructuralJudge<'_> {
             }
         };
         // The original application enters the IH before any conclusion is
-        // installed. Save its current operand observations too: later result
-        // judgment resolves those operands, without authorizing a new call.
+        // installed. Save its resolved result reference and operand observations
+        // too: later result judgment resolves them without authorizing a new call.
         let values = Arc::make_mut(&mut self.induction_values);
         values.push(value.clone());
         if !resolved.same_resolution_payload(value)
@@ -91,7 +91,10 @@ impl StructuralJudge<'_> {
             &plans.1,
         )?;
         Ok(StructuralTerm::Application {
-            result_type: *result_type,
+            result_type: super::super::specification_calls::canonical_result_reference(
+                self.program,
+                *result_type,
+            ),
             target: *target,
             selections: selections.clone(),
             machine: spelling.clone(),
