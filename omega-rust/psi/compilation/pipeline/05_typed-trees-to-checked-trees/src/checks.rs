@@ -9607,7 +9607,8 @@ mod crashes {
                         continue;
                     }
                     if proved
-                        || common.establishes(*expression, false, &result.consequences, 0) == Some(true)
+                        || common.establishes(*expression, false, &result.consequences, 0)
+                            == Some(true)
                     {
                         result.consequences.push(canonical_crash_contract_predicate(
                             program,

@@ -87,7 +87,8 @@ mod body_conservation {
             state: &State,
         ) -> Vec<ContentConservationPlan> {
             if source.owner == machine.symbol
-                || super::owned_return_sides(source.equation.left(), source.equation.right()).is_none()
+                || super::owned_return_sides(source.equation.left(), source.equation.right())
+                    .is_none()
             {
                 return Vec::new();
             }
@@ -100,7 +101,8 @@ mod body_conservation {
             let mut pending = Vec::new();
             for initial in program.machine_states(owner) {
                 if (initial.symbol == source.callable || entry.symbol == source.callable)
-                    && let Some(plan) = super::plan_at_state(program, facts, initial, source.clone())
+                    && let Some(plan) =
+                        super::plan_at_state(program, facts, initial, source.clone())
                 {
                     pending.push(plan);
                 }
@@ -333,7 +335,8 @@ mod body_conservation {
             plan.owner = next_machine.symbol;
             plan.callable = next_state.symbol;
             plan.equation = ContentConservationEquation::new(left, right);
-            plan.report_fingerprint = conservation_report_fingerprint(&plan.algebra, &plan.equation);
+            plan.report_fingerprint =
+                conservation_report_fingerprint(&plan.algebra, &plan.equation);
             Ok(plan)
         }
 
@@ -349,7 +352,8 @@ mod body_conservation {
                 && validation::call_target_state(program, target)
                     .is_some_and(|target| target.symbol == requested.symbol)
             {
-                static EVENTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+                static EVENTS: std::sync::atomic::AtomicUsize =
+                    std::sync::atomic::AtomicUsize::new(0);
                 if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 64 {
                     return;
                 }
@@ -450,8 +454,12 @@ mod body_conservation {
                     completed.insert(key);
                     continue;
                 }
-                let predecessors =
-                    crate::flow::completed_values::predecessors(program, facts, operand, &projection)?;
+                let predecessors = crate::flow::completed_values::predecessors(
+                    program,
+                    facts,
+                    operand,
+                    &projection,
+                )?;
                 if predecessors.is_empty() {
                     return None;
                 }
