@@ -1822,6 +1822,7 @@ mod event_queries {
         statements: SortedRows,
         origins: SortedRows,
         places: SortedRows,
+        places_across_statements: SortedRows,
     }
 
     pub(super) struct PermissionEvents<'events> {
@@ -1853,21 +1854,35 @@ mod event_queries {
                 )
             }));
             let places = SortedRows::new(events.iter().enumerate().map(|(ordinal, event)| {
+                let statement = permission_event_statement_index(event.source);
                 (
                     key_hash((
                         event.state_symbol,
+                        statement,
                         event.root,
                         segments.span_or_empty(event.segments),
                     )),
                     ordinal,
                 )
             }));
+            let places_across_statements =
+                SortedRows::new(events.iter().enumerate().map(|(ordinal, event)| {
+                    (
+                        key_hash((
+                            event.state_symbol,
+                            event.root,
+                            segments.span_or_empty(event.segments),
+                        )),
+                        ordinal,
+                    )
+                }));
             Self {
                 events,
                 associations: Some(EventAssociations {
                     statements,
                     origins,
                     places,
+                    places_across_statements,
                 }),
             }
         }
@@ -1900,20 +1915,31 @@ mod event_queries {
             }))
         }
 
-        // Storage preservation searches preceding statements, while argument
-        // binding searches one statement. Keep position in those original
-        // predicates so both queries can borrow the same ordered place rows.
         pub(super) fn at_place(
+            &self,
+            state: SymbolHandle,
+            statement: Option<usize>,
+            root: facts::PlaceRoot,
+            path: &[facts::PlaceSegment],
+        ) -> EventCandidates<'_> {
+            self.candidates(self.associations.as_ref().map(|rows| {
+                rows.places
+                    .matching(key_hash((state, statement, root, path)))
+            }))
+        }
+
+        // Preservation must consider earlier statements. Its broader candidates
+        // must not make exact argument queries scan the history of the same place.
+        pub(super) fn at_place_across_statements(
             &self,
             state: SymbolHandle,
             root: facts::PlaceRoot,
             path: &[facts::PlaceSegment],
         ) -> EventCandidates<'_> {
-            self.candidates(
-                self.associations
-                    .as_ref()
-                    .map(|rows| rows.places.matching(key_hash((state, root, path)))),
-            )
+            self.candidates(self.associations.as_ref().map(|rows| {
+                rows.places_across_statements
+                    .matching(key_hash((state, root, path)))
+            }))
         }
 
         fn candidates<'query>(
@@ -2037,10 +2063,13 @@ mod event_queries {
             let prepared = PermissionEvents::prepare(events, segments);
             let preparation_elapsed = preparation_start.elapsed();
             let indexed_rows = prepared.associations.as_ref().map_or(0, |rows| {
-                rows.statements.rows.len() + rows.origins.rows.len() + rows.places.rows.len()
+                rows.statements.rows.len()
+                    + rows.origins.rows.len()
+                    + rows.places.rows.len()
+                    + rows.places_across_statements.rows.len()
             });
             eprintln!(
-                "permission event preparation: {} source rows across three passes; {} indexed rows; {:?}",
+                "permission event preparation: {} source rows across four passes; {} indexed rows; {:?}",
                 events.len(),
                 indexed_rows,
                 preparation_elapsed
@@ -2061,12 +2090,12 @@ mod event_queries {
                         && candidate.obligation_live
                 };
                 let direct = recorded
-                    .at_place(event.state_symbol, event.root, path)
+                    .at_place(event.state_symbol, statement, event.root, path)
                     .inspect(|_| direct_scans.set(direct_scans.get() + 1))
                     .filter(same_place)
                     .collect::<Vec<_>>();
                 let indexed = prepared
-                    .at_place(event.state_symbol, event.root, path)
+                    .at_place(event.state_symbol, statement, event.root, path)
                     .inspect(|_| prepared_scans.set(prepared_scans.get() + 1))
                     .filter(same_place)
                     .collect::<Vec<_>>();
@@ -2089,12 +2118,12 @@ mod event_queries {
                     permission_event_statement_index(candidate.source).unwrap_or(0)
                 };
                 let direct = recorded
-                    .at_place(event.state_symbol, event.root, path)
+                    .at_place_across_statements(event.state_symbol, event.root, path)
                     .inspect(|_| direct_scans.set(direct_scans.get() + 1))
                     .filter(inactive)
                     .max_by_key(latest);
                 let indexed = prepared
-                    .at_place(event.state_symbol, event.root, path)
+                    .at_place_across_statements(event.state_symbol, event.root, path)
                     .inspect(|_| prepared_scans.set(prepared_scans.get() + 1))
                     .filter(inactive)
                     .max_by_key(latest);
@@ -2236,7 +2265,7 @@ mod event_queries {
             let selected = |events: &[FlowPermissionEventFact]| {
                 let prepared = PermissionEvents::prepare(events, &segments);
                 prepared
-                    .at_place(
+                    .at_place_across_statements(
                         inactive.state_symbol,
                         inactive.root,
                         segments.span_or_empty(inactive.segments),
@@ -2285,6 +2314,54 @@ mod event_queries {
             }
             compare_batches(&events, &segments);
             compare_batches(&[], &segments);
+
+            // Replacing the same local at many statements must not broaden an
+            // exact-statement query to the complete history of that storage.
+            let (mut repeated, repeated_segments) = rows(1024);
+            let place = repeated[1].clone();
+            for (statement_index, event) in repeated.iter_mut().enumerate() {
+                event.state_symbol = place.state_symbol;
+                event.root = place.root;
+                event.segments = place.segments;
+                event.source = PermissionEventSource::Statement { statement_index };
+            }
+            let start = std::time::Instant::now();
+            let prepared = PermissionEvents::prepare(&repeated, &repeated_segments);
+            let preparation_elapsed = start.elapsed();
+            let recorded = PermissionEvents::recorded(&repeated);
+            let mut direct_scans = 0;
+            let mut prepared_scans = 0;
+            let path = repeated_segments.span_or_empty(place.segments);
+            for statement in 0..repeated.len() {
+                let exact = |candidate: &&FlowPermissionEventFact| {
+                    candidate.state_symbol == place.state_symbol
+                        && permission_event_statement_index(candidate.source) == Some(statement)
+                        && candidate.root == place.root
+                        && repeated_segments.span_or_empty(candidate.segments) == path
+                };
+                let direct = recorded
+                    .at_place(place.state_symbol, Some(statement), place.root, path)
+                    .inspect(|_| direct_scans += 1)
+                    .filter(exact)
+                    .collect::<Vec<_>>();
+                let indexed = prepared
+                    .at_place(place.state_symbol, Some(statement), place.root, path)
+                    .inspect(|_| prepared_scans += 1)
+                    .filter(exact)
+                    .collect::<Vec<_>>();
+                assert_eq!(indexed, direct);
+                assert_eq!(indexed.len(), 1);
+            }
+            assert_eq!(direct_scans, repeated.len() * repeated.len());
+            assert_eq!(prepared_scans, repeated.len());
+            eprintln!(
+                "repeated place table: {} source rows across four preparation passes; {} exact-statement queries; direct {} visited rows; prepared {} visited rows; preparation {:?}",
+                repeated.len(),
+                repeated.len(),
+                direct_scans,
+                prepared_scans,
+                preparation_elapsed,
+            );
         }
 
         #[test]
@@ -2326,12 +2403,13 @@ mod event_queries {
                 .associations
                 .as_mut()
                 .expect("prepared fixture")
-                .places = SortedRows::new((0..events.len()).rev().map(|ordinal| {
-                (
-                    key_hash((selected.state_symbol, selected.root, path)),
-                    ordinal,
-                )
-            }));
+                .places_across_statements =
+                SortedRows::new((0..events.len()).rev().map(|ordinal| {
+                    (
+                        key_hash((selected.state_symbol, selected.root, path)),
+                        ordinal,
+                    )
+                }));
             let same_place = |event: &&FlowPermissionEventFact| {
                 event.state_symbol == selected.state_symbol
                     && event.root == selected.root
@@ -2339,7 +2417,7 @@ mod event_queries {
                     && permission_event_statement_index(event.source) == Some(statement)
             };
             let actual = prepared
-                .at_place(selected.state_symbol, selected.root, path)
+                .at_place_across_statements(selected.state_symbol, selected.root, path)
                 .filter(same_place)
                 .collect::<Vec<_>>();
             let expected = events.iter().filter(same_place).collect::<Vec<_>>();
@@ -2896,8 +2974,11 @@ impl ClaimAbsence<'_> {
                         statement,
                         &place,
                         self.ownership,
-                        self.events
-                            .at_place(self.state.symbol, place.root, &place.segments),
+                        self.events.at_place_across_statements(
+                            self.state.symbol,
+                            place.root,
+                            &place.segments,
+                        ),
                     )
                 })
                 .is_some()
@@ -3531,6 +3612,7 @@ fn claim_origin_for_source(
                 permission_events
                     .at_place(
                         state.symbol,
+                        None,
                         facts::PlaceRoot::Symbol(*parameter_symbol),
                         path,
                     )
@@ -3728,7 +3810,12 @@ fn bind_claim_outcome_source_at_arguments_raw(
     place.segments.extend_from_slice(&projection.remaining);
     let sources = unique_in_order(
         permission_events
-            .at_place(caller_state.symbol, place.root, &place.segments)
+            .at_place(
+                caller_state.symbol,
+                Some(statement_index),
+                place.root,
+                &place.segments,
+            )
             .filter(|event| {
                 event.state_symbol == caller_state.symbol
                     && permission_event_statement_index(event.source) == Some(statement_index)
