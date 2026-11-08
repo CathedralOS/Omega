@@ -1853,11 +1853,9 @@ mod event_queries {
                 )
             }));
             let places = SortedRows::new(events.iter().enumerate().map(|(ordinal, event)| {
-                let statement = permission_event_statement_index(event.source);
                 (
                     key_hash((
                         event.state_symbol,
-                        statement,
                         event.root,
                         segments.span_or_empty(event.segments),
                     )),
@@ -1872,10 +1870,6 @@ mod event_queries {
                     places,
                 }),
             }
-        }
-
-        pub(super) fn all(&self) -> &'events [FlowPermissionEventFact] {
-            self.events
         }
 
         pub(super) fn iter(&self) -> std::slice::Iter<'events, FlowPermissionEventFact> {
@@ -1906,17 +1900,20 @@ mod event_queries {
             }))
         }
 
+        // Storage preservation searches preceding statements, while argument
+        // binding searches one statement. Keep position in those original
+        // predicates so both queries can borrow the same ordered place rows.
         pub(super) fn at_place(
             &self,
             state: SymbolHandle,
-            statement: Option<usize>,
             root: facts::PlaceRoot,
             path: &[facts::PlaceSegment],
         ) -> EventCandidates<'_> {
-            self.candidates(self.associations.as_ref().map(|rows| {
-                rows.places
-                    .matching(key_hash((state, statement, root, path)))
-            }))
+            self.candidates(
+                self.associations
+                    .as_ref()
+                    .map(|rows| rows.places.matching(key_hash((state, root, path)))),
+            )
         }
 
         fn candidates<'query>(
@@ -2064,17 +2061,45 @@ mod event_queries {
                         && candidate.obligation_live
                 };
                 let direct = recorded
-                    .at_place(event.state_symbol, statement, event.root, path)
+                    .at_place(event.state_symbol, event.root, path)
                     .inspect(|_| direct_scans.set(direct_scans.get() + 1))
                     .filter(same_place)
                     .collect::<Vec<_>>();
                 let indexed = prepared
-                    .at_place(event.state_symbol, statement, event.root, path)
+                    .at_place(event.state_symbol, event.root, path)
                     .inspect(|_| prepared_scans.set(prepared_scans.get() + 1))
                     .filter(same_place)
                     .collect::<Vec<_>>();
                 assert_eq!(indexed, direct);
                 matched.set(matched.get() + direct.len());
+                // Absence searches all earlier establishments, not one exact
+                // statement. The last equal-position row must still win.
+                let inactive = |candidate: &&FlowPermissionEventFact| {
+                    candidate.state_symbol == event.state_symbol
+                        && candidate.kind == PermissionEventKind::Establish
+                        && candidate.access == PermissionAccess::Owned
+                        && !candidate.obligation_live
+                        && candidate.claim_identity == PermissionClaimIdentity::Unknown
+                        && candidate.root == event.root
+                        && segments.span_or_empty(candidate.segments) == path
+                        && matches!(candidate.source,
+                            PermissionEventSource::Statement { statement_index } if statement_index < 5)
+                };
+                let latest = |candidate: &&FlowPermissionEventFact| {
+                    permission_event_statement_index(candidate.source).unwrap_or(0)
+                };
+                let direct = recorded
+                    .at_place(event.state_symbol, event.root, path)
+                    .inspect(|_| direct_scans.set(direct_scans.get() + 1))
+                    .filter(inactive)
+                    .max_by_key(latest);
+                let indexed = prepared
+                    .at_place(event.state_symbol, event.root, path)
+                    .inspect(|_| prepared_scans.set(prepared_scans.get() + 1))
+                    .filter(inactive)
+                    .max_by_key(latest);
+                assert_eq!(indexed, direct);
+                matched.set(matched.get() + usize::from(direct.is_some()));
                 let same_origin = |candidate: &&FlowPermissionEventFact| {
                     candidate.state_symbol == event.state_symbol
                         && candidate.claim_identity == event.claim_identity
@@ -2142,7 +2167,7 @@ mod event_queries {
 
         #[test]
         fn immutable_event_associations_preserve_query_batches_and_rebuilds() {
-            let (mut events, segments) = rows(4096);
+            let (mut events, mut segments) = rows(4096);
             // Equal path values in separately allocated ranges are interchangeable
             // for the old slice comparison; range-handle hashing would lose rows.
             assert_ne!(events[1].segments, events[1345].segments);
@@ -2150,6 +2175,91 @@ mod event_queries {
                 segments.span_or_empty(events[1].segments),
                 segments.span_or_empty(events[1345].segments)
             );
+            let mut inactive = events[0].clone();
+            inactive.segments = segments.insert_many([
+                facts::PlaceSegment::Field {
+                    symbol: SymbolHandle::from_parts(22, 1),
+                },
+                facts::PlaceSegment::Case {
+                    variant: SymbolHandle::from_parts(83, 1),
+                },
+            ]);
+            events[0].segments = inactive.segments;
+            inactive.kind = PermissionEventKind::Establish;
+            inactive.access = PermissionAccess::Owned;
+            inactive.claim_identity = PermissionClaimIdentity::Unknown;
+            inactive.obligation_live = false;
+            inactive.source = PermissionEventSource::Statement { statement_index: 1 };
+            events.push(inactive.clone());
+            inactive.source = PermissionEventSource::Statement { statement_index: 3 };
+            events.push(inactive.clone());
+            // A distinct segment range with the same values must participate in
+            // the same latest-position tie, using its actual original ordinal.
+            inactive.segments =
+                segments.insert_many(segments.span_or_empty(inactive.segments).to_vec());
+            events.push(inactive.clone());
+            let last_tie = events.len() - 1;
+            let mut excluded = inactive.clone();
+            excluded.source = PermissionEventSource::Statement { statement_index: 5 };
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.obligation_live = true;
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.claim_identity = events[1].claim_identity;
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.kind = PermissionEventKind::Transfer;
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.access = PermissionAccess::Shared;
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.state_symbol = SymbolHandle::from_parts(
+                inactive.state_symbol.arena_index(),
+                inactive.state_symbol.generation() + 1,
+            );
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.root = facts::PlaceRoot::Symbol(SymbolHandle::from_parts(45, 9));
+            events.push(excluded);
+            let mut excluded = inactive.clone();
+            excluded.segments = segments.insert_many([
+                facts::PlaceSegment::Field {
+                    symbol: SymbolHandle::from_parts(22, 1),
+                },
+                facts::PlaceSegment::Case {
+                    variant: SymbolHandle::from_parts(83, 2),
+                },
+            ]);
+            events.push(excluded);
+            let selected = |events: &[FlowPermissionEventFact]| {
+                let prepared = PermissionEvents::prepare(events, &segments);
+                prepared
+                    .at_place(
+                        inactive.state_symbol,
+                        inactive.root,
+                        segments.span_or_empty(inactive.segments),
+                    )
+                    .filter(|event| {
+                        event.state_symbol == inactive.state_symbol
+                            && event.root == inactive.root
+                            && segments.span_or_empty(event.segments)
+                                == segments.span_or_empty(inactive.segments)
+                            && event.kind == PermissionEventKind::Establish
+                            && event.access == PermissionAccess::Owned
+                            && !event.obligation_live
+                            && event.claim_identity == PermissionClaimIdentity::Unknown
+                            && matches!(event.source,
+                                PermissionEventSource::Statement { statement_index } if statement_index < 5)
+                    })
+                    .max_by_key(|event| permission_event_statement_index(event.source))
+                    .map(|event| {
+                        events.iter().position(|row| std::ptr::eq(row, event))
+                            .expect("candidate belongs to the borrowed event slice")
+                    })
+            };
+            assert_eq!(selected(&events), Some(last_tie));
             let start = std::time::Instant::now();
             let (direct_scans, prepared_scans, matched) = compare_batches(&events, &segments);
             eprintln!(
@@ -2161,6 +2271,8 @@ mod event_queries {
                 start.elapsed()
             );
             assert!(prepared_scans < direct_scans / 8);
+            events[last_tie].obligation_live = true;
+            assert_eq!(selected(&events), Some(last_tie - 1));
             // A new immutable snapshot sees changed keys and filtering fields. No
             // association can remain borrowed across these actual mutations.
             for event in events.iter_mut().step_by(5) {
@@ -2209,6 +2321,29 @@ mod event_queries {
                 .collect::<Vec<_>>();
             assert_eq!(actual, expected);
             assert_eq!(actual.first().copied(), expected.first().copied());
+            let path = segments.span_or_empty(selected.segments);
+            prepared
+                .associations
+                .as_mut()
+                .expect("prepared fixture")
+                .places = SortedRows::new((0..events.len()).rev().map(|ordinal| {
+                (
+                    key_hash((selected.state_symbol, selected.root, path)),
+                    ordinal,
+                )
+            }));
+            let same_place = |event: &&FlowPermissionEventFact| {
+                event.state_symbol == selected.state_symbol
+                    && event.root == selected.root
+                    && segments.span_or_empty(event.segments) == path
+                    && permission_event_statement_index(event.source) == Some(statement)
+            };
+            let actual = prepared
+                .at_place(selected.state_symbol, selected.root, path)
+                .filter(same_place)
+                .collect::<Vec<_>>();
+            let expected = events.iter().filter(same_place).collect::<Vec<_>>();
+            assert_eq!(actual, expected);
         }
     }
 }
@@ -2761,7 +2896,8 @@ impl ClaimAbsence<'_> {
                         statement,
                         &place,
                         self.ownership,
-                        self.events.all(),
+                        self.events
+                            .at_place(self.state.symbol, place.root, &place.segments),
                     )
                 })
                 .is_some()
@@ -3395,7 +3531,6 @@ fn claim_origin_for_source(
                 permission_events
                     .at_place(
                         state.symbol,
-                        None,
                         facts::PlaceRoot::Symbol(*parameter_symbol),
                         path,
                     )
@@ -3593,12 +3728,7 @@ fn bind_claim_outcome_source_at_arguments_raw(
     place.segments.extend_from_slice(&projection.remaining);
     let sources = unique_in_order(
         permission_events
-            .at_place(
-                caller_state.symbol,
-                Some(statement_index),
-                place.root,
-                &place.segments,
-            )
+            .at_place(caller_state.symbol, place.root, &place.segments)
             .filter(|event| {
                 event.state_symbol == caller_state.symbol
                     && permission_event_statement_index(event.source) == Some(statement_index)
