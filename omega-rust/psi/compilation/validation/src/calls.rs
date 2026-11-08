@@ -15322,9 +15322,7 @@ pub(crate) mod write_frames {
                         .iter()
                         .map(LocalWriteSource::frame_origin)
                         .collect::<Vec<_>>();
-                    captured
-                        .references
-                        .ok_or("contained references changed during argument evaluation")?;
+                    let references_complete = captured.references.is_some();
                     let argument_origins = captured
                         .arguments
                         .into_iter()
@@ -15341,7 +15339,6 @@ pub(crate) mod write_frames {
                         site,
                         &self.caches.state_write_shared_collections,
                         |inference, prefix| {
-                            let prefix = prefix?;
                             let written = known_call_written_paths_for_parts(
                         self.program,
                         target_symbol,
@@ -15384,6 +15381,16 @@ pub(crate) mod write_frames {
                             Some(&argument_origins),
                         )
                     })?;
+                            // No caller location can be written when the complete
+                            // signature footprint is empty. Unrelated incomplete
+                            // origins must not turn that proved empty set opaque.
+                            if written.is_empty() {
+                                return Some(written);
+                            }
+                            if !references_complete {
+                                return None;
+                            }
+                            let prefix = prefix?;
                             if scalar_accessor.is_some() {
                                 Some(prefix.close_scalar_access_paths(written))
                             } else {
@@ -15391,8 +15398,37 @@ pub(crate) mod write_frames {
                             }
                         },
                     )
-                    .ok_or_else(|| "signature input write closure unavailable".to_owned())
+                    .ok_or_else(|| {
+                        if references_complete {
+                            "signature input write closure unavailable"
+                        } else {
+                            "contained references changed during argument evaluation"
+                        }
+                        .to_owned()
+                    })
                 })();
+                if let Ok(filter) = std::env::var("OMEGA_RECEIVING_TRACE") {
+                    let name = current_machine.name.as_str();
+                    if filter == "1"
+                        || filter.split(',').any(|selected| {
+                            name == selected || name.rsplit("::").next() == Some(selected)
+                        })
+                    {
+                        static EVENTS: std::sync::atomic::AtomicUsize =
+                            std::sync::atomic::AtomicUsize::new(0);
+                        if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 32 {
+                            let target = match site {
+                                crate::CallSite::Statement(call) => call.target.as_str(),
+                                crate::CallSite::Expression { call, .. } => call.target.as_str(),
+                                crate::CallSite::TransitionNamed { .. } => "named transition",
+                            };
+                            eprintln!(
+                                "RECEIVING signature-write-frame machine={name} target={target} result={:?}",
+                                written.as_ref().map(Vec::len).map_err(String::as_str)
+                            );
+                        }
+                    }
+                }
                 match written {
                     Ok(paths) => NormalizedWriteFrame::complete(paths),
                     Err(reason) => {

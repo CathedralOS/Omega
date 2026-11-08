@@ -9366,15 +9366,15 @@ pub mod terminal_transitions {
                                     && operator.spelling.is_none()
                                     && program.operator_path_members(operator.name) == members
                             }))
-                            && !targets.contains(&target)
+                            && !targets.iter().any(|(previous, _)| *previous == target)
                         {
-                            targets.push(target);
+                            targets.push((target, machine.symbol));
                         }
                     }
                 }
             }
         }
-        for target in targets {
+        for (target, lexical_owner) in targets {
             let TransitionTargetNode::Named {
                 path,
                 arguments,
@@ -9423,12 +9423,26 @@ pub mod terminal_transitions {
                 .to_vec();
             let arguments = program.expression_table.insert_expression_handles(operands);
             let target_symbol = crate::call_target_entry_symbol(program, path.symbol);
+            let declaration = crate::find_machine_head(program, path.symbol)
+                .or_else(|| crate::find_state(program, path.symbol))
+                .map_or(path.symbol, |(machine, _)| machine.symbol);
+            let machine_arguments = captured_arguments(path.symbol);
+            let application = program.expression_table.retain_static_machine_application(
+                path.symbol,
+                leaf.clone(),
+                &machine_arguments,
+            );
+            let retained = program
+                .expression_table
+                .static_machine_application_mut(application);
+            retained.lexical_owner = lexical_owner;
+            retained.binding_declaration = declaration;
             let call = program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
                     authored_call_selection,
                     authored_call_binding: None,
-                    authored_machine_application: Default::default(),
+                    authored_machine_application: application,
                     requirement_application: Default::default(),
                     exact_coercion_target: Default::default(),
                     receiver,
@@ -9436,7 +9450,7 @@ pub mod terminal_transitions {
                     static_machine_parameter,
                     target: leaf,
                     static_requirement_dispatch: None,
-                    machine_arguments: captured_arguments(path.symbol).into_boxed_slice(),
+                    machine_arguments: machine_arguments.into_boxed_slice(),
                     quotient_operation: None,
                     private_layout_operation: None,
                     installed_interrupt_operation: None,

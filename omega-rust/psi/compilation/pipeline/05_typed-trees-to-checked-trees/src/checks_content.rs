@@ -1381,7 +1381,7 @@ mod call_ancestry {
                     }
                     let transformation = content.claim_transformations.get(handle);
                     if matches!(transformation.source, TransformationSource::Call { .. }) {
-                        authenticate_call(facts, transformation, &mut traversal)?;
+                        authenticate_call(program, facts, transformation, &mut traversal)?;
                         checked.push(handle);
                     }
                 }
@@ -1428,12 +1428,14 @@ mod call_ancestry {
     }
 
     fn authenticate_call(
+        program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         transformation: &ContentClaimTransformation,
         traversal: &mut OriginTraversal,
     ) -> Result<(), &'static str> {
         for output in transformation.outputs.handles() {
             call_parents(
+                program,
                 facts,
                 transformation,
                 facts.qualifications.content.body_claim_bindings.get(output),
@@ -1444,6 +1446,7 @@ mod call_ancestry {
     }
 
     fn call_parents(
+        program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         transformation: &ContentClaimTransformation,
         output: &ClaimBinding,
@@ -1483,29 +1486,8 @@ mod call_ancestry {
                     segments,
                 } => vec![(parameter_symbol, segments)],
                 FlowClaimOutcomeSource::Established { claim_identity, .. } => {
-                    let roots = qualified_roots(facts, claim_identity, output, traversal)?;
-                    let mut formals = Vec::new();
-                    for root in roots {
-                        let mut entries = ownership.permissions.iter().filter(|(_, event)| {
-                            event.claim_identity == root
-                                && event.source == PermissionEventSource::StateEntry
-                                && event.kind == PermissionEventKind::Establish
-                        });
-                        let (_, entry) = entries.next().ok_or(
-                            "equal content does not relate a freshly established callee root to an input",
-                        )?;
-                        if entries.next().is_some() {
-                            return Err("callee lineage has ambiguous entry custody");
-                        }
-                        let facts::PlaceRoot::Symbol(parameter) = entry.root else {
-                            return Err("callee lineage entry is not a formal");
-                        };
-                        formals.push((
-                            callable_entry_parameter(facts, entry, parameter)?,
-                            entry.segments,
-                        ));
-                    }
-                    formals
+                    let roots = qualified_roots(program, facts, claim_identity, output, traversal)?;
+                    entry_formals(facts, &roots)?
                 }
                 FlowClaimOutcomeSource::Unknown => return Err("callee result lineage is unknown"),
             };
@@ -1571,7 +1553,227 @@ mod call_ancestry {
         Ok(first.entry_parameter)
     }
 
+    fn entry_formals(
+        facts: &CheckFacts,
+        roots: &[PermissionClaimIdentity],
+    ) -> Result<
+        Vec<(
+            symbols::SymbolHandle,
+            arena::HandleSpan<facts::PlaceSegment>,
+        )>,
+        &'static str,
+    > {
+        let mut formals = Vec::new();
+        for root in roots {
+            let mut entries = facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter(|(_, event)| {
+                    event.claim_identity == *root
+                        && event.source == PermissionEventSource::StateEntry
+                        && event.kind == PermissionEventKind::Establish
+                });
+            let (_, entry) = entries.next().ok_or(
+                "equal content does not relate a freshly established callee root to an input",
+            )?;
+            if entries.next().is_some() {
+                return Err("callee lineage has ambiguous entry custody");
+            }
+            let facts::PlaceRoot::Symbol(parameter) = entry.root else {
+                return Err("callee lineage entry is not a formal");
+            };
+            formals.push((
+                callable_entry_parameter(facts, entry, parameter)?,
+                entry.segments,
+            ));
+        }
+        Ok(formals)
+    }
+
+    /// A completed call keeps its own result identity. Follow that exact receipt
+    /// to the callee's checked roots, then substitute the arguments actually moved
+    /// by this invocation. Equal content alone never supplies a parent identity.
+    fn call_result_roots(
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        receipt: &checked_trees::FlowClaimJoinReceipt,
+        projection: &ClaimBinding,
+        traversal: &mut OriginTraversal,
+    ) -> Result<Vec<PermissionClaimIdentity>, &'static str> {
+        let control = &facts.flow.control;
+        let ownership = &facts.flow.ownership;
+        let flow = control
+            .unique_state(receipt.machine_symbol, receipt.state_symbol)
+            .ok_or("normal-result lineage has no unique caller flow")?;
+        let mut calls = control
+            .calls
+            .span_or_empty(flow.calls)
+            .iter()
+            .filter(|call| {
+                call.statement_index == receipt.statement_index
+                    && call.call_ordinal == receipt.call_ordinal
+                    && call.authored_expression == receipt.expression
+                    && validation::call_target_entry_symbol(program, call.target_symbol)
+                        == receipt.target_symbol
+                    && call.authored_source_custody_valid
+            });
+        let call = calls
+            .next()
+            .ok_or("normal-result lineage has no exact invocation")?;
+        if calls.next().is_some() {
+            return Err("normal-result lineage has ambiguous invocations");
+        }
+        let site = validation::find_call_site(
+            program,
+            receipt.machine_symbol,
+            receipt.state_symbol,
+            receipt.statement_index,
+            receipt.call_ordinal,
+        )
+        .ok_or("normal-result lineage lost its source invocation")?;
+        if !matches!(&site, validation::CallSite::Expression { expression, call: source }
+            if *expression == receipt.expression && !source.requirement_application.is_valid())
+            || site.static_machine_parameter().is_valid()
+            || site.static_requirement_dispatch().is_some()
+            || call.static_requirement_dispatch.is_some()
+            || validation::call_target_entry_symbol(program, site.target_symbol(program))
+                != receipt.target_symbol
+            || control.call_arguments.span(call.authored_arguments)
+                != Some(validation::call_site_argument_expressions(program, &site))
+        {
+            return Err("normal-result lineage cannot inspect a selected private contract");
+        }
+        let (declaration, _) =
+            validation::authored_call_parameters(program, receipt.machine_symbol, &site)?;
+        if program.machine_by_symbol(declaration).is_none() {
+            return Err("normal-result lineage has no direct source body");
+        }
+        let target = validation::call_target_state(program, call.target_symbol)
+            .ok_or("normal-result lineage has no concrete return target")?;
+        if program
+            .machine_holding_state(target.symbol)
+            .is_none_or(|machine| {
+                machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            })
+        {
+            return Err("normal-result lineage has no independently checked body");
+        }
+        let parameters = program.state_parameters(target);
+        if parameters.len() != call.argument_operands().len() {
+            return Err("normal-result lineage lost its exact argument telescope");
+        }
+        let caller = program
+            .machine_by_symbol(receipt.machine_symbol)
+            .ok_or("normal-result lineage lost its caller")?;
+        let state = program
+            .state_by_symbol(receipt.state_symbol)
+            .ok_or("normal-result lineage lost its caller state")?;
+        let evaluation = crate::flow::call_permission_evaluation(
+            program,
+            caller,
+            state,
+            receipt.statement_index,
+            receipt.call_ordinal,
+        );
+        if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
+            return Err("normal-result lineage has no exact evaluation");
+        }
+        let consumer = crate::checks::multiplicity::ClaimConsumption {
+            machine: receipt.machine_symbol,
+            state: receipt.state_symbol,
+            statement_index: receipt.statement_index,
+            evaluation,
+            source: PermissionEventSource::Call {
+                statement_index: receipt.statement_index,
+                call_ordinal: receipt.call_ordinal,
+                target_symbol: call.target_symbol,
+            },
+        };
+        let mut parents: Option<Vec<PermissionClaimIdentity>> = None;
+        for alternative in ownership
+            .claim_join_alternatives
+            .span_or_empty(receipt.alternatives)
+        {
+            traversal.visit()?;
+            let source = match alternative.source {
+                FlowClaimJoinAlternativeSource::Claim { source, .. } => source,
+                FlowClaimJoinAlternativeSource::Inactive
+                | FlowClaimJoinAlternativeSource::ExcludedInput { .. } => continue,
+            };
+            let formals = match source {
+                FlowClaimOutcomeSource::Input {
+                    parameter_symbol,
+                    segments,
+                } => {
+                    vec![(parameter_symbol, segments)]
+                }
+                FlowClaimOutcomeSource::Established { claim_identity, .. } => entry_formals(
+                    facts,
+                    &qualified_roots(program, facts, claim_identity, projection, traversal)?,
+                )?,
+                FlowClaimOutcomeSource::Unknown => return Err("callee result lineage is unknown"),
+            };
+            let mut candidate = Vec::new();
+            for (parameter, path) in formals {
+                traversal.visit()?;
+                let position =
+                    typed_trees::signature::state_parameter_position(parameters, parameter)
+                        .ok_or("callee lineage is not rooted in this invocation's formal")?;
+                let operand = call.argument_operands().handle_at(
+                    u32::try_from(position).map_err(|_| "callee argument position overflow")?,
+                );
+                let mut conditions = crate::flow::SelectionConditions::new();
+                let claims = crate::checks::multiplicity::consumed_operand_claims(
+                    program,
+                    facts.view(),
+                    consumer,
+                    operand,
+                    &mut conditions,
+                )?;
+                let mut coverage = conditions.never();
+                let mut actual_roots: Option<Vec<PermissionClaimIdentity>> = None;
+                for claim in claims
+                    .iter()
+                    .filter(|claim| claim.path == ownership.segments.span_or_empty(path))
+                {
+                    let crate::checks::multiplicity::ReturnedClaimSource::Live(identity) =
+                        claim.source
+                    else {
+                        return Err("callee lineage input is not live on every actual alternative");
+                    };
+                    let roots = qualified_roots(program, facts, identity, projection, traversal)?;
+                    if actual_roots
+                        .as_ref()
+                        .is_some_and(|prior| !same_roots(prior, &roots))
+                    {
+                        return Err("callee lineage actual alternatives have different parents");
+                    }
+                    actual_roots = Some(roots);
+                    coverage = conditions.any(coverage, claim.condition);
+                }
+                if !conditions.covers(control, coverage) {
+                    return Err("callee lineage input does not cover every actual alternative");
+                }
+                for root in actual_roots.ok_or("callee lineage actual input is absent")? {
+                    crate::shared::collections::push_unique(&mut candidate, root);
+                }
+            }
+            if candidate.is_empty()
+                || parents
+                    .as_ref()
+                    .is_some_and(|prior| !same_roots(prior, &candidate))
+            {
+                return Err("callee normal returns have incompatible input rosters");
+            }
+            parents = Some(candidate);
+        }
+        parents.ok_or("normal-result lineage has no live return alternative")
+    }
+
     fn qualified_roots(
+        program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         claim: PermissionClaimIdentity,
         projection: &ClaimBinding,
@@ -1619,6 +1821,7 @@ mod call_ancestry {
                 traversal.visit()?;
                 let parents = match transformation.source {
                     TransformationSource::Call { .. } => call_parents(
+                        program,
                         facts,
                         transformation,
                         &ClaimBinding {
@@ -1645,7 +1848,7 @@ mod call_ancestry {
                     let ancestors = if parent == claim {
                         vec![parent]
                     } else {
-                        qualified_roots(facts, parent, projection, traversal)?
+                        qualified_roots(program, facts, parent, projection, traversal)?
                     };
                     for ancestor in ancestors {
                         crate::shared::collections::push_unique(&mut candidate, ancestor);
@@ -1659,7 +1862,22 @@ mod call_ancestry {
                 }
                 roots = Some(candidate);
             }
-            Ok(roots.unwrap_or_else(|| vec![claim]))
+            if let Some(roots) = roots {
+                return Ok(roots);
+            }
+            let mut receipts = facts
+                .flow
+                .ownership
+                .claim_join_receipts
+                .iter()
+                .filter(|(_, receipt)| receipt.claim_identity == claim);
+            let Some((_, receipt)) = receipts.next() else {
+                return Ok(vec![claim]);
+            };
+            if receipts.next().is_some() {
+                return Err("callee lineage has ambiguous normal-result receipts");
+            }
+            call_result_roots(program, facts, receipt, projection, traversal)
         })();
         traversal.active.pop();
         if let Ok(roots) = &result {
