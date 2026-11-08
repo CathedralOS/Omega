@@ -1589,8 +1589,9 @@ mod mathematical_signature {
                     argument: ty,
                 });
                 for subject in application.subjects {
-                    let value = self.elaborate_expression(subject)?;
-                    self.retain_source_result(subject, ty, value, false)?;
+                    let actual = self.source_expression_input(subject)?;
+                    let value = actual.term;
+                    self.retain_source_result(ty, actual);
                     term = self.arena.insert(Term::Apply {
                         function: term,
                         argument: value,
