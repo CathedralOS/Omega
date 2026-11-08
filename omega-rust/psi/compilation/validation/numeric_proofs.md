@@ -57,7 +57,7 @@ images. Producer search depth and preferences do not add proof rules.
 
 [float_projection_invocations.rs](src/proof_contracts/float_projection_invocations.rs) validates
 exact source projection operations. The checked
-[proof-row producer](../pipeline/05_typed-trees-to-checked-trees/src/published/proof/float_meaning.rs)
+[proof-row producer](../pipeline/05_typed-trees-to-checked-trees/src/published.rs)
 retains direct machine parameters, reserved machine results, and direct
 structural leaves separately from transitional typed-expression custody.
 The [lowering join](../pipeline/06_checked-trees-to-lowered-psi/src/proofs.rs)

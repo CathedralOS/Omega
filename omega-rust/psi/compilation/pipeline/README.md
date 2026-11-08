@@ -448,7 +448,7 @@ Scalar result annotations are established in the producing body: ordinary exits
 prove the machine and state result obligations from live exact membership or the
 arithmetic prover, closed indices retain their declaration binders, and routed
 qualifications require authorized provenance
-(`05_typed-trees-to-checked-trees/src/checks/contracts/exits/result_domains.rs`).
+(`05_typed-trees-to-checked-trees/src/checks_contracts_exits.rs`).
 Computed Boolean indices use the existing typed index probe. For remaining
 predicate-constrained and module-qualified applications, its family discovery
 must retain exact source selection, and a provisional `false` must not

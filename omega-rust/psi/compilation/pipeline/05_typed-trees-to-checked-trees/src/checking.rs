@@ -1,30 +1,744 @@
-//! Immutable typed-tree checking: validate contracts and ownership, assemble
-//! execution plans, then publish checked trees. Preparation has already closed
-//! the executable bodies and call identities; this stage never repairs them.
-//!
-//! `lower_typed_trees` is the one entrance. `TypedPreparation` carries the
-//! producer's admission checkpoint and source judgments; `CheckingRequest`
-//! carries package declaration authority. Checking cannot change the prepared
-//! input's checkpoint. Every production request enforces crash admission.
-//!
-//! Whole-program reuse has one gate: the source facade compares the original
-//! program, complete preparation admission and entries callable from outside the
-//! program against a [`RetainedCheck`] from
-//! this invocation. A miss prepares and checks afresh. Equal prepared trees
-//! and Copy receipts do not establish equal checking inputs: selected opaque
-//! carriers travel separately and determine structural plans. A second partial
-//! match here would silently keep the preceding Build's carrier.
-//!
-//! Retention keeps that original input beside the shared checked result, not
-//! another prepared-program copy. Matching dependency-body entailments remain
-//! independently reusable during fresh checking; pending checks supply none.
-//! Reuse conveys no authority: preparation admits wire demands, completeness
-//! and asm, and the source facade rejoins declaration and access authority
-//! for each request. No process-global memo supplies an implicit judgment.
+/*
+    Immutable typed-tree checking: validate contracts and ownership, assemble
+    execution plans, then publish checked trees. Preparation has already closed
+    the executable bodies and call identities; this stage never repairs them.
 
-pub(crate) mod call_acknowledgements;
-pub(crate) mod program_validation;
-mod target_families;
+    `lower_typed_trees` is the one entrance. `TypedPreparation` carries the
+    producer's admission checkpoint and source judgments; `CheckingRequest`
+    carries package declaration authority. Checking cannot change the prepared
+    input's checkpoint. Every production request enforces crash admission.
+
+    Whole-program reuse has one gate: the source facade compares the original
+    program, complete preparation admission and entries callable from outside the
+    program against a [`RetainedCheck`] from
+    this invocation. A miss prepares and checks afresh. Equal prepared trees
+    and Copy receipts do not establish equal checking inputs: selected opaque
+    carriers travel separately and determine structural plans. A second partial
+    match here would silently keep the preceding Build's carrier.
+
+    Retention keeps that original input beside the shared checked result, not
+    another prepared-program copy. Matching dependency-body entailments remain
+    independently reusable during fresh checking; pending checks supply none.
+    Reuse conveys no authority: preparation admits wire demands, completeness
+    and asm, and the source facade rejoins declaration and access authority
+    for each request. No process-global memo supplies an implicit judgment.
+*/
+
+pub(crate) mod call_acknowledgements {
+    use diagnostics::Diagnostic;
+    use flow_effects::{CallOperational, OperationalPlan};
+    use symbols::JoinedPath;
+    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+    /*
+        Validate the source acknowledgement set against the call envelope already
+        normalized by `flow-effects`, and reject suspension in a nested expression
+        before continuation planning sees it.
+    */
+    pub(crate) fn validate_call_acknowledgements(
+        program: &dyn ::validation::CheckingInput,
+        operational: &OperationalPlan,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut diagnostics = Vec::new();
+
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                let Some(operational_state) = operational
+                    .machines()
+                    .iter()
+                    .flat_map(|machine| operational.states.span_or_empty(machine.states))
+                    .find(|summary| summary.symbol == state.symbol)
+                else {
+                    continue;
+                };
+                let operational_calls = operational.calls.span_or_empty(operational_state.calls);
+                let statements = program.statement_table.statements(state.statement_nodes);
+
+                for (statement_index, statement) in statements.iter().enumerate() {
+                    let mut call_ordinal = 0usize;
+                    validate_statement(
+                        program,
+                        statement,
+                        statement_index,
+                        operational_calls,
+                        &mut call_ordinal,
+                        &mut diagnostics,
+                    );
+                }
+            }
+        }
+
+        if diagnostics.is_empty() {
+            Ok(())
+        } else {
+            Err(diagnostics)
+        }
+    }
+
+    fn validate_statement(
+        program: &dyn ::validation::CheckingInput,
+        statement: &StatementNode,
+        statement_index: usize,
+        operational_calls: &[CallOperational],
+        call_ordinal: &mut usize,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        match statement {
+            StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
+            StatementNode::Assignment(assignment) => {
+                validate_child(
+                    program,
+                    assignment.target,
+                    statement_index,
+                    operational_calls,
+                    call_ordinal,
+                    diagnostics,
+                );
+                validate_child(
+                    program,
+                    assignment.value,
+                    statement_index,
+                    operational_calls,
+                    call_ordinal,
+                    diagnostics,
+                );
+            }
+            StatementNode::Call(call) => {
+                validate_call(
+                    call.target.as_str(),
+                    call.source_span,
+                    statement_index,
+                    true,
+                    operational_calls,
+                    call_ordinal,
+                    diagnostics,
+                );
+                for argument in program.statement_table.expression_handles(call.arguments) {
+                    validate_child(
+                        program,
+                        *argument,
+                        statement_index,
+                        operational_calls,
+                        call_ordinal,
+                        diagnostics,
+                    );
+                }
+            }
+            StatementNode::Expression(expression) => validate_expression(
+                program,
+                *expression,
+                statement_index,
+                true,
+                operational_calls,
+                call_ordinal,
+                diagnostics,
+            ),
+            StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+                validate_expression(
+                    program,
+                    local.initial_value,
+                    statement_index,
+                    true,
+                    operational_calls,
+                    call_ordinal,
+                    diagnostics,
+                )
+            }
+            StatementNode::LocalData(_) => {}
+            StatementNode::Transition(transition) => {
+                if let TransitionGuardNode::When(guard) = transition.guard {
+                    validate_expression(
+                        program,
+                        guard,
+                        statement_index,
+                        true,
+                        operational_calls,
+                        call_ordinal,
+                        diagnostics,
+                    );
+                }
+                for target in transition.targets() {
+                    match program.statement_table.transition_target(target) {
+                        TransitionTargetNode::Named {
+                            path,
+                            arguments,
+                            source_span,
+                            ..
+                        } => {
+                            let target_name = program
+                                .statement_table
+                                .name_path_members(path.members)
+                                .joined_path();
+                            validate_call(
+                                &target_name,
+                                *source_span,
+                                statement_index,
+                                true,
+                                operational_calls,
+                                call_ordinal,
+                                diagnostics,
+                            );
+                            for argument in program.statement_table.expression_handles(*arguments) {
+                                validate_child(
+                                    program,
+                                    *argument,
+                                    statement_index,
+                                    operational_calls,
+                                    call_ordinal,
+                                    diagnostics,
+                                );
+                            }
+                        }
+                        TransitionTargetNode::Value(expression) => validate_expression(
+                            program,
+                            *expression,
+                            statement_index,
+                            true,
+                            operational_calls,
+                            call_ordinal,
+                            diagnostics,
+                        ),
+                        TransitionTargetNode::Terminal => {}
+                    }
+                }
+            }
+        }
+    }
+
+    /* Every recursive child walk spells non-direct position identically. */
+    #[allow(clippy::too_many_arguments)]
+    fn validate_child(
+        program: &dyn ::validation::CheckingInput,
+        expression: ExpressionHandle,
+        statement_index: usize,
+        operational_calls: &[CallOperational],
+        call_ordinal: &mut usize,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        validate_expression(
+            program,
+            expression,
+            statement_index,
+            false,
+            operational_calls,
+            call_ordinal,
+            diagnostics,
+        );
+    }
+
+    fn validate_expression(
+        program: &dyn ::validation::CheckingInput,
+        expression: ExpressionHandle,
+        statement_index: usize,
+        direct_position: bool,
+        operational_calls: &[CallOperational],
+        call_ordinal: &mut usize,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        if !expression.is_valid() {
+            return;
+        }
+        macro_rules! visit_child {
+            ($child:expr) => {
+                validate_child(
+                    program,
+                    $child,
+                    statement_index,
+                    operational_calls,
+                    call_ordinal,
+                    diagnostics,
+                )
+            };
+        }
+
+        match program.expression_table.expression(expression) {
+            ExpressionNode::SavedSubject(_) => {}
+            ExpressionNode::Match(dispatch) => {
+                visit_child!(dispatch.subject);
+                for arm in program.expression_table.match_arms(dispatch.arms) {
+                    for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
+                        visit_child!(pattern);
+                    }
+                    visit_child!(arm.value);
+                }
+            }
+            ExpressionNode::Atomic(atomic) => {
+                let inputs = validation::atomic_execution_children(program, atomic);
+                for input in inputs {
+                    visit_child!(input);
+                }
+            }
+            ExpressionNode::ArrayLiteral(values) => {
+                for value in program.expression_table.expression_handles(*values) {
+                    visit_child!(*value);
+                }
+            }
+            ExpressionNode::Binary(binary) => {
+                visit_child!(binary.left);
+                visit_child!(binary.right);
+            }
+            ExpressionNode::Cast(cast) => visit_child!(cast.value),
+            ExpressionNode::Call(call) => {
+                validate_call(
+                    call.target.as_str(),
+                    program.expression_table.source_span(expression),
+                    statement_index,
+                    direct_position,
+                    operational_calls,
+                    call_ordinal,
+                    diagnostics,
+                );
+                visit_child!(call.receiver);
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    visit_child!(*argument);
+                }
+            }
+            ExpressionNode::Indexed(indexed) => {
+                visit_child!(indexed.collection);
+                visit_child!(indexed.index);
+            }
+            ExpressionNode::Member(member) => visit_child!(member.receiver),
+            ExpressionNode::Borrow(inner) => visit_child!(inner.target),
+            ExpressionNode::Range(range) => {
+                visit_child!(range.start);
+                visit_child!(range.end);
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    visit_child!(field.value);
+                }
+            }
+            ExpressionNode::Unary(unary) => visit_child!(unary.operand),
+            ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn validate_call(
+        target: &str,
+        source_span: source::SourceSpan,
+        statement_index: usize,
+        direct_position: bool,
+        operational_calls: &[CallOperational],
+        call_ordinal: &mut usize,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let ordinal = *call_ordinal;
+        *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
+        let Some(call) = operational_calls
+            .iter()
+            .find(|call| call.statement_index == statement_index && call.call_ordinal == ordinal)
+        else {
+            return;
+        };
+
+        let at_call = |message| {
+            let diagnostic = Diagnostic::error(message);
+            if source_span.span.start < source_span.span.end {
+                diagnostic.with_source_span(source_span)
+            } else {
+                diagnostic
+            }
+        };
+        let acknowledgement = call.acknowledgement;
+        let may_suspend = call.transitive_may_suspend;
+        let may_block = call.transitive_may_block;
+        if acknowledgement.acknowledges_suspend != may_suspend
+            || acknowledgement.acknowledges_block != may_block
+        {
+            diagnostics.push(at_call(format!(
+                "call to `{target}` has operational envelope {} but acknowledges {}; call acknowledgements must match exactly",
+                envelope_label(may_suspend, may_block),
+                envelope_label(
+                    acknowledgement.acknowledges_suspend,
+                    acknowledgement.acknowledges_block,
+                ),
+            )).with_source_span(source_span));
+        }
+
+        if may_suspend && !direct_position {
+            diagnostics.push(at_call(format!(
+                "suspending call to `{target}` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning",
+            )).with_source_span(source_span));
+        }
+    }
+
+    fn envelope_label(may_suspend: bool, may_block: bool) -> &'static str {
+        match (may_suspend, may_block) {
+            (false, false) => "neither suspension nor blocking",
+            (true, false) => "`suspend`",
+            (false, true) => "`block`",
+            (true, true) => "`suspend block`",
+        }
+    }
+}
+pub(crate) mod program_validation {
+    use diagnostics::Diagnostic;
+    use flow_effects::{OperationalPlan, ServiceReachInferencePlan};
+    use proof::obligations::ProofPlan;
+    use typed_trees::data::DataMember;
+    use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+    pub(crate) struct PreparedTypedProgram<'program> {
+        pub(crate) deferred_entailment: validation::DeferredEntailment,
+        pub(crate) frozen_dependency_bodies: Vec<validation::FrozenDependencyBody>,
+        pub(crate) integer_assignments: Vec<proof::checker::CheckedIntegerAssignment>,
+        /*
+            Comparisons the proof pass established against retained constant
+            recipes, for the target closure to discharge.
+        */
+        pub(crate) constant_recipe_obligations: Vec<checked_trees::ConstantRecipeObligation>,
+        pub(crate) proof_plan: ProofPlan<'program>,
+        pub(crate) operational: OperationalPlan,
+        pub(crate) service_reaches: ServiceReachInferencePlan,
+        pub(crate) validation_facts: validation::ProgramValidationFacts,
+        pub(crate) deferred_overflow: Vec<Diagnostic>,
+    }
+
+    pub(crate) fn prepare_typed_program<'program>(
+        program: &'program dyn ::validation::CheckingInput,
+        proof_plan: ProofPlan<'program>,
+        opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
+        allow_pending_opaque_copy: bool,
+        prior_dependency_bodies: &[validation::DependencyBodyJudgment],
+        prior_frozen_bodies: &[validation::FrozenDependencyBody],
+        record_dependency_bodies: bool,
+    ) -> Result<PreparedTypedProgram<'program>, Vec<Diagnostic>> {
+        let opaque_properties = if allow_pending_opaque_copy {
+            validation::OpaquePropertyValidation::PendingBuildSelection
+        } else {
+            validation::OpaquePropertyValidation::Required(opaque_property_receipts)
+        };
+        let mut validated = validation::prepare_specialized_program(
+            program,
+            opaque_properties,
+            prior_dependency_bodies,
+            prior_frozen_bodies,
+            record_dependency_bodies,
+        )?;
+
+        let decisions =
+            proof::checker::check_proof_plan_with_decisions(&proof_plan).and_then(|decisions| {
+                validate_no_bare_boundary_trait_values(program).map(|()| decisions)
+            });
+        let proof::checker::ProofDecisions {
+            integer_assignments,
+            constant_recipe_obligations,
+        } = match decisions {
+            Ok(decisions) => decisions,
+            Err(errors) => {
+                let mut diagnostics = std::mem::take(&mut validated.deferred_overflow);
+                diagnostics.extend(entailment_errors_first(
+                    program,
+                    validated.deferred_entailment,
+                    errors,
+                ));
+                return Err(diagnostics);
+            }
+        };
+
+        let operational = validated.operational;
+
+        let frozen_dependency_bodies = validated.frozen_dependency_bodies;
+        Ok(PreparedTypedProgram {
+            deferred_entailment: validated.deferred_entailment,
+            frozen_dependency_bodies,
+            integer_assignments,
+            constant_recipe_obligations,
+            proof_plan,
+            operational,
+            validation_facts: validated.facts,
+            service_reaches: validated.service_reaches,
+            deferred_overflow: validated.deferred_overflow,
+        })
+    }
+
+    /*
+        Report the failure that prevented storage tracking from completing. Rechecking
+        contracts without that history can blame valid code for losing facts after
+        unrelated writes. With storage history available, show contract errors first
+        while retaining the original failure that stopped checking.
+    */
+    pub(crate) fn entailment_errors_first(
+        program: &dyn ::validation::CheckingInput,
+        deferred: validation::DeferredEntailment,
+        errors: Vec<Diagnostic>,
+    ) -> Vec<Diagnostic> {
+        if program.storage_graph().is_none() {
+            return errors;
+        }
+        match validation::judge_contract_entailment(program, deferred) {
+            Ok(_) => errors,
+            Err(mut entailment) => {
+                entailment.extend(errors);
+                entailment
+            }
+        }
+    }
+
+    /*
+        A boundary trait is a static provider slot reached through its requirement
+        calls, never a value: fields, parameters, signature slots and returns cannot
+        name it bare. Borrows (`&T`, `&mut T`) and container members are other
+        positions and stay out of this gate; only the outermost
+        `Named`/`DynamicTrait`/`Generic` head (through `Constrained` shells) is
+        inspected.
+    */
+    fn validate_no_bare_boundary_trait_values(
+        program: &dyn ::validation::CheckingInput,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut diagnostics = Vec::new();
+        let mut check = |type_reference: TypeReferenceHandle, position: &dyn Fn() -> String| {
+            if let Some(trait_name) = bare_boundary_trait_name(program, type_reference) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{} names bare boundary trait `{trait_name}` in value position; a boundary trait is a static provider slot, not a value type",
+                    position()
+                )));
+            }
+        };
+        for definition in program.data_definitions() {
+            for member in program.data_members(definition) {
+                match member {
+                    DataMember::Field(field) => check(field.type_reference, &|| {
+                        format!(
+                            "field `{}` on data `{}`",
+                            field.name.as_str(),
+                            definition.name.as_str()
+                        )
+                    }),
+                    DataMember::Variant(variant) => {
+                        for payload in program.data_payload_fields(variant) {
+                            check(payload.type_reference, &|| {
+                                format!(
+                                    "payload field `{}` on case `{}` of data `{}`",
+                                    payload.name.as_str(),
+                                    variant.name.as_str(),
+                                    definition.name.as_str()
+                                )
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                for parameter in program.state_parameters(state) {
+                    check(parameter.type_reference, &|| {
+                        format!(
+                            "parameter `{}` on `{}.{}`",
+                            parameter.name.as_str(),
+                            machine.name.as_str(),
+                            state.name.as_str()
+                        )
+                    });
+                }
+                check(state.return_type, &|| {
+                    format!(
+                        "return type of `{}.{}`",
+                        machine.name.as_str(),
+                        state.name.as_str()
+                    )
+                });
+            }
+        }
+        for trait_definition in program.traits() {
+            for signature in program.trait_machine_signatures(trait_definition) {
+                for parameter in program.state_signature_parameters(signature) {
+                    check(parameter.type_reference, &|| {
+                        format!(
+                            "parameter `{}` on signature `{}.{}`",
+                            parameter.name.as_str(),
+                            trait_definition.name.as_str(),
+                            signature.name.as_str()
+                        )
+                    });
+                }
+                check(signature.return_type, &|| {
+                    format!(
+                        "return type of signature `{}.{}`",
+                        trait_definition.name.as_str(),
+                        signature.name.as_str()
+                    )
+                });
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(())
+        } else {
+            Err(diagnostics)
+        }
+    }
+
+    fn bare_boundary_trait_name(
+        program: &dyn ::validation::CheckingInput,
+        mut type_reference: TypeReferenceHandle,
+    ) -> Option<String> {
+        loop {
+            if !program
+                .type_reference_table
+                .contains_type_reference(type_reference)
+            {
+                return None;
+            }
+            let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Constrained { base_type, .. } => {
+                    type_reference = *base_type;
+                    continue;
+                }
+                TypeReferenceNode::Named { symbol, name }
+                | TypeReferenceNode::DynamicTrait { symbol, name, .. } => (*symbol, name.as_str()),
+                TypeReferenceNode::Generic {
+                    base_symbol,
+                    base_name,
+                    ..
+                } => (*base_symbol, base_name.as_str()),
+                _ => return None,
+            };
+            return program
+                .trait_definition_by_symbol(symbol)
+                .is_some_and(|definition| definition.is_boundary)
+                .then(|| name.to_owned());
+        }
+    }
+}
+mod target_families {
+    /*
+        Portable references name a family contract, never an authored member.
+
+        Resolution gives each product family a separate bodyless Requirement whose
+        fresh telescope conjoins member premises. Typing checks every retained
+        member's complete callable shape; checking publishes their joined operational
+        and crash ceilings before reaching this gate. That Requirement has no private
+        body or return-range guarantee to import. Exact member references remain
+        confined to target-scoped bodies, including references in proofs and types.
+        Execution selection is a later consumer obligation, not source authority.
+    */
+    use diagnostics::Diagnostic;
+    use std::collections::HashSet;
+    use symbols::SymbolHandle;
+    use typed_trees::TypedTrees;
+    use typed_trees::references::{StaticArgumentCall, StaticArgumentRole, TypedReferences};
+
+    pub(super) fn validate_portable_references(
+        checked: &checked_trees::CheckedTrees,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let program = &checked.typed;
+        if program.target_machine_families.is_empty() {
+            return Ok(());
+        }
+        let mut references = PortableReferences {
+            program,
+            owner: SymbolHandle::invalid(),
+            expressions: HashSet::new(),
+            types: HashSet::new(),
+            refused: Vec::new(),
+        };
+        typed_trees::references::visit_declarations(program, &mut references);
+        for machine in program.machines() {
+            if !references.declaration(machine.symbol) {
+                continue;
+            }
+            typed_trees::references::visit_machine(program, &mut references, machine);
+        }
+        for dependency in checked.facts.flow.semantic_dependencies.iter() {
+            if references.declaration(dependency.consumer_machine) {
+                references.extend([dependency.dependency]);
+            }
+        }
+        for (_, state) in checked.facts.flow.control.states.iter() {
+            if references.declaration(state.machine_symbol) {
+                references.extend(
+                    crate::flow::call_flows(&checked.facts.flow.control, state.calls)
+                        .iter()
+                        .map(|call| call.target_symbol),
+                );
+            }
+        }
+        if references.refused.is_empty() {
+            return Ok(());
+        }
+        Err(references
+            .refused
+            .into_iter()
+            .map(|(owner, member)| {
+                Diagnostic::error(format!(
+                    "unimplemented: portable target-family contract for `{}` referenced by `{}`; \
+                 source checking cannot use a selected target body's guarantees",
+                    program.symbols.display_path(member, "::"),
+                    program.symbols.display_path(owner, "::"),
+                ))
+            })
+            .collect())
+    }
+
+    struct PortableReferences<'program> {
+        program: &'program TypedTrees,
+        owner: SymbolHandle,
+        expressions: HashSet<typed_trees::expression::ExpressionHandle>,
+        types: HashSet<typed_trees::types::TypeReferenceHandle>,
+        refused: Vec<(SymbolHandle, SymbolHandle)>,
+    }
+
+    impl Extend<SymbolHandle> for PortableReferences<'_> {
+        fn extend<References: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: References) {
+            for symbol in symbols {
+                let machine = self
+                    .program
+                    .machine_by_symbol(symbol)
+                    .or_else(|| self.program.machine_holding_state(symbol));
+                let Some(machine) = machine else { continue };
+                if self.program.machine_authored_target(machine).is_some()
+                    && !self.refused.contains(&(self.owner, machine.symbol))
+                {
+                    self.refused.push((self.owner, machine.symbol));
+                }
+            }
+        }
+    }
+
+    impl TypedReferences for PortableReferences<'_> {
+        fn layout_realization_dependency(&mut self, _: SymbolHandle) {}
+
+        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+            if self
+                .program
+                .machine_by_symbol(symbol)
+                .is_some_and(|machine| {
+                    machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+                        || self.program.source_target_context(machine).is_some()
+                })
+                || self.program.symbols.get(symbol).kind == symbols::SymbolKind::Conformance
+                || self
+                    .program
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .and_then(|span| self.program.symbols.source_file(span))
+                    .is_some_and(|source| source.dependency_scope == source::DependencyScope::Build)
+            {
+                return false;
+            }
+            self.owner = symbol;
+            self.expressions.clear();
+            self.types.clear();
+            true
+        }
+
+        fn expression(&mut self, handle: typed_trees::expression::ExpressionHandle) -> bool {
+            self.expressions.insert(handle)
+        }
+
+        fn type_reference(&mut self, handle: typed_trees::types::TypeReferenceHandle) -> bool {
+            self.types.insert(handle)
+        }
+
+        fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
+            validation::compiler_operations::static_argument_role(program, call)
+                == StaticArgumentRole::ValueDependency
+        }
+    }
+}
 
 use crate::checking::program_validation::prepare_typed_program;
 use crate::checks;
@@ -33,9 +747,11 @@ use checked_trees::CheckedTrees;
 use representation_selections::OpaqueRepresentationSelection;
 use typed_trees_to_typed_trees::TypedPreparation;
 
-/// Invocation-owned package declaration authority. The preparation producer
-/// carries its admission checkpoint in TypedPreparation; checking cannot choose
-/// a different checkpoint over that producer's result.
+/*
+    Invocation-owned package declaration authority. The preparation producer
+    carries its admission checkpoint in TypedPreparation; checking cannot choose
+    a different checkpoint over that producer's result.
+*/
 #[derive(Clone, Copy, Default)]
 pub struct CheckingRequest<'request> {
     declaration_authority: Option<&'request dyn validation::DeclarationSelectionAuthority>,
@@ -50,7 +766,7 @@ impl<'request> CheckingRequest<'request> {
         }
     }
 
-    /// Admit checked selections against this invocation's reconciled package authority.
+    /* Admit checked selections against this invocation's reconciled package authority. */
     pub const fn with_declaration_authority(
         mut self,
         authority: Option<&'request dyn validation::DeclarationSelectionAuthority>,
@@ -59,17 +775,21 @@ impl<'request> CheckingRequest<'request> {
         self
     }
 
-    /// Ordinary callers cannot establish input compatibility for an external
-    /// entry. Check the selected entries on every request, including reuse.
+    /*
+        Ordinary callers cannot establish input compatibility for an external
+        entry. Check the selected entries on every request, including reuse.
+    */
     pub const fn with_external_roots(mut self, roots: &'request [symbols::SymbolHandle]) -> Self {
         self.external_roots = roots;
         self
     }
 }
 
-/// Check the prepared typed input under this invocation's declaration authority. Toolchain-owned
-/// selections may remain late-bound until build-time evaluation; ordinary
-/// authored selections remain strict in both modes.
+/*
+    Check the prepared typed input under this invocation's declaration authority. Toolchain-owned
+    selections may remain late-bound until build-time evaluation; ordinary
+    authored selections remain strict in both modes.
+*/
 pub fn lower_typed_trees(
     program: typed_trees::FrozenTypedTrees,
     preparation: TypedPreparation,
@@ -80,40 +800,52 @@ pub fn lower_typed_trees(
     })
 }
 
-/// One language judgment kept with the exact input it judged. Only this module
-/// constructs one, from a check it ran, so a judgment taken from it is a
-/// judgment this function computed for an equal input.
+/*
+    One language judgment kept with the exact input it judged. Only this module
+    constructs one, from a check it ran, so a judgment taken from it is a
+    judgment this function computed for an equal input.
+*/
 #[derive(Debug, Clone)]
 pub struct RetainedCheck {
-    /// The typed program before preparation and the admission inputs it was
-    /// prepared under. Preparation is a pure function of that pair, so an
-    /// equal request can take this judgment without preparing or checking.
+    /*
+        The typed program before preparation and the admission inputs it was
+        prepared under. Preparation is a pure function of that pair, so an
+        equal request can take this judgment without preparing or checking.
+    */
     preparation_input: std::sync::Arc<typed_trees::TypedTrees>,
     preparation_admission: typed_trees_to_typed_trees::PreparationAdmission,
     external_roots: Vec<symbols::SymbolHandle>,
     admits_pending_inputs: bool,
     checked: std::sync::Arc<CheckedTrees>,
-    /// Dependency bodies whose declaration/state/expression correspondence
-    /// matched this strict check. Later consumers read those frozen bodies.
+    /*
+        Dependency bodies whose declaration/state/expression correspondence
+        matched this strict check. Later consumers read those frozen bodies.
+    */
     frozen_dependency_bodies: Vec<validation::FrozenDependencyBody>,
-    /// Entailment judgments for non-instance machines in this strict check.
-    /// A later dependent in the same invocation may reuse one of them when
-    /// the body's correspondence still matches. Pending checks record none.
+    /*
+        Entailment judgments for non-instance machines in this strict check.
+        A later dependent in the same invocation may reuse one of them when
+        the body's correspondence still matches. Pending checks record none.
+    */
     dependency_bodies: Vec<validation::DependencyBodyJudgment>,
 }
 
 impl RetainedCheck {
-    /// Identity of an already-issued language judgment, not semantic equality
-    /// or permission to skip admission. Invocation owners use it only to avoid
-    /// retaining the same immutable result twice.
+    /*
+        Identity of an already-issued language judgment, not semantic equality
+        or permission to skip admission. Invocation owners use it only to avoid
+        retaining the same immutable result twice.
+    */
     pub fn same_judgment(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.checked, &other.checked)
     }
 
-    /// Whether this judgment was computed for the complete source request.
-    /// Preparation depends on the program and its admission; checking also
-    /// depends on which entries can be invoked independently. Only an equal
-    /// request can take this judgment without preparing or checking again.
+    /*
+        Whether this judgment was computed for the complete source request.
+        Preparation depends on the program and its admission; checking also
+        depends on which entries can be invoked independently. Only an equal
+        request can take this judgment without preparing or checking again.
+    */
     pub fn judges_preparation_input(
         &self,
         program: &typed_trees::TypedTrees,
@@ -124,8 +856,10 @@ impl RetainedCheck {
             && *self.preparation_input == *program
     }
 
-    /// Whether preparation and independent entries match this request. An
-    /// equal typed program then completes [`Self::judges_preparation_input`].
+    /*
+        Whether preparation and independent entries match this request. An
+        equal typed program then completes [`Self::judges_preparation_input`].
+    */
     pub fn judges_preparation_admission(
         &self,
         admission: &typed_trees_to_typed_trees::PreparationAdmission,
@@ -134,8 +868,10 @@ impl RetainedCheck {
         self.preparation_admission == *admission && self.external_roots == external_roots
     }
 
-    /// Dependency-body entailment judgments a strict consumer may reuse.
-    /// A pending admission does not supply a judgment to anyone.
+    /*
+        Dependency-body entailment judgments a strict consumer may reuse.
+        A pending admission does not supply a judgment to anyone.
+    */
     pub fn strict_dependency_bodies(&self) -> &[validation::DependencyBodyJudgment] {
         if self.admits_pending_inputs {
             &[]
@@ -144,7 +880,7 @@ impl RetainedCheck {
         }
     }
 
-    /// Frozen bodies a strict consumer may read through the same correspondence.
+    /* Frozen bodies a strict consumer may read through the same correspondence. */
     pub fn strict_frozen_dependency_bodies(&self) -> &[validation::FrozenDependencyBody] {
         if self.admits_pending_inputs {
             &[]
@@ -154,20 +890,24 @@ impl RetainedCheck {
     }
 }
 
-/// What [`lower_typed_trees_reusing`] returns: the checked program, this
-/// judgment when retention was asked for, and whether an equal prior supplied
-/// it instead of a check.
+/*
+    What [`lower_typed_trees_reusing`] returns: the checked program, this
+    judgment when retention was asked for, and whether an equal prior supplied
+    it instead of a check.
+*/
 pub struct CheckingOutcome {
     pub checked: std::sync::Arc<CheckedTrees>,
     pub retained: Option<RetainedCheck>,
     pub took_prior: bool,
 }
 
-/// Take `prior`'s judgment for a preparation input it already judged. The
-/// caller has compared the input and admission and found them equal
-/// ([`RetainedCheck::judges_preparation_input`]); preparation and checking are
-/// both pure over that pair, so nothing recomputes. Invocation-owned
-/// declaration authority still runs.
+/*
+    Take `prior`'s judgment for a preparation input it already judged. The
+    caller has compared the input and admission and found them equal
+    ([`RetainedCheck::judges_preparation_input`]); preparation and checking are
+    both pure over that pair, so nothing recomputes. Invocation-owned
+    declaration authority still runs.
+*/
 pub fn reuse_retained_check(
     prior: &RetainedCheck,
     request: &CheckingRequest<'_>,
@@ -188,11 +928,13 @@ pub fn reuse_retained_check(
     })
 }
 
-/// Check this prepared program, reusing only matching dependency-body entailments.
-/// Whole-program reuse belongs to the source facade's complete preparation-input
-/// match. Retain that original input beside the shared checked result when the
-/// caller will ask again; no second prepared-program snapshot or partial
-/// admission key is needed.
+/*
+    Check this prepared program, reusing only matching dependency-body entailments.
+    Whole-program reuse belongs to the source facade's complete preparation-input
+    match. Retain that original input beside the shared checked result when the
+    caller will ask again; no second prepared-program snapshot or partial
+    admission key is needed.
+*/
 pub fn lower_typed_trees_reusing(
     program: typed_trees::FrozenTypedTrees,
     preparation: TypedPreparation,
@@ -242,8 +984,10 @@ pub fn lower_typed_trees_reusing(
     })
 }
 
-/// Package authority and selected entry admission belong to this request.
-/// Neither can be supplied by a preceding request's ordinary source judgment.
+/*
+    Package authority and selected entry admission belong to this request.
+    Neither can be supplied by a preceding request's ordinary source judgment.
+*/
 fn admit_request(
     checked: &CheckedTrees,
     request: &CheckingRequest<'_>,
@@ -264,7 +1008,7 @@ fn merge_overflow(
     diagnostics
 }
 
-/// The check itself, over a program `lower_typed_trees` has found complete.
+/* The check itself, over a program `lower_typed_trees` has found complete. */
 fn check_program(
     program: typed_trees::FrozenTypedTrees,
     admits_pending_inputs: bool,
@@ -284,9 +1028,6 @@ fn check_program(
     ),
     Vec<diagnostics::Diagnostic>,
 > {
-    // Borrow the prepared program with invocation-owned query state. Read-only inputs
-    // carry this context through the checking flow; no consumer discovers it
-    // by thread or address. Metadata publication waits until checking ends.
     let typed_program = program;
     let program = validation::CheckingContext::new(&typed_program)
         .with_external_invocation_roots(external_roots)
@@ -315,19 +1056,8 @@ fn check_program(
     let deferred_entailment = validated.deferred_entailment;
     let mut deferred_overflow = std::mem::take(&mut validated.deferred_overflow);
     let frozen_dependency_bodies = std::mem::take(&mut validated.frozen_dependency_bodies);
-    // Caller-visible mutation summaries depend only on the immutable typed
-    // program and the borrow facts assembled once here. Fact construction, the
-    // direct-borrow resource closures, and the independent check replay all
-    // query the same (program, borrow) pair, so one lazily-filled table serves
-    // the whole check pass instead of each consumer rebuilding it.
     let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
-    // Incoming guard discovery is immutable program data keyed only on
-    // resolver presence; certificate construction and the check replay share
-    // one lazily-filled table instead of rebuilding it per entry.
     let incoming_guard_index = checks::IncomingGuardIndexCache::default();
-    // Retain the arithmetic walk's occurrence intervals for value publication
-    // and the later range/contract checks. The analysis already hulled every
-    // clean evaluation of a shared expression; no initializer is replayed.
     let program = program.clone_with_expression_intervals(std::sync::Arc::from(std::mem::take(
         &mut validated.validation_facts.expression_intervals,
     )));
@@ -358,9 +1088,6 @@ fn check_program(
         }
     };
     deferred_overflow.extend(formation_overflow);
-    // Contract entailment judges each checked body once, after the flow facts
-    // it may read exist. The Psi 05 prover reads those proved postconditions
-    // at its own decision point; nobody rejudges them.
     let validation::ContractEntailment {
         proven_machine_contracts,
         dependency_body_judgments,
@@ -371,9 +1098,6 @@ fn check_program(
     let program = program.with_prepared_effect_plans(&prepared_effects);
     facts.deferred_layout_applications = deferred_layout_applications.to_vec();
     facts.integer_range_obligations = integer_range_obligations;
-    // Sealed quotient requests were deferred by validation until termination
-    // was proved: judge them now against the checked termination facts. The
-    // batch publishes exact admission facts consumed by runtime planning.
     let quotient_operations =
         match validation::admit_checked_quotient_requests(&program, &|machine| {
             facts
@@ -402,9 +1126,6 @@ fn check_program(
     ) {
         return Err(merge_overflow(&mut deferred_overflow, errors));
     }
-    // Compute at the original failure boundary, preserving diagnostic order.
-    // Nothing below consumes the specialization commitments. Publish them
-    // with the other checked facts, never by rewriting the typed roster.
     let specialization_identities =
         match validation::contract_identities::prepare_specialization_contract_identities(
             &program,
@@ -427,8 +1148,6 @@ fn check_program(
     if !deferred_overflow.is_empty() {
         return Err(merge_overflow(&mut deferred_overflow, Vec::new()));
     }
-    // Three read-only validators of the checked facts. They run together and
-    // report in this order, so the first refusal is the one reported before.
     let (quotients, (cleanup, citations)) = validation::checking_thread_pool().install(|| {
         rayon::join(
             || crate::products::quotient_eligibility::check(&program, &facts),
@@ -464,9 +1183,6 @@ fn check_program(
         crate::flow::derive_checked_semantic_dependencies(&program, &facts);
 
     facts.specialization_identities = specialization_identities;
-    // One retained identity row per admission-claim template, specialized or
-    // not: consumers read the classification checking computed instead of
-    // rerunning operational and service-reach inference for canonical bytes.
     facts.accepted_template_identities = {
         checked_trees::CheckedAcceptedTemplateIdentities::with_rows(
                 program
@@ -500,20 +1216,7 @@ fn check_program(
             &program, &mut facts,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-    // Visibility and cleanup consume checked choices over the same immutable
-    // source. No cloned typed program or consumer fallback supplies this ledger.
     let finalized = program.with_authored_declaration_selections(&facts.finalized_selections);
-    // Visibility, cleanup selections and the six classifications below each
-    // read only `finalized` and produce their own result, so they run
-    // together on the checking pool. Results are consumed in the order the
-    // passes used to run: a visibility refusal still wins, and every fact
-    // lands in the same field. `program`'s type, machine and state tables
-    // stopped growing in preparation, after monomorphization, so a row
-    // recorded before preparation would miss the references and specialized
-    // states those added; recording before specialization or
-    // authored-selection finalization would miss generated bodies. Nothing
-    // here takes `program` mutably — `CheckedTrees::with_roots` only pairs it
-    // with the facts — so neither table can grow past this point.
     let mut selections = None;
     let mut reference_custody = None;
     let mut content_classes = None;
@@ -573,8 +1276,6 @@ fn check_program(
     );
     drop(finalized);
 
-    // Mathematical terms remained borrowed by every source judgment. Transfer
-    // their checked metadata only after the final context has been dropped.
     facts.proof.mathematical_declarations = mathematics.declarations;
     facts.proof.source_evidence_carriers = mathematics
         .applications

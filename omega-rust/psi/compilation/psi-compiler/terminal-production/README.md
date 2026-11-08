@@ -72,7 +72,7 @@ still supply the distinct ABI and installation evidence.
 ## Lowering owners
 
 This coordinator does not own the lowerers' feature dispatch. Start with
-[checked execution selection](../../pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/mod.rs),
+[checked execution selection](../../pipeline/05_typed-trees-to-checked-trees/src/execution_terminal_unit.rs),
 then [machine lowering](../../pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering.rs).
 [Source custody](../../pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation.rs)
 prepares expressions and places; the

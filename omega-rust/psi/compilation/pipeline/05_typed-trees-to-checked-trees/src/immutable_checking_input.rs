@@ -1,7 +1,9 @@
-//! Pin the ownership boundary: preparation may rewrite typed tables; checking
-//! may only read them and publish independently owned facts. Rust's readonly
-//! owner prevents mutable field access; this guard also prevents silently
-//! restoring preparation inside the checking entrance.
+/*
+    Pin the ownership boundary: preparation may rewrite typed tables; checking
+    may only read them and publish independently owned facts. Rust's readonly
+    owner prevents mutable field access; this guard also prevents silently
+    restoring preparation inside the checking entrance.
+*/
 
 #[test]
 fn checking_does_not_reopen_typed_preparation() {
@@ -59,8 +61,6 @@ fn checking_does_not_reopen_typed_preparation() {
         );
     }
 
-    // Exercise the whole ownership surface, not a hand-maintained roster of
-    // files: adding a new query module cannot silently restore ambient state.
     let source_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let stage04_root = source_root.join("../../04_typed-trees-to-typed-trees/src");
     let mut directories = vec![
@@ -119,9 +119,7 @@ fn checking_does_not_reopen_typed_preparation() {
         }
     }
 
-    // Product pruning is a consuming transform, not permission to reopen the
-    // embedded source in an already constructed checked result.
-    let pruning = include_str!("products/product_pruning/rewrite.rs");
+    let pruning = include_str!("products.rs");
     for forbidden in [
         "&mut checked.typed",
         "checked.typed =",
