@@ -1,56 +1,9 @@
-//! The typing entrance, the [`TypingCohort`] every typing route runs, and the
-//! `Lowerer` state every typing module borrows.
-//!
-//! `lower_symbol_resolved_trees` turns one `SymbolResolvedTrees` into
-//! `TypedTrees`, or returns the first `Diagnostic`. Build-time evaluation
-//! calls it directly, and `seeded_continuation` extends the retained typed
-//! base it produced. It runs in this order:
-//!
-//! 1. Three checks that need case membership as a distinct node, before
-//!    lowering erases it: `==` against bare payload-bearing case names,
-//!    synthesized `Equatable` row prerequisites, and case-dispatch exhaustiveness.
-//! 2. Builds the `Lowerer`, copies the service reaches, semantic domains,
-//!    external bindings and authored declaration selections, then runs
-//!    [`type_resolved_cohort`] over `TypingCohort::whole()`: constants, data,
-//!    domains, propositions, mathematical definitions, machines (with a
-//!    token-binding view when the machine has one), measures, operators,
-//!    traits, conformances, wire schemas, and each constant's materialized and
-//!    authored initializers. Every form except measures and conformances is
-//!    lowered inside `with_type_reference_exposure`, which sets whether the
-//!    type selections recorded for that declaration count as public interface
-//!    or private implementation.
-//! 3. `Lowerer::finish` normalizes trait requirement guarantees, rebuilds the
-//!    typed trees, shifting each evidence forwarding past the proof-output
-//!    calls erased before it and dropping derived lookup state, and closes the
-//!    program through [`close_typed_cohort`]: satisfied declarations, machine
-//!    progress premises, domain constraint normalization, proof membership
-//!    interning, qualification casts, fixed byte array literals, range
-//!    argument validation, provider default finalization, target-family
-//!    publication from resolved declaration handles, and dynamic call target
-//!    binding. The compiler consumes those records; it does not reconstruct
-//!    them after typing.
-//!
-//! [`type_resolved_cohort`] and [`close_typed_cohort`] are the two operations
-//! every typing route shares. A route states what it types by one
-//! [`TypingCohort`]: the fresh product route covers a whole package, and the
-//! two continuation routes in `seeded_continuation` cover the suffix they were
-//! admitted against, so a step added to typing is added to all three routes by
-//! construction instead of by remembering two more call sites.
-//!
-//! `signatures` is not a step of its own. The entrance never calls it; it is
-//! the shared parameter, type-parameter and callable-interface vocabulary each
-//! declaration form binds through.
-//!
-//! `lowerer::seeded_continuation` is an orchestration seam rather than a step:
-//! it wraps this same entrance so a retained typed base can be extended
-//! append-only, and fails the transaction rather than mutating a base that has
-//! drifted.
-//!
-//! Children: `name` converts resolved names to typed identifiers, `progress`
-//! holds the terminating-record normalization, and `seeded_continuation` is
-//! the append-only extension route. `declaration_exposure`,
-//! `exact_top_level_data_symbol` and `exact_field_symbol` are small helpers
-//! that declaration, expression and seeded-continuation code also read.
+/*
+Typing entrance (`lower_symbol_resolved_trees`), cohort typing and settlement
+(`type_resolved_cohort` and `close_typed_cohort`), terminating-record progress
+normalization (`progress`), target-machine family telescopes, and append-only
+seeded continuation (`seeded_continuation`).
+*/
 
 use crate::contracts::proof_facts::normalize_membership_selections;
 use crate::declarations::data::lower_data_definition;
@@ -80,15 +33,1575 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::signature::AuthoredServiceReachTarget as ReachTarget;
 
-pub(crate) mod name;
-pub(crate) mod progress;
-pub(crate) mod seeded_continuation;
-mod target_machine_families;
+pub(crate) mod name {
+    use resolved::name::DiagnosticName;
+    use symbol_resolved_trees as resolved;
+    use typed_trees as typed;
 
-/// These judgments require authored membership and case nodes, which typing
-/// erases. Every producer of new resolved bodies must run them before lowering,
-/// including retained body completion and generated-source extension. Checking
-/// the declaration-only predecessor does not validate its later implementations.
+    pub(crate) fn lower_name(name: &DiagnosticName) -> typed::name::Identifier {
+        typed::name::Identifier::generated(name.as_str())
+    }
+
+    pub(crate) fn lower_names(names: &[DiagnosticName]) -> Vec<typed::name::Identifier> {
+        names.iter().map(lower_name).collect()
+    }
+}
+pub(crate) mod progress {
+    use diagnostics::Diagnostic;
+    use language_semantics::{
+        ProgressPremise, ProgressSubject, TerminationGuarantee, TerminationInterface,
+    };
+    use typed::machine::resolve_satisfied_declaration;
+    use typed_trees as typed;
+
+    pub(crate) fn normalize_trait_progress_premises(
+        program: &mut typed::TypedTrees,
+    ) -> Result<(), Diagnostic> {
+        let signature_updates = program
+            .traits()
+            .iter()
+            .flat_map(|trait_definition| program.trait_machine_signatures(trait_definition))
+            .map(|signature| {
+                let guarantee = if signature.termination_guarantee.promises_termination() {
+                    TerminationGuarantee::Terminates {
+                        premises: authored_premises(
+                            program,
+                            program.state_signature_contracts(signature),
+                            program.state_signature_parameters(signature),
+                        )?,
+                    }
+                } else {
+                    TerminationGuarantee::NoGuarantee
+                };
+                Ok((signature.symbol, guarantee))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+
+        program
+            .tables
+            .trait_machine_signatures
+            .for_each_mut(|_, signature| {
+                if let Some((_, guarantee)) = signature_updates
+                    .iter()
+                    .find(|(symbol, _)| *symbol == signature.symbol)
+                {
+                    signature.termination_guarantee = guarantee.clone();
+                }
+            });
+
+        Ok(())
+    }
+
+    pub(crate) fn normalize_machine_progress_premises(
+        program: &mut typed::TypedTrees,
+        machine_frontier: usize,
+    ) -> Result<(), Diagnostic> {
+        let authored_updates = program
+            .machines()
+            .iter()
+            .skip(machine_frontier)
+            .filter(|machine| {
+                matches!(
+                    machine.termination_plan.interface,
+                    TerminationInterface::Published(TerminationGuarantee::Terminates { .. })
+                )
+            })
+            .map(|machine| {
+                let parameters = program
+                    .machine_states(machine)
+                    .first()
+                    .map(|state| program.state_parameters(state))
+                    .unwrap_or_default();
+                let interface = TerminationInterface::Published(TerminationGuarantee::Terminates {
+                    premises: authored_premises(
+                        program,
+                        program.machine_contracts(machine),
+                        parameters,
+                    )?,
+                });
+                Ok((machine.symbol, interface))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+
+        for machine in program.machines_mut().iter_mut().skip(machine_frontier) {
+            if let Some((_, interface)) = authored_updates
+                .iter()
+                .find(|(symbol, _)| *symbol == machine.symbol)
+            {
+                machine.termination_plan.interface = interface.clone();
+            }
+        }
+
+        let inherited_updates = program
+            .machines()
+            .iter()
+            .skip(machine_frontier)
+            .filter(|machine| {
+                !machine
+                    .termination_plan
+                    .interface
+                    .published()
+                    .is_some_and(TerminationGuarantee::promises_termination)
+            })
+            .map(|machine| Ok((machine.symbol, inherited_guarantee(program, machine)?)))
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        for machine in program.machines_mut().iter_mut().skip(machine_frontier) {
+            if let Some((_, Some(guarantee))) = inherited_updates
+                .iter()
+                .find(|(symbol, _)| *symbol == machine.symbol)
+            {
+                machine.termination_plan.interface =
+                    TerminationInterface::Published(guarantee.clone());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn settle_machine_ranking_default(
+        program: &typed::TypedTrees,
+        symbols: &symbols::SymbolTable,
+        machine: &mut typed::machine::Machine,
+    ) {
+        if let Some(view) = pending_ranking_default(program, symbols, machine)
+            && let Some(witness) = &mut machine.termination_plan.implementation_witness
+        {
+            witness.ranking_view = view;
+            witness.view_path = view.canonical_path().unwrap_or_default().to_string();
+        }
+    }
+
+    fn pending_ranking_default(
+        program: &typed::TypedTrees,
+        symbols: &symbols::SymbolTable,
+        machine: &typed::machine::Machine,
+    ) -> Option<language_semantics::RankingViewId> {
+        use language_semantics::RankingViewId;
+        use typed::types::TypeReferenceNode;
+
+        let witness = machine.termination_plan.implementation_witness.as_ref()?;
+        if witness.ranking_view != RankingViewId::NULL
+            || !witness.view_path.is_empty()
+            || witness.subjects.len() != 1
+            || !witness.view_arguments.is_empty()
+        {
+            return None;
+        }
+        let custody = program.ranking_expression_custody_for(machine.symbol)?;
+        let [subject] = custody.subjects.as_slice() else {
+            return None;
+        };
+        let typed::expression::ExpressionNode::Name(path) =
+            program.expression_table.expression(*subject)
+        else {
+            return None;
+        };
+        if !path.symbol.is_valid() || path.head_symbol != path.symbol {
+            return None;
+        }
+        let entry = program.machine_states(machine).first()?;
+        let mut reference = program
+            .state_parameters(entry)
+            .iter()
+            .find(|parameter| parameter.symbol == path.symbol)
+            .map(|parameter| parameter.type_reference)
+            .or_else(|| {
+                let parameter = program
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .find(|parameter| parameter.symbol == path.symbol)?;
+                match parameter.kind {
+                    typed::data::TypeParameterKind::Value { type_reference }
+                    | typed::data::TypeParameterKind::Const { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                }
+            })?;
+        for _ in 0..128 {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. } => {
+                    return Some(RankingViewId::SLICE_LENGTH);
+                }
+                TypeReferenceNode::Named { symbol, .. }
+                    if matches!(
+                        symbols.builtin_type_atom(*symbol),
+                        Some(
+                            symbols::BuiltinTypeAtom::U8
+                                | symbols::BuiltinTypeAtom::U16
+                                | symbols::BuiltinTypeAtom::U32
+                                | symbols::BuiltinTypeAtom::U64
+                        )
+                    ) =>
+                {
+                    return Some(RankingViewId::NAT_DESCENDING);
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    fn inherited_guarantee(
+        program: &typed::TypedTrees,
+        machine: &typed::machine::Machine,
+    ) -> Result<Option<TerminationGuarantee>, Diagnostic> {
+        for conformance in program.machine_trait_conformances(machine) {
+            let Some(declaration) = resolve_satisfied_declaration(program, machine, conformance)
+            else {
+                continue;
+            };
+            let (mut guarantee, required_parameters, requirement_name) = match declaration {
+                typed::machine::SatisfiedDeclaration::Trait { requirement, .. } => (
+                    requirement.termination_guarantee.clone(),
+                    program.state_signature_parameters(requirement),
+                    &requirement.name,
+                ),
+                typed::machine::SatisfiedDeclaration::TopLevelRequirement(requirement) => (
+                    requirement
+                        .termination_plan
+                        .interface
+                        .published()
+                        .cloned()
+                        .unwrap_or(TerminationGuarantee::NoGuarantee),
+                    program
+                        .machine_states(requirement)
+                        .first()
+                        .map(|state| program.state_parameters(state))
+                        .unwrap_or_default(),
+                    &requirement.name,
+                ),
+                typed::machine::SatisfiedDeclaration::Operator(_) => continue,
+            };
+            if let TerminationGuarantee::Terminates { premises } = &mut guarantee {
+                let actual_parameters = program
+                    .machine_states(machine)
+                    .first()
+                    .map(|state| program.state_parameters(state))
+                    .unwrap_or_default();
+                for premise in premises {
+                    let Some(index) = typed_trees::signature::state_parameter_position(
+                        required_parameters,
+                        premise.subject.root,
+                    ) else {
+                        return Err(Diagnostic::error(format!(
+                            "progress premise inherited by `{}` is not rooted in requirement `{}`'s parameter telescope",
+                            machine.name, requirement_name
+                        )));
+                    };
+                    let Some(actual) = actual_parameters.get(index) else {
+                        return Err(Diagnostic::error(format!(
+                            "progress premise inherited by `{}` has no corresponding implementation parameter at position {index}",
+                            machine.name
+                        )));
+                    };
+                    premise.subject.root = actual.symbol;
+                }
+            }
+            return Ok(Some(guarantee));
+        }
+        Ok(None)
+    }
+
+    fn authored_premises(
+        program: &typed::TypedTrees,
+        contracts: &[typed::signature::SignatureContract],
+        parameters: &[typed::signature::StateParameter],
+    ) -> Result<Vec<ProgressPremise>, Diagnostic> {
+        let mut premises = Vec::new();
+        for contract in contracts
+            .iter()
+            .filter(|contract| contract.kind == typed::signature::SignatureContractKind::Requires)
+        {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let Some(membership) = fact.as_membership() else {
+                    continue;
+                };
+                let Some(domain) = program.domain_definition(membership.domain_symbol) else {
+                    continue;
+                };
+                if domain.classification
+                    != Some(language_semantics::DomainClassification::ProgressProfile)
+                {
+                    continue;
+                }
+                let Some(subject) = subject_path(program, membership.value, parameters) else {
+                    return Err(Diagnostic::error(format!(
+                        "progress premise for `{}` must name one identity-preserving parameter or field path",
+                        domain.name
+                    )));
+                };
+                let premise = ProgressPremise {
+                    profile: domain.semantic_id,
+                    subject,
+                };
+                if !premises.contains(&premise) {
+                    premises.push(premise);
+                }
+            }
+        }
+        Ok(premises)
+    }
+
+    fn subject_path(
+        program: &typed::TypedTrees,
+        expression: typed::expression::ExpressionHandle,
+        parameters: &[typed::signature::StateParameter],
+    ) -> Option<ProgressSubject> {
+        match program.expression_table.expression(expression) {
+            typed::expression::ExpressionNode::Name(path)
+                if program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 1 =>
+            {
+                let identifier = &program.expression_table.name_path_members(path.members)[0];
+                let name = identifier.as_str();
+                let root = parameters
+                    .iter()
+                    .find(|parameter| path.symbol.is_valid() && parameter.symbol == path.symbol)
+                    .or_else(|| {
+                        parameters
+                            .iter()
+                            .find(|parameter| parameter.name.as_str() == name)
+                    })
+                    .map(|parameter| parameter.symbol)?;
+                Some(ProgressSubject {
+                    root,
+                    projections: Vec::new(),
+                })
+            }
+            typed::expression::ExpressionNode::Member(member) => {
+                let mut subject = subject_path(program, member.receiver, parameters)?;
+                let symbol = member
+                    .member_symbol
+                    .is_valid()
+                    .then_some(member.member_symbol)
+                    .or_else(|| {
+                        resolve_subject_member_symbol(
+                            program,
+                            &subject,
+                            member.member.as_str(),
+                            parameters,
+                        )
+                    })?;
+                subject.projections.push(symbol);
+                Some(subject)
+            }
+            _ => None,
+        }
+    }
+
+    fn resolve_subject_member_symbol(
+        program: &typed::TypedTrees,
+        subject: &ProgressSubject,
+        member_name: &str,
+        parameters: &[typed::signature::StateParameter],
+    ) -> Option<symbols::SymbolHandle> {
+        let parameter = parameters
+            .iter()
+            .find(|parameter| parameter.symbol == subject.root)?;
+        let mut position = parameter.type_reference;
+        let mut substitution = Vec::new();
+        for projection in &subject.projections {
+            let field = match replay_subject_position(program, position, &substitution) {
+                Some((data, bound)) => {
+                    substitution = bound;
+                    declared_field_with_symbol(program, data, *projection)?
+                }
+                None => {
+                    substitution = Vec::new();
+                    validation::field_domains::exact_declared_field(program, *projection)?
+                }
+            };
+            position = field.type_reference;
+        }
+
+        let (data, _) = replay_subject_position(program, position, &substitution)?;
+        program.data_members(data).iter().find_map(|member| {
+            let field = member.as_field()?;
+            (field.name.as_str() == member_name).then_some(field.symbol)
+        })
+    }
+
+    fn replay_subject_position<'program>(
+        program: &'program typed::TypedTrees,
+        position: typed::types::TypeReferenceHandle,
+        substitution: &[(symbols::SymbolHandle, typed::types::TypeReferenceHandle)],
+    ) -> Option<(
+        &'program typed::data::DataDefinition,
+        Vec<(symbols::SymbolHandle, typed::types::TypeReferenceHandle)>,
+    )> {
+        use typed::types::TypeReferenceNode;
+        let mut reference = position;
+        let mut substituted = Vec::new();
+        loop {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference { referee, .. }
+                | TypeReferenceNode::Constrained {
+                    base_type: referee, ..
+                } => reference = *referee,
+                TypeReferenceNode::Generic {
+                    base_symbol,
+                    arguments,
+                    ..
+                } if base_symbol.is_valid() => {
+                    let data = program.data_definition_by_symbol(*base_symbol)?;
+                    let bound = program
+                        .data_type_parameters(data)
+                        .iter()
+                        .map(|parameter| parameter.symbol)
+                        .zip(
+                            program
+                                .type_reference_table
+                                .type_reference_handles(*arguments)
+                                .iter()
+                                .copied(),
+                        )
+                        .collect();
+                    return Some((data, bound));
+                }
+                TypeReferenceNode::Named { symbol, .. }
+                | TypeReferenceNode::DynamicTrait { symbol, .. }
+                    if symbol.is_valid() =>
+                {
+                    if !substituted.contains(symbol)
+                        && let Some(argument) = substitution
+                            .iter()
+                            .find(|(parameter, _)| parameter == symbol)
+                            .map(|(_, argument)| *argument)
+                    {
+                        substituted.push(*symbol);
+                        reference = argument;
+                        continue;
+                    }
+                    let data = program.data_definition_by_symbol(*symbol)?;
+                    return Some((data, Vec::new()));
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    fn declared_field_with_symbol<'program>(
+        program: &'program typed::TypedTrees,
+        data: &'program typed::data::DataDefinition,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&'program typed::data::DataField> {
+        program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed::data::DataMember::Field(field) => (field.symbol == symbol).then_some(field),
+                typed::data::DataMember::Variant(variant) => {
+                    program.data_payload_field_by_symbol(variant, symbol)
+                }
+            })
+    }
+}
+pub(crate) mod seeded_continuation {
+    use super::{
+        Lowerer, TypingCohort, append_authored_service_reach_rows, close_typed_cohort,
+        lower_evidence_forwarding, lower_symbol_resolved_trees, type_resolved_cohort,
+    };
+    use diagnostics::Diagnostic;
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use language_semantics::{SemanticDomainId, SemanticDomainTable};
+    use source::SourceMap;
+    use std::sync::Arc;
+    use symbol_resolved_trees::SymbolResolvedTrees;
+    use symbol_resolved_trees::machine::MachineBodyStatus;
+    use symbols::{SourceScopedTopLevelBinding, SymbolHandle};
+    use syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier;
+    use typed_trees::TypedTrees;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum SeededContinuationError {
+        RetainedResolvedRootsChanged,
+        CrossPairedResolvedBase,
+        AuthoredSelectionPrefixChanged,
+        Lowering(Diagnostic),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct SeededTypingBase {
+        resolved: Arc<SymbolResolvedTrees>,
+        typed: Arc<TypedTrees>,
+    }
+
+    impl SeededTypingBase {
+        pub fn resolved(&self) -> &SymbolResolvedTrees {
+            &self.resolved
+        }
+
+        pub fn shared_resolved(&self) -> Arc<SymbolResolvedTrees> {
+            Arc::clone(&self.resolved)
+        }
+
+        pub fn activate_body_completion(
+            mut self,
+            frontier: DeferredResolvedFrontier,
+            sources: Arc<SourceMap>,
+            bindings: Vec<SourceScopedTopLevelBinding>,
+        ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
+            let frontier = self
+                .join_prepared_allocations(frontier)?
+                .activate_sources(sources, bindings)?;
+            self.resolved = frontier.shared_trees();
+            Arc::make_mut(&mut self.typed).symbols = self.resolved.symbols.clone();
+            Ok((self, frontier))
+        }
+
+        pub fn append_deferred(
+            self,
+            extension: syntax_trees_to_symbol_resolved_trees::DeferredResolvedExtension,
+        ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
+            let (source, frontier) = extension
+                .rebase_for_typed_continuation(self.typed.authored_declaration_selections())?;
+            let typed = lower_seeded_extension(source, self).map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "authored declaration typing could not extend its retained source: {reason:?}"
+                ))]
+            })?;
+            Ok((typed, frontier))
+        }
+
+        pub fn activate_sources(
+            mut self,
+            sources: Arc<SourceMap>,
+            current_sources: Arc<SourceMap>,
+            bindings: Vec<SourceScopedTopLevelBinding>,
+        ) -> Result<Self, Vec<Diagnostic>> {
+            let mut resolved = Arc::unwrap_or_clone(self.resolved_base_for_extension()?);
+            if resolved
+                .symbols
+                .source_map()
+                .is_none_or(|previous| !sources.retains_source_storage(&previous))
+            {
+                return Err(vec![Diagnostic::error(
+                    "source activation does not retain its paired source coordinates",
+                )]);
+            }
+            let mut typed =
+                validation::execution_projection::project_source_program(&self.typed, &sources);
+            let selection = typed_trees::references::DeclarationSelection::from_program(&typed);
+            macro_rules! select_roots {
+            ($($field:ident),+ $(,)?) => {
+                $(resolved.roots.$field.retain(|root| selection.contains(root.symbol));)+
+            };
+        }
+            select_roots!(
+                const_declarations,
+                data_definitions,
+                type_aliases,
+                domain_definitions,
+                machines,
+                measures,
+                operators,
+                propositions,
+                mathematical_definitions,
+                traits,
+                conformances,
+                wire_schemas,
+            );
+            let retained_owner = |mut owner: SymbolHandle| {
+                while owner.is_valid() {
+                    if selection.contains(owner) {
+                        return true;
+                    }
+                    owner = resolved.symbols.get(owner).parent;
+                }
+                false
+            };
+            resolved
+                .authored_service_reach_rows
+                .retain(|row| retained_owner(row.owner));
+            resolved
+                .evidence_forwardings
+                .retain(|row| selection.contains(row.machine_symbol));
+            let symbols = typed
+                .symbols
+                .clone()
+                .begin_source_activation(sources, bindings.clone())
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                .finish()
+                .begin_source_activation(current_sources, bindings)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                .finish();
+            resolved.symbols = symbols.clone();
+            typed.symbols = symbols;
+            resolved.resolution_indexes = Default::default();
+            Ok(Self {
+                resolved: Arc::new(resolved),
+                typed: Arc::new(typed),
+            })
+        }
+
+        pub fn join_prepared_allocations(
+            &mut self,
+            frontier: DeferredResolvedFrontier,
+        ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+            let frontier = frontier.with_prepared_allocations(
+                &self.resolved,
+                &self.typed.symbols,
+                &self.typed.semantic_domains,
+                &self.typed.service_reach_rows,
+            )?;
+            self.resolved = frontier.shared_trees();
+            Ok(frontier)
+        }
+
+        pub fn complete_bodies(
+            self,
+            source: syntax_trees_to_symbol_resolved_trees::ResolvedBodyCompletion,
+        ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
+            let source = source
+            .rebase_authored_selections_for_typed_completion(
+                self.typed.authored_declaration_selections(),
+            )
+            .map_err(|(_, error)| vec![Diagnostic::error(format!(
+                "authored-body completion could not join its retained typed selection ledger: {error:?}"
+            ))])?;
+            lower_body_completion(source, self).map_err(|error| vec![error])
+        }
+
+        pub fn lower_extension(
+            self,
+            source: syntax_trees_to_symbol_resolved_trees::SeededSymbolResolvedTrees,
+        ) -> Result<Self, Vec<Diagnostic>> {
+            let rebased = source
+            .rebase_authored_selections_for_typed_continuation(
+                self.typed.authored_declaration_selections(),
+            )
+            .map_err(|(_, error)| {
+                vec![Diagnostic::error(format!(
+                    "generated-source authored-selection suffix could not join the retained typed base: {error:?}"
+                ))]
+            })?;
+            lower_seeded_extension(rebased, self).map_err(|error| match error {
+                SeededContinuationError::Lowering(diagnostic) => vec![diagnostic],
+                SeededContinuationError::RetainedResolvedRootsChanged => vec![Diagnostic::error(
+                    "source continuation changed a retained declaration root",
+                )],
+                error => vec![Diagnostic::error(format!(
+                    "generated-source continuation violated its retained-base invariant: {error:?}"
+                ))],
+            })
+        }
+
+        pub fn resolved_base_for_extension(
+            &mut self,
+        ) -> Result<Arc<SymbolResolvedTrees>, Vec<Diagnostic>> {
+            if !self
+                .typed
+                .symbols
+                .is_generated_extension_of(&self.resolved.symbols)
+            {
+                return Err(vec![Diagnostic::error(
+                    "generated-source continuation changed retained source custody or appended authored symbols",
+                )]);
+            }
+            if !domain_table_retains(
+                &self.resolved.semantic_domains,
+                &self.typed.semantic_domains,
+            ) || !self
+                .typed
+                .service_reach_rows
+                .starts_with(&self.resolved.service_reach_rows)
+            {
+                return Err(vec![Diagnostic::error(
+                    "generated-source continuation changed retained domain or service-row allocations",
+                )]);
+            }
+            if self.typed.symbols != self.resolved.symbols
+                || self.typed.semantic_domains != self.resolved.semantic_domains
+                || self.typed.service_reach_rows != self.resolved.service_reach_rows
+            {
+                let prepared = Arc::make_mut(&mut self.resolved);
+                prepared.symbols = self.typed.symbols.clone();
+                prepared.semantic_domains = self.typed.semantic_domains.clone();
+                prepared.service_reach_rows = self.typed.service_reach_rows.clone();
+            }
+            Ok(Arc::clone(&self.resolved))
+        }
+
+        pub fn typed(&self) -> &TypedTrees {
+            &self.typed
+        }
+
+        pub fn typed_mut(&mut self) -> &mut TypedTrees {
+            Arc::make_mut(&mut self.typed)
+        }
+
+        pub fn into_typed(self) -> TypedTrees {
+            Arc::unwrap_or_clone(self.typed)
+        }
+    }
+
+    pub fn lower_symbol_resolved_trees_to_seeded_base(
+        resolved: impl Into<Arc<SymbolResolvedTrees>>,
+    ) -> Result<SeededTypingBase, Diagnostic> {
+        let resolved = resolved.into();
+        let typed = lower_symbol_resolved_trees(&resolved)?;
+        Ok(SeededTypingBase {
+            resolved,
+            typed: Arc::new(typed),
+        })
+    }
+
+    pub fn lower_seeded_extension(
+        source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
+        retained: SeededTypingBase,
+    ) -> Result<SeededTypingBase, SeededContinuationError> {
+        let (source, resolved_base) = source.into_typing_continuation_parts();
+        if resolved_base != retained.resolved {
+            return Err(SeededContinuationError::CrossPairedResolvedBase);
+        }
+        if !resolved_root_prefix_is_retained(&source, &resolved_base) {
+            return Err(SeededContinuationError::RetainedResolvedRootsChanged);
+        }
+        let destination_ledger = retained.typed.authored_declaration_selections();
+        if !source
+            .authored_declaration_selections()
+            .as_slice()
+            .starts_with(destination_ledger.as_slice())
+        {
+            return Err(SeededContinuationError::AuthoredSelectionPrefixChanged);
+        }
+
+        let cohort = TypingCohort::continuing(&resolved_base, &retained.typed);
+        if let Err(error) = super::validate_resolved_semantics_in(&source, &cohort) {
+            return Err(SeededContinuationError::Lowering(error));
+        }
+        let mut candidate = Arc::unwrap_or_clone(retained.typed);
+        if let Err(error) = join_resolved_semantics(&source, &resolved_base, &mut candidate) {
+            return Err(SeededContinuationError::Lowering(error));
+        }
+        let mut lowerer = Lowerer {
+            typed_trees: candidate,
+            source_trees: &source,
+            equality_scope: None,
+            type_reference_exposure: Some(
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            ),
+        };
+        if let Err(error) = type_resolved_cohort(&mut lowerer, &cohort) {
+            return Err(SeededContinuationError::Lowering(error));
+        }
+        for forwarding in source
+            .evidence_forwardings
+            .iter()
+            .skip(resolved_base.evidence_forwardings.len())
+        {
+            lowerer
+                .typed_trees
+                .evidence_forwardings
+                .push(lower_evidence_forwarding(
+                    forwarding,
+                    &lowerer.typed_trees.proof_output_calls,
+                ));
+        }
+        if let Err(error) = close_typed_cohort(&mut lowerer, &cohort) {
+            return Err(SeededContinuationError::Lowering(error));
+        }
+        let typed = lowerer.typed_trees;
+        Ok(SeededTypingBase {
+            resolved: Arc::new(source),
+            typed: Arc::new(typed),
+        })
+    }
+
+    fn lower_body_completion(
+        source: syntax_trees_to_symbol_resolved_trees::RebasedResolvedBodyCompletion,
+        retained: SeededTypingBase,
+    ) -> Result<(SeededTypingBase, DeferredResolvedFrontier), Diagnostic> {
+        let (frontier, predecessor, selected) = source.into_typing_completion_parts();
+        let source = frontier.shared_trees();
+        if predecessor != retained.resolved {
+            return Err(Diagnostic::error(
+                "authored-body completion does not match the exact retained resolved predecessor",
+            ));
+        }
+        if retained.typed.symbols != predecessor.symbols {
+            return Err(Diagnostic::error(
+                "authored-body completion found changed typed predecessor symbols",
+            ));
+        }
+        if !source
+            .authored_declaration_selections()
+            .as_slice()
+            .starts_with(retained.typed.authored_declaration_selections().as_slice())
+        {
+            return Err(Diagnostic::error(
+                "authored-body completion did not retain the typed selection ledger prefix",
+            ));
+        }
+        if !resolved_completion_retains_declarations(&predecessor, &source, &selected) {
+            return Err(Diagnostic::error(
+                "authored-body completion changed retained resolved declaration or unselected body storage",
+            ));
+        }
+        if !resolved_normalized_prefix_is_retained(&predecessor, &source) {
+            return Err(Diagnostic::error(
+                "authored-body completion changed retained normalized statement, transition target or type storage",
+            ));
+        }
+        let cohort = TypingCohort::continuing(&predecessor, &retained.typed).completing(&selected);
+        super::validate_resolved_semantics_in(&source, &cohort)?;
+        let mut candidate = Arc::unwrap_or_clone(retained.typed);
+        join_resolved_semantics(&source, &predecessor, &mut candidate)?;
+        let mut lowerer = Lowerer {
+            typed_trees: candidate,
+            source_trees: &source,
+            equality_scope: None,
+            type_reference_exposure: Some(
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            ),
+        };
+        type_resolved_cohort(&mut lowerer, &cohort)?;
+        for forwarding in source
+            .evidence_forwardings
+            .iter()
+            .skip(predecessor.evidence_forwardings.len())
+        {
+            lowerer
+                .typed_trees
+                .evidence_forwardings
+                .push(lower_evidence_forwarding(
+                    forwarding,
+                    &lowerer.typed_trees.proof_output_calls,
+                ));
+        }
+        close_typed_cohort(&mut lowerer, &cohort)?;
+        let typed = lowerer.typed_trees;
+        Ok((
+            SeededTypingBase {
+                resolved: source,
+                typed: Arc::new(typed),
+            },
+            frontier,
+        ))
+    }
+
+    fn resolved_normalized_prefix_is_retained(
+        base: &SymbolResolvedTrees,
+        candidate: &SymbolResolvedTrees,
+    ) -> bool {
+        let old_statements = &base.tables.bodies.statements;
+        let new_statements = &candidate.tables.bodies.statements;
+        let old_types = &base.tables.types.references;
+        let new_types = &candidate.tables.types.references;
+        new_statements.statement_count() >= old_statements.statement_count()
+            && new_statements.transition_target_count() >= old_statements.transition_target_count()
+            && new_types.type_reference_count() >= old_types.type_reference_count()
+            && (1..=old_statements.statement_count()).all(|ordinal| {
+                let Ok(ordinal) = u32::try_from(ordinal) else {
+                    return false;
+                };
+                let handle =
+                    symbol_resolved_trees::statement::StatementHandle::from_arena_index(ordinal);
+                old_statements.statement(handle) == new_statements.statement(handle)
+            })
+            && (1..=old_statements.transition_target_count()).all(|ordinal| {
+                let Ok(ordinal) = u32::try_from(ordinal) else {
+                    return false;
+                };
+                let handle =
+                    symbol_resolved_trees::statement::TransitionTargetHandle::from_arena_index(
+                        ordinal,
+                    );
+                old_statements.transition_target(handle) == new_statements.transition_target(handle)
+            })
+            && (1..=old_types.type_reference_count()).all(|ordinal| {
+                let Ok(ordinal) = u32::try_from(ordinal) else {
+                    return false;
+                };
+                let handle =
+                    symbol_resolved_trees::types::TypeReferenceHandle::from_arena_index(ordinal);
+                old_types.type_reference(handle) == new_types.type_reference(handle)
+            })
+    }
+
+    fn domain_table_retains(base: &SemanticDomainTable, candidate: &SemanticDomainTable) -> bool {
+        candidate.len() >= base.len()
+            && (1..=base.len()).all(|ordinal| {
+                let identity = SemanticDomainId(ordinal as u32);
+                candidate.name(identity) == base.name(identity)
+            })
+    }
+
+    fn resolved_completion_retains_declarations(
+        base: &SymbolResolvedTrees,
+        candidate: &SymbolResolvedTrees,
+        selected: &[SymbolHandle],
+    ) -> bool {
+        if candidate.machines.len() < base.machines.len()
+            || selected
+                .iter()
+                .enumerate()
+                .any(|(ordinal, symbol)| selected[..ordinal].contains(symbol))
+            || selected.iter().any(|symbol| {
+                !base
+                    .machines
+                    .iter()
+                    .any(|machine| machine.symbol == *symbol)
+            })
+        {
+            return false;
+        }
+        for (old, new) in base.machines.iter().zip(candidate.machines.iter()) {
+            if !selected.contains(&old.symbol) {
+                if old != new {
+                    return false;
+                }
+                if base
+                    .machine_state_handles(old.states)
+                    .iter()
+                    .any(|state| base.machine_state(*state) != candidate.machine_state(*state))
+                    || base.machine_owned_data(old.owned_data)
+                        != candidate.machine_owned_data(new.owned_data)
+                    || base.machine_trait_conformances(old.satisfies)
+                        != candidate.machine_trait_conformances(new.satisfies)
+                {
+                    return false;
+                }
+                continue;
+            }
+            if old.body_status != MachineBodyStatus::Deferred
+                || new.body_status != MachineBodyStatus::Complete
+            {
+                return false;
+            }
+            let mut header = new.clone();
+            header.body_status = old.body_status;
+            header.termination_plan.implementation_witness =
+                old.termination_plan.implementation_witness.clone();
+            header.ranking_subjects = old.ranking_subjects;
+            header.ranking_view = old.ranking_view;
+            header.ranking_view_arguments = old.ranking_view_arguments;
+            header.ranking_range = old.ranking_range;
+            header.states = old.states;
+            header.owned_data = old.owned_data;
+            header.satisfies = old.satisfies;
+            if header != *old {
+                return false;
+            }
+            let old_states = base.machine_state_handles(old.states);
+            let new_states = candidate.machine_state_handles(new.states);
+            if !new_states.starts_with(old_states) {
+                return false;
+            }
+            for &state in old_states {
+                let old_state = base.machine_state(state);
+                let mut new_state = candidate.machine_state(state).clone();
+                new_state.statements = old_state.statements;
+                new_state.statement_nodes = old_state.statement_nodes;
+                if new_state != *old_state {
+                    return false;
+                }
+            }
+            let old_owned = base.machine_owned_data(old.owned_data);
+            let new_owned = candidate.machine_owned_data(new.owned_data);
+            if old_owned.len() != new_owned.len() {
+                return false;
+            }
+            for (old, new) in old_owned.iter().zip(new_owned) {
+                let mut header = new.clone();
+                header.initial_value = old.initial_value;
+                if header != *old {
+                    return false;
+                }
+            }
+            let old_conformances = base.machine_trait_conformances(old.satisfies);
+            let new_conformances = candidate.machine_trait_conformances(new.satisfies);
+            if old_conformances.len() != new_conformances.len() {
+                return false;
+            }
+            for (old, new) in old_conformances.iter().zip(new_conformances) {
+                let mut header = new.clone();
+                header.via_expression = old.via_expression;
+                if header != *old {
+                    return false;
+                }
+            }
+        }
+        candidate.const_declarations.len() >= base.const_declarations.len()
+            && candidate
+                .const_declarations
+                .iter()
+                .take(base.const_declarations.len())
+                .eq(base.const_declarations.iter())
+            && candidate.data_definitions.len() >= base.data_definitions.len()
+            && candidate
+                .data_definitions
+                .iter()
+                .take(base.data_definitions.len())
+                .eq(base.data_definitions.iter())
+            && candidate.traits.len() >= base.traits.len()
+            && candidate
+                .traits
+                .iter()
+                .take(base.traits.len())
+                .eq(base.traits.iter())
+            && retained_declaration_families_are_exact(base, candidate)
+    }
+
+    fn join_resolved_semantics(
+        source: &SymbolResolvedTrees,
+        base: &SymbolResolvedTrees,
+        candidate: &mut TypedTrees,
+    ) -> Result<(), Diagnostic> {
+        if !source
+            .service_reaches
+            .definitions()
+            .starts_with(base.service_reaches.definitions())
+            || !source
+                .service_reaches
+                .definitions()
+                .starts_with(candidate.service_reaches.definitions())
+        {
+            return Err(Diagnostic::error(
+                "source continuation changed retained service definitions",
+            ));
+        }
+        if !source
+            .service_reach_rows
+            .starts_with(&base.service_reach_rows)
+            || !source
+                .service_reach_rows
+                .starts_with(&candidate.service_reach_rows)
+        {
+            return Err(Diagnostic::error(
+                "source continuation changed retained service-row identities",
+            ));
+        }
+        if !domain_table_retains(&base.semantic_domains, &source.semantic_domains) {
+            return Err(Diagnostic::error(
+                "source continuation changed retained semantic domains",
+            ));
+        }
+        if !source
+            .external_bindings
+            .identities()
+            .take(base.external_bindings.identities().len())
+            .eq(base.external_bindings.identities())
+            || !source
+                .external_bindings
+                .identities()
+                .take(candidate.external_bindings.identities().len())
+                .eq(candidate.external_bindings.identities())
+        {
+            return Err(Diagnostic::error(
+                "source continuation changed retained external-binding identities",
+            ));
+        }
+        if !source
+            .evidence_forwardings
+            .starts_with(&base.evidence_forwardings)
+        {
+            return Err(Diagnostic::error(
+                "source continuation changed retained evidence forwardings",
+            ));
+        }
+        for row in &base.authored_service_reach_rows {
+            if source
+                .authored_service_reach_rows
+                .iter()
+                .find(|next| next.owner == row.owner)
+                != Some(row)
+            {
+                return Err(Diagnostic::error(
+                    "source continuation changed a retained authored service ceiling",
+                ));
+            }
+        }
+        for ordinal in 1..=source.semantic_domains.len() {
+            let identity = SemanticDomainId(ordinal as u32);
+            let Some(name) = source.semantic_domains.name(identity) else {
+                return Err(Diagnostic::error(
+                    "source continuation lost a semantic domain identity",
+                ));
+            };
+            if candidate.semantic_domains.intern(name) != identity {
+                return Err(Diagnostic::error(
+                    "source continuation conflicts with a prepared semantic domain identity",
+                ));
+            }
+        }
+        candidate.symbols = source.symbols.clone();
+        candidate.service_reaches = source.service_reaches.clone();
+        candidate.service_reach_rows = source.service_reach_rows.clone();
+        candidate.external_bindings = source.external_bindings.clone();
+        candidate.retain_authored_declaration_selections(
+            source.authored_declaration_selections().clone(),
+        );
+        append_authored_service_reach_rows(candidate, source, &base.authored_service_reach_rows);
+        Ok(())
+    }
+
+    fn resolved_root_prefix_is_retained(
+        source: &SymbolResolvedTrees,
+        base: &SymbolResolvedTrees,
+    ) -> bool {
+        macro_rules! retains {
+        ($($family:ident),* $(,)?) => {
+            $(source.$family.iter().take(base.$family.len()).eq(base.$family.iter()))&&*
+        };
+    }
+        retains!(
+            const_declarations,
+            data_definitions,
+            type_aliases,
+            domain_definitions,
+            machines,
+            measures,
+            operators,
+            propositions,
+            mathematical_definitions,
+            traits,
+            conformances,
+            wire_schemas,
+        )
+    }
+
+    fn retained_declaration_families_are_exact(
+        base: &SymbolResolvedTrees,
+        candidate: &SymbolResolvedTrees,
+    ) -> bool {
+        candidate.type_aliases == base.type_aliases
+            && candidate.domain_definitions == base.domain_definitions
+            && candidate.measures == base.measures
+            && candidate.operators == base.operators
+            && candidate.propositions == base.propositions
+            && candidate.mathematical_definitions == base.mathematical_definitions
+            && candidate.conformances == base.conformances
+            && candidate.wire_schemas == base.wire_schemas
+    }
+}
+pub(crate) mod target_machine_families {
+    use crate::lowerer::name::lower_name;
+    use diagnostics::Diagnostic;
+    use symbol_resolved_trees::SymbolResolvedTrees;
+    use typed_trees::TypedTrees;
+    use typed_trees::machine::{TargetMachineFamily, TargetMachineFamilyMember};
+
+    pub(crate) mod telescopes {
+        use diagnostics::Diagnostic;
+        use symbols::SymbolHandle;
+        use typed_trees::TypedTrees;
+        use typed_trees::data::TypeParameterKind;
+        use typed_trees::machine::Machine;
+        use typed_trees::type_identity::TypeIdentityRequest;
+        use validation::contract_structure::{declared_callable, generic_binders};
+
+        pub(crate) mod callable_carriers {
+            use symbols::SymbolHandle;
+            use typed_trees::TypedTrees;
+            use typed_trees::data::{MachineParameterContract, TypeParameterKind};
+            use typed_trees::signature::StateSignature;
+            use validation::contract_structure::declared_callable;
+
+            pub(crate) fn compatible_contracts(
+                program: &TypedTrees,
+                required: &MachineParameterContract,
+                actual: &MachineParameterContract,
+                required_outer: &[(SymbolHandle, String)],
+                actual_outer: &[(SymbolHandle, String)],
+                content_conservation: &[validation::ContentConservationSourcePlan],
+            ) -> bool {
+                let Some(required_view) = program.machine_parameter_contract_view(required) else {
+                    return false;
+                };
+                let Some(actual_view) = program.machine_parameter_contract_view(actual) else {
+                    return false;
+                };
+                compatible(
+                    program,
+                    required_view.signature(),
+                    actual_view.signature(),
+                    required_outer,
+                    actual_outer,
+                    content_conservation,
+                )
+            }
+
+            fn compatible(
+                program: &TypedTrees,
+                required: &StateSignature,
+                actual: &StateSignature,
+                required_outer: &[(SymbolHandle, String)],
+                actual_outer: &[(SymbolHandle, String)],
+                content_conservation: &[validation::ContentConservationSourcePlan],
+            ) -> bool {
+                let required_parameters = program.state_signature_type_parameters(required);
+                let actual_parameters = program.state_signature_type_parameters(actual);
+                if required_parameters.len() != actual_parameters.len()
+                    || required.lifetime_parameters.len() != actual.lifetime_parameters.len()
+                    || !native_callback_carriers_match(program, required, actual)
+                {
+                    return false;
+                }
+                let mut required_binders = required_outer.to_vec();
+                let mut actual_binders = actual_outer.to_vec();
+                let scope = required_binders.len();
+                for (position, (required, actual)) in required_parameters
+                    .iter()
+                    .zip(actual_parameters)
+                    .enumerate()
+                {
+                    let identity = format!("$N{scope}G{position}");
+                    required_binders.push((required.symbol, identity.clone()));
+                    actual_binders.push((actual.symbol, identity));
+                }
+                for (required, actual) in required_parameters.iter().zip(actual_parameters) {
+                    if std::mem::discriminant(&required.kind)
+                        != std::mem::discriminant(&actual.kind)
+                    {
+                        return false;
+                    }
+                    if let (
+                        TypeParameterKind::Machine { contract: required },
+                        TypeParameterKind::Machine { contract: actual },
+                    ) = (&required.kind, &actual.kind)
+                    {
+                        if !compatible_contracts(
+                            program,
+                            required,
+                            actual,
+                            &required_binders,
+                            &actual_binders,
+                            content_conservation,
+                        ) {
+                            return false;
+                        }
+                        continue;
+                    }
+                    let required =
+                        validation::contract_identities::generic_parameter_contract_bytes(
+                            program,
+                            required,
+                            &required_binders,
+                            content_conservation,
+                        );
+                    let actual = validation::contract_identities::generic_parameter_contract_bytes(
+                        program,
+                        actual,
+                        &actual_binders,
+                        content_conservation,
+                    );
+                    if !matches!((required, actual), (Ok(required), Ok(actual)) if required == actual)
+                    {
+                        return false;
+                    }
+                }
+                let required = declared_callable(
+                    program,
+                    program.state_signature_parameters(required),
+                    required.return_type,
+                    &[],
+                    &required_binders,
+                    &[],
+                    false,
+                );
+                let actual = declared_callable(
+                    program,
+                    program.state_signature_parameters(actual),
+                    actual.return_type,
+                    &[],
+                    &actual_binders,
+                    &[],
+                    false,
+                );
+                matches!((required, actual), (Ok(required), Ok(actual)) if required == actual)
+            }
+
+            fn native_callback_carriers_match(
+                program: &TypedTrees,
+                required: &StateSignature,
+                actual: &StateSignature,
+            ) -> bool {
+                if required.native_callback_parameters.len()
+                    != actual.native_callback_parameters.len()
+                {
+                    return false;
+                }
+                let binder_position =
+                    |signature: &StateSignature, binder: &typed_trees::name::Identifier| {
+                        let mut positions = program
+                            .state_signature_type_parameters(signature)
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, parameter)| {
+                                parameter.name == *binder
+                                    && matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                            })
+                            .map(|(position, _)| position);
+                        let position = positions.next()?;
+                        positions.next().is_none().then_some(position)
+                    };
+                required
+                    .native_callback_parameters
+                    .iter()
+                    .zip(&actual.native_callback_parameters)
+                    .all(|(required_callback, actual_callback)| {
+                        required_callback.native_ordinal == actual_callback.native_ordinal
+                            && matches!(
+                                (
+                                    binder_position(required, &required_callback.binder),
+                                    binder_position(actual, &actual_callback.binder),
+                                ),
+                                (Some(required), Some(actual)) if required == actual
+                            )
+                    })
+            }
+        }
+
+        pub(crate) fn validate(
+            program: &validation::CheckingContext<'_>,
+            interface: &Machine,
+            member: &Machine,
+        ) -> Result<(), Diagnostic> {
+            let required = program.machine_type_parameters(interface);
+            let actual = program.machine_type_parameters(member);
+            if required.len() != actual.len()
+                || interface.lifetime_parameters.len() != member.lifetime_parameters.len()
+            {
+                return Err(incompatible(member, "generic/lifetime parameter count"));
+            }
+            let mut required_binders = generic_binders(required);
+            let mut actual_binders = generic_binders(actual);
+            if interface.conformance_bounds.len() != member.conformance_bounds.len() {
+                return Err(unjoined(member, "conformance-bound conjunction"));
+            }
+            for (position, (required, actual)) in interface
+                .conformance_bounds
+                .iter()
+                .zip(&member.conformance_bounds)
+                .enumerate()
+            {
+                required_binders.push((required.binder, format!("$C{position}")));
+                actual_binders.push((actual.binder, format!("$C{position}")));
+            }
+            for (required, actual) in interface
+                .conformance_bounds
+                .iter()
+                .zip(&member.conformance_bounds)
+            {
+                if required.trait_symbol != actual.trait_symbol
+                    || required.arguments.len() != actual.arguments.len()
+                    || required
+                        .arguments
+                        .iter()
+                        .zip(&actual.arguments)
+                        .any(|(required, actual)| {
+                            identity(program, *required, &required_binders)
+                                != identity(program, *actual, &actual_binders)
+                        })
+                {
+                    return Err(unjoined(
+                        member,
+                        "conformance-bound conjunction/alpha correspondence",
+                    ));
+                }
+            }
+            let Some(required_state) = program.machine_states(interface).first() else {
+                return Err(incompatible(member, "interface entry signature"));
+            };
+            let Some(actual_state) = program.machine_states(member).first() else {
+                return Err(incompatible(member, "member entry signature"));
+            };
+            let required_callable = declared_callable(
+                program,
+                program.state_parameters(required_state),
+                required_state.return_type,
+                &[],
+                &required_binders,
+                &[],
+                false,
+            )?;
+            let actual_callable = declared_callable(
+                program,
+                program.state_parameters(actual_state),
+                actual_state.return_type,
+                &[],
+                &actual_binders,
+                &[],
+                false,
+            )?;
+            if required_callable != actual_callable {
+                return Err(incompatible(
+                    member,
+                    "ordinary parameter relevance/calling shape or result",
+                ));
+            }
+            for (required, actual) in required.iter().zip(actual) {
+                if std::mem::discriminant(&required.kind) != std::mem::discriminant(&actual.kind) {
+                    return Err(incompatible(member, "generic parameter category"));
+                }
+                if typed_trees::data::type_parameter_demands_stronger_properties(required, actual) {
+                    return Err(unjoined(member, "generic property-demand conjunction"));
+                }
+                let content_conservation = validation::content_conservation_plans(program);
+                if let (
+                    TypeParameterKind::Machine { contract: required },
+                    TypeParameterKind::Machine { contract: actual },
+                ) = (&required.kind, &actual.kind)
+                {
+                    if !callable_carriers::compatible_contracts(
+                        program,
+                        required,
+                        actual,
+                        &required_binders,
+                        &actual_binders,
+                        &content_conservation,
+                    ) {
+                        return Err(incompatible(member, "nested callable carrier telescope"));
+                    }
+                    continue;
+                }
+                let required_identity =
+                    validation::contract_identities::generic_parameter_contract_bytes(
+                        program,
+                        required,
+                        &required_binders,
+                        &content_conservation,
+                    )?;
+                let actual_identity =
+                    validation::contract_identities::generic_parameter_contract_bytes(
+                        program,
+                        actual,
+                        &actual_binders,
+                        &content_conservation,
+                    )?;
+                if required_identity != actual_identity {
+                    return Err(unjoined(member, "generic contract refinement/conjunction"));
+                }
+            }
+            Ok(())
+        }
+
+        fn identity(
+            program: &TypedTrees,
+            reference: typed_trees::types::TypeReferenceHandle,
+            binders: &[(SymbolHandle, String)],
+        ) -> typed_trees::type_identity::NormalizedTypeIdentity {
+            program.type_identity(TypeIdentityRequest {
+                binders,
+                ..TypeIdentityRequest::ordinary(reference)
+            })
+        }
+
+        fn incompatible(member: &Machine, detail: &str) -> Diagnostic {
+            Diagnostic::error(format!(
+                "machine `{}` has an incompatible signature for `{}` -- \
+         every target's body of one machine shares its signature; incompatible {detail}",
+                member.name,
+                member
+                    .target
+                    .as_ref()
+                    .map_or("<missing target>", |target| target.as_str()),
+            ))
+        }
+
+        fn unjoined(member: &Machine, detail: &str) -> Diagnostic {
+            Diagnostic::error(format!(
+                "unimplemented: target-family member `{}` requires {detail}",
+                member.name
+            ))
+        }
+    }
+
+    pub(crate) fn append(
+        source: &SymbolResolvedTrees,
+        typed: &mut TypedTrees,
+        machine_frontier: usize,
+    ) -> Result<(), Diagnostic> {
+        let mut declarations = source
+            .machines
+            .iter()
+            .skip(machine_frontier)
+            .filter(|machine| machine.target_family.is_valid())
+            .collect::<Vec<_>>();
+        declarations.sort_by_key(|machine| machine.target_family.arena_index());
+        let checking = validation::CheckingContext::new(typed);
+        let mut families = Vec::new();
+        for declarations in
+            declarations.chunk_by(|left, right| left.target_family == right.target_family)
+        {
+            let canonical = declarations[0].target_family;
+            let Some(machine) = typed.machine_by_symbol(canonical) else {
+                return Err(Diagnostic::error(
+                    "target-machine family interface did not survive typing",
+                ));
+            };
+            if typed
+                .target_machine_families
+                .iter()
+                .any(|family| family.canonical == canonical)
+            {
+                return Err(Diagnostic::error(
+                    "seeded typing cannot append a body to a retained target-machine family",
+                ));
+            }
+            let mut members = Vec::new();
+            for declaration in declarations {
+                let Some(target) = declaration.authored_target.as_ref() else {
+                    continue;
+                };
+                if typed.machine_by_symbol(declaration.symbol).is_none() {
+                    return Err(Diagnostic::error(
+                        "target-machine family member did not survive typing",
+                    ));
+                }
+                members.push(TargetMachineFamilyMember {
+                    target: lower_name(target),
+                    machine: declaration.symbol,
+                });
+            }
+            if members.is_empty() {
+                return Err(Diagnostic::error(
+                    "target-machine family has no retained members",
+                ));
+            }
+            members.sort_by(|left, right| left.target.as_str().cmp(right.target.as_str()));
+            let canonical_identity = typed.machine_callable_identity(machine);
+            let canonical_result = typed.machine_entry_result_type_identity(machine);
+            for member in &members {
+                let member_machine = typed.machine_by_symbol(member.machine).ok_or_else(|| {
+                    Diagnostic::error("target-machine family member did not survive typing")
+                })?;
+                let member_identity = typed.machine_callable_identity(member_machine);
+                telescopes::validate(&checking, machine, member_machine)?;
+                if !canonical_identity.is_valid()
+                    || !member_identity.is_valid()
+                    || member_identity != canonical_identity
+                    || typed.machine_entry_result_type_identity(member_machine) != canonical_result
+                    || member_machine.purpose != machine.purpose
+                {
+                    return Err(Diagnostic::error(format!(
+                        "machine `{}` has an incompatible signature for `{}` -- \
+                     every target's body of one machine shares its signature",
+                        machine.name, member.target,
+                    )));
+                }
+            }
+            families.push(TargetMachineFamily {
+                name: machine.name.clone(),
+                canonical,
+                purpose: machine.purpose,
+                members,
+            });
+        }
+        families.sort_by(|left, right| left.name.as_str().cmp(right.name.as_str()));
+        drop(checking);
+        typed.target_machine_families.extend(families);
+        Ok(())
+    }
+}
+
 pub(crate) fn validate_resolved_semantics(
     symbol_resolved_trees: &SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
@@ -99,19 +1612,10 @@ pub(crate) fn validate_resolved_semantics_in(
     symbol_resolved_trees: &SymbolResolvedTrees,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
-    // Decision 11: user-written `==` against bare payload-bearing case names
-    // must be rejected BEFORE membership lowering synthesizes its internal
-    // tag-equality compares, which are deliberately the same typed shape.
     crate::expressions::equality::validate_equality_operands_in(symbol_resolved_trees, cohort)?;
 
-    // Synthesized Equatable rows check their structural prerequisites at
-    // the implementation, before any `==` site tries to expand them.
     validate_equatable_conformances_in(symbol_resolved_trees, cohort)?;
 
-    // Exhaustiveness counting over case domains also needs the resolved
-    // trees: membership is still a distinct node here, so case arms and
-    // domain arms are recognizable before lowering erases them into tag
-    // compares and classifier expansions.
     validate_case_dispatch_exhaustiveness_in(symbol_resolved_trees, cohort)
 }
 
@@ -140,32 +1644,16 @@ pub fn lower_symbol_resolved_trees(
             .authored_declaration_selections()
             .clone(),
     );
-    // Forwardings are copied at their resolved coordinates first, so the walk
-    // sees the same forwarding set the resolved program carries; the fresh
-    // close-out re-seats each statement index once typing's erased proof-output
-    // calls are known.
     lowerer.typed_trees.evidence_forwardings = symbol_resolved_trees
         .evidence_forwardings
         .iter()
         .map(|forwarding| lower_evidence_forwarding(forwarding, &[]))
         .collect();
-    // The whole authored package: every frontier at zero.
     let cohort = TypingCohort::default();
     type_resolved_cohort(&mut lowerer, &cohort)?;
     lowerer.finish(&cohort)
 }
 
-/// What one typing run covers: where each resolved declaration family
-/// continues, which retained machine bodies the run completes in place, and
-/// where the run's typed tables begin.
-///
-/// A whole authored package is the default: every frontier at zero. A
-/// continuation derives them from the exact pair it was admitted against, so
-/// the shared walk types exactly the declarations resolution appended and the
-/// shared close-out finalizes exactly the rows this run produced. The typed
-/// checkpoints name that same boundary on the receiving side, which is not the
-/// resolved frontier: typing appends rows of its own (fresh symbols,
-/// synthesized instances) that no resolved declaration counts.
 #[derive(Default)]
 pub(crate) struct TypingCohort<'completed> {
     pub(crate) const_declarations: usize,
@@ -181,15 +1669,8 @@ pub(crate) struct TypingCohort<'completed> {
     pub(crate) conformances: usize,
     pub(crate) wire_schemas: usize,
     pub(crate) generic_application_origins: usize,
-    /// Retained machine bodies this run completes in place, in declaration
-    /// order. Their destinations land beside the appended machines'.
     completed_machines: &'completed [SymbolHandle],
-    /// `completed_machines` as sorted symbol keys. Every machine of the run
-    /// asks whether it is completed; scanning the list made that quadratic
-    /// when a run completes every machine.
     completed_keys: Vec<(u32, u32)>,
-    /// Typed checkpoint: machines, type references and expressions the
-    /// retained base already published.
     pub(crate) typed_machines: usize,
     pub(crate) typed_type_parameters: usize,
     pub(crate) typed_type_references: usize,
@@ -197,9 +1678,6 @@ pub(crate) struct TypingCohort<'completed> {
 }
 
 impl<'completed> TypingCohort<'completed> {
-    /// The suffix past an exact retained pair. Every family continues where
-    /// the resolved base ends; a family the continuation cannot extend has an
-    /// empty suffix because admission proved the base already holds it.
     pub(crate) fn continuing(resolved: &SymbolResolvedTrees, typed: &TypedTrees) -> Self {
         Self {
             const_declarations: resolved.const_declarations.len(),
@@ -224,7 +1702,6 @@ impl<'completed> TypingCohort<'completed> {
         }
     }
 
-    /// Name the retained bodies this run completes in place.
     pub(crate) fn completing(mut self, machines: &'completed [SymbolHandle]) -> Self {
         self.completed_machines = machines;
         self.completed_keys = machines.iter().map(|symbol| symbol_key(*symbol)).collect();
@@ -232,7 +1709,6 @@ impl<'completed> TypingCohort<'completed> {
         self
     }
 
-    /// Whether this run completes `symbol`'s retained body in place.
     pub(crate) fn completes(&self, symbol: SymbolHandle) -> bool {
         self.completed_keys
             .binary_search(&symbol_key(symbol))
@@ -240,19 +1716,10 @@ impl<'completed> TypingCohort<'completed> {
     }
 }
 
-/// A symbol's full identity, generation included, as a sort key.
 pub(crate) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
-/// Type the resolved declarations one cohort still owes, in the order the
-/// resolved package records them.
-///
-/// One operation for three routes: the fresh product route runs it over a
-/// whole package, and the two continuation routes run it over the suffix they
-/// were admitted against. Typing a declaration form is the same work in every
-/// route, so the walk has one statement per form and no route chooses among
-/// forms.
 pub(crate) fn type_resolved_cohort(
     lowerer: &mut Lowerer<'_>,
     cohort: &TypingCohort<'_>,
@@ -302,10 +1769,6 @@ pub(crate) fn type_resolved_cohort(
         )?;
         lowerer.typed_trees.push_mathematical_definition(definition);
     }
-    // Find every completed body's typed row before any is rewritten. Each
-    // rewrite is mutable machine access, which retires the typed position
-    // index; looking the next body up after it rebuilt that index once per
-    // machine. Rewrites keep every row in place, so the positions hold.
     let completed_positions = source
         .machines
         .iter()
@@ -320,9 +1783,6 @@ pub(crate) fn type_resolved_cohort(
         .collect::<Vec<_>>();
     for (ordinal, machine) in source.machines.iter().enumerate() {
         if ordinal < cohort.machines {
-            // A retained machine keeps its typed declaration; only a body this
-            // run was handed is retyped, before the run's appended machines,
-            // where the authored completion route has always lowered it.
             if let Some(position) = completed_positions[ordinal] {
                 complete_retained_machine_body(lowerer, machine.symbol, position)?;
             }
@@ -354,16 +1814,9 @@ pub(crate) fn type_resolved_cohort(
         )?;
         lowerer.typed_trees.push_wire_schema(wire_schema);
     }
-    // Constant initializers are the last evidence the resolved declarations
-    // owe; they are lowered against the complete declaration set like every
-    // other body.
     lowerer.lower_const_initializer_evidence(cohort.const_declarations)
 }
 
-/// Complete one retained machine's authored body in place. The typed
-/// declaration already holds the retained interface, so only the
-/// implementation delta is retyped; a missing row is a retained-base
-/// violation, not an authored error.
 fn complete_retained_machine_body(
     lowerer: &mut Lowerer<'_>,
     symbol: SymbolHandle,
@@ -375,8 +1828,6 @@ fn complete_retained_machine_body(
         )
     };
     let ordinal = position.ok_or_else(lost_base)?;
-    // The position was found before earlier bodies were rewritten in place;
-    // a row that no longer names this machine is a lost base, not a target.
     let mut declaration = lowerer
         .typed_trees
         .machines()
@@ -390,21 +1841,12 @@ fn complete_retained_machine_body(
     Ok(())
 }
 
-/// Close one typing run: settle what its declarations satisfied, normalize the
-/// identities every typed consumer reads, and publish the run's target-machine
-/// families.
-///
-/// One operation for three routes; the cohort names each row set's frontier,
-/// so a retained base is finalized once, when it was typed, and this run's
-/// rows once, here.
 pub(crate) fn close_typed_cohort(
     lowerer: &mut Lowerer<'_>,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
-    // Source call custody precedes every logical signature copy. A copied
-    // qualifier cannot reconstruct its original declaration telescope.
     lowerer.typed_trees.retain_static_argument_contexts();
     lowerer
         .typed_trees
@@ -418,8 +1860,6 @@ pub(crate) fn close_typed_cohort(
         cohort.typed_type_references,
     )?;
     normalize_membership_selections(lowerer.source_trees, &mut lowerer.typed_trees)?;
-    // Idempotent over retained facts: an already-interned instance re-derives
-    // the same name, so only facts appended past the checkpoint change.
     crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
     crate::expressions::qualification_casts::normalize_qualification_casts(
         lowerer.source_trees,
@@ -478,9 +1918,6 @@ fn lower_authored_service_reach_row(
     }
 }
 
-/// Append the reached-service rows a later resolved cohort added, keeping the
-/// retained rows' identities. Resolution may reorder rows by owner, so the
-/// retained prefix is matched by owner and only unseen owners are appended.
 pub(crate) fn append_authored_service_reach_rows(
     target: &mut TypedTrees,
     source: &SymbolResolvedTrees,
@@ -495,10 +1932,6 @@ pub(crate) fn append_authored_service_reach_rows(
     );
 }
 
-/// A resolved forwarding's statement index addresses the resolved statement
-/// list. Typing erases each machine's proof-output calls before it, so the
-/// typed index subtracts them and keeps the resolved coordinate beside it for
-/// lexical evidence scope.
 pub(crate) fn lower_evidence_forwarding(
     forwarding: &symbol_resolved_trees::statement::EvidenceForwarding,
     proof_output_calls: &[typed_trees::typed_trees::ProofOutputCall],
@@ -558,11 +1991,7 @@ pub(crate) fn declaration_exposure(
 pub(crate) struct Lowerer<'source> {
     pub(crate) typed_trees: TypedTrees,
     pub(crate) source_trees: &'source SymbolResolvedTrees,
-    /// The value-typing scope of the state body currently being lowered;
-    /// `==` expansion uses it to find an operand's data type.
     pub(crate) equality_scope: Option<crate::expressions::equatable::EqualityScope>,
-    /// None lowers a compiler-derived type without inventing an authored
-    /// occurrence. Original generic applications retain their own exposure.
     pub(crate) type_reference_exposure:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
 }
@@ -694,12 +2123,6 @@ impl Lowerer<'_> {
         result
     }
 
-    /// Close the fresh product route. Only this route does what follows, and
-    /// each step exists for a reason the continuation routes do not share:
-    /// trait requirement guarantees are normalized once, here, because a
-    /// continuation cannot introduce a trait requirement; the rebuild drops
-    /// derived lookup state and re-seats each evidence forwarding at its typed
-    /// coordinate, which no append-only continuation may do to a retained base.
     pub(crate) fn finish(mut self, cohort: &TypingCohort<'_>) -> Result<TypedTrees, Diagnostic> {
         self.typed_trees.symbols = self.source_trees.symbols.clone();
         crate::lowerer::progress::normalize_trait_progress_premises(&mut self.typed_trees)?;
@@ -710,19 +2133,9 @@ impl Lowerer<'_> {
     }
 }
 
-/// Rebuild the typed trees the fresh product route just produced, holding
-/// every table and root and re-deriving the storage a stage consumer must not
-/// inherit: lookup state derived from those tables, and the build-time
-/// deferrals, specializations and access plans later phases produce.
 fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) -> TypedTrees {
-    // The retained interner tables travel; restarting their handle space
-    // would silently rebind rows that store their IDs.
     let TypedTrees {
-        // The tag identifies the instance being taken apart, not any
-        // piece of it, so it does not travel with the fields.
         identity: _,
-        // Build-context projection follows typing; no declaration view
-        // exists in this freshly lowered source program.
         product_declaration_frontier: _,
         excluded_authored_selection_occurrences,
         roots,
@@ -732,8 +2145,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         service_reach_rows,
         authored_service_reach_rows,
         semantic_domains,
-        // Applied domain theories are derived after authored typing, alongside
-        // specialization; the fresh source entrance regenerates them later.
         applied_domain_applications: _,
         applied_data_cleanup_selections: _,
         external_bindings,
@@ -749,25 +2160,19 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         wire_encode_obligations: _,
         wire_schema_plans: _,
         machine_specializations: _,
-        // Capture applications are produced after authored typing.
         captured_machine_applications: _,
         captured_machine_states: _,
         trait_implementation_applications: _,
         data_implementation_applications: _,
-        // Checking instantiates selector slots after specialization.
         dynamic_slots: _,
-        // Family records are produced after all typed bodies settle.
         target_machine_families: _,
         boundary_completion_declarations: _,
         evidence_forwardings: _,
         proof_output_calls,
-        // Derived lookup state rebuilds from the retained tables.
         declaration_indexes: _,
         callable_identities: _,
         callable_identity_memo: _,
         ranking_expression_custody,
-        // Typing precedes every build-time evaluation deferral, so no
-        // pending endpoint mark can exist here to carry forward.
         pending_const_range_endpoints: _,
         constant_recipes: _,
         constant_expression_contexts: _,
@@ -778,7 +2183,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     trees.type_identities = type_identities;
     trees.access_borrow_factories = access_borrow_factories;
     trees.excluded_authored_selection_occurrences = excluded_authored_selection_occurrences;
-    // The copied semantic interners survive the rebuild.
     trees.service_reaches = service_reaches;
     trees.service_reach_rows = service_reach_rows;
     trees.authored_service_reach_rows = authored_service_reach_rows;
@@ -794,12 +2198,8 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     trees
 }
 
-/// Receiver types are available only after typing. Publish requirement handles
-/// now so direct stage consumers need no compiler-owned repair pass. Later
-/// elaboration and specialization must bind any calls they introduce themselves.
 fn bind_dynamic_call_targets(trees: &mut TypedTrees) -> Result<(), Diagnostic> {
     validation::resolve_dynamic_call_targets(trees).map_err(|diagnostics| {
-        // This stage reports its first failure, like its other typing rules.
         diagnostics.into_iter().next().unwrap_or_else(|| {
             Diagnostic::error("dynamic call target binding failed without a diagnostic")
         })
