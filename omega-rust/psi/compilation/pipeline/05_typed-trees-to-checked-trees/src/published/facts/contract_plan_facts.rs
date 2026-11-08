@@ -308,9 +308,9 @@ pub(crate) fn build_contract_plans(
         let sites = operator_crashes_by_machine
             .remove(&plan.machine)
             .unwrap_or_default();
-        plan.crash = plan
-            .crash
-            .clone()
+        // Take the plan rather than copy it: on failure the whole build
+        // returns an error, and nothing reads `machines` again.
+        plan.crash = std::mem::take(&mut plan.crash)
             .with_checked_operators(sites)
             .ok_or_else(|| {
                 vec![diagnostics::Diagnostic::error(
@@ -373,11 +373,24 @@ pub(crate) fn build_contract_plans(
             .or_default()
             .push(*flow);
     }
-    let realized_envelopes =
+    // Hand each contract its capability rows first, in roster order, so that
+    // every envelope is then a pure function of `&` inputs and the envelopes
+    // are built on the checking pool. Collecting keeps roster order.
+    let machine_capabilities = machines
+        .iter()
+        .map(|contract| {
+            capabilities_by_machine
+                .remove(&contract.machine)
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>();
+    let realized_envelopes = validation::checking_thread_pool().install(|| {
+        use rayon::prelude::*;
         machines
-            .iter()
+            .par_iter()
+            .zip(machine_capabilities)
             .enumerate()
-            .map(|(machine_index, contract)| {
+            .map(|(machine_index, (contract, capability_rows))| {
                 let machine = program
                     .machines()
                     .get(machine_index)
@@ -439,9 +452,6 @@ pub(crate) fn build_contract_plans(
                     .or_else(|| mutation.for_machine(contract.machine))
                     .map(|fact| fact.state_write_frames.clone())
                     .unwrap_or_default();
-                let capability_rows = capabilities_by_machine
-                    .remove(&contract.machine)
-                    .unwrap_or_default();
                 checked_trees::RealizedMachineContractEnvelope {
                 machine: contract.machine,
                 contract_report_fingerprint: contract.report_fingerprint,
@@ -467,7 +477,8 @@ pub(crate) fn build_contract_plans(
                     ),
             }
             })
-            .collect();
+            .collect::<Vec<_>>()
+    });
     let plans =
         checked_trees::MachineContractPlans::new(machines, crash_capsules, realized_envelopes);
     plans.validate_resource_envelopes().map_err(|error| {
