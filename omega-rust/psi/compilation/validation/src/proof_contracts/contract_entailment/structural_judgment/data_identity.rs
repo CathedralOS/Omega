@@ -5,6 +5,10 @@
 use super::identity_normalization::IdentityNormalization;
 use super::{ExpressionHandle, StructuralJudge, StructuralJudgment, StructuralTerm};
 
+// One finite allowance covers normalization and search through established
+// identity views. Depth, admission and fail-closed checks remain independent.
+const IDENTITY_QUERY_WORK_LIMIT: usize = 4096;
+
 #[derive(Clone, Copy)]
 enum IdentityCorrespondence {
     Representation,
@@ -109,7 +113,7 @@ impl StructuralJudge<'_> {
         let diagnostic = self
             .le_case_trace_enabled()
             .then(|| (left.clone(), right.clone()));
-        let mut remaining = 1024;
+        let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
         let result = self.judge_identity_with_budget(left, right, depth, &mut remaining);
         if matches!(result, StructuralJudgment::Unknown)
             && let Some((left, right)) = diagnostic
@@ -188,6 +192,11 @@ impl StructuralJudge<'_> {
                 return StructuralJudgment::Unknown;
             }
         };
+        self.trace_le_case(
+            "normalized-goal",
+            &[("left", &left), ("right", &right)],
+            format_args!("depth={depth} remaining={remaining}"),
+        );
         let direct =
             self.exact_identity_congruence(left.clone(), right.clone(), depth + 1, remaining);
         if !matches!(direct, StructuralJudgment::Unknown) {
