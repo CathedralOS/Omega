@@ -42,7 +42,7 @@ pub struct TerminalReturnedLoan<'instance, 'artifact> {
 
 impl<'artifact> TerminalInstance<'_, 'artifact> {
     /// Accept retention of the entry result's checked loans until this instance
-    /// closes. Call before the first invoke/resume, including a zero-work one.
+    /// closes. Call before the first invoke/resume, including a zero-fuel one.
     /// Final entry backing is captured when execution starts, after any explicit
     /// entry-storage installation. Ordinary return checks still authenticate
     /// every active descriptor against its complete possible source roster.

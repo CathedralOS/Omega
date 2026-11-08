@@ -1,8 +1,11 @@
-// Target Calling evidence attachment onto shared, Source-closed service
-// declarations. The source-owned census already supplies nominal owners and
-// ordered requirement identities (`projected.exact_requirements()?`), so this
-// target join never reopens checked trees, while unused unsupported or local
-// declarations retain deferred refusals until demanded.
+//! Attach target Calling evidence to shared, Source-closed service declarations.
+//!
+//! The source-owned census already supplies nominal owners and ordered
+//! requirement identities. This target join never reopens checked trees.
+//! Resolved consumers retain source-free records. Only this invocation's
+//! catalog maps them back to source symbols for remaining source-contract work.
+//! Unused unsupported/local declarations retain refusals instead of introducing
+//! new obligations merely because the inventory was prepared eagerly.
 
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use checked_trees::typed_trees::service_declarations::PreparedServiceDeclaration;
@@ -13,6 +16,8 @@ use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
+/// Exact declaration and ordered requirement ownership beside the complete
+/// target-side schema. This is not a host binding or execution grant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceDeclaration {
     pub nominal_identity: String,
@@ -40,6 +45,8 @@ struct ServiceProjection {
     requirements: Vec<SymbolHandle>,
 }
 
+/// Local correspondence borrowed only by source-dependent consumers. Its
+/// symbols belong to the catalog's producer, never an independent candidate.
 pub struct SourceService<'a> {
     pub symbol: SymbolHandle,
     pub declaration: &'a Arc<ServiceDeclaration>,
@@ -98,6 +105,8 @@ impl ServiceDeclarations {
         Self { sources }
     }
 
+    /// Package/path is an authored selector, not authority. The caller still
+    /// joins the exact schema and any role-required selected-plan commitment.
     pub fn select(
         &self,
         package: PackageKeyIdentity,
@@ -114,6 +123,8 @@ impl ServiceDeclarations {
         self.unique(self.sources.iter().filter(|entry| entry.symbol == symbol))
     }
 
+    /// Classify a supplied source declaration only after its nominal owner and
+    /// complete projected meaning agree with the retained resolved declaration.
     pub fn identifies(
         &self,
         symbol: SymbolHandle,
@@ -138,6 +149,8 @@ impl ServiceDeclarations {
         Ok(true)
     }
 
+    /// Independent projections compare meaning, never arena handles or catalog
+    /// positions. Source consumers receive only this catalog's local symbols.
     pub fn rejoin(&self, expected: &ServiceDeclaration) -> Result<SourceService<'_>, Diagnostic> {
         let actual = self.unique(self.sources.iter().filter(|entry| {
             entry

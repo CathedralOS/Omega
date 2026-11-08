@@ -1,18 +1,8 @@
-/*
-
-Compile an admitted package project across all requested targets (`compile_returned`).
-
-Source discovery (`resolve_project_sources`) has already executed the project's
-`build.omg` activations and returned `Vec<ResolvedPackageBuild>`. Here we:
-1. Settle those returned builds (`settle_source_builds`) into `CompletedBuild`s
-   without re-running `build.omg` or opening a second resource grant.
-2. Admit the target-product requests through
-   `package_manager::operations::admit_project_products`.
-3. Compile all admitted package plans together (`compile_packages`) so targets
-   share source checking and invocation-wide budgets.
-4. Reconcile the results and dispose staging via `admitted.completion.complete`.
-
-*/
+//! Execute an admitted package batch; package management never calls back here.
+//!
+//! Admission retains source/consent identity. The application retains the
+//! package session through scheduling and package-owned closure. Accepted
+//! targets run together, sharing source work and invocation-wide budgets.
 
 use crate::BuildSession;
 use package_manager::operations::{ProjectCompilationAdmissionRequest, ProjectCompilationOutcome};
@@ -26,6 +16,9 @@ pub(crate) struct ProjectCompilationRequest<'request> {
     pub product: compiler::CompilationProduct,
 }
 
+/// Source discovery already executed these Builds. Settle their exact returns,
+/// admit Product contexts, then use the ordinary dependency/product scheduler.
+/// No fresh execution request or grant is discarded at this boundary.
 pub(crate) fn compile_returned(
     request: ProjectCompilationRequest<'_>,
     builds: Vec<crate::ResolvedPackageBuild>,

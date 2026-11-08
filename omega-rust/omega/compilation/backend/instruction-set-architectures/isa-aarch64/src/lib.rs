@@ -6,8 +6,6 @@
 pub(crate) use optimization_core::codec_bytes;
 mod floating_control;
 mod frame_protocol;
-mod generated_entry;
-pub use generated_entry::decode_aarch64_generated_entry;
 mod hosted_sequences;
 mod immediate_offset;
 mod machine_effects;

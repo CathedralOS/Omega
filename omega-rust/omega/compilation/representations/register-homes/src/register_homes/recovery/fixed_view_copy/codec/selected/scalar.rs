@@ -1,7 +1,7 @@
 //! Optimizer module role: stage group. Historical scalar selected-plan roster.
 
 use selected_instructions::SelectedInstructionPlan;
-use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::FixedViewCopyDecodeError;
@@ -20,7 +20,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn encode(
 ) -> Result<(), terminal_codec::CodecError> {
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(bytes, plan.work_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, plan.fuel_schedule.marker().to_le_bytes());
     encode_target(bytes, plan.target);
     crate::codec_bytes::push_encoded(bytes, plan.entry.get().to_le_bytes());
     length(bytes, plan.functions.len());
@@ -37,9 +37,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode(
     let marker_raw = cursor.u16()?;
     let marker = VocabularyMarker::new(marker_raw)
         .ok_or(FixedViewCopyDecodeError::InvalidVocabulary(marker_raw))?;
-    let work_raw = cursor.u32()?;
-    let work_schedule = WorkScheduleIdentity::new(work_raw)
-        .ok_or(FixedViewCopyDecodeError::InvalidWorkSchedule(work_raw))?;
+    let fuel_raw = cursor.u32()?;
+    let fuel_schedule = FuelScheduleIdentity::new(fuel_raw)
+        .ok_or(FixedViewCopyDecodeError::InvalidFuelSchedule(fuel_raw))?;
     let target = decode_target(cursor)?;
     let entry = decode_id(cursor, MachineId::new)?;
     let functions = decode_list(cursor, decode_function)?;
@@ -48,7 +48,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode(
             vocabulary_marker: marker,
             program_fingerprint: fingerprint,
         },
-        work_schedule,
+        fuel_schedule,
         target,
         entry,
         functions: functions.into(),

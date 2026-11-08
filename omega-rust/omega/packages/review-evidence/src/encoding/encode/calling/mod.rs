@@ -1,4 +1,4 @@
-// Complete calling-policy framing and receipt-free semantic children.
+//! Complete calling-policy framing and receipt-free semantic children.
 
 mod application;
 mod callbacks;

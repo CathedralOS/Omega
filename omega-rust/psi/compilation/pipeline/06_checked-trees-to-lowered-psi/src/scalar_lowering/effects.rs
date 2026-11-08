@@ -421,6 +421,35 @@ pub(crate) fn emit(
                 std::mem::swap(&mut evaluation.blocks, blocks);
                 produced?;
             }
+            LoweredScalarEffect::CaptureDispatchSubject {
+                expression,
+                source,
+                alias,
+                place,
+                statement,
+            } => {
+                evaluation.current = span.id;
+                evaluation.operation_start = span.operation_start;
+                std::mem::swap(&mut evaluation.parameters, &mut span.parameters);
+                std::mem::swap(
+                    &mut evaluation.block_structural_parameters,
+                    &mut span.structural_parameters,
+                );
+                std::mem::swap(&mut evaluation.blocks, blocks);
+                let captured = crate::unit::attached_unit::structural_values::emission::completed_projection::ProjectionEmission {
+                    statement: *statement, environment,
+                    calls, evaluation, values, next_value, next_block, next_edge, operations,
+                }.capture_subject(identities, *expression, source, *alias, *place);
+                span.id = evaluation.current;
+                span.operation_start = evaluation.operation_start;
+                std::mem::swap(&mut evaluation.parameters, &mut span.parameters);
+                std::mem::swap(
+                    &mut evaluation.block_structural_parameters,
+                    &mut span.structural_parameters,
+                );
+                std::mem::swap(&mut evaluation.blocks, blocks);
+                captured?;
+            }
             LoweredScalarEffect::BindCompletedValueAlias { value, alias } => {
                 evaluation.bind_completed_value_alias(*value, *alias, operations)?;
             }

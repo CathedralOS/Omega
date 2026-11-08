@@ -1,8 +1,3 @@
-// Unix unit tests for `BoundedProcessChild`: `Rlimit` intersection, stream
-// disposition validation, mandatory container termination before `finish`,
-// descendant cleanup on drop, and macOS zombie-primary `EPERM` handling in
-// `terminate`.
-
 use super::BoundedProcessChild;
 use crate::{BoundedProcessLimits, BoundedProcessPrepared};
 use std::path::Path;
@@ -173,6 +168,9 @@ fn dropping_execution_kills_descendants_remaining_in_the_process_group() {
 #[cfg(unix)]
 #[test]
 fn terminate_closes_a_group_whose_primary_already_exited() {
+    // `cat` on a null stdin exits at once; the group then holds only its
+    // unreaped zombie, which macOS `killpg` refuses with EPERM rather than
+    // ESRCH. Termination must still close the container and reap it.
     let executable = Path::new("/bin/cat")
         .canonicalize()
         .expect("canonical cat executable");
@@ -210,6 +208,8 @@ fn terminate_still_kills_descendants_after_the_primary_exited() {
 
     let mut child = BoundedProcessChild::spawn(prepared).expect("spawn cleanup execution");
     std::thread::sleep(Duration::from_millis(200));
+    // The primary shell has exited; the backgrounded sleeper remains in the
+    // group. The retry after reaping the primary must reach it.
     child
         .terminate()
         .expect("descendants of an exited primary are still terminated");
@@ -224,6 +224,9 @@ fn terminate_still_kills_descendants_after_the_primary_exited() {
     std::fs::remove_dir_all(test_root).expect("remove cleanup root");
 }
 
+/// A cleanup probe spawns `/bin/sh` in a canonical scratch root and expects an
+/// `escaped-descendant` marker path there. `root_name` prefixes the
+/// pid-scoped directory so parallel probes never share a root.
 fn cleanup_probe_tree(root_name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let test_root = std::env::temp_dir().join(format!("{root_name}-{}", std::process::id()));
     std::fs::create_dir_all(&test_root).expect("create cleanup root");

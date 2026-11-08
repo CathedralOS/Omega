@@ -1,7 +1,4 @@
-// Exact-revision Git resolution tests verifying that persisted commit and tree
-// IDs fetch cold without selector discovery, preserve healthy caches on offline
-// misses, and enforce current source limits on warm recovery.
-
+//! Persisted exact revisions never refresh or acquire an operation-local pin.
 use super::{
     GIT_CACHE_METADATA, GitExactRevisionAcquisition, GitObjectIdAlgorithm, LocalSourceLimits,
     SourceResolveError, local_git_request, resolve_git_source_at_revision_in_lane,
@@ -19,6 +16,8 @@ fn persisted_sha256_objects_fetch_cold_without_discovering_the_authored_selector
     assert_eq!(fixture.commit.algorithm(), GitObjectIdAlgorithm::Sha256);
     assert_eq!(fixture.tree.algorithm(), GitObjectIdAlgorithm::Sha256);
     fixture.advance();
+    // A missing authored selector cannot provide object-format discovery.
+    // Exact persisted IDs still select the earlier reachable commit and tree.
     fixture.request = local_git_request(&fixture.repository, "refs/heads/absent-selector");
     let original = fixture
         .resolve(GitExactRevisionAcquisition::AllowFetch)

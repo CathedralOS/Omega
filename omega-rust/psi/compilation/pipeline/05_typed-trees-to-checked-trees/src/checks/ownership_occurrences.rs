@@ -33,6 +33,7 @@ use typed_trees::statement::{
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct EvaluationBranch {
     expression: ExpressionHandle,
+    source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
     decision: usize,
     selected: bool,
 }
@@ -41,6 +42,7 @@ impl EvaluationBranch {
     pub(super) fn new(expression: ExpressionHandle, decision: usize, selected: bool) -> Self {
         Self {
             expression,
+            source_arm: arena::Handle::invalid(),
             decision,
             selected,
         }
@@ -58,7 +60,20 @@ impl EvaluationBranch {
         self.selected
     }
 
+    pub(super) fn source_arm(self) -> arena::Handle<typed_trees::expression::TableMatchArm> {
+        self.source_arm
+    }
+
+    pub(super) fn opposite(self) -> Self {
+        Self {
+            selected: !self.selected,
+            ..self
+        }
+    }
+
     pub(super) fn same_decision(self, other: Self) -> bool {
+        // Claim joins already name decisions by expression and position.
+        // The arm handle supplies the separate checked case association.
         self.expression == other.expression && self.decision == other.decision
     }
 }
@@ -279,6 +294,7 @@ pub(super) fn statement_steps_at_evaluation(
                 if conditional {
                     order.route.push(EvaluationBranch {
                         expression: ExpressionHandle::invalid(),
+                        source_arm: arena::Handle::invalid(),
                         decision: 0,
                         selected: alternative == 0,
                     });
@@ -380,7 +396,6 @@ fn observed_owned_temporaries_from_occurrences(
 /// a selected or constructed parent. An observed receiver instead retains its
 /// own residual owner for exit cleanup. Production alone does not establish
 /// that residual-cleanup role.
-#[derive(Clone)]
 pub(super) struct OwnedTemporaryOccurrences {
     pub(super) completed: Vec<(ExpressionHandle, TypeReferenceHandle)>,
     pub(super) observed: Vec<(ExpressionHandle, TypeReferenceHandle)>,
@@ -601,7 +616,7 @@ impl StatementOrder<'_> {
                     }
                     let prefix = self.route.len();
                     let arms = super::multiplicity::reachable_arms(self.program, dispatch.arms);
-                    for (decision, (_, arm)) in arms.iter().enumerate() {
+                    for (decision, &(source_arm, arm)) in arms.iter().enumerate() {
                         for pattern in self
                             .program
                             .expression_table
@@ -615,6 +630,7 @@ impl StatementOrder<'_> {
                         if decision + 1 < arms.len() {
                             self.route.push(EvaluationBranch {
                                 expression,
+                                source_arm,
                                 decision,
                                 selected: true,
                             });
@@ -622,6 +638,7 @@ impl StatementOrder<'_> {
                             self.route.pop();
                             self.route.push(EvaluationBranch {
                                 expression,
+                                source_arm,
                                 decision,
                                 selected: false,
                             });
@@ -647,6 +664,7 @@ impl StatementOrder<'_> {
                             if left.is_none() {
                                 self.route.push(EvaluationBranch {
                                     expression,
+                                    source_arm: arena::Handle::invalid(),
                                     decision: 0,
                                     selected: evaluate_when,
                                 });

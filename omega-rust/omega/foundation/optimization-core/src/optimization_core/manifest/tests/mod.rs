@@ -1,5 +1,4 @@
-// Shared test fixtures and submodules for `manifest` record families.
-
+//! Optimizer module role: stage group. Byte-stability and validation contract tests, grouped by record family.
 use super::{OptimizationDecisionRecord, OptimizationFactReference};
 use crate::{
     AcceptedObligationFactIdentity, AnalysisKind, AnalysisSet, OptimizationCandidateIdentity,

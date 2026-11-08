@@ -1,7 +1,4 @@
-//! Borrowed values must still lead to real storage after passing through calls.
-//! Follow every actual input, then check the allocation that owns each possible
-//! source. A slice's containing allocation can stay live even when its exact
-//! byte address is unknown; placed views separately require exact layout.
+//! Discharge borrowed-formal geometry against every actual incoming backing.
 //!
 //! The descriptor analysis owns operation epochs, aliases and call substitution.
 //! Its origins are not alignment evidence: only the selected allocation at the
@@ -15,10 +12,6 @@
 //! descriptor's type. The physical formation check still proves that the pointer
 //! loads the original owner's base field through its retained source loan.
 
-mod activation_residence;
-mod incoming_calls;
-pub(in crate::object::function_fragments::source) use activation_residence::validate as validate_activation_residence;
-
 use abstract_operations::AbstractOperationPlan;
 use selected_instructions::SelectedInstructionPlan;
 use semantic_vocabulary::{MachineId, PlaceId};
@@ -31,23 +24,12 @@ use terminal_semantics::descriptor_results::{
     DescriptorSourceOrigin, descriptor_machine,
 };
 
-/// Both questions use the same exact source/caller transport. The final leaf
-/// supplies geometry for a placed interpretation or an actual activation home.
-#[derive(Clone, Copy)]
-enum BackingRequirement<'a> {
-    Placed(&'a AccessRamCorrespondence),
-    Activation,
-}
-
 pub(in crate::object::function_fragments::source) struct BackingGeometry<'a> {
     abstracted: &'a AbstractOperationPlan,
     selected: &'a SelectedInstructionPlan,
     targeted: &'a target_operations::TargetOperationPlan,
     graph: &'a [DescriptorMachine],
     analysis: DescriptorAnalysis<'a>,
-    incoming: incoming_calls::IncomingCalls,
-    /// Error context only; never used to establish a backing relation.
-    failure_detail: Option<String>,
 }
 
 /// A selected machine call whose portable graph only kept the placed formation
@@ -214,26 +196,6 @@ pub(in crate::object::function_fragments::source) fn completed_graph(
     Some(graph)
 }
 
-/// Inspect current input sources without proving allocation size, lifetime or permission.
-pub(in crate::object::function_fragments::source) fn observe_inputs(
-    source: &AbstractOperationPlan,
-    targeted: &target_operations::TargetOperationPlan,
-    caller: MachineId,
-    site: target_operations::CallSiteOwner,
-    callee: MachineId,
-    origin: &DescriptorSourceOrigin,
-) -> Result<Vec<DescriptorSourceOrigin>, &'static str> {
-    let graph = activation_residence::graph(source, targeted)
-        .ok_or("invocation input has no complete borrowed-storage graph")?;
-    let incoming = incoming_calls::IncomingCalls::new(source, targeted, &graph);
-    let index = incoming.index(caller, site, callee)?;
-    let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(source.structural_types.as_slice(), &graph);
-    incoming
-        .substitute(index, &mut analysis, origin)
-        .map(|(_, sources)| sources)
-}
-
 impl<'a> BackingGeometry<'a> {
     pub(in crate::object::function_fragments::source) fn new(
         abstracted: &'a AbstractOperationPlan,
@@ -246,8 +208,6 @@ impl<'a> BackingGeometry<'a> {
             selected,
             targeted,
             graph,
-            incoming: incoming_calls::IncomingCalls::new(abstracted, targeted, graph),
-            failure_detail: None,
             analysis: DescriptorAnalysis::with_reference_slots(
                 abstracted.structural_types.as_slice(),
                 graph,
@@ -323,85 +283,17 @@ impl<'a> BackingGeometry<'a> {
                 return Err("formation source has no backing alternatives");
             }
             for origin in alternatives {
-                self.origin(
-                    machine,
-                    origin,
-                    BackingRequirement::Placed(required),
-                    &mut Vec::new(),
-                )?;
+                self.origin(machine, origin, required, &mut Vec::new())?;
             }
         }
         Ok(())
-    }
-
-    fn describe_origin(&self, machine: MachineId, origin: &DescriptorSourceOrigin) -> String {
-        let place = match origin {
-            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, .. }) => {
-                Some(*source)
-            }
-            DescriptorSourceOrigin::IncomingSlot(location) => Some(location.root),
-            DescriptorSourceOrigin::IncomingContents { query, .. } => Some(query.root),
-            _ => None,
-        };
-        let home = place.and_then(|place| {
-            let target = self
-                .targeted
-                .functions
-                .iter()
-                .find(|row| row.machine == machine)?;
-            let selected = self.selected.function(machine)?;
-            Some(
-                match super::super::structural_homes::resolve(target, selected, place) {
-                    Ok((
-                        ty,
-                        super::super::structural_homes::SourceHome::Allocation { slot, indirect },
-                    )) => format!("type {ty:?}, allocated {slot:?}, indirect={indirect}"),
-                    Ok((
-                        ty,
-                        super::super::structural_homes::SourceHome::BorrowedFormal(formal),
-                    )) => format!("type {ty:?}, borrowed formal {formal:?}"),
-                    Err(reason) => format!("unresolved home: {reason}"),
-                },
-            )
-        });
-        let definition = place.and_then(|place| {
-            let body = descriptor_machine(self.graph, machine)?;
-            let declaration = body.places.iter().find(|row| row.place == place)?;
-            Some(match &declaration.definition {
-                DescriptorDefinition::Parameter {
-                    position,
-                    access,
-                    structural_type,
-                } => format!("parameter {position}, {access:?}, type {structural_type:?}"),
-                DescriptorDefinition::Arrival { access } => format!("arrival {access:?}"),
-                DescriptorDefinition::Local => "local".to_owned(),
-                DescriptorDefinition::Literal => "literal".to_owned(),
-            })
-        });
-        format!(
-            "inner machine {machine:?}, source {place:?}, definition {definition:?}, {home:?}, origin {origin:?}"
-        )
     }
 
     fn origin(
         &mut self,
         machine: MachineId,
         origin: DescriptorSourceOrigin,
-        required: BackingRequirement<'_>,
-        pending: &mut Vec<(MachineId, DescriptorSourceOrigin)>,
-    ) -> Result<(), &'static str> {
-        let result = self.check_origin(machine, &origin, required, pending);
-        if result.is_err() && self.failure_detail.is_none() {
-            self.failure_detail = Some(self.describe_origin(machine, &origin));
-        }
-        result
-    }
-
-    fn check_origin(
-        &mut self,
-        machine: MachineId,
-        origin: &DescriptorSourceOrigin,
-        required: BackingRequirement<'_>,
+        required: &AccessRamCorrespondence,
         pending: &mut Vec<(MachineId, DescriptorSourceOrigin)>,
     ) -> Result<(), &'static str> {
         if pending
@@ -410,7 +302,7 @@ impl<'a> BackingGeometry<'a> {
         {
             return Err("backing caller equation is cyclic");
         }
-        let (source, incoming_contents) = match origin {
+        let (source, incoming_contents) = match &origin {
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, .. }) => {
                 (*source, false)
             }
@@ -443,15 +335,46 @@ impl<'a> BackingGeometry<'a> {
             // alternative must reach a real allocation, never merely a cycle.
             pending.push((machine, origin.clone()));
             let mut incoming = false;
-            for index in self.incoming.range(machine) {
-                // Borrow the prepared row only for substitution. Recursion then
-                // follows its owned alternatives without cloning the caller roster.
-                let (caller, alternatives) =
-                    self.incoming
-                        .substitute(index, &mut self.analysis, origin)?;
-                incoming = true;
-                for alternative in alternatives {
-                    self.origin(caller, alternative, required, pending)?;
+            for caller in &self.targeted.functions {
+                for operation in caller.graph.operations() {
+                    let operation = match operation {
+                        target_operations::TargetUnitOperation::Call {
+                            target,
+                            psi_operation,
+                            ..
+                        } if target.machine() == Some(machine) => *psi_operation,
+                        target_operations::TargetUnitOperation::CleanupCall { callee, .. }
+                            if *callee == machine =>
+                        {
+                            return Err("cleanup arrival has no reconstructed backing observation");
+                        }
+                        _ => continue,
+                    };
+                    // Census selected callers first: a boundary call must not
+                    // disappear merely because its portable graph is opaque.
+                    let caller_graph = descriptor_machine(self.graph, caller.machine)
+                        .ok_or("selected caller has no reference-origin graph")?;
+                    let mut calls = caller_graph
+                        .calls
+                        .iter()
+                        .filter(|(_, call)| call.operation == operation);
+                    let (Some((position, call)), None) = (calls.next(), calls.next()) else {
+                        return Err("selected call has no unique reference-origin observation");
+                    };
+                    if call.callee() != Some(machine) {
+                        return Err("selected target differs from the reference-origin call");
+                    }
+                    incoming = true;
+                    let alternatives = self
+                        .analysis
+                        .substitute_call_source(caller.machine, *position, &origin)
+                        .ok_or("call argument has no complete backing substitution")?;
+                    if alternatives.is_empty() {
+                        return Err("call argument has no backing alternatives");
+                    }
+                    for alternative in alternatives {
+                        self.origin(caller.machine, alternative, required, pending)?;
+                    }
                 }
             }
             pending.pop();
@@ -462,42 +385,9 @@ impl<'a> BackingGeometry<'a> {
             };
         }
         let DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { projection, .. }) =
-            origin
+            &origin
         else {
             return Err("incoming contents did not resolve to an actual backing");
-        };
-        let required = match required {
-            BackingRequirement::Activation => {
-                let root = *current
-                    .place_types
-                    .get(&source)
-                    .ok_or("activation backing has no retained root type")?;
-                terminal_semantics::inline_backing_container(
-                    self.abstracted.structural_types.as_slice(),
-                    root,
-                    projection,
-                )
-                .ok_or("activation backing has no direct inline container")?;
-                let target = self
-                    .targeted
-                    .functions
-                    .iter()
-                    .find(|row| row.machine == machine)
-                    .ok_or("activation origin has no selected target body")?;
-                let selected = self
-                    .selected
-                    .function(machine)
-                    .ok_or("activation origin has no physical allocation")?;
-                let (_, home) = super::super::structural_homes::resolve(target, selected, source)?;
-                return match home {
-                    super::super::structural_homes::SourceHome::Allocation {
-                        indirect: false,
-                        ..
-                    } => Ok(()),
-                    _ => Err("activation origin names a pointer carrier rather than owned backing"),
-                };
-            }
-            BackingRequirement::Placed(required) => required,
         };
         if !projection.exact
             || projection.indirect

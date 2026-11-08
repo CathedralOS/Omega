@@ -1,25 +1,24 @@
-/*
-We admit and execute the selected provider's produced fixed-frame native adapter.
-
-Admission joins the boundary declaration, native telescope, exact borrowed
-storage layout, and emitted native foreign adapter product while the interpreter
-checks requires, claims, guarantees, and crash routes. No loader name, fixture
-identity, or observed C token selects semantics.
-
-The private worker supplies no additional service authority on its own: explicit
-filesystem delegation admits exact OS operations through its guest descriptor
-namespace, explicit native-service delegation admits package-local service
-reach, and standard descriptors retain their finite input and buffered output
-bindings selected before the invocation's storage presentation is captured.
-*/
+//! Execute the selected provider's produced fixed-frame adapter. Admission
+//! joins the declaration, native telescope, exact layout and emitted product;
+//! the interpreter still checks requires, claims, guarantees and crash routes.
+//! No loader name, fixture identity or observed C token selects semantics.
+//!
+//! The private worker supplies no additional service authority. Explicit
+//! filesystem delegation admits exact OS operations through its guest descriptor
+//! namespace; explicit native-service delegation admits package-local reach
+//! (see `service_reach`). Standard descriptors retain their finite
+//! input/buffered output bindings, selected before the invocation's storage
+//! presentation is captured.
 
 mod original_homes;
+mod readonly_record;
 mod record_fields;
 mod record_shape;
 mod reference_outputs;
 mod service_reach;
 mod values;
 pub(super) use original_homes::{NativeContext, rejection};
+pub(super) use readonly_record::ReadonlyRecord;
 pub(super) use record_shape::{
     IntegerRecordField, matches_integer_record, matches_integer_storage,
     matches_signed_record_array,
@@ -37,82 +36,18 @@ use native_provider_runtime::{
     NativeAdapterId, NativeArgument, NativeHomeId, NativeParameterStorage,
 };
 use runtime_abi::NativeBorrowedStorageLayout;
-use semantic_vocabulary::{BoundaryMachineId, CanonicalStructuralPathSegment as Path, ScalarType};
+use semantic_vocabulary::{BoundaryMachineId, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
-    TerminalImportSignature, TerminalOriginalScalarBackings, TerminalOriginalStorageLoan,
-    TerminalOriginalStorageRequest, TerminalProgram,
+    TerminalImportSignature, TerminalOriginalScalarBackings, TerminalOriginalStorageRequest,
+    TerminalProgram,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
     TerminalPsiIdentity,
 };
-
-pub(in crate::execution::host_imports) struct ReadonlyRecord<'a> {
-    native: &'a NativeContext,
-    references: &'a reference_outputs::ReferenceOutputs,
-    argument: usize,
-    path: Vec<Path>,
-    loan: &'a TerminalOriginalStorageLoan,
-    codec: &'a StorageCodec,
-    bytes: Vec<u8>,
-}
-
-impl<'a> ReadonlyRecord<'a> {
-    fn new(
-        native: &'a NativeContext,
-        references: &'a reference_outputs::ReferenceOutputs,
-        argument: usize,
-        loan: &'a TerminalOriginalStorageLoan,
-        codec: &'a StorageCodec,
-    ) -> Result<Self, TerminalEffectRejection> {
-        let (home, offset) = native.loan(loan, codec)?;
-        let mut bytes = vec![0; codec.extent];
-        native
-            .sponsor
-            .borrow_mut()
-            .with(|process| process.read_home(home, offset, &mut bytes))?;
-        Ok(Self {
-            native,
-            references,
-            argument,
-            path: Vec::new(),
-            loan,
-            codec,
-            bytes,
-        })
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub fn sole_reference(&self) -> Result<Self, TerminalEffectRejection> {
-        let [field] = self.codec.references.as_slice() else {
-            return Err(rejection(
-                "native input changed its complete single-reference roster",
-            ));
-        };
-        let capture = self.references.input_reference(
-            self.native,
-            self.argument,
-            &self.path,
-            self.loan,
-            field,
-        )?;
-        Ok(Self {
-            native: self.native,
-            references: self.references,
-            argument: self.argument,
-            path: capture.path,
-            loan: capture.loan,
-            codec: capture.codec,
-            bytes: capture.bytes,
-        })
-    }
-}
 
 enum Parameter {
     Scalar {
@@ -129,7 +64,6 @@ enum Parameter {
         access: StructuralAccess,
     },
 }
-
 enum ResultCodec {
     Unit,
     Scalar(ScalarType),
@@ -152,7 +86,10 @@ pub(super) struct NativeImport<'host> {
     result: ResultCodec,
     references: reference_outputs::ReferenceOutputs,
     filesystem: Option<super::filesystem::FilesystemCall>,
-    filesystem_header: Option<NativeHomeId>, // Private marshalling storage reused across synchronous calls.
+    // A modeled namespace may need a translated readonly ABI header. It is
+    // private marshalling storage, never an original Source allocation. One
+    // fixed header is reused only after each synchronous call completes.
+    filesystem_header: Option<NativeHomeId>,
     modeled_descriptor: Option<super::descriptor_io::DescriptorIoImport<'host>>,
 }
 
@@ -178,6 +115,9 @@ impl<'host> NativeImport<'host> {
         if locator.target().native_target() != target::NativeTarget::host() {
             return Ok(None);
         }
+        // Modeled descriptor operations own their explicit input/output
+        // capability supply. An exact recognized but unoffered operation
+        // must not fall through to this worker's private null streams.
         if runtime_abi::descriptor_import_identity(locator).is_some() && filesystem.is_none() {
             return Err(missing(
                 "descriptor operation requires its explicit modeled I/O capability".into(),
@@ -341,6 +281,8 @@ impl<'host> NativeImport<'host> {
                 ResultCodec::Record(codec)
             }
         };
+        // Loading can run provider constructors. It happens only after the
+        // whole declaration and all input/result codecs have been admitted.
         let adapter = native
             .sponsor
             .borrow_mut()
@@ -364,7 +306,6 @@ impl<'host> NativeImport<'host> {
         }))
     }
 }
-
 import_signature_via_clone!(NativeImport<'_>);
 
 fn validate_scalar_shape(
@@ -383,7 +324,6 @@ fn validate_scalar_shape(
     }
     Ok(())
 }
-
 fn admit_parameters(
     program: &TerminalProgram,
     declaration: &BoundaryMachineDeclaration,
@@ -567,7 +507,6 @@ impl TerminalEffectHandler for NativeImport<'_> {
             original: true,
         }
     }
-
     fn prepare_original_storage(
         &mut self,
         boundary: BoundaryMachineId,
@@ -589,11 +528,9 @@ impl TerminalEffectHandler for NativeImport<'_> {
         self.references.capture(requests);
         Ok(backings)
     }
-
     handle_effect_requires_dispatch!(rejection(
         "native import requires complete result and storage dispatch"
     ));
-
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,
@@ -758,6 +695,9 @@ impl TerminalEffectHandler for NativeImport<'_> {
                 })?;
             buffer.acknowledge_original_write()?;
         }
+        // Mutable captures are completion observations of the same mapped
+        // homes, never a write-back copy. Core validates them and preserves its
+        // ordinary qualification/provenance and claim completion joins.
         for parameter in &self.parameters {
             let Parameter::Structural {
                 index,
@@ -804,6 +744,9 @@ impl TerminalEffectHandler for NativeImport<'_> {
                         None => None,
                     };
                     if let Some(value) = replacement {
+                        // Opaque OS handle virtualization updates the SAME
+                        // authorized mutable home before publishing completion.
+                        // It never substitutes a loan or copies an allocation.
                         let encoded = encode(value, field.stored)?;
                         let encoded = encoded.get(..codec.extent).ok_or_else(|| {
                             rejection("virtualized native scalar exceeds its exact mutable codec")

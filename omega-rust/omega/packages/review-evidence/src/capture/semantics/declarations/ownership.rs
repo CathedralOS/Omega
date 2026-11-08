@@ -1,15 +1,3 @@
-/*
-We resolve nominal declaration ownership and source-instance membership against
-checked source custody.
-
-Toolchain source identities use the same checked source snapshot and sorted
-digest roster as review type identity: `SourceId` is only a private join
-coordinate, while canonical review bytes retain the compiler-computed digest
-without rehashing each declaration. Current Product declaration membership is
-checked against immutable custody so a supplied selection mask cannot hide a
-live checked declaration, and Product review roots exclude Build declarations.
-*/
-
 use super::identity::nominal_identity;
 use crate::capture::SourceDeclarationInput;
 use crate::record::{
@@ -33,6 +21,9 @@ pub(crate) fn reviewed_package_owns(
     }
 }
 
+/// The reviewed identity of one public product-scope instance the reviewed
+/// package owns, or `None` for an instance review must not publish: a nested
+/// declaration or one whose owner is another package.
 pub(crate) fn owned_identity(
     compilation: &SourceDeclarationInput<'_>,
     package: PackageKeyIdentity,
@@ -88,6 +79,10 @@ pub(crate) fn toolchain_source_identity(
             source_file.path.display(),
         ))]);
     }
+    // This is the same checked source snapshot and sorted digest roster used
+    // by review type identity. SourceId is only its private join coordinate;
+    // canonical review bytes retain the compiler-computed digest, not the ID.
+    // Rehashing each declaration would repeatedly process the same file bytes.
     let position = exact_toolchain_sources
         .binary_search_by_key(&source_file.source_id.0, |(source_id, _)| source_id.0)
         .map_err(|_| {
@@ -114,6 +109,9 @@ pub(crate) fn is_canonical_virtual_toolchain_path(path: &std::path::Path) -> boo
     })
 }
 
+/// Current Product declaration membership is checked against immutable custody.
+/// Retained backing can supply referenced identities but is not another review
+/// root. A supplied selection mask cannot hide a live checked declaration.
 pub(crate) fn is_checked_source_instance(
     compilation: &SourceDeclarationInput<'_>,
     symbol: SymbolHandle,
@@ -142,6 +140,8 @@ pub(crate) fn is_checked_source_instance(
     Ok(selected.0)
 }
 
+/// Product review roots exclude Build declarations. Build/service consumers
+/// separately retain their selected source membership under the same custody.
 pub(crate) fn is_product_scope_instance(
     compilation: &SourceDeclarationInput<'_>,
     symbol: SymbolHandle,

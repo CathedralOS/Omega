@@ -130,25 +130,25 @@ impl<'program> Evaluator<'program> {
         self.usage
             .charge_step()
             .ok_or_else(|| Halt::Trap("evaluator usage overflowed".to_owned()))?;
-        if self.usage.work_units() > self.step_budget {
+        if self.usage.fuel_units() > self.step_budget {
             return trap("step budget exceeded");
         }
         if let Some(sponsor) = &self.build_evaluation_sponsor {
-            sponsor.charge_work_unit().map_err(Halt::Resource)?;
+            sponsor.charge_fuel_unit().map_err(Halt::Resource)?;
         }
         Ok(())
     }
 
     pub(in crate::interpreter) fn configure_build_evaluation(
         &mut self,
-        work_budget: u64,
+        fuel_ceiling: u64,
         sponsor: Option<BuildEvaluationSponsor>,
     ) {
         debug_assert_eq!(self.cell_meter.peak(), 0);
         debug_assert_eq!(self.text_byte_meter.peak(), 0);
-        self.step_budget = work_budget;
+        self.step_budget = fuel_ceiling;
         self.semantic_float_evaluation = true;
-        self.usage.set_work_budget(work_budget);
+        self.usage.set_fuel_ceiling(fuel_ceiling);
         self.cell_meter = CellMeter::new(sponsor.clone());
         self.text_byte_meter = TextByteMeter::new(sponsor.clone());
         self.build_evaluation_sponsor = sponsor;

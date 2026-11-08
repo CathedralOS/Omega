@@ -609,7 +609,7 @@ compact fingerprint or signature uniqueness.
 Realized envelopes retain reach, invocation, suspension, blocking, termination,
 crash, mutation, and capability facts with independent provenance. Per-entry
 resource rows and callback receipts bind the same exact machine/entry/contract
-to three downstream obligations: stack closure, control/work schedule, and
+to three downstream obligations: stack closure, control/fuel schedule, and
 machine-state footprint. These checked rows contain no numerical resource bound,
 target footprint, provider receipt, or installation grant. Admission still needs
 independently derived downstream evidence.

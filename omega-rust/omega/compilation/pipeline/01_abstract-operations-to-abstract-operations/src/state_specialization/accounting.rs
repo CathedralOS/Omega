@@ -42,13 +42,13 @@ pub(crate) fn provenance_rows(
             input: incoming_site,
             disposition: ProvenanceDisposition::RealizedAt(incoming_site),
             sources: incoming.provenance.clone(),
-            work: incoming.work.clone(),
+            fuel: incoming.fuel.clone(),
         });
         rows.push(ProvenanceRewrite {
             input: resolved_site,
             disposition: ProvenanceDisposition::RealizedAt(incoming_site),
             sources: resolved.provenance.clone(),
-            work: resolved.work.clone(),
+            fuel: resolved.fuel.clone(),
         });
         resolved_edges.insert(row.taken_edge);
     }
@@ -62,7 +62,7 @@ pub(crate) fn provenance_rows(
             input: resolved_site,
             disposition: ProvenanceDisposition::RealizedAt(resolved_site),
             sources: resolved.provenance.clone(),
-            work: resolved.work.clone(),
+            fuel: resolved.fuel.clone(),
         });
     }
     rows.sort_by_key(ProvenanceRewrite::canonical_sort_key);

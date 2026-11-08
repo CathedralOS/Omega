@@ -15,7 +15,7 @@ pub use instructions::{BlockMachineEffects, FunctionMachineEffects, InstructionM
 use crate::{MachineEffectCatalogIdentity, SelectedInstructionPlanIdentity};
 use optimization_core::OptimizationUnitIdentity;
 use register_model::{RegisterConstraintCatalogIdentity, TargetRegisterEnvironmentIdentity};
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
 
 crate::identity::sha256_identity!(PreAllocationMachineEffectIdentity);
@@ -39,7 +39,7 @@ pub struct PreAllocationMachineEffectPlan {
     pub identity: PreAllocationMachineEffectIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub work_schedule: WorkScheduleIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub register_constraints: RegisterConstraintCatalogIdentity,

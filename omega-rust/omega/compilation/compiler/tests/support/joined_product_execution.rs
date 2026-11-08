@@ -24,7 +24,7 @@ pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path)
                 .target_name(),
         ),
         provisions: report.runtime_provisions(),
-        work_budget: 100_000,
+        fuel_allowance: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,
         clock: None,

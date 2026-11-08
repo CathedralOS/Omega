@@ -31,7 +31,7 @@ pub(crate) fn shared_reference_observation<'facts>(
         .operand
         .recorded_in(control)
         .ok_or("the value producer has no recorded operand association")?;
-    let (actuals, _) = crate::flow::captured_call_operands(program, facts.flow.view(), state, call)
+    let (actuals, _) = crate::flow::captured_call_operands(program, &facts.flow, state, call)
         .ok_or("the invocation has no complete actual roster")?;
     if !call.operands.handles().any(|actual| actual == observation)
         || captured.observation.state_symbol != state.state_symbol
@@ -143,7 +143,7 @@ pub(crate) fn shared_reference_observation<'facts>(
     let epoch = actuals
         .last()
         .ok_or("the invocation has no completed actual cut")?;
-    let prepared_loans = LoanOccurrences::for_state(program, facts.view(), state);
+    let prepared_loans = LoanOccurrences::for_state(program, facts, state);
     let loan_occurrences = &prepared_loans;
     let backings = super::completed_backings::resolve_at_path(
         program,
@@ -305,13 +305,8 @@ fn write_permission_envelope(
             reference.access,
             language_semantics::ReferenceAccess::Mutable
                 | language_semantics::ReferenceAccess::WriteOnly
-        ) || !crate::flow::operand_bindings_agree(
-            program,
-            facts.flow.view(),
-            earlier,
-            epoch,
-            &root,
-        ) {
+        ) || !crate::flow::operand_bindings_agree(program, &facts.flow, earlier, epoch, &root)
+        {
             return Err("the writer has no unchanged mutable descriptor grant");
         }
         reference.referee

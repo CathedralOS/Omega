@@ -1,24 +1,12 @@
-// Compiler intrinsic execution, installation reach, provider grant selectors,
-// family coverage, and D29 boundary-application realization records.
-//
-// `PrimitiveIntegerComparison` retains the authored integer comparison token on
-// a fixed-width operand type with any swapped or negated Terminal emission
-// folded back into `operation`. `PackageReviewProviderFamilyCoverage` records
-// closed coverage for an atomic boundary-operator family while closed
-// applications remain a separate evidence axis under
-// `boundary_application_realizations`. `PackageReviewBoundaryApplicationRealization`
-// keeps checked bodies and compiler intrinsics as disjoint variants so absent
-// fields are never mistaken for evidence supplied by another role.
-
 use super::super::identity::PackageReviewNominalIdentity;
 use super::super::signatures::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
 
+/// Exact declarations bound to one selected provider realization row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewCompilerIntrinsicExecution {
     AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
     EmptyRunRelease,
-    StaticInterrupt(language_core::static_interrupts::StaticInterruptOperation),
     HostedExitProcessI32,
     HostedWriteByteI32,
     HostedReadByte,
@@ -39,6 +27,10 @@ pub enum PackageReviewCompilerIntrinsicExecution {
         operation: provider_planning::CompilerPrimitiveFloatBinaryOperation,
         format: numerics::literals::FloatFormat,
     },
+    /// One authored integer comparison spelling (`==`/`!=`/`<`/`<=`/`>`/`>=`)
+    /// on an exact fixed-width operand type. The authored token is the
+    /// operation identity; any swapped or negated Terminal emission is already
+    /// folded back into `operation` here.
     PrimitiveIntegerComparison {
         operation: provider_planning::CompilerPrimitiveIntegerComparisonOperation,
         integer_type: provider_planning::CompilerNumericType,
@@ -51,6 +43,8 @@ pub enum PackageReviewCompilerIntrinsicExecution {
     },
 }
 
+/// One installation-bound provider requirement's published ceiling and exact
+/// checked realization reach.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewSelectedInstallationReach {
     pub(crate) upper_bound: Vec<PackageReviewNominalIdentity>,
@@ -62,23 +56,38 @@ impl PackageReviewSelectedInstallationReach {
     field_projection_accessors!(sliced resolved: &[PackageReviewNominalIdentity]);
 }
 
+/// Authored selector vocabulary for one admitted selected-provider grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewProviderGrantSelectorKind {
     PlanName,
     ProviderSlot,
 }
 
+/// Which ordinary compiler-owned authority selected one provider family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewProviderSelectionAuthority {
     BuildOverride,
     TargetDefault,
 }
 
+/// Closed coverage vocabulary for an atomic boundary-operator family.
+///
+/// This axis means every declaration coordinate in the selected family is
+/// covered, including generic coordinates once final specialization has
+/// rejoined each of their retained closed applications to the coordinate's
+/// selected plan. Closed applications remain a separate evidence axis under
+/// `boundary_application_realizations`; universal coverage of generic
+/// customers stays unimplemented and fail-closed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewProviderFamilyCoverage {
     CompleteDeclarationFamily,
 }
 
+/// Canonical D29 application shape admitted by package review.
+///
+/// The empty telescope is explicit rather than inferred from a missing field.
+/// Nonempty applications retain declaration-ordered category/ordinal bindings;
+/// the enclosing operator declaration owns the binder telescope.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewBoundaryApplication {
     Empty,
@@ -107,6 +116,13 @@ pub enum PackageReviewSymbolicBoundaryApplicationArgument {
     },
 }
 
+/// Role-specific semantic realization retained for one exact application.
+///
+/// Checked bodies and compiler intrinsics do not share a meaningful payload:
+/// the former is authorized by an independently replayed machine contract,
+/// while the latter is identified by the compiler's closed execution catalog.
+/// Keeping them as disjoint variants prevents absent fields from being
+/// mistaken for evidence supplied by another role.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PackageReviewBoundaryApplicationRealization {
     NongenericCheckedBody {
@@ -126,6 +142,12 @@ pub(crate) enum PackageReviewBoundaryApplicationRealization {
     },
 }
 
+/// One actual checked boundary-operator application rejoined to its exact
+/// selected plan and independently retained checked realization.
+///
+/// This row deliberately stops before Terminal/native coverage. It records a
+/// compiler-rechecked semantic relation for review and makes no claim that
+/// machine code was emitted or that any external authority admitted it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CheckedPackageBoundaryApplicationRealizationReview {
     pub(crate) requirement_identity: String,

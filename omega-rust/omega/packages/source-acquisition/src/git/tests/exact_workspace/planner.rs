@@ -1,6 +1,3 @@
-// Deterministic workspace projection planner used by exact-workspace tests to
-// verify that discovery and selection see exact historical declarations.
-
 use super::super::{
     GitWorkspaceDeclaration, GitWorkspaceProjectionPlanner, GitWorkspaceSelection,
     SourceRelativePath,

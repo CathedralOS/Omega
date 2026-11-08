@@ -1,7 +1,9 @@
-// `structural_variant_accessor!`: generates `pub const fn structural(&self)`
-// on an operation result enum, returning `Some(result)` on `Self::Structural`
-// and `None` on explicitly named non-structural arms.
+//! Shared result-variant accessor expansions for operation result enums.
 
+/// Expands the `structural` result-variant accessor on an operation result
+/// enum: `Self::Structural(result) => Some(result)` while every other variant
+/// maps to `None`. The rejected arms are passed verbatim so the match keeps
+/// naming the variants it refuses rather than catching all.
 #[macro_export]
 macro_rules! structural_variant_accessor {
     ($result:ty; $($rest:tt)*) => {

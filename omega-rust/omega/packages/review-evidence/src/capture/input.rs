@@ -1,18 +1,4 @@
-/*
-Read-only review inputs (`PackageReviewInput`, `SourceDeclarationInput`, and
-`ContractOwnerQueries`) separating untrusted semantic candidates from immutable
-compiler-issued custody.
-
-`PackageReviewInput::supplied` pairs a candidate `CheckedTrees` with a borrowed
-`CheckedCompilation` custody without merging their query namespaces:
-`checking_input` and `mathematical_calls` evaluate against the supplied
-candidate, whereas `original_checking_input` and `original_mathematical_calls`
-evaluate against the original checked program. `project_service_declarations`
-prepares an independent `PreparedServiceCatalog` for the supplied candidate so
-source handles never cross between candidate and custody namespaces.
-`ContractOwnerQueries` lazily builds a single `OwnerEnvironmentIndex` per
-callable-projection batch after verifying `expression_table.call_node(expression)`.
-*/
+//! Semantic review candidates remain separate from compiler-issued custody.
 
 use checked_trees::CheckedTrees;
 use checked_trees::typed_trees::service_declarations::PreparedServiceCatalog;
@@ -24,6 +10,12 @@ use psi_terminal_production::ExternalProviderDeclarations;
 use typed_trees::machine::Machine;
 use validation::expression_owners::OwnerEnvironmentIndex;
 
+/// Read-only inputs for producing inert package-review evidence.
+///
+/// The semantic program may be supplied independently and is not presumed to
+/// match the original compilation. Capture rejoins it to the borrowed source
+/// and selection custody. This view cannot construct a checked compilation,
+/// change compiler state, or authorize execution or package admission.
 #[derive(Clone, Copy)]
 pub struct PackageReviewInput<'a> {
     pub(crate) source: SourceDeclarationInput<'a>,
@@ -32,12 +24,21 @@ pub struct PackageReviewInput<'a> {
     pub(crate) external_providers: Option<&'a ExternalProviderDeclarations>,
 }
 
+/// Read declarations and contracts before target code is produced. This view
+/// carries no target selection or executable authority. Independent review may
+/// compare a supplied program with the original checked program.
 #[derive(Clone, Copy)]
 pub struct SourceDeclarationInput<'a> {
     pub(crate) program: &'a CheckedTrees,
-    pub(crate) checking_input: &'a dyn validation::CheckingInput, // Supplied candidate query state.
-    pub(crate) original_checking_input: &'a dyn validation::CheckingInput, // Immutable custody query state.
-    pub(crate) contract_owner_queries: Option<&'a ContractOwnerQueries<'a>>, // Batch-local owner index scratch.
+    /// Read-only query state travels with the exact supplied semantic program.
+    /// Aggregate projection lends its invocation context; standalone projections
+    /// use the bare program without discovering another projection's memos.
+    pub(crate) checking_input: &'a dyn validation::CheckingInput,
+    /// Original checked trees have a separate immutable query namespace. A
+    /// supplied candidate's memo must never stand in for compiler custody.
+    pub(crate) original_checking_input: &'a dyn validation::CheckingInput,
+    /// Scratch for one immutable callable-projection batch, never custody.
+    pub(crate) contract_owner_queries: Option<&'a ContractOwnerQueries<'a>>,
     pub(crate) mathematical_calls:
         Option<&'a super::contracts::mathematical_calls::MathematicalCallQueries<'a>>,
     pub(crate) original_mathematical_calls:
@@ -77,6 +78,8 @@ impl<'a> SourceDeclarationInput<'a> {
 }
 
 impl<'a> PackageReviewInput<'a> {
+    /// Review an untrusted semantic candidate against immutable compiler custody.
+    /// Results are review data only, never checked compiler or execution authority.
     pub fn supplied(program: &'a CheckedTrees, custody: &'a CheckedCompilation) -> Self {
         Self {
             source: SourceDeclarationInput {
@@ -96,6 +99,8 @@ impl<'a> PackageReviewInput<'a> {
         }
     }
 
+    /// Prepare one independent candidate projection at review ingress. Custody
+    /// already owns its projection from checked-provider binding.
     pub(super) fn project_external_providers(
         &self,
     ) -> Result<ExternalProviderDeclarations, Vec<diagnostics::Diagnostic>> {
@@ -110,11 +115,15 @@ impl<'a> PackageReviewInput<'a> {
         })
     }
 
+    /// Project the supplied program independently. The original catalog stays
+    /// in custody; source handles never cross between these namespaces.
     pub(super) fn project_service_declarations(
         &self,
     ) -> Result<ServiceDeclarations, Vec<diagnostics::Diagnostic>> {
         let context =
             ProviderPlanningContext::new(self.checking_input, source::DependencyScope::Product);
+        // The supplied candidate is independent source, never the custody's
+        // source-coordinate catalog. Keep the borrowed owner unchanged here.
         let catalog = std::sync::Arc::new(PreparedServiceCatalog::prepare(
             context,
             self.custody.sources().exact_toolchain_sources(),
@@ -130,6 +139,8 @@ impl<'a> PackageReviewInput<'a> {
 }
 
 impl<'a> SourceDeclarationInput<'a> {
+    /// Ask the same checked target query with this batch's raw owner setup.
+    /// Standalone projections retain the original unindexed query path.
     pub(crate) fn derive_checked_nominal_call_target(
         &self,
         expression: typed_trees::expression::ExpressionHandle,
@@ -145,6 +156,9 @@ impl<'a> SourceDeclarationInput<'a> {
         }
     }
 
+    /// The one checked machine a retained symbol names. Machine symbols form a
+    /// source-graph set, so a duplicate is not a choice: a caller that needs one
+    /// machine states its own refusal, both for absence and for ambiguity.
     pub(crate) fn exact_machine(&self, symbol: symbols::SymbolHandle) -> Option<&Machine> {
         let mut machines = self
             .machines()
@@ -154,6 +168,9 @@ impl<'a> SourceDeclarationInput<'a> {
         machines.next().is_none().then_some(only)
     }
 
+    /// Authored deployment scope must agree with immutable compiler custody.
+    /// A selected member's cleared marker cannot establish portability, and
+    /// a supplied candidate cannot hide a member by deleting its family row.
     pub(super) fn authored_machine_target(
         &self,
         symbol: symbols::SymbolHandle,
@@ -183,6 +200,10 @@ impl<'a> SourceDeclarationInput<'a> {
 }
 
 impl<'a> SourceDeclarationInput<'a> {
+    /// Every retained authored selection row that settled one authored
+    /// occurrence of `expression`, in occurrence order. An occurrence the
+    /// checking ledger never settled contributes no row; callers keep their own
+    /// exactness and exposure gates over the result.
     pub(crate) fn authored_selections(
         &self,
         expression: typed_trees::expression::ExpressionHandle,
@@ -220,6 +241,9 @@ impl std::ops::Deref for SourceDeclarationInput<'_> {
     }
 }
 
+/// Existing raw owner/site associations, bound to one exact immutable program
+/// and its supplied checked contracts for one package's callable projection.
+/// No call target or proof result is retained here.
 pub(crate) struct ContractOwnerQueries<'program> {
     program: &'program dyn validation::CheckingInput,
     facts: &'program checked_trees::CheckFacts,
@@ -242,6 +266,7 @@ impl<'program> ContractOwnerQueries<'program> {
         &self,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<symbols::SymbolHandle> {
+        // The old query's first guard remains before any forest setup.
         self.program.expression_table.call_node(expression)?;
         let owners = self.owners.get_or_init(|| {
             OwnerEnvironmentIndex::new(self.program, &self.facts.proof.contract_facts)

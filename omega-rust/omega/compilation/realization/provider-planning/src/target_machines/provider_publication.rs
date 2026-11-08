@@ -1,9 +1,14 @@
-// We close authored selections into source-free target proposals. Publication
-// consumes retained authored inventories and ordinary whole-provider selection
-// without deriving candidates or settling defaults. `provider_selection_roots`
-// enumerates the complete interface roster for selections, including inherited
-// boundary methods, so a whole-provider selection never turns into an
-// unauthorized partial composition.
+//! Close authored selections into source-free target proposals.
+//!
+//! Consume retained authored inventories and ordinary whole-provider selection;
+//! publication never derives candidates or settles defaults. Build identities join the
+//! canonical candidate catalog, including independently owned named maps.
+//! Canonical candidates retain their original selected-row coordinates beside
+//! closed instances. One shared projection enumerates complete rosters both at
+//! publication and at receiving admission; a proposal cannot truncate them.
+//! Publication exports no source-index companion. No provider display path
+//! is a semantic lookup key at this crossing. Unavailable target selection is
+//! retained as a refusal, not a reason to invalidate other portable targets.
 
 use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject};
 use diagnostics::Diagnostic;
@@ -12,6 +17,9 @@ use symbols::SymbolHandle;
 pub use provider_selection::PreparedTargetProviderPublication;
 use provider_selection::{PreparedProviderCandidate, PreparedTargetChoices};
 
+/// Complete interface roster for selections, including inherited methods.
+/// Retaining only called coordinates would turn a whole-provider selection
+/// into an unauthorized partial composition.
 pub fn provider_selection_roots<'selection>(
     context: ProviderPlanningContext<'_>,
     selections: impl IntoIterator<Item = &'selection ProviderSelection>,
@@ -60,10 +68,14 @@ pub fn provider_selection_roots<'selection>(
     Ok(roots)
 }
 
+/// Prepare source relationships before Terminal production. Artifact demand
+/// remains unknown here; no candidate is selected or installed by preparation.
 pub(crate) struct TargetProviderPreparationRequest<'program> {
     pub context: ProviderPlanningContext<'program>,
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
-    pub application_roots: Option<&'program [(String, SymbolHandle)]>, // None is reusable Source checking; Some is the complete Build deployment entry roster.
+    /// None is reusable Source checking; Some is the complete Build deployment
+    /// entry roster, with provider-only deployments represented by an empty slice.
+    pub application_roots: Option<&'program [(String, SymbolHandle)]>,
     pub overrides: &'program [ProviderSelection],
 }
 
@@ -112,6 +124,8 @@ impl TargetProviderPreparationRequest<'_> {
         let mut prepared = Vec::with_capacity(candidates.len());
         for candidate in candidates {
             let schema = candidate.provenance.schema.symbol();
+            // A whole map also supplies its inherited requirements. Calls name
+            // their declaring owner, not necessarily this map's root trait.
             let schema_owner = self.declaration_identity(schema)?;
             let mut schema_symbols = Vec::new();
             if let Some(definition) = self.context.typed.trait_definition_by_symbol(schema) {
@@ -134,6 +148,9 @@ impl TargetProviderPreparationRequest<'_> {
             let explicitly_selected = explicit_choices
                 .iter()
                 .any(|choice| choice.subject.selects_plan(&Ok(schema), &candidate.plan));
+            // Close nominal and numeric realization declarations while source
+            // custody exists. Retain failure until selection and provenance
+            // admission demand this candidate, preserving the prior boundary.
             let closed_declarations = crate::provider_declarations::close_provider_declarations(
                 self.context,
                 self.exact_toolchain_sources,

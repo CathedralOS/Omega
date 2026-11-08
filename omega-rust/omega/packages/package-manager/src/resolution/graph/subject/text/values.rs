@@ -1,6 +1,4 @@
-// We charge typed field conversions against the recovery budget and validate
-// package names and aliases before calling their constructors so invalid tokens
-// are rejected without extra error-formatting allocations.
+//! Charge typed field conversions before calling their existing owners.
 
 use super::Error;
 use super::framing::Reader;
@@ -10,6 +8,8 @@ use package_source::SourceRelativePath;
 impl Reader<'_> {
     pub(super) fn package_name(&mut self, maximum: usize) -> Result<PackageName, Error> {
         let value = self.string(maximum)?;
+        // Reject before the original owner's owned error formatting. A valid
+        // ProjectName consumes this String without another allocation.
         if !build_declarations::ProjectName::is_valid(&value) {
             return Err(Error::new("invalid text package name"));
         }
@@ -34,6 +34,7 @@ impl Reader<'_> {
 
     pub(super) fn hex_string(&mut self, maximum: usize) -> Result<String, Error> {
         let value = self.string(maximum)?;
+        // Existing source digest/object-ID owners decode through a byte Vec.
         self.budget.charge(value.len() / 2)?;
         Ok(value)
     }

@@ -34,7 +34,7 @@ pub(crate) fn seal_stored_load_forwarding(
     canonical.extend_from_slice(&source.optimization_unit_identity().bytes());
     crate::codec_bytes::push_encoded(
         &mut canonical,
-        source.work_schedule_identity().marker().to_le_bytes(),
+        source.fuel_schedule_identity().marker().to_le_bytes(),
     );
     crate::codec_bytes::push_encoded(&mut canonical, (function_index as u64).to_le_bytes());
     crate::codec_bytes::push_encoded(&mut canonical, load.0.to_le_bytes());

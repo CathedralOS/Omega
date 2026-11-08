@@ -45,7 +45,7 @@ pub(crate) fn compute_terminal_recovery_classifications<S: SelectedProgramView>(
         register_environment: legality.receipt().register_environment(),
         allocator_availability: legality.receipt().allocator_availability(),
         optimization_unit: selected.optimization_unit_identity(),
-        work_schedule: selected.work_schedule_identity(),
+        fuel_schedule: selected.fuel_schedule_identity(),
         policy,
         budget,
         usage,
@@ -61,7 +61,7 @@ fn validate_roots(
 ) -> Result<(), RecoveryClassificationError> {
     if ranges.receipt().selected() != selected.selected_identity()
         || ranges.receipt().optimization_unit() != selected.optimization_unit_identity()
-        || ranges.receipt().work_schedule() != selected.work_schedule_identity()
+        || ranges.receipt().fuel_schedule() != selected.fuel_schedule_identity()
         || legality.receipt().ranges() != ranges.receipt().identity()
         || spill_choices.receipt().ranges() != ranges.receipt().identity()
         || spill_choices.receipt().legality() != legality.receipt().identity()

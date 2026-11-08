@@ -151,7 +151,7 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     }
     if conversion_control(form) {
         encoded.implicit_unit_clobbers =
-            sorted_units(clobbers().into_iter().chain(units("condition_flags")));
+            sorted_units(clobbers().into_iter().chain(units("rflags")));
     }
     // Both ternary forms hold their addend in xmm3, as their shared row states.
     if form.operand_count() == 3 {

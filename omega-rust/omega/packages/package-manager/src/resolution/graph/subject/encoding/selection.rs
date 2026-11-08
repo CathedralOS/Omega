@@ -1,7 +1,4 @@
-// We encode canonical root and dependency source selections. Existing
-// catalog-free subjects retain their exact v7 identity and decision bindings,
-// `Build`-only catalog subjects retain v8, and demand-time `Product` query
-// catalog dependencies use v9 with explicit purpose tags.
+//! Canonical root and dependency source-selection encoding.
 
 use super::super::SOURCE_CLOSURE_SUBJECT_MAGIC;
 use super::super::{
@@ -60,6 +57,9 @@ fn encode_subject_to(
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     encoder.fixed(SOURCE_CLOSURE_SUBJECT_MAGIC);
+    // Existing subjects retain their exact v7 identity and decision bindings.
+    // Build-only catalog subjects retain v8. Queries add Product-purpose rows
+    // whose explicit purpose is part of v9 identity, never a new import grant.
     let purpose_tagged_catalog = catalog_dependencies
         .iter()
         .any(|dependency| dependency.purpose != DependencyPurpose::Build);

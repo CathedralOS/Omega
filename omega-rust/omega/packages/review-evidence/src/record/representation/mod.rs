@@ -1,4 +1,4 @@
-// Stable representation trust evidence for opaque types, boundary shapes, physical movement, and target geometry.
+//! Stable representation trust evidence.
 
 mod movement;
 mod policy;

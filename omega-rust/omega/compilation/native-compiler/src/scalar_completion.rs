@@ -1,8 +1,7 @@
-// Explicit scalar demand between native preparation and native lowering.
-// The application sponsors evaluation; `NativeScalarCompletion` retains only
-// the deduplicated `ScalarApplicationId` demand and the completed
-// `AdmittedScalarApplications` judgment, never an evaluator or a callback into
-// Psi.
+//! Explicit scalar demand between native preparation and native lowering.
+//!
+//! The application sponsors evaluation. Native compilation retains only the
+//! request and completed judgment, never an evaluator or a callback into Psi.
 
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -63,6 +62,8 @@ impl<'input> NativeScalarCompletion<'input> {
         self.proposal.target_provider_proposals()
     }
 
+    /// Retain the application-produced judgment. Native lowering independently
+    /// binds it to the artifact, original provider companion and exact demand.
     pub fn complete(
         &mut self,
         completed: terminal_installation::AdmittedScalarApplications,

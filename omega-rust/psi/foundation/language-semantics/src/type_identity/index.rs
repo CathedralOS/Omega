@@ -38,6 +38,7 @@ pub(super) fn expression(
         IndexForm::BitwiseNot
         | IndexForm::LogicalNot
         | IndexForm::Borrow
+        | IndexForm::CaseComponent
         | IndexForm::MutableBorrow
         | IndexForm::WriteOnlyBorrow => compound(reader, visitor, expression),
         IndexForm::Add
@@ -253,7 +254,10 @@ fn destructured_field(
         grammar::name_atom(reader, Label::Name, visitor)?;
         reader.expect(b',')?;
         match reader.production::<FieldActionForm>()? {
-            FieldActionForm::Bind | FieldActionForm::Waive => scoped(visitor, |_| Ok(())),
+            FieldActionForm::Bind
+            | FieldActionForm::Waive
+            | FieldActionForm::BindCase
+            | FieldActionForm::WaiveCase => scoped(visitor, |_| Ok(())),
             FieldActionForm::Equal => compound(reader, visitor, expression),
         }
     })

@@ -43,7 +43,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             self.context.dynamic_conformances.as_ref()?,
             selector,
             slot.parameters.first()?.type_reference,
-            &[],
             Some((self.state.symbol, statements)),
         )?;
         let conformance = self.program.conformance_by_symbol(implementation)?;
@@ -109,94 +108,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             ),
         ))
     }
-
-    /// Parameter paths whose completed value is one dynamic implementation.
-    /// Only a field the caller actually formed is recorded. An unknown field
-    /// stays off the list so the body keeps the requirement ceiling there.
-    pub(super) fn known_dynamic_selectors(
-        &mut self,
-        parameters: &[typed_trees::signature::StateParameter],
-        actuals: HandleSpan<FlowOperandFact>,
-    ) -> Vec<(SymbolHandle, Vec<PlaceSegment>, SymbolHandle)> {
-        if parameters.len() != actuals.count() as usize {
-            return Vec::new();
-        }
-        let Some(receipts) = self.context.dynamic_conformances.as_ref() else {
-            return Vec::new();
-        };
-        let statements = super::super::appended_span_since(
-            &self.context.control.statements,
-            self.context.state_statements_start,
-        );
-        let mut selectors = Vec::new();
-        for (parameter, actual) in parameters.iter().zip(actuals.handles()) {
-            let mut paths = Vec::new();
-            dynamic_selector_paths(
-                self.program,
-                parameter.type_reference,
-                &mut Vec::new(),
-                &mut paths,
-            );
-            for (path, expected) in paths {
-                // The argument is the whole parameter value. The coercion lives
-                // at this field, so the walk starts there rather than at the
-                // aggregate, whose type is not the dynamic interface.
-                let Some(implementation) = completed_selection(
-                    self.program,
-                    &self.context.control,
-                    receipts,
-                    actual,
-                    expected,
-                    &path,
-                    Some((self.state.symbol, statements)),
-                ) else {
-                    continue;
-                };
-                selectors.push((parameter.symbol, path, implementation));
-            }
-        }
-        selectors
-    }
-}
-
-fn dynamic_selector_paths(
-    program: &dyn validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    prefix: &mut Vec<PlaceSegment>,
-    paths: &mut Vec<(Vec<PlaceSegment>, TypeReferenceHandle)>,
-) {
-    use typed_trees::types::TypeReferenceNode;
-    if !type_reference.is_valid() || prefix.len() > 8 {
-        return;
-    }
-    let reference = program
-        .type_reference_table
-        .unconstrained_type_reference(type_reference);
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::DynamicTrait { .. } if !prefix.is_empty() => {
-            paths.push((prefix.clone(), reference));
-        }
-        TypeReferenceNode::Named { symbol, .. }
-        | TypeReferenceNode::Generic {
-            base_symbol: symbol,
-            ..
-        } => {
-            let Some(definition) = program.data_definition_by_symbol(*symbol) else {
-                return;
-            };
-            for member in program.data_members(definition) {
-                let typed_trees::data::DataMember::Field(field) = member else {
-                    continue;
-                };
-                prefix.push(PlaceSegment::Field {
-                    symbol: field.symbol,
-                });
-                dynamic_selector_paths(program, field.type_reference, prefix, paths);
-                prefix.pop();
-            }
-        }
-        _ => {}
-    }
 }
 
 fn completed_selection(
@@ -205,7 +116,6 @@ fn completed_selection(
     receipts: &DynamicConformanceFacts,
     value: Handle<FlowOperandFact>,
     expected: TypeReferenceHandle,
-    projection: &[PlaceSegment],
     active_statements: Option<(SymbolHandle, HandleSpan<FlowStatementFact>)>,
 ) -> Option<SymbolHandle> {
     enum Work {
@@ -213,7 +123,7 @@ fn completed_selection(
         Leave,
     }
     let expected = program.normalized_type_identity(expected);
-    let mut pending = vec![Work::Visit(value, projection.to_vec())];
+    let mut pending = vec![Work::Visit(value, Vec::new())];
     let mut active = Vec::new();
     let mut selected = None;
     while let Some(work) = pending.pop() {

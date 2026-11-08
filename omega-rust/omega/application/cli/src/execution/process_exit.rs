@@ -1,31 +1,26 @@
-/*
-
-Portable host wait-status observation and comparison (`ProcessExitObservation`).
-
-We keep numeric exit codes (`Exited`), Unix signal deaths (`Signaled`), and
-unclassified terminations (`Terminated`) distinct rather than collapsing
-non-exit deaths into a synthetic numeric code like `-1`:
-- `matches_host_presentation` compares a numeric exit code against the host OS's
-  wait-status width: Unix `waitpid` retains only the low 8 bits (`status & 255`),
-  whereas Windows retains the full 32-bit `i32` pattern. A `Signaled` or
-  `Terminated` process never matches a numeric completion.
-- `matches_crash_presentation` checks whether a native child died with the exact
-  architectural trap emitted by our backend (`BRK` -> `SIGTRAP` on ARM64
-  Unix, `UD2` -> `SIGILL` on x86-64 Unix, and `STATUS_ILLEGAL_INSTRUCTION`
-  `-1073741795` on x86-64 Windows). Unrelated signals such as `SIGSEGV` (`11`)
-  are rejected so a wild pointer crash is never mistaken for an intentional
-  `CrashCause::Trap`. `CrashCause::Abort` has no admitted trap mapping here.
-
-*/
+//! Host wait-status presentation, separate from exact Terminal completion.
+//!
+//! The emitted architectural crash leaf is BRK on ARM64 and UD2 on x86-64.
+//! Hosted systems present these as SIGTRAP, SIGILL, or a Windows illegal-
+//! instruction status. A segfault is not a trap just because both lack an exit
+//! code. This mapping belongs to the host observer, not the portable interpreter.
+//! Agreement cannot identify a crash site or establish semantic trace equality;
+//! Windows also cannot distinguish that exception status from an explicitly
+//! supplied exit code with the same bits. Abort has no admitted mapping here.
 
 use target::TargetProfile;
 use terminal_psi::CrashCause;
 
+/// Portable observation of one child process's termination. Signal death and
+/// missing host observations must not collapse into a numeric exit fallback.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessExitObservation {
+    /// The host supplied a numeric process termination status.
     Exited(i32),
-    Signaled(i32), // Unix signal death without a numeric process exit status.
-    Terminated,    // Neither a numeric exit status nor a Unix signal was reported.
+    /// Unix signal death without a numeric process exit status.
+    Signaled(i32),
+    /// No numeric or signal status was available.
+    Terminated,
 }
 
 impl ProcessExitObservation {
@@ -40,6 +35,7 @@ impl ProcessExitObservation {
         Self::Terminated
     }
 
+    /// The reported code, without a numeric fallback for signal death.
     pub const fn code(self) -> Option<i32> {
         match self {
             Self::Exited(code) => Some(code),
@@ -47,6 +43,8 @@ impl ProcessExitObservation {
         }
     }
 
+    /// Unix wait status retains only eight bits; Windows retains the i32 bit
+    /// pattern. Never truncate the interpreter's exact semantic status itself.
     pub(super) fn matches_host_presentation(self, semantic_status: i32) -> bool {
         let expected_status = if cfg!(unix) {
             semantic_status & 255
@@ -56,6 +54,8 @@ impl ProcessExitObservation {
         self.code() == Some(expected_status)
     }
 
+    /// `run` executes only the current host profile. Explicit foreign targets
+    /// are publication-only, so their status must never enter this comparison.
     pub(super) fn matches_crash_presentation(self, cause: CrashCause) -> Option<bool> {
         if cause != CrashCause::Trap {
             return None;

@@ -1,5 +1,3 @@
-// Error diagnostics for conservative `build.omg` dependency row projection.
-
 use crate::declarations::BuildDeclarationError;
 use std::fmt;
 

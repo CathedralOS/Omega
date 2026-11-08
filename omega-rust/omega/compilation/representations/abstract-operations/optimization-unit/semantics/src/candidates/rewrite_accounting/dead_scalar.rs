@@ -18,7 +18,7 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
     let mut provenance = vec![realized_at_own_site(
         PsiRealizationSite::Node(patch.location),
         &removed.provenance,
-        &removed.work,
+        &removed.fuel,
     )];
     for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
         if node.provenance.is_empty() {
@@ -37,7 +37,7 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
             PsiRealizationSite::Node(old),
             PsiRealizationSite::Node(new),
             &node.provenance,
-            &node.work,
+            &node.fuel,
         ));
     }
     let mut blocks = vec![block.id];

@@ -102,7 +102,7 @@ the canonical Terminal wire and native selected forms. Receiving roots must
 explicitly supply the interpreter's private sequential memory model; the model
 has no pending or shared/device accesses and grants no synchronization evidence.
 The interpreter records each completed catalog event in order through helpers
-and work-budget pauses. Native encoders independently decode the exact x86 fence or
+and fuel pauses. Native encoders independently decode the exact x86 fence or
 full-system A64 DMB form; full atomic ordering cannot substitute for a partial
 catalog fence. The `checked_asm_fence_contracts` fact row and its
 `expected_terminal_fences.txt` corpus oracles exercise source transport, target

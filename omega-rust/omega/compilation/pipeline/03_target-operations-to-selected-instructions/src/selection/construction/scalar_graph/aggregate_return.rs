@@ -208,7 +208,7 @@ pub(super) fn build(
         &registers,
         SelectedInstructionProvenance {
             edges: vec![returned.edge],
-            work: returned.work.clone(),
+            fuel: returned.fuel.clone(),
             ..Default::default()
         },
     )?;

@@ -1,7 +1,13 @@
-// We provide a trusted descriptor-mode implementation for MSVCRT _setmode.
-// The call swaps a standard descriptor's translation mode in a private
-// per-descriptor table (each initialized to _O_TEXT = 0x4000) and returns the
-// previous mode verbatim, while descriptors outside 0..=2 reject as failed (-1).
+//! Trusted descriptor-mode implementation for MSVCRT `_setmode`.
+//! The call moves no input or output: it only swaps a descriptor's
+//! translation mode and returns the mode it replaced. The interpreter
+//! therefore tracks a private per-descriptor mode table — each descriptor
+//! starts in `_O_TEXT` (0x4000), matching how the CRT initializes the
+//! standard descriptors — and reports the stored previous mode verbatim.
+//! Descriptors outside the standard triple reject as failed (-1), never
+//! as success or EOF, mirroring the provider's failed-read contract.
+//! Exact locator, declaration and ABI authenticate the offer; the adapter
+//! never manufactures padding, grants no buffers, and does no real host I/O.
 
 use std::collections::BTreeMap;
 
@@ -27,6 +33,7 @@ pub(super) struct DescriptorModeImport {
 }
 
 impl DescriptorModeImport {
+    /// Absence is an unoffered binding, not an incompatible offered contract.
     pub(super) fn admit(
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
@@ -127,6 +134,7 @@ impl TerminalEffectHandler for DescriptorModeImport {
         {
             return Err(invalid());
         }
+        // Only the standard descriptors exist in this runtime model.
         if !matches!(*descriptor, 0..=2) {
             return self.result(-1);
         }

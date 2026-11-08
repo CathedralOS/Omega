@@ -1,17 +1,13 @@
-/*
-We verify exact structural custody for interfaces derived from complete target
-families.
-
-We return every member of a virtual head without selected-target projection.
-Both presence and absence of the derived role must agree with compiler custody
-so deleting a supplied roster cannot turn a virtual head into authored code.
-*/
+//! Exact structural custody for interfaces derived from complete target families.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::facts::exactly_one;
 use diagnostics::Diagnostic;
 use typed_trees::machine::Machine;
 
+/// Return every member of a virtual head, with no selected-target projection.
+/// Both presence and absence of the derived role must agree with compiler
+/// custody, so deleting a supplied roster cannot turn a head into authored code.
 pub(in crate::capture) fn members<'a>(
     compilation: &PackageReviewInput<'a>,
     machine: &Machine,

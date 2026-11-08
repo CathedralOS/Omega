@@ -1,34 +1,28 @@
-// Parse arguments for `omega run`.
-//
-// `--both` is a differential comparison request (native vs. Terminal Psi), not
-// a third engine name, so combining `--engine` with `--both` is rejected up
-// front. Case runs (`--inputs` or `--input` paired with `--outputs`) always
-// execute on the host and therefore reject `--target`.
-
 use crate::execution::ExecutionSelection;
 
 pub(crate) struct RunArguments {
-    pub(crate) selection: ExecutionSelection, // Native unless --engine terminal or --both was named.
-    pub(crate) psi_work_budget: Option<std::num::NonZeroU64>,
+    /// Native unless `--engine terminal` or the `--both` comparison was named.
+    pub(crate) selection: ExecutionSelection,
+    pub(crate) terminal_fuel_allowance: Option<std::num::NonZeroU64>,
     pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub(crate) keep: bool,
     pub(crate) target_name: Option<String>,
-    pub(crate) inputs: Option<std::path::PathBuf>, // Directory of *.stdin cases run against one compilation.
-    pub(crate) input_files: Vec<std::path::PathBuf>, // Explicit case files (--input, repeatable), named by file stem.
-    pub(crate) outputs: Option<std::path::PathBuf>, // Where each case's streams and results.tsv are written.
+    /// A directory of `*.stdin` cases run against one compilation.
+    pub(crate) inputs: Option<std::path::PathBuf>,
+    /// Explicit case files (`--input`, repeatable), named by file stem.
+    pub(crate) input_files: Vec<std::path::PathBuf>,
+    /// Where each case's streams and `results.tsv` are written.
+    pub(crate) outputs: Option<std::path::PathBuf>,
     pub(crate) main_path: std::path::PathBuf,
 }
 
-pub(super) const USAGE: &str = "usage: omega run [--engine <native|terminal> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>";
-
 pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Result<Option<RunArguments>, String> {
+) -> Result<RunArguments, String> {
     let mut both = false;
     let mut engine = None;
-    let mut psi_work_budget = None;
+    let mut terminal_fuel_allowance = None;
     let mut private_entry_ram = Vec::new();
-    let mut help = false;
     let mut keep = false;
     let mut target_name = None;
     let mut inputs = None;
@@ -37,7 +31,6 @@ pub(super) fn parse_arguments(
     let mut main_path = None;
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
-            Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--offline") => return Err("omega run does not support --offline".into()),
             Some("--both") => super::set_flag(&mut both, "--both")?,
             Some("--engine") => {
@@ -58,18 +51,18 @@ pub(super) fn parse_arguments(
                 });
             }
             Some("--keep") => super::set_flag(&mut keep, "--keep")?,
-            Some("--psi-work-budget") => {
-                if psi_work_budget.is_some() {
-                    return Err("duplicate --psi-work-budget".into());
+            Some("--terminal-fuel-allowance") => {
+                if terminal_fuel_allowance.is_some() {
+                    return Err("duplicate --terminal-fuel-allowance".into());
                 }
                 let value = super::option_value(&mut arguments)
-                    .ok_or("--psi-work-budget requires a positive u64")?
+                    .ok_or("--terminal-fuel-allowance requires a positive u64")?
                     .into_string()
-                    .map_err(|_| "--psi-work-budget requires a positive u64")?;
-                psi_work_budget = Some(
+                    .map_err(|_| "--terminal-fuel-allowance requires a positive u64")?;
+                terminal_fuel_allowance = Some(
                     value
                         .parse::<std::num::NonZeroU64>()
-                        .map_err(|_| "--psi-work-budget requires a positive u64")?,
+                        .map_err(|_| "--terminal-fuel-allowance requires a positive u64")?,
                 );
             }
             Some("--entry-ram") => {
@@ -118,6 +111,8 @@ pub(super) fn parse_arguments(
                 });
             }
             Some("--input") => {
+                // A missing path must not swallow --both and silently turn a
+                // compared case run into native-only execution.
                 let file = super::option_value(&mut arguments).ok_or("--input requires a file")?;
                 input_files.push(std::path::PathBuf::from(file));
             }
@@ -167,6 +162,9 @@ pub(super) fn parse_arguments(
             }
         }
     }
+    let main_path = main_path.ok_or_else(|| "missing root Omega source path".to_owned())?;
+    // `--both` is a comparison request, not a third engine; naming an engine
+    // beside it would leave one of the two compared executions unexplained.
     let selection = match (engine, both) {
         (Some(_), true) => {
             return Err("--engine and --both are mutually exclusive: --both already runs native and Terminal".into());
@@ -189,24 +187,22 @@ pub(super) fn parse_arguments(
     if cases && terminal {
         return Err("case runs do not yet support --engine terminal; use --both".into());
     }
-    if psi_work_budget.is_some() && !terminal && (!both || target_name.is_some()) {
-        return Err("--psi-work-budget requires --engine terminal or --both host execution".into());
+    if terminal_fuel_allowance.is_some() && !terminal && (!both || target_name.is_some()) {
+        return Err(
+            "--terminal-fuel-allowance requires --engine terminal or --both host execution".into(),
+        );
     }
-    if help {
-        return Ok(None);
-    }
-    let main_path = main_path.ok_or_else(|| "missing root Omega source path".to_owned())?;
-    Ok(Some(RunArguments {
+    Ok(RunArguments {
         private_entry_ram,
         selection,
-        psi_work_budget,
+        terminal_fuel_allowance,
         keep,
         target_name,
         inputs,
         input_files,
         outputs,
         main_path,
-    }))
+    })
 }
 
 #[cfg(test)]
@@ -215,8 +211,7 @@ mod tests {
     use crate::execution::ExecutionSelection;
 
     fn parse(arguments: &[&str]) -> Result<super::RunArguments, String> {
-        parse_arguments(arguments.iter().map(std::ffi::OsString::from))?
-            .ok_or_else(|| "unexpected --help".to_owned())
+        parse_arguments(arguments.iter().map(std::ffi::OsString::from))
     }
 
     #[test]
@@ -293,17 +288,24 @@ mod tests {
     }
 
     #[test]
-    fn psi_work_budget_is_explicit_and_order_independent() {
-        let arguments = parse(&["--psi-work-budget", "100000000", "--both", "main.omg"])
-            .expect("positive host reference allowance parses");
+    fn terminal_fuel_allowance_is_explicit_and_order_independent() {
+        let arguments = parse(&[
+            "--terminal-fuel-allowance",
+            "100000000",
+            "--both",
+            "main.omg",
+        ])
+        .expect("positive host reference allowance parses");
         assert_eq!(
-            arguments.psi_work_budget.map(std::num::NonZeroU64::get),
+            arguments
+                .terminal_fuel_allowance
+                .map(std::num::NonZeroU64::get),
             Some(100_000_000)
         );
         assert!(
             parse(&["--both", "main.omg"])
                 .expect("default allowance parses")
-                .psi_work_budget
+                .terminal_fuel_allowance
                 .is_none()
         );
     }
@@ -336,7 +338,13 @@ mod tests {
                 ExecutionSelection::Terminal,
             ),
             (
-                vec!["--engine", "terminal", "--psi-work-budget", "5", "main.omg"],
+                vec![
+                    "--engine",
+                    "terminal",
+                    "--terminal-fuel-allowance",
+                    "5",
+                    "main.omg",
+                ],
                 ExecutionSelection::Terminal,
             ),
         ] {
@@ -355,7 +363,13 @@ mod tests {
             vec!["--engine", "jit", "main.omg"],
             vec!["--engine", "main.omg"],
             vec!["--engine", "native", "--engine", "terminal", "main.omg"],
-            vec!["--engine", "native", "--psi-work-budget", "5", "main.omg"],
+            vec![
+                "--engine",
+                "native",
+                "--terminal-fuel-allowance",
+                "5",
+                "main.omg",
+            ],
             vec![
                 "--engine",
                 "terminal",
@@ -371,27 +385,26 @@ mod tests {
     }
 
     #[test]
-    fn psi_work_budget_rejects_invalid_or_unused_requests() {
-        assert!(parse(&["--both", "--terminal-fuel-allowance", "1", "main.omg"]).is_err());
+    fn terminal_fuel_allowance_rejects_invalid_or_unused_requests() {
         for value in ["0", "-1", "many", "18446744073709551616"] {
-            assert!(parse(&["--both", "--psi-work-budget", value, "main.omg"]).is_err());
+            assert!(parse(&["--both", "--terminal-fuel-allowance", value, "main.omg"]).is_err());
         }
         for arguments in [
-            vec!["--psi-work-budget", "--both", "main.omg"],
-            vec!["--psi-work-budget", "1", "main.omg"],
+            vec!["--terminal-fuel-allowance", "--both", "main.omg"],
+            vec!["--terminal-fuel-allowance", "1", "main.omg"],
             vec![
                 "--both",
                 "--target",
                 "linux_x86_64",
-                "--psi-work-budget",
+                "--terminal-fuel-allowance",
                 "1",
                 "main.omg",
             ],
             vec![
                 "--both",
-                "--psi-work-budget",
+                "--terminal-fuel-allowance",
                 "1",
-                "--psi-work-budget",
+                "--terminal-fuel-allowance",
                 "2",
                 "main.omg",
             ],

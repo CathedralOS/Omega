@@ -567,12 +567,6 @@ impl OperationFrame<'_, '_> {
             // composed state registers it, with its local, when publishing.
             let register = matches!(self.results, StructuralResults::Dense(_));
             let frontier = self.suspension_source_frontier(*coordinate)?;
-            let reserved = crate::scalar_lowering::computations::call_views::reserved_place(
-                checked,
-                &self.evaluation.call_views,
-                self.state,
-                &call.coordinate,
-            );
             let declaration = ordinary_calls::emit_structural(
                 identities,
                 checked,
@@ -586,7 +580,6 @@ impl OperationFrame<'_, '_> {
                 &mut self.calls.claims,
                 register,
                 &frontier,
-                reserved,
                 self.next_place,
                 self.operations,
             )?;

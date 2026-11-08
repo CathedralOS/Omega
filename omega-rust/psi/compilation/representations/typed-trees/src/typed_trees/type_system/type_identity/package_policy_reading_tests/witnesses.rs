@@ -568,6 +568,7 @@ pub(super) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
         .insert_match_subject(subject);
     let head = fixture.name("Record");
     let saved = fixture.expression(ExpressionNode::SavedSubject(TableSavedSubject {
+        component: Default::default(),
         capture,
         pattern_head: head,
     }));
@@ -580,16 +581,19 @@ pub(super) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
     );
     let fields = fixture.program.expression_table.insert_match_fields([
         TableMatchField {
+            component: Default::default(),
             member: Identifier::generated("left"),
             field_symbol: left,
             action: MatchFieldAction::Bind(Identifier::generated("bound")),
         },
         TableMatchField {
+            component: Default::default(),
             member: Identifier::generated("right"),
             field_symbol: right,
             action: MatchFieldAction::Equal(wanted),
         },
         TableMatchField {
+            component: Default::default(),
             member: Identifier::generated("spare"),
             field_symbol: spare,
             action: MatchFieldAction::Waive,

@@ -118,13 +118,13 @@ pub(super) fn validate(
                 .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
             if first.successors.is_empty() {
                 first.provenance.extend_from_slice(&removed_edge.provenance);
-                first.work.extend_from_slice(&removed_edge.work);
+                first.fuel.extend_from_slice(&removed_edge.fuel);
             } else {
                 for successor in &mut first.successors {
                     successor
                         .provenance
                         .extend_from_slice(&removed_edge.provenance);
-                    successor.work.extend_from_slice(&removed_edge.work);
+                    successor.fuel.extend_from_slice(&removed_edge.fuel);
                 }
             }
             output_predecessor.nodes.append(&mut moved.nodes);

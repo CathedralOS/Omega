@@ -1,9 +1,4 @@
-// We render and recover complete source-closure text records through the
-// existing graph and binary field validators. Rendering checks retention limits
-// and binary field ceilings first; recovery parses under one monotone owned-byte
-// budget and verifies byte-for-byte canonical re-emission. Legacy version-1
-// records decode as product-only projections and edges so retained locks keep
-// their legacy product meaning rather than silently gaining build scope.
+//! Complete text record rendering and recovery through existing graph validation.
 
 use super::super::{
     CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
@@ -23,15 +18,24 @@ use crate::declarations::dependencies::read::{
 };
 use target::TargetProfile;
 
+/// Text record carrying purpose-split authored rows and purpose-tagged edges.
 const TEXT_VERSION: &str = "3";
 const QUERY_TEXT_VERSION: &str = "4";
 const PURPOSE_TEXT_VERSION: &str = "2";
+/// Legacy record: every authored row and edge is implicitly product purpose.
 const LEGACY_TEXT_VERSION: &str = "1";
 
 impl CanonicalSourceClosureSubject {
+    /// Render the exact source graph as bounded canonical text, without
+    /// granting acceptance or changing its binary identity.
     pub fn canonical_text(&self, limits: Limits) -> Result<String, Error> {
         let limits = limits.compiler_bounded();
+        // Retention, graph, catalog and record-byte checks under this caller's
+        // possibly tighter ceilings are the retention-limit owner's obligation.
         self.validate_recovery_limits(limits)?;
+        // The binary field encoder owns the existing identity/request limits
+        // (including target, navigation, aliases, and named selections) and the
+        // record-byte ceiling; rendering never re-derives them field by field.
         super::super::encoding::encode_subject(
             self.target_profile,
             &self.root,
@@ -81,6 +85,8 @@ impl CanonicalSourceClosureSubject {
         }
         match version {
             LEGACY_TEXT_VERSION => {
+                // The legacy record carries product-purpose rows only; it is
+                // emitted solely to verify canonical legacy input.
                 if self
                     .package_dependency_projections
                     .iter()
@@ -169,10 +175,14 @@ impl CanonicalSourceClosureSubject {
         Ok(())
     }
 
+    /// Recover exact source identity and requests only. No filesystem access,
+    /// selector update, compiler evidence, or project decision is implied.
     pub fn recover_text(text: &str, limits: Limits) -> Result<Self, Error> {
         Self::recover_text_with_usage(text, limits, usize::MAX).map(|(subject, _)| subject)
     }
 
+    /// Recover under one monotone allowance covering parsed/retained values and
+    /// validation, constructor, binary-encoding, and text-verification scratch.
     pub fn recover_text_with_usage(
         text: &str,
         limits: Limits,
@@ -198,6 +208,9 @@ impl CanonicalSourceClosureSubject {
         allow_catalog: bool,
     ) -> Result<(Self, &'text str), Error> {
         reader.expect("omega-source-closure")?;
+        // Legacy version-1 records decode as product-only projections and
+        // edges. This is the versioned lock migration: old records keep their
+        // legacy product meaning rather than silently gaining build scope.
         let version = reader.atom()?;
         if !matches!(
             version,

@@ -31,6 +31,7 @@ pub(crate) mod locals;
 pub(crate) mod logical_matches;
 pub(crate) mod owned_value_source;
 pub(crate) mod partial_affine_residuals;
+pub(crate) mod pattern_components;
 pub(crate) mod permission_provenance;
 pub use access_views::access_atomic_observing_results;
 pub(crate) mod places;

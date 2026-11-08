@@ -1,16 +1,4 @@
-/*
-We reify retained resolved conformance arguments without parsing their display
-paths.
-
-The checked closed application owns category and carrier admission; publication
-preserves the same typed expression for exact-owner identity and
-selected-operation validation. Earlier type arguments supply declaration-owned
-carriers such as `Box<Element, const Count: Element>` rather than guessing a
-literal width. When collecting caller binder context, we reuse the typed
-ownership traversal (including const-expression leaves) so a nested static
-operand never loses its supplying declaration merely because its outer storage
-lane is a type-reference handle.
-*/
+//! Reify retained resolved arguments without parsing their display paths.
 
 use super::super::encoding::canonical_digest_label;
 use super::super::encoding::framed_identity;
@@ -85,6 +73,9 @@ pub(crate) fn argument_type_reference(
             && argument.path.is_empty()
             && argument.application.is_none()
         {
+            // The checked closed application owns category/carrier admission.
+            // Publication preserves the same typed expression for exact-owner
+            // identity and selected-operation validation below.
             return Ok(argument.type_reference);
         }
         if !matches!(kind, TypeParameterKind::Type) {
@@ -218,6 +209,8 @@ pub(crate) fn argument_type_reference(
         }
         let mut arguments = Vec::with_capacity(parameters.len());
         for (parameter, child) in parameters.iter().zip(application.arguments.iter()) {
+            // Earlier type arguments supply declaration-owned carriers such as
+            // Box<Element, const Count: Element>; never guess a literal width.
             let kind = applied_kind(program, &parameter.kind, &parameters, &arguments);
             arguments.push(argument_type_reference(program, child, &kind, depth + 1)?);
         }
@@ -297,6 +290,9 @@ pub(super) fn argument_context(
     if depth >= 64 {
         return Err(rejected("an over-deep argument context"));
     }
+    // Reuse the typed ownership traversal, including const-expression leaves;
+    // a nested static operand cannot lose its supplying declaration merely
+    // because its outer storage lane is a type-reference handle.
     struct ArgumentSymbols(Vec<SymbolHandle>);
     impl Extend<SymbolHandle> for ArgumentSymbols {
         fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
@@ -355,6 +351,8 @@ pub(super) fn argument_context(
     Ok(())
 }
 
+// Resolve only an exact type binder's carrier in the containing data telescope.
+// This mirrors ordinary applied-carrier checking without rewriting its declaration.
 fn applied_kind(
     program: &typed_trees::TypedTrees,
     kind: &TypeParameterKind,

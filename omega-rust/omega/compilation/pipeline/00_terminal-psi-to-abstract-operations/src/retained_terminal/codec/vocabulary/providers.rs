@@ -35,49 +35,7 @@ record_variants!(effects::CompilerIntrinsicExecutionIdentity {
     14 => SegmentReload(value0),
     15 => SegmentRead(value0),
     16 => EmptyRunRelease,
-    17 => StaticInterrupt(value0),
 });
-
-#[cfg(test)]
-mod execution_tag_tests {
-    use crate::retained_terminal::codec::value::{
-        RecordLimits, RecordReader, RecordValue, RecordWriter,
-    };
-    use effects::CompilerIntrinsicExecutionIdentity as Execution;
-    use language_core::static_interrupts::StaticInterruptOperation as Interrupt;
-    use std::collections::BTreeSet;
-
-    #[test]
-    fn release_and_interrupt_execution_records_do_not_alias() {
-        let cases = [
-            (Execution::EmptyRunRelease, 16_u16),
-            (Execution::StaticInterrupt(Interrupt::Install), 17),
-            (Execution::StaticInterrupt(Interrupt::Context), 17),
-            (Execution::StaticInterrupt(Interrupt::BeginCompletion), 17),
-            (Execution::StaticInterrupt(Interrupt::FinishCompletion), 17),
-        ];
-        let mut distinct = BTreeSet::new();
-        for (value, tag) in cases {
-            let mut writer = RecordWriter::new(RecordLimits::default());
-            value.write(&mut writer).unwrap();
-            let bytes = writer.finish();
-            assert_eq!(&bytes[..2], &tag.to_le_bytes());
-            let mut reader = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
-            assert_eq!(Execution::read(&mut reader).unwrap(), value);
-            reader.finish().unwrap();
-            for length in 0..bytes.len() {
-                let mut reader =
-                    RecordReader::new(&bytes[..length], RecordLimits::default()).unwrap();
-                assert!(Execution::read(&mut reader).is_err());
-            }
-            assert!(distinct.insert(bytes));
-        }
-        for bytes in [[255, 255, 0, 0], [17, 0, 255, 255]] {
-            let mut reader = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
-            assert!(Execution::read(&mut reader).is_err());
-        }
-    }
-}
 
 record_variants!(effects::CompilerNumericType {
     0 => I8,

@@ -1,9 +1,3 @@
-// Selected installation-bound service-reach resolution projection. Because a
-// realization's published effective row includes unresolved upper bounds, review
-// substitutes the checked dependencies under the exact selected plan independently
-// of the producer's pending-row iteration so a broad upper bound never replaces a
-// selected child's concrete contribution.
-
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::behavior::{project_installation_reaches, project_service_row};
@@ -160,6 +154,10 @@ pub(crate) fn project_selected_installation_reach(
     let concrete_names = exact_service_names(compilation, reach_fact.concrete_effective)?;
     let dependencies =
         project_installation_reaches(compilation, &reach_fact.unresolved_installation_reaches)?;
+    // The published effective row includes unresolved upper bounds. Review
+    // substitutes the checked dependencies under this exact plan, independently
+    // of the producer's pending-row iteration. A broad bound is not the selected
+    // child's concrete contribution, and cannot replace it in the projection.
     let resolved_names = selected
         .resolve_installation_reach_for_plan(
             &concrete_names,

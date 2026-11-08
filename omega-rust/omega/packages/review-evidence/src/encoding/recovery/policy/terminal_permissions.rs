@@ -1,4 +1,4 @@
-// Bounded receipt-free permission recovery preserving complete service schemas.
+//! Bounded receipt-free permissions, preserving complete service schemas.
 
 use super::{
     Error, PackagePolicyRecoveryLimits,

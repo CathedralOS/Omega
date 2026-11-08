@@ -1,14 +1,4 @@
-// Validated Git source locators, revision selectors, and execution transports.
-//
-// `GitSourceRequest::new` validates the caller's locator against
-// `GIT_LOCATOR_BYTE_LIMIT`, parses its `SourceLineage` and transport (`Https`,
-// `SshUrl`, or `ScpLike`), and validates the revision selector (defaulting to
-// `"HEAD"` while rejecting refspec syntax, `..`, `@{`, `.lock` suffixes, and
-// leading `-`/`.`/`/`). It preserves the exact `requested_locator` spelling for
-// lock provenance alongside the normalized `locator_identity` (which maps
-// GitHub and GitLab remotes to canonical `https://.../.git` URLs).
-// `recovery_owned_bytes` preflights the heap allocation required to construct a
-// request during bounded recovery.
+//! Validated Git locators, revisions, and transports.
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::identity::digest::format_sha256;
@@ -107,6 +97,11 @@ pub enum GitSourceRequestError {
 }
 
 impl GitSourceRequest {
+    /// Preflight constructor-owned payload, excluding the moved locator and
+    /// revision inputs. In addition to lineage parsing, `new` copies the
+    /// requested locator and reserves the canonical locator once (bounded by
+    /// locator + 24, including
+    /// conversion of hosted SCP spellings to an HTTPS locator).
     #[doc(hidden)]
     pub fn recovery_owned_bytes(locator: &str) -> Option<usize> {
         SourceLineage::git_recovery_owned_bytes(locator)?
@@ -151,6 +146,11 @@ impl GitSourceRequest {
         &self.locator_identity
     }
 
+    /// The exact validated locator spelling supplied by the caller.
+    ///
+    /// This remains distinct from normalized lineage and locator identity so a
+    /// future lock can retain the selector that was actually resolved. Request
+    /// validation rejects embedded credentials before this value exists.
     pub fn requested_locator(&self) -> &str {
         &self.requested_locator
     }
@@ -177,6 +177,8 @@ impl GitSourceRequest {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     #[doc(hidden)]
+    /// A test repository on disk; `remote_locator` names the lineage it stands
+    /// in for, otherwise a fixture locator is derived from the path.
     pub(crate) fn for_local_test_repository(
         repository: &Path,
         revision: Option<String>,

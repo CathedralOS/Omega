@@ -17,7 +17,7 @@ pub(super) fn emit(
     let mut fragments = FunctionFragmentEmissionPlan {
         identity: FunctionFragmentEmissionIdentity::from_canonical_bytes(b"pending"),
         psi: selected.psi,
-        work_schedule: selected.work_schedule,
+        fuel_schedule: selected.fuel_schedule,
         selected: layout.selected,
         target: selected.target,
         entry: selected.entry,

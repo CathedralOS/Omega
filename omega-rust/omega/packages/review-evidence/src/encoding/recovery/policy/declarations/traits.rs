@@ -1,5 +1,3 @@
-// Bounded recovery for trait parent composition bounds and arguments.
-
 use super::super::{
     Error,
     identity::{nominal, type_identity},

@@ -1,7 +1,7 @@
 //! Source-neutral snapshot and consistency of measured execution and sponsorship.
 //!
 //! The issuing engine and host adapters own the represented counters. This is
-//! accounting evidence, not execution authority, a portable work certificate,
+//! accounting evidence, not execution authority, a portable fuel certificate,
 //! or validation of the producing program. Consumers bind it to their own
 //! production identity and render errors at their reporting boundary.
 
@@ -16,13 +16,13 @@ pub struct BuildEvaluationUsage {
     pub usage_schema_version: u32,
     pub step_schedule_marker: u32,
     /// Deterministic ceiling applied to the single evaluation, not a CPU limit.
-    pub invocation_work_budget: u64,
+    pub invocation_fuel_ceiling: u64,
     /// Shared sponsor-limit schema for package review. Standalone compilation
     /// has no aggregate sponsor.
     pub sponsor_schema_version: Option<u32>,
-    /// Aggregate deterministic work available to the complete sponsored
+    /// Aggregate deterministic fuel available to the complete sponsored
     /// review session. Dependencies cannot alter this value.
-    pub session_work_budget: Option<u64>,
+    pub session_fuel_ceiling: Option<u64>,
     /// Aggregate compiler-owned BuildLog bytes available to the complete
     /// sponsored review session.
     pub session_build_log_byte_ceiling: Option<u64>,
@@ -51,8 +51,8 @@ pub struct BuildEvaluationUsage {
     /// Highest live owned payload-byte reservation count observed in the shared
     /// sponsored session when this result was issued.
     pub session_peak_live_payload_bytes: u64,
-    /// Work consumed by this build-machine evaluation.
-    pub work_units: u64,
+    /// Fuel consumed by this build-machine evaluation.
+    pub fuel_units: u64,
     /// BuildLog bytes emitted by this evaluation.
     pub build_log_bytes: u64,
     /// Filesystem operation attempts retained by this evaluation.
@@ -74,10 +74,10 @@ pub enum BuildEvaluationUsageError {
     UnsupportedMeasurementIdentity,
     MeasurementSponsorMismatch,
     UnsupportedSponsorSchema,
-    ZeroInvocationWorkBudget,
-    InvocationWorkBudgetExceeded,
+    ZeroInvocationFuelCeiling,
+    InvocationFuelExceeded,
     UnsponsoredSessionUsage,
-    ZeroSessionWorkBudget,
+    ZeroSessionFuelCeiling,
     ZeroSessionBuildLogCeiling,
     ZeroSessionFilesystemAttemptCeiling,
     ZeroLiveFilesystemHandleCeiling,
@@ -85,7 +85,7 @@ pub enum BuildEvaluationUsageError {
     ZeroLivePayloadByteCeiling,
     ZeroResultStorageCellCeiling,
     ZeroResultPayloadByteCeiling,
-    SessionWorkBudgetExceeded,
+    SessionFuelExceeded,
     SessionBuildLogExceeded,
     SessionFilesystemAttemptsExceeded,
     LiveFilesystemHandlesExceeded,
@@ -100,7 +100,7 @@ pub enum BuildEvaluationUsageError {
 
 impl BuildEvaluationUsage {
     /// Check the retained counters against their supplied ceilings, preserving
-    /// the first violated obligation. Unknown engine/work/storage identities
+    /// the first violated obligation. Unknown engine/fuel/storage identities
     /// cannot be accepted as a currently understood measurement.
     pub fn validate(&self) -> Result<(), BuildEvaluationUsageError> {
         if !self
@@ -109,11 +109,11 @@ impl BuildEvaluationUsage {
         {
             return Err(BuildEvaluationUsageError::UnsupportedMeasurementIdentity);
         }
-        if self.invocation_work_budget == 0 {
-            return Err(BuildEvaluationUsageError::ZeroInvocationWorkBudget);
+        if self.invocation_fuel_ceiling == 0 {
+            return Err(BuildEvaluationUsageError::ZeroInvocationFuelCeiling);
         }
-        if self.work_units > self.invocation_work_budget {
-            return Err(BuildEvaluationUsageError::InvocationWorkBudgetExceeded);
+        if self.fuel_units > self.invocation_fuel_ceiling {
+            return Err(BuildEvaluationUsageError::InvocationFuelExceeded);
         }
         if self
             .sponsor_schema_version
@@ -123,7 +123,7 @@ impl BuildEvaluationUsage {
         }
         match (
             self.sponsor_schema_version,
-            self.session_work_budget,
+            self.session_fuel_ceiling,
             self.session_build_log_byte_ceiling,
             self.session_filesystem_attempt_ceiling,
             self.session_live_filesystem_handle_ceiling,
@@ -141,7 +141,7 @@ impl BuildEvaluationUsage {
                 }
             }
             (Some(_), Some(0), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_)) => {
-                return Err(BuildEvaluationUsageError::ZeroSessionWorkBudget);
+                return Err(BuildEvaluationUsageError::ZeroSessionFuelCeiling);
             }
             (Some(_), Some(_), Some(0), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_)) => {
                 return Err(BuildEvaluationUsageError::ZeroSessionBuildLogCeiling);
@@ -175,8 +175,8 @@ impl BuildEvaluationUsage {
                 Some(result_storage_cell_ceiling),
                 Some(result_payload_byte_ceiling),
             ) => {
-                if self.work_units > session_ceiling {
-                    return Err(BuildEvaluationUsageError::SessionWorkBudgetExceeded);
+                if self.fuel_units > session_ceiling {
+                    return Err(BuildEvaluationUsageError::SessionFuelExceeded);
                 }
                 if self.build_log_bytes > build_log_ceiling {
                     return Err(BuildEvaluationUsageError::SessionBuildLogExceeded);

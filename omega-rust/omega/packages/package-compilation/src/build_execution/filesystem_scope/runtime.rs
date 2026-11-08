@@ -1,12 +1,9 @@
-// Terminal Psi build filesystem runtime (`BuildFilesystemRuntime` and `BuildFilesystemEffects`).
-//
-// Interpreter adapters supply evaluated scalar/slice operands while retaining their
-// own opaque language markers. `BuildFilesystemRuntime` executes the underlying
-// captured-input or live-source reads and sponsored append-and-seal `Output` writes,
-// charges every operation attempt and byte reservation against the caller's
-// `EvaluationInvocationAccount`, and records `BuildFilesystemOperationAttempt`,
-// `BuildOutputObligation`, `BuildOutputReceipt`, and `BuildIncludedSourceHandoff`
-// observations into `BuildFilesystemEffects`.
+//! One captured-input and append-and-seal Output activation.
+//!
+//! Interpreter adapters supply evaluated operands and retain their own opaque
+//! language markers. This owner performs the operations, meters live handles
+//! and observations, and records actual output settlements. It consumes the
+//! admitted scope directly; no checked source or evaluator values enter here.
 
 use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope};
 use crate::build_execution::message;
@@ -25,13 +22,15 @@ use filesystem_authority::{
 };
 use std::io::{Read, Write};
 
+/// Observations belong to one completed activation. Only this runtime can
+/// construct them; package settlement still validates the staged files.
 pub struct BuildFilesystemEffects {
-    pub(crate) scope: BuildMachineFilesystemScope, // Admitted scope that issued this runtime.
-    pub(crate) attempts: Vec<BuildFilesystemOperationAttempt>, // Ordered filesystem operation attempts.
-    pub(crate) included: Vec<BuildIncludedSourceHandoff>,      // Ordered `include_source` handoffs.
-    pub(crate) obligations: Vec<BuildOutputObligation>, // Issued required-output obligations.
-    pub(crate) receipts: Vec<BuildOutputReceipt>,       // Completed required-output receipts.
-    pub(crate) storage: Vec<EvaluationStorageLease>, // Metered memory leases held for the activation.
+    pub(crate) scope: BuildMachineFilesystemScope,
+    pub(crate) attempts: Vec<BuildFilesystemOperationAttempt>,
+    pub(crate) included: Vec<BuildIncludedSourceHandoff>,
+    pub(crate) obligations: Vec<BuildOutputObligation>,
+    pub(crate) receipts: Vec<BuildOutputReceipt>,
+    pub(crate) storage: Vec<EvaluationStorageLease>,
 }
 
 struct OpenFile {
@@ -65,6 +64,8 @@ pub struct BuildFilesystemRuntime {
 }
 
 impl BuildMachineFilesystemScope {
+    /// Retain the already-admitted input backing and private Output staging.
+    /// Captured inputs and live directory capabilities remain distinct.
     pub fn begin_filesystem_runtime(
         &self,
         account: EvaluationInvocationAccount,
@@ -72,6 +73,8 @@ impl BuildMachineFilesystemScope {
         if self.captured_source_view.is_none() && self.live_source.is_none() {
             return Err("Terminal Build requires admitted Source backing".into());
         }
+        // Consent already joined the exact request before this host is built.
+        // A live Source does not acquire the private-snapshot exemption.
         if !self
             .sponsor
             .as_ref()
@@ -611,6 +614,9 @@ impl BuildFilesystemRuntime {
         Ok(identity)
     }
 
+    /// Inspect a still-pending activation obligation without issuing file access
+    /// or completing it. The adapter authenticates its opaque marker before
+    /// supplying this ordinal; path bytes alone never identify an obligation.
     pub fn required_path(&self, obligation: usize) -> Result<&[u8], String> {
         let row = self
             .effects

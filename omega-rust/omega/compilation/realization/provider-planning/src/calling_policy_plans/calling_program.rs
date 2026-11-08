@@ -1,8 +1,9 @@
-// We define `CallingProgram`: the shared calling declarations, executable
-// policies, and original review coordinates published by the compiler's ordinary
-// Psi production request. Canonical admission precedes each activation, and
-// pure compiler-run policies execute under a finite 100,000-unit semantic work
-// allowance with independent logical storage metering and no host imports.
+//! Shared calling declarations, executable policies and original review coordinates.
+//!
+//! This catalog borrows the same artifact as the final Product. Publication is
+//! owned by the compiler's ordinary Psi production request. Canonical admission
+//! precedes each activation; retaining code
+//! grants neither invocation nor provider authority.
 
 use super::{CallingPolicyEvaluator, CanonicalCallingSignature, TerminalCallingPolicyInvocation};
 use calling_conventions::ValidatedBoundaryEntryPlan;
@@ -13,7 +14,7 @@ use evaluation_accounting::{
 use semantic_vocabulary::MachineId;
 use terminal_codec::CanonicalTerminalArtifact;
 
-const CALLING_EVALUATION_WORK: u64 = 100_000;
+const CALLING_EVALUATION_FUEL: u64 = 100_000;
 
 enum CallingStorageScope<'account> {
     Policy {
@@ -26,11 +27,16 @@ enum CallingStorageScope<'account> {
 
 #[derive(Debug)]
 pub struct CallingProgram {
-    pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>, // association only; never keeps source alive
+    /// Association only: this never keeps source alive or enters the interpreter.
+    pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
     pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
+    /// Owned original review addresses and inert helper candidates. No Source
+    /// trees or service catalog are retained by this preparation.
     pub source_preparation: std::sync::Arc<super::CallingSourcePreparation>,
-    pub evaluator: CallingPolicyEvaluator, // Build evaluation's Terminal executor; omitted from catalog equality
+    /// Build evaluation's Terminal executor. Function identity is not part of
+    /// the catalog's equality.
+    pub evaluator: CallingPolicyEvaluator,
 }
 
 impl PartialEq for CallingProgram {
@@ -77,11 +83,15 @@ impl CallingProgram {
         )?;
         let policy = *policy.policy.as_ref().map_err(Clone::clone)?;
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
+        // Pure compiler-run policies had a finite 100,000-step allowance.
+        // Terminal uses its own semantic fuel units, never relabelled tree
+        // charges. Logical storage/results are independently metered. No host
+        // import is installed, regardless of the account's nonzero I/O limits.
         let limits = BuildEvaluationSponsorLimits::new(
-            CALLING_EVALUATION_WORK,
+            CALLING_EVALUATION_FUEL,
             1,
             1,
             1,
@@ -94,7 +104,7 @@ impl CallingProgram {
         let sponsor = BuildEvaluationSponsor::new_with_measurement(limits, measurement)
             .map_err(|error| error.to_string())?;
         let account = sponsor
-            .begin_invocation(measurement, limits.work_budget())
+            .begin_invocation(measurement, limits.maximum_fuel_units())
             .map_err(|error| error.to_string())?;
         let selected = terminal_installation::admit_target_machine_selections(
             self.artifact.view(),
@@ -133,7 +143,8 @@ impl CallingProgram {
         })?;
         Ok((canonical, plan))
     }
-
+    /// Describe default ABI storage without invoking the boundary or borrowing
+    /// a policy's unrelated proof scope.
     pub(crate) fn materialize_default(
         &self,
         declaration: &semantic_vocabulary::CallingAbiIdentity,
@@ -175,6 +186,8 @@ impl CallingProgram {
         })
     }
 
+    /// Describe an actual borrowed formal's storage without invoking the
+    /// boundary. This uses the same scoped scalar completion as ABI geometry.
     pub(crate) fn describe_borrowed_storage<Output>(
         &self,
         declaration: &semantic_vocabulary::CallingAbiIdentity,
@@ -243,13 +256,13 @@ impl CallingProgram {
                             declaration,
                             applications: demand.applications(),
                         },
-                        psi_work::WorkMeter::with_invocation(account.clone(), None)
-                            .map_err(|error| format!("calling ABI scalar work: {error:?}"))?,
+                        terminal_fuel::TerminalFuelMeter::with_invocation(account.clone(), None)
+                            .map_err(|error| format!("calling ABI scalar fuel: {error:?}"))?,
                     )
                 }
                 CallingStorageScope::Description => (
                     super::scalar_completion::CallingScalarScope::AbiStorage(demand),
-                    psi_work::WorkMeter::with_budget(CALLING_EVALUATION_WORK),
+                    terminal_fuel::TerminalFuelMeter::with_allowance(CALLING_EVALUATION_FUEL),
                 ),
             };
             let completed = super::scalar_completion::complete_calling_scalar_inputs(

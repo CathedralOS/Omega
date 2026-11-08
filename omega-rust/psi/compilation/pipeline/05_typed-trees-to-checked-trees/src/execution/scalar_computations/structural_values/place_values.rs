@@ -130,6 +130,9 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<ValueKind> {
+        if !super::place_types::copied_place_type(self.program, expected) {
+            return None;
+        }
         if let Some(kind) = self.copied_dispatch_place(expression, expected) {
             return Some(kind);
         }
@@ -149,9 +152,50 @@ impl Builder<'_, '_> {
         Some(ValueKind::CopiedStructuralPlace { source, leaf })
     }
 
-    /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
-    /// named root as a parameter/local/`self` source plus the canonical
-    /// member path, with `type_identity` naming the projected leaf.
+    /// The dispatch already selected this existing endpoint before patterns.
+    /// Keep its exact carrier and access ceiling; the alias is not an owned
+    /// producer to reconstruct. This source names storage only, not a copied
+    /// value, readable contents, or new loan authority.
+    pub(super) fn retained_dispatch_place_source(
+        &self,
+        anchor: ExpressionHandle,
+        access: StructuralAccess,
+    ) -> Option<SourcePlan> {
+        let receiver = self
+            .dispatch_receivers
+            .get(&(anchor.arena_index(), anchor.generation()))?;
+        if receiver.value.is_valid()
+            || access == StructuralAccess::Owned
+            || !crate::values::reference_sources::access_can_supply(receiver.access, access)
+            || reference_shell(self.program, receiver.type_reference).is_some()
+        {
+            return None;
+        }
+        let root = canonical_place_type_reference(
+            self.program,
+            self.state,
+            self.statement_index,
+            &CanonicalPlace {
+                root: PlaceRoot::Expression(anchor),
+                segments: Vec::new(),
+            },
+        )?;
+        if !validation::declared_carriers_match(self.program, root, receiver.type_reference) {
+            return None;
+        }
+        let identity =
+            stored_structural_type_identity(self.program, receiver.type_reference, &[], &[]);
+        identity
+            .is_valid()
+            .then_some(SourcePlan::StructuralExpression {
+                expression: anchor,
+                value_dependency: None,
+                logical_root_type_identity: Some(identity),
+            })
+    }
+
+    /// A readable leaf keeps its named or saved home and exact projection.
+    /// Its type names the leaf; borrowing it never takes the whole receiver.
     /// The consuming operation owns selector evaluation; its expression may
     /// differ from the selected source when a recast consumes that descriptor.
     pub(in crate::execution::scalar_computations) fn borrowed_leaf_argument(
@@ -165,14 +209,18 @@ impl Builder<'_, '_> {
         Vec<(ExpressionHandle, CheckedScalarComputationHandle)>,
     )> {
         let place = self.canonical_place(expression)?;
-        let source_symbol = place.root.as_symbol()?;
+        let source_symbol = place.root.as_symbol();
         // Value planning precedes the final structural parameter roster. Its
         // dense positions change when a borrowed receiver is retained, so an
         // authored leaf must keep its symbol until binding resolves that roster.
         // StructuralLocal already represents both live locals and named formals;
         // independent source replay still checks the exact authored root.
-        let mut source = SourcePlan::StructuralLocal {
-            symbol: source_symbol,
+        let mut source = match place.root {
+            PlaceRoot::Symbol(symbol) => SourcePlan::StructuralLocal { symbol },
+            PlaceRoot::Expression(anchor) => {
+                self.retained_dispatch_place_source(anchor, StructuralAccess::SharedBorrow)?
+            }
+            _ => return None,
         };
         // A copied value observes its selector at this evaluation point. Use
         // the computation's scalar namespace, including captured immutable
@@ -187,6 +235,7 @@ impl Builder<'_, '_> {
         // carriers already select their own backing on indexing: only the
         // registry's Reference shape requires a separate pointer crossing.
         if !place.segments.is_empty()
+            && let Some(source_symbol) = source_symbol
             && let Some(state) = self.program.state_by_symbol(self.state)
             && let Some((_, local)) = self.program.state_local_declaration(state, source_symbol)
         {
@@ -300,13 +349,13 @@ impl Builder<'_, '_> {
             // evaluated value instead owns its stored descriptor, so retain
             // each actual pointer crossing before selecting the first field.
             // View descriptors already interpret their own element paths.
-            let mut reference = root_reference;
-            while let Some(shell) = reference_shell(self.program, reference)
-                && stores_reference_shape(self.program, reference, &[])
-            {
-                path.insert(0, PathSegment::Referent);
-                reference = shell.referee;
-            }
+            let mut prefix = crate::execution::terminal_unit::calls::stored_reference_prefix(
+                self.program,
+                root_reference,
+                |access| access.is_readable(),
+            )?;
+            prefix.append(&mut path);
+            path = prefix;
         }
         let source = self.structural_value(root_expression, root_reference)?;
         if matches!(place.root, PlaceRoot::Expression(_)) {
@@ -369,7 +418,11 @@ impl Builder<'_, '_> {
                 .value_capture(saved.capture)
                 .value_anchor;
             return Some(ArgumentPlan {
-                source: SourcePlan::StructuralExpression { expression: anchor },
+                source: SourcePlan::StructuralExpression {
+                    value_dependency: None,
+                    expression: anchor,
+                    logical_root_type_identity: None,
+                },
                 path: Vec::new(),
                 projection_evaluations: Default::default(),
                 type_identity: stored_structural_type_identity(self.program, expected, &[], &[]),

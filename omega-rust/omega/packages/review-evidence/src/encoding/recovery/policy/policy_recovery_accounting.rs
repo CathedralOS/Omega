@@ -1,19 +1,10 @@
-/*
-Resource accounting, limits, and fixed diagnostics for untrusted policy recovery.
-
-`PackagePolicyRecoveryUsage` tracks resource charges incurred by one successful
-policy recovery (requested owned allocations, verification scratch, and
-aggregate sequence/expression entries), not evidence of acceptance or compiler
-validation; callers subtract both charges from an enclosing budget before
-recovering its next child. `PackagePolicyRecoveryLimits` defines independent
-ceilings clamped to format defaults (64 MiB for input, field, and owned bytes
-so large per-package `semantic_dependencies` products fit within the candidate
-pipeline's retained policy budget). `PackagePolicyRecoveryError` uses fixed
-diagnostics that never echo untrusted record fields.
-*/
-
 use std::fmt;
 
+/// Resource charges incurred by one successful policy recovery. These are
+/// accounting values, not evidence of acceptance or compiler validation.
+/// Subtract both charges from an enclosing budget before recovering its next
+/// child. Storage counts requested allocations, including verification scratch,
+/// not allocator overhead or the retained value's exact heap size.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PackagePolicyRecoveryUsage {
     pub(in crate::encoding) owned_bytes: usize,
@@ -25,11 +16,15 @@ impl PackagePolicyRecoveryUsage {
         self.owned_bytes
     }
 
+    /// Aggregate sequence entries and recursive expression, static-argument,
+    /// and machine-contract entries charged by the typed reader.
     pub const fn sequence_elements(self) -> usize {
         self.sequence_elements
     }
 }
 
+/// Independent ceilings for untrusted policy input. Raised caller ceilings
+/// are clamped to these format limits; lowering any ceiling is supported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackagePolicyRecoveryLimits {
     pub(in crate::encoding) maximum_bytes: usize,
@@ -40,6 +35,10 @@ pub struct PackagePolicyRecoveryLimits {
 }
 
 impl PackagePolicyRecoveryLimits {
+    /// `maximum_sequence_elements` counts aggregate list elements and recursive
+    /// expression, static-argument, and machine-contract entries. Owned storage
+    /// counts requested vector/string/box allocations and canonical comparison
+    /// scratch, not allocator overhead.
     pub const fn new(
         maximum_bytes: usize,
         maximum_field_bytes: usize,
@@ -71,6 +70,15 @@ impl PackagePolicyRecoveryLimits {
 
 impl Default for PackagePolicyRecoveryLimits {
     fn default() -> Self {
+        // The composed package policy is a per-package product:
+        // self-describing fields carrying full nominal identities, so size
+        // grows linearly with declaration and dependency counts. One
+        // sequence field (for example `semantic_dependencies`) legitimately
+        // carries most of the product, so the field cap matches the
+        // whole-product cap. The bound matches the retained policy
+        // aggregate the candidate pipeline already budgets (64 MiB):
+        // measured composed policies reach 17 MiB on a ~55%-ported
+        // upstream api surface, so 16 MiB was exhausted by real packages.
         Self::new(
             64 * 1024 * 1024,
             64 * 1024 * 1024,
@@ -81,6 +89,7 @@ impl Default for PackagePolicyRecoveryLimits {
     }
 }
 
+/// Fixed diagnostics do not echo untrusted record fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackagePolicyRecoveryError {
     InputTooLarge,
@@ -91,7 +100,9 @@ pub enum PackagePolicyRecoveryError {
     AllocationFailed,
     UnexpectedEnd,
     InvalidTag,
-    RetiredVocabulary, // Closed-vocabulary tag retired without reuse in the current schema.
+    /// A closed-vocabulary tag that an earlier encoding assigned and the
+    /// current schema retired without reuse.
+    RetiredVocabulary,
     InvalidUtf8,
     InvalidIdentity,
     InvalidValue,

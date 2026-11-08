@@ -1,7 +1,3 @@
-// Checked contract fact and outcome-specific guarantee evidence validation,
-// ensuring named contracts match their checked evidence terms and witness interfaces
-// across lowered requirements.
-
 use super::facts::ContractProjectionContext;
 use crate::capture::EvidenceOption;
 use crate::capture::SourceDeclarationInput;

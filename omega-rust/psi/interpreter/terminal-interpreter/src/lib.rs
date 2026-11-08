@@ -1,4 +1,4 @@
-//! Work-bounded reference execution of admitted Terminal Psi artifacts.
+//! Fuel-bounded reference execution of admitted Terminal Psi artifacts.
 //!
 //! Start at `terminal_interpreter.rs`: it owns the raw start entry — obtain
 //! canonical program storage, construct the execution, bind its inputs — for a
@@ -10,7 +10,7 @@
 //!
 //! `engine::execution` is the engine that entry drives: the live state and the
 //! interpreter loop. Execution retains immutable code and resumable live
-//! custody; work-budget exhaustion is not a semantic program outcome.
+//! custody; fuel exhaustion is not a semantic program outcome.
 //! `runtime_rows` owns live-cell reservations for frame values/descriptors and
 //! shared scalar record fields. Constructor and subtree staging pay for their
 //! overlap, then transfer reservations with the rows. `result_custody` charges

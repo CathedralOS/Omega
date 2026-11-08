@@ -1,9 +1,4 @@
-// Complete normalized calling application (`PackagePolicyCallingPlan`),
-// independent of realization receipts.
-//
-// `PackagePolicyNativeParameter` positions in `native_parameters` define the
-// authored native ordinals; parameter names are nominal parameter coordinates
-// rather than physical shape identities.
+//! Complete normalized calling application, independent of realization receipts.
 
 mod validation;
 
@@ -49,6 +44,8 @@ pub(crate) struct PackagePolicyCallingParameter {
     pub(crate) shape_root: u16,
 }
 
+/// Position in this ordered vector is the authored native ordinal. Names are
+/// nominal parameter coordinates; physical shapes do not identify parameters.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyNativeParameter {
     pub(crate) name: String,

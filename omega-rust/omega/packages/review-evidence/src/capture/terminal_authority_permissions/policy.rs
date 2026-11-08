@@ -1,11 +1,4 @@
-/*
-We project complete supplied terminal permission meaning and its checked
-service context independently of provider demand.
-
-This projection neither accepts permissions nor replaces native permission
-matching. Different accepted roles may supply disjoint permissions for the same
-service, so we group them by the exact checked schema rather than the role.
-*/
+//! Complete supplied permission meaning, independent of provider demand.
 
 use super::declarations::{rejected, resolve_services};
 use crate::capture::PackageReviewInput;
@@ -17,6 +10,8 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
+/// Capture supplied permissions and their complete checked service context.
+/// This neither accepts permissions nor replaces native permission matching.
 pub fn project_checked_terminal_permission_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
@@ -73,6 +68,8 @@ pub fn project_checked_terminal_permission_policy<'a>(
                 permitted: permission.supplied.permitted().clone(),
             })
             .collect::<Vec<_>>();
+        // Different accepted roles may supply disjoint permissions for the
+        // same service. Group them by the exact checked schema, not the role.
         if let Some(prior) = projected
             .iter_mut()
             .find(|prior| prior.service == resolved.service)

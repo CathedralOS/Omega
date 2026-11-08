@@ -329,7 +329,7 @@ fn prove(
 }
 
 /// Every conjunct of a true builtin `&&` is itself a true fact. A guard
-/// such as `work > 1 && members[row].vector == at` keeps its arithmetic
+/// such as `fuel > 1 && members[row].vector == at` keeps its arithmetic
 /// conjunct even though the other lies outside this vocabulary.
 fn true_conjuncts(
     program: &dyn ::validation::CheckingInput,

@@ -1,14 +1,4 @@
-// Sealed Git command environment and `-c` configuration policy.
-//
-// `sealed_git_command` prepares a child command in an existing absolute working
-// directory with a scrubbed locale, disabled terminal prompts, disabled system
-// attributes and LFS smudge filters, disabled hooks (`core.hooksPath` pointed
-// at the platform null device), explicit protocol allowlists (`https:ssh` or
-// test `file`), disabled HTTP redirects and background maintenance/GC, and
-// `fetch.fsckObjects=true` / `transfer.fsckObjects=true`. On Windows, we pass
-// `-c core.longpaths=true` on every invocation because Git for Windows disables
-// Win32 long-path handling by default and source custody uses deep, digest-
-// bearing cache paths.
+//! Sealed Git command policy over host-routed transport.
 
 use crate::SourceResolveError;
 use crate::git::executable::executor::GitExecutor;
@@ -58,6 +48,10 @@ pub(crate) fn sealed_git_command(
         .env("GIT_PROTOCOL_FROM_USER", "0")
         .env("GIT_TERMINAL_PROMPT", "0")
         .arg("--no-replace-objects")
+        // Git for Windows does not opt into Win32 long-path handling by
+        // default. Source custody deliberately uses deep, identity-bearing
+        // cache paths, so make that execution property explicit for every
+        // sealed Git operation rather than shortening canonical identities.
         .args(windows_long_path_configuration())
         .arg("-c")
         .arg(format!("core.hooksPath={}", null_device()))

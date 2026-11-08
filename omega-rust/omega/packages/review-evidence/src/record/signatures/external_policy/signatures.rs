@@ -1,4 +1,4 @@
-// Lossless external callable policy signatures and requirement associations.
+//! Lossless policy signatures cannot be reconstructed from legacy review rows.
 
 use crate::record::accessors::field_projection_accessors;
 use crate::record::{

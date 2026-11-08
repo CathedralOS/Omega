@@ -13,7 +13,6 @@ use crate::register_model::{
 use register_model::RegisterConstraintKey as Key;
 
 pub const X86_64_CRASH: Key = Key::instruction(780);
-pub const X86_64_PRIVILEGED_CRASH: Key = Key::instruction(915);
 
 /// Raw-result policies use integer predicates and volatile vector scratch.
 pub const X86_64_FLOAT_RESULT_TRAPPING: Key = Key::instruction(789);
@@ -289,7 +288,7 @@ pub const X86_64_JUMP: Key = Key::instruction(9);
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 102] = [
+pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 98] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_RETURN,
@@ -358,7 +357,6 @@ pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 102] = [
     X86_64_LOAD_ENCODED_SCALAR,
     X86_64_STORE_ENCODED_SCALAR,
     X86_64_CRASH,
-    X86_64_PRIVILEGED_CRASH,
     X86_64_IEEE_FLOAT_ARITHMETIC,
     X86_64_IEEE_FLOAT_UNARY,
     X86_64_IEEE_FLOAT_TERNARY,
@@ -383,9 +381,6 @@ pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 102] = [
     X86_64_GLOBAL_DESCRIPTOR_TABLE,
     X86_64_TASK_REGISTER_ACTIVATE,
     X86_64_TASK_REGISTER_READ,
-    X86_64_INSTALLED_INTERRUPT_CPU_CHECK,
-    X86_64_INSTALLED_INTERRUPT_TASK_COMMIT,
-    X86_64_INSTALLED_INTERRUPT_TABLE_PUBLICATION,
     X86_64_CODE_SEGMENT_RELOAD,
     X86_64_DATA_SEGMENT_RELOAD,
     X86_64_SEGMENT_SELECTOR_READ,
@@ -446,7 +441,3 @@ pub const X86_64_TASK_REGISTER_READ: Key = Key::instruction(908);
 pub const X86_64_CODE_SEGMENT_RELOAD: Key = Key::instruction(909);
 pub const X86_64_DATA_SEGMENT_RELOAD: Key = Key::instruction(910);
 pub const X86_64_SEGMENT_SELECTOR_READ: Key = Key::instruction(911);
-
-pub const X86_64_INSTALLED_INTERRUPT_CPU_CHECK: Key = Key::instruction(912);
-pub const X86_64_INSTALLED_INTERRUPT_TASK_COMMIT: Key = Key::instruction(913);
-pub const X86_64_INSTALLED_INTERRUPT_TABLE_PUBLICATION: Key = Key::instruction(914);

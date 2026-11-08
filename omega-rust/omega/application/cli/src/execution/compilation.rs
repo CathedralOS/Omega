@@ -1,26 +1,10 @@
-/*
-
-Build and Terminal Psi execution glue for `omega run`.
-
-We request a single-target `ProjectProduct::Native` build through
-`orchestration::build` (either `NativeDestination::Retained` for native /
-`--both` runs, or `NativeDestination::RuntimeAdmission` for `--engine terminal`
-runs) and replay any supplied `reference_inputs` against the produced
-`CompileReport` before publication consumes the retained native payload.
-Consuming the exact `CompileReport` rather than re-checking source or
-interpreting Checked Psi ensures that Build-generated inputs, package bindings,
-and settled runtime provisions are identical between Terminal Psi and native
-execution.
-
-In `interpret_product`, a retained native build exposes its Terminal Psi
-artifact via `report.retained_native_program()`, whereas a `RuntimeAdmission`
-build exposes it directly via `report.artifact()`. We run that artifact with
-`TerminalNativeServiceDelegation::MatchingHost` (since `omega run` executes on
-the host) and `TerminalDomainExitDelegation::IsolatedContainingDomain` (so a
-guest exit or crash inside the interpreter does not terminate the `omega` CLI
-process itself).
-
-*/
+//! `run` requests a retained native product through the shared Build owner,
+//! or, for `--engine terminal`, the same native request stopped after runtime
+//! admission. It owns no package preparation or compilation dispatch. Reference execution
+//! consumes the exact produced Terminal artifact and its retained runtime
+//! provisions before publication
+//! transfers that payload. Rechecking source or interpreting checked trees would
+//! bypass the product contract and could repeat Build or lose generated inputs.
 
 use compiler::{CompileOptions, CompileReport};
 use diagnostics::Diagnostic;
@@ -32,16 +16,21 @@ use terminal_runtime::{
 
 pub(super) struct ProbeCompilation {
     pub report: CompileReport,
+    /// Target name selected for this compilation.
     pub target_name: &'static str,
-    pub interpretations: Vec<Result<TerminalRuntimeObservation, TerminalRuntimeError>>, // One reference run per supplied input, in input order.
+    /// One reference execution per supplied input, in input order.
+    pub interpretations: Vec<Result<TerminalRuntimeObservation, TerminalRuntimeError>>,
 }
 
+/// Compiles once and replays the produced Terminal artifact against each
+/// reference input before publication transfers the payload, so many inputs
+/// share one compilation.
 pub(super) fn compile(
     private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     options: CompileOptions,
     destination: NativeDestination,
     reference_inputs: Vec<std::fs::File>,
-    psi_work_budget: u64,
+    terminal_fuel_allowance: u64,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
     let targets = match options.target_name.as_deref() {
         Some(name) => BuildTargets::Single(
@@ -55,7 +44,6 @@ pub(super) fn compile(
         build_directory: options.build_dir,
         targets,
         product: ProjectProduct::Native {
-            installation_assumptions: Vec::new(),
             destination,
             private_entry_ram,
         },
@@ -81,7 +69,12 @@ pub(super) fn compile(
     let interpretations = reference_inputs
         .into_iter()
         .map(|input| {
-            interpret_product(&report, Some(Box::new(input)), target_name, psi_work_budget)
+            interpret_product(
+                &report,
+                Some(Box::new(input)),
+                target_name,
+                terminal_fuel_allowance,
+            )
         })
         .collect();
     Ok(ProbeCompilation {
@@ -95,8 +88,10 @@ pub(super) fn interpret_product(
     report: &CompileReport,
     input: Option<Box<dyn std::io::Read + Send>>,
     target: &str,
-    psi_work_budget: u64,
+    terminal_fuel_allowance: u64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
+    // A retained native product carries its Terminal program; a Terminal-only
+    // run's report is that program with the provisions native admission settled.
     let artifact = report
         .retained_native_program()
         .map(|program| program.psi_artifact())
@@ -108,6 +103,9 @@ pub(super) fn interpret_product(
         native_image: report.retained_native_artifact(),
         entry: None,
         filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
+        // `run` executes this product on the same host, natively or through
+        // Terminal; its admitted imports may perform their declared
+        // package-owned reach here too.
         native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,
         native_provider: Some(std::process::Command::new(
             std::env::current_exe().map_err(|error| TerminalRuntimeError::MissingProvision {
@@ -123,7 +121,9 @@ pub(super) fn interpret_product(
         artifact,
         target: Some(target),
         provisions: report.runtime_provisions(),
-        work_budget: psi_work_budget,
+        fuel_allowance: terminal_fuel_allowance,
+        // `run` sponsors one standalone private domain. Its death cannot end
+        // this CLI or invalidate another instance's storage/capabilities.
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: input,
         clock: Some(terminal_runtime::TerminalClockEnvironment::Host),

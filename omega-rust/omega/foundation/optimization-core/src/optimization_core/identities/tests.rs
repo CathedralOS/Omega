@@ -1,7 +1,3 @@
-// Unit tests verifying domain separation across all 32-byte identity types,
-// ordered rule-set deduplication, and `OptimizationIdentityBundle` wire
-// round-trips.
-
 use super::{
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, IDENTITY_WIDTH, IdentityDecodeError,
@@ -193,6 +189,8 @@ fn every_bundle_component_changes_the_composite_identity() {
 
 #[test]
 fn malformed_identity_and_bundle_encodings_reject() {
+    // Every fixed-width identity uses this same macro-generated codec;
+    // identity_domains_are_distinct_for_equal_canonical_bytes checks the domains.
     let identity = OptimizationRuleIdentity::from_canonical_bytes(b"rule");
     assert_eq!(
         OptimizationRuleIdentity::decode(&identity.encode()),

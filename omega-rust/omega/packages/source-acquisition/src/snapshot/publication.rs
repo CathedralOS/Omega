@@ -1,5 +1,4 @@
-// Retained staging directories (`PendingMaterializedSnapshot`) and atomic
-// snapshot publication into the parent `snapshots` directory.
+//! Retained staging directories and atomic snapshot publication.
 
 use crate::SourceResolveError;
 use crate::custody::platform::same_capability_file_identity;

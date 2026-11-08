@@ -1,7 +1,5 @@
-// Provider declaration and realization-row matching. Named implementations own
-// a selection rather than a hidden receiver value; independent exact
-// satisfactions retain the member's own trait application instead of replacing
-// that edge with the map's primary telescope.
+//! Exact provider declarations and their independently owned realization rows.
+//! A named implementation owns a selection, never a hidden receiver value.
 
 use crate::ProviderPlanningContext;
 use crate::provider_planning::entry_state;
@@ -29,6 +27,9 @@ pub(crate) fn named_provider<'a>(
     matching.next().is_none().then_some(result)
 }
 
+/// Borrow the declaration that owns one exact provider requirement application.
+/// This view retains the original lifetime substitution without inventing a
+/// machine edge for a closed implementation map.
 pub enum ProviderTraitApplication<'a> {
     Named {
         declaration: &'a Conformance,
@@ -83,6 +84,8 @@ pub fn provider_trait_application<'a>(
                 lifetime_arguments,
             });
         }
+        // An independent exact satisfaction retains the member's own trait
+        // application. The map's primary telescope cannot replace that edge.
     }
     let mut matching = typed
         .machine_trait_conformances(machine)
@@ -111,6 +114,7 @@ pub fn provider_trait_application<'a>(
         .then_some(ProviderTraitApplication::Machine(application))
 }
 
+/// Authenticate a checked adapter's association at its declaration owner.
 pub fn provider_trait_requirement_matches(
     context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
@@ -127,6 +131,10 @@ pub fn provider_trait_requirement_matches(
             })
 }
 
+/// The one row of a named provider's map that a plan row installs, joined by
+/// the requirement's exact callable identity. `None` when the plan is not a
+/// named provider's, or when zero or several rows (or an unretained
+/// realization) answer the identity.
 pub(crate) fn named_provider_row<'a>(
     context: ProviderPlanningContext<'a>,
     plan: &ProviderPlan,
@@ -177,6 +185,8 @@ pub(crate) fn named_provider_row<'a>(
     (matching.next().is_none() && context.contains(entry.realization_machine)).then_some(entry)
 }
 
+/// Rejoin a provider row to its declaration, including an exact specialization
+/// of the map's realization. Physical machine ownership is not map ownership.
 pub fn provider_row_matches(
     context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
@@ -201,6 +211,9 @@ pub fn provider_row_matches(
         {
             return false;
         }
+        // The row names what resolution bound its authored path to; on this
+        // plan's target that stands for one body: the machine itself or its
+        // family's member for the target.
         if plan.application_identity().is_none()
             && crate::target_machines::realized_row_machine(
                 context,

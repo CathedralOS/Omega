@@ -1,68 +1,68 @@
-/*
-We coordinate Omega compilation from assembled source units and Build
-continuations through Checked Psi, target-selected provider and entry
-settlement, canonical Terminal Psi production, and native artifact realization.
-
-Start at `target_batch.rs` for batch compilation across target profiles and
-`checked.rs` for session-owned source and package compilation. A compilation
-begins by validating target requests and preparing the shared source and Build
-continuation (`begin_compilation`). Once the application steps the Build
-activation and returns its result, `complete_compilation` checks the Product
-source once, captures each target's declarations (`checked/target_preparation.rs`),
-settles provider plans and entry bindings (`execution_settlement.rs`), batches
-portable Terminal Psi production (`terminal.rs`), and finishes each requested
-stop (`product_execution.rs`).
-*/
-
-/*
-We separate compilation sequencing from product custody (`compilation_products`)
-and target-neutral language semantics (`psi_compiler`). This crate never
-executes Build effects directly or reinterprets Checked Psi outside the stage
-owners; instead, we hold the opaque continuation across application-driven Build
-stepping and route each settled target through its exact stop (`Check`,
-`Terminal`, `Native`, `Inspection`, or `Component`).
-
-We also embed the loaded compiler's build-input identity (`compiler_identity`,
-`compiler_input_identity`, and `compiler_optimization_level`) from `OUT_DIR` at
-compile time so package and component caches can verify that the running
-compiler binary and bundled toolchain library match retained artifacts without
-trusting mutable filesystem paths or runtime environment variables.
-*/
-
 #![forbid(unsafe_code)]
 
+//! Source checking, compilation, and retained-artifact realization.
+//!
+//! Start at `target_batch.rs`: prepare one `CompileRequest`, then consume its exact
+//! returned Build to produce one `CompileReport` per target through checking, Terminal production and
+//! native realization. `package_compilation::source_assembly` assembles the physical
+//! and generated source set; the folders are the remaining work those steps
+//! call: `checked` retains the Build continuation across application-owned
+//! execution and checks the product once,
+//! `execution_settlement` joins each target's provider installation and
+//! selected dispatch against it, `terminal` produces and
+//! verifies the Terminal artifact, `native` realizes it for a target, and
+//! `product_execution` finishes each requested stop with its permission consent.
+//! The product-owned report plan carries the native request and optimization
+//! choices through those phases. Finished products and publication belong to the independent
+//! `compilation_products` owner; this crate only sequences their production.
+
 mod execution_settlement;
+mod identity;
+mod target_batch;
+pub use psi_compiler::ProducedTerminalProgram;
+pub use psi_compiler::{
+    LibrarySliceTotals, declaration_page_fork_totals, dependency_body_read_totals,
+    dependency_entailment_totals, library_slice_totals, retained_layout_match_hits,
+    whole_program_reuse_hits,
+};
 mod observations;
+mod product_execution;
+
 #[cfg(test)]
 mod product_boundary;
-mod product_execution;
-mod target_batch;
-mod terminal;
+
+pub use identity::{
+    compiler_build_profile, compiler_identity, compiler_input_identity, compiler_optimization_level,
+};
 
 pub mod checked;
-
-pub use crate::checked::{
-    BuildAdvance, CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
-    IndependentComponentDiscovery, IndependentComponentSelection, OptimizationRollback,
-    OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
-    PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
-    PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct,
-    RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation,
-    checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
-};
-pub use build_settings::BuildSnapshotRequest;
-pub use checked::checking::ProductQueries;
 #[doc(hidden)]
 pub use checked::checking::build_continuation::{
     core_product_speculations, refuse_core_product_speculation,
 };
+mod terminal;
+
+pub use crate::checked::{
+    CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
+    IndependentComponentDiscovery, IndependentComponentSelection, OptimizationRollback,
+    OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
+    PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
+    PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct,
+    RestrictedBuildGrants, SourceBuildDeclaration, checked_compilation_call_count,
+    preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
+    typed_frontier_reuse_count,
+};
+pub use build_settings::BuildSnapshotRequest;
+pub use checked::checking::ProductQueries;
+pub use checked::{BuildAdvance, SourceCompilation};
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 pub use compilation_products::{
-    CompileFailure, CompileOptions, CompileOutcomes, CompileOutputKind, CompileReport,
-    CompileRequest, CompileTargetOutcome, CompilerRequestOutcome, ExecutablePublicationReceipt,
-    OptimizationRollbackReceipt, RequestedCompileProduct, RetainedBuildOutputs,
-    RetainedNativeArtifact,
+    CompileFailure, CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome,
+    CompilerRequestOutcome, RequestedCompileProduct,
+};
+pub use compilation_products::{
+    CompileOutputKind, CompileReport, ExecutablePublicationReceipt, OptimizationRollbackReceipt,
+    RetainedBuildOutputs, RetainedNativeArtifact,
 };
 pub use native_compiler::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
@@ -70,28 +70,5 @@ pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
-pub use psi_compiler::{
-    LibrarySliceTotals, ProducedTerminalProgram, declaration_page_fork_totals,
-    dependency_body_read_totals, dependency_entailment_totals, library_slice_totals,
-    retained_layout_match_hits, whole_program_reuse_hits,
-};
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;
-
-pub fn compiler_input_identity() -> Result<[u8; 32], String> {
-    let library = package_compilation::toolchain_library::identity()?;
-    let mut digest = optimization_core::digest_encoder::DomainDigestEncoder::new(
-        b"omega-accepted-compiler-inputs-v1\0",
-    );
-    digest.raw(&compiler_identity());
-    digest.raw(library.as_bytes());
-    Ok(digest.finish())
-}
-
-pub const fn compiler_identity() -> [u8; 32] {
-    *include_bytes!(concat!(env!("OUT_DIR"), "/compiler-identity.bin"))
-}
-
-pub const fn compiler_optimization_level() -> &'static str {
-    env!("OMEGA_COMPILER_OPT_LEVEL")
-}

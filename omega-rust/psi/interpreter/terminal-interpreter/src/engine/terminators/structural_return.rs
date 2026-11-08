@@ -9,7 +9,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_return_structural(
         &mut self,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         self.reject_no_normal_return()?;
         let Terminator::ReturnStructural {

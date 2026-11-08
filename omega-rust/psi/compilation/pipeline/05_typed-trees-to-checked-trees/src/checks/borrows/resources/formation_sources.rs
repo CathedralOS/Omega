@@ -156,13 +156,8 @@ fn nearest_parents(
     source: Handle<BorrowLoanFact>,
 ) -> Result<Vec<Handle<BorrowLoanFact>>, Vec<Diagnostic>> {
     let borrow = &facts.borrow;
-    if crate::checks::borrows::aliases::retained_lineage(
-        facts.view(),
-        loan_occurrences,
-        state,
-        source,
-    )
-    .is_none()
+    if crate::checks::borrows::aliases::retained_lineage(facts, loan_occurrences, state, source)
+        .is_none()
     {
         return refusal("captured descriptor has incomplete or cyclic borrowing ancestry");
     }

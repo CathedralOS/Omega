@@ -1,13 +1,5 @@
-/*
-We project the requirement routes that establish a progress profile into the
-policy rows every consumer publishes.
-
-A progress profile establishes only through requirement routes: an
-exact-machine route is ineligible for an admitted boundary progress profile, so
-it is filtered here once instead of in each consumer. Checked requirements and
-boundary requirements stay distinct establishment vocabularies rather than a
-shared mode.
-*/
+//! The establishment routes a progress profile's owner authored, projected
+//! into the policy rows every consumer publishes.
 
 use super::{nominal_identity, trait_requirement_identity_from_symbols};
 use crate::capture::SourceDeclarationInput;
@@ -17,6 +9,14 @@ use effects::provider_plan::ServiceProgressEstablishmentRouteKind;
 use language_semantics::DomainEstablishmentRoute;
 use typed_trees::domain::DomainDefinition;
 
+/// Project the requirement routes that establish a progress profile.
+///
+/// A progress profile establishes only through requirement routes: an
+/// exact-machine route is ineligible for an admitted boundary progress
+/// profile, so it is filtered here once instead of in each consumer. The
+/// route kinds stay distinct — a checked requirement and a boundary
+/// requirement are different establishment vocabularies, not a shared mode.
+/// `requirement_context` names the consuming policy in a rejected route.
 pub(crate) fn project_service_progress_routes(
     compilation: &SourceDeclarationInput<'_>,
     profile: &DomainDefinition,

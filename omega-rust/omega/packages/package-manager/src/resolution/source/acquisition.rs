@@ -1,11 +1,4 @@
-// We acquire immutable sources and bind the declarations their `Build`
-// invocations execute. Package policy selects pins and offline behavior before
-// execution, and the first acquisition freezes a selector for the operation so
-// reuse never re-runs Git or recaptures a source whose `Build` already
-// returned. Retaining a source always selects cache coordinates from this
-// acquisition owner, and `capture_staged` captures proposed bytes without
-// changing the original package lineage or the base used by relative dependency
-// requests.
+//! Acquire immutable sources, then bind the declarations their Builds execute.
 
 use super::build_resolution::{BuildSourceAcquisition, PendingBuildSource};
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
@@ -28,6 +21,8 @@ use package_source::{
 };
 use std::path::Path;
 
+/// Invocation-owned source acquisition. Package policy selects pins and offline
+/// behavior before execution; repeated selectors retain their first Git result.
 pub struct BuildSourceAcquisitions<'operation> {
     pub(super) storage: &'operation SourceResolver,
     pub(super) options: GitResolutionOptions<'operation>,
@@ -40,6 +35,8 @@ pub struct BuildSourceAcquisitions<'operation> {
 }
 
 impl<'operation> BuildSourceAcquisitions<'operation> {
+    /// Apply resolver work limits before recursive Build work. Final graph
+    /// reconciliation still rejects cycles that do not involve readiness waits.
     pub fn admit_build_descent(
         &self,
         active: &[AcquiredBuildSource],
@@ -74,6 +71,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         }
     }
 
+    /// Observational inspection may reacquire accepted edges, never discover
+    /// a changed selector or new local source before reporting a graph mismatch.
     pub(crate) fn require_locked_graph(
         &mut self,
         source: &'operation CanonicalSourceClosureSubject,
@@ -81,6 +80,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.locked_source = Some(source);
     }
 
+    /// Keep resolver-selected cache locations with the root that executes Build.
+    /// Relative requests retain its original lineage and staged source custody.
     pub fn retain_root(
         &mut self,
         acquired: AcquiredBuildSource,
@@ -91,6 +92,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.retain_source(acquired)
     }
 
+    /// Acquire a post-return graph occurrence through the same transport used
+    /// while Build is suspended. Graph continuation stays outside transport.
     pub fn acquire(
         &mut self,
         pending: PendingBuildSource,
@@ -130,6 +133,9 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         }
     }
 
+    /// Resolve an actually issued occurrence before the requester has returned.
+    /// This establishes source custody only. Its name, complete ledger, aliases
+    /// and graph still require the ordinary normal-return join.
     pub fn acquire_issued(
         &mut self,
         requester: &AcquiredBuildSource,
@@ -145,6 +151,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         )
     }
 
+    /// Resolve an occurrence retained by an eligible completed Pure result.
+    /// Current source custody, lock admission and exact ordinal checks still apply.
     pub fn acquire_completed(
         &mut self,
         requester: &AcquiredBuildSource,
@@ -189,6 +197,9 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.acquire_source(origin, request)
     }
 
+    /// One source-selection operation, independent of whether its caller has a
+    /// package declaration yet. The first immutable capture is reused throughout
+    /// discovery, helper preparation and final graph reconciliation.
     fn acquire_source(
         &mut self,
         requester: SourceAcquisitionOrigin<'_>,
@@ -267,6 +278,9 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         &mut self,
         mut acquired: AcquiredBuildSource,
     ) -> Result<AcquiredBuildSource, String> {
+        // Always select coordinates from this acquisition owner, including
+        // when a caller brings a clone retained by another resolver session.
+        // A failed optional retention stays a miss for this operation.
         acquired.cache_directories = self
             .cache_directories
             .get_or_init(|| super::custody::SourceCacheDirectories::retain(self.storage))
@@ -277,6 +291,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             if existing.resolution != acquired.resolution || existing.capture != acquired.capture {
                 return Err("source requests select conflicting immutable content".into());
             }
+            // Workspace selection belongs to this request; capture and lineage
+            // belong to the operation's first acquisition.
             return Ok(acquired);
         }
         if self.sources.len() >= PackageSourceClosureLimits::default().max_packages {
@@ -294,6 +310,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         use package_source::git::resolution::{
             resolve_git_source_at_revision_in_lane, resolve_git_source_from_pin_in_lane,
         };
+        // The first acquisition freezes a selector for this operation. Reuse
+        // never runs Git or recaptures a source whose Build already returned.
         if let Some((_, source)) = self
             .git_sources
             .iter()
@@ -343,6 +361,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     }
 }
 
+/// Source selection may require executing an authenticated workspace catalog.
+/// Neither result contains a graph continuation or provisional package name.
 pub enum AcquiredSourceSelection {
     Source(AcquiredBuildSource),
     Workspace(super::AcquiredWorkspaceBuild),
@@ -356,6 +376,8 @@ pub(crate) struct SourceAcquisitionOrigin<'source> {
     pub limits: LocalSourceLimits,
 }
 
+/// Acquired bytes and authenticated lineage, without a parsed declaration or
+/// provisional package key. Both transports establish the same owner at return.
 #[derive(Clone)]
 pub struct AcquiredBuildSource {
     pub(super) capture: CapturedLocalSource,
@@ -386,6 +408,8 @@ impl std::fmt::Display for BuildSourceAcquisitionError {
 impl std::error::Error for BuildSourceAcquisitionError {}
 
 impl AcquiredBuildSource {
+    /// Acquisition identity exists before a Build declares its package name.
+    /// An operation retains one immutable capture at this identity.
     pub fn same_source(&self, other: &Self) -> bool {
         self.lineage == other.lineage && self.navigation == other.navigation
     }
@@ -399,6 +423,9 @@ impl AcquiredBuildSource {
         }
     }
 
+    /// Capture proposed bytes without changing the original package lineage or
+    /// the base used by relative dependency requests. The staging owner retains
+    /// the live-source comparison required before publication.
     pub(crate) fn capture_staged(
         stage: &package_source::local::staging::StagedLocalSnapshot,
         context: ExternalSourceContext,
@@ -430,6 +457,8 @@ impl AcquiredBuildSource {
         )
     }
 
+    /// Capture local source once. The enclosing package operation owns recovery
+    /// and lock policy; capture itself grants no review or execution authority.
     pub fn capture_local(
         root: &Path,
         limits: LocalSourceLimits,
@@ -468,6 +497,8 @@ impl AcquiredBuildSource {
         })
     }
 
+    /// Close the authenticated Git snapshot into compiler-owned source bytes.
+    /// This does not reinterpret a Git locator as a local source lineage.
     pub(super) fn capture_git(
         source: &ResolvedGitSource,
         request: GitPackageSourceRequest,
@@ -512,6 +543,7 @@ impl AcquiredBuildSource {
         &self.capture
     }
 
+    /// Bind one executed declaration; graph and compiler joins remain mandatory.
     pub fn bind_returned_build(
         &self,
         returned: &build_settings::ReturnedBuild,

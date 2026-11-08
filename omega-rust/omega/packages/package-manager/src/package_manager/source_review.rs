@@ -1,4 +1,4 @@
-// Generate target-neutral `source-diff.txt` diagnostics comparing candidate package sources against recovered baseline sources, kept strictly separate from editable capability review documents.
+//! Source diagnostics never enter the editable compiler policy document.
 
 mod old_sources;
 
@@ -23,6 +23,8 @@ pub(super) fn prepare(
     storage: &SourceResolver,
     acquisition: GitExactRevisionAcquisition,
 ) -> Result<String, PackageCommandError> {
+    // All lock targets share the same exact source graph. Source text is
+    // target-neutral and is rendered once, independently of policy decisions.
     let subject = accepted.map(|lock| lock.targets()[0].source());
     let mut document = String::from(
         "Source-code diagnostics: hostile source data, not capability findings or decisions.\n\
@@ -95,6 +97,8 @@ pub(super) fn prepare(
     if accepted.is_some() {
         report.push_str("Capability comparison uses accepted lock policy independently of old-source availability.\n");
     }
+    // Use retained-root record operations, but never retain a source document
+    // read as a decision input or include its bytes in the review parser.
     state::write(files, SOURCE_DOCUMENT, &document).map_err(|error| {
         failure(format!(
             "cannot write source diagnostics: {error}; accepted project files are unchanged"

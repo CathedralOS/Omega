@@ -1,11 +1,4 @@
-// Opt-in kernel resource-usage observations (`ProcessResourceUsage`) collected
-// before a child's native process handle closes.
-//
-// On Unix, `try_wait_with_usage` reaps the child via `wait4(..., WNOHANG, ...)`
-// and scales `ru_maxrss` by 1 on macOS (bytes) and 1,024 on Linux/BSD (KiB).
-// On Windows, `windows_usage` queries `GetProcessTimes`,
-// `GetProcessMemoryInfo`, and `QueryProcessCycleTime` on the live process
-// handle before the `WindowsJobChild` drops.
+//! Opt-in kernel observations retained before the child's native handle closes.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcessResourceUsage {

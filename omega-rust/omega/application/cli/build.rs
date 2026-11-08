@@ -1,5 +1,3 @@
-// Populate `OMEGA_VERSION`, `OMEGA_COMMIT`, and `OMEGA_HOST` at build time for `omega --version`.
-
 fn main() {
     for name in [
         "OMEGA_RELEASE_VERSION",

@@ -1,11 +1,4 @@
-// Whole-tree and selective graph inspection over a retained Git repository.
-//
-// `AuthenticatedGitTreeInspection` holds a payload-free authenticated tree
-// graph (`AuthenticatedGitTreeGraph`) across declaration discovery and workspace
-// member selection so callers can inspect root declarations, derive member
-// declaration paths, and batch-read only the selected payload closure without
-// repeating graph authentication. `open_catalog_inventory` filters out inert
-// foreign `Gitlink` edges while authenticating all supported repository blobs.
+//! Whole-tree and selective inspection over a retained Git repository.
 
 use std::ffi::OsStr;
 
@@ -24,12 +17,22 @@ use super::projection::AuthenticatedGitTreeProjection;
 use super::projection::{GitTreeProjectionPlan, GitTreeProjectionRequest, select_regular_files};
 use super::tree::{parse_git_tree_entries, parse_git_tree_graph_entries};
 
+/// One authenticated repository tree graph held across staged declaration
+/// discovery and member selection.
+///
+/// The graph contains modes, paths, sizes, and object IDs, but no blob payloads.
+/// Callers may therefore inspect the root declaration, derive the exact member
+/// declaration paths, and only then open the selected payload closure without
+/// repeating or weakening graph authentication.
 #[derive(Debug)]
 pub(crate) struct AuthenticatedGitTreeInspection {
     graph: AuthenticatedGitTreeGraph,
 }
 
 impl AuthenticatedGitTreeInspection {
+    /// A catalog owns its repository's supported files as Build inputs, not
+    /// the source trees of foreign gitlink edges. Retain those edges in the
+    /// authenticated graph without fetching, exposing or publishing them.
     pub(crate) fn open_catalog_inventory(
         &self,
         executor: &GitExecutor,

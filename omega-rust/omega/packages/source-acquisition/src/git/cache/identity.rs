@@ -1,6 +1,4 @@
-// Domain-separated SHA-256 cache entry identities (`git_cache_identity`) and
-// framed metadata records (`git_cache_metadata`) binding `GIT_CACHE_POLICY`,
-// canonical locator URL, requested revision, and execution transport tag.
+//! Stable Git cache identities, metadata records, and cache diagnostics.
 
 use crate::git::request::GitExecutionTransport;
 use crate::identity::digest::{append_framed_bytes, format_sha256};

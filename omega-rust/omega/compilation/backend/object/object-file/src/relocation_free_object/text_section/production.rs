@@ -109,7 +109,7 @@ fn assemble_object(
         identity: RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"pending"),
         source_text_section: text.identity,
         psi: text.psi,
-        work_schedule: text.work_schedule,
+        fuel_schedule: text.fuel_schedule,
         selected: text.selected,
         selections,
         target: text.target,
@@ -153,7 +153,7 @@ mod tests {
         TerminalRelocationFreeTextSectionIdentity,
     };
     use selected_instructions::SelectedInstructionPlanIdentity;
-    use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+    use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
     use target::{Architecture, NativeTarget, ObjectFormat};
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -166,7 +166,7 @@ mod tests {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),
             },
-            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             selected: SelectedInstructionPlanIdentity::from_bytes([5; 32]),
             target,
             semantic_entry: machine,

@@ -13,6 +13,7 @@ fn subtree_copy_rejoins_saved_subject_aliases_without_merging_dispatches() {
     let alias = source
         .expressions
         .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+            component: Default::default(),
             capture,
             pattern_head: head,
         }));

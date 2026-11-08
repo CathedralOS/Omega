@@ -1,6 +1,4 @@
-// Closed failure vocabulary for local and Git source resolution, including
-// rejected submodule edges (`GitSubmoduleEdge`) that must become explicit
-// package dependency edges.
+//! Closed failure vocabulary for local and Git source resolution.
 
 use crate::identity::SourceContentDigest;
 use std::fmt;
@@ -124,10 +122,14 @@ pub enum SourceResolveError {
     },
 }
 
+/// A submodule declaration found in a rejected Git source projection. `path`
+/// is the repository-relative mount or manifest path; `commit` carries the
+/// pinned submodule commit a gitlink records — the revision an explicit
+/// package edge must name — and is `None` for `.gitmodules` manifests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitSubmoduleEdge {
-    pub path: PathBuf,          // Repository-relative mount or manifest path.
-    pub commit: Option<String>, // Pinned gitlink commit (`None` for `.gitmodules` manifests).
+    pub path: PathBuf,
+    pub commit: Option<String>,
 }
 
 impl fmt::Display for SourceResolveError {

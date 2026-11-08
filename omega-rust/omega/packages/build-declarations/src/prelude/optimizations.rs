@@ -1,10 +1,4 @@
-// Splices the shared `Optimization` catalog into the toolchain Build prelude.
-//
-// Optimization counters use `u8 in Saturating` so synthesized increments are
-// obligation-free, clamp at `u8::MAX` instead of wrapping a report count back
-// to zero, and emit no `crashes Trap` bucket. Storing `selected` as a single
-// array indexed in `Optimization::ALL` order avoids checking one field and one
-// nested writer machine per optimization on every compile.
+//! Project the shared optimization catalog into the toolchain Build API.
 
 use optimization_core::Optimization;
 
@@ -33,6 +27,13 @@ fn declarations() -> String {
     for optimization in Optimization::ALL {
         text.push_str(&format!("    case {};\n", optimization.build_case_name()));
     }
+    // Counters are build bookkeeping: a defined-overflow domain keeps the
+    // synthesized increments obligation-free. Saturating clamps at the type
+    // maximum rather than wrapping a report count back to zero, and the
+    // machines emit no `crashes Trap` bucket the verifier would demand.
+    // `selected` holds one counter per optimization in `Optimization::ALL`
+    // order. One array keeps every compile from checking one counter field
+    // and one nested writer machine per optimization.
     text.push_str(&format!(
         "}}\npublic data Optimizations {{\n    human_report: u8 in Saturating;\n    selected: [u8 in Saturating; {}];\n}}\n",
         Optimization::ALL.len()

@@ -1,9 +1,10 @@
-// We check that boundary requirements connected by `AssumedBindingContract`
-// declarations have compatible source signatures, operational/lifetime
-// envelopes, and positional lifetime subject mappings before publishing the
-// shared intermediate program. We keep each compatibility verdict beside its
-// contract and report it when that contract's Calling plan is validated,
-// preserving diagnostic ordering without retaining the checked program.
+//! Check that functions connected by build settings have compatible signatures,
+//! and save the results before publishing the shared intermediate program.
+//!
+//! Resolve each function declaration before choosing implementations. Keep each
+//! signature result beside its contract and report it when that contract's
+//! calling plan is checked, preserving which error is reported first.
+//! The saved results do not retain the checked program.
 
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use build_time_evaluation::assumed_bindings::AssumedBindingContract;
@@ -143,6 +144,8 @@ fn source_compatibility(
         return Err(vec![Diagnostic::error("assumed binding has incompatible or unsupported operational/lifetime correspondence").with_source_span(contract.source_span)]);
     }
 
+    // The type comparison above ignores lifetimes. Match lifetime parameters
+    // by position, then compare every reference in the parameters and result.
     let lifetime_mapping = required_signature
         .lifetime_parameters
         .iter()

@@ -1,15 +1,16 @@
-// Substitute the complete selected installation closure without source queries.
-// Inputs retain the selected requirement/plan association and its checked reach;
-// a concrete child may become available several rounds before another child while
-// its contribution stays in the parent's accumulated row. All publishers are
-// counted up front so a pending competing plan never appears unambiguous, and
-// plan_scoped_resolution prefers the owning plan's row before allowing a foreign
-// row only when the entire selected closure has a single publisher.
+//! Substitute the complete selected installation closure without source queries.
+//!
+//! Inputs retain the selected requirement/plan association and its checked reach.
+//! A concrete child may become available several rounds before another child;
+//! its contribution stays in the parent's accumulated row. All publishers are
+//! counted up front so a pending competing plan never appears unambiguous.
 
 use diagnostics::Diagnostic;
 use effects::InstallationReachResolution;
 use terminal_psi::{TerminalIdentityTable, TerminalIdentityTableBuilder};
 
+/// Invocation-local prepared input, not a portable artifact or execution grant.
+/// Names are diagnostic payload; dependencies use canonical requirement identities.
 pub struct InstallationReachRow {
     pub requirement_identity: String,
     pub provider_plan_report_identity: u64,
@@ -20,6 +21,9 @@ pub struct InstallationReachRow {
     pub dependencies: Vec<String>,
 }
 
+/// Resolve every selected row, or refuse an incomplete/ambiguous closure.
+/// The existing SelectedProviderPlanFacts attachment owns normalized bound and
+/// selected-plan validation; this operation never substitutes an abstract bound.
 pub fn resolve_installation_reach(
     rows: Vec<InstallationReachRow>,
 ) -> Result<(Vec<InstallationReachResolution>, TerminalIdentityTable), Vec<Diagnostic>> {
@@ -96,6 +100,8 @@ fn completed_row(
     }
 }
 
+/// Prefer the owning plan's row. A foreign row is usable only if the whole
+/// selected closure has one publisher, including publishers not yet resolved.
 fn plan_scoped_resolution<'a>(
     resolutions: &'a [InstallationReachResolution],
     identities: &TerminalIdentityTableBuilder,

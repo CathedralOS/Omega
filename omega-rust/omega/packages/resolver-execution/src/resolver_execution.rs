@@ -1,12 +1,8 @@
-// Freezes the resolver executable path outside package-controlled roots, then
-// prepares each `ResolverExecutionPhase` at one exact absolute working root
-// with fixed `BoundedProcessLimits` (120s CPU, 8 GiB address space, 1 GiB file
-// size, 256 open files, 16 active processes, 2 GiB per-process memory, 4 GiB
-// aggregate memory).
-//
-// Both the authored executable path and its canonicalized target are checked
-// against `package_controlled_roots` so a symlink in a host directory cannot
-// redirect execution into a package-controlled tree.
+//! Freeze the resolver executable, then prepare each phase at one exact working root.
+//!
+//! Phase selects the root's role, not an operating-system confinement policy.
+//! Git command policy belongs to acquisition; shared process limits and cleanup
+//! belong to bounded-process.
 
 mod path_custody;
 
@@ -20,20 +16,28 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// One compiler-owned source-resolution phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResolverExecutionPhase {
-    TransportDiscovery, // Remote object-format and selector discovery through host Git.
-    RepositoryInitialization, // Creation of a new local bare repository.
-    Fetch,              // Fetch into an existing quarantine through host Git.
-    RepositoryInspection, // Read-only object and tree inspection.
+    /// Remote object-format and selector discovery through ordinary host Git.
+    TransportDiscovery,
+    /// Creation of a new local bare repository.
+    RepositoryInitialization,
+    /// Fetch into an existing quarantine through ordinary host Git.
+    Fetch,
+    /// Read-only object and tree inspection.
+    RepositoryInspection,
 }
 
+/// The primary executable frozen before package input influences command setup.
 #[derive(Debug)]
 pub struct ResolverExecutionBackend {
     executable: PathBuf,
 }
 
 impl ResolverExecutionBackend {
+    /// Freeze one exact executable path before package-controlled roots can
+    /// influence launch construction.
     pub fn open(executable: &Path, package_controlled_roots: &[PathBuf]) -> io::Result<Self> {
         require_absolute(executable, "resolver executable")?;
         require_lexically_canonical_bounded_path(executable, "resolver executable")?;
@@ -56,6 +60,11 @@ impl ResolverExecutionBackend {
         &self.executable
     }
 
+    /// Prepare one phase at its required working root using the frozen executable.
+    /// Discovery and inspection read that root; initialization and fetch mutate it
+    /// through the acquisition owner's command policy, not a filesystem sandbox.
+    /// Missing or competing roots are not representable in this interface.
+    ///
     /// ```compile_fail
     /// use resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};
     /// fn missing_root(backend: &ResolverExecutionBackend) {

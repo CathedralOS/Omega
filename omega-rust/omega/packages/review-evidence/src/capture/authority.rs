@@ -1,15 +1,3 @@
-/*
-Dangerous authority classification for critical `omega::core` services and
-compiler-bound aggregate host services (`dangerous_authority_class`).
-
-Core classifications require exact checked toolchain ownership and canonical
-module path identity (`filesystem_authority.omg`, `process_authority.omg`,
-`process_exit.omg`, `assembly.omg`, `interrupt.omg`), excluding virtual
-toolchain declarations such as `Build` operations. Compiler-resolved aggregate
-bindings (`ConsoleExitProcessI32`, `FilesystemHostService`) map to their
-conservative authority classes while those services remain in use.
-*/
-
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
@@ -39,6 +27,12 @@ const CORE_CRITICAL_SERVICES: &[(&str, &str, PackageReviewDangerousAuthorityClas
     r!("assembly.omg" => "RootMemoryAccess" => RootMemory),
 ];
 
+/// Critical semantic services and exact compiler-bound aggregate services.
+///
+/// Core classifications require exact checked toolchain ownership and module
+/// identity. Compiler-resolved aggregate bindings retain their conservative
+/// summaries while those services remain in use. Neither classification is
+/// evidence of exercised physical authority; realization records that separately.
 pub(crate) fn dangerous_authority_class(
     compilation: &PackageReviewInput<'_>,
     definition: &language_semantics::ServiceReachDefinition,
@@ -58,9 +52,9 @@ pub(crate) fn dangerous_authority_class(
             .package_root
             .file_name()
             .is_some_and(|namespace| namespace == "core")
-            && !crate::capture::semantics::declarations::is_canonical_virtual_toolchain_path(
-                &source.path,
-            )
+            // Virtual toolchain declarations (including Build operations) have
+            // digest custody but are not filesystem modules in omega::core.
+            && !crate::capture::semantics::declarations::is_canonical_virtual_toolchain_path(&source.path)
         {
             let relative = source
                 .path

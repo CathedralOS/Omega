@@ -110,27 +110,25 @@ pub fn captured_numeric_observations(
     in_transition_target: bool,
     demand: NumericObservationDemand,
 ) -> CapturedNumericObservations {
-    let stored = program
-        .machine(machine.symbol)
-        .is_some_and(|stored| std::ptr::eq(stored, machine))
-        && program
-            .state_in_machine(machine, state.symbol)
-            .is_some_and(|stored| std::ptr::eq(stored, state));
-    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| stored);
+    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| {
+        program
+            .machine(machine.symbol)
+            .is_some_and(|stored| std::ptr::eq(stored, machine))
+            && program
+                .state_in_machine(machine, state.symbol)
+                .is_some_and(|stored| std::ptr::eq(stored, state))
+    });
     let site = NumericSite {
         machine: machine.symbol,
         state: state.symbol,
         demand,
         in_transition_target,
     };
-    if stored
-        && let Some(observed) = crate::frozen_program::readable_memos(program)
-            .find_map(|memos| memos.numeric_observations.observed(site, statement_index))
+    if let Some(observed) =
+        memos.and_then(|memos| memos.numeric_observations.observed(site, statement_index))
     {
         return observed;
     }
-    // Rows that read no cut of this input's ancestry hold in every context.
-    let guard = crate::frozen_program::CutGuard::start(program);
     let Some(query) = CheckingQuery::numeric_observation(program, machine.symbol, state.symbol)
     else {
         return CapturedNumericObservations::default();
@@ -141,7 +139,7 @@ pub fn captured_numeric_observations(
         .statements(state.statement_nodes)
         .len();
     // One-shot inputs keep no table, so they keep the exact-prefix selection.
-    if memos.is_none() {
+    let Some(memos) = memos else {
         return collect_numeric_observations(
             input,
             machine,
@@ -151,7 +149,7 @@ pub fn captured_numeric_observations(
             demand,
         )
         .0;
-    }
+    };
     if !in_transition_target
         && demand.scalar_values != ScalarObservationDemand::StatePrefix
         && statement_index <= statement_count
@@ -159,16 +157,14 @@ pub fn captured_numeric_observations(
         let batch = collect_state_numeric_observations_batch(input, machine, state, demand);
         let observed = batch[statement_index].0.clone();
         let context_free = !query.met_enclosing_cut();
-        if let Some(memos) = guard.memos() {
-            memos.numeric_observations.record(
-                site,
-                batch
-                    .into_iter()
-                    .enumerate()
-                    .filter(|(_, (_, complete))| context_free || *complete)
-                    .map(|(index, (observations, _))| (index, observations)),
-            );
-        }
+        memos.numeric_observations.record(
+            site,
+            batch
+                .into_iter()
+                .enumerate()
+                .filter(|(_, (_, complete))| context_free || *complete)
+                .map(|(index, (observations, _))| (index, observations)),
+        );
         return observed;
     }
     let (observations, complete) = collect_numeric_observations(
@@ -179,9 +175,7 @@ pub fn captured_numeric_observations(
         in_transition_target,
         demand,
     );
-    if (complete || !query.met_enclosing_cut())
-        && let Some(memos) = guard.memos()
-    {
+    if complete || !query.met_enclosing_cut() {
         memos.numeric_observations.record(
             site,
             std::iter::once((statement_index, observations.clone())),

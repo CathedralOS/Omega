@@ -90,8 +90,7 @@ pub use frame_application::stage_function_fragment_frame_application;
 
 pub use frame_application::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
-    FunctionFragmentFrameApplicationError, FunctionFragmentFrameApplicationIdentity,
-    StagedFunctionFragmentFrameApplication, function_fragment_frame_application_identity,
+    FunctionFragmentFrameApplicationIdentity, function_fragment_frame_application_identity,
 };
 // 4. Text placement.
 mod text_placement;

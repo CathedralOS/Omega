@@ -23,8 +23,7 @@ pub(super) fn result_origins(
     expected: TypeReferenceHandle,
     include_shared: bool,
 ) -> Option<AggregateOrigins> {
-    let mut result = installed_context_result_origins(program, machine, state, expected)
-        .or_else(|| activation_borrow_result_origins(program, machine, state, expected))
+    let mut result = activation_borrow_result_origins(program, machine, state, expected)
         .or_else(|| access_view_result_origins(program, machine, state, expected))?;
     if !include_shared {
         result.references.retain(|leaf| {
@@ -184,77 +183,6 @@ fn activation_borrow_result_origins(
                 source: FrameSourcePlace::parameter_root(parameter),
             })),
         }],
-        ..Default::default()
-    })
-}
-
-/// The installation supplies the pointer; the acknowledgement supplies only the
-/// lifetime dependency. Both survive ordinary call and stored-value transport.
-fn installed_context_result_origins(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    expected: TypeReferenceHandle,
-) -> Option<AggregateOrigins> {
-    let context =
-        crate::compiler_operations::static_interrupt_context(program, machine.symbol).ok()??;
-    if context.entry != state.symbol
-        || !super::super::isolation::aggregate_storage_types_match(
-            program,
-            state.return_type,
-            expected,
-        )
-    {
-        return None;
-    }
-    let [acknowledgement] = program.state_parameters(state) else {
-        return None;
-    };
-    let frontier = declared_origins_for_query(
-        program,
-        SymbolHandle::invalid(),
-        "result",
-        state.return_type,
-        true,
-    )?;
-    let [leaf] = frontier.references.as_slice() else {
-        return None;
-    };
-    if leaf.may_select
-        || leaf.kind != StoredOriginKind::Reference(language_semantics::ReferenceAccess::Shared)
-    {
-        return None;
-    }
-    if std::env::var_os("OMEGA_COMPILER_TRACE_INSTALLED_CONTEXT").is_some() {
-        eprintln!(
-            "INSTALLED_CONTEXT primitive relation machine={:?} state={:?} referent={:?} acknowledgement={:?}",
-            machine.symbol, state.symbol, context.referent, acknowledgement.symbol
-        );
-    }
-    let dependency = super::super::stored_calls::SlotSource::from_place(
-        program,
-        FrameSourcePlace::parameter_root(acknowledgement),
-        FramePathPrecision::Exact,
-        Some(language_semantics::ReferenceAccess::Shared),
-    );
-    Some(AggregateOrigins {
-        references: vec![ReferenceLeaf {
-            kind: leaf.kind,
-            local_suffix: place_suffix("result", &leaf.local_path)?.to_owned(),
-            local_segments: leaf.local_segments.clone(),
-            may_select: false,
-            lifetime_dependencies: Some(vec![dependency]),
-            origin: Some(ReferenceSource::Symbolic(FramePlaceOrigin {
-                path: "installed interrupt context".to_owned(),
-                precision: FramePathPrecision::Exact,
-                source: FrameSourcePlace::invocation_result(
-                    typed_trees::expression::ExpressionHandle::invalid(),
-                    context.referent,
-                    Vec::new(),
-                ),
-            })),
-        }],
-        cases: frontier.into_owned().cases,
         ..Default::default()
     })
 }

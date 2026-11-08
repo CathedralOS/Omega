@@ -1,8 +1,8 @@
-// We publish the complete Product code universe (`ProductCodeSource`)
-// independently of target-selected execution. Authored entry roots, calling
-// policy bodies, constant recipe providers, and boundary catalogs belong to
-// source completion so target selection can admit a use of this published code
-// without changing its retention roots or triggering policy-only compilation.
+//! Publish the complete Product code universe independently of selected execution.
+//!
+//! Authored entry roots, policy bodies, constant providers and boundary catalogs
+//! belong to source completion. A target may later select and admit a use of
+//! this code, but cannot change its retention roots or trigger policy-only code.
 
 use compilation_products::{CheckedProductSource, ComputedBuildConfig, ProductTerminalPublication};
 use diagnostics::Diagnostic;
@@ -94,6 +94,8 @@ impl<'a> ProductCodeSource<'a> {
         })
     }
 
+    /// Named inspection is a different requested root, not a policy compiler.
+    /// It uses the same Psi operation but cannot replace Product publication.
     pub(crate) fn inspect(
         &self,
         name: &str,
@@ -146,6 +148,8 @@ impl<'a> ProductCodeSource<'a> {
         let typed = &self.program.typed;
         let mut machines = Vec::new();
         for request in calling.requests() {
+            // Admission consumes these refusals in authored order. Retention
+            // must not turn an unavailable relationship into an executable row.
             let Ok(instances) = calling.instances(request) else {
                 continue;
             };
@@ -182,6 +186,8 @@ impl<'a> ProductCodeSource<'a> {
                 .flat_map(|row| &row.selections)
                 .chain(&self.build.config.provider_selections),
         )?;
+        // Nonexecuting assumption operands retain intermediate declarations;
+        // retention is not runtime supply or root consent.
         for relationship in &self.build.config.assumed_bindings {
             roots.extend([relationship.required, relationship.supplied]);
         }

@@ -5,7 +5,7 @@
 use super::{SourceCompletion, StatementOccurrence, StatementStep};
 use crate::checks::multiplicity::temporary_results::{self, TemporaryOwner};
 use crate::published::places::place_at;
-use checked_trees::FlowPermissionEvaluation;
+use checked_trees::{CheckFacts, FlowPermissionEvaluation};
 use symbols::SymbolHandle;
 
 /// Commit source death after the value's own consuming moves, before changing
@@ -13,7 +13,7 @@ use symbols::SymbolHandle;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn complete_at(
     program: &dyn validation::CheckingInput,
-    facts: &mut checked_trees::CheckFactsWalk<'_>,
+    facts: &mut CheckFacts,
     completions: &[SourceCompletion],
     occurrences: &[StatementOccurrence],
     moves: &[crate::flow::DiscoveredMoveEvent],
@@ -178,7 +178,7 @@ pub(super) fn complete_at(
 
 pub(super) fn append(
     program: &dyn validation::CheckingInput,
-    facts: checked_trees::CheckFactsRef<'_>,
+    facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
@@ -243,7 +243,7 @@ pub(super) fn append(
         }
         let result = facts.flow.control.operands.get(observation.result);
         let Some(retained) =
-            crate::flow::captured_lifetime_roots(program, facts.flow.control, result)
+            crate::flow::captured_lifetime_roots(program, &facts.flow.control, result)
         else {
             continue;
         };
@@ -281,7 +281,7 @@ pub(super) fn append(
         // after its transfers and before that meet. No predecessor storage or
         // syntax reconstruction may stand in for a retained result capture.
         let Some(alternatives) = crate::flow::completed_values::terminal_alternatives(
-            facts.flow.control,
+            &facts.flow.control,
             observation.result,
         ) else {
             continue;

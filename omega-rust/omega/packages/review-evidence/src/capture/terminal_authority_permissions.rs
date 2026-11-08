@@ -1,6 +1,7 @@
-// Explicit service terminal-authority permissions rejoined to resolved semantic
-// bindings without inferring permissions from filenames, provider names, or
-// semantic roles.
+//! Explicit D45 service permissions rejoined to resolved semantic bindings.
+//!
+//! Supplied permissions are not inferred from filenames, provider names,
+//! semantic roles, or broad risk labels.
 
 pub(crate) mod declarations;
 mod policy;

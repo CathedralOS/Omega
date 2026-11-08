@@ -1,6 +1,5 @@
-// We admit and execute libc lldiv calls returning actual typed quotient and
-// remainder fields over the shared two-word C record admission. Selection uses
-// normalized target, library, and symbol identity rather than guest names.
+//! An admitted libc lldiv call returns actual typed quotient/remainder fields.
+//! Selection uses normalized target/library/symbol identity, never guest names.
 
 use super::super::TerminalRuntimeError;
 use calling_conventions::BoundaryCallingApplication;
@@ -14,6 +13,8 @@ use terminal_interpreter::{
 };
 use terminal_psi::BoundaryMachineDeclaration;
 
+/// The lldiv import is the shared two-word C record admission; the effect
+/// handler below owns only the quotient/remainder call contract.
 pub(super) type IntegerDivisionImport = super::scalar_record::ScalarRecordAdmission<2>;
 
 impl IntegerDivisionImport {

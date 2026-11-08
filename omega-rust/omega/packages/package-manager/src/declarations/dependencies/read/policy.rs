@@ -1,6 +1,3 @@
-// Syntax policy guards rejecting package-authored toolchain vocabulary and unprojected dependency calls or literals.
-// `reject_unprojected_dependency_syntax` walks all statement containers (machine states, trait requirement default bodies, conformance members, and capability state signatures) as well as all expressions so `StatementNode::Call`, `Source::`, and `PackageSelection::` occurrences outside projected direct rows are rejected.
-
 use super::error::DependencyProjectionError;
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
 use build_declarations::{
@@ -52,6 +49,22 @@ fn machine_leaf_name(name: &str) -> &str {
     name.rsplit("::").next().unwrap_or(name)
 }
 
+/// Reject dependency vocabulary anywhere retained syntax can carry it.
+///
+/// Statements live in three places: machine states (root and conformance
+/// member machines), trait requirement `default_body` rows, and capability
+/// state signatures. `StatementNode::Call` is the only dependency-call shape
+/// that is not also a retained expression, so the statement walk must visit
+/// every container the parser can populate — depending on the expression
+/// scan alone would silently admit a depend() row nested in a trait default
+/// or conformance member the moment call conversion stops retaining its
+/// expression.
+///
+/// `Source::` and `PackageSelection::` literals are toolchain vocabulary whose
+/// only legal occurrence is inside a projected row: a source literal must be
+/// a row's direct source argument, and a package-selection literal must be
+/// the `selection` field of an accepted `Source::Git`. Every other occurrence
+/// is an unprojected dependency shape.
 pub(super) fn reject_unprojected_dependency_syntax(
     syntax_trees: &SyntaxTrees,
     accepted_statements: &[StatementHandle],

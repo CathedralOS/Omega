@@ -148,7 +148,7 @@ pub(crate) fn validate_function(
         &control_flow.predecessors,
     )?;
     mutable_views::validate(function, structural_types)?;
-    provenance::validate_provenance_work_effects(function)?;
+    provenance::validate_provenance_fuel_effects(function)?;
     fact_index::validate_fact_index(function)?;
     validate_values_and_bindings(
         unit,

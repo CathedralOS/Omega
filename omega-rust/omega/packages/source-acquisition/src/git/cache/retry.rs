@@ -1,13 +1,4 @@
-// Cleanup of incomplete Git cache entries (`discard_incomplete_entry`) and
-// classification of transient process failures (`may_preserve_cache`).
-//
-// When a caller holds the entry lock and finds an entry directory missing
-// `GIT_CACHE_METADATA`, we never reconstruct metadata over existing objects; we
-// verify custody of the incomplete directory, make it owner-writable, and
-// remove it so normal acquisition creates a fresh repository. Process-level Git
-// errors, timeouts, and output/launch budget errors (`may_preserve_cache`) do
-// not invalidate an already-verified cache entry, whereas object, tree,
-// snapshot, and cleanup errors do.
+//! Retry incomplete acquisitions without treating transport failure as corruption.
 
 use crate::SourceResolveError;
 use crate::custody::tree::{
@@ -24,6 +15,10 @@ use std::path::Path;
 use super::custody::{open_retained_git_directory, verify_retained_git_directory_identity};
 use super::invalidation::synchronize_cache_parent;
 
+/// The caller holds the entry lock and permits a new acquisition. A missing
+/// metadata record means no cached repository is usable; never reconstruct
+/// that record over the existing objects. Remove only this bounded cache child
+/// and let normal acquisition create and verify a fresh repository.
 pub(crate) fn discard_incomplete_entry(
     cache_root: &Path,
     parent: &CapabilityDirectory,
@@ -62,6 +57,9 @@ pub(crate) fn discard_incomplete_entry(
     Ok(true)
 }
 
+/// Process failures may leave reusable objects behind, but only a fresh cache
+/// verification can establish that. Object, tree, snapshot, and cleanup errors
+/// deliberately do not qualify for this path.
 pub(crate) fn may_preserve_cache(error: &SourceResolveError) -> bool {
     matches!(
         error,

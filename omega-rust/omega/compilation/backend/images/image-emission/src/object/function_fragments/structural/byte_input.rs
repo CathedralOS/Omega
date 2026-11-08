@@ -28,7 +28,7 @@ fn decoded_home(target: NativeTarget, bytes: &[u8]) -> Option<u32> {
 }
 
 /// Check supported no-code actions only. The retained, independently replayed
-/// graph owns each return's live frontier, action order, and edge work.
+/// graph owns each return's live frontier, action order, and edge fuel.
 pub(in crate::object::function_fragments) fn cleanup_actions_match(
     function: &abstract_operations::AbstractFunction,
     selected: &selected_instructions::SelectedFunction,

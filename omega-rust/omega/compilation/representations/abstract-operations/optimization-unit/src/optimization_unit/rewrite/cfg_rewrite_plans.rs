@@ -174,7 +174,7 @@ pub struct FoldedCaseMembershipRow {
 /// Fold every proven `StructuralCaseMembership` observing `place` in
 /// `machine` to its proven Boolean verdict at the same node. Each folded node
 /// keeps its operation custody identity, result value, successors,
-/// definitions, uses, ownership events, and work settlement; only the
+/// definitions, uses, ownership events, and fuel settlement; only the
 /// operation and the recomputed unit identity differ. `producer` is the
 /// `EstablishCase` root-case witness the place resolves to when one
 /// exists — its own operation result or the establishment a uniform
@@ -203,7 +203,7 @@ pub enum FoldedFieldValue {
 /// carries. The establishing producer stores `initializer` into the observed
 /// field permanently, so the read's `result` and `initializer` are the same
 /// value: every scalar-operand use of `result` rebinds to `initializer`, the
-/// observation node retires, and its provenance and work settlement fuse
+/// observation node retires, and its provenance and fuel settlement fuse
 /// into the immediately following node. `uses` names every node site holding
 /// a covered scalar-operand use of `result`, in canonical order — replay
 /// recomputes the complete set rather than trusting it.
@@ -252,7 +252,7 @@ pub struct FieldValueRow {
 /// A `Constant` row folds its read to a `BooleanConstant`/`IntegerConstant`
 /// carrying the proven stored value at the same node, keeping the read's
 /// operation custody identity, result value, successors, definitions, uses,
-/// ownership events, and work settlement. A `Forward` row substitutes the
+/// ownership events, and fuel settlement. A `Forward` row substitutes the
 /// proven initializer at every use of the read's result and retires the
 /// observation node, fusing the read's custody into the following node.
 /// `producer` is the place's own establishing operation-result witness —

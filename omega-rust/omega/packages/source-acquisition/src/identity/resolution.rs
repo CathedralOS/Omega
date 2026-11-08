@@ -1,14 +1,3 @@
-/*
-Immutable source resolutions (`ImmutableSourceResolution`) and typed Git object
-identifiers (`GitCommitId`, `GitTreeId`, `GitObjectIdAlgorithm`).
-
-`ImmutableSourceResolution::git_recovery_owned_bytes` computes the exact
-payload/capacity allowance for `ImmutableSourceResolution::git`'s tree hex
-temporary and fixed-capacity domain-separated content-evidence buffer.
-`derive_git_tree_content` bounds its evidence buffer by the largest supported
-Git object ID (one format tag plus at most 64 lowercase hexadecimal bytes).
-*/
-
 use super::{IdentityError, SourceContentDigest, SourceLineage, decode_hex, encode_hex};
 
 const GIT_TREE_CONTENT_EVIDENCE_DOMAIN: &[u8] = b"omega-git-tree-content-v1";
@@ -36,6 +25,8 @@ pub enum ImmutableSourceResolution {
 }
 
 impl ImmutableSourceResolution {
+    /// Exact payload/capacity allowance for `git`'s tree hexadecimal temporary
+    /// and fixed-capacity domain-separated content-evidence buffer.
     #[doc(hidden)]
     pub fn git_recovery_owned_bytes(tree: &GitTreeId) -> usize {
         let hexadecimal = match tree.algorithm() {
@@ -88,6 +79,8 @@ impl ImmutableSourceResolution {
 }
 
 fn derive_git_tree_content(tree: &GitTreeId) -> SourceContentDigest {
+    // This evidence is bounded by the largest supported Git object ID: one
+    // format tag and at most 64 lowercase hexadecimal bytes.
     let tree_hex = tree.to_hex();
     let mut evidence = Vec::with_capacity(GIT_TREE_CONTENT_EVIDENCE_DOMAIN.len() + 1 + 64);
     evidence.extend_from_slice(GIT_TREE_CONTENT_EVIDENCE_DOMAIN);

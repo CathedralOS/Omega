@@ -48,7 +48,19 @@ pub(crate) fn parse_destructure_fields<'tokens, 'source>(
             } else {
                 (MatchFieldAction::Bind(member.clone()), rest)
             };
-            fields.push(TableMatchField { member, action });
+            let component = if member.as_str(syntax_trees) == "case" {
+                if matches!(action, MatchFieldAction::Equal(_)) {
+                    return Err(input.error_here("the case component is bound with `case as name` or waived with `case as _`"));
+                }
+                language_core::PatternComponent::Case
+            } else {
+                language_core::PatternComponent::Fields
+            };
+            fields.push(TableMatchField {
+                member,
+                component,
+                action,
+            });
             input = rest;
         }
         if input.at_punctuation(PunctuationKind::Comma) {

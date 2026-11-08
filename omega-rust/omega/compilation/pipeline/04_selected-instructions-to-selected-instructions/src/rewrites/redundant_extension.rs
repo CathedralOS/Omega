@@ -60,7 +60,7 @@ use selected_instructions::{
     RedundantExtensionIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::remove_selected_redundant_extension;
 pub(crate) use validation::measured_steps;

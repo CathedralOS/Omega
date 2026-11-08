@@ -1,4 +1,4 @@
-// Canonical encoding for complete callable policy rows without private derivation coordinates.
+//! Complete callable policy, with no private derivation coordinates.
 
 mod behavior;
 mod row;

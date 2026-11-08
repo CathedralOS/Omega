@@ -1,7 +1,9 @@
-// Resolve checked `Extent` requests against live `AllocationValues`
-// (`AllocationStorage`). Receipt identities are scoped to this host store: the
-// allocating import is the issuer and its never-recycled allocation address
-// identifies the issuance without minting any guest domain or ownership claim.
+//! The admitted calloc adapter owns both byte supply and its release operation.
+//! Resolving a checked Extent can only expose one of those actual allocations;
+//! unknown, overflowing or retired geometry cannot manufacture replacement RAM.
+//! Receipt identities are scoped to this host store: the allocating import is
+//! the issuer and its never-recycled allocation address identifies the issuance.
+//! These host receipts do not mint any guest domain or ownership claim.
 
 use super::AllocationValues;
 use access_plans::{
@@ -122,6 +124,7 @@ mod tests {
         assert_eq!(first.extent, second.extent);
         assert_eq!(first.extent.length(), 32);
         assert_eq!(first.profile.profile(), second.profile.profile());
+        // Retirement through the actual allocator invalidates both supplies.
         values.lock().unwrap().release(address).unwrap();
         assert!(first.backing.byte_count().is_err());
         assert!(second.backing.byte_count().is_err());

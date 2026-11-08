@@ -319,49 +319,6 @@ fn balanced_temporary_stack(
     kind: SelectedInstructionKind,
     effects: &MachineEncodedEffects,
 ) -> bool {
-    if matches!(
-        kind,
-        SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
-            | SelectedInstructionKind::InstalledInterruptTaskCommit { .. }
-    ) {
-        if architecture != target::Architecture::X86_64 {
-            return false;
-        }
-        let stack_pointer = isa_x86_64::validated_x86_64_physical_register_model()
-            .model()
-            .view_named("rsp")
-            .expect("canonical stack pointer")
-            .id;
-        let check = matches!(
-            kind,
-            SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
-        );
-        let memory = if check {
-            MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 {
-                table_pointer_operand: 0,
-                task_pointer_operand: 1,
-                scratch_pointer_operand: 2,
-                stack_pointer,
-            }
-        } else {
-            MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 {
-                table_pointer_operand: 0,
-                task_pointer_operand: 1,
-                scratch_pointer_operand: 2,
-                stack_pointer,
-            }
-        };
-        return effects.memory == memory
-            && effects.stack
-                == MachineEncodedStackEffect::TemporaryBytesV1 {
-                    stack_pointer,
-                    byte_count: 8,
-                }
-            && effects.external_operand_reads == [0, 1, 2]
-            && effects.external_operand_writes.as_slice()
-                == if check { &[3][..] } else { &[][..] }
-            && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
-    }
     if architecture != Architecture::X86_64 {
         return false;
     }
@@ -477,9 +434,6 @@ pub(in crate::exit_contract) fn validate_non_return(
     encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
-        SelectedInstructionKind::InstalledInterruptTaskCommit { .. } => {
-            MachineEncodedControlEffect::FallThroughOrStopV1
-        }
         // The canonical target realization retains its actual retry work;
         // bounded single-attempt events remain ordinary fallthrough forms.
         SelectedInstructionKind::AtomicAccess { form }
@@ -559,30 +513,6 @@ pub(in crate::exit_contract) fn validate_non_return(
         return Err(NonReturnStackEffect(instruction));
     }
     let memory_matches = match (kind, effects.memory, encoding.address()) {
-        (
-            SelectedInstructionKind::InstalledInterruptCpuCheck { .. },
-            MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 { .. },
-            None,
-        )
-        | (
-            SelectedInstructionKind::InstalledInterruptTaskCommit { .. },
-            MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 { .. },
-            None,
-        ) => temporary_stack,
-        (
-            SelectedInstructionKind::InstalledInterruptTablePublication { .. },
-            MachineEncodedMemoryEffect::InstalledInterruptTablePublicationV1 {
-                table_pointer_operand: 0,
-                scratch_pointer_operand: 1,
-            },
-            None,
-        ) => {
-            architecture == target::Architecture::X86_64
-                && effects.external_operand_reads == [0, 1]
-                && effects.external_operand_writes.is_empty()
-                && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-        }
-
         (
             SelectedInstructionKind::RegisterAccess {
                 operation: selected_instructions::RegisterOperation::SegmentReload(_),

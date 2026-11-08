@@ -21,7 +21,7 @@ pub(in crate::checks::contracts) fn scalar_at_path(
 ) -> Option<facts::ScalarValue> {
     let values = crate::flow::captured_operand_values(
         program,
-        facts.flow.view(),
+        &facts.flow,
         &facts.semantic,
         state,
         crate::flow::CapturedOperand::unrecorded(capture),
@@ -36,7 +36,7 @@ pub(in crate::checks::contracts) fn scalar_at_path(
             (
                 value.observation,
                 value.observation_type,
-                crate::flow::captured_observation_places(program, facts.flow.view(), &value),
+                crate::flow::captured_observation_places(program, &facts.flow, &value),
                 invocation,
                 value.observation,
                 false,
@@ -44,7 +44,7 @@ pub(in crate::checks::contracts) fn scalar_at_path(
             (
                 value.operand,
                 value.type_reference,
-                crate::flow::captured_value_places(program, facts.flow.view(), &value),
+                crate::flow::captured_value_places(program, &facts.flow, &value),
                 value.producer_invocation(invocation),
                 value.producer_epoch.unwrap_or(value.operand),
                 value.producer_epoch.is_some(),

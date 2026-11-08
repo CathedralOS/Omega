@@ -1,6 +1,10 @@
-// Unit tests verifying that `checked_native_package_path` surfaces a published
-// `.app` root only when the package receipt replays on its own, names the same
-// executable as the flat receipt, and matches the retained application identity.
+//! `checked_native_package_path` surfaces a published `.app` root only when
+//! the package receipt replays, names the same executable as the flat
+//! receipt, and carries the identity the report retained. Rebuilt receipts
+//! recompute their own digest, so each mutation is refused by the check that
+//! names its field: member order, root and byte count by the receipt's replay;
+//! identifier by the retained-identity join; container digest, path and flat
+//! byte count by the package/executable cross-binding.
 
 use super::*;
 use native_artifact::{
@@ -42,6 +46,9 @@ fn signed_executable(identifier: &str) -> Vec<u8> {
         .bytes
 }
 
+/// A flat executable receipt naming `output_path` and the container. The
+/// remaining evidence digests are fixed values: this join compares only the
+/// executable identity both receipts carry.
 fn executable_receipt(
     output_path: PathBuf,
     byte_count: usize,
@@ -83,6 +90,8 @@ fn report(
     )
 }
 
+/// Rebuild a package receipt from its parts with one part changed; the
+/// rebuilt receipt recomputes its own evidence digest.
 fn rebuilt(
     receipt: &NativePackagePublicationReceipt,
     root: Option<PathBuf>,

@@ -23,7 +23,7 @@ fn refused_return_descriptor_retains_detached_backing() {
 
 fn check_refused_return(retain_header: bool) {
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
     };
     let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -99,7 +99,7 @@ fn check_refused_return(retain_header: bool) {
         .err()
         .expect("descriptor refusal");
     assert!(
-        format!("{error:?}").contains("BudgetExhausted(LiveStorage)"),
+        format!("{error:?}").contains("AllowanceExhausted(LiveStorage)"),
         "{error:?}"
     );
     assert_eq!(

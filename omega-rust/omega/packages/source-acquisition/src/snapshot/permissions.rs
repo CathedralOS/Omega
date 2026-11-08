@@ -1,15 +1,4 @@
-/*
-Canonical snapshot modes, immutable-tree verification, and cleanup permissions.
-
-`verify_open_snapshot_tree_modes` verifies that every directory (`0555` on Unix)
-and regular file (`0444`/`0555` on Unix, `readonly` on Windows) retains its
-capability file identity and canonical read-only mode. On Windows, opening a
-non-readonly file requests `write(true)` when needed to update attributes, while
-already-sealed files require only a read handle. `make_open_tree_owner_writable`
-and `make_tree_owner_writable` clear the read-only attribute on Windows
-(`#[allow(clippy::permissions_set_readonly_false)]`) or restore `0700`/`0600` on
-Unix so `remove_unpublished` and test teardowns can delete sealed trees.
-*/
+//! Canonical snapshot modes, immutable-tree verification, and cleanup permissions.
 
 use crate::SourceResolveError;
 use crate::custody::platform::same_capability_file_identity;
@@ -63,6 +52,8 @@ pub(crate) fn verify_open_snapshot_tree_modes(
             options.read(true).follow(FollowSymlinks::No);
             #[cfg(not(unix))]
             if !metadata.permissions().readonly() {
+                // Windows needs a writable handle to change the readonly
+                // attribute. Already-sealed files need only a read handle.
                 options.write(true);
             }
             let file = root.open_with(&name, &options).map_err(|error| {
@@ -318,6 +309,9 @@ fn set_snapshot_directory_read_only(_path: &Path) -> Result<(), SourceResolveErr
     Ok(())
 }
 
+// Clearing the read-only bit is the precise Windows permission operation;
+// Clippy's portability lint recommends Unix mode bits, which this branch does
+// not compile.
 #[allow(clippy::permissions_set_readonly_false)]
 pub(crate) fn make_open_tree_owner_writable(root: &CapabilityDirectory) {
     #[cfg(unix)]
@@ -429,6 +423,9 @@ pub(crate) fn make_tree_owner_writable(_root: &Path) {
     }
 }
 
+/// Drop-side cleanup shared by the pending publication guards: an owned
+/// directory is made writable and removed outright, while a staged entry
+/// still inside the parent is removed by name.
 pub(crate) fn remove_unpublished(
     directory: Option<CapabilityDirectory>,
     parent: &CapabilityDirectory,

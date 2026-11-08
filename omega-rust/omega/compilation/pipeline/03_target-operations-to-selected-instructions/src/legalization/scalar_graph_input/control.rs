@@ -1,4 +1,4 @@
-//! Exact source transfers, with edge-local work and no discarded ownership work.
+//! Exact source transfers, with edge-local fuel and no discarded ownership work.
 use super::{
     AbstractFunctionResult, AbstractOperation, OptimizationNode, PsiOptimizationFunction,
     PsiProvenance, ScalarType,
@@ -15,7 +15,7 @@ pub(super) fn validate(
     match (&node.operation, &function.result) {
         // These outcomes have no local successor. Invocation-specific entry
         // custody remains independently checked against the exact target graph;
-        // this common owner validates only the retained edge and its work.
+        // this common owner validates only the retained edge and its fuel.
         (AbstractOperation::InvokeNoNormal { psi_edge, .. }, _)
         | (AbstractOperation::ExternalCompletion { psi_edge, .. }, _)
         | (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
@@ -188,11 +188,11 @@ fn terminal_edge(
 ) -> Result<(), LegalizationError> {
     if !node.successors.is_empty()
         || node.provenance != [PsiProvenance::Edge(edge)]
-        || node.work.is_empty()
+        || node.fuel.is_empty()
         || node
-            .work
+            .fuel
             .iter()
-            .any(|work| work.site != PsiProvenance::Edge(edge))
+            .any(|fuel| fuel.site != PsiProvenance::Edge(edge))
     {
         return Err(LegalizationError::custody());
     }
@@ -204,15 +204,15 @@ fn branch_edges(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
     if !node.provenance.is_empty()
-        || !node.work.is_empty()
+        || !node.fuel.is_empty()
         || node.successors.iter().any(|edge| {
             !super::aggregate_results::cleanup(function, &edge.cleanup_actions, structural_types)
                 || edge.provenance != [PsiProvenance::Edge(edge.psi_edge)]
-                || edge.work.is_empty()
+                || edge.fuel.is_empty()
                 || edge
-                    .work
+                    .fuel
                     .iter()
-                    .any(|work| work.site != PsiProvenance::Edge(edge.psi_edge))
+                    .any(|fuel| fuel.site != PsiProvenance::Edge(edge.psi_edge))
         })
     {
         return Err(LegalizationError::custody());

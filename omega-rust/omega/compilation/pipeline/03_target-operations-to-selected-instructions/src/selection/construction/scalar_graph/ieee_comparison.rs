@@ -114,7 +114,7 @@ struct Emitter<'state, 'catalog> {
 impl Emitter<'_, '_> {
     fn provenance(&mut self) -> SelectedInstructionProvenance {
         let provenance = self.provenance.clone();
-        self.provenance.work.clear();
+        self.provenance.fuel.clear();
         provenance
     }
     fn constant(&mut self, bits: u64) -> Result<VirtualRegisterId, SelectedInstructionError> {

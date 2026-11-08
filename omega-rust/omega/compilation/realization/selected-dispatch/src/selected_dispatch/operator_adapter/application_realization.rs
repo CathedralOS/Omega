@@ -1,44 +1,35 @@
-// D29 canonical-empty-application realization joins.
-//
-// This module derives review-projector input from facts already retained by
-// checking and selected dispatch without creating authority or execution
-// evidence: every returned identity is either a compiler-private checked
-// coordinate or an existing strong commitment.
-//
-// CheckedOperatorAuthoredUseKind distinguishes named and fixed-token authored
-// uses at an application site, and CheckedNongenericOperatorApplicationRealization
-// records read-only compiler custody for one canonical-empty operator
-// application whose selected realization is a nongeneric checked body.
-//
-// derive_checked_nongeneric_operator_application_realizations rejoins actual
-// selected scalar calls to their canonical empty application and exact
-// nongeneric checked body:
-// - Implicit MatchEquality arm comparisons and direct calls to top-level
-//   boundary requirement machines realized by checked adapters return None so
-//   this operator lane never manufactures coverage for intrinsic or service
-//   projectors.
-// - Declaration/conformance application shapes without a selected plan return
-//   None, and compiler-intrinsic or admitted external roles return None so
-//   their own realization projectors handle replay and diagnostics.
+//! D29 canonical-empty-application realization joins.
+//!
+//! This module derives review-projector input from facts already retained by
+//! checking and selected dispatch. It creates no authority or execution
+//! evidence: every returned identity is either a compiler-private checked
+//! coordinate or an existing strong commitment.
 
-use super::{
-    exact_operator_definition, exact_realization_contract, requirement_overload_identity,
-    resolve_checked_adapter_for_operator, selected_use_plan,
-};
 use checked_trees::CheckedBoundaryOperatorApplicationDemand;
-use checked_trees::{
-    CheckedBoundaryOperatorApplicationUseSite, CheckedOperatorResolutionStatus, CheckedTrees,
-};
+use checked_trees::{CheckedBoundaryOperatorApplicationUseSite, CheckedTrees};
 use diagnostics::Diagnostic;
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
 
+mod checked_expressions;
+
+/// The retained authored-use lane rejoined to one selected checked occurrence.
+/// The expression and origin live in `application_site`; this
+/// discriminant prevents a downstream projector from conflating named and
+/// fixed-token applications.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedOperatorAuthoredUseKind {
     Named,
     FixedToken(OperatorSpelling),
 }
 
+/// One canonical-empty operator application whose selected realization is a
+/// nongeneric checked body.
+///
+/// This is read-only compiler custody for a downstream review projector. It
+/// does not claim generic-family coverage, native execution, or admission.
+/// The retained realization contract's private snapshots are equality-checked
+/// here and intentionally are not exposed as stable projector input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedNongenericOperatorApplicationRealization {
     pub application_site: CheckedBoundaryOperatorApplicationUseSite,
@@ -53,13 +44,23 @@ pub struct CheckedNongenericOperatorApplicationRealization {
     pub realization_contract_commitment: checked_trees::MachineContractCommitment,
 }
 
+/// Rejoin actual selected scalar calls to their canonical empty application
+/// and exact nongeneric checked body.
+///
+/// Attached-Unit planning supplies an independent join where available;
+/// ordinary value-machine expressions derive from their checked application,
+/// exact authored selection, selected plan, and independently replayed body
+/// contract. Generic applications remain in their specialization derivation.
+/// Once a selected call names a nongeneric checked adapter, absence,
+/// ambiguity, or substitution rejects the derivation.
 pub fn derive_checked_nongeneric_operator_application_realizations<'application>(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     applications: impl IntoIterator<Item = &'application CheckedBoundaryOperatorApplicationDemand>,
 ) -> Result<Vec<CheckedNongenericOperatorApplicationRealization>, Vec<Diagnostic>> {
     let mut rows: Vec<CheckedNongenericOperatorApplicationRealization> = Vec::new();
-    for row in derive_checked_expressions(checked, selected_provider_plans.plans(), applications)? {
+    for row in checked_expressions::derive(checked, selected_provider_plans.plans(), applications)?
+    {
         match rows
             .iter()
             .find(|retained| retained.application_site == row.application_site)
@@ -74,215 +75,4 @@ pub fn derive_checked_nongeneric_operator_application_realizations<'application>
         }
     }
     Ok(rows)
-}
-
-fn derive_checked_expressions<'application>(
-    checked: &CheckedTrees,
-    selected_provider_plans: &[effects::provider_plan::ProviderPlan],
-    applications: impl IntoIterator<Item = &'application CheckedBoundaryOperatorApplicationDemand>,
-) -> Result<Vec<CheckedNongenericOperatorApplicationRealization>, Vec<Diagnostic>> {
-    let mut rows = Vec::new();
-    let mut diagnostics = Vec::new();
-    for application in applications {
-        if !application.arguments.is_empty() {
-            continue;
-        }
-        match derive_checked_expression_operator_application_realization(
-            checked,
-            selected_provider_plans,
-            application,
-        ) {
-            Ok(Some(row)) => rows.push(row),
-            Ok(None) => {}
-            Err(diagnostic) => diagnostics.push(diagnostic),
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(rows)
-    } else {
-        Err(diagnostics)
-    }
-}
-
-fn derive_checked_expression_operator_application_realization(
-    checked: &CheckedTrees,
-    selected_provider_plans: &[effects::provider_plan::ProviderPlan],
-    application: &CheckedBoundaryOperatorApplicationDemand,
-) -> Result<Option<CheckedNongenericOperatorApplicationRealization>, Diagnostic> {
-    if matches!(
-        application.site,
-        CheckedBoundaryOperatorApplicationUseSite::MatchEquality { .. }
-    ) {
-        return Ok(None);
-    }
-    let CheckedBoundaryOperatorApplicationUseSite::Expression { expression, origin } =
-        application.site
-    else {
-        return Err(Diagnostic::error(
-            "canonical-empty boundary application has no expression use site",
-        ));
-    };
-    if checked
-        .typed
-        .machine(application.requirement_symbol)
-        .is_some()
-    {
-        return Ok(None);
-    }
-    let operator = exact_operator_definition(checked, expression, application.requirement_symbol)?;
-    if !operator.is_boundary {
-        return Err(Diagnostic::error(format!(
-            "canonical-empty boundary application at expression {expression:?} does not name a boundary operator",
-        )));
-    }
-
-    let authored_uses = checked
-        .facts
-        .operators
-        .named_uses
-        .iter()
-        .filter_map(|(_, operator_use)| {
-            (operator_use.expression == expression
-                && operator_use.origin == origin
-                && operator_use.selected_operator_symbol == application.requirement_symbol)
-                .then_some((CheckedOperatorAuthoredUseKind::Named, true))
-        })
-        .chain(
-            checked
-                .facts
-                .operators
-                .uses
-                .iter()
-                .filter_map(|(_, operator_use)| {
-                    (operator_use.expression == expression
-                        && operator_use.occurrence
-                            == checked_trees::CheckedOperatorOccurrence::Expression
-                        && operator_use.origin == origin
-                        && operator_use.selected_operator_symbol == application.requirement_symbol)
-                        .then_some((
-                            CheckedOperatorAuthoredUseKind::FixedToken(operator_use.spelling),
-                            operator_use.status == CheckedOperatorResolutionStatus::Resolved
-                                && operator.spelling == Some(operator_use.spelling)
-                                && checked
-                                    .facts
-                                    .operators
-                                    .selected_candidate(operator_use)
-                                    .is_some_and(|candidate| {
-                                        candidate.operator_symbol == application.requirement_symbol
-                                            && candidate.is_boundary
-                                    }),
-                        ))
-                }),
-        )
-        .collect::<Vec<_>>();
-    let [(authored_use_kind, exact_authored_use)] = authored_uses.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "canonical-empty boundary application at expression {expression:?} retains {} exact authored uses; expected one",
-            authored_uses.len(),
-        )));
-    };
-    if !exact_authored_use {
-        return Err(Diagnostic::error(format!(
-            "canonical-empty boundary application at expression {expression:?} does not retain an exact resolved authored use",
-        )));
-    }
-    if !has_exact_authored_selection(
-        checked,
-        expression,
-        *authored_use_kind,
-        application.requirement_symbol,
-    ) {
-        return Ok(None);
-    }
-    let Some(plan) = selected_use_plan(
-        checked,
-        selected_provider_plans,
-        application.requirement_symbol,
-        origin,
-    ) else {
-        return Ok(None);
-    };
-    if !operator.lifetime_parameters.is_empty()
-        || !checked.operator_type_parameters(operator).is_empty()
-    {
-        return Err(Diagnostic::error(format!(
-            "selected canonical-empty boundary application at expression {expression:?} names a generic boundary operator",
-        )));
-    }
-
-    if !matches!(
-        plan.rows.as_slice(),
-        [row]
-            if matches!(
-                row.binding,
-                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-            )
-    ) {
-        return Ok(None);
-    }
-
-    let Some((realization_machine, _, realization_state)) =
-        resolve_checked_adapter_for_operator(checked, operator, plan, expression)?
-    else {
-        return Ok(None);
-    };
-    let realization = checked
-        .typed
-        .machine(realization_machine)
-        .ok_or_else(|| Diagnostic::error("selected nongeneric realization machine is missing"))?;
-    if !realization.lifetime_parameters.is_empty()
-        || !checked
-            .typed
-            .machine_type_parameters(realization)
-            .is_empty()
-    {
-        return Err(Diagnostic::error(
-            "canonical-empty boundary application selected a generic realization",
-        ));
-    }
-
-    let contract = exact_realization_contract(checked, realization_machine, "nongeneric")?;
-    let requirement_overload_identity =
-        requirement_overload_identity(checked, operator, "nongeneric")?;
-    Ok(Some(CheckedNongenericOperatorApplicationRealization {
-        application_site: application.site,
-        authored_use_kind: *authored_use_kind,
-        requirement_operator: application.requirement_symbol,
-        requirement_overload_identity,
-        provider_plan_report_fingerprint: plan.report_fingerprint(),
-        provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment::from_digest(
-            *plan.identity_digest().as_bytes(),
-        ),
-        realization_machine,
-        realization_state,
-        realization_contract_report_fingerprint: contract.report_fingerprint,
-        realization_contract_commitment: contract.commitment,
-    }))
-}
-
-fn has_exact_authored_selection(
-    checked: &CheckedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    use_kind: CheckedOperatorAuthoredUseKind,
-    requirement_operator: SymbolHandle,
-) -> bool {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
-    };
-
-    let expected_kind = match use_kind {
-        CheckedOperatorAuthoredUseKind::Named => AuthoredDeclarationSelectionKind::Call,
-        CheckedOperatorAuthoredUseKind::FixedToken(_) => AuthoredDeclarationSelectionKind::Operator,
-    };
-    checked
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| checked.authored_declaration_selections().get(occurrence))
-        .any(|selection| {
-            selection.kind() == expected_kind
-                && matches!(
-                    selection.target(),
-                    AuthoredDeclarationSelectionTarget::Resolved(target)
-                        if target.selected_symbol() == requirement_operator
-                )
-        })
 }

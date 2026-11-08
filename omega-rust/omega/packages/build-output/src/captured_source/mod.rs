@@ -1,18 +1,14 @@
-/*
-Captured immutable build-source input inventory (`CapturedBuildSourceInput`).
-
-We retain a complete, coherent snapshot of one source root captured before a
-build activation runs: every directory, regular file's exact bytes + content
-digest, and relative symlink's inert target spelling, verified against the
-`CanonicalFilesystemMetadataIndex` that bounds the build's scoped filesystem
-reads.
-
-Why check `is_subset_of` by comparing exact `CapturedSourceEntry` values rather
-than counts or lengths? Narrowed views handed to a build activation must prove
-that every retained entry came byte-for-byte from the package's authenticated
-source capture; matching paths, kinds, and lengths alone would allow substituted
-file bytes.
-*/
+//! Captured immutable build-source input inventory.
+//!
+//! A [`CapturedBuildSourceInput`] is the complete coherent inventory of one
+//! source root captured by the compiler before a build occurrence runs: every
+//! directory, every regular file's exact bytes, and every relative symlink's
+//! inert captured spelling, bound to the same canonical source metadata index
+//! that narrows the build's scoped filesystem reads.
+//!
+//! The inventory is immutable compiler custody. Package code never receives
+//! this value; it executes against a strict non-following view of this retained
+//! storage. Source reads have no physical spelling or materialized directory.
 
 use diagnostics::Diagnostic;
 use filesystem_authority::{
@@ -22,6 +18,12 @@ use filesystem_authority::{
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+/// One compiler-captured immutable source-tree entry.
+///
+/// File entries retain the exact captured bytes and their content digest, which
+/// is the inventory's identity for this entry. Symlink entries retain only the
+/// inert captured target spelling; captured links are never materialized or
+/// traversed.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CapturedSourceEntry {
     Directory,
@@ -37,6 +39,9 @@ pub enum CapturedSourceEntry {
 }
 
 impl CapturedSourceEntry {
+    /// Retain one regular file's exact captured bytes, deriving the content
+    /// digest at the same capture boundary so callers cannot substitute a
+    /// mismatched digest.
     pub fn file(bytes: impl Into<Arc<[u8]>>, executable: bool) -> Self {
         let bytes = bytes.into();
         Self::File {
@@ -46,6 +51,8 @@ impl CapturedSourceEntry {
         }
     }
 
+    /// Retain one inert captured symlink spelling. The bytes are evidence,
+    /// never a path the build follows.
     pub fn symlink(target: impl Into<Arc<[u8]>>) -> Self {
         let target = target.into();
         Self::Symlink {
@@ -54,6 +61,7 @@ impl CapturedSourceEntry {
         }
     }
 
+    /// The captured content digest for byte-bearing entries.
     pub fn content_digest(&self) -> Option<[u8; 32]> {
         match self {
             Self::File { digest, .. } | Self::Symlink { digest, .. } => Some(*digest),
@@ -84,6 +92,9 @@ impl CapturedSourceEntry {
     }
 }
 
+/// Logical kind-and-length view of one captured source entry, matching the
+/// metadata the build snapshot protocol may expose. It deliberately carries
+/// no timestamp, inode, host mode, or device identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CapturedSourceEntryKind<'a> {
     Directory,
@@ -91,6 +102,7 @@ pub enum CapturedSourceEntryKind<'a> {
     Symlink { target: &'a [u8] },
 }
 
+/// Borrowed view of one captured source entry and its canonical relative path.
 #[derive(Debug, Clone, Copy)]
 pub struct CapturedSourceEntryRef<'a> {
     relative_path: &'a [u8],
@@ -107,6 +119,7 @@ impl<'a> CapturedSourceEntryRef<'a> {
     }
 }
 
+/// Borrowed regular-file view: exact captured bytes and executable class.
 #[derive(Debug, Clone, Copy)]
 pub struct CapturedSourceFile<'a> {
     bytes: &'a [u8],
@@ -123,6 +136,14 @@ impl<'a> CapturedSourceFile<'a> {
     }
 }
 
+/// Complete immutable input inventory captured by the compiler for one build
+/// occurrence.
+///
+/// Construction is restricted to compiler capture authorities
+/// (`package-compilation` walks the physical root exactly once and passes the
+/// retained rows here); package-controlled data cannot fabricate an inventory
+/// that disagrees with the canonical metadata index bound into the build's
+/// filesystem grants.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedBuildSourceInput {
     canonical_source_metadata: Arc<CanonicalFilesystemMetadataIndex>,
@@ -131,6 +152,10 @@ pub struct CapturedBuildSourceInput {
 }
 
 impl CapturedBuildSourceInput {
+    /// Assemble a captured inventory from one capture authority's retained
+    /// entries. Every non-root canonical metadata row must be covered by an
+    /// entry of the same kind and logical extent, and every entry must name a
+    /// canonical non-root path present in the index.
     #[doc(hidden)]
     pub fn from_capture_rows(
         canonical_source_metadata: CanonicalFilesystemMetadataIndex,
@@ -193,24 +218,35 @@ impl CapturedBuildSourceInput {
         })
     }
 
+    /// The canonical metadata index bound into the build's scoped filesystem
+    /// reads. The inventory's content commitment is this index's source
+    /// commitment; host path spellings and capture order are unobservable.
     pub fn canonical_source_metadata(&self) -> &CanonicalFilesystemMetadataIndex {
         &self.canonical_source_metadata
     }
 
+    /// Complete inventory size in canonical rows, including the source root.
     pub fn entry_count(&self) -> u64 {
         self.canonical_source_metadata.rows().len() as u64
     }
 
+    /// Total retained regular-file bytes in the inventory.
     pub const fn file_bytes(&self) -> u64 {
         self.file_bytes
     }
 
+    /// Whether every retained entry is byte-for-byte identical to the same
+    /// entry of another captured inventory. Counts, lengths, and matching
+    /// metadata kinds alone cannot establish that a narrowed view came from
+    /// the package's authenticated source capture.
     pub fn is_subset_of(&self, complete: &Self) -> bool {
         self.entries
             .iter()
             .all(|(path, entry)| complete.entries.get(path) == Some(entry))
     }
 
+    /// List every captured non-root entry in canonical unsigned-byte order.
+    /// The listing is deterministic and independent of host directory order.
     pub fn entries(&self) -> impl ExactSizeIterator<Item = CapturedSourceEntryRef<'_>> {
         self.entries.iter().map(|(relative_path, entry)| {
             let kind = match entry {
@@ -232,16 +268,20 @@ impl CapturedBuildSourceInput {
         })
     }
 
+    /// Borrow an exact retained entry without following links or reopening host data.
     pub fn retained_entry(&self, path: &[u8]) -> Option<&CapturedSourceEntry> {
         self.entries.get(path)
     }
 
+    /// List retained entries without copying inventory models or their payloads.
     pub fn retained_entries(&self) -> impl ExactSizeIterator<Item = (&[u8], &CapturedSourceEntry)> {
         self.entries
             .iter()
             .map(|(relative_path, entry)| (relative_path.as_slice(), entry))
     }
 
+    /// Look up one captured regular file by canonical relative path without
+    /// following any link. Returns `None` for absent paths and non-file kinds.
     pub fn file(&self, relative_path: &[u8]) -> Option<CapturedSourceFile<'_>> {
         match self.entries.get(relative_path) {
             Some(CapturedSourceEntry::File {

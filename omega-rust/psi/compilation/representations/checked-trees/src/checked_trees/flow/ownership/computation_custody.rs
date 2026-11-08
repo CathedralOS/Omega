@@ -203,10 +203,16 @@ impl CheckedConditionalReturnArm {
                 CheckedScalarExpressionRole::Return,
             ),
             Self::Structural(operation) => transfers.operation(operation),
-            Self::EvaluateNoNormal { operations, .. } => operations
-                .iter()
-                .map(|operation| transfers.operation(operation))
-                .sum(),
+            Self::Completion(plan) => transfers
+                .completion(&plan.expression)
+                .flatten()
+                .unwrap_or(0),
+            Self::EvaluateNoNormal { operations, .. } | Self::EvaluateUnit { operations, .. } => {
+                operations
+                    .iter()
+                    .map(|operation| transfers.operation(operation))
+                    .sum()
+            }
             Self::Call {
                 operands,
                 operation,
@@ -361,9 +367,27 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
         })
     }
     fn argument(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
+        if !self.source_is_retained(argument) {
+            return 0;
+        }
         self.argument_transfer(argument)
             + self.argument_evaluation(argument)
             + self.produced(argument)
+    }
+
+    fn source_is_retained(&self, argument: &CheckedUnitStructuralArgumentPlan) -> bool {
+        match argument.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+                value_dependency: Some(value),
+                ..
+            } => self
+                .values
+                .structural_values
+                .root_for_value_home(value, expression)
+                .is_some(),
+            _ => true,
+        }
     }
 
     fn argument_transfer(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
@@ -377,9 +401,10 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                     self.local.is_valid() && symbol == self.local
                 }
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                    self.expression.is_valid() && expression == self.expression
-                }
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    expression,
+                    ..
+                } => self.expression.is_valid() && expression == self.expression,
                 _ => false,
             };
         usize::from(whole_owner)
@@ -391,18 +416,16 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
     /// names exactly the members it takes; an ambiguous or missing root moves
     /// nothing here, so accounting still demands another disposition.
     fn produced(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
-        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
-            argument.source
+        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            expression,
+            value_dependency: Some(value),
+            ..
+        } = argument.source
         else {
             return 0;
         };
         let plans = &self.values.structural_values;
-        let mut roots = plans
-            .roots
-            .iter()
-            .map(|(_, root)| root)
-            .filter(|root| root.expression == expression);
-        let (Some(root), None) = (roots.next(), roots.next()) else {
+        let Some(root) = plans.root_for_value_home(value, expression) else {
             return 0;
         };
         if matches!(
@@ -440,6 +463,9 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 .map(|argument| self.structural(*argument, calls))
                 .sum(),
             CheckedStructuralValueKind::Place(source) => {
+                if !self.source_is_retained(source) {
+                    return 0;
+                }
                 // A Place is an existing value, not another construction. Its
                 // expression may identify this very root; following production
                 // again turns that identity edge into infinite execution.
@@ -560,6 +586,45 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 }
             }
         }
+    }
+
+    fn completion(&self, node: &crate::CheckedUnitCompletionExpression) -> Option<Option<usize>> {
+        if !node.normal_continuation {
+            return Some(None);
+        }
+        if let crate::CheckedUnitCompletionKind::Invocation(operations) = &node.kind {
+            return Some(Some(
+                operations
+                    .iter()
+                    .map(|operation| self.operation(operation))
+                    .sum(),
+            ));
+        }
+        let subject = node.subject()?;
+        let mut scope = self.clone();
+        let subject_count = scope.dispatch_subject(&subject);
+        match subject {
+            crate::CheckedDispatchSubject::Scalar(value) => {
+                scope.completed_computations.push(value)
+            }
+            crate::CheckedDispatchSubject::Structural { value, .. } if value.is_valid() => {
+                scope.established_values.push(value)
+            }
+            crate::CheckedDispatchSubject::Structural { .. } => {}
+        }
+        let mut prefix = 0;
+        let mut minimum = None;
+        for (pattern, child) in node.arms() {
+            if let Some(pattern) = pattern {
+                prefix += scope.computation(pattern);
+                scope.completed_computations.push(pattern);
+            }
+            if let Some(child) = scope.completion(child)? {
+                let count = prefix + child;
+                minimum = Some(minimum.map_or(count, |previous: usize| previous.min(count)));
+            }
+        }
+        Some(Some(subject_count + minimum?))
     }
 
     fn computation(&self, root: CheckedScalarComputationHandle) -> usize {
@@ -912,7 +977,11 @@ mod tests {
     fn place_identity_does_not_reenter_production_or_double_count_transfer() {
         let expression = arena::Handle::from_parts(1, 1);
         let mut argument = CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency: None,
+                expression,
+                logical_root_type_identity: None,
+            },
             ..Default::default()
         };
         let mut values = CheckedValueFacts::default();
@@ -930,6 +999,29 @@ mod tests {
             .append(crate::CheckedStructuralValueRoot {
                 expression,
                 root,
+                ..Default::default()
+            });
+        let unretained = values
+            .structural_values
+            .nodes
+            .append(crate::CheckedStructuralValue {
+                expression,
+                ..Default::default()
+            });
+        let other_expression = arena::Handle::from_parts(2, 1);
+        let wrong_home = values
+            .structural_values
+            .nodes
+            .append(crate::CheckedStructuralValue {
+                expression: other_expression,
+                ..Default::default()
+            });
+        values
+            .structural_values
+            .roots
+            .append(crate::CheckedStructuralValueRoot {
+                expression: other_expression,
+                root: wrong_home,
                 ..Default::default()
             });
         let result = CheckedUnitStructuralResultBindingPlan {
@@ -951,7 +1043,51 @@ mod tests {
         assert_eq!(transfers.argument(&argument), 1);
         assert_eq!(transfers.constructed(root, &[], true), 1);
         assert_eq!(transfers.constructed(root, &[], false), 0);
+        if let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            value_dependency,
+            ..
+        } = &mut argument.source
+        {
+            *value_dependency = Some(root);
+        }
+        assert_eq!(transfers.argument(&argument), 1);
+        for value in [
+            CheckedStructuralValueHandle::invalid(),
+            unretained,
+            wrong_home,
+        ] {
+            if let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency,
+                ..
+            } = &mut argument.source
+            {
+                *value_dependency = Some(value);
+            }
+            assert_eq!(transfers.argument(&argument), 0);
+        }
+        if let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            value_dependency,
+            ..
+        } = &mut argument.source
+        {
+            *value_dependency = Some(root);
+        }
         argument.access = CheckedStructuralAccess::SharedBorrow;
         assert_eq!(transfers.argument(&argument), 0);
+    }
+}
+
+impl crate::CheckedUnitCompletionPlan {
+    pub fn definite_call_transfers<'calls>(
+        &self,
+        values: &CheckedValueFacts,
+        call_schedules: &CallSchedules<'_, 'calls>,
+        producer: &CheckedUnitEffectOperationPlan,
+        local: SymbolHandle,
+    ) -> usize {
+        CallTransfers::for_producer(values, call_schedules, producer, local)
+            .and_then(|transfers| transfers.completion(&self.expression))
+            .flatten()
+            .unwrap_or(0)
     }
 }

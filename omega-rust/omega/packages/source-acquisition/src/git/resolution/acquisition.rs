@@ -1,16 +1,4 @@
-// Retained Git cache entry acquisition, reuse, error reconciliation, and lane
-// custody verification.
-//
-// `resolve_git_source_from_retained_cache` holds the bare repository cache
-// entry in the first retained lane while verifying every participating lane's
-// path identity before and after the resolution (so a lane that moved mid-run
-// outranks the resolution result). `with_git_repository_from_retained_cache`
-// runs under a single bounded `GitExecutor` and `CacheEntryLock`: it discards
-// incomplete entries when new acquisition is permitted, opens or creates the
-// verified repository, delegates commit/tree inspection to `repository`, and
-// preserves healthy caches on transient transport/process failures
-// (`may_preserve_cache`) or offline exact-revision misses while invalidating
-// entries that fail custody or object authentication.
+//! Acquire or reuse one retained Git cache entry under exact custody.
 
 use crate::custody::lock::CacheEntryLock;
 use crate::custody::publication::{direct_cache_child_name, retained_cache_directory_exists};
@@ -41,6 +29,12 @@ use super::materialization::{GitMaterializedSource, materialize_whole_git_source
 use super::repository::inspect_verified_git_cache_entry;
 use super::selection::GitRevisionSelection;
 
+/// Resolve one Git source inside the retained lanes that own it.
+///
+/// The cache entry is held in the first lane; every lane still proves its path
+/// identity around the resolution, so a moved or swapped lane cannot publish
+/// source it no longer owns. Callers pass the lanes they retain; the resolver
+/// derives the lane-controlled roots itself.
 pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
     primary_git: &PrimaryGitSelection,
     lanes: &[&RetainedStorageLane],
@@ -100,10 +94,16 @@ pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
             Ok((source, evidence))
         },
     );
+    // Custody outranks the budget-reconciled resolution result: a lane that
+    // moved while the resolution ran owns neither the published source nor its
+    // failure report.
     verify_retained_lane_custody(lanes).map_err(GitWorkspaceProjectionError::Source)?;
     outcome
 }
 
+/// Authenticate a repository revision before deciding which source bytes to open.
+/// Every operation runs under the same bounded executor and retained cache lock;
+/// no caller receives a live repository handle or unverified object identity.
 pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerError>(
     primary_git: &PrimaryGitSelection,
     package_controlled_roots: &[PathBuf],
@@ -258,6 +258,9 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                     .map_err(GitWorkspaceProjectionError::Source)
             }
             Err(GitWorkspaceProjectionError::Source(error)) => {
+                // Failed transport does not revoke previously fetched source.
+                // Keep the cache only after checking its post-command state;
+                // the next request still verifies its exact object graph.
                 if namespace_result.is_ok()
                     && may_preserve_cache(&error)
                     && VerifiedGitRepository::open(
@@ -273,6 +276,8 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                 {
                     return Err(GitWorkspaceProjectionError::Source(error));
                 }
+                // Exact absence was established by the object protocol under
+                // current cache custody. It is not corrupt selector cache state.
                 if matches!(selection, GitRevisionSelection::Recorded(_))
                     && matches!(
                         error,
@@ -320,6 +325,13 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
     }
 }
 
+/// Resolve one whole Git source in retained lanes.
+///
+/// Whole-source acquisition has no planner error lane: the whole-source
+/// materializer is infallible, so the closed vocabulary is the source failure
+/// set. Every whole-source entrance (ordinary, pinned, exact-revision) shares
+/// this closure instead of re-deriving the lane roots and re-unwrapping the
+/// planner arm.
 pub(super) fn resolve_whole_git_source_from_retained_lanes(
     primary_git: &PrimaryGitSelection,
     lanes: &[&RetainedStorageLane],
@@ -341,6 +353,7 @@ pub(super) fn resolve_whole_git_source_from_retained_lanes(
     }
 }
 
+/// Every lane a resolution is retained in proves its path identity together.
 fn verify_retained_lane_custody(lanes: &[&RetainedStorageLane]) -> Result<(), SourceResolveError> {
     for lane in lanes {
         lane.verify_path_identity()?;

@@ -113,7 +113,7 @@ pub(crate) fn profile_requirement_covered(
         return false;
     };
     if !call.authored_source_custody_valid
-        || crate::flow::captured_call_operands(program, checked.flow.view(), state, call).is_none()
+        || crate::flow::captured_call_operands(program, &checked.flow, state, call).is_none()
     {
         return false;
     }

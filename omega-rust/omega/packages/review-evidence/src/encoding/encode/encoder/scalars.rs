@@ -1,8 +1,12 @@
-// Scalar field forms and little-endian primitive/byte/string payload writers for `Encoder`.
-
 use super::{Encoder, PackageReviewEncodingError};
 use semantic_vocabulary::PackageKeyIdentity;
 
+/// The scalar field forms: one named field whose payload is a single scalar
+/// write, delegating to `Encoder::field` for the field's own framing. A policy
+/// row states the scalar value and the field's name; the wrapper closure that
+/// restated the framing at every site is not part of the encoder's surface.
+/// A writer either reports a failure or cannot: the field's own check reports
+/// either, so both kinds are the same form here.
 macro_rules! scalar_field_forms {
     (@total $($method:ident($value:ty) => $writer:ident),+ $(,)?) => {
         $(
@@ -34,6 +38,8 @@ macro_rules! scalar_field_forms {
     };
 }
 
+/// The little-endian scalar payloads: each writes its own width and the field
+/// text that names it, and carries no framing of its own.
 macro_rules! scalar_numbers {
     ($($method:ident($value:ty)),+ $(,)?) => {
         $(
@@ -64,6 +70,8 @@ impl Encoder<'_> {
         usize_field(usize) => usize,
     );
 
+    /// One tag field: the tag's own name and value under this field's name,
+    /// for the tag-typed rows that carried the wrapper as well.
     pub(crate) fn tag_field(
         &mut self,
         name: &'static str,

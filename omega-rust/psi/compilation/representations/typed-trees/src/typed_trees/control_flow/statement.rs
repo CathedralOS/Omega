@@ -477,8 +477,6 @@ pub struct TableAssignment {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableCall {
-    pub installed_interrupt_operation:
-        Option<crate::expression::InstalledInterruptOperationRequest>,
     /// Zero until specialization erases this call's authored static operands.
     pub authored_machine_application: crate::static_applications::StaticMachineApplicationHandle,
     /// Exact current-state storage or namespace root; `receiver_symbol` is

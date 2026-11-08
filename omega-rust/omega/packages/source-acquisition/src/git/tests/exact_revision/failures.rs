@@ -1,6 +1,3 @@
-// Failure-mode tests for exact-revision Git resolution, verifying that tree/hash
-// mismatches and authored-vs-persisted commit conflicts reject before fetch.
-
 use super::super::GitCommitId;
 use super::{
     Fixture, GitExactRevisionAcquisition, LocalSourceLimits, SourceResolveError, local_git_request,

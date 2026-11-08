@@ -32,7 +32,7 @@ pub(super) fn validate(
             place_at(program, state.state_symbol, statement, test.subject).is_some_and(|place| {
                 super::super::exits::exact_scalar_membership(
                     program,
-                    facts.view(),
+                    facts,
                     contexts,
                     &place,
                     domain.symbol,
@@ -70,7 +70,7 @@ fn retained(
 ) -> bool {
     let Some(values) = crate::flow::captured_operand_values(
         program,
-        facts.flow.view(),
+        &facts.flow,
         &facts.semantic,
         state,
         capture,
@@ -85,13 +85,13 @@ fn retained(
                 (
                     value.observation,
                     value.observation_type,
-                    crate::flow::captured_observation_places(program, facts.flow.view(), &value),
+                    crate::flow::captured_observation_places(program, &facts.flow, &value),
                     capture.constraints,
                 ),
                 (
                     value.operand,
                     value.type_reference,
-                    crate::flow::captured_value_places(program, facts.flow.view(), &value),
+                    crate::flow::captured_value_places(program, &facts.flow, &value),
                     value.producer_invocation(capture.constraints),
                 ),
             ]
@@ -112,7 +112,7 @@ fn retained(
                 places.iter().all(|place| {
                     super::super::exits::exact_scalar_membership(
                         program,
-                        facts.view(),
+                        facts,
                         &contexts,
                         &place.projected,
                         domain,

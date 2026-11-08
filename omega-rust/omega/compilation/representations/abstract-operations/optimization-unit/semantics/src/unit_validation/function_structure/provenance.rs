@@ -1,4 +1,4 @@
-//! Provenance uniqueness, logical work, and effect-chain replay.
+//! Provenance uniqueness, logical fuel, and effect-chain replay.
 use crate::{OperationSite, OptimizationUnitValidationError};
 use optimization_unit::{PsiOptimizationFunction, PsiProvenance};
 use semantic_vocabulary::{BlockId, EdgeId};
@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::control_flow::block_reaches;
 
-pub(crate) fn validate_provenance_work_effects(
+pub(crate) fn validate_provenance_fuel_effects(
     function: &PsiOptimizationFunction,
 ) -> Result<(), OptimizationUnitValidationError> {
     let mut node_provenance = BTreeMap::<PsiProvenance, Vec<(BlockId, bool)>>::new();
@@ -47,23 +47,23 @@ pub(crate) fn validate_provenance_work_effects(
             }
             let source_sites = node.provenance.iter().copied().collect::<BTreeSet<_>>();
             let settled_sites = node
-                .work
+                .fuel
                 .iter()
                 .map(|settlement| settlement.site)
                 .collect::<BTreeSet<_>>();
             if source_sites != settled_sites
-                || node.work.len() != node.provenance.len()
+                || node.fuel.len() != node.provenance.len()
                 || node
-                    .work
+                    .fuel
                     .iter()
                     .zip(&node.provenance)
                     .any(|(settlement, source)| settlement.site != *source || settlement.units != 1)
             {
-                return Err(OptimizationUnitValidationError::WorkDoesNotMatchProvenance(
+                return Err(OptimizationUnitValidationError::FuelDoesNotMatchProvenance(
                     OperationSite::new(function.machine, block.id, index),
                 ));
             }
-            for settlement in &node.work {
+            for settlement in &node.fuel {
                 let _ = settlement;
             }
             for edge in &node.successors {
@@ -92,16 +92,16 @@ pub(crate) fn validate_provenance_work_effects(
                             .expect("edge provenance is nonempty"),
                     ));
                 }
-                if edge.work.len() != edge.provenance.len()
+                if edge.fuel.len() != edge.provenance.len()
                     || edge
-                        .work
+                        .fuel
                         .iter()
                         .zip(&edge.provenance)
                         .any(|(settlement, source)| {
                             settlement.site != *source || settlement.units != 1
                         })
                 {
-                    return Err(OptimizationUnitValidationError::WorkDoesNotMatchProvenance(
+                    return Err(OptimizationUnitValidationError::FuelDoesNotMatchProvenance(
                         OperationSite::new(function.machine, block.id, index),
                     ));
                 }

@@ -148,7 +148,7 @@ impl CurrentScalarValues<'_> {
                         self.lengths.push(super::Length {
                             subject: LengthSubject::Field {
                                 owner: parameter.symbol,
-                                path: coordinate,
+                                path,
                             },
                             name,
                             stable: false,

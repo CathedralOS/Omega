@@ -1,4 +1,4 @@
-// Complete named callable row encoding sharing the enclosing policy budget.
+//! Complete named callable fields, sharing the enclosing policy budget.
 use super::{encode_callable_conformance, encode_type_parameter};
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::callable_policy::behavior;

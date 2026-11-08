@@ -135,7 +135,7 @@ impl RecordValue for effects::provider_plan::BuildNativeBindingOrigin {
             .program_fingerprint
             .as_bytes()
             .write(output)?;
-        self.work_schedule.write(output)?;
+        self.fuel_schedule.write(output)?;
         self.storage_schedule.write(output)?;
         self.observation_digest.write(output)
     }
@@ -157,7 +157,7 @@ impl RecordValue for effects::provider_plan::BuildNativeBindingOrigin {
                     vocabulary_marker,
                     program_fingerprint,
                 },
-                work_schedule: RecordValue::read(input)?,
+                fuel_schedule: RecordValue::read(input)?,
                 storage_schedule: RecordValue::read(input)?,
                 observation_digest: RecordValue::read(input)?,
             })
@@ -203,7 +203,7 @@ mod tests {
                     vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
                     program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([6; 32]),
                 },
-                work_schedule: 1,
+                fuel_schedule: 1,
                 storage_schedule: 1,
                 observation_digest: [8; 32],
             },

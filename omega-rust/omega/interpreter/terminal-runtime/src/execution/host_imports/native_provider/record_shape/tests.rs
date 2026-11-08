@@ -1,7 +1,3 @@
-// We test native aggregate shape validation across repeated record children,
-// zero-sized fields, fixed arrays, cycle rejection, and authored storage width
-// overrides.
-
 use super::*;
 use crate::execution::host_imports::native_provider::values::ScalarField;
 use calling_conventions::{BoundaryValueField, BoundaryValueShape};
@@ -59,6 +55,8 @@ struct Fixture {
 }
 
 impl Fixture {
+    /// The two semantic occurrences share one child type and one public node;
+    /// their containing paths and physical slots remain different.
     fn nested() -> Self {
         Self {
             signature: BoundarySignatureGeometry {
@@ -175,6 +173,7 @@ fn complete_record_roster_includes_children_with_no_scalar_leaves() {
         .root_fields()
         .push(field(3, StructuralFieldType::Structural(type_id(3))));
     fixture.declarations.push(record(3, Vec::new()));
+    // The scalar codec alone cannot expose the missing empty child.
     assert!(fixture.validate().is_err());
     fixture.signature.shapes[0].class = BoundaryValueClass::Record {
         first_field: 0,
@@ -223,6 +222,7 @@ fn equal_extent_does_not_allow_changed_class_width_offset_or_child_padding() {
     fixture.signature.shapes[0].byte_size = 24;
     fixture.codec.extent = 24;
     fixture.signature.shapes[1].byte_size = 16;
+    // Scalar leaves themselves do not overlap; the complete child records do.
     assert!(fixture.validate().is_err());
     fixture.signature.shapes[1].byte_size = 8;
     fixture.signature.shapes[1].alignment = 3;
@@ -478,6 +478,7 @@ fn array_count_stride_extent_alignment_and_scalar_class_are_exact() {
     let mut fixture = Fixture::record_arrays();
     fixture.signature.shapes[2].byte_size = 12;
     fixture.signature.shapes[1].byte_size = 24;
+    // Self-consistent public stride still differs from the root codec's slots.
     assert!(fixture.validate().is_err());
     let mut fixture = Fixture::record_arrays();
     fixture.signature.shapes[1].alignment = 4;
@@ -537,6 +538,7 @@ fn nonempty_arrays_of_empty_records_have_no_invented_codec_leaves() {
         alignment: 1,
     });
     assert!(fixture.validate().is_ok());
+    // A zero-size array does not hide an unsupported element family.
     fixture.declarations[3].shape = StructuralTypeShape::Sum { cases: Vec::new() };
     assert!(fixture.validate().is_err());
 }

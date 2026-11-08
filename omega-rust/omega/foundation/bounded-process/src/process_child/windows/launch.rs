@@ -1,12 +1,3 @@
-// Windows suspended-child job assignment and thread resumption.
-//
-// Because `std::process::Command` does not return the primary thread handle
-// when spawning with `CREATE_SUSPENDED`, we assign the suspended child process
-// to its Job Object first and then enumerate its initial threads via
-// `CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD)` (retrying `ERROR_BAD_LENGTH`
-// up to `SNAPSHOT_ATTEMPT_LIMIT`) to open and resume every thread owned by the
-// new process ID.
-
 use std::io;
 use std::mem::size_of;
 use std::os::windows::io::AsRawHandle;

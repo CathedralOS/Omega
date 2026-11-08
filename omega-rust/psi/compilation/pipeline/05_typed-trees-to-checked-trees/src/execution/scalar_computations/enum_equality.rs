@@ -84,6 +84,14 @@ impl Builder<'_, '_> {
             _ => None,
         };
         if let Some((subject, receiver_value, case)) = known_case {
+            let receiver_value = match &subject {
+                CheckedScalarComputationStructuralArgument::Place(place)
+                    if !receiver_value.is_valid() =>
+                {
+                    self.case_subject_receiver(place)?
+                }
+                _ => receiver_value,
+            };
             let membership = self.publish_case_membership(
                 expression,
                 if unequal {
@@ -205,7 +213,9 @@ impl Builder<'_, '_> {
                 projection_evaluations: Default::default(),
                 source:
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        value_dependency: Some(value),
                         expression,
+                        logical_root_type_identity: None,
                     },
                 path: Vec::new(),
                 type_identity: validation::stored_structural_type_identity(
@@ -287,7 +297,7 @@ impl Builder<'_, '_> {
         Some((reference, CheckedScalarComputationStructuralArgument::Place(
             checked_trees::CheckedUnitStructuralArgumentPlan {
                 projection_evaluations: Default::default(),
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { value_dependency: Some(receiver), expression, logical_root_type_identity: None },
                 path: Vec::new(),
                 type_identity: validation::stored_structural_type_identity(self.program, reference, &[], &[]),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,

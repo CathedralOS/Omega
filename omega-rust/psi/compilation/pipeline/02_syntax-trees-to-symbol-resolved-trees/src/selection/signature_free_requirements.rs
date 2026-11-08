@@ -15,20 +15,20 @@ use symbols::JoinedPath;
 /// signature. Domain establishment routes and nominal static-machine binders
 /// share this resolution law: neither visible satisfiers nor an expected call
 /// shape may select among overloads.
-pub struct ExactSignatureFreeRequirement<'program> {
-    pub trait_definition: &'program TraitDefinition,
-    pub declaring_trait: &'program TraitDefinition,
-    pub requirement: &'program StateSignature,
+pub(crate) struct ExactSignatureFreeRequirement<'program> {
+    pub(crate) trait_definition: &'program TraitDefinition,
+    pub(crate) declaring_trait: &'program TraitDefinition,
+    pub(crate) requirement: &'program StateSignature,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SignatureFreeRequirementResolutionError {
+pub(crate) enum SignatureFreeRequirementResolutionError {
     InvalidPath,
     TraitNotUnique,
     RequirementNotUnique,
 }
 
-pub fn resolve_signature_free_requirement<'program>(
+pub(crate) fn resolve_signature_free_requirement<'program>(
     program: &'program SymbolResolvedTrees,
     path: &[DiagnosticName],
 ) -> Result<ExactSignatureFreeRequirement<'program>, SignatureFreeRequirementResolutionError> {

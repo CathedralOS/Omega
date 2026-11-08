@@ -1,11 +1,4 @@
-// Retained directory identity and native Git repository-tree custody checks.
-//
-// `verify_git_repository_tree_from_open_root` walks the bare repository tree
-// within `CACHE_CUSTODY_ENTRY_LIMIT` and `CACHE_CUSTODY_DEPTH_LIMIT`, rejecting
-// symlinks, special files, and multiply-linked regular files (`nlink != 1` on
-// Unix). `reject_retained_git_path` proves that forbidden external indirection
-// files (`objects/info/alternates`, `objects/info/http-alternates`,
-// `commondir`) are absent beneath concrete directories.
+//! Retained directory identity and native Git repository-tree custody checks.
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

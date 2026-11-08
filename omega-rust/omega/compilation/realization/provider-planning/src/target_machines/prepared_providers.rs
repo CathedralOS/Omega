@@ -1,11 +1,11 @@
-// We collect candidate provider implementations and their declarations before
-// publishing the shared intermediate program so later stages can attach target
-// Calling plans without reopening source. Native-build rows precede authored
-// derivation so a `boundary machine` satisfies declaration on a build-bound
-// requirement joins its package-owned evaluated binding instead of inferring a
-// compiler leaf. When Calling plans are attached, we clear any cached digest
-// memo (`digest_memo = Default::default()`) and validate native Build
-// candidates against their completed schemas.
+//! Collect possible implementations and their declarations before publishing
+//! the shared intermediate program. Later steps can attach target calling
+//! plans without reading source again.
+//!
+//! Each requested target keeps its own evaluated build settings. Validate
+//! native plans after attaching their complete calling information. Keep the
+//! authored choices used for inspection separate from the choices that also
+//! include native bindings.
 
 use super::{AuthoredTargetProviders, TargetProviderPreparationRequest};
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
@@ -44,6 +44,9 @@ pub(crate) struct PreparedProviderMetadata {
 
 type ApplicationRoots = Result<Option<Vec<CanonicalProviderDeclaration>>, Vec<Diagnostic>>;
 
+/// Inputs for preparing implementations for one requested target. Preparation
+/// reads declarations without running calling policies or choosing an
+/// implementation; its result does not retain the checked program.
 pub struct ProductProviderPreparation<'program> {
     pub checked: &'program Arc<checked_trees::CheckedTrees>,
     pub services: ServiceCatalog<'program>,
@@ -127,6 +130,8 @@ impl CallingCandidate {
         if let Some(surface) = surface {
             let surface = surface.surface().map_err(|error| vec![error])?;
             derived.plan.schema = crate::service_schema::attach_calling(&surface, calling);
+            // Adding calling plans changes the schema. Clear any cached digest
+            // so later comparisons include the completed ABI information.
             derived.plan.digest_memo = Default::default();
         }
         Ok(derived)
@@ -179,6 +184,8 @@ struct SourcePublication {
     rows: Vec<SourcePublicationRow>,
 }
 
+/// Finalized source-free declaration catalog. Requested and successfully
+/// realized scopes still join at the existing publication owner, not here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPublicationCatalog {
     base_targets: Vec<String>,
@@ -275,6 +282,8 @@ impl PreparedProductProviders {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        // Check native implementations against their complete calling plans.
+        // Earlier preparation cannot check ABI details that are attached here.
         for candidate in &candidates[self.native_start..] {
             let errors = candidate.source.plan.validate_candidate_against_schema();
             if !errors.is_empty() {
@@ -335,6 +344,8 @@ fn attach_choices<'candidate, Owner>(
             "provider Calling attachment lost its prepared candidate correspondence",
         )]);
     }
+    // Both lists were built together in the same order. Give each choice its
+    // completed plan so selection and review inspect the same information.
     for (choice, candidate) in choices.candidates.iter_mut().zip(candidates) {
         choice.choice.plan = candidate.plan.clone();
     }
@@ -359,6 +370,10 @@ impl ProductProviderPreparation<'_> {
         let native =
             self.native_bindings
                 .form(self.native_supplies, planning_target, &mut identities)?;
+        // Native-build rows precede authored derivation so a `boundary
+        // machine` satisfies declaration on a build-bound requirement joins
+        // its package-owned evaluated binding instead of inferring a
+        // compiler leaf.
         let authored = AuthoredTargetProviders::derive(
             self.services,
             self.body_declarations,
@@ -404,6 +419,9 @@ impl ProductProviderPreparation<'_> {
         );
         base_targets.sort();
         base_targets.dedup();
+        // Some requested targets become known only after implementation selection.
+        // Save declarations for every supported target now, then publish only
+        // the targets requested later. This does not evaluate additional targets.
         let mut catalog_targets = base_targets.clone();
         catalog_targets.extend(
             target::TargetProfile::ALL
@@ -455,6 +473,10 @@ impl ProductProviderPreparation<'_> {
             .chain(native)
             .collect::<Vec<_>>();
         let original_candidates = inventory.iter().collect::<Vec<_>>();
+        // Check every possible exit implementation while its checked body is
+        // available. Keep errors with that implementation so an unused invalid
+        // alternative cannot reject the selected program. Adding calling plans
+        // later changes argument placement, not which external operation exits.
         let choices = choices.map(|choices| {
             choices.map_owner(|plan, provenance| {
                 let completion = completion::capture(

@@ -7,7 +7,7 @@ pub(crate) mod validate;
 
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{LivenessIdentity, LivenessPlan, SelectedInstructionPlanIdentity};
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
 /// Compute bounded selected-CFG liveness facts. The result grants no
 /// interval, allocation, emission, or publication authority.
@@ -46,7 +46,7 @@ copy_receipt! {
         pub(crate) identity: LivenessIdentity,
         pub(crate) selected: SelectedInstructionPlanIdentity,
         pub(crate) optimization_unit: OptimizationUnitIdentity,
-        pub(crate) work_schedule: WorkScheduleIdentity,
+        pub(crate) fuel_schedule: FuelScheduleIdentity,
     }
 }
 

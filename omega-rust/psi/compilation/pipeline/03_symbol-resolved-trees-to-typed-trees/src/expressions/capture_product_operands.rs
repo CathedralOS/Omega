@@ -616,6 +616,7 @@ impl Capture<'_> {
                 }
             }
             Source::SavedSubject(value) => ProductExpressionKind::SavedSubject {
+                component: value.component,
                 capture: self.capture_subject(value.capture)?,
                 pattern_head: self.expression(value.pattern_head)?,
             },
@@ -668,6 +669,7 @@ impl Capture<'_> {
                     .iter()
                     .map(|field| {
                         Ok(ProductMatchField {
+                            component: field.component,
                             member: self.name(&field.member, field.field_symbol),
                             action: match &field.action {
                                 source_expression::MatchFieldAction::Bind(name) => {

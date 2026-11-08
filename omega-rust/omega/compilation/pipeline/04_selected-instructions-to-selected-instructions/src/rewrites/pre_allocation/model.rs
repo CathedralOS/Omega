@@ -215,7 +215,7 @@ impl ValidatedPreAllocationTransformation {
         source_selected : receipt . source_selected -> SelectedInstructionPlanIdentity;
         transformed_selected : receipt . transformed_selected -> SelectedInstructionPlanIdentity;
         optimization_unit : receipt . optimization_unit -> optimization_core::OptimizationUnitIdentity;
-        work_schedule : receipt . work_schedule -> semantic_vocabulary::WorkScheduleIdentity;
+        fuel_schedule : receipt . fuel_schedule -> semantic_vocabulary::FuelScheduleIdentity;
         function_index : receipt . function_index -> usize;
     }
 

@@ -1,22 +1,10 @@
-/*
-Compiler-private callback function identities (`MachineFunctionIdentity`)
-scoped to their owning Terminal Psi program.
-
-Callback placements name call-site occurrences inside a specific Terminal Psi
-program rather than source declarations or machine addresses. Pairing the
-caller's `TerminalPsiIdentity` (2-byte little-endian `VocabularyMarker` +
-32-byte `SemanticFingerprint`) with the 8-byte little-endian `placement_index`
-produces a fixed 42-byte identity (`to_bytes` / `from_bytes`) and deterministic
-private linker symbol (`__omega_callback_v<vocab>_<fingerprint>_p<index>`) so
-identical local placement indices never alias across independently compiled
-programs.
-
-An all-zero program fingerprint (`MachineFunctionIdentity::default()`) marks an
-absent identity and is rejected by `callback_thunk`, `from_bytes`, and
-`private_symbol`.
-*/
-
 #![forbid(unsafe_code)]
+
+//! Compiler-private function identities scoped to their owning Terminal program.
+//!
+//! Callback placements name occurrences, not source declarations or addresses.
+//! Keeping the caller's canonical identity prevents equal local placement slots
+//! from aliasing across independently compiled programs.
 
 pub(crate) use optimization_core::codec_bytes;
 
@@ -49,6 +37,8 @@ impl MachineFunctionIdentity {
         self.caller.program_fingerprint.as_bytes() != &[0; 32]
     }
 
+    /// Exact fixed-width identity bytes shared by native codecs and digests.
+    /// This is an identity encoding, not proof that the callback was admitted.
     pub fn to_bytes(self) -> [u8; 42] {
         let mut bytes = [0; 42];
         crate::codec_bytes::patch_encoded(
@@ -80,6 +70,7 @@ impl MachineFunctionIdentity {
         )
     }
 
+    /// Linker metadata derived from the same identity carried through lowering.
     pub fn private_symbol(self) -> Option<String> {
         self.is_valid().then(|| {
             format!(

@@ -1,7 +1,4 @@
-// Source-semantic dependencies without private consumer implementation names.
-//
-// `Callable` names an exact callable retained by the enclosing normalized
-// callable surface; private consumers are grouped under `PackageImplementation`.
+//! Source-semantic dependencies without private consumer implementation names.
 
 use super::{
     PackageReviewNominalIdentity, PackageReviewSemanticDependencyExposure,
@@ -11,7 +8,9 @@ use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicySemanticDependencyConsumer {
+    /// An exact callable retained by the enclosing normalized callable surface.
     Callable(PackageReviewNominalIdentity),
+    /// Private consumers are grouped under the enclosing baseline's package.
     PackageImplementation,
 }
 

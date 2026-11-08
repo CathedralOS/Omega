@@ -1,7 +1,3 @@
-// Git tree entry and symlink target validation tests covering native path
-// separator conversion, unsafe path rejection before staging, Windows-ambiguous
-// symlink target rejection, and directory entry budget accounting.
-
 use super::{
     LocalSourceLimits, SourceResolveError, parse_git_tree_entries, temp_root,
     validate_git_symlink_target,

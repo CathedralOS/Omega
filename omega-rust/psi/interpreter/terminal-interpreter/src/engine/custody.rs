@@ -643,55 +643,19 @@ pub(crate) fn bind_active_structural_arguments(
 /// projection records the exact backing reached under the requested access;
 /// a parameter records an already admitted input declaration.
 #[derive(Default)]
-pub(crate) struct StructuralArgumentProvenance<'a> {
+pub(crate) struct BlockArgumentProvenance<'a> {
     pub(crate) parameter: Option<&'a StructuralParameterDeclaration>,
     pub(crate) reference_projection: Option<StructuralRuntimePlace>,
 }
 
-pub(crate) struct StructuralArgumentSources<'a, 'program> {
-    pub(crate) arguments: &'a [StructuralArgument],
-    pub(crate) provenance: &'a [StructuralArgumentProvenance<'program>],
-}
-
-impl crate::engine::execution::TerminalExecution<'_> {
-    /// Capture the original incoming declarations and resolved descriptor
-    /// endpoints before a call or edge relabels their carriers.
-    pub(crate) fn structural_argument_provenance(
-        &self,
-        arguments: &[StructuralArgument],
-    ) -> Result<Vec<StructuralArgumentProvenance<'_>>, TerminalInterpretError> {
-        arguments
-            .iter()
-            .map(|argument| {
-                let reference_projection = if argument.access != StructuralAccess::Owned
-                    && argument.path.contains(&StructuralPathSegment::Referent)
-                {
-                    self.resolve_reference_storage_projection(
-                        self.structural_value(argument.place)?,
-                        &argument.path,
-                        argument.access,
-                    )?
-                    .map(|projection| StructuralRuntimePlace::from(&projection.value))
-                } else {
-                    None
-                };
-                Ok(StructuralArgumentProvenance {
-                    parameter: self.owned_block_source(argument.place),
-                    reference_projection,
-                })
-            })
-            .collect()
-    }
-}
-
-/// Internal calls and edges retain their admitted source declarations and
-/// captured referents. External inputs have no such provenance and continue
-/// through the independent-input binder.
-pub(crate) fn bind_active_retained_arguments(
+/// An internal edge relabels storage in one activation. An affine owner may
+/// stay live beside its established loan. Entry and ordinary call binding
+/// retain the strict rule for independent inputs.
+pub(crate) fn bind_active_block_arguments(
     parameters: &[StructuralParameterDeclaration],
     sources: &[terminal_psi::StructuralArgument],
     arguments: &[TerminalStructuralValue],
-    provenance: &[StructuralArgumentProvenance<'_>],
+    provenance: &[BlockArgumentProvenance<'_>],
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     cases: &BTreeMap<
         StructuralRuntimePlace,
@@ -703,14 +667,7 @@ pub(crate) fn bind_active_retained_arguments(
         return Err(malformed());
     }
     let active = active_structural_parameters(parameters, arguments, types, cases)?;
-    bind_existing_structural_places(
-        &active,
-        arguments,
-        sources,
-        provenance,
-        Some(types),
-        account,
-    )
+    bind_existing_structural_places(&active, arguments, sources, provenance, account)
 }
 
 fn active_structural_parameters(
@@ -746,21 +703,19 @@ pub(crate) fn bind_structural_arguments(
     arguments: &[TerminalStructuralValue],
     account: Option<&EvaluationInvocationAccount>,
 ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
-    bind_existing_structural_places(parameters, arguments, &[], &[], None, account)
+    bind_existing_structural_places(parameters, arguments, &[], &[], account)
 }
 
-/// An internal transfer retains the lender while its established child is in use.
+/// A state edge retains the lender while its established child is in use.
 /// The lender can keep its owned home, or travel as the shared hold of an
 /// admitted mutable input. The captured descriptor supplies the child's exact
-/// backing; equal addresses alone cannot introduce this relation. Source
-/// checking keeps the parent suspended wherever the child is held. This join
-/// preserves that checked relation, rather than authorizing concurrent use.
+/// backing; equal addresses alone cannot introduce this relation. Ordinary
+/// calls have no state-transfer provenance and retain independent-input checks.
 fn retains_source_lender(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
     sources: &[terminal_psi::StructuralArgument],
-    provenance: &[StructuralArgumentProvenance<'_>],
-    types: Option<&crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>>,
+    provenance: &[BlockArgumentProvenance<'_>],
     first: usize,
     second: usize,
 ) -> bool {
@@ -773,47 +728,7 @@ fn retains_source_lender(
             continue;
         };
         let lender_parameter = provenance.get(lender).and_then(|source| source.parameter);
-        let retained_mutable = parameters[lender].access == StructuralAccess::MutableBorrow;
         let lender_access = match parameters[lender].access {
-            StructuralAccess::MutableBorrow
-                if parameters[lender].multiplicity == StructuralMultiplicity::Unrestricted
-                    && lender_source.access == StructuralAccess::MutableBorrow =>
-            {
-                let Some(types) = types else { continue };
-                let Some(source_parameter) = lender_parameter.filter(|parameter| {
-                    parameter.access == StructuralAccess::MutableBorrow
-                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                }) else {
-                    continue;
-                };
-                let Some(suffix) = arguments[child]
-                    .path
-                    .strip_prefix(arguments[lender].path.as_slice())
-                else {
-                    continue;
-                };
-                // Both values retain original backing. Only a strict inline
-                // child can retain this lender; a stored pointer, coincident
-                // address, or duplicate whole loan cannot establish descent.
-                if suffix.is_empty()
-                    || !suffix.iter().any(|segment| {
-                        !matches!(segment, StructuralPathSegment::RepresentationView { .. })
-                    })
-                    || !terminal_semantics::projection_stays_in_inline_storage(
-                        types.values(),
-                        arguments[lender].structural_type,
-                        suffix,
-                    )
-                    || !terminal_semantics::projection_stays_in_inline_storage(
-                        types.values(),
-                        source_parameter.structural_type,
-                        &lender_source.path,
-                    )
-                {
-                    continue;
-                }
-                StructuralAccess::MutableBorrow
-            }
             StructuralAccess::Owned
                 if parameters[lender].multiplicity == StructuralMultiplicity::Affine
                     && lender_source.access == StructuralAccess::Owned =>
@@ -844,7 +759,7 @@ fn retains_source_lender(
             }
             _ => continue,
         };
-        if (!retained_mutable && !lender_source.path.is_empty())
+        if !lender_source.path.is_empty()
             || !arguments[child].path.starts_with(&arguments[lender].path)
             || child_source.access != parameters[child].access
             || !crate::storage::reference::access_covers(lender_access, parameters[child].access)
@@ -878,8 +793,7 @@ fn bind_existing_structural_places(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
     sources: &[terminal_psi::StructuralArgument],
-    provenance: &[StructuralArgumentProvenance<'_>],
-    types: Option<&crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>>,
+    provenance: &[BlockArgumentProvenance<'_>],
     account: Option<&EvaluationInvocationAccount>,
 ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
     if arguments.len() != parameters.len() {
@@ -954,7 +868,6 @@ fn bind_existing_structural_places(
                     arguments,
                     sources,
                     provenance,
-                    types,
                     previous_index,
                     argument_index,
                 )

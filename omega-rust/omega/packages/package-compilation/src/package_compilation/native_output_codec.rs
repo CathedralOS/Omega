@@ -1,8 +1,5 @@
-// Canonical wire encoding, decoding, and content digesting (`OMG-NATIVE-OUTPUTS\x02`)
-// for the native declarations, foreign/syscall locators, and `NativeBuildEvaluation`
-// carried inside a `PackageBuildHandoff`. Decoding reconstructs inert anchors
-// without granting source visibility, host backing, or native execution authority.
-
+//! Framed native output data for the complete package handoff. Decoding never
+//! grants source visibility, host backing, or native execution authority.
 use super::{NativeBuildEvaluation, PackageBuildHandoff};
 use crate::build_execution::build_record_codec;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};

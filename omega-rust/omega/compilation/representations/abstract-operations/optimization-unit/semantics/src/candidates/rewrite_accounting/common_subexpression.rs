@@ -50,7 +50,7 @@ pub(crate) fn reconstruct_phi_translated_cse_accounting(
             machine: function.machine,
             edge: incoming.edge,
         };
-        provenance.push(realized_at_own_site(site, &edge.provenance, &edge.work));
+        provenance.push(realized_at_own_site(site, &edge.provenance, &edge.fuel));
     }
     blocks.sort();
     blocks.dedup();

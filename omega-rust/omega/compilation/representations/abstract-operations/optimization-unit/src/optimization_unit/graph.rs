@@ -1,4 +1,4 @@
-//! Executable CFG, value-flow, effect, work, and ownership-event carriers.
+//! Executable CFG, value-flow, effect, fuel, and ownership-event carriers.
 
 use super::super::{
     AbstractFunctionResult, AbstractOperation, BTreeSet, BlockId, ClaimId, ContentEntryClaim,
@@ -21,10 +21,10 @@ impl From<OperationId> for PsiProvenance {
     }
 }
 
-/// One source logical-work settlement. Native lowering must retain this even
+/// One source logical-fuel settlement. Native lowering must retain this even
 /// when several source nodes become one physical instruction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WorkSettlement {
+pub struct FuelSettlement {
     pub site: PsiProvenance,
     pub units: u64,
 }
@@ -106,7 +106,7 @@ pub struct OptimizationEdge {
     /// may append inherited edge sources that execute on the same path.
     pub provenance: Vec<PsiProvenance>,
     /// One ordered settlement per edge provenance source.
-    pub work: Vec<WorkSettlement>,
+    pub fuel: Vec<FuelSettlement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -152,7 +152,7 @@ pub struct OptimizationNode {
     /// its own edge first and may append only co-executed inherited edges.
     pub provenance: Vec<PsiProvenance>,
     /// One ordered settlement per provenance source, in the same order.
-    pub work: Vec<WorkSettlement>,
+    pub fuel: Vec<FuelSettlement>,
     pub effect: EffectLink,
     pub definitions: Vec<ValueDefinition>,
     pub uses: Vec<ValueUse>,

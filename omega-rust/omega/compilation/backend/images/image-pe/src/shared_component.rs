@@ -32,7 +32,6 @@ pub struct PeSharedComponentImage {
     image: FinalImage,
     exports: Vec<PeComponentExport>,
     contents: Vec<u8>,
-    final_text_bytes: Vec<u8>,
 }
 
 impl PeSharedComponentImage {
@@ -41,10 +40,6 @@ impl PeSharedComponentImage {
     }
     pub fn exports(&self) -> &[PeComponentExport] {
         &self.exports
-    }
-    /// Exact relocated text retained by the format owner for target replay.
-    pub fn final_text_bytes(&self) -> &[u8] {
-        &self.final_text_bytes
     }
     pub fn contents(&self) -> &[u8] {
         &self.contents
@@ -88,7 +83,6 @@ pub fn emit_pe_shared_component(
             image,
             exports,
             contents: output.bytes,
-            final_text_bytes: output.final_text_bytes,
         }),
         Err(diagnostic) => Err(Box::new(PeSharedComponentEmissionError {
             image,

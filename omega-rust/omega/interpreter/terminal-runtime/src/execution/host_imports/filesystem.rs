@@ -1,15 +1,6 @@
-/*
-We manage explicit matching-host filesystem delegation and its isolated guest
-descriptor and handle namespaces across Darwin, Linux, and Windows.
-
-The native worker's channel and shared-mapping files are never exposed as guest
-descriptors. Exact OS mechanisms and normalized locators select adapters rather
-than source requirement names, and only toolchain-owned filesystem services are
-admitted. Standard descriptors (0, 1, 2) use the independently supplied modeled
-I/O streams and never borrow the worker's real standard streams, while failed
-close operations mark the guest descriptor or handle uncertain so OS number
-reuse cannot revive a stale guest handle.
-*/
+//! Explicit matching-host filesystem supply and its descriptor namespace.
+//! The native worker's channel and mapping files are never guest descriptors.
+//! Exact OS mechanisms select adapters; source requirement names do not.
 
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
@@ -39,7 +30,9 @@ pub(super) struct FilesystemContext {
 
 enum NativeDescriptor {
     Open(i32),
-    Uncertain, // Failed close may have retired the OS number; never let reuse revive a guest handle.
+    // A failed close may already have retired the OS number. Never let its
+    // later reuse for worker protocol/storage files revive a guest handle.
+    Uncertain,
 }
 
 #[derive(Clone, Copy)]
@@ -196,6 +189,8 @@ impl FilesystemContext {
         use DescriptorEffect::{Acquire, Close, Duplicate, None as NoDescriptor, OpenAt, Use};
         use Formal::{ByteView, IntegerReference, Signed, Unsigned, UnsignedArray};
         use StructuralAccess::{MutableBorrow, SharedBorrow};
+        // The SDK declares full fixed-array extents. These are exact C ABI
+        // contracts, not a license to widen a one-byte loan into an allocation.
         let path = UnsignedArray(4096, 8, SharedBorrow);
         let metadata = UnsignedArray(144, 8, MutableBorrow);
         let candidates: &[(&[u8], &[Formal], Formal, DescriptorEffect)] = &[
@@ -380,6 +375,10 @@ impl FilesystemContext {
                 "no explicit host filesystem namespace was supplied",
             ));
         }
+        // Standard streams use the independently supplied modeled I/O route.
+        // Only a call that enters the native descriptor namespace needs this
+        // namespace's additional services. Keep ordinary filesystem admission
+        // eager; descriptor I/O selects its route from the actual descriptor.
         let namespace_admission = self.admit_services(program, declaration);
         if !matches!(descriptor, DescriptorEffect::Io) {
             namespace_admission
@@ -423,12 +422,13 @@ impl FilesystemContext {
             flags_without_mode,
         })))
     }
-
     fn admit_services(
         &self,
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
     ) -> Result<(), &'static str> {
+        // Only exact toolchain-owned filesystem services are supplied. A
+        // similarly named package declaration or unrelated extra reach rejects.
         for service in declaration
             .fixed_service_reach
             .iter()
@@ -633,6 +633,9 @@ impl DarwinFilesystemCall {
         &self,
         arguments: &[TerminalScalarValue],
     ) -> Result<Vec<TerminalScalarValue>, TerminalEffectRejection> {
+        // Called only for the native route, after modeled standard streams
+        // have been selected. Refuse before translating descriptors or invoking
+        // the worker; stream supply never grants host namespace authority.
         self.namespace_admission.map_err(rejection)?;
         if let Some(index) = self.flags_without_mode {
             let Some(TerminalScalarValue::Integer {
@@ -674,6 +677,9 @@ impl DarwinFilesystemCall {
                 "filesystem operation has no supplied standard-stream contract",
             ));
         }
+        // Darwin AT_FDCWD is an explicitly supplied current-directory root.
+        // Other unknown integers reach the actual OS as an invalid descriptor,
+        // so errno comes from the selected native call, never an invented code.
         *guest = i128::from(if current_directory && guest_descriptor == -2 {
             -2
         } else {
@@ -777,6 +783,8 @@ mod tests {
             .borrow_mut()
             .insert(3, NativeDescriptor::Open(91));
         assert!(!call.modeled_stream(&[descriptor(3)]));
+        // Even a previously admitted guest descriptor cannot acquire the
+        // authority missing from this particular boundary declaration.
         assert!(call.arguments(&[descriptor(3)]).is_err());
         assert!(call.arguments(&[descriptor(-1)]).is_err());
     }
@@ -793,6 +801,7 @@ mod tests {
             call.arguments(&[descriptor(999)]).unwrap(),
             [descriptor(-1)]
         );
+        // This route must never borrow the worker's real standard streams.
         for stream in 0..=2 {
             assert!(call.arguments(&[descriptor(stream)]).is_err());
         }

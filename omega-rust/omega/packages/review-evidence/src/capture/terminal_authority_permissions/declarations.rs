@@ -1,15 +1,4 @@
-/*
-We rejoin supplied terminal authority permissions to the complete live service
-declaration.
-
-We preserve the UEFI semantic-only binding exception: the normalized review
-below is context rather than a replacement permission digest or a second source
-of target-entry ABI authority. `ProcessExit` binds a package-owned provider of
-the core declaration so its package is not the declaration's owner; the
-resolved binding has already rejoined the exact core symbol and selected
-provider plan, and we retain that toolchain source identity in permission
-evidence rather than relabeling the service as package-owned.
-*/
+//! Rejoin supplied permissions to the complete live service declaration.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::refusal;
@@ -57,6 +46,9 @@ pub(super) fn resolve_services<'a>(
             .map_err(|diagnostic| vec![diagnostic])?;
         let symbol = source.symbol;
         let schema = &source.declaration.schema;
+        // Preserve the existing UEFI semantic-only binding exception. The
+        // normalized review below is context, never a replacement permission
+        // digest or a second source of target-entry ABI authority.
         let digest = package_compilation::accepted_service_schema_digest(accepted.role(), schema);
         if digest != accepted.normalized_schema_digest() {
             return Err(rejected(
@@ -64,6 +56,11 @@ pub(super) fn resolve_services<'a>(
             ));
         }
         let service = nominal_identity(compilation, symbol)?;
+        // ProcessExit binds a package-owned provider of the core declaration;
+        // its package is not the declaration's owner. The resolved binding has
+        // already rejoined the exact core symbol and selected provider plan.
+        // Retain that toolchain source identity in permission evidence rather
+        // than relabeling the service as package-owned.
         let expected_owner = match accepted.role() {
             package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => {
                 matches!(

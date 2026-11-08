@@ -135,7 +135,10 @@ pub(in crate::checks::termination) fn coordinates(
                 }
             } else {
                 for (path, value) in values.length_field_observations(parameter.symbol) {
-                    let path = path.to_vec();
+                    let path = path
+                        .iter()
+                        .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                        .collect::<Vec<_>>();
                     // Extents also include fixed arrays. The ordinary coordinate
                     // owner authenticates that this selected leaf is a descriptor
                     // observation before it can enter a Slice::Length component.

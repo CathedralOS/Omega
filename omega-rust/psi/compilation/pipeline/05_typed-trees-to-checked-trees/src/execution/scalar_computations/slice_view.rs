@@ -371,7 +371,7 @@ impl Builder<'_, '_> {
         let state = self.program.state_by_symbol(self.state)?;
         let parameters = calls::free_structural_scalar_signature(
             self.program,
-            &mut ShapeCollector::with_carrier_index(self.program, self.carriers.clone()),
+            &mut ShapeCollector::new(self.program),
             state,
             &[],
         )?

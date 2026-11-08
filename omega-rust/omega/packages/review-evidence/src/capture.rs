@@ -1,14 +1,8 @@
-/*
-Compiler-owned translation from checked semantic and execution outputs into
-inert package-review evidence.
-
-We coordinate checked semantic interpretation (`semantics`), public API and
-contract projection (`api`, `contracts`), operational behavior and calling plans
-(`behavior`, `callables`, `calling`), provider and representation disclosure
-(`providers`, `representation`), and source custody (`source`, `input`). Each
-projection module defines its own diagnostic sentence via `refusal!` and maps
-missing lookups into `Vec<Diagnostic>` via `EvidenceOption::or_evidence`.
-*/
+//! Compiler-owned translation into inert package-review evidence.
+//!
+//! The entrance coordinates checked semantic interpretation, public API and
+//! behavior projection, provider selection, representation disclosure, and
+//! source custody. Evidence types and canonical encoding remain separate owners.
 
 mod api;
 mod authority;
@@ -33,6 +27,9 @@ mod source;
 pub use runtime_permissions::PreparedRuntimePolicy;
 mod terminal_authority_permissions;
 
+/// The refusal constructor every projection module states in its own sentence:
+/// the module keeps its exact diagnostic vocabulary and stops restating the
+/// constructor around it.
 macro_rules! refusal {
     ($parameter:ident, $sentence:literal) => {
         fn rejected($parameter: &str) -> Vec<diagnostics::Diagnostic> {
@@ -47,6 +44,8 @@ macro_rules! refusal {
 }
 pub(crate) use refusal;
 
+/// One diagnostic sentence for an optional lookup: the projection says which
+/// lookup failed and stops restating the option-to-diagnostic constructor.
 pub(crate) trait EvidenceOption<T> {
     fn or_evidence(self, message: impl Into<String>) -> Result<T, Vec<diagnostics::Diagnostic>>;
 }

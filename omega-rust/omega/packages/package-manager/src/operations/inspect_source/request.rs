@@ -1,5 +1,3 @@
-// Adapter and locator parsing (`SourceAdapter` and `PackageSourceRequest`) for read-only package-source inspection.
-
 use package_source::{GitSourceRequest, GitSourceRequestError, SourceResolveError};
 use std::path::PathBuf;
 

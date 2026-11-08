@@ -731,7 +731,7 @@ fn scalar_argument(
 /// The ordinary parameter resolver also owns inline field presentations;
 /// live homes, descriptors and address joins retain their distinct identities.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn structural_argument(
+fn structural_argument(
     argument: &StructuralArgument,
     formal: &StructuralCallFormal<'_>,
     placement: &super::call_signature::PreparedStructuralCallFormal,

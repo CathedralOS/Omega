@@ -10,7 +10,7 @@
 //!
 //! TERMINATION: no new rule -- the language's existing discipline (no general
 //! recursion, loops carry decreases) covers const callees. The interpreter
-//! entry adds a ~100k-step work cap purely as defense-in-depth; exceeding it
+//! entry adds a ~100k-step fuel cap purely as defense-in-depth; exceeding it
 //! is a compile error here.
 //!
 //! DETERMINISM: the interpreter width-adjusts the terminal value to the

@@ -1,20 +1,4 @@
-/*
-We compute physical layouts for record and case-bearing (`Enum` and `Mixed`)
-data declarations (`compute_data_layout`).
-
-Compiler-derived accessors retain their exact field address as a pointer-sized
-record rather than collapsing to zero-sized types, and quotient data types
-retain their representative carrier's runtime layout retagged to the quotient's
-symbol. Plan-laid records transcribe validated field offsets, bit-field
-fragments, stored-integer widths, repeated-field strides, and target-closed
-private callback demands from the selected target's `PlanLaidGeometry`.
-
-Case-bearing shapes (pure sums and mixed common-field + case shapes) lay out as
-a tag-prefixed overlay without niche packing: the `i32` tag sits at constant
-offset 0, common fields pack immediately after the tag, and every case's
-payload fields pack from a shared base offset aligned to the strictest payload
-alignment across all cases.
-*/
+//! Computing the layouts of records and case-bearing data.
 
 use crate::data_layout_queries::builder::LayoutBuilder;
 use crate::data_layout_queries::builder::generic_bindings::GenericLayoutBinding;
@@ -37,6 +21,11 @@ impl<'program> LayoutBuilder<'program> {
         definition: &DataDefinition,
         bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<DataLayout, Diagnostic> {
+        // A compiler-derived accessor is opaque to source construction,
+        // but it is not zero-sized at runtime: helpers may receive one without
+        // the enclosing Access view, so the value must retain its exact field
+        // address. The typed placed-plan table is the authority for this
+        // classification; generated-name patterns are not.
         if self.is_compiler_accessor_definition(definition) {
             if definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque {
                 return Err(Diagnostic::error(format!(
@@ -54,6 +43,12 @@ impl<'program> LayoutBuilder<'program> {
             });
         }
 
+        // A quotient retains the chosen representative without normalization:
+        // the runtime layout IS the carrier's, retagged to the quotient's
+        // symbol so downstream lookups keep the authored identity. Carriers
+        // that are themselves proof-only never reach this arm -- the
+        // classification keeps such a quotient proof-only and the plan loop
+        // skips it.
         if let Some(quotient) = definition.quotient.as_ref() {
             let layout = self.layout_type_reference_handle(quotient.carrier, bindings)?;
             let carrier_symbol = self.program.type_reference_symbol(quotient.carrier);
@@ -87,21 +82,17 @@ impl<'program> LayoutBuilder<'program> {
             .map(|field| self.plan_field(field, bindings))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
 
+        // The exact representation application selects its retained validated
+        // row for this builder's explicit target. Preserve the full roster on
+        // the application; field offsets consume this selected geometry.
         if let Some(plan) = self.program.plan_laid_layout_for_data(definition) {
-            let geometry = plan
-                .geometry_for_target(
-                    self.program,
-                    self.layout_profile.map(target::TargetProfile::target_name),
-                )
-                .ok_or_else(|| {
-                    Diagnostic::error(format!(
-                        "fixed representation data `{}` has no admitted layout for typed layout target `{}`",
-                        plan.data_name,
-                        self.layout_profile
-                            .map(target::TargetProfile::target_name)
-                            .unwrap_or("<unselected>")
-                    ))
-                })?;
+            let geometry = plan.geometry_for_target(self.program, self.layout_profile.map(target::TargetProfile::target_name)).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "fixed representation data `{}` has no admitted layout for typed layout target `{}`",
+                    plan.data_name,
+                    self.layout_profile.map(target::TargetProfile::target_name).unwrap_or("<unselected>")
+                ))
+            })?;
             if geometry.offsets.len() != fields.len()
                 || plan
                     .field_symbols
@@ -126,6 +117,8 @@ impl<'program> LayoutBuilder<'program> {
                 .fields
                 .span(fields)
                 .expect("newly inserted plan-laid fields retain their span");
+            // Every placement row names a field index into the packed span the
+            // plan just placed; a stale index is a rejection, never a panic.
             let field_at = |index: usize, placement: &str| {
                 placed.get(index).map(|field| field.symbol).ok_or_else(|| {
                     Diagnostic::error(format!(
@@ -253,6 +246,7 @@ impl<'program> LayoutBuilder<'program> {
         })
     }
 
+    /// Resolve recursive geometry before deriving this field's metadata.
     fn plan_field(
         &mut self,
         field: &DataField,
@@ -272,6 +266,18 @@ impl<'program> LayoutBuilder<'program> {
         })
     }
 
+    /// Lay out a case-bearing shape (sum OR mixed) as a TAG-PREFIXED OVERLAY:
+    /// the i32 tag sits at offset 0, the COMMON fields (mixed shapes only) pack
+    /// immediately after the tag, and every case's payload fields pack from a
+    /// SHARED base offset after the common fields (aligned up to the strictest
+    /// payload field alignment), overlaying each other. The value's size covers
+    /// the LARGEST case payload; payload-less pure sums keep the historical
+    /// 4-byte tag-only layout. Tag-first is deliberate (see `DataShape::Enum`):
+    /// tag-only compares address the first `ENUM_TAG_BYTES` of the value with
+    /// no layout context, so the tag offset must stay the constant 0; common-
+    /// field offsets remain case-independent constants either way. No niche
+    /// packing ever: the zero bit pattern is the zero case (with zeroed common
+    /// fields and payload) and stays valid.
     fn compute_case_bearing_layout(
         &mut self,
         definition: &DataDefinition,
@@ -283,6 +289,8 @@ impl<'program> LayoutBuilder<'program> {
             crate::data_layout_queries::ENUM_TAG_BYTES,
         );
 
+        // Common fields (mixed shapes) pack right after the tag; their end
+        // offset is the floor under every case's payload overlay.
         let planned_common = self
             .program
             .live_data_fields(members)
@@ -292,6 +300,8 @@ impl<'program> LayoutBuilder<'program> {
             pack_fields_at(&mut self.fields, planned_common, TAG_LAYOUT.size)?;
         let common_end = common_layout.size.max(TAG_LAYOUT.size);
 
+        // Plan every case's payload fields next: the shared payload base offset
+        // depends on the strictest alignment across ALL cases.
         let mut planned_variants = Vec::new();
         let mut payload_alignment = 1usize;
         for member in members {

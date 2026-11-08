@@ -1,6 +1,9 @@
-// Typed recovery of normalized policy without reconstructing compiler authority.
-// `external` owns the component envelope while `reader` accounts for hostile framing and allocations; leaf decoders mirror stable signature, contract, expression, identity, and behavior vocabulary without inspecting compiler representations or reconstructing proofs.
-// `recover_component` and `recover_canonical_component!` keep component framing, structural validation, and canonical round-trip scratch charges on one shared decoder budget, and `tag!` dispatches byte tags with a trailing invalid-tag rejection.
+//! Typed recovery of normalized policy, not recovery of compiler authority.
+//!
+//! `external` owns the component envelope; `reader` accounts hostile framing
+//! and allocations. The other leaves mirror stable signature, contract,
+//! expression, identity, and behavior vocabulary without inspecting compiler
+//! representations or reconstructing proofs.
 
 pub(in crate::encoding::recovery) mod baseline;
 pub(in crate::encoding::recovery) mod behavior;
@@ -30,6 +33,9 @@ pub(crate) use policy_recovery_accounting::{
     PackagePolicyRecoveryError, PackagePolicyRecoveryUsage,
 };
 
+/// Keep component framing and scratch charges on the decoder's shared budget.
+/// Validation stays component-specific; canonical encoding is an independent
+/// format check after scratch accounting, never recovered compiler authority.
 fn recover_component<Policy>(
     bytes: &[u8],
     limits: PackagePolicyRecoveryLimits,
@@ -54,8 +60,17 @@ fn recover_component<Policy>(
     Ok(policy)
 }
 
+/// The `recover_canonical` constructor every inert-policy component restates:
+/// bounded recovery through the shared component envelope with the component's
+/// own magic, version, element decoder, and canonical round-trip. `validate`
+/// selects the component's structural check; the arm without it keeps the
+/// format-only check — the ordinary encoder already checks cross-field
+/// representation rules, so this remains a format check, not compiler or
+/// acceptance evidence.
 macro_rules! recover_canonical_component {
     ($magic:expr, $version:expr, $decode:expr, validate $(,)?) => {
+        /// Recover the component from canonical bytes: magic, version,
+        /// bounded decode, structural validation, and canonical round-trip.
         pub fn recover_canonical(
             bytes: &[u8],
             limits: PackagePolicyRecoveryLimits,
@@ -76,6 +91,8 @@ macro_rules! recover_canonical_component {
         }
     };
     ($magic:expr, $version:expr, $decode:expr $(,)?) => {
+        /// Recover the component from canonical bytes: magic, version,
+        /// bounded decode, and canonical round-trip.
         pub fn recover_canonical(
             bytes: &[u8],
             limits: PackagePolicyRecoveryLimits,
@@ -94,6 +111,8 @@ macro_rules! recover_canonical_component {
 }
 pub(crate) use recover_canonical_component;
 
+/// Tag dispatch: `match reader.byte()?` mapping byte tags to variants with a
+/// trailing invalid-tag rejection. Every tag-typed decoder restates it.
 macro_rules! tag {
     ($reader:expr => { $($tag:literal => $variant:expr),+ $(,)? }) => {
         match $reader.byte()? {

@@ -1,6 +1,4 @@
-// Named-const static-argument projection for reviewed contract calls. Declaration
-// receipts may retain floating bits, but static arguments require structural index
-// values, so floating leaves are explicitly rejected in structural const indices.
+//! Exact named-const values used by reviewed contract calls.
 
 use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;
@@ -51,6 +49,9 @@ pub(super) fn project_named_const_static_argument(
         DecodedCanonicalConstValue::Boolean(value) => {
             return Ok(PackageReviewContractStaticArgument::ConstBoolean(value));
         }
+        // Declaration receipts can retain floating bits, but static arguments
+        // still require structural index values. Keep that boundary explicit
+        // even though decode_encoding currently rejects floating leaves.
         DecodedCanonicalConstValue::Float { .. } => {
             return Err(rejected(
                 "with a floating value in a structural const index",

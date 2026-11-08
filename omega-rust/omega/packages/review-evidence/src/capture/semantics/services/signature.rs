@@ -1,13 +1,4 @@
-/*
-We project typed source service signatures even when no calling plan is
-selected.
-
-When a live calling association was just projected, we reuse its semantic
-fields directly rather than reading an old review receipt. At depth zero, an
-empty static telescope performs no instantiation so typed input stays borrowed
-until a parameter requires projection-local storage.
-*/
-
+//! Typed source signatures are retained even without a selected calling plan.
 use crate::capture::semantics::services::calling;
 use crate::capture::semantics::services::rejected;
 use crate::capture::semantics::signatures::SignatureProjection;
@@ -90,6 +81,8 @@ pub(super) fn project(
     let input = projection.input();
     let compilation = &input;
     if let Some(calling) = calling {
+        // This value was just projected from the exact selected live calling
+        // association. Reuse its semantic fields, not an old review receipt.
         return Ok(PackagePolicyServiceSignature {
             schema_arguments: calling.boundary_arguments.clone(),
             schema_lifetime_parameter_count: calling.boundary_lifetime_parameter_count,
@@ -191,6 +184,8 @@ pub(super) fn project(
     let source_parameters = parameters;
     let mut parameters = parameters.to_vec();
     let mut scopes = Vec::new();
+    // At depth zero, an empty static telescope performs no instantiation.
+    // Borrow typed input until a parameter needs projection-local storage.
     if !parameters.is_empty() {
         let lifetime_substitutions = identity_lifetime_substitutions(lifetimes);
         crate::capture::calling::application::signature::instantiate_static_parameters(

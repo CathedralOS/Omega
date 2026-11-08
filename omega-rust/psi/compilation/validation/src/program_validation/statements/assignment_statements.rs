@@ -214,11 +214,12 @@ pub(super) fn validate<'a, 'p>(
                 "place",
                 diagnostics,
             );
-            expression_types::report_delivered_type_mismatch(
+            expression_types::report_delivered_type_mismatch_with_component(
                 program,
                 machine.symbol,
                 value,
                 target_type,
+                program.pattern_component(assignment.target),
                 &owner,
                 diagnostics,
             );
@@ -619,31 +620,11 @@ pub(super) fn validate<'a, 'p>(
         if let (Some(path), Some(reference)) =
             (assignment_path.as_deref(), assignment_target_type_raw)
         {
-            let reference = places::assignment_value_type(program, reference);
-            if crate::reference_shell(program, reference).is_none()
-                && let Some(state) = current_state
-                && let Some(destination) = arithmetic_domains::scalar_operand(
-                    program,
-                    machine,
-                    state,
-                    assignment.target,
-                    None,
-                )
-            {
-                // RHS checking and alias invalidation have completed. Only
-                // this destination value, never an ancestor, is established.
-                arithmetic_domains::record_admitted_integer_fields(
-                    program,
-                    value_environment,
-                    &destination,
-                    reference,
-                );
-            }
             arithmetic_domains::record_declared_float_fields(
                 program,
                 value_environment,
                 path,
-                reference,
+                places::assignment_value_type(program, reference),
             );
         }
     }

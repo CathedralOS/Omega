@@ -81,8 +81,33 @@ pub(super) fn backing(
     if let Some([backing, _]) = completed_view_words(function, builder, row, source, indices)? {
         return Ok(backing);
     }
-    let (pointer, leaf_index) = stored_address(function, builder, row, source, indices, &geometry)?;
+    let (pointer, pointer_slots) = if source.path.is_empty() {
+        (
+            Some(place_pointer(builder, row, source.place, 0)?),
+            geometry.pointer_slots.as_slice(),
+        )
+    } else {
+        projection_origin(
+            function,
+            builder,
+            row,
+            source.place,
+            geometry.byte_offset,
+            &geometry.pointer_slots,
+        )?
+    };
+    let pointer = pointer.ok_or_else(invalid)?;
+    let (pointer, leaf_index) =
+        cross_references(builder, row, source.place, pointer, indices, pointer_slots)?;
     let leaf_indices = &indices[leaf_index..];
+    let pointer = scale(
+        builder,
+        row,
+        source.place,
+        geometry.byte_offset,
+        pointer,
+        leaf_indices,
+    )?;
     let address_width = if matches!(shape, StructuralTypeShape::FixedArray { .. }) {
         0
     } else {
@@ -159,111 +184,4 @@ pub(super) fn element_stride(
     let signature = function.structural.as_ref()?;
     let shape = geometry::shape(element, &signature.structural_types)?;
     geometry::align(shape.byte_size, shape.alignment).filter(|stride| *stride != 0)
-}
-
-// A descriptor's address is different from its payload's address. Resolve all
-// reference crossings and selectors before reading either descriptor word.
-fn stored_address(
-    function: &LegalizedScalarFunction,
-    builder: &mut Builder<'_>,
-    row: &impl super::super::call_arguments::InvocationArgumentSource,
-    source: &StructuralArgument,
-    indices: &[LegalizedRuntimeIndexOperand],
-    geometry: &ReferenceSourceGeometry,
-) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
-    let (pointer, pointer_slots) = if source.path.is_empty() {
-        (
-            Some(place_pointer(builder, row, source.place, 0)?),
-            geometry.pointer_slots.as_slice(),
-        )
-    } else {
-        projection_origin(
-            function,
-            builder,
-            row,
-            source.place,
-            geometry.byte_offset,
-            &geometry.pointer_slots,
-        )?
-    };
-    let pointer = pointer.ok_or_else(invalid)?;
-    let (pointer, leaf_index) =
-        cross_references(builder, row, source.place, pointer, indices, pointer_slots)?;
-    let leaf_indices = &indices[leaf_index..];
-    let pointer = scale(
-        builder,
-        row,
-        source.place,
-        geometry.byte_offset,
-        pointer,
-        leaf_indices,
-    )?;
-    Ok((pointer, leaf_index))
-}
-
-/// Read the backing pointer and length without interpreting payload as another
-/// descriptor. Register-held views and stored views use the same operation.
-pub(super) fn view_words(
-    function: &LegalizedScalarFunction,
-    builder: &mut Builder<'_>,
-    row: &impl super::super::call_arguments::InvocationArgumentSource,
-    source: &StructuralArgument,
-    indices: &[LegalizedRuntimeIndexOperand],
-) -> Result<[VirtualRegisterId; 2], SelectedInstructionError> {
-    if let Some(words) = completed_view_words(function, builder, row, source, indices)? {
-        return Ok(words);
-    }
-    let (geometry, shape) = source_geometry(function, source).ok_or_else(invalid)?;
-    if !geometry::runtime_indices_match(indices, &geometry.elements)
-        || !matches!(
-            shape,
-            StructuralTypeShape::ElementView { .. }
-                | StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                )
-        )
-    {
-        return Err(invalid());
-    }
-    let (pointer, leaf) = stored_address(function, builder, row, source, indices, &geometry)?;
-    let (pointer, displacement) = super::memory_pointer(
-        builder,
-        row,
-        source.place,
-        pointer,
-        geometry.byte_offset,
-        16,
-    )?;
-    footprint(
-        builder,
-        row,
-        source.place,
-        geometry.byte_offset,
-        16,
-        &indices[leaf..],
-        super::runtime_address::Written::None,
-    )?;
-    let backing = transport_register(builder, source.place, geometry.byte_offset)?;
-    let length_offset = geometry.byte_offset.checked_add(8).ok_or_else(invalid)?;
-    let length = transport_register(builder, source.place, length_offset)?;
-    for (offset, output) in [(0u32, backing), (8, length)] {
-        memory(
-            builder,
-            row,
-            source.place,
-            geometry
-                .byte_offset
-                .checked_add(offset)
-                .ok_or_else(invalid)?,
-            8,
-            SelectedMemoryAccessRole::ReadPlace,
-        )?;
-        builder.emit_load64(
-            displacement.checked_add(offset).ok_or_else(invalid)?,
-            pointer,
-            output,
-            provenance(row),
-        )?;
-    }
-    Ok([backing, length])
 }

@@ -1,6 +1,7 @@
-// Public declaration policy captured from exact checked declaration owners,
-// joining traits, conformances, domains, propositions, constants, operators,
-// and data definitions into `PackagePolicyPublicApi`.
+//! Public declaration policy captured from exact checked declaration owners.
+//!
+//! Legacy review shapes remain unchanged. Their ordinary public-surface joins
+//! are reused before policy-specific signature and behavior projection.
 
 mod declarations;
 pub(crate) use declarations::conformances;

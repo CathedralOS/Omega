@@ -1,5 +1,3 @@
-// Policy-row projections for public API declarations (traits, conformances, domains, propositions, consts, operators, and data).
-
 use super::super::{
     public_api::declarations as encode,
     values::{declarations::*, identity::encode_nominal},

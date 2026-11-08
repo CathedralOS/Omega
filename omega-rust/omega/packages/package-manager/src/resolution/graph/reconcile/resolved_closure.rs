@@ -1,11 +1,4 @@
-// We expose validated closure custody and zero-copy source-selection views.
-// Source acquisition and dependency reconciliation happen once in
-// `ResolvedPackageSourceClosure`; target-conditioned build activation,
-// checking, review, and production consume `ExactTargetPackageSourceClosure` so
-// source custody cannot be confused with target identity. Dependency request
-// views borrow the requester's authored request without copying locator strings
-// or choosing a single primary request in a diamond graph, and `dependency_path`
-// computes a deterministic shortest root-to-package explanation path via BFS.
+//! Validated closure custody and exact source-selection views.
 
 use super::super::{ResolvedPackageClosure, ResolvedSourceIdentity};
 use super::DependencyRequestPath;
@@ -20,6 +13,8 @@ use target::TargetProfile;
 use std::collections::BTreeMap;
 use std::path::Path;
 
+/// A fully traversed and graph-validated source closure plus exact custody for
+/// every package source root.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ResolvedPackageSourceClosure {
     pub(super) root_request: PackageRootSourceRequest,
@@ -28,6 +23,12 @@ pub(crate) struct ResolvedPackageSourceClosure {
     pub(super) custody_indices: BTreeMap<PackageKey, usize>,
 }
 
+/// One target-specific child view over an already resolved source closure.
+///
+/// Source acquisition and dependency reconciliation happen once in the parent.
+/// Target-conditioned build activation, checking, review, and production must
+/// consume an explicit child so source custody cannot be confused with target
+/// identity.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ExactTargetPackageSourceClosure<'a> {
     source_closure: &'a ResolvedPackageSourceClosure,
@@ -44,6 +45,7 @@ impl<'a> ExactTargetPackageSourceClosure<'a> {
     }
 }
 
+/// One exact root request joined to the source identity it selected.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ResolvedRootPackageSourceRequest<'a> {
     request: &'a PackageRootSourceRequest,
@@ -60,6 +62,11 @@ impl<'a> ResolvedRootPackageSourceRequest<'a> {
     }
 }
 
+/// One exact authored dependency request joined to the source it selected.
+///
+/// The request remains owned once by the requester's source custody. This view
+/// binds it to the graph edge and target resolution without copying hostile
+/// locator strings or choosing one primary request in a diamond graph.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ResolvedDependencySourceRequest<'a> {
     requester: &'a PackageKey,
@@ -75,10 +82,13 @@ impl<'a> ResolvedDependencySourceRequest<'a> {
         self.requester
     }
 
+    /// Which authorized context this request occurrence belongs to.
     pub const fn purpose(&self) -> DependencyPurpose {
         self.purpose
     }
 
+    /// Zero-based position in the requester's authored rows for this edge's
+    /// purpose scope.
     pub const fn dependency_index(&self) -> usize {
         self.dependency_index
     }
@@ -96,6 +106,10 @@ impl<'a> ResolvedDependencySourceRequest<'a> {
     }
 }
 
+/// A zero-copy, resolver-validated view of every source-selection occurrence.
+///
+/// This is source custody only. It is not compiler evidence, package admission,
+/// a lock record, or a package instance.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ResolvedPackageSourceRequestSet<'a> {
     closure: &'a ResolvedPackageSourceClosure,
@@ -166,6 +180,7 @@ impl ResolvedPackageSourceClosure {
         &self.graph
     }
 
+    /// Exact role authored by the selected closure root.
     pub const fn root_role(&self) -> BuildDeclarationKind {
         self.graph.root_role()
     }
@@ -184,6 +199,12 @@ impl ResolvedPackageSourceClosure {
         self.custody(key).map(PackageSourceCustody::snapshot_root)
     }
 
+    /// One deterministic shortest root-to-package request path.
+    ///
+    /// Review evidence needs a useful explanation path, not the potentially
+    /// exponential set of every path through a diamond-shaped DAG. Breadth-
+    /// first traversal follows each requester's authored dependency order and
+    /// visits every package at most once.
     pub(crate) fn dependency_path(&self, target: &PackageKey) -> Option<DependencyRequestPath> {
         self.custody(target)?;
         if target == self.graph.root() {

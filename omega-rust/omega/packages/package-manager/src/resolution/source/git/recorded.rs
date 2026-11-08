@@ -1,7 +1,5 @@
-// We recover authenticated historical Git bytes under their accepted metadata
-// without issuing a fresh `Build` declaration or re-interpreting old source
-// text. For workspace member navigation, the accepted subject already selected
-// the exact member path at this pin, and SDK tree inspection authenticates it.
+//! Recover authenticated historical Git bytes under their accepted metadata.
+//! This issues no fresh Build declaration and never interprets old source text.
 
 use crate::declarations::dependencies::read::DependencyProjections;
 use crate::declarations::{BuildDeclarationKind, PackageKey};
@@ -17,6 +15,8 @@ use package_source::{
 };
 use std::sync::Arc;
 
+/// The accepted closure supplies these together at one immutable resolution.
+/// Names and ledgers are not rediscovered from historical code or today's Build.
 pub(crate) struct RecordedGitPackage<'record> {
     pub key: &'record PackageKey,
     pub resolution: &'record ImmutableSourceResolution,
@@ -58,17 +58,22 @@ pub(crate) fn recover_recorded_git_source(
             storage.git_sources(),
             limits,
         )?,
-        PackageSourceNavigation::Member(path) => GitWorkspaceSession::open_at_revision(
-            storage,
-            request,
-            commit,
-            tree,
-            acquisition,
-            limits,
-            super::workspace::git_workspace_declaration_limits(),
-        )?
-        .open_members(storage, std::slice::from_ref(path))?
-        .materialize(storage, path)?,
+        PackageSourceNavigation::Member(path) => {
+            // The accepted subject already selected this exact path at this pin.
+            // SDK tree inspection authenticates it; no declaration parser or
+            // another Build invocation supplies historical selection semantics.
+            GitWorkspaceSession::open_at_revision(
+                storage,
+                request,
+                commit,
+                tree,
+                acquisition,
+                limits,
+                super::workspace::git_workspace_declaration_limits(),
+            )?
+            .open_members(storage, std::slice::from_ref(path))?
+            .materialize(storage, path)?
+        }
     };
     storage.verify_path_identity()?;
     let navigation_agrees = match recorded.navigation {

@@ -1,19 +1,16 @@
-// Source-evaluated import and syscall binding execution preparation for native
-// admission.
-//
-// Direct and retained compilation share `prepare_source_evaluated_bindings`:
-// join Terminal demand to exact selected import and syscall plans, then derive
-// execution records or rejoin a complete supplied roster. Compact report
-// coordinates remain diagnostics rather than authority; the independent
-// settlement checker joins the strong plan commitment, retained locator,
-// calling contract, target, and same-stack contribution before any native
-// realization consumes them.
-//
-// Imported user-space callees run on the program's private receiver stack (a
-// `.bss` region with no guard page whose size is the admitted peak), so
-// unmeasured foreign entries receive the 256 KiB `SAME_STACK_BYTES` reserve
-// unless a bodyless `via` leaf authored `stack N bytes`. Direct kernel entries
-// have no user-space callee and mint no same-stack reserve.
+//! Source-evaluated binding execution inputs for native admission.
+//!
+//! Direct and retained compilation share `prepare_source_evaluated_bindings`:
+//! join Terminal demand to exact selected import and syscall plans, then derive execution
+//! records or rejoin a complete supplied roster. The compact report coordinates
+//! remain diagnostics, not authority. The independent settlement checker joins
+//! the strong plan commitment, retained locator, calling contract, target and
+//! same-stack contribution before any native realization can consume them.
+//! Direct kernel entries have no user-space callee and mint no same-stack
+//! reserve. Their independent settlement rejoins the exact syscall and plan;
+//! preparation never grants receiving authority or recognizes service names.
+
+mod syscalls;
 
 use super::{NativeBoundaryRealization, NativeProviderSettlement};
 use diagnostics::Diagnostic;
@@ -27,6 +24,10 @@ use task_plans::{
     admit_same_stack_contribution,
 };
 
+/// Externally admitted custody for one demanded source-evaluated import.
+///
+/// Construction does not admit either input. Native realization independently
+/// rejoins both values to the exact retained provider plan and import row.
 #[derive(Debug, Clone, Copy)]
 pub struct SourceEvaluatedImportSettlement<'evidence> {
     provider_execution: &'evidence dyn ProviderExecutionEvidence,
@@ -53,10 +54,14 @@ impl<'evidence> SourceEvaluatedImportSettlement<'evidence> {
     }
 }
 
+/// Prepared source-binding execution inputs for native provider admission.
+/// Owns derived evidence or borrows the caller's admitted evidence. Neither
+/// form admits a locator, calling contract, stack bound or receiving authority:
+/// `admit_native_providers` independently rejoins those inputs.
 #[derive(Debug)]
 pub struct PreparedSourceEvaluatedBindings<'input> {
     evidence: SourceImportEvidence<'input>,
-    syscalls: Vec<PreparedSystemCall<'input>>,
+    syscalls: Vec<syscalls::PreparedSystemCall<'input>>,
 }
 
 #[derive(Debug)]
@@ -65,12 +70,11 @@ enum SourceImportEvidence<'input> {
     Supplied(Vec<NativeProviderSettlement<'input>>),
 }
 
-#[derive(Debug)]
-struct PreparedSystemCall<'plan> {
-    plan: &'plan ProviderPlan,
-    execution: SourceEvaluatedBindingExecution,
-}
-
+/// Prepare exactly the demanded selected bindings. An empty supplied import roster
+/// derives execution and stack records from the selected plans; a nonempty
+/// roster must cover every demanded import exactly once and never falls back
+/// to derived evidence for missing rows. Syscalls are always derived from
+/// selected plans: they neither consume nor substitute supplied import custody.
 pub fn prepare_source_evaluated_bindings<'input>(
     plans: &'input [ProviderPlan],
     demanded: &BTreeSet<String>,
@@ -83,11 +87,13 @@ pub fn prepare_source_evaluated_bindings<'input>(
     } else {
         SourceImportEvidence::Supplied(rejoin_external_import_settlements(&exact_plans, supplied)?)
     };
-    let syscalls = prepare_system_calls(plans, demanded)?;
+    let syscalls = syscalls::prepare_system_calls(plans, demanded)?;
     Ok(PreparedSourceEvaluatedBindings { evidence, syscalls })
 }
 
 impl PreparedSourceEvaluatedBindings<'_> {
+    /// Borrow supplied settlements directly, or project owned execution/stack
+    /// records into the native admission request without cloning their evidence.
     pub fn settlements(&self) -> Cow<'_, [NativeProviderSettlement<'_>]> {
         let mut settlements: Cow<'_, [NativeProviderSettlement<'_>]> = match &self.evidence {
             SourceImportEvidence::Derived(imports) => Cow::Owned(
@@ -121,6 +127,18 @@ impl PreparedSourceEvaluatedBindings<'_> {
     }
 }
 
+/// The stack a normalized foreign call may consume from its call site
+/// onward. The callee runs on the program's private receiver stack, a
+/// `.bss` region with no guard page whose size is exactly the admitted
+/// peak, so this contribution must cover everything the OS or runtime
+/// entry does before it returns or terminates: kernel32 `ExitProcess`
+/// walks loader notifications through ntdll and faulted with the 184-byte
+/// region a 64-byte contribution left it (Windows x86-64, 2026-09-23).
+/// 256 KiB is the reserve an unmeasured foreign entry gets. A bodyless `via`
+/// leaf that writes `stack N bytes` contributes that exact demand instead.
+/// The reserve stays for leaves that still have no measurement: kernel32
+/// `ExitProcess` faulted when a 64-byte guess replaced it, and shrinking
+/// every import at once would invent bounds the source did not admit.
 const SAME_STACK_BYTES: u64 = 256 * 1024;
 const SAME_STACK_ALIGNMENT: u64 = 16;
 
@@ -132,6 +150,9 @@ fn foreign_same_stack_bytes(authored: u64) -> u64 {
     }
 }
 
+/// Execution evidence for one source-evaluated binding: the requirement and
+/// the exact selected plan, with report coordinates derived from them so the
+/// same compile mints the same values.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SourceEvaluatedBindingExecution {
     requirement_identity: String,
@@ -159,6 +180,8 @@ impl ProviderExecutionEvidence for SourceEvaluatedBindingExecution {
     }
 
     fn normalized_root_report_identity(&self) -> u64 {
+        // A source-evaluated import roots in the program itself; the plan
+        // report coordinate is the only root it has.
         self.provider_plan_report_identity
     }
 
@@ -167,6 +190,7 @@ impl ProviderExecutionEvidence for SourceEvaluatedBindingExecution {
     }
 }
 
+/// One demanded import row with the two records native realization joins.
 #[derive(Debug)]
 struct MintedSourceEvaluatedImport<'plan> {
     plan: &'plan ProviderPlan,
@@ -174,6 +198,12 @@ struct MintedSourceEvaluatedImport<'plan> {
     same_stack: AdmittedSameStackContribution,
 }
 
+/// Mint execution evidence and a same-stack contribution for every selected
+/// provider row whose binding is an evaluated import and whose requirement
+/// the Terminal module demands. Rows of any other binding kind are not this
+/// module's: intrinsics settle through the compiler-builtin catalog and
+/// syscalls through their own realization; an import the program never
+/// calls settles nothing.
 fn mint_source_evaluated_imports<'plan>(
     plans: &'plan [ProviderPlan],
     demanded: &BTreeSet<String>,
@@ -269,64 +299,6 @@ fn mint_source_evaluated_imports<'plan>(
     } else {
         Err(diagnostics)
     }
-}
-
-fn prepare_system_calls<'plan>(
-    plans: &'plan [ProviderPlan],
-    demanded: &BTreeSet<String>,
-) -> Result<Vec<PreparedSystemCall<'plan>>, Vec<Diagnostic>> {
-    let mut prepared = Vec::new();
-    for plan in plans {
-        for row in &plan.rows {
-            let ProviderBinding::Syscall { number } = row.binding else {
-                continue;
-            };
-            let requirement = plan.identities.text(row.requirement_identity);
-            if !demanded.contains(requirement) {
-                continue;
-            }
-            let count = plans
-                .iter()
-                .flat_map(|plan| {
-                    plan.rows.iter().filter(move |row| {
-                        plan.identities.text(row.requirement_identity) == requirement
-                    })
-                })
-                .count();
-            if count != 1 {
-                return Err(diagnostics::error_in_context(
-                    "source-evaluated syscall",
-                    format!(
-                        "demanded requirement `{requirement}` resolves to {count} selected rows"
-                    ),
-                ));
-            }
-            let plan_report_identity = plan.report_fingerprint();
-            let commitment = plan.identity_digest();
-            let execution = SourceEvaluatedBindingExecution {
-                requirement_identity: requirement.to_owned(),
-                provider_plan_report_identity: plan_report_identity,
-                provider_execution_report_identity: nonzero(fnv1a(&[
-                    b"source-evaluated-syscall-execution",
-                    requirement.as_bytes(),
-                    commitment.as_bytes(),
-                ])),
-                provider_execution_report_fingerprint: nonzero(fnv1a(&[
-                    b"source-evaluated-syscall-fingerprint",
-                    requirement.as_bytes(),
-                    commitment.as_bytes(),
-                    &number.to_le_bytes(),
-                ])),
-                boundary_contract_report_fingerprint: nonzero(fnv1a(&[
-                    b"source-evaluated-syscall-contract",
-                    commitment.as_bytes(),
-                    &number.to_le_bytes(),
-                ])),
-            };
-            prepared.push(PreparedSystemCall { plan, execution });
-        }
-    }
-    Ok(prepared)
 }
 
 fn fnv1a(parts: &[&[u8]]) -> u64 {

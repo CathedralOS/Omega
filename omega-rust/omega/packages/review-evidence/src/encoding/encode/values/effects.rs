@@ -1,5 +1,3 @@
-// Canonical encoding for synchronous callable invocations and installation reach bounds.
-
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{PackageReviewInstallationReach, PackageReviewSynchronousInvocation};

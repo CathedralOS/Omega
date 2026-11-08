@@ -1,54 +1,4 @@
-/*
-
-Console adapter and exit-code policy for `omega run`.
-
-We run a program in one of two shapes:
-- Single run (`run_project`): compiles the root program once and executes it
-  natively (`ExecutionSelection::Native`), in the Terminal Psi interpreter
-  (`ExecutionSelection::Terminal`), or in both engines with differential
-  comparison (`ExecutionSelection::Both`). When `--target` names a foreign
-  target without `--engine terminal`, compilation stops after producing the
-  target artifact (`ExecutionOutcome::TargetOnly`).
-- Case batch (`run_cases`, selected when `--outputs` is present): compiles the
-  program once on the host and runs every `*.stdin` file in `--inputs` (sorted
-  lexicographically) or each explicit `--input` file in argument order. Per-case
-  streams and `results.tsv` are written to `--outputs`.
-
-Program stdout and stderr are raw byte streams, not UTF-8 text. In
-`forward_output_or_exit`, we write and explicitly flush both streams before
-printing any CLI status lines on stderr. Explicit flushes surface a broken pipe
-before we choose an exit code; if forwarding fails, we make a best-effort write
-to stderr (which may itself be the broken pipe) and exit 200 so a truncated
-stream never masquerades as a clean program exit.
-
-When `--engine terminal` fails to compile, no native compilation was requested,
-so we prefix the diagnostics with `terminal compile FAILED:`. Native and
-`--both` runs print `RunError` directly so sample-gate harnesses match the
-established native failure wording.
-
-*/
-
-/*
-
-Why `omega run` uses exit codes 200..=203 for harness and interpreter outcomes:
-
-A guest program can legitimately exit with small positive statuses (including
-1, 2, or 3). To keep `omega run` statuses unambiguous when a caller inspects
-`$?`, we reserve 200..=203 for outcomes that are not a normal guest exit code:
-- `200`: compile rejection, launch failure, output-forwarding failure, empty or
-  unreadable `--inputs`, or Terminal Psi execution stopping without a process
-  exit (unavailable host capability, sponsor work exhaustion, or pending host
-  effect).
-- `201`: differential divergence under `--both` (exit code mismatch, crash vs.
-  normal exit, or Terminal Psi interpretation failure after native execution).
-- `202`: compilation halted at `CompilerRequestOutcome::Incomplete` (a private
-  provision bound was exceeded without refuting the source).
-- `203`: guest crash inside `--engine terminal`. Unlike a native child process,
-  the interpreter cannot present a guest trap as an OS termination signal
-  without raising that signal on `omega` itself, so it reports the crash on
-  stderr and exits 203.
-
-*/
+//! Shell output and exit-code policy for the reusable run operation.
 
 use crate::arguments::RunArguments;
 use crate::execution::{
@@ -57,7 +7,6 @@ use crate::execution::{
 };
 use compiler::CompilerRequestOutcome;
 use std::io::Write;
-use std::path::PathBuf;
 
 pub(crate) fn run(arguments: RunArguments) -> ! {
     if let Some(outputs) = arguments.outputs.clone() {
@@ -69,12 +18,14 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         root_path: arguments.main_path,
         target_name: arguments.target_name,
         selection: arguments.selection,
-        psi_work_budget: arguments.psi_work_budget,
+        terminal_fuel_allowance: arguments.terminal_fuel_allowance,
         keep_artifacts: arguments.keep,
     }) {
         Ok(outcome) => outcome,
         Err(error) => {
             match (&error, selection) {
+                // No native compilation was requested; keep the native
+                // wording that sample tooling matches for native runs.
                 (RunError::Compilation(diagnostics), ExecutionSelection::Terminal) => {
                     eprintln!("terminal compile FAILED:");
                     for diagnostic in diagnostics {
@@ -101,8 +52,22 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             comparison,
             private_entry_ram,
         } => {
-            forward_output_or_exit(&output.stdout, &output.stderr);
-            print_private_entry_ram(&private_entry_ram);
+            if let Err(error) = forward_program_output(&output) {
+                // stderr may itself be the failed pipe. Reporting is best
+                // effort, but failed forwarding must never look successful.
+                let _ = writeln!(
+                    std::io::stderr().lock(),
+                    "cannot forward program output: {error}"
+                );
+                std::process::exit(200);
+            }
+            for (position, contents) in &private_entry_ram {
+                eprint!("entry RAM {position}: ");
+                for byte in contents {
+                    eprint!("{byte:02x}");
+                }
+                eprintln!();
+            }
             let native_code = exit.code().unwrap_or(-1);
             eprintln!("native {}", exit.describe());
             match comparison {
@@ -150,6 +115,10 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     std::process::exit(status);
 }
 
+/// `--engine terminal` status: the program's own exit status, 203 for a
+/// Terminal crash (a process cannot present the native trap signal without
+/// raising it), and 200 when execution support was unavailable before guest
+/// effects or execution stopped without a process result.
 fn present_terminal(outcome: TerminalOutcome) -> i32 {
     use terminal_runtime::{TerminalExecutionResult, TerminalExecutionStatus};
     let observation = match outcome {
@@ -163,8 +132,25 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
             return 200;
         }
     };
-    forward_output_or_exit(&observation.stdout, &observation.stderr);
-    print_private_entry_ram(&observation.private_entry_ram);
+    let output = std::process::Output {
+        status: std::process::ExitStatus::default(),
+        stdout: observation.stdout,
+        stderr: observation.stderr,
+    };
+    if let Err(error) = forward_program_output(&output) {
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "cannot forward program output: {error}"
+        );
+        return 200;
+    }
+    for (position, contents) in &observation.private_entry_ram {
+        eprint!("entry RAM {position}: ");
+        for byte in contents {
+            eprint!("{byte:02x}");
+        }
+        eprintln!();
+    }
     match observation.status {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
             eprintln!("terminal exit 0");
@@ -182,8 +168,8 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
             eprintln!("terminal: program entry returned a non-process result: {result:?}");
             200
         }
-        TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
-            eprintln!("psi: {exhaustion}; raise --psi-work-budget to permit more work");
+        TerminalExecutionStatus::SponsorExhausted(_) => {
+            eprintln!("terminal: execution exhausted its sponsor fuel allowance");
             200
         }
         TerminalExecutionStatus::AwaitingEffect(site) => {
@@ -197,7 +183,11 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
     }
 }
 
-fn run_cases(arguments: RunArguments, outputs: PathBuf) -> ! {
+/// One compilation, one native run (and Terminal replay with `--both`) per
+/// case: every `*.stdin` file of `--inputs`, or each `--input` file in order.
+/// Per-case streams and statuses go to the output directory; the command
+/// exits 201 when any case diverges or fails interpretation.
+fn run_cases(arguments: RunArguments, outputs: std::path::PathBuf) -> ! {
     let cases = match &arguments.inputs {
         Some(inputs) => {
             let mut cases = match std::fs::read_dir(inputs) {
@@ -226,7 +216,7 @@ fn run_cases(arguments: RunArguments, outputs: PathBuf) -> ! {
         private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
         compare_interpreter: arguments.selection == ExecutionSelection::Both,
-        psi_work_budget: arguments.psi_work_budget,
+        terminal_fuel_allowance: arguments.terminal_fuel_allowance,
         inputs: cases,
         output_directory: outputs.clone(),
         keep_artifacts: arguments.keep,
@@ -280,34 +270,22 @@ fn run_cases(arguments: RunArguments, outputs: PathBuf) -> ! {
     std::process::exit(status);
 }
 
-fn forward_output_or_exit(stdout: &[u8], stderr: &[u8]) {
-    let result = (|| -> std::io::Result<()> {
-        let mut standard_output = std::io::stdout().lock();
-        standard_output.write_all(stdout)?;
-        standard_output.flush()?;
-        let mut standard_error = std::io::stderr().lock();
-        standard_error.write_all(stderr)?;
-        standard_error.flush()
-    })();
-    if let Err(error) = result {
-        let _ = writeln!(
-            std::io::stderr().lock(),
-            "cannot forward program output: {error}"
-        );
-        std::process::exit(200);
-    }
+/// Program streams are bytes, not diagnostic text. Forward the captured
+/// payloads unchanged and finish each write before presenting CLI diagnostics.
+/// Explicit flushes expose a failed buffered write before choosing an exit.
+fn forward_program_output(output: &std::process::Output) -> std::io::Result<()> {
+    let mut standard_output = std::io::stdout().lock();
+    standard_output.write_all(&output.stdout)?;
+    standard_output.flush()?;
+    let mut standard_error = std::io::stderr().lock();
+    standard_error.write_all(&output.stderr)?;
+    standard_error.flush()
 }
 
-fn print_private_entry_ram(private_entry_ram: &[(u32, Vec<u8>)]) {
-    for (position, contents) in private_entry_ram {
-        eprint!("entry RAM {position}: ");
-        for byte in contents {
-            eprint!("{byte:02x}");
-        }
-        eprintln!();
-    }
-}
-
+/// A compile that stopped at a named private provision without a verdict on
+/// the source (the compiler request's `Incomplete`) exits 202; any other
+/// compile or launch failure exits 200. Both stay above the program's own
+/// statuses.
 fn compile_failure_status(error: &RunError) -> i32 {
     match error {
         RunError::Compilation(diagnostics)

@@ -21,7 +21,7 @@ pub(super) fn construct_manifest(
         source_text_section_manifest: source.manifest().record().identity,
         text_section: source.text_section().identity,
         psi: object.psi,
-        work_schedule: object.work_schedule,
+        fuel_schedule: object.fuel_schedule,
         selections: object.selections,
         selected: object.selected,
         target: object.target,

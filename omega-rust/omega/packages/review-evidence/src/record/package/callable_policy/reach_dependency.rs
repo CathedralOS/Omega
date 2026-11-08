@@ -1,9 +1,9 @@
-// Normalized finite union of concrete services and static-telescope parameter
-// ordinals (`PackagePolicyServiceReachDependency`).
-
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::accessors::field_projection_accessors;
 
+/// A normalized finite union, not another service-row expression language.
+/// Each parameter ordinal selects an exact nominal contract in the callable's
+/// complete static telescope, which already retains its trait and requirement.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PackagePolicyServiceReachDependency {
     pub(crate) concrete: Vec<PackageReviewNominalIdentity>,

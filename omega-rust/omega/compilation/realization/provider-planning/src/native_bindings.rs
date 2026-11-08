@@ -1,17 +1,12 @@
-// Native provider candidate derivation from authenticated, completed Build
-// choices. Source admission supplies exact Product requirements while
-// evaluation evidence retains the Terminal program and measured activation;
-// neither grants execution permission until the native provider path joins the
-// complete requirement schema, calling policy, target normalization, and opaque
-// representation promise.
+//! Derive native candidates from authenticated, completed Build choices.
+//!
+//! Source admission supplies exact Product requirements. Evaluation evidence
+//! retains the actual Terminal program and measured activation; neither is an
+//! executable permission. The native provider path still joins the complete
+//! requirement schema, calling policy, target normalization and opaque promise.
 
-pub use package_compilation::NativeBuildEvaluation;
+mod evaluation;
+pub use evaluation::{NativeBuildEvaluation, NativeBuildSupply};
 
 mod plans;
 pub use plans::{NativeBuildRowOrigin, PreparedNativeBuildBindings};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeBuildSupply {
-    pub selection: build_time_evaluation::native_bindings::NativeBindingSelection,
-    pub evaluation: std::sync::Arc<NativeBuildEvaluation>,
-}

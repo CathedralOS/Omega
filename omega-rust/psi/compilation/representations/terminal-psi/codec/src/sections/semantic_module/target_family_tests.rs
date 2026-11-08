@@ -11,16 +11,6 @@ use terminal_psi::{
 };
 
 #[test]
-fn pre_installation_module_header_rejects_before_reading_tables() {
-    let mut bytes = b"PSITERM\0".to_vec();
-    bytes.extend_from_slice(&246_u16.to_le_bytes());
-    assert!(matches!(
-        decode_module(&bytes),
-        Err(CodecError::UnsupportedFormatMarker(246))
-    ));
-}
-
-#[test]
 fn declaration_catalog_round_trip_preserves_absent_default_entry() {
     let mut module = TerminalModule::declarations();
     for retain_body in [false, true] {

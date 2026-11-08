@@ -177,9 +177,6 @@ impl LocalStorageSlotId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FrameStorageSlotId {
-    /// Numeric post-prologue stack pointer. Only a zero-offset FrameAddress
-    /// may observe it; this introduces no storage, access or loan authority.
-    ActivationBase,
     /// Incoming ABI slot, outside the callee-owned frame; offsets exclude its prologue and return address.
     Incoming {
         parameter_index: u32,

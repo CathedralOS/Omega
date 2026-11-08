@@ -157,7 +157,7 @@ impl<'program, 'facts> ExitScalars<'program, 'facts> {
     fn contract_origins(
         &self,
     ) -> impl Iterator<Item = &'facts checked_trees::FlowExitParameterOrigin> {
-        crate::flow::exit_parameter_origins(self.facts.view(), self.exit)
+        crate::flow::exit_parameter_origins(self.facts, self.exit)
             .iter()
             .filter(|origin| origin.contract == self.contract)
     }

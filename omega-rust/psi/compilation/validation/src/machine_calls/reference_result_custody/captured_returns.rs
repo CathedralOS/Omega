@@ -16,9 +16,9 @@
 mod completion_calls;
 mod completions;
 mod descriptor_sources;
+mod family_returns;
 mod incoming_origins;
 mod input_views;
-mod invocation_inputs;
 mod invocation_returns;
 mod loaded_origins;
 mod presence;
@@ -167,11 +167,6 @@ impl Captures<'_> {
         target: SymbolHandle,
         _active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        if let Some(sources) =
-            super::declared_returns::installed_context_sources(self.program, target).ok()?
-        {
-            return Some(sources);
-        }
         if !crate::call_target_has_checked_body_contract(self.program, target) {
             // An abstract invocation owns its public lifetime relation. Its
             // result descriptor is present even though there is no private
@@ -209,6 +204,9 @@ impl Captures<'_> {
         }
         if active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
+        }
+        if let Some(entries) = family_returns::entries(self.program, state)? {
+            return self.family_return(&entries);
         }
         if !crate::normal_completion_possible(self.program, state)? {
             // A machine proved never to complete normally publishes no result,
@@ -338,13 +336,6 @@ impl Captures<'_> {
             for (transition_target, expression, call) in sites {
                 completed = true;
                 if let Some(call) = call {
-                    // The relation may already describe this callee while an
-                    // evaluated nested argument still awaits its own return
-                    // equation. Keep the private approximation empty until
-                    // their normal completion is independently established.
-                    if !self.observe_return_invocation(call)? {
-                        continue;
-                    }
                     for source in self.invocation_return_sources(
                         state,
                         transition_target,
@@ -359,6 +350,7 @@ impl Captures<'_> {
                             }
                         }
                     }
+                    self.observe_return_invocation(call)?;
                     continue;
                 }
                 let expression = expression?;
@@ -442,22 +434,16 @@ impl Captures<'_> {
 
     /// A forwarded result also needs the actual operands to complete. A
     /// constructor around a recursive child cannot establish an empty result.
-    fn observe_return_invocation(&self, call: &checked_trees::FlowCallFact) -> Option<bool> {
+    fn observe_return_invocation(&self, call: &checked_trees::FlowCallFact) -> Option<()> {
         if let Some(observed) = self.observed {
-            let coverage = completions::ReturnCoverage::invocation(
+            observed.completed(completions::ReturnCoverage::invocation(
                 &self.facts.flow.control,
                 call,
                 self.completion_target(call)?,
                 |operand| self.completion_calls(operand),
-            )?;
-            let ready = coverage.established(|state| {
-                self.relations
-                    .is_some_and(|relations| relations.productive(state))
-            });
-            observed.completed(coverage);
-            return Some(ready);
+            )?);
         }
-        Some(true)
+        Some(())
     }
 
     fn completion_target(

@@ -1,5 +1,5 @@
-// Aggregate row, byte, sequence, and depth limits and usage counters for package policy projections.
 use crate::record::accessors::field_projection_accessors;
+/// One projection's aggregate limits; callers subtract usage across packages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackagePolicyRowLimits {
     pub maximum_rows: usize,
@@ -44,6 +44,8 @@ impl PackagePolicyRowLimits {
     }
 }
 
+/// Requested storage includes the exact row table and all retained buffers.
+/// Elements include both allocation-free sizing and actual emission traversals.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PackagePolicyRowUsage {
     pub(crate) rows: usize,

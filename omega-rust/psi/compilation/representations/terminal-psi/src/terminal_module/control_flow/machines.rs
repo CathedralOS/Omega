@@ -29,7 +29,7 @@ pub struct TerminalMachine {
     /// Source-produced ranking observations over cyclic control components.
     /// Rows retain complete ordered typed SSA tuples and admitted edge
     /// comparisons. Runtime observations use ordinary scalar computations and
-    /// block arguments; ranking alone grants no work or native installation.
+    /// block arguments; ranking alone grants no fuel or native installation.
     pub ranked_scc: Option<TerminalRankedScc>,
     /// Unit carries no value; scalar results have a stable pseudo-value bound
     /// by every scalar return edge and available to `ensures`.

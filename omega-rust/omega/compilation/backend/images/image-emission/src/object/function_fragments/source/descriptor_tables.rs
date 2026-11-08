@@ -219,6 +219,7 @@ pub(super) struct DescriptorReplay<'a> {
     operations: Vec<DescriptorOperation<'a>>,
     hardware: Vec<(OperationId, &'a SelectedInstruction)>,
     selected: &'a SelectedFunction,
+    target: &'a TargetFunction,
     definitions: Vec<Definition<'a>>,
     accesses: Vec<&'a SelectedMemoryAccess>,
 }
@@ -236,11 +237,7 @@ impl<'a> DescriptorReplay<'a> {
         selected: &'a SelectedFunction,
     ) -> Result<Self, &'static str> {
         let mut operations = Vec::new();
-        let mut installations = Vec::new();
         for row in target.graph.operations() {
-            if let TargetUnitOperation::InstallStaticInterrupt { psi_operation, .. } = row {
-                installations.push(*psi_operation);
-            }
             if let Some(operation) = target_operation(row)? {
                 operations.push(operation);
             }
@@ -251,14 +248,6 @@ impl<'a> DescriptorReplay<'a> {
             .any(|pair| pair[0].operation == pair[1].operation)
         {
             return Err("descriptor operation has duplicate target rows");
-        }
-        installations.sort_unstable();
-        if installations.windows(2).any(|pair| pair[0] == pair[1])
-            || operations
-                .iter()
-                .any(|row| installations.binary_search(&row.operation).is_ok())
-        {
-            return Err("descriptor hardware owner has duplicate target operations");
         }
         let mut hardware = Vec::new();
         for row in selected.instructions() {
@@ -278,8 +267,10 @@ impl<'a> DescriptorReplay<'a> {
                 let dedicated = operations
                     .binary_search_by_key(operation, |row| row.operation)
                     .is_ok();
-                if !dedicated_descriptor_owner(dedicated, &installations, *operation)? {
-                    continue;
+                if !dedicated {
+                    return Err(
+                        "descriptor hardware instruction has no descriptor source operation",
+                    );
                 }
                 hardware.push((*operation, row));
             }
@@ -293,6 +284,7 @@ impl<'a> DescriptorReplay<'a> {
                 operations,
                 hardware,
                 selected,
+                target,
                 definitions: Vec::new(),
                 accesses: Vec::new(),
             });
@@ -324,16 +316,13 @@ impl<'a> DescriptorReplay<'a> {
             operations,
             hardware,
             selected,
+            target,
             definitions,
             accesses,
         })
     }
 
-    pub(super) fn validate(
-        &self,
-        source: &AbstractOperation,
-        addresses: &mut super::placed_reference::AddressReplay<'_>,
-    ) -> Result<(), String> {
+    pub(super) fn validate(&self, source: &AbstractOperation) -> Result<(), String> {
         let expected = source_operation(source).ok_or("operation is not a descriptor operation")?;
         let index = self
             .operations
@@ -356,14 +345,13 @@ impl<'a> DescriptorReplay<'a> {
         {
             return Err("descriptor hardware instruction differs from the source operation".into());
         }
-        self.validate_operands(&expected, instruction, addresses)
+        self.validate_operands(&expected, instruction)
     }
 
     fn validate_operands(
         &self,
         expected: &DescriptorOperation<'_>,
         instruction: &SelectedInstruction,
-        addresses: &mut super::placed_reference::AddressReplay<'_>,
     ) -> Result<(), String> {
         let (source_operands, selector_operand, extent_operand, result_operand, roles): (
             &[u16],
@@ -437,9 +425,10 @@ impl<'a> DescriptorReplay<'a> {
             let offset = super::placed_reference::borrowed_address_matches(
                 expected.operation,
                 argument,
+                self.target,
+                self.selected,
                 instruction,
                 pointer,
-                addresses,
             )?;
             let byte_count = if let Some(entries) = expected.entries.filter(|_| index == 0) {
                 u32::from(entries) * 8
@@ -519,22 +508,6 @@ impl<'a> DescriptorReplay<'a> {
             Some(Definition::Unique(instruction)) => Ok(instruction),
             _ => Err("descriptor operand has no unique register definition"),
         }
-    }
-}
-
-/// Scope's descriptor instructions belong to its complete installation replay.
-/// Every other descriptor instruction needs its own dedicated source operation.
-fn dedicated_descriptor_owner(
-    dedicated: bool,
-    installations: &[OperationId],
-    operation: OperationId,
-) -> Result<bool, &'static str> {
-    if dedicated {
-        Ok(true)
-    } else if installations.binary_search(&operation).is_ok() {
-        Ok(false)
-    } else {
-        Err("descriptor hardware instruction has no descriptor or installation source operation")
     }
 }
 

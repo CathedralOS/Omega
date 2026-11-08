@@ -1,5 +1,4 @@
-// Retained capability handle and identity verification for a Git cache entry's
-// `snapshots/` publication collection (`RetainedGitSnapshots`).
+//! Retained custody for the immutable Git snapshot publication collection.
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

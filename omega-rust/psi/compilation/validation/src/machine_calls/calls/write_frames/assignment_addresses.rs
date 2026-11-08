@@ -89,21 +89,8 @@ pub(super) fn destination_remains_current(
         )
         .then_some(())?;
     }
-    // A window has the address inputs of its collection prefix. Keep its
-    // captured finite interval even if RHS writes change an endpoint's value;
-    // it selects element homes, not another descriptor load or independently
-    // typed value. Earlier windows remain unsupported here.
-    let (segments, window) = match place.segments.split_last() {
-        Some((facts::PlaceSegment::FixedRange { start, end }, prefix)) => {
-            (prefix, Some((*start, *end)))
-        }
-        _ => (place.segments.as_slice(), None),
-    };
-    if window.is_some() {
-        crate::value_has_builtin_coordinates(program, machine, state, assignment.target)
-            .then_some(())?;
-    }
-    segments
+    place
+        .segments
         .iter()
         .all(|segment| {
             matches!(
@@ -127,16 +114,16 @@ pub(super) fn destination_remains_current(
     let receiving = super::reference_subjects::assignment_stored_value_type(
         program, machine, state, assignment,
     )?;
-    for depth in 0..=segments.len() {
+    for depth in 0..=place.segments.len() {
         let mut reference = crate::value_custody::places::project_type_reference_from_segments(
             program,
             declared,
-            &segments[..depth],
+            &place.segments[..depth],
         )?;
         let mut incoming_address =
             depth == 0 && program.state_parameter_by_symbol(state, root).is_some();
         while let Some(shell) = crate::reference_shell(program, reference) {
-            if window.is_none() && depth == segments.len() && reference == receiving {
+            if depth == place.segments.len() && reference == receiving {
                 break;
             }
             // An exclusive parameter's outer address is fixed for this
@@ -145,7 +132,7 @@ pub(super) fn destination_remains_current(
                 let (path, precision) = super::place_paths::coordinate_storage_path(
                     program,
                     program.symbols.name(root),
-                    &segments[..depth],
+                    &place.segments[..depth],
                 );
                 (writes.is_some_and(|writes| {
                     writes.iter().all(|written| {
@@ -159,18 +146,11 @@ pub(super) fn destination_remains_current(
                         }
                     })
                 }) || (crate::reference_shell(program, shell.referee).is_none()
-                    && binding_preserved(root, &segments[..depth])))
+                    && binding_preserved(root, &place.segments[..depth])))
                 .then_some(())?;
             }
             incoming_address = false;
             reference = shell.referee;
-        }
-        if depth == segments.len()
-            && let Some((start, end)) = window
-        {
-            super::stored_origins::StorageProjectionCursor::new(program, reference)
-                .has_declared_window_type(start, end, receiving)
-                .then_some(())?;
         }
     }
     Some(())

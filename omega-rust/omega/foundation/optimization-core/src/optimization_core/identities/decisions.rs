@@ -1,7 +1,3 @@
-// Domain-separated identities for optimization decisions, schemas, target
-// contexts, validators, optimization units, cost models, decision logs,
-// workload profiles, and transformation ledgers.
-
 s!(OptimizationDecisionIdentity => b"omega.optimization-decision-identity.v1\0");
 s!(OptimizationDecisionSchemaIdentity => b"omega.optimization-decision-schema-identity.v1\0");
 s!(OptimizationDecisionTargetIdentity => b"omega.optimization-decision-target-identity.v1\0");

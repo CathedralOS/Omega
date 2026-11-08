@@ -30,59 +30,34 @@ pub(crate) fn legalize_target_operations(
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    crate::installed_interrupts::validate_target(
-        target,
-        origins.module,
-        installed_interrupts,
-        abstract_plan,
-    )?;
     validate_boundary_origins(target, unit, origins)?;
     let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: unit.identity,
-        work_schedule: unit.work_schedule,
+        fuel_schedule: unit.fuel_schedule,
         target: target.target,
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
     };
-    Ok(seal(
-        target,
-        unit,
-        plan,
-        installed_interrupts,
-        installed_entry_execution,
-        installed_stack_requirements,
-    ))
+    Ok(seal(target, unit, plan))
 }
 
 fn seal(
     target: &TargetOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     plan: LegalizedOperationPlan,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
 ) -> ValidatedLegalizedOperations {
     let receipt = LegalizationValidationReceipt {
         identity: legalized_operation_plan_identity(&plan),
         validator: legalization_validator_identity(),
         optimization_unit: unit.identity,
-        work_schedule: unit.work_schedule,
+        fuel_schedule: unit.fuel_schedule,
         target: target.target,
         function_count: plan.scalar_functions.len(),
     };
-    ValidatedLegalizedOperations {
-        plan,
-        receipt,
-        installed_interrupts: installed_interrupts.clone(),
-        installed_entry_execution: installed_entry_execution.cloned(),
-        installed_stack_requirements: installed_stack_requirements.to_vec(),
-    }
+    ValidatedLegalizedOperations { plan, receipt }
 }
 pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;
 
@@ -98,14 +73,7 @@ pub fn verify_target_operation_plan(
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
 ) -> Result<(), LegalizationError> {
-    crate::installed_interrupts::validate_target(
-        target,
-        origins.module,
-        installed_interrupts,
-        abstract_plan,
-    )?;
     validate_boundary_origins(target, unit, origins)?;
     audit_target_operation_plan(target, abstract_plan, unit)
 }

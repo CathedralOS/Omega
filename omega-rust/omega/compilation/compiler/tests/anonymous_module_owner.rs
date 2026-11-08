@@ -262,7 +262,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
             artifact: &reloaded,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
-            work_budget: 100_000,
+            fuel_allowance: 100_000,
             domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: None,
             clock: None,

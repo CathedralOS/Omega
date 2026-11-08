@@ -186,27 +186,24 @@ pub(super) fn completed_domain_member<'a>(
 > {
     let domain = program.domain_definition(domain_symbol)?;
     let reference = completed_domain_reference(program, machine, state, expression, domain)?;
-    Some(
-        CompletedObservation::new(
+    Some(CompletedObservation::new(
+        program,
+        state,
+        statement_index,
+        expression,
+        reference,
+        CompletedDomainJudgment::initial(),
+        CompletedDomainJudgment::succeeds as fn(&CompletedDomainJudgment) -> bool,
+        completed_domain_fold(
             program,
+            machine,
             state,
-            statement_index,
-            expression,
+            domain,
+            ExpressionHandle::invalid(),
+            projection,
             reference,
-            CompletedDomainJudgment::initial(),
-            CompletedDomainJudgment::succeeds as fn(&CompletedDomainJudgment) -> bool,
-            completed_domain_fold(
-                program,
-                machine,
-                state,
-                domain,
-                ExpressionHandle::invalid(),
-                projection,
-                reference,
-            ),
-        )
-        .isolated(),
-    )
+        ),
+    ))
 }
 
 /// The completed value's type for a domain judgment, or `None` when the

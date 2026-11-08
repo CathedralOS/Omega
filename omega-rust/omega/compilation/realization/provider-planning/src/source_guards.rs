@@ -1,16 +1,27 @@
-// Layering boundary guards for `provider-planning`. Verifies that `Cargo.toml`
-// declares no direct frontend source-input dependency edges (`typed-trees`,
-// `typed-trees-to-checked-trees`, `validation`), that every source line naming
-// `checked_trees::typed_trees` spells it through the `checked_trees` facade on
-// the same line, and that source selection decoding stays in Psi.
+//! Source guards on provider-planning's layering boundary.
+//!
+//! Provider planning is an Omega realization consumer: typed vocabulary
+//! reaches it only through checked custody (`checked_trees::typed_trees` and
+//! the facade's module re-exports), never through the source-input crates
+//! `typed-trees`, `typed-trees-to-checked-trees` or `validation`. The removed
+//! manifest edges were the boundary's only enforcement until these tests:
+//! the manifest guard fails the build if a banned dependency line returns,
+//! and the source guard fails if typed vocabulary is spelled without the
+//! `checked_trees` facade on the same line. Split needles keep the guards'
+//! own source from matching forbidden spellings. The scan itself is shared
+//! (`source_audit`); this file owns only its needles and the manifest rule.
 
 use std::fs;
 use std::path::Path;
 
 use source_audit::{source_lines, violations};
 
+/// The crate whose sources these guards pin.
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
+/// The crate may not re-declare the removed source-input dependency edges:
+/// `typed-trees`, `typed-trees-to-checked-trees` and `validation` are
+/// frontend-stage crates whose authority terminates at the checked product.
 #[test]
 fn manifest_declares_no_source_input_dependency_edges() {
     let manifest = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
@@ -38,6 +49,10 @@ fn manifest_declares_no_source_input_dependency_edges() {
     );
 }
 
+/// Typed vocabulary arrives through checked custody only: a source line
+/// naming `typed_trees` must carry the `checked_trees` facade prefix on the
+/// same line, so a returning direct dependency cannot hide behind a
+/// partially-qualified path.
 #[test]
 fn typed_vocabulary_spells_through_checked_custody() {
     let typed = concat!("typed", "_trees");
@@ -55,6 +70,9 @@ fn typed_vocabulary_spells_through_checked_custody() {
     );
 }
 
+/// The conversion stage between typed and checked trees is upstream of this
+/// crate in both directions: no source may name it, and no manifest edge may
+/// reintroduce it under its crate-name spelling.
 #[test]
 fn sources_never_name_the_conversion_stage() {
     let violations = violations(

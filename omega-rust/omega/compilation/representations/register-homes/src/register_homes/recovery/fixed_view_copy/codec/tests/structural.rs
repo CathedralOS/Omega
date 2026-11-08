@@ -724,42 +724,6 @@ fn scalar_result_buffer_round_trips_separately_from_boundary_controls() {
 }
 
 #[test]
-fn installation_call_owner_round_trips_and_identity_keeps_operation_and_role() {
-    use target_operations::{CallSiteOwner, InstallationCallRole};
-    let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
-    std::sync::Arc::make_mut(&mut original.transformed).functions[0] = structural_function();
-    std::sync::Arc::make_mut(&mut original.transformed).functions[0].calls[0].owner =
-        CallSiteOwner::Installation {
-            operation: OperationId::new(41).unwrap(),
-            role: InstallationCallRole::Validate,
-        };
-    // This tests retained records, not permission to execute the helper.
-    eq!(FixedViewCopyPlan::decode(&original.encode().unwrap()).unwrap() => original);
-    let identity = selected_instructions::selected_instruction_plan_identity(&original.transformed);
-    let encoded = original.encode().unwrap();
-    for owner in [
-        CallSiteOwner::Installation {
-            operation: OperationId::new(41).unwrap(),
-            role: InstallationCallRole::Work,
-        },
-        CallSiteOwner::Installation {
-            operation: OperationId::new(43).unwrap(),
-            role: InstallationCallRole::Validate,
-        },
-        CallSiteOwner::Operation(OperationId::new(41).unwrap()),
-    ] {
-        let mut changed = original.clone();
-        std::sync::Arc::make_mut(&mut changed.transformed).functions[0].calls[0].owner = owner;
-        assert_ne!(
-            selected_instructions::selected_instruction_plan_identity(&changed.transformed),
-            identity
-        );
-        assert_ne!(changed.encode().unwrap(), encoded);
-        eq!(FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap() => changed);
-    }
-}
-
-#[test]
 fn retained_plan_preserves_returned_input_fact_lifetimes() {
     use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
     use terminal_psi::{

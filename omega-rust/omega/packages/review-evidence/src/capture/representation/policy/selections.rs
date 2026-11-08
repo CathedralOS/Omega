@@ -1,10 +1,4 @@
-/*
-We reharvest the complete authoritative activation before projecting any opaque
-representation choice.
-
-We use the independently retained selected build machine even when the
-selection collection is empty so omission of an unused choice remains visible.
-*/
+//! Reharvest the complete authoritative activation before projecting any choice.
 
 use super::rejected;
 use crate::capture::PackageReviewInput;
@@ -37,6 +31,8 @@ pub(crate) fn rederive_selections(
             ));
         }
     }
+    // Use the independently retained selected build even when the selection
+    // collection is empty: otherwise omission of an unused choice is invisible.
     let derived = representation_planning::rederive_opaque_representation_selections(
         compilation.checking_input,
         selected,

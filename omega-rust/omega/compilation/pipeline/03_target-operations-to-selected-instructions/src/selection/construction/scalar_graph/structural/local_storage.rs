@@ -174,7 +174,7 @@ pub(super) fn address(
     slot: LocalStorageSlotId,
     offset: u32,
     byte_count: u32,
-    settles_work: bool,
+    settles_fuel: bool,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let register = transport_register(
         builder,
@@ -190,8 +190,8 @@ pub(super) fn address(
         SelectedMemoryAccessRole::AddressLocal { slot },
     )?;
     let mut provenance = provenance(row);
-    if settles_work {
-        provenance.work = row.invocation_work().to_vec();
+    if settles_fuel {
+        provenance.fuel = row.invocation_fuel().to_vec();
     }
     builder.emit_frame_address(FrameStorageSlotId::Local(slot), register, provenance)?;
     Ok(register)

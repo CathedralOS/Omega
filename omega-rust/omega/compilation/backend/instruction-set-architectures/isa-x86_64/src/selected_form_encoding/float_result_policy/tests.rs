@@ -188,9 +188,9 @@ fn float_result_policy_public_route_binds_constraints_and_effects() {
         assert!(constraint.implicit_uses.is_empty());
         assert!(footprint.encoded.implicit_unit_uses.is_empty());
         let scratch: &[&str] = if form.can_trap() {
-            &["xmm3", "condition_flags"]
+            &["xmm3", "rflags"]
         } else {
-            &["xmm3", "xmm4", "condition_flags"]
+            &["xmm3", "xmm4", "rflags"]
         };
         let mut expected_clobbers = scratch
             .iter()

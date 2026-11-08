@@ -1,7 +1,7 @@
 //! Semantic successor provenance and decoded branch evidence.
 
 use abstract_operations::ValueBinding;
-use optimization_unit::WorkSettlement;
+use optimization_unit::FuelSettlement;
 use selected_instructions::SelectedBlockId;
 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId};
 
@@ -46,7 +46,7 @@ pub enum FunctionFragmentControlProvenance {
     },
     ConditionalBranch {
         predicate: FunctionFragmentConditionalBranchPredicate,
-        // Successor bindings and work remain complete owned values, but a
+        // Successor bindings and fuel remain complete owned values, but a
         // non-control instruction must not pay two inline successor rosters.
         when_taken: Box<FunctionFragmentSuccessorProvenance>,
         when_fallthrough: Box<FunctionFragmentSuccessorProvenance>,
@@ -65,7 +65,7 @@ pub struct FunctionFragmentSuccessorProvenance {
     pub block: SelectedBlockId,
     pub source_target: BlockId,
     pub bindings: Vec<ValueBinding>,
-    pub work: Vec<WorkSettlement>,
+    pub fuel: Vec<FuelSettlement>,
 }
 
 pub type FunctionFragmentConditionalBranchEvidence = ResolvedConditionalBranchEvidence;

@@ -658,11 +658,7 @@ pub(crate) fn validate_decoded(
             matches!((registers, decoded), ([operand], [DecodedWord::RegisterAccess { operation: actual, operand: actual_operand }])
                 if operation == *actual && operand == actual_operand)
         }
-        SelectedInstructionKind::PrivilegedCrash
-        | SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
-        | SelectedInstructionKind::InstalledInterruptTaskCommit { .. }
-        | SelectedInstructionKind::InstalledInterruptTablePublication { .. }
-        | SelectedInstructionKind::PortWrite { .. } => false,
+        SelectedInstructionKind::PortWrite { .. } => false,
         SelectedInstructionKind::AccessorScalarAccess {
             form, byte_offset, ..
         } => {
@@ -1050,11 +1046,7 @@ pub(crate) fn footprint(
                 (vec![0], vec![], false)
             }
         }
-        SelectedInstructionKind::PrivilegedCrash
-        | SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
-        | SelectedInstructionKind::InstalledInterruptTaskCommit { .. }
-        | SelectedInstructionKind::InstalledInterruptTablePublication { .. }
-        | SelectedInstructionKind::PortWrite { .. } => {
+        SelectedInstructionKind::PortWrite { .. } => {
             unreachable!("x86 port I/O cannot form an AArch64 request")
         }
         SelectedInstructionKind::AtomicFence | SelectedInstructionKind::Crash => {

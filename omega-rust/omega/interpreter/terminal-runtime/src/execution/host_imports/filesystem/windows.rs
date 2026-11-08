@@ -1,7 +1,7 @@
-// We manage synchronous Windows file operations in the explicit host namespace.
-// Opaque HANDLEs belong to the private native worker and are translated through
-// a per-invocation guest handle table, while process pseudo-handles,
-// asynchronous requests, and pointer-valued optional parameters are rejected.
+//! Exact synchronous Windows file operations in the explicit host namespace.
+//! Opaque HANDLEs belong to the private native worker. Guest identities select
+//! only resources acquired by this instance; process pseudo-handles, asynchronous
+//! requests and pointer-valued optional parameters cannot borrow its internals.
 
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::IntegerValue;
@@ -13,12 +13,13 @@ use terminal_psi::BoundaryMachineDeclaration;
 use super::{FilesystemContext, Formal, TerminalRuntimeError, rejection};
 
 mod contracts;
+mod directory;
+mod removal;
 
 #[derive(Default)]
 pub(super) struct Handles {
     entries: BTreeMap<i64, State>,
 }
-
 enum State {
     Open(i64),
     Uncertain,
@@ -31,13 +32,14 @@ impl Handles {
             Some(State::Uncertain) => {
                 Err(rejection("Windows handle is uncertain after failed close"))
             }
+            // NULL is a known invalid file handle, not a private resource. The
+            // actual API produces its error. Unknown nonzero integers refuse.
             None if guest == 0 => Ok(0),
             None => Err(rejection(
                 "Windows file handle is outside the supplied guest namespace",
             )),
         }
     }
-
     fn acquire(&mut self, native: i64) -> Result<i64, TerminalEffectRejection> {
         if native == 0 || native == -1 {
             return Ok(native);
@@ -113,7 +115,7 @@ fn signed(value: TerminalScalarValue) -> Result<i64, TerminalEffectRejection> {
         _ => Err(rejection("Windows handle lost its signed scalar carrier")),
     }
 }
-
+// Preserve opaque pointer bits before mapping to a small guest identity.
 fn handle_bits(value: TerminalScalarValue) -> Result<i64, TerminalEffectRejection> {
     match value {
         TerminalScalarValue::Integer {
@@ -139,54 +141,6 @@ fn scalar(value: TerminalScalarValue, expected: i128) -> bool {
         _ => false,
     }
 }
-
-fn directory_arguments(effect: Effect, arguments: &[TerminalScalarValue]) -> bool {
-    let Effect::Directory { class, bytes } = effect else {
-        return false;
-    };
-    arguments.len() == 9
-        && scalar(arguments[1], 0)
-        && scalar(arguments[2], 0)
-        && scalar(arguments[3], 0)
-        && scalar(arguments[4], i128::from(bytes))
-        && scalar(arguments[5], i128::from(class))
-        && scalar(arguments[6], 1)
-        && scalar(arguments[7], 0)
-        && (scalar(arguments[8], 0) || class == 1 && scalar(arguments[8], 1))
-}
-
-fn translate_attributes(
-    record: &super::super::native_provider::ReadonlyRecord<'_>,
-    translate: impl FnOnce(i64) -> Result<i64, TerminalEffectRejection>,
-) -> Result<Option<Vec<u8>>, TerminalEffectRejection> {
-    let invalid = || rejection("relative NT open changed its complete object-attributes contract");
-    let name = record.sole_reference()?;
-    let characters = name.sole_reference()?;
-    if name.bytes().len() != 16 || characters.bytes().len() != 8192 {
-        return Err(invalid());
-    }
-    let length = u16::from_le_bytes(name.bytes()[0..2].try_into().unwrap());
-    let capacity = u16::from_le_bytes(name.bytes()[2..4].try_into().unwrap());
-    if length == 0 || length > 8190 || length % 2 != 0 || capacity != 8192 {
-        return Err(invalid());
-    }
-    let mut bytes = record.bytes().to_vec();
-    if bytes.len() != 48 {
-        return Err(invalid());
-    }
-    let u32_at = |offset| u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-    let u64_at = |offset| u64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap());
-    if u32_at(0) != 48 || u32_at(24) != 4096 || u64_at(32) != 0 || u64_at(40) != 0 {
-        return Err(invalid());
-    }
-    let guest = i64::from_le_bytes(bytes[8..16].try_into().unwrap());
-    if guest == 0 || guest == -1 {
-        return Err(invalid());
-    }
-    bytes[8..16].copy_from_slice(&translate(guest)?.to_le_bytes());
-    Ok(Some(bytes))
-}
-
 fn replace_handle(
     mut value: TerminalScalarValue,
     replacement: i64,
@@ -219,7 +173,6 @@ impl Call {
             _ => false,
         }
     }
-
     pub(super) fn validate_path(
         &self,
         index: usize,
@@ -234,7 +187,6 @@ impl Call {
         }
         Ok(())
     }
-
     pub(super) fn arguments(
         &self,
         arguments: &[TerminalScalarValue],
@@ -272,7 +224,7 @@ impl Call {
             }
             b"GetFileInformationByHandleEx" => matches!(self.effect, Effect::Query { class, bytes }
                 if arguments.len() == 3 && scalar(arguments[1], i128::from(class)) && scalar(arguments[2], i128::from(bytes))),
-            b"NtQueryDirectoryFile" => directory_arguments(self.effect, arguments),
+            b"NtQueryDirectoryFile" => directory::arguments(self.effect, arguments),
             b"NtOpenFile" => {
                 arguments.len() == 3
                     && (scalar(arguments[0], 1114240) || scalar(arguments[0], 1114241))
@@ -294,12 +246,20 @@ impl Call {
                 arguments.len() == 3 && (0..=2).any(|method| scalar(arguments[2], method))
             }
             b"GetFinalPathNameByHandleW" => {
+                // Capacity counts UTF-16 code units, including room for NUL.
+                // The complete captured array is the destination; zero flags
+                // request the normalized DOS spelling. Query the owned object
+                // without replacing its handle or manufacturing a path.
                 arguments.len() == 3 && scalar(arguments[1], 4096) && scalar(arguments[2], 0)
             }
             b"CloseHandle" | b"GetFileType" | b"FlushFileBuffers" => arguments.len() == 1,
             b"CreateDirectoryW" => arguments.len() == 1 && scalar(arguments[0], 0),
             b"SetFileAttributesW" => arguments.len() == 1,
             b"MoveFileExW" => {
+                // Replace/copy/write-through/tracking are synchronous file
+                // operations. Deferred reboot registration is a different
+                // effect; reserved/unknown flags have no admitted contract.
+                // https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-movefileexw
                 arguments.len() == 1
                     && matches!(arguments[0], TerminalScalarValue::Integer {
                     value: IntegerValue::Unsigned(flags), ..
@@ -327,7 +287,6 @@ impl Call {
         result[index] = replace_handle(result[index], native)?;
         Ok(result)
     }
-
     pub(super) fn result(
         &self,
         arguments: &[TerminalScalarValue],
@@ -359,7 +318,6 @@ impl Call {
             _ => Ok(value),
         }
     }
-
     pub(super) fn output_scalar(
         &self,
         argument: usize,
@@ -400,14 +358,12 @@ impl Call {
         }
         Ok(None)
     }
-
     pub(super) fn readonly_record_argument(&self, index: usize) -> bool {
         matches!(
             (self.effect, index),
             (Effect::OpenRelative, 1) | (Effect::Disposition, 0)
         )
     }
-
     pub(super) fn prepare_readonly_record(
         &self,
         index: usize,
@@ -415,7 +371,7 @@ impl Call {
     ) -> Result<Option<Vec<u8>>, TerminalEffectRejection> {
         self.namespace.map_err(rejection)?;
         match (self.effect, index) {
-            (Effect::OpenRelative, 1) => translate_attributes(record, |guest| {
+            (Effect::OpenRelative, 1) => removal::translate_attributes(record, |guest| {
                 self.context.windows.borrow().translate(guest)
             }),
             (Effect::Disposition, 0) if record.bytes() == [1] => Ok(None),

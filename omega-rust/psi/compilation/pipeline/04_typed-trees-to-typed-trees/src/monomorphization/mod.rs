@@ -53,7 +53,6 @@ mod captured_rows;
 mod cleanup_applications;
 mod contextual_calls;
 pub(crate) use contextual_calls::prepare_conformance_occurrence;
-pub(crate) use contextual_calls::prepare_installed_interrupts;
 mod domain_applications;
 mod explicit_arguments;
 mod layout_storage_policies;
@@ -330,9 +329,6 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             if captures_changed || contextual_changed || named_changed || inferred_changed {
                 continue;
             }
-            if contextual_calls::prepare_installed_interrupts(program)? {
-                continue;
-            }
             return Ok(DeclarationSelection::from_symbols(changed_owners));
         }
         let (contract_expressions, logical_selections) = {
@@ -479,9 +475,6 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 if !diagnostics.is_empty() {
                     return Err(diagnostics);
                 }
-            }
-            if contextual_calls::prepare_installed_interrupts(program)? {
-                continue;
             }
             return Ok(DeclarationSelection::from_symbols(changed_owners));
         }

@@ -1,5 +1,4 @@
-// Forward-completing two-file transaction guard (`PackageFileTransaction`) for `build.omg` and `omega.lock`.
-// The persistent lock file is never unlinked (its OS lock represents an active operation), and once the commit-intent journal is written any interrupted publication rolls forward on recovery after verifying that neither file contains unexpected third-party edits.
+//! The journal is the commit intent; interrupted writes complete forward.
 
 use platform_custody::record_file::{RecordFileLock, RecordFileRoot};
 use std::path::Path;
@@ -13,6 +12,13 @@ use super::{
 };
 use platform_custody::record_file::RecordFileError;
 
+/// Filesystem coordination for accepted package changes, not compiler review.
+/// The caller must supply the reviewed bytes and recheck candidate source.
+///
+/// Hold this guard while reading the accepted pair. Recover pending intent
+/// before using either file; two independent renames are not a simultaneous
+/// update for readers that ignore the guard. The persistent lock file is never
+/// unlinked: its OS lock, not its existence, represents a running operation.
 pub struct PackageFileTransaction {
     directories: ProjectDirectories,
     project: RecordFileRoot,
@@ -29,6 +35,9 @@ pub enum PublicationStep {
 }
 
 impl PackageFileTransaction {
+    /// Reader entry for projects with existing transaction state. Ordinary
+    /// source-only compilation does not create control files in a read-only
+    /// checkout. Package commands use `open` before reading their lock baseline.
     pub fn open_if_present(
         root: &Path,
         limits: PackagePublicationLimits,
@@ -78,6 +87,8 @@ impl PackageFileTransaction {
         &self.directories.root_path
     }
 
+    /// Command-owned proposal/findings files share the retained state directory
+    /// and project mutex, but are not the accepted pair's commit-intent journal.
     pub fn command_state_files(&self) -> Result<RecordFileRoot, PackagePublicationError> {
         self.verify()?;
         RecordFileRoot::from_directory(
@@ -90,6 +101,7 @@ impl PackageFileTransaction {
         .map_err(PackagePublicationError::from)
     }
 
+    /// Whether accepted-file loading must first finish an earlier publication.
     pub fn has_pending(&self) -> Result<bool, PackagePublicationError> {
         self.verify()?;
         Ok(self
@@ -98,6 +110,7 @@ impl PackageFileTransaction {
             .is_some())
     }
 
+    /// Read a reconciled accepted pair while holding the project mutex.
     pub fn read_pair(&self) -> Result<(Vec<u8>, Option<Vec<u8>>), PackagePublicationError> {
         if self.has_pending()? {
             return Err(PackagePublicationError::RecoveryRequired);
@@ -121,6 +134,11 @@ impl PackageFileTransaction {
         Ok((build_bytes, lock_bytes))
     }
 
+    /// Publish an already-reviewed pair after exact old-file checks. An absent
+    /// old lock is distinct from an empty file. Any error after durable intent
+    /// is `Pending`: callers must recover, not assume no mutation occurred.
+    /// `checkpoint` runs after each durable step (tests interrupt there);
+    /// ordinary callers pass `|_| Ok(())`.
     pub fn publish(
         &mut self,
         before_build: &[u8],
@@ -142,6 +160,7 @@ impl PackageFileTransaction {
         };
         let encoded = journal.encode(self.limits)?;
         self.verify()?;
+        // Encoding may be substantial. Check both originals again before intent.
         self.expect_file(BUILD_FILE, Some(before_build))?;
         self.expect_file(LOCK_FILE, before_lock)?;
         self.journal
@@ -161,6 +180,9 @@ impl PackageFileTransaction {
         result.map_err(|error| PackagePublicationError::Pending(Box::new(error)))
     }
 
+    /// Finish recorded commit intent, without selecting versions or approving
+    /// capabilities. Returns false if there was no journal. Unexpected project
+    /// bytes stop recovery without overwriting them or deleting the journal.
     pub fn recover(&mut self) -> Result<bool, PackagePublicationError> {
         self.verify()?;
         let Some(record) = self
@@ -185,6 +207,7 @@ impl PackageFileTransaction {
         checkpoint: &mut impl FnMut(PublicationStep) -> Result<(), PackagePublicationError>,
     ) -> Result<(), PackagePublicationError> {
         self.verify()?;
+        // Check the whole pair before touching either file, including recovery.
         self.expect_either(
             BUILD_FILE,
             Some(&journal.before_build),

@@ -9,7 +9,6 @@ name = "installation_evidence"
 path = "src/lib.rs"
 
 [dependencies]
-runtime-abi = { path = "../runtime-abi" }
 target = { path = "../../target" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }

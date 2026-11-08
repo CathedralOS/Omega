@@ -1,7 +1,6 @@
-// Service-reach dependency projection. Publication replays the dependency rather
-// than trusting its retained arena coordinates, and projects nominal variables into
-// the existing exact static telescope so private helper names never enter package
-// identity.
+//! Publication replays the dependency rather than trusting its retained arena
+//! coordinates. Nominal variables are then projected into the existing exact
+//! static telescope; private helper names never enter package identity.
 
 use crate::capture::PackageReviewInput;
 use crate::capture::behavior::project_service_row;

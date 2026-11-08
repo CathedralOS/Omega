@@ -1,9 +1,4 @@
-// Exact D29 declaration joins across inert package baselines.
-//
-// Checks package-owned symbolic boundary demands against their retained
-// declaration owners in the same target section. Toolchain declarations have no
-// managed-package baseline to look up.
-
+//! Exact D29 declaration joins across inert package baselines.
 use crate::record::PackagePolicyBaseline;
 use crate::record::PackagePolicyBoundaryApplicationDemand;
 use crate::record::PackagePolicyTypeParameterKind;
@@ -12,6 +7,10 @@ use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
 use semantic_vocabulary::PackageKeyIdentity;
 
 impl PackagePolicyBaseline {
+    /// Check package-owned symbolic demands against their retained declaration
+    /// owners. The lookup must return baselines from the same target section.
+    /// This checks record consistency, not source truth or acceptance authority.
+    /// Toolchain declarations have no managed-package baseline to look up.
     pub fn validate_boundary_application_owners<'a>(
         &self,
         mut lookup: impl FnMut(PackageKeyIdentity) -> Option<&'a PackagePolicyBaseline>,

@@ -543,7 +543,7 @@ fn claim_structural_operand_calls<'a>(
     calls: &'a [checked_trees::FlowCallFact],
     structural: &mut Vec<&'a checked_trees::FlowCallFact>,
     claimed: &mut usize,
-    consumed: &mut super::CallOccurrenceLedger,
+    consumed: &mut super::CallOccurrenceLedger<'_>,
     expands: &dyn Fn(&checked_trees::FlowCallFact) -> bool,
     trace: &LocalConstructionTrace,
 ) -> Option<()> {

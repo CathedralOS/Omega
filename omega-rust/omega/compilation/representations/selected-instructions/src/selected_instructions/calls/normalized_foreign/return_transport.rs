@@ -54,7 +54,7 @@ pub fn resolve(
                     && instruction.provenance.operations.is_empty()
                     && instruction.provenance.values.is_empty()
                     && instruction.provenance.obligations.is_empty()
-                    && instruction.provenance.work.is_empty()
+                    && instruction.provenance.fuel.is_empty()
                     && instruction.operands.is_empty())
             || call_position.checked_add(1)? != block.instructions.len()
         {
@@ -349,7 +349,7 @@ fn copy_result(
         || !instruction.provenance.operations.is_empty()
         || !instruction.provenance.edges.is_empty()
         || !instruction.provenance.obligations.is_empty()
-        || !instruction.provenance.work.is_empty()
+        || !instruction.provenance.fuel.is_empty()
         || instruction.operands.iter().any(|operand| {
             operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
         })
@@ -421,7 +421,7 @@ pub fn save_position(
         || !save.provenance.edges.is_empty()
         || !save.provenance.values.is_empty()
         || !save.provenance.obligations.is_empty()
-        || !save.provenance.work.is_empty()
+        || !save.provenance.fuel.is_empty()
     {
         return None;
     }
@@ -448,7 +448,7 @@ fn private_transport(
     if !provenance.operations.is_empty()
         || !provenance.edges.is_empty()
         || !provenance.obligations.is_empty()
-        || !provenance.work.is_empty()
+        || !provenance.fuel.is_empty()
     {
         return false;
     }

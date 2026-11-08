@@ -1,9 +1,9 @@
-// Canonical wire encoding, decoding, and content digesting
-// (`OMG-BUILD-PROVIDER-CHOICES\x03`) for `RetainedProviderSelection` and
-// `RetainedDeclaration` slices. Sources are interned once per payload; the
-// cache wire format preserves physical custody paths while the comparison
-// digest uses package identities and relative source paths so relocating a
-// checkout does not alter the semantic digest.
+//! Canonical retained selection payloads for the existing dependency handoff.
+//!
+//! Sources are interned once per payload, not repeated for each Build row. The
+//! cache encoding retains physical custody; the comparison digest uses package
+//! identity and relative source coordinates so moving a checkout changes no
+//! semantic choice. Decoding supplies inert anchors, never execution authority.
 
 use build_time_evaluation::provider_declarations::{
     RetainedProviderApplication, RetainedProviderSelection,
@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use symbols::{RetainedDeclaration, SymbolKind};
 
+// Removing a product-operand variant changes its private record tags. Refuse
+// earlier payloads before decoding their embedded operand graphs.
 const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x03";
 const MAXIMUM_ROWS: u64 = 1 << 20;
 
@@ -92,6 +94,9 @@ impl SelectionSources {
                 .expect("selection source pool contains every closed application coordinate");
             source::SourceSpan::new(SourceId(index), span.span)
         });
+        // Producer-owned graphs already occupy memory. Encoding preserves
+        // them without imposing a second language size limit. Candidate reads
+        // below remain bounded before any receiving-world admission.
         let limits = compiler_storage::RecordLimits {
             bytes: usize::MAX,
             allocation: usize::MAX,
@@ -153,6 +158,9 @@ impl SelectionSources {
     }
 }
 
+/// Native requirements and named choices carry the same immutable declaration
+/// custody. Only these codec helpers share their source pool; admission remains
+/// with each operation's original Product selection owner.
 pub(super) fn encode_retained_declarations(anchors: &[&RetainedDeclaration]) -> Vec<u8> {
     let mut pool = SelectionSources {
         sources: Vec::new(),

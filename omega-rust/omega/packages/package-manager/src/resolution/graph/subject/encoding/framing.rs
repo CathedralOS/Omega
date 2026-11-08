@@ -1,5 +1,4 @@
-// We provide canonical byte framing, hexadecimal conversion, and
-// domain-separated subject fingerprinting under a bounded allocation budget.
+//! Canonical byte framing, hexadecimal conversion, and subject fingerprinting.
 
 use super::super::SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN;
 use super::super::usage::Budget;

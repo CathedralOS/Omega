@@ -1,0 +1,938 @@
+//! Normalized atomic memory events and their proof-static ordering evidence.
+//!
+//! The concurrency contract makes ordering explicit proof-static operation
+//! data rather than a runtime policy choice: a load admits
+//! `NoOrdering | Receive | GlobalOrder`, a store admits
+//! `NoOrdering | Publish | GlobalOrder`, read-modify-write success admits all
+//! five orderings, and a compare-exchange failure ordering is read-only — it
+//! cannot publish and cannot exceed the success ordering. `Atomic::fence`
+//! accepts a dedicated `Receive | Publish | ReceivePublish` ordering and
+//! emits a normalized event even when target refinement permits no machine
+//! instruction.
+//!
+//! Each event retains its admitted ordering so independent verification can
+//! reconstruct the legality relation instead of trusting producer assertion;
+//! [`AbstractAtomicEvent::ordering_is_legal`] is that recheck. A `Swap` or
+//! read-modify-write `prior` binds the resident value the atomic instruction
+//! itself observed — a separately loaded prior is not a valid implementation.
+//! `CompareExchangeOnce` keeps its three-case structural outcome and the
+//! canonical single-attempt custody identity so an uncommitted attempt
+//! retains its distinct outcome and custody rather than erasing into the
+//! decisive scalar observed carrier.
+//!
+//! The concurrency contract's `reads_from`/`modification_order` axioms are
+//! retained likewise: one [`AtomicResidencyEdge`] names, for either roster,
+//! the write it claims to have read or the member it immediately follows,
+//! and [`happens_before_atomic_coherence_violation`]
+//! independently replays the coherence axiom under the activation's
+//! bounded `happens_before` derivation — a named write must happen before
+//! the event and be the modification-order-latest write to the place on
+//! every execution path — instead of trusting the producer's claim.
+//! Distinct known paths retain all their latest residencies. Replay checks
+//! that complete set; a loop backedge can contribute a previous execution of
+//! the same static event. No alternative chooses the observed value or proves
+//! synchronization with another activation.
+//! An `AfterEffect` boundary instead records the exact latest opaque access,
+//! independently replayed on every path. It expires knowledge of the writer
+//! inside that access: the next atomic instruction observes current residency,
+//! never an inferred stored value. This is serial sequencing evidence, not a
+//! cross-activation reads-from or synchronization claim.
+//! `synchronizes_with`, `global_sequential_order`, and fence-pair
+//! synchronization constrain only cross-activation observation, and land
+//! with the concurrent-execution route.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use language_core::atomic::{
+    AtomicCompareExchangeOnceResultCustody, AtomicExpressionResultCustody, AtomicOrderingPlan,
+    MemoryOrdering,
+};
+use semantic_vocabulary::{
+    BlockId, OperationId, PlaceId, StructuralFieldId, StructuralPlaceKind, ValueId,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralOperationResult, StructuralPathSegment as PathSegment,
+};
+
+use crate::{AbstractOperation, AbstractResult};
+use scalar_storage::contains_only_scalars;
+
+#[cfg(test)]
+mod frontier_tests;
+mod scalar_storage;
+
+/// The fetch-family arithmetic one normalized atomic read-modify-write
+/// performs. `AtomicOrderingPlan::ReadModifyWrite` deliberately erases this
+/// distinction into one ordering class; the event retains it because each
+/// kind selects a different target instruction under refinement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AbstractAtomicReadModifyWrite {
+    FetchAdd,
+    FetchSub,
+    FetchXor,
+    FetchOr,
+    FetchAnd,
+}
+
+impl From<terminal_psi::AtomicReadModifyWrite> for AbstractAtomicReadModifyWrite {
+    fn from(operation: terminal_psi::AtomicReadModifyWrite) -> Self {
+        match operation {
+            terminal_psi::AtomicReadModifyWrite::FetchAdd => Self::FetchAdd,
+            terminal_psi::AtomicReadModifyWrite::FetchSub => Self::FetchSub,
+            terminal_psi::AtomicReadModifyWrite::FetchAnd => Self::FetchAnd,
+            terminal_psi::AtomicReadModifyWrite::FetchOr => Self::FetchOr,
+            terminal_psi::AtomicReadModifyWrite::FetchXor => Self::FetchXor,
+        }
+    }
+}
+
+impl From<AbstractAtomicReadModifyWrite> for terminal_psi::AtomicReadModifyWrite {
+    fn from(operation: AbstractAtomicReadModifyWrite) -> Self {
+        match operation {
+            AbstractAtomicReadModifyWrite::FetchAdd => Self::FetchAdd,
+            AbstractAtomicReadModifyWrite::FetchSub => Self::FetchSub,
+            AbstractAtomicReadModifyWrite::FetchAnd => Self::FetchAnd,
+            AbstractAtomicReadModifyWrite::FetchOr => Self::FetchOr,
+            AbstractAtomicReadModifyWrite::FetchXor => Self::FetchXor,
+        }
+    }
+}
+
+/// The dedicated `Atomic::fence` ordering: exactly
+/// `Receive | Publish | ReceivePublish`. The dedicated type keeps
+/// `NoOrdering` and `GlobalOrder` fences unrepresentable rather than
+/// rejected by a later check.
+pub use language_core::atomic::FenceOrdering as AbstractAtomicFenceOrdering;
+
+/// One retained residency edge: the modification-order member an atomic
+/// event claims to stand against, named by the operation identity it stands
+/// under in the checked activation — never by the value it stored or by a
+/// position.
+///
+/// Both coherence edges use this one vocabulary. An observer's `reads_from`
+/// claim names the write it read; a writer's `modification_after` claim names
+/// the member it immediately follows. The axiom asks the same question of
+/// both — is the named member exactly where the activation's own bounded
+/// `happens_before` derivation puts it? — so the witness, the refusal and the
+/// replay are one mechanism. Which events admit which edge belongs to the
+/// event, not to this carrier: [`AbstractAtomicEvent::observes_resident`] and
+/// [`AbstractAtomicEvent::joins_modification_order`] are those rosters.
+///
+/// A load's result is a fresh definition, so value equality cannot witness a
+/// read edge; the concurrency contract's relations exist only through this
+/// retained claim. When paths have different known latest writes, the complete
+/// alternatives remain explicit. This does not select one observed writer,
+/// infer a value, or establish synchronization with another activation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AtomicResidencyEdge {
+    /// The event stands against the place's residency as it stood before the
+    /// activation: no earlier write to the place may precede it on any
+    /// execution path.
+    InitialResidency,
+    /// The event observes — or immediately follows — the atomic event
+    /// standing under this operation identity in the checked activation.
+    Write { operation: OperationId },
+    /// The latest potentially modifying operation is opaque to this function.
+    /// Observe current residency with the atomic instruction, or append to it,
+    /// without claiming which write inside that operation supplied it or
+    /// retaining old facts. This is a sequencing boundary and serial
+    /// sequencing evidence, not a cross-activation claim.
+    AfterEffect { operation: OperationId },
+    /// Sorted, distinct latest residencies across the actual incoming paths.
+    /// A backedge may name an earlier execution of this same static operation.
+    /// Replay must recover exactly these alternatives, with no unknown path.
+    PathAlternatives { sources: Vec<AtomicResidencySource> },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicResidencySource {
+    Initial,
+    Write { operation: OperationId },
+    AfterEffect { operation: OperationId },
+}
+
+/// Why a retained [`AtomicResidencyEdge`] fails the coherence axiom replayed
+/// by [`happens_before_atomic_coherence_violation`]. The same refusals apply
+/// to either coherence edge; [`AtomicCoherenceViolation`] names which roster
+/// the refused edge belonged to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AtomicEdgeViolation {
+    /// A store or fence carries an observer's edge, or a load or fence
+    /// carries a modification-order edge: the event joins no roster that
+    /// edge form constrains.
+    NonMemberEdge,
+    /// A roster member carries no edge: under the coherence axiom every
+    /// member must name the write — or the still-initial residency — it
+    /// stands against.
+    MissingEdge,
+    /// The event claims the pre-activation residency although a write to
+    /// its place may precede it on some execution path.
+    InitialResidencyAfterWrite,
+    /// Alternatives omit a path, invent a writer, contain unknown storage,
+    /// or are not a canonical list of at least two distinct sources.
+    InvalidPathAlternatives,
+    /// The claimed identity resolves to no single atomic event in the
+    /// activation: it names nothing atomic, or is ambiguous under a shared
+    /// operation identity.
+    Unresolved { claimed: OperationId },
+    /// The claimed identity resolves to an event outside the place's
+    /// modification order — a different place, or a load or fence that
+    /// writes nothing.
+    OutsideModificationOrder { claimed: OperationId },
+    /// The resolved write does not happen before this event: it stands
+    /// later in the same block or in a block that does not dominate the
+    /// event's, so an execution path reaches the event without it.
+    NotHappensBefore { claimed: OperationId },
+    /// The resolved write happens before the event but is not the
+    /// modification-order-latest write to the place on every execution
+    /// path: a later write may supersede it, or the residency may be
+    /// initial on a path where the claimed write never ran.
+    Overwritten { claimed: OperationId },
+}
+
+/// Why a retained atomic residency edge fails the coherence axiom replayed
+/// by [`happens_before_atomic_coherence_violation`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AtomicCoherenceViolation {
+    /// The retained `reads_from` edge fails its replay.
+    ReadsFrom(AtomicEdgeViolation),
+    /// The retained `modification_after` edge fails its replay.
+    ModificationAfter(AtomicEdgeViolation),
+}
+
+/// The exact atomic location one event accesses. The complete path includes
+/// a real final field when present; an empty projection names a whole cell.
+/// Roots are local storage names: control edges can rename
+/// the same storage. Coherence follows those exact bindings before comparing
+/// locations; distinct fields or elements remain distinct locations.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AbstractAtomicLocation {
+    pub root: PlaceId,
+    pub path: Vec<PathSegment>,
+}
+
+/// Distinct simultaneous exclusive arrivals have disjoint live storage after
+/// ownership validation. An exclusive arrival containing only ordinary scalar
+/// storage is also disjoint from the other arrivals: its checked loan cannot
+/// overlap them, and it has no nested reference through which a callee could
+/// reach them. Quoted bytes are immutable image storage with no atomic cell.
+/// Unknown roots and roots from different arrival groups supply no such
+/// evidence; the latter can rename the same home. A stored-reference crossing
+/// leaves its carrier storage, so these direct-storage relations cannot prove
+/// its referents disjoint. The reaching-write producer and independent replay
+/// share this judgment.
+pub fn atomic_projections_may_alias<'parameters, 'types>(
+    places: &[terminal_psi::StructuralPlaceDeclaration],
+    arrivals: impl Iterator<Item = &'parameters [terminal_psi::StructuralParameterDeclaration]>,
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    left: PlaceId,
+    left_path: &[PathSegment],
+    right: PlaceId,
+    right_path: &[PathSegment],
+) -> bool {
+    let immutable_image = |root| {
+        places.iter().any(|place| {
+            place.id == root
+                && matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+        })
+    };
+    // A fresh owned scalar-only value holds neither an atomic cell nor a
+    // descriptor reaching one. Passing its value cannot lend another root's
+    // atomic backing. Do not extend this to borrowed, unknown, or reference-
+    // bearing storage merely because the roots have different names.
+    let scalar_owned = |root, path: &[PathSegment]| {
+        !path.contains(&PathSegment::Referent)
+            && places.iter().any(|place| {
+                place.id == root
+                    && match place.kind {
+                        StructuralPlaceKind::OperationResult {
+                            structural_type, ..
+                        } => contains_only_scalars(types.clone(), structural_type),
+                        _ => false,
+                    }
+            })
+    };
+    left == right
+        || (!immutable_image(left)
+            && !immutable_image(right)
+            && !scalar_owned(left, left_path)
+            && !scalar_owned(right, right_path)
+            && (left_path.contains(&PathSegment::Referent)
+                || right_path.contains(&PathSegment::Referent)
+                || !arrivals.into_iter().any(|parameters| {
+                    let exclusive = |root| {
+                        parameters.iter().any(|parameter| {
+                            parameter.place == root
+                                && matches!(
+                                    parameter.access,
+                                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                                )
+                        })
+                    };
+                    let closed_exclusive = |root| {
+                        parameters.iter().any(|parameter| {
+                            parameter.place == root
+                                && matches!(
+                                    parameter.access,
+                                    StructuralAccess::Owned
+                                        | StructuralAccess::MutableBorrow
+                                        | StructuralAccess::WriteOnlyBorrow
+                                )
+                                && contains_only_scalars(types.clone(), parameter.structural_type)
+                        })
+                    };
+                    let has_root =
+                        |root| parameters.iter().any(|parameter| parameter.place == root);
+                    exclusive(left) && exclusive(right)
+                        || closed_exclusive(left) && has_root(right)
+                        || closed_exclusive(right) && has_root(left)
+                })))
+}
+
+/// One normalized atomic memory event.
+///
+/// `location` names the exact atomic location whose per-location
+/// modification order the event joins; a fence accesses no location because
+/// it orders events rather than observing or modifying one. This is a semantic event, not a
+/// target instruction: realization may implement an admitted ordering with a
+/// stronger instruction, but may not weaken it or substitute a separately
+/// loaded prior for the instruction-observed one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbstractAtomicEvent {
+    /// Observe the resident under `ordering`.
+    Load {
+        location: AbstractAtomicLocation,
+        ordering: MemoryOrdering,
+        result: AbstractResult,
+    },
+    /// Replace the resident with `value` under `ordering`; produces no
+    /// result value.
+    Store {
+        location: AbstractAtomicLocation,
+        ordering: MemoryOrdering,
+        value: ValueId,
+    },
+    /// One read-modify-write under `ordering`: `prior` binds the resident
+    /// the instruction observed and the resident becomes
+    /// `operation(prior, operand)`.
+    ReadModifyWrite {
+        location: AbstractAtomicLocation,
+        operation: AbstractAtomicReadModifyWrite,
+        ordering: MemoryOrdering,
+        operand: ValueId,
+        prior: AbstractResult,
+    },
+    /// Exchange the resident for `value` under `ordering`; `prior` binds the
+    /// displaced resident the instruction observed.
+    Swap {
+        location: AbstractAtomicLocation,
+        ordering: MemoryOrdering,
+        value: ValueId,
+        prior: AbstractResult,
+    },
+    /// Decisive observing compare-exchange. When the resident equals
+    /// `expected`'s encoding the resident becomes `replacement`; either way
+    /// `observed` binds the resident the instruction itself read. Success
+    /// applies `success`; the read-only failure applies `failure`, which
+    /// cannot publish and cannot exceed `success`.
+    CompareExchange {
+        location: AbstractAtomicLocation,
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+        expected: ValueId,
+        replacement: ValueId,
+        observed: AbstractResult,
+    },
+    /// One compare-exchange attempt with its complete canonical outcome.
+    /// The separate custody record states whether failures return observed
+    /// values or retain the proposal, and whether success owns a displaced value.
+    /// Every consumer rechecks that contract rather than inferring it from shape.
+    CompareExchangeOnce {
+        location: AbstractAtomicLocation,
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+        expected: ValueId,
+        replacement: ValueId,
+        outcome: StructuralOperationResult,
+        custody: AtomicCompareExchangeOnceResultCustody,
+    },
+    /// `Atomic::fence`: one normalized ordering event that accesses no
+    /// place. A fence alone publishes no memory; synchronization still
+    /// requires a qualifying atomic observation.
+    Fence {
+        ordering: AbstractAtomicFenceOrdering,
+    },
+}
+
+impl AbstractAtomicEvent {
+    pub const fn replacement(&self) -> Option<ValueId> {
+        match self {
+            Self::Store { value, .. } | Self::Swap { value, .. } => Some(*value),
+            Self::CompareExchange { replacement, .. }
+            | Self::CompareExchangeOnce { replacement, .. } => Some(*replacement),
+            _ => None,
+        }
+    }
+
+    /// Apply `visit` to every `ValueId` the event reads: store and swap
+    /// values, the read-modify-write operand, and both compare-exchange
+    /// operands. Result bindings (`result`, `prior`, `observed`, `outcome`)
+    /// are produced by the event rather than read and are skipped.
+    pub fn for_each_input_mut(&mut self, mut visit: impl FnMut(&mut ValueId)) {
+        match self {
+            Self::Store { value, .. } | Self::Swap { value, .. } => visit(value),
+            Self::ReadModifyWrite { operand, .. } => visit(operand),
+            Self::CompareExchange {
+                expected,
+                replacement,
+                ..
+            }
+            | Self::CompareExchangeOnce {
+                expected,
+                replacement,
+                ..
+            } => {
+                visit(expected);
+                visit(replacement);
+            }
+            Self::Load { .. } | Self::Fence { .. } => {}
+        }
+    }
+}
+
+impl AbstractAtomicEvent {
+    /// The location whose modification order this event joins. A fence joins
+    /// no modification order because it accesses no location.
+    pub const fn location(&self) -> Option<&AbstractAtomicLocation> {
+        match self {
+            Self::Load { location, .. }
+            | Self::Store { location, .. }
+            | Self::ReadModifyWrite { location, .. }
+            | Self::Swap { location, .. }
+            | Self::CompareExchange { location, .. }
+            | Self::CompareExchangeOnce { location, .. } => Some(location),
+            Self::Fence { .. } => None,
+        }
+    }
+
+    /// The root place the event's location lies beneath: the structural
+    /// custody the event keeps live.
+    pub fn place(&self) -> Option<PlaceId> {
+        self.location().map(|location| location.root)
+    }
+
+    /// The retained proof-static ordering plan. A fence has no plan
+    /// analogue: its dedicated ordering already spans exactly the admitted
+    /// fence space, so no legality recheck remains to reconstruct.
+    pub const fn ordering_plan(&self) -> Option<AtomicOrderingPlan> {
+        match self {
+            Self::Load { ordering, .. } => Some(AtomicOrderingPlan::Load(*ordering)),
+            Self::Store { ordering, .. } => Some(AtomicOrderingPlan::Store(*ordering)),
+            Self::ReadModifyWrite { ordering, .. } => {
+                Some(AtomicOrderingPlan::ReadModifyWrite(*ordering))
+            }
+            Self::Swap { ordering, .. } => Some(AtomicOrderingPlan::Swap(*ordering)),
+            Self::CompareExchange {
+                success, failure, ..
+            } => Some(AtomicOrderingPlan::CompareExchange {
+                success: *success,
+                failure: *failure,
+            }),
+            Self::CompareExchangeOnce {
+                success, failure, ..
+            } => Some(AtomicOrderingPlan::CompareExchangeOnce {
+                success: *success,
+                failure: *failure,
+            }),
+            Self::Fence { .. } => None,
+        }
+    }
+
+    /// The checked result-custody identity this event carries. Store and
+    /// fence events produce no result and therefore carry no custody.
+    pub const fn result_custody(&self) -> Option<AtomicExpressionResultCustody> {
+        match self {
+            Self::Load { .. }
+            | Self::ReadModifyWrite { .. }
+            | Self::Swap { .. }
+            | Self::CompareExchange { .. } => Some(AtomicExpressionResultCustody::Scalar),
+            Self::CompareExchangeOnce { custody, .. } => {
+                Some(AtomicExpressionResultCustody::CompareExchangeOnce(*custody))
+            }
+            Self::Store { .. } | Self::Fence { .. } => None,
+        }
+    }
+
+    /// Re-check the source-admitted ordering legality rather than trusting
+    /// producer assertion: a load cannot publish, a store cannot receive,
+    /// and a compare-exchange failure cannot publish or exceed its success
+    /// ordering. Read-modify-write and swap admit all five orderings, and a
+    /// fence ordering is legal by construction of its dedicated type.
+    pub const fn ordering_is_legal(&self) -> bool {
+        match self {
+            Self::Load { ordering, .. } => ordering.valid_for_load(),
+            Self::Store { ordering, .. } => ordering.valid_for_store(),
+            Self::ReadModifyWrite { .. } | Self::Swap { .. } => true,
+            Self::CompareExchange {
+                success, failure, ..
+            }
+            | Self::CompareExchangeOnce {
+                success, failure, ..
+            } => failure.valid_compare_exchange_failure(*success),
+            Self::Fence { .. } => true,
+        }
+    }
+
+    /// Re-check that the retained result custody is valid for the retained
+    /// ordering plan. A single-attempt event requires its exact canonical
+    /// three-case custody; every other result-carrying event
+    /// carries the scalar custody, and result-free events are consistent by
+    /// construction.
+    pub const fn custody_is_consistent(&self) -> bool {
+        match (self.ordering_plan(), self.result_custody()) {
+            (Some(plan), Some(custody)) => custody.is_valid_for(plan),
+            (None, None) | (_, None) => true,
+            (None, Some(_)) => false,
+        }
+    }
+
+    /// Whether this event observes its place's resident and therefore must
+    /// carry an [`AtomicResidencyEdge`]. Store and fence events observe
+    /// nothing and cannot carry one.
+    pub const fn observes_resident(&self) -> bool {
+        match self {
+            Self::Load { .. }
+            | Self::ReadModifyWrite { .. }
+            | Self::Swap { .. }
+            | Self::CompareExchange { .. }
+            | Self::CompareExchangeOnce { .. } => true,
+            Self::Store { .. } | Self::Fence { .. } => false,
+        }
+    }
+
+    /// Whether this event appends a member to its place's modification
+    /// order. A compare-exchange counts unconditionally: on success it
+    /// writes the replacement, and on failure the resident it leaves is the
+    /// resident it observed, so a serial observer naming it reads the
+    /// correct residency either way. Loads and fences join no modification
+    /// order.
+    pub const fn joins_modification_order(&self) -> bool {
+        match self {
+            Self::Store { .. }
+            | Self::ReadModifyWrite { .. }
+            | Self::Swap { .. }
+            | Self::CompareExchange { .. }
+            | Self::CompareExchangeOnce { .. } => true,
+            Self::Load { .. } | Self::Fence { .. } => false,
+        }
+    }
+}
+
+/// Replay the coherence axiom over one activation's block graph: each
+/// observing atomic event's retained [`AtomicResidencyEdge`] must resolve
+/// to a write that happens before the observation and is the
+/// modification-order-latest write to its place on every execution path —
+/// or claim the pre-activation residency only when no write may precede —
+/// and each write event's retained edge must
+/// name the member it immediately follows under the same derivation.
+///
+/// Inside one activation `happens_before` is execution-path sequencing:
+/// every rule that forms `synchronizes_with` either pairs a publication
+/// with an observation on distinct activations — which a single function
+/// never expresses — or composes sequenced-before edges already inside the
+/// closure. A unanimously named write happens before an event when
+/// it precedes it in their shared block or stands in a block dominating
+/// the event's; `predecessors` and `dominators` are the function's
+/// validated control-flow relations. A finite backward worklist follows every
+/// predecessor while translating the queried root through its exact storage
+/// binding. Each path stops at its latest write or at the actual invocation
+/// entrance. A single source authorizes its exact claim; different known
+/// incoming paths retain their complete canonical alternatives. Revisiting a
+/// cycle supplies no initial-residency fact.
+/// `projection_before_edge` receives predecessor, successor and successor-local root;
+/// it returns the exact source root and projection prefix. `None` means
+/// the edge cannot preserve that storage coordinate.
+/// `projections_may_alias` reconstructs current root authority independently: distinct
+/// local names alone do not establish disjoint storage.
+///
+/// `global_sequential_order` and fence-pair synchronization likewise
+/// constrain only cross-activation observation; they carry no checkable
+/// content inside one activation and land with the concurrent-execution
+/// route.
+///
+/// Non-atomic writes and calls lending the backing invalidate any known writer.
+/// An `AfterEffect` boundary must name that exact latest operation on every
+/// path; it supplies no knowledge of internal writes or their values. Effects
+/// with no retained operation identity or unresolved storage still refuse.
+/// Edge bindings compose their exact prefix with the queried path; the field
+/// remains unchanged. Projection-changing cycles remain unknown. Returns the
+/// offending event's block and node position together with the refusal,
+/// or `None` when every retained edge is coherent.
+pub fn happens_before_atomic_coherence_violation(
+    blocks: &BTreeMap<BlockId, Vec<&AbstractOperation>>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    entry: BlockId,
+    projection_before_edge: impl Fn(BlockId, BlockId, PlaceId) -> Option<(PlaceId, Vec<PathSegment>)>,
+    projections_may_alias: impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
+    field_projection: impl Fn(PlaceId, &[PathSegment], StructuralFieldId) -> Option<Vec<PathSegment>>,
+) -> Option<(BlockId, usize, AtomicCoherenceViolation)> {
+    // Atomic events claimable by a retained edge, keyed by the operation
+    // identity they stand under across the whole activation. Duplicate
+    // identities stay listed so an edge naming them refuses as ambiguous.
+    let mut events: BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>> =
+        BTreeMap::new();
+    for (block, operations) in blocks {
+        for (index, operation) in operations.iter().enumerate() {
+            if let AbstractOperation::AtomicEvent {
+                psi_operation,
+                event,
+                ..
+            } = *operation
+            {
+                events
+                    .entry(*psi_operation)
+                    .or_default()
+                    .push((*block, index, event));
+            }
+        }
+    }
+    for (block, operations) in blocks {
+        for (index, operation) in operations.iter().enumerate() {
+            let AbstractOperation::AtomicEvent {
+                event,
+                reads_from,
+                modification_after,
+                ..
+            } = *operation
+            else {
+                continue;
+            };
+            let reached = event
+                .location()
+                .map(|location| {
+                    reaching_writes(
+                        blocks,
+                        predecessors,
+                        entry,
+                        *block,
+                        index,
+                        location,
+                        &projection_before_edge,
+                        &projections_may_alias,
+                        &field_projection,
+                    )
+                })
+                .unwrap_or_default();
+            // Both coherence edges are the same claim over the same reaching
+            // facts; only the roster that admits them differs. Walk them in
+            // axiom order and report the first refusal under its own role.
+            let rosters: [(
+                bool,
+                Option<&AtomicResidencyEdge>,
+                fn(AtomicEdgeViolation) -> AtomicCoherenceViolation,
+            ); 2] = [
+                (
+                    event.observes_resident(),
+                    reads_from.as_ref(),
+                    AtomicCoherenceViolation::ReadsFrom,
+                ),
+                (
+                    event.joins_modification_order(),
+                    modification_after.as_ref(),
+                    AtomicCoherenceViolation::ModificationAfter,
+                ),
+            ];
+            let violation = rosters.into_iter().find_map(|(member, edge, coherence)| {
+                let refusal = match (member, edge) {
+                    (false, Some(_)) => Some(AtomicEdgeViolation::NonMemberEdge),
+                    (true, None) => Some(AtomicEdgeViolation::MissingEdge),
+                    (false, None) => None,
+                    (true, Some(edge)) => residency_edge_violation(
+                        event, edge, *block, index, &events, &reached, dominators,
+                    ),
+                };
+                refusal.map(coherence)
+            });
+            if let Some(violation) = violation {
+                return Some((*block, index, violation));
+            }
+        }
+    }
+    None
+}
+
+/// A path ends at its nearest write, the invocation entrance, or an effect
+/// whose write cannot be represented by an atomic-event edge.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ReachingWrite {
+    Initial,
+    Atomic(BlockId, usize),
+    Effect(OperationId),
+    Unknown,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reaching_writes(
+    blocks: &BTreeMap<BlockId, Vec<&AbstractOperation>>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    entry: BlockId,
+    block: BlockId,
+    index: usize,
+    location: &AbstractAtomicLocation,
+    projection_before_edge: &impl Fn(BlockId, BlockId, PlaceId) -> Option<(PlaceId, Vec<PathSegment>)>,
+    projections_may_alias: &impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
+    field_projection: &impl Fn(PlaceId, &[PathSegment], StructuralFieldId) -> Option<Vec<PathSegment>>,
+) -> BTreeSet<ReachingWrite> {
+    let mut reached = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![(block, index, location.clone(), Vec::new())];
+    while let Some((block, end, location, mut ancestry)) = pending.pop() {
+        if !visited.insert((block, end, location.clone())) {
+            continue;
+        }
+        let coordinate = (block, end, location.root);
+        if ancestry.contains(&coordinate) {
+            reached.insert(ReachingWrite::Unknown);
+            continue;
+        }
+        ancestry.push(coordinate);
+        let Some(operations) = blocks.get(&block) else {
+            reached.insert(ReachingWrite::Unknown);
+            continue;
+        };
+        let mut stopped = false;
+        for (index, operation) in operations[..end].iter().enumerate().rev() {
+            if let AbstractOperation::AtomicEvent { event, .. } = operation
+                && event.joins_modification_order()
+                && event.location() == Some(&location)
+            {
+                reached.insert(ReachingWrite::Atomic(block, index));
+                stopped = true;
+                break;
+            }
+            if invalidates_location(
+                operation,
+                &location,
+                projections_may_alias,
+                field_projection,
+            ) {
+                reached.insert(
+                    operation
+                        .psi_operation()
+                        .map_or(ReachingWrite::Unknown, ReachingWrite::Effect),
+                );
+                stopped = true;
+                break;
+            }
+        }
+        if stopped {
+            continue;
+        }
+        if block == entry {
+            reached.insert(ReachingWrite::Initial);
+        }
+        let incoming = predecessors.get(&block);
+        if block != entry && incoming.is_none_or(BTreeSet::is_empty) {
+            reached.insert(ReachingWrite::Unknown);
+        }
+        for predecessor in incoming.into_iter().flatten() {
+            let Some((root, mut path)) = projection_before_edge(*predecessor, block, location.root)
+            else {
+                reached.insert(ReachingWrite::Unknown);
+                continue;
+            };
+            let Some(operations) = blocks.get(predecessor) else {
+                reached.insert(ReachingWrite::Unknown);
+                continue;
+            };
+            path.extend_from_slice(&location.path);
+            pending.push((
+                *predecessor,
+                operations.len(),
+                AbstractAtomicLocation { root, path },
+                ancestry.clone(),
+            ));
+        }
+    }
+    // A closed, unreachable cycle has no invocation residency to claim.
+    if reached.is_empty() {
+        reached.insert(ReachingWrite::Unknown);
+    }
+    reached
+}
+
+fn invalidates_location(
+    operation: &AbstractOperation,
+    location: &AbstractAtomicLocation,
+    projections_may_alias: &impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
+    field_projection: &impl Fn(PlaceId, &[PathSegment], StructuralFieldId) -> Option<Vec<PathSegment>>,
+) -> bool {
+    // Establishing a local home begins its residency. A descriptor may capture
+    // existing backing, so retain the exact establishment without inventing an
+    // initial value or an internal atomic writer for the referenced storage.
+    if operation
+        .structural_result()
+        .is_some_and(|(_, result)| result.place == location.root)
+    {
+        return true;
+    }
+    if operation.invocation_arguments().iter().any(|argument| {
+        argument.place == location.root
+            || projections_may_alias(
+                argument.place,
+                &argument.path,
+                location.root,
+                &location.path,
+            )
+    }) {
+        return true;
+    }
+    operation.storage_mutations().into_iter().any(|mutation| {
+        if mutation.place != location.root {
+            // A different root can select this very cell through another loan.
+            // Its path and field namespace cannot prove cross-root separation.
+            return projections_may_alias(
+                mutation.place,
+                mutation.path,
+                location.root,
+                &location.path,
+            );
+        }
+        // These writes select a scalar leaf exactly. Other mutation families
+        // may carry aliases or replace a parent, so their root remains a fence.
+        match operation {
+            AbstractOperation::StructuralScalarFieldStore { .. }
+            | AbstractOperation::AtomicEvent { .. } => {
+                let complete;
+                let path = if let Some(field) = mutation.field {
+                    let Some(path) = field_projection(mutation.place, mutation.path, field) else {
+                        return true;
+                    };
+                    complete = path;
+                    complete.as_slice()
+                } else {
+                    mutation.path
+                };
+                path.contains(&PathSegment::Referent)
+                    || location.path.contains(&PathSegment::Referent)
+                    || carrier_paths_may_overlap(path, &location.path)
+            }
+            _ => true,
+        }
+    })
+}
+
+/// Atomic carriers are static record/array projections. Only unequal declared
+/// fields or unequal fixed elements establish disjointness; a runtime selector
+/// can hit the atomic element, and unsupported vocabulary grants no exclusion.
+fn carrier_paths_may_overlap(left: &[PathSegment], right: &[PathSegment]) -> bool {
+    for (left, right) in left.iter().zip(right) {
+        match (left, right) {
+            (PathSegment::Field(left), PathSegment::Field(right)) if left != right => {
+                return false;
+            }
+            (PathSegment::FixedIndex(left), PathSegment::FixedIndex(right)) if left != right => {
+                return false;
+            }
+            (PathSegment::Field(_), PathSegment::Field(_))
+            | (PathSegment::FixedIndex(_), PathSegment::FixedIndex(_))
+            | (PathSegment::FixedIndex(_), PathSegment::RuntimeIndex { .. })
+            | (PathSegment::RuntimeIndex { .. }, PathSegment::FixedIndex(_)) => {}
+            _ => return true,
+        }
+    }
+    true
+}
+
+/// Replay one retained residency edge against the reaching-write set the
+/// activation's own `happens_before` derivation reconstructed. A named write
+/// must resolve to one event, belong to the place's modification order, happen
+/// before the event, and be that place's latest write on every execution path;
+/// an opaque effect must be exactly the latest operation on every path.
+#[allow(clippy::too_many_arguments)]
+fn residency_edge_violation(
+    event: &AbstractAtomicEvent,
+    edge: &AtomicResidencyEdge,
+    block: BlockId,
+    index: usize,
+    events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
+    reached: &BTreeSet<ReachingWrite>,
+    dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+) -> Option<AtomicEdgeViolation> {
+    let Some(location) = event.location() else {
+        return Some(AtomicEdgeViolation::MissingEdge);
+    };
+    match edge {
+        AtomicResidencyEdge::PathAlternatives { sources } => {
+            if sources.len() < 2 || sources.windows(2).any(|pair| pair[0] >= pair[1]) {
+                return Some(AtomicEdgeViolation::InvalidPathAlternatives);
+            }
+            let mut claimed_frontier = BTreeSet::new();
+            for source in sources {
+                let source = match *source {
+                    AtomicResidencySource::Initial => ReachingWrite::Initial,
+                    AtomicResidencySource::AfterEffect { operation } => {
+                        ReachingWrite::Effect(operation)
+                    }
+                    AtomicResidencySource::Write { operation: claimed } => {
+                        let Some([(writer, position, resolved)]) =
+                            events.get(&claimed).map(Vec::as_slice)
+                        else {
+                            return Some(AtomicEdgeViolation::Unresolved { claimed });
+                        };
+                        if !resolved.joins_modification_order()
+                            || (resolved.location() != Some(location)
+                                && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
+                        {
+                            return Some(AtomicEdgeViolation::OutsideModificationOrder { claimed });
+                        }
+                        // The independent backward walk proves the actual path
+                        // reaches this write before the observer. A write on one
+                        // branch need not dominate the other incoming branches.
+                        ReachingWrite::Atomic(*writer, *position)
+                    }
+                };
+                claimed_frontier.insert(source);
+            }
+            (claimed_frontier != *reached).then_some(AtomicEdgeViolation::InvalidPathAlternatives)
+        }
+        AtomicResidencyEdge::AfterEffect { operation } => (reached
+            != &BTreeSet::from([ReachingWrite::Effect(*operation)]))
+            .then_some(AtomicEdgeViolation::Unresolved {
+                claimed: *operation,
+            }),
+        AtomicResidencyEdge::InitialResidency => (reached
+            != &BTreeSet::from([ReachingWrite::Initial]))
+            .then_some(AtomicEdgeViolation::InitialResidencyAfterWrite),
+        AtomicResidencyEdge::Write { operation: claimed } => {
+            let claimed = *claimed;
+            let Some([(writer, position, resolved)]) = events.get(&claimed).map(Vec::as_slice)
+            else {
+                return Some(AtomicEdgeViolation::Unresolved { claimed });
+            };
+            if !resolved.joins_modification_order()
+                || (resolved.location() != Some(location)
+                    && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
+            {
+                return Some(AtomicEdgeViolation::OutsideModificationOrder { claimed });
+            }
+            // The claimed write must happen before this event: a predecessor
+            // position in the same block, or a block that dominates the
+            // event's. A sibling-branch or successor write reaches the event
+            // on no `happens_before` edge.
+            let happens_before = if *writer == block {
+                *position < index
+            } else {
+                dominators
+                    .get(&block)
+                    .is_some_and(|dominating| dominating.contains(writer))
+            };
+            if !happens_before {
+                return Some(AtomicEdgeViolation::NotHappensBefore { claimed });
+            }
+            (reached != &BTreeSet::from([ReachingWrite::Atomic(*writer, *position)]))
+                .then_some(AtomicEdgeViolation::Overwritten { claimed })
+        }
+    }
+}

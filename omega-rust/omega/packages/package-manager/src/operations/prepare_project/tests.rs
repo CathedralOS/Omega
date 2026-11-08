@@ -1,4 +1,5 @@
-// Unit tests for local project preparation lifecycle, transaction exclusion, and lock recovery gating.
+//! Preparation lifecycle controls. These exercise package recovery/custody,
+//! not compiler acceptance; the Build SDK executes the retained source route.
 
 use super::*;
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -27,6 +28,8 @@ fn begin(root: &Path) -> LocalProjectPreparation {
     .unwrap()
 }
 
+// This is a transaction/graph test, not a compiler witness. Supply the declared
+// name and empty request ledger directly; SDK tests execute real Build sources.
 fn source_graph(preparation: &LocalProjectPreparation) -> ResolvedPackageSourceClosure {
     use crate::declarations::dependencies::read::DependencyProjections;
     use crate::declarations::{BuildDeclarationKind, PackageKey, PackageName};
@@ -86,6 +89,8 @@ fn beginning_preparation_does_not_project_dynamic_declarations() {
         acquired.source_capture().canonical_live_root(),
         temporary.path().canonicalize().unwrap()
     );
+    // The missing selected/unselected dependency directories do not matter
+    // before Build actually requests source work.
     assert!(pending.accepted.is_none());
     assert!(pending.transaction.is_none());
 }
@@ -146,6 +151,7 @@ fn preparation_retains_transaction_exclusion_and_pair_baseline() {
         assert!(matches!(error, PrepareLocalProjectError::Publication(
             PackagePublicationError::ConcurrentEdit { file }
         ) if file == changed_file));
+        // Completion failure releases its retained mutex without publishing.
         assert!(
             PackageFileTransaction::open(temporary.path(), PackagePublicationLimits::default())
                 .is_ok()

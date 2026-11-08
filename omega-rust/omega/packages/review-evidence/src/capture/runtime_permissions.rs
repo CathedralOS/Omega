@@ -1,16 +1,6 @@
-/*
-Saved source declaration identities and assumed-binding contracts for runtime
-permission comparison (`PreparedRuntimePolicy`).
-
-`PreparedRuntimePolicy::capture` snapshots nominal service and requirement
-identities plus `PreparedAssumedContracts` from `CheckedProductSource` before
-shared Terminal publication, holding only a `Weak<CheckedTrees>` pointer so the
-checked AST is not kept alive. During `rows`, we verify that the weak owner
-pointer and `CheckedSourceCustody` match `RuntimePermissionInput`, rejoin
-accepted semantic bindings to their saved service schemas and requirement
-identities, render assumed-binding contracts, and emit canonical
-`PackagePolicyRow` items without reopening source.
-*/
+//! Save the declarations needed to compare a program's runtime permissions.
+//! The later comparison reads these owned identities and the selected target's
+//! declarations. It does not rebuild a package review or reopen source.
 
 use super::SourceDeclarationInput;
 use super::package_policy::assumed_bindings::PreparedAssumedContracts;
@@ -36,6 +26,8 @@ struct ServiceIdentities {
     )>,
 }
 
+/// Source declarations saved before shared Terminal publication. Private fields
+/// bind them to the exact checked program without keeping that program alive.
 pub struct PreparedRuntimePolicy {
     owner: Weak<checked_trees::CheckedTrees>,
     sources: Arc<package_compilation::CheckedSourceCustody>,

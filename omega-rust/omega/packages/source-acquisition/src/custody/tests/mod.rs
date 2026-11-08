@@ -1,6 +1,4 @@
-// Cache custody test suite organized by the invariant under test (limits,
-// locks, macOS extended ACLs, publication, repository integrity, snapshots,
-// traversal, and Windows ancestry/sibling reconciliation).
+//! Cache custody behavior, organized by the invariant under test.
 
 #[cfg(unix)]
 use crate::SourceResolver;

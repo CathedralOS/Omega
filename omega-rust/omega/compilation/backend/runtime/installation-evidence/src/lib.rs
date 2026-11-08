@@ -7,14 +7,6 @@
 //! owns the sealed values that implement them; lowering and image emission can
 //! inspect only the exact identities required to preserve those decisions.
 
-mod bootstrap_environment;
-mod installation_environment;
-pub use bootstrap_environment::{BootstrapAssumptionInterval, BootstrapEnvironmentAssumption};
-pub use installation_environment::{
-    InstallationEnvironmentAssumption, InterruptDeliveryInterval, X86InterruptDeliveryAssumption,
-    X86InterruptDeliveryProfile,
-};
-
 use std::collections::BTreeSet;
 
 /// Collision-resistant commitment to one exact installed executable
@@ -108,7 +100,7 @@ pub trait ProviderInstallationEvidence: std::fmt::Debug {
 }
 
 /// Relocation-free terminal object facts required to bind installed entry and
-/// fixed-work evidence.
+/// fixed-fuel evidence.
 pub trait ObjectEvidence {
     fn psi(&self) -> terminal_psi::TerminalPsiIdentity;
     fn target(&self) -> target::NativeTarget;
@@ -133,79 +125,4 @@ pub trait StackDemandEvidence {
     /// Strong commitments to the complete admitted opaque same-stack claims.
     /// These remain distinct from the compact report coordinates above.
     fn admitted_stack_contribution_commitments(&self) -> BTreeSet<[u8; 32]>;
-}
-
-/// Stack capacity requested by one installed entry's physical implementation.
-/// These numbers are conditional inputs to instruction selection, not admitted
-/// resource authority. Final object publication must derive them again from
-/// the exact retained private body and arrival bridge before accepting the
-/// guard that uses them.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledInterruptStackRequirement {
-    /// Conditional composition for this exact installation. The runtime guards
-    /// check dedicated backing; physical entry publication supplies root backing.
-    pub arrival: Option<InstalledArrivalStackDemand>,
-    /// Conditional body result, never a grant of valid RAM or stack capacity.
-    /// Final composition re-derives it from the exact private body, and the
-    /// installation must independently establish the listed entry premises.
-    pub fault_exclusion: Option<InstalledBodyFaultPremises>,
-    pub psi: terminal_psi::TerminalPsiIdentity,
-    pub target: target::NativeTarget,
-    pub operation: semantic_vocabulary::OperationId,
-    pub placement_index: usize,
-    pub entry: semantic_vocabulary::MachineId,
-    pub entry_plan: runtime_abi::static_interrupts::InstalledInterruptEntryPlan,
-    pub body_bytes: u64,
-    pub bridge_bytes: u32,
-    pub call_stack_bias: u32,
-    pub alignment: u32,
-}
-
-impl InstalledInterruptStackRequirement {
-    pub fn required_bytes(&self) -> Option<u64> {
-        let own = self.own_bytes()?;
-        Some(
-            self.arrival
-                .as_ref()
-                .map_or(own, |arrival| own.max(arrival.domain_bytes)),
-        )
-    }
-
-    pub fn own_bytes(&self) -> Option<u64> {
-        self.body_bytes
-            .checked_add(u64::from(self.bridge_bytes))?
-            .checked_add(u64::from(self.call_stack_bias))
-    }
-}
-
-/// This exact emitted body has no remaining synchronous fault source when its
-/// admitted CPL0 entry, code/CPU support, checked borrowed memory and sufficient
-/// mapped stack hold. It does not exclude physical faults, NMI or machine checks.
-/// The full installation still owes those memory and stack premises.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledBodyFaultPremises {
-    pub physical_program_identity: [u8; 32],
-}
-
-/// Demand from every admitted finite arrival history. These fields grant no
-/// backing. Final composition re-derives them from exact entries and bodies;
-/// every composed cohort requires the named physical entry's owned stack,
-/// including Work's ordinary live frames when its added reserve is zero.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledArrivalStackDemand {
-    pub physical_entry: InstalledPhysicalStackRoot,
-    pub root_reserve_bytes: u64,
-    pub domain_bytes: u64,
-    /// Exact placement identities of simultaneously live dedicated entries.
-    /// Sorted, unique and reciprocal; semantic classes never name hardware ISTs.
-    pub simultaneous_placements: Vec<usize>,
-}
-
-/// The two declaration identities already joined by ProgramEntry settlement.
-/// The semantic entry receives application arguments; the selected adapter
-/// receives firmware's ABI and executes on the image-owned stack.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledPhysicalStackRoot {
-    pub semantic_entry: semantic_vocabulary::MachineId,
-    pub adapter: semantic_vocabulary::MachineId,
 }

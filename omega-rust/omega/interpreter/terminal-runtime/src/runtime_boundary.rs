@@ -1,5 +1,4 @@
-// Boundary tests verifying that `terminal-runtime` borrows produced Terminal
-// storage without re-decoding and that `compiler` does not depend on runtime crates.
+//! Guard the owning entrance and direct compiler/engine dependency boundaries.
 
 #[test]
 fn runtime_borrows_the_produced_terminal_storage() {

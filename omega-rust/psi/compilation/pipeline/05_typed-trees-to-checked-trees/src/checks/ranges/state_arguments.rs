@@ -3,9 +3,7 @@
 //! facts before the state's statements run.
 //!
 //! `ranges::check_indexed_accesses` calls `collect_state_argument_facts` once
-//! per machine. A nested-machine family is replayed from its outermost
-//! machine, so a guard in one block can bound an index in a sibling block.
-//! `seed_state_argument_facts` runs for each state after seeding
+//! per machine, and `seed_state_argument_facts` for each state after seeding
 //! the state's `requires`. `collect_state_argument_facts` iterates to a fixed
 //! point. The first pass runs the entry state; each later pass reruns the
 //! states whose incoming facts changed. Running a state builds a new
@@ -234,54 +232,34 @@ pub(super) fn collect_state_argument_facts<'program>(
     program: &'program dyn ::validation::CheckingInput,
     field_lengths: &[(SymbolHandle, String, usize)],
     bound_lookup: &validation::ImmutableBoundLookup<'program>,
-    families: &MachineFamilies,
-    root: usize,
-    call_frames: Option<&'program validation::CallFrameResolver<'program>>,
-    borrows: &'program checked_trees::BorrowFacts,
-    flow: &'program checked_trees::FlowFacts,
-    semantic: &'program ::facts::FactPlan,
+    machine: &'program Machine,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
+    calls: &[super::facts::RangeCallContext<'_>],
     operators: &checked_trees::CheckedOperatorFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Vec<StateArgumentFacts> {
-    // Nested machines keep the transition-transfer their states had. Replay
-    // the enclosing family together so a guard in one block can bound an
-    // index in a sibling block, and a cycle between them still meets. Every
-    // member of a family gets the same result, so the caller runs this once
-    // per family root.
-    let nodes = families.nodes(program, root);
-    if nodes.len() <= 1 {
+    let states = program.machine_states(machine);
+    if states.len() <= 1 {
         return Vec::new();
     }
-    let root_entry = nodes[0].1.symbol;
-    let has_internal_edge: Vec<bool> = nodes
+    let Some((entry, non_entry_states)) = states.split_first() else {
+        return Vec::new();
+    };
+    let has_internal_edge: Vec<bool> = states
         .iter()
-        .map(|(state_machine, state)| state_has_internal_edge(program, state_machine.symbol, state))
+        .map(|state| state_has_internal_edge(program, non_entry_states, state))
         .collect();
     if !has_internal_edge[0] {
         return Vec::new();
     }
-    let contexts: Vec<super::facts::RangeCallContext<'program>> = nodes
-        .iter()
-        .map(|(state_machine, state)| {
-            super::facts::RangeCallContext::new(
-                state_machine,
-                state,
-                borrows,
-                flow,
-                semantic,
-                call_frames,
-            )
-        })
-        .collect();
     let mut collected: Vec<StateArgumentFacts> = Vec::new();
     // Source-owned outputs preserve statement encounter order. A dirty source
     // replaces its complete contribution, including edges that lost facts.
-    let mut contributions = vec![Vec::new(); nodes.len()];
-    let mut dirty = vec![false; nodes.len()];
+    let mut contributions = vec![Vec::new(); states.len()];
+    let mut dirty = vec![false; states.len()];
     dirty[0] = true;
     for _ in 0..MAX_PROPAGATION_PASSES {
-        for (state_index, (node, calls)) in nodes.iter().zip(&contexts).enumerate() {
-            let (state_machine, state) = *node;
+        for (state_index, (state, calls)) in states.iter().zip(calls).enumerate() {
             if !dirty[state_index] {
                 continue;
             }
@@ -294,11 +272,11 @@ pub(super) fn collect_state_argument_facts<'program>(
             }
             let context = ExpressionTransfer {
                 program,
-                machine: state_machine,
+                machine,
                 state,
                 call_frames,
             };
-            let mut facts = RangeFacts::new(state_machine.symbol, field_lengths, bound_lookup);
+            let mut facts = RangeFacts::new(machine.symbol, field_lengths, bound_lookup);
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_calls = Some(calls);
             facts.checked_operators = Some(operators);
@@ -310,7 +288,7 @@ pub(super) fn collect_state_argument_facts<'program>(
                     None,
                 );
             }
-            seed_state_requires(program, &mut facts, state_machine, state);
+            seed_state_requires(program, &mut facts, machine, state);
             if state_index != 0 {
                 seed_state_argument_facts(&mut facts, state, &collected);
             }
@@ -324,8 +302,7 @@ pub(super) fn collect_state_argument_facts<'program>(
                 );
             }
             // An internal edge never narrows the externally callable head.
-            // Nested-machine entries stay: their only callers are family jumps.
-            outgoing.retain(|incoming| incoming.state != root_entry);
+            outgoing.retain(|incoming| incoming.state != entry.symbol);
         }
         let mut next = Vec::new();
         for outgoing in &contributions {
@@ -336,7 +313,7 @@ pub(super) fn collect_state_argument_facts<'program>(
         if next == collected {
             return next;
         }
-        for (state_index, (_, state)) in nodes.iter().enumerate() {
+        for (state_index, state) in states.iter().enumerate() {
             dirty[state_index] = state_index != 0
                 && has_internal_edge[state_index]
                 && next.iter().find(|facts| facts.state == state.symbol)
@@ -349,143 +326,14 @@ pub(super) fn collect_state_argument_facts<'program>(
     Vec::new()
 }
 
-/// The state a transition enters when it stays inside the caller's machine
-/// family: a later state of this machine, or the entry of a machine declared
-/// inside the family. The caller's own entry stays an external head.
-pub(super) fn family_transition_state(
-    program: &dyn ::validation::CheckingInput,
-    caller: SymbolHandle,
-    symbol: SymbolHandle,
-) -> Option<&State> {
-    if let Some(owner) = program.machine_by_symbol(caller) {
-        let states = program.machine_states(owner);
-        if let Some((entry, rest)) = states.split_first() {
-            if let Some(state) = rest.iter().find(|state| state.symbol == symbol) {
-                return Some(state);
-            }
-            if entry.symbol == symbol {
-                return None;
-            }
-        }
-    }
-    let state = validation::call_target_state(program, symbol)?;
-    let (destination, _) = validation::find_state(program, state.symbol)?;
-    (destination.symbol != caller && family_related(program, caller, destination.symbol))
-        .then_some(state)
-}
-
-/// Machine nesting as dense rows over `program.machines()` positions, built
-/// once per range pass so a family walk never rescans the whole roster.
-///
-/// `root` follows a machine's direct machine parent, as far as 32 levels, to
-/// the machine whose family it replays with. `children` lists, in roster
-/// order, the machines declared directly in a machine or in one of its
-/// states. Both are keyed the way the walk names machines: a parent symbol
-/// resolves to its first roster position.
-pub(super) struct MachineFamilies {
-    root: Vec<u32>,
-    children: Vec<Vec<u32>>,
-}
-
-impl MachineFamilies {
-    pub(super) fn new(program: &dyn ::validation::CheckingInput) -> Self {
-        let machines = program.machines();
-        let mut children = vec![Vec::new(); machines.len()];
-        for (position, machine) in machines.iter().enumerate() {
-            let enclosing = program.symbols.get(machine.symbol).parent;
-            if let Some(parent) = program.machine_position_by_symbol(enclosing) {
-                children[parent].push(position as u32);
-            }
-            let enclosing_symbol = program.symbols.get(enclosing);
-            if enclosing_symbol.kind == symbols::SymbolKind::State
-                && let Some(parent) = program.machine_position_by_symbol(enclosing_symbol.parent)
-            {
-                children[parent].push(position as u32);
-            }
-        }
-        let root = (0..machines.len())
-            .map(|position| {
-                let mut current = position;
-                for _ in 0..32 {
-                    let parent = program.symbols.get(machines[current].symbol).parent;
-                    if program.symbols.get(parent).kind != symbols::SymbolKind::Machine {
-                        break;
-                    }
-                    let Some(parent_position) = program.machine_position_by_symbol(parent) else {
-                        break;
-                    };
-                    current = parent_position;
-                }
-                current as u32
-            })
-            .collect();
-        Self { root, children }
-    }
-
-    /// The roster position whose family `position` replays with.
-    pub(super) fn root(&self, position: usize) -> usize {
-        self.root[position] as usize
-    }
-
-    /// Every state of `root`'s family, the root's own states first, then
-    /// each nested machine depth-first in roster order.
-    fn nodes<'a>(
-        &self,
-        program: &'a dyn ::validation::CheckingInput,
-        root: usize,
-    ) -> Vec<(&'a Machine, &'a State)> {
-        let machines = program.machines();
-        let mut nodes = Vec::new();
-        let mut visited: Vec<SymbolHandle> = Vec::new();
-        let mut pending = vec![root];
-        while let Some(position) = pending.pop() {
-            let machine = &machines[position];
-            // The family is small; this guard only keeps a malformed symbol
-            // tree from revisiting a machine.
-            if visited.contains(&machine.symbol) {
-                continue;
-            }
-            visited.push(machine.symbol);
-            for state in program.machine_states(machine) {
-                nodes.push((machine, state));
-            }
-            if let Some(key) = program.machine_position_by_symbol(machine.symbol) {
-                pending.extend(self.children[key].iter().rev().map(|child| *child as usize));
-            }
-        }
-        nodes
-    }
-}
-
-/// `callee` is `caller`, a machine declared in `caller`, or an ancestor of
-/// `caller`. Sibling nested machines therefore share one transfer family.
-fn family_related(
-    program: &dyn ::validation::CheckingInput,
-    caller: SymbolHandle,
-    callee: SymbolHandle,
-) -> bool {
-    let mut scope = caller;
-    for _ in 0..32 {
-        if callee == scope || program.symbols.get(callee).parent == scope {
-            return true;
-        }
-        let parent = program.symbols.get(scope).parent;
-        if !parent.is_valid() || program.symbols.get(parent).kind != symbols::SymbolKind::Machine {
-            return false;
-        }
-        scope = parent;
-    }
-    false
-}
-
 fn state_has_internal_edge(
     program: &dyn ::validation::CheckingInput,
-    caller: SymbolHandle,
+    non_entry_states: &[State],
     state: &State,
 ) -> bool {
     use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
     let is_internal =
-        |symbol: SymbolHandle| family_transition_state(program, caller, symbol).is_some();
+        |symbol: SymbolHandle| non_entry_states.iter().any(|state| state.symbol == symbol);
     for (_, statement) in program
         .statement_table
         .admitted_execution_statements(state.statement_nodes)
@@ -493,8 +341,8 @@ fn state_has_internal_edge(
         let has_edge = match statement {
             StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
             StatementNode::Assignment(assignment) => {
-                expression_has_internal_call(program, caller, assignment.target)
-                    || expression_has_internal_call(program, caller, assignment.value)
+                expression_has_internal_call(program, non_entry_states, assignment.target)
+                    || expression_has_internal_call(program, non_entry_states, assignment.value)
             }
             StatementNode::Call(call) => {
                 is_internal(call.target_symbol)
@@ -502,17 +350,17 @@ fn state_has_internal_edge(
                         .statement_table
                         .expression_handles(call.arguments)
                         .iter()
-                        .any(|arg| expression_has_internal_call(program, caller, *arg))
+                        .any(|arg| expression_has_internal_call(program, non_entry_states, *arg))
             }
             StatementNode::Expression(expression) => {
-                expression_has_internal_call(program, caller, *expression)
+                expression_has_internal_call(program, non_entry_states, *expression)
             }
             StatementNode::LocalData(local) => {
-                expression_has_internal_call(program, caller, local.initial_value)
+                expression_has_internal_call(program, non_entry_states, local.initial_value)
             }
             StatementNode::Transition(transition) => {
                 (if let TransitionGuardNode::When(guard) = transition.guard {
-                    expression_has_internal_call(program, caller, guard)
+                    expression_has_internal_call(program, non_entry_states, guard)
                 } else {
                     false
                 }) || [transition.target, transition.continuation]
@@ -529,11 +377,15 @@ fn state_has_internal_edge(
                                         .expression_handles(*arguments)
                                         .iter()
                                         .any(|arg| {
-                                            expression_has_internal_call(program, caller, *arg)
+                                            expression_has_internal_call(
+                                                program,
+                                                non_entry_states,
+                                                *arg,
+                                            )
                                         })
                             }
                             TransitionTargetNode::Value(value) => {
-                                expression_has_internal_call(program, caller, *value)
+                                expression_has_internal_call(program, non_entry_states, *value)
                             }
                             TransitionTargetNode::Terminal => false,
                         },
@@ -547,9 +399,9 @@ fn state_has_internal_edge(
     false
 }
 
-pub(super) fn expression_has_internal_call(
+fn expression_has_internal_call(
     program: &dyn ::validation::CheckingInput,
-    caller: SymbolHandle,
+    non_entry_states: &[State],
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     validation::executable_subtree_any(
@@ -558,7 +410,9 @@ pub(super) fn expression_has_internal_call(
         typed_trees::SubtreeEdges::VALUES,
         |_, node| match node {
             typed_trees::expression::ExpressionNode::Call(call)
-                if family_transition_state(program, caller, call.target_symbol).is_some() =>
+                if non_entry_states
+                    .iter()
+                    .any(|state| state.symbol == call.target_symbol) =>
             {
                 typed_trees::SubtreeVisit::Found
             }

@@ -1,5 +1,4 @@
-// We format and parse authored root and dependency requests, package
-// selections, and package navigation in canonical source-closure text records.
+//! Authored root/dependency requests, selection, and package navigation.
 
 use super::super::request_view::Request;
 use super::super::{

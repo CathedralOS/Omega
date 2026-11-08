@@ -498,41 +498,6 @@ pub fn projection_stays_in_inline_storage<'a>(
     .is_some()
 }
 
-/// A slice can lose its exact address while its containing array stays live.
-/// Name the inline container of that already resolved backing projection.
-/// Pointer and borrowed-descriptor metadata are not their pointee's container.
-/// This validates shape only: ownership, residence, bounds and loans remain
-/// independent obligations, and the original projection is never refined.
-pub fn inline_backing_container(
-    declarations: &[StructuralTypeDeclaration],
-    root: StructuralTypeId,
-    projection: &crate::borrowed_storage::Projection,
-) -> Option<Vec<StructuralPathSegment>> {
-    let container = projection.enclosing_storage()?;
-    if !projection_stays_in_inline_storage(declarations.iter(), root, &projection.path)
-        || !projection_stays_in_inline_storage(declarations.iter(), root, &container.path)
-    {
-        return None;
-    }
-    match walk_primitive_projection(
-        declarations.iter(),
-        root,
-        &container.path,
-        plain_scalar_field,
-        |_| {},
-    )? {
-        ProjectionTip::Declared(tip)
-            if crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
-                .is_slot(declarations, tip.id)
-                || crate::descriptor_results::DescriptorSlotKind::AccessOrigins
-                    .is_slot(declarations, tip.id) =>
-        {
-            None
-        }
-        _ => Some(container.path),
-    }
-}
-
 /// A finite inline storage selection, independent of which descriptors are
 /// resident. Keep declared coverage separate from residence: inactive case
 /// payloads may have no cells, but missing unconditional cells are not coverage.

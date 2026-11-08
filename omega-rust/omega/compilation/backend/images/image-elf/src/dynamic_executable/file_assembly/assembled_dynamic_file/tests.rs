@@ -62,7 +62,6 @@ fn resolved_linkage(
         byte_count: 28,
         symbol: "relocated-caller".to_owned(),
         footprint: None,
-        entry_effects: None,
     });
     image.data_regions.push(FinalDataRegion {
         origin: FinalDataRegionOrigin::CompilerData,

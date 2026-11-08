@@ -1,20 +1,8 @@
-/*
-Admit accepted package compilation inputs without invoking a compiler or reconstructing review.
-
-Review is an explicit acceptance operation: matching source and compiler identities
-select the retained semantic bindings and restricted-build checkpoints from `omega.lock`,
-while an absent lock supplies neither and never triggers an inline audit or creates
-acceptance as a side effect of ordinary compilation.
-*/
-
-/*
-`admit_project_compilation` and `admit_project_products` enforce source/lock identity,
-occurrence consent, and native root role before returning `AdmittedProjectCompilation`
-for the application to schedule. Inspection products always force `verify` so retained
-restricted-action grants are never exercised during inspection, and `ProjectCompilationCompletion`
-re-verifies the external compiler library identity after execution before closing the
-package build session.
-*/
+//! Admit accepted package inputs without compiling or reconstructing review.
+//!
+//! The 2026-10-03 owner ruling makes review an explicit acceptance operation.
+//! Matching source and compiler identities select retained compilation inputs;
+//! they do not prove generated code, supply host grants, or waive Psi checking.
 
 use crate::declarations::BuildDeclarationKind;
 use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
@@ -40,6 +28,9 @@ use std::path::Path;
 
 type Error = CompileResolvedPackageReviewsError;
 
+/// Inputs for ordinary compilation, distinct from a review candidate. An absent
+/// lock supplies no accepted bindings or restricted grants. It never triggers
+/// an inline audit or creates acceptance as a side effect of compilation.
 pub(super) struct AcceptedCompilationRequest<'request> {
     pub closure: ExactTargetPackageSourceClosure<'request>,
     pub accepted: Option<&'request PackageLockTarget>,
@@ -61,6 +52,8 @@ fn invalid_production_root(product: &CompilationProduct, role: BuildDeclarationK
     matches!(product, CompilationProduct::Native(_)) && role != BuildDeclarationKind::Application
 }
 
+/// Ordinary project inputs to admit, without invoking a compiler. The caller
+/// schedules the returned requests together and returns their ordered outcomes.
 pub struct ProjectCompilationAdmissionRequest<'request> {
     pub prepared: super::PreparedLocalProject,
     pub target_profiles: &'request [target::TargetProfile],
@@ -71,6 +64,8 @@ pub struct ProjectCompilationAdmissionRequest<'request> {
 }
 
 impl ProjectCompilationAdmissionRequest<'_> {
+    /// Attribute an invocation preparation failure to every selected target.
+    /// No compilation or package publication has occurred at this boundary.
     pub fn refuse(self, reason: String) -> Vec<ProjectCompilationOutcome> {
         let (_, closure, targets) = self.prepared.into_target_review_parts();
         let invalid_role = invalid_production_root(&self.product, closure.root_role());
@@ -114,6 +109,9 @@ pub struct ProjectCompilationOutcome {
     pub result: Result<CompilationOutput, ProjectCompilationError>,
 }
 
+/// Requests and their package-owned reconciliation. The application retains
+/// its package session while compiling, then lends it to completion for
+/// closure. Neither admission nor reconciliation invokes a compiler.
 pub struct AdmittedProjectCompilation {
     pub requests: Vec<PackageCompilationRequest>,
     pub completion: ProjectCompilationCompletion,
@@ -132,9 +130,15 @@ struct CompilationReceipt {
 pub struct ProjectCompilationCompletion {
     root: PackageKey,
     targets: Vec<TargetCompletion>,
-    _source_closure: Option<crate::resolution::graph::ResolvedPackageSourceClosure>, // keeps acquisition custody alive through execution and disposal
+    // Keep acquisition custody alive through execution and disposal, just as
+    // the prepared project did before scheduling moved to the application.
+    _source_closure: Option<crate::resolution::graph::ResolvedPackageSourceClosure>,
 }
 
+/// Enforce source/lock identity, occurrence consent and native root role before
+/// the admitted occurrences execute. The caller's staging owner and sponsors
+/// cover all targets and earlier source discovery; a target refusal is retained
+/// alongside its siblings rather than aborting the batch.
 pub fn admit_project_compilation(
     request: ProjectCompilationAdmissionRequest<'_>,
     session: &mut PackageBuildSession,
@@ -142,6 +146,10 @@ pub fn admit_project_compilation(
     admit_project(request, session, prepare_accepted_project)
 }
 
+/// Admit Product contexts without issuing a second execution request. Source
+/// work must already have settled under each occurrence's exact contract.
+/// Application discovery has no consumer restricted grants and stops any such
+/// request before effects; accepted Product rows never authorize it retroactively.
 pub fn admit_project_products(
     request: ProjectCompilationAdmissionRequest<'_>,
     session: &mut PackageBuildSession,
@@ -187,50 +195,12 @@ fn admit_project(
             },
         };
     }
-    let profiles = targets
-        .iter()
-        .map(|target| target.profile)
-        .collect::<Vec<_>>();
-    let mut product = request.product;
-    let groups = match &mut product {
-        CompilationProduct::Native(native) => {
-            compilation_products::compile_request::partition_installation_assumptions(
-                std::mem::take(&mut native.installation_assumptions),
-                &profiles,
-            )
-        }
-        _ => Ok(vec![Vec::new(); profiles.len()]),
-    };
-    let groups = match groups {
-        Ok(groups) => groups,
-        Err(reason) => {
-            return AdmittedProjectCompilation {
-                requests: Vec::new(),
-                completion: ProjectCompilationCompletion {
-                    root: root.clone(),
-                    targets: targets
-                        .iter()
-                        .map(|target| TargetCompletion {
-                            target: target.profile,
-                            receipt: Err(ProjectCompilationError::Review(failure(
-                                &root,
-                                reason.clone(),
-                            ))),
-                        })
-                        .collect(),
-                    _source_closure: None,
-                },
-            };
-        }
-    };
     let mut requests = Vec::new();
     let mut completions = Vec::new();
-    let verify = request.verify || matches!(product, CompilationProduct::Inspection(_));
-    for (target, assumptions) in targets.into_iter().zip(groups) {
-        let mut target_product = product.clone();
-        if let CompilationProduct::Native(native) = &mut target_product {
-            native.installation_assumptions = assumptions;
-        }
+    // Inspection never exercises retained restricted-action grants, even when
+    // an application constructs its admission request directly.
+    let verify = request.verify || matches!(request.product, CompilationProduct::Inspection(_));
+    for target in targets {
         let receipt = match target.accepted {
             Err(error) => Err(ProjectCompilationError::Prepare(error)),
             Ok(accepted) => {
@@ -241,7 +211,7 @@ fn admit_project(
                     snapshot: request.snapshot,
                     verify,
                     timings: request.timings,
-                    product: target_product,
+                    product: request.product.clone(),
                 };
                 match prepare(inputs, session) {
                     Ok((plan, packages, identity)) => {
@@ -268,6 +238,8 @@ fn admit_project(
 }
 
 impl ProjectCompilationCompletion {
+    /// Admission refusals remain attributed to their requested target even
+    /// when a caller inspects the admitted plans before executing products.
     pub fn failures(
         &self,
     ) -> impl Iterator<Item = (target::TargetProfile, &ProjectCompilationError)> {
@@ -280,6 +252,9 @@ impl ProjectCompilationCompletion {
         })
     }
 
+    /// Reconcile occurrence diagnostics and recheck the external compiler library
+    /// once after execution. This is not an admission claim for a native image.
+    /// Disposal failure is reported rather than silently dropping a failed close.
     pub fn complete(
         self,
         outputs: Vec<Result<CompilationOutput, compiler::PackageCompileFailure>>,

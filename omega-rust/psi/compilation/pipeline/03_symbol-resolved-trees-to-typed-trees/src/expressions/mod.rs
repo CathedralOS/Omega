@@ -10,7 +10,6 @@ pub(crate) mod equality;
 pub(crate) mod equatable;
 pub(crate) mod exhaustiveness;
 pub(crate) mod expression;
-pub(crate) mod installed_interrupts;
 pub(crate) mod product_queries;
 pub(crate) mod product_selections;
 pub(crate) mod proposition;

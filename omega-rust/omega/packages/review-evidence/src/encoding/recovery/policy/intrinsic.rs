@@ -1,4 +1,4 @@
-// Exact closed execution vocabulary recovery without evaluator or native receipts.
+//! Exact closed execution vocabulary, without evaluator or native receipts.
 
 use super::{Error, reader::Reader};
 use crate::record::PackageReviewCompilerIntrinsicExecution;

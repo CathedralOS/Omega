@@ -1,22 +1,49 @@
-/*
-Persistent, content-verified cache of checked canonical-source metadata
-(`OMGCSRC\x01`).
-
-`source_snapshot` commits a physical source root by hashing every member's
-bytes and re-traversing for stability. For dependency trees that do not change
-between invocations, we avoid rehashing file contents by retaining the committed
-`CanonicalFilesystemMetadataIndex` in a bounded on-disk store (`CheckedSourceCache`)
-keyed by canonical root path and a stat-identity fingerprint (device, inode,
-mode, byte length, mtime, ctime, and symlink target bytes).
-
-The warm path performs two independent stat-only traversals and serves a hit
-only when they agree and the stored record passes magic, root, fingerprint,
-trailing content digest, and `CanonicalFilesystemMetadataIndex::new` validation.
-On a cold miss, we run the full hashing capture and confirm that the live stat
-capture settled to the same initial stat observation before publishing the
-record via atomic temp-file rename. Corruption, truncation, or capacity limits
-degrade cleanly to cold captures without failing compilation.
-*/
+//! Persistent, content-verified cache of checked canonical-source metadata.
+//!
+//! `source_snapshot` commits the complete physical source root by hashing
+//! every member's bytes on every capture, then re-traversing for stability.
+//! For a source tree that is unchanged across invocations — the ordinary
+//! dependency case — that work is identical each time. This module retains
+//! the committed `CanonicalFilesystemMetadataIndex` — the checked source
+//! — in a bounded on-disk store keyed by the canonical root path and a
+//! stat-identity fingerprint: device, inode, length, canonical mode,
+//! mtime, and ctime per member, plus inert symlink target bytes. A later
+//! capture whose live metadata reproduces the same fingerprint replays the
+//! stored index without rehashing; any drift changes the fingerprint and
+//! produces a cold capture.
+//!
+//! The fingerprint commits exactly the host observations the compiler's own
+//! drift checks already compare between two reads of one file, so replaying
+//! on a fingerprint match adds no new trust basis: file content whose
+//! device/inode/length/mode/mtime/ctime all match is the content the
+//! recorded index describes, under the same filesystem premises the
+//! existing capture relies on. On Unix a ctime collision cannot be
+//! fabricated without replacing the inode, which the fingerprint also
+//! commits.
+//!
+//! Records are self-verifying and the cache is derived data only: a record
+//! file is admitted only when its schema, strict canonical encoding,
+//! trailing payload digest, embedded fingerprint, and embedded root all
+//! match the lookup, and the stored rows re-validate through
+//! `CanonicalFilesystemMetadataIndex::version_1`. Corruption, truncation,
+//! foreign records, and stat drift are misses — never trusted rows — and a
+//! full cache declines new records rather than silently evicting retained
+//! evidence. Nothing here replays a checked verdict, review row, or build
+//! output; only the metadata index is retained.
+//!
+//! The warm path performs two independent stat-only traversals and serves a
+//! hit only when they agree, mirroring the cold capture's recapture
+//! contract so a mid-traversal edit cannot mint an index describing two
+//! different trees.
+//!
+//! Package resolution opts in per root custody: each resolved root carries
+//! the retained `checked-source-cache` lane child beneath the resolver
+//! storage lane that produced its snapshot, and compiler-input preparation
+//! routes `with_canonical_source_metadata` through
+//! [`CheckedSourceCache::capture`] when the lane is present, degrading to
+//! the cold capture when the directory cannot be opened. This module owns
+//! the store, fingerprint, and capture protocol; that choice of lane and
+//! the caller opt-in live with the resolving consumers.
 
 use crate::codec_bytes::{push_bytes, push_u64};
 use crate::cursor::{Cursor, TakeError, Truncated};
@@ -42,6 +69,9 @@ const DEFAULT_MAX_RECORD_BYTES: u64 = 256 * 1024 * 1024;
 #[cfg(unix)]
 const CANONICAL_DIRECTORY_MODE: u32 = 0o555;
 
+/// Capacity contract for one cache directory. A record beyond the byte
+/// ceiling, or a directory already holding `max_records` records, declines
+/// the store — the capture still returns its freshly checked index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedSourceCacheLimits {
     pub max_records: usize,
@@ -57,12 +87,22 @@ impl Default for CheckedSourceCacheLimits {
     }
 }
 
+/// Whether one capture replayed a retained index or rebuilt it from source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedSourceCacheOutcome {
-    Warm, // Live stat fingerprint matched a verified retained record; no file bytes were rehashed.
-    Cold, // Store had no matching verified record; the canonical index was rebuilt by full hashing capture.
+    /// The live stat fingerprint matched a verified retained record; no file
+    /// bytes were rehashed.
+    Warm,
+    /// The store had no matching verified record; the canonical index was
+    /// rebuilt by the full hashing capture.
+    Cold,
 }
 
+/// One capture result: the committed canonical index, the cache outcome,
+/// and whether the cold path's record reached the store. A `Cold` capture
+/// with `record_stored == false` means the store declined (capacity, a
+/// racing writer's record, or an I/O failure on derived data); the returned
+/// index is always freshly verified regardless.
 #[derive(Debug, Clone)]
 pub struct CachedSourceIndex {
     index: CanonicalFilesystemMetadataIndex,
@@ -71,19 +111,26 @@ pub struct CachedSourceIndex {
 }
 
 impl CachedSourceIndex {
+    /// The committed canonical metadata index for this root.
     pub const fn canonical_source_metadata(&self) -> &CanonicalFilesystemMetadataIndex {
         &self.index
     }
 
+    /// Whether the store supplied the index (`Warm`) or rebuilt it (`Cold`).
     pub const fn outcome(&self) -> CheckedSourceCacheOutcome {
         self.outcome
     }
 
+    /// Whether a cold capture's record was published into the store.
     pub const fn record_stored(&self) -> bool {
         self.record_stored
     }
 }
 
+/// A bounded directory of retained checked-source indexes, keyed by
+/// canonical root and stat fingerprint. The directory is caller-owned
+/// storage — for example a project build root — and nothing outside it is
+/// touched.
 #[derive(Debug, Clone)]
 pub struct CheckedSourceCache {
     directory: PathBuf,
@@ -91,10 +138,13 @@ pub struct CheckedSourceCache {
 }
 
 impl CheckedSourceCache {
+    /// Open an existing cache directory. The directory must already exist;
+    /// use [`CheckedSourceCache::open_or_create`] to establish it.
     pub fn open(directory: impl AsRef<Path>) -> Result<Self, String> {
         Self::open_with_limits(directory, CheckedSourceCacheLimits::default())
     }
 
+    /// Open an existing cache directory with explicit capacity limits.
     pub(crate) fn open_with_limits(
         directory: impl AsRef<Path>,
         limits: CheckedSourceCacheLimits,
@@ -114,6 +164,7 @@ impl CheckedSourceCache {
         })
     }
 
+    /// Establish the cache directory when absent, then open it.
     pub fn open_or_create(directory: impl AsRef<Path>) -> Result<Self, String> {
         let directory = directory.as_ref();
         if !directory.exists() {
@@ -124,10 +175,16 @@ impl CheckedSourceCache {
         Self::open(directory)
     }
 
+    /// The canonical cache directory this store writes into.
     pub fn directory(&self) -> &Path {
         &self.directory
     }
 
+    /// Capture one canonical source root's checked metadata index, replaying
+    /// a verified retained record when the live stat fingerprint matches one
+    /// and rebuilding through the full hashing capture otherwise. The
+    /// returned index always passes the complete canonical validation —
+    /// cache misses are indistinguishable from an uncached capture.
     pub fn capture(&self, source_root: &Path) -> Result<CachedSourceIndex, String> {
         let canonical_root = crate::package_compilation::canonical_source_root(source_root)?;
         let observed = stat_capture(&canonical_root)?;
@@ -147,6 +204,11 @@ impl CheckedSourceCache {
             });
         }
         let index = crate::source::source_snapshot::capture(&canonical_root)?;
+        // The cold capture hashed what it found; before publishing a record
+        // keyed to the earlier fingerprint, confirm the tree still carries
+        // exactly that stat identity. A tree that drifted under the cold
+        // capture is reported unstable instead of associating its new state
+        // with the old fingerprint.
         let settled = stat_capture(&canonical_root)?;
         if settled != observed {
             return Err(
@@ -162,6 +224,9 @@ impl CheckedSourceCache {
         })
     }
 
+    /// Look up and fully verify one retained record. Any mismatch or
+    /// malformation removes the corrupt record when possible and reports a
+    /// miss — a cache lookup never trusts unverified bytes.
     fn load(
         &self,
         canonical_root: &Path,
@@ -182,12 +247,18 @@ impl CheckedSourceCache {
         match decode_record(&bytes, canonical_root, fingerprint) {
             Ok(index) => Ok(Some(index)),
             Err(_) => {
+                // Corrupt or foreign record: it is derived data only, so the
+                // miss is answered by cold capture; the unverifiable file is
+                // removed so it cannot be repeatedly re-presented.
                 let _ = std::fs::remove_file(&path);
                 Ok(None)
             }
         }
     }
 
+    /// Publish one record under its content key. A full store, a racing
+    /// existing record, or an I/O failure declines the store without failing
+    /// the caller's freshly verified index.
     fn store(
         &self,
         canonical_root: &Path,
@@ -221,6 +292,9 @@ impl CheckedSourceCache {
         }
         let record_path = self.directory.join(&name);
         if record_path.exists() {
+            // Same key already published (a concurrent cold capture or an
+            // earlier run); the record is keyed by exact content, so an
+            // existing file with the same name is already correct.
             return Ok(false);
         }
         let temporary = self.directory.join(format!(
@@ -263,10 +337,14 @@ impl CheckedSourceCache {
 
 static TEMPORARY_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// One member's stat identity: every host observation the compiler's
+/// drift checks already compare, plus inert symlink target bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StatRow {
     kind: StatRowKind,
-    device: u64, // Host stat observation pinning recorded rows to this exact tree state.
+    /// `dev`/`ino`/`ctime`/`mtime` are host observations, never canonical
+    /// input metadata; they pin the recorded rows to this exact tree state.
+    device: u64,
     inode: u64,
     mode: u32,
     logical_byte_length: u64,
@@ -284,6 +362,10 @@ enum StatRowKind {
     Symlink,
 }
 
+/// A metadata-only traversal of the canonical source root under the same
+/// membership, canonical-path, mode, and ceiling rules as the hashing
+/// capture — without reading file bytes. The returned rows are the
+/// fingerprint basis: identical rows mean identical checked metadata.
 fn stat_capture(root: &Path) -> Result<BTreeMap<Vec<u8>, StatRow>, String> {
     let mut stack = vec![(root.to_path_buf(), Vec::<u8>::new())];
     let mut rows = BTreeMap::<Vec<u8>, StatRow>::new();
@@ -339,6 +421,9 @@ fn stat_capture(root: &Path) -> Result<BTreeMap<Vec<u8>, StatRow>, String> {
     Ok(rows)
 }
 
+/// One member's stat identity under the canonical mode rules of the hashing
+/// capture: directories and symlinks carry no byte content, files and
+/// symlink targets charge the shared content ceiling.
 fn stat_row(
     path: &Path,
     physical: &std::fs::Metadata,
@@ -470,6 +555,9 @@ host_stat_duration!(
     subsec_nanos
 );
 
+/// The record key: the canonical root spelling joined to the complete
+/// stat-identity fingerprint, so two roots whose members carry identical
+/// metadata still own disjoint records.
 fn stat_fingerprint(
     canonical_root: &Path,
     rows: &BTreeMap<Vec<u8>, StatRow>,
@@ -525,6 +613,11 @@ fn record_name(canonical_root: &Path, fingerprint: &[u8; 32]) -> Result<String, 
     ))
 }
 
+/// Canonical record encoding: magic, framed root, embedded fingerprint,
+/// row table (path, kind, kind payload, content digest), and the index's
+/// source-content commitment — followed by a trailing digest of the whole
+/// payload. The decoder re-derives every structural invariant through
+/// `CanonicalFilesystemMetadataIndex::version_1`.
 fn encode_record(
     canonical_root: &Path,
     fingerprint: &[u8; 32],

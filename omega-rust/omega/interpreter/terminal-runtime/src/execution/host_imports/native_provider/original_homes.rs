@@ -1,13 +1,6 @@
-/*
-We manage one physical shared-memory allocation per authenticated interpreter
-root in the native provider sponsor process.
-
-Views only select subranges inside an established original home; neither
-repeated loans nor argument snapshots allocate a replacement. Resident scalar
-backings keep this sponsor alive across moves and suspension, while pointer
-slots are linked and verified inside the worker process so parent mapping
-addresses never cross IPC.
-*/
+//! One physical allocation per authenticated interpreter root. Views only pick
+//! ranges inside it; neither repeated loans nor argument snapshots allocate a
+//! replacement. Residents keep this sponsor alive through moves and suspension.
 
 use super::super::scalar_codec::{decode, encode, scalar_extent};
 use native_provider_runtime::{
@@ -38,7 +31,6 @@ pub(super) struct Sponsor {
     process: Option<NativeProviderProcess>,
     failure: Option<String>,
 }
-
 impl Sponsor {
     pub fn with<T>(
         &mut self,
@@ -65,12 +57,13 @@ impl Sponsor {
             rejection(error.to_string())
         })
     }
-
     pub fn call(
         &mut self,
         adapter: native_provider_runtime::NativeAdapterId,
         arguments: &[native_provider_runtime::NativeArgument<'_>],
     ) -> Result<Vec<u8>, NativeProviderError> {
+        // Installation already established the process. Preserve the actual
+        // exit status for the call owner to distinguish a declared trap.
         let result = self
             .process
             .as_mut()
@@ -81,7 +74,6 @@ impl Sponsor {
         }
         result
     }
-
     pub fn finish(&mut self) -> Result<(), TerminalEffectRejection> {
         if self.failure.is_some() {
             return Ok(());
@@ -103,17 +95,17 @@ pub(in super::super) struct NativeContext {
     available: bool,
     services: crate::execution::TerminalNativeServiceDelegation,
 }
-
 struct OriginalHome {
     root: TerminalOriginalStorageRoot,
-    structural_type: Option<StructuralTypeId>, // None for raw byte allocations; Some for typed roots.
+    // Raw byte allocations have byte geometry, not the type of the first
+    // descriptor that happened to expose them. Typed roots retain their type.
+    structural_type: Option<StructuralTypeId>,
     home: NativeHomeId,
     extent: usize,
     alignment: usize,
     cells: BTreeMap<Vec<Path>, Rc<Resident>>,
     references: BTreeMap<Vec<Path>, (usize, Option<NativePointerTarget>)>,
 }
-
 struct Resident {
     sponsor: Rc<RefCell<Sponsor>>,
     home: NativeHomeId,
@@ -121,7 +113,6 @@ struct Resident {
     stored: ScalarType,
     logical: ScalarType,
 }
-
 impl std::fmt::Debug for Resident {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NativeOriginalScalar")
@@ -130,7 +121,6 @@ impl std::fmt::Debug for Resident {
             .finish_non_exhaustive()
     }
 }
-
 impl TerminalScalarBacking for Resident {
     fn read(&self) -> Result<TerminalScalarValue, TerminalEffectRejection> {
         let size = scalar_extent(self.stored)?;
@@ -140,7 +130,6 @@ impl TerminalScalarBacking for Resident {
             .with(|process| process.read_home(self.home, self.offset, &mut bytes[..size]))?;
         decode(&bytes[..size], self.stored, self.logical)
     }
-
     fn write(&self, value: TerminalScalarValue) -> Result<(), TerminalEffectRejection> {
         if value.scalar_type() != self.logical {
             return Err(rejection("native resident logical carrier changed"));
@@ -169,15 +158,12 @@ impl NativeContext {
             homes: Rc::new(RefCell::new(BTreeMap::new())),
         }
     }
-
     pub fn available(&self) -> bool {
         self.available
     }
-
     pub fn services(&self) -> crate::execution::TerminalNativeServiceDelegation {
         self.services
     }
-
     pub fn finish(&self) -> Result<(), TerminalEffectRejection> {
         self.sponsor.borrow_mut().finish()
     }
@@ -190,6 +176,9 @@ impl NativeContext {
     ) -> Result<TerminalOriginalScalarBackings, TerminalEffectRejection> {
         let mut result = Vec::with_capacity(requests.len());
         let mut homes = self.homes.borrow_mut();
+        // All requests captured their entry values before any engine cell was
+        // attached. Fresh shared aliases in this batch therefore have no Rc
+        // yet. Only exact endpoints created here may use that exception.
         let mut established_here = BTreeSet::new();
         for request in requests {
             let layout = if request.byte_extent().is_some() {
@@ -210,10 +199,12 @@ impl NativeContext {
             let root = request.root();
             let key = (root.namespace(), root.allocation());
             if let std::collections::btree_map::Entry::Vacant(entry) = homes.entry(key) {
-                let home = self
-                    .sponsor
-                    .borrow_mut()
-                    .with(|process| process.create_home(extent.max(1), alignment))?;
+                let home = self.sponsor.borrow_mut().with(|process| {
+                    // A zero-byte allocation can still own a stable empty
+                    // view. The mapping needs a physical page; logical extent
+                    // remains zero and confers no byte access.
+                    process.create_home(extent.max(1), alignment)
+                })?;
                 entry.insert(OriginalHome {
                     root,
                     structural_type,
@@ -278,6 +269,8 @@ impl NativeContext {
             result.push(row);
         }
         drop(homes);
+        // Allocate every captured home before installing edges. The worker
+        // computes its own pointers; parent mapping addresses never cross IPC.
         for request in requests {
             for reference in request.references() {
                 let codec = codecs.get(&reference.referent_type()).ok_or_else(|| {
@@ -303,6 +296,9 @@ impl NativeContext {
         Ok(result)
     }
 
+    /// Materialize one original cell. `resident` selects whether the caller's
+    /// authenticated endpoint gets a returned backing; physical contents only
+    /// initialize bytes in the same home and never mint an endpoint.
     fn prepare_scalar(
         &self,
         original: &mut OriginalHome,
@@ -410,7 +406,6 @@ impl NativeContext {
             offset: *offset,
         })
     }
-
     pub(super) fn record_reference(
         &self,
         slot: NativePointerSlot,
@@ -433,8 +428,10 @@ impl NativeContext {
         }
         Ok(())
     }
-
     pub(super) fn validate_references(&self) -> Result<(), TerminalEffectRejection> {
+        // A retained provider can write through a descriptor even when that
+        // descriptor is not an explicit completion argument. Never let an
+        // unmodeled pointer write leave Core using a stale referent.
         for home in self.homes.borrow().values() {
             for (offset, target) in home.references.values() {
                 let target =
@@ -457,6 +454,9 @@ impl NativeContext {
         Ok(())
     }
 
+    /// Join every exposed scalar's view offset to its original-root offset.
+    /// Agreement on one base proves a subrange, never a new allocation. Tags
+    /// and opaque regions need their own resident codecs before admission.
     pub(super) fn loan(
         &self,
         loan: &TerminalOriginalStorageLoan,

@@ -1,5 +1,3 @@
-// Bounded recovery for public domain declaration shapes, predicates, semantic roles, and establishment routes.
-
 use super::super::{
     Error,
     contracts::contract_fact,

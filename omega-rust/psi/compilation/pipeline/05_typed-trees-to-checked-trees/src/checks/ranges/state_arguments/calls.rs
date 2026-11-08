@@ -22,27 +22,18 @@ pub(super) fn collect_state_argument_facts_for_call(
     target_symbol: SymbolHandle,
     arguments: &[ExpressionHandle],
     receiver_transition: bool,
-    explicit_target: Option<&State>,
     collected: &mut Vec<StateArgumentFacts>,
 ) {
-    if !target_symbol.is_valid() && explicit_target.is_none() {
+    if !target_symbol.is_valid() {
         return;
     }
-    let Some(target_state) = explicit_target.or_else(|| {
-        program
-            .machine_states(machine)
-            .get(1..)
-            .and_then(|states| states.iter().find(|state| state.symbol == target_symbol))
-    }) else {
+    let Some(target_state) = program
+        .machine_states(machine)
+        .get(1..)
+        .and_then(|states| states.iter().find(|state| state.symbol == target_symbol))
+    else {
         return;
     };
-    // Facts are consumed in the machine that owns the destination state.
-    // A nested-machine entry is not a state of the caller, but it is the
-    // same transfer the caller's states used before that entry was extracted.
-    let owner_machine = program
-        .machine_holding_state(target_state.symbol)
-        .map(|owner| owner.symbol)
-        .unwrap_or(machine.symbol);
 
     let entry = collected
         .iter_mut()
@@ -52,7 +43,7 @@ pub(super) fn collect_state_argument_facts_for_call(
     } else {
         collected.push(StateArgumentFacts {
             state: target_state.symbol,
-            machine: owner_machine,
+            machine: machine.symbol,
             parameters: program
                 .state_parameters(target_state)
                 .iter()
@@ -78,10 +69,7 @@ pub(super) fn collect_state_argument_facts_for_call(
 
     // An ordinary invocation starts with its declared receiver obligations;
     // only a state transition hands off the same receiver's live storage.
-    // Receiver lengths stay inside one machine. A nested-machine handoff
-    // carries only the argument storage it rebinds; the caller's receiver is
-    // a different machine.
-    let mut incoming_lengths = if receiver_transition && owner_machine == machine.symbol {
+    let mut incoming_lengths = if receiver_transition {
         facts.receiver_lengths(program, machine, state)
     } else {
         Vec::new()

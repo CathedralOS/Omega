@@ -1,4 +1,4 @@
-// Checked callable behavior projection into receipt-free package policy.
+//! Checked callable behavior projection into receipt-free policy.
 
 mod crash;
 mod flow;

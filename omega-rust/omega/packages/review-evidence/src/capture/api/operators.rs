@@ -1,16 +1,3 @@
-/*
-Public operator declaration and crash-contract projection
-(`project_operator_coordinate`, `project_public_operators`, and
-`project_operator_crash_routes`).
-
-Only explicitly named boundary requirements (`declaration.is_boundary &&
-declaration.spelling.is_none()`) include `result_dispatch` in
-`PackageReviewOperatorCoordinate`; fixed tokens and ordinary named operators
-remain operand-directed with their return type stored in the row value. Before
-projecting public operators, we verify that `derive_checked_operator_crash_contracts`
-equals the retained `facts.operators.operator_crash_contracts` table.
-*/
-
 use crate::capture::behavior::project_crash_cause;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::{ContractProjectionContext, project_contracts};
@@ -42,6 +29,10 @@ pub(crate) fn project_operator_coordinate(
         identity,
         parameter_dispatch: compilation
             .callable_parameters_text(compilation.callable_identity_parameters(overload)),
+        // Only explicitly named boundary requirements participate in
+        // expected-result dispatch. Fixed tokens and ordinary named operators
+        // remain operand-directed; their complete return type stays in the
+        // row value so a change is one changed declaration, not remove/add.
         result_dispatch: if declaration.is_boundary && declaration.spelling.is_none() {
             compilation.callable_result_dispatch_text(
                 compilation.callable_identity_result_dispatch(overload),

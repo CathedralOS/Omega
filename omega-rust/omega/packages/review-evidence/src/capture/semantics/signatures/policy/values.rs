@@ -1,12 +1,4 @@
-/*
-We project complete behavioral crash and termination values shared by public
-declaration signatures.
-
-For termination, the legacy projection has already checked the public profile
-and relative subject; we rejoin that profile to its exact source declaration
-before adding the full establishment routes absent from the legacy review
-record.
-*/
+//! Complete behavioral values shared by public declaration signatures.
 
 use super::rejected;
 use crate::capture::SourceDeclarationInput;
@@ -47,6 +39,9 @@ pub(crate) fn crashes(
         .collect()
 }
 
+/// The legacy projection has already checked the public profile and relative
+/// subject. Rejoin that profile to its exact source declaration before adding
+/// the full establishment routes absent from the old review record.
 pub(crate) fn termination(
     compilation: &SourceDeclarationInput<'_>,
     guarantee: &language_semantics::TerminationGuarantee,

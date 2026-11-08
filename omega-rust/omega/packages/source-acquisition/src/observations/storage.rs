@@ -1,11 +1,12 @@
-// Direct retained-cache custody (`GitRetainedStorageCustody`) recording the
-// post-helper storage measurement and enforced entry, byte, and depth limits
-// accepted by the final capability-rooted cache traversal.
+//! Direct retained-cache custody for an accepted Git source.
 
 use crate::custody::tree::{CacheCustodyMeasurement, git_cache_custody_byte_limit};
 use crate::limits::{CACHE_CUSTODY_DEPTH_LIMIT, CACHE_CUSTODY_ENTRY_LIMIT, LocalSourceLimits};
 use std::path::{Path, PathBuf};
 
+/// Concrete post-helper retained storage accepted by the final capability-rooted
+/// cache traversal. This is a measurement and its enforced limits, not a
+/// process receipt or canonical identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitRetainedStorageCustody {
     pub(crate) root: PathBuf,

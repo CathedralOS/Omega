@@ -50,7 +50,7 @@ pub(super) fn establish(
         .ok_or_else(invalid)?;
     let mut computation = provenance(row);
     computation.values.push(*argument);
-    computation.work = row.work.clone();
+    computation.fuel = row.fuel.clone();
     builder.emit(
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form },
         constraint,

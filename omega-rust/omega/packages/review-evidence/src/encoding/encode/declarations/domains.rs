@@ -1,5 +1,3 @@
-// Canonical encoding for semantic domain alias atoms, establishment routes, and carry permissions.
-
 use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
 use super::super::values::identity::encode_nominal;
@@ -42,6 +40,8 @@ pub(crate) fn encode_domain_establishment_route(
         };
         Ok(())
     })?;
+    // Tags 0 and 1 retain their original two-identity layout. Tag 2 adds
+    // exactly one callable identity, without a synthetic requirement owner.
     match route {
         PackageReviewDomainEstablishmentRoute::CheckedRequirement {
             trait_identity,
@@ -61,6 +61,7 @@ pub(crate) fn encode_domain_establishment_route(
     }
 }
 
+/// Shared closed permission encoding for alias atoms and contract facts.
 pub(crate) fn encode_carry_permission(encoder: &mut Encoder, permission: CarryPermission) {
     match permission {
         CarryPermission::AcrossSuspend => encoder.tag("across_suspend", 0),

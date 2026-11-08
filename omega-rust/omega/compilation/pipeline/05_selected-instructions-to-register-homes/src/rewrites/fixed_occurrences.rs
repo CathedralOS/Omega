@@ -4,7 +4,7 @@
 //! copy bank onto instruction-local carriers. Other banks retain their original
 //! operands for ordinary allocation. Every operation keeps its complete constraint;
 //! target-admitted copies establish reads before it and publish writes after
-//! it. CFG edges and source work remain unchanged, so joins still require one
+//! it. CFG edges and source fuel remain unchanged, so joins still require one
 //! common resident home on every copy-free incoming edge.
 //!
 //! Occurrence analysis selects fixed/tied components, not every semantic
@@ -22,7 +22,7 @@ use selected_instructions::{
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{ScalarType, WorkScheduleIdentity};
+use semantic_vocabulary::{FuelScheduleIdentity, ScalarType};
 
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::control_mut;
@@ -68,7 +68,7 @@ pub fn materialize_selected_fixed_occurrences(
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedFixedOccurrences, FixedOccurrencesError> {
     if source.selected_plan().target != environment.target()
-        || source.selected_plan().work_schedule != source.work_schedule_identity()
+        || source.selected_plan().fuel_schedule != source.fuel_schedule_identity()
     {
         return Err(FixedOccurrencesError::SourceMismatch);
     }

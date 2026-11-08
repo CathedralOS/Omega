@@ -1,5 +1,5 @@
 //! The goal-free scalar-leaf schema: result and operand shapes, the
-//! denotation of each scalar leaf, and its crash, work and frontier policies.
+//! denotation of each scalar leaf, and its crash, fuel and frontier policies.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarLeafResultShape {
@@ -80,7 +80,7 @@ pub enum ScalarLeafCrashPolicy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ScalarLeafWorkPolicy {
+pub enum ScalarLeafFuelPolicy {
     ConsumeOne,
 }
 
@@ -100,7 +100,7 @@ pub struct ScalarLeafSchema {
     pub(crate) goal: ScalarLeafGoalShape,
     pub(crate) fact: ScalarLeafFactShape,
     pub(crate) crash: ScalarLeafCrashPolicy,
-    pub(crate) work: ScalarLeafWorkPolicy,
+    pub(crate) fuel: ScalarLeafFuelPolicy,
     pub(crate) frontier: ScalarLeafFrontierPolicy,
 }
 
@@ -129,8 +129,8 @@ impl ScalarLeafSchema {
         self.crash
     }
 
-    pub const fn work(self) -> ScalarLeafWorkPolicy {
-        self.work
+    pub const fn fuel(self) -> ScalarLeafFuelPolicy {
+        self.fuel
     }
 
     pub const fn frontier(self) -> ScalarLeafFrontierPolicy {
@@ -160,7 +160,7 @@ pub(crate) const fn goal_free_scalar_leaf(
             (ScalarLeafResultShape::DeclaredInteger, _) => ScalarLeafFactShape::ResultEquation,
         },
         crash: ScalarLeafCrashPolicy::Never,
-        work: ScalarLeafWorkPolicy::ConsumeOne,
+        fuel: ScalarLeafFuelPolicy::ConsumeOne,
         frontier: ScalarLeafFrontierPolicy::PreserveLocal,
     })
 }

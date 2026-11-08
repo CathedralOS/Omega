@@ -175,7 +175,7 @@ pub(in crate::selection) fn returned(
         },
         SelectedInstructionProvenance {
             edges: vec![returned.edge],
-            work: returned.work.clone(),
+            fuel: returned.fuel.clone(),
             ..Default::default()
         },
     )?;

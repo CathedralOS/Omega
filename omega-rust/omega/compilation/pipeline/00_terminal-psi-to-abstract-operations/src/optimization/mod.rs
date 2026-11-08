@@ -20,10 +20,10 @@ use terminal_installation::{
 /// Terminal-Psi artifact.
 pub fn build_verified_psi_optimization_unit(
     input: VerifiedPsiOptimizationInput,
-    work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+    fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
 ) -> Result<VerifiedPsiOptimizationUnit, VerifiedPsiOptimizationUnitBuildError> {
     let mut seed =
-        optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), work_schedule)?;
+        optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), fuel_schedule)?;
     let context = input.context();
     optimization_unit::attach_verified_module_context(&mut seed, context.module())
         .map_err(VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine)?;
@@ -251,7 +251,6 @@ pub struct VerifiedPsiOptimizationInput {
     pub(crate) context: VerifiedPsiOptimizationContext,
     pub(crate) admitted_assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
     pub(crate) admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
-    pub(crate) admitted_installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
     pub(crate) target_machine_selections: Option<AdmittedTargetMachineSelections>,
     pub(crate) target_layout_selections: Option<AdmittedTargetLayouts>,
     pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
@@ -288,14 +287,6 @@ impl VerifiedPsiOptimizationInput {
         self.admitted_native_callbacks.callbacks()
     }
 
-    /// Installed entries admitted for this exact input, separate from foreign
-    /// argument materialization. Consumers must retain the program binding.
-    pub const fn admitted_installed_interrupts(
-        &self,
-    ) -> &provider_admission::AdmittedInstalledInterruptCohort {
-        &self.admitted_installed_interrupts
-    }
-
     /// The admitted facts target lowering reads, handed on as their own
     /// record: the Terminal module, the selected program entry, the sealed
     /// assumed bindings, the target machine selections and the sealed callback
@@ -314,7 +305,6 @@ impl VerifiedPsiOptimizationInput {
             assumed_bindings: self.admitted_assumed_bindings,
             target_machine_selections: self.target_machine_selections,
             native_callbacks: self.admitted_native_callbacks,
-            installed_interrupts: self.admitted_installed_interrupts,
         }
     }
 

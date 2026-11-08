@@ -78,11 +78,21 @@ fn collect_scope<'plans>(
         };
         if let Terminator::Guarded { return_values, .. } = &control.terminator {
             for operation in return_values {
-                collector.operations(std::iter::once(operation), &mut namespace.clone())?;
+                collector.operations(
+                    std::iter::once(&operation.operation),
+                    &mut namespace.clone(),
+                )?;
+            }
+        }
+        if let Terminator::CompleteExpression { completion } = &control.terminator {
+            for operations in completion.expression.invocation_scopes() {
+                collector.operations(operations.iter(), &mut namespace.clone())?;
             }
         }
         for arm in control.terminator.return_arms() {
-            collector.operations(arm.operation_dependencies(), &mut namespace.clone())?;
+            for scope in arm.operation_scopes() {
+                collector.operations(scope.into_iter(), &mut namespace.clone())?;
+            }
         }
         for successor in control.successors() {
             for transfer in &successor.transfers {
@@ -362,6 +372,90 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
         Ok(())
     }
 
+    /// Failure diagnostics inspect retained plans without changing type demand.
+    fn trace_storage_source(
+        &self,
+        statement: Option<u32>,
+        argument: &CheckedUnitStructuralArgumentPlan,
+        caller: &std::panic::Location<'_>,
+    ) {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+            return;
+        }
+        eprintln!(
+            "CHECKSITE storage-source machine={} state={} statement={statement:?} caller={}:{} source_kind={:?} path={:?}",
+            self.checked.symbols.display_path(self.machine, "::"),
+            self.checked.symbols.display_path(self.state, "::"),
+            caller.file(),
+            caller.line(),
+            std::mem::discriminant(&argument.source),
+            argument.path.iter().take(12).collect::<Vec<_>>(),
+        );
+        if let Source::StructuralExpression {
+            expression,
+            value_dependency,
+            logical_root_type_identity,
+        } = argument.source
+        {
+            eprintln!(
+                "CHECKSITE storage-source expression={expression:?} dependency={value_dependency:?} logical_root={logical_root_type_identity:?}"
+            );
+        }
+        let values = &value_facts(self.checked).structural_values;
+        for (handle, value) in values
+            .nodes
+            .iter()
+            .filter(|(_, value)| {
+                value.state == self.state && statement == Some(value.statement_index)
+            })
+            .take(24)
+        {
+            use checked_trees::CheckedStructuralValueKind as Value;
+            let (kind, dependency, source) = match &value.kind {
+                Value::Projection { source, .. } => ("projection", *source, None),
+                Value::Reference {
+                    source_value,
+                    source,
+                    ..
+                } => ("reference", *source_value, Some(source)),
+                Value::CopiedStructuralPlace { source, .. } => {
+                    ("copied place", Default::default(), Some(source))
+                }
+                Value::Place(source) => ("place", Default::default(), Some(source)),
+                _ => ("other value", Default::default(), None),
+            };
+            eprintln!(
+                "CHECKSITE storage-source value={handle:?} expression={:?} type={:?} kind={kind} dependency={dependency:?} source_home={:?} logical_root={:?}",
+                value.expression,
+                value.type_reference,
+                source.and_then(|source| source.structural_storage_root()),
+                source.and_then(|source| source.borrowed_root_type_identity())
+            );
+        }
+        for (_, root) in values
+            .roots
+            .iter()
+            .filter(|(_, root)| {
+                root.state == self.state && statement == Some(root.statement_ordinal)
+            })
+            .take(24)
+        {
+            eprintln!("CHECKSITE storage-source retained_root={root:?}");
+        }
+        let computations = &value_facts(self.checked).scalar_computations;
+        for (handle, node) in computations.nodes.iter().filter(|(_, node)| {
+            let checked_trees::CheckedScalarComputationKind::Call { structural_arguments, .. } = &node.kind else { return false; };
+            computations.structural_arguments.span(*structural_arguments).is_some_and(|arguments| arguments.iter().any(|candidate| {
+                matches!(candidate, checked_trees::CheckedScalarComputationStructuralArgument::Place(candidate) if candidate == argument)
+            }))
+        }).take(12) {
+            if let checked_trees::CheckedScalarComputationKind::Call { source_expression, callee, call_ordinal, .. } = &node.kind {
+                eprintln!("CHECKSITE storage-source call={handle:?} expression={source_expression:?} callee={callee:?} ordinal={call_ordinal}");
+            }
+        }
+    }
+
+    #[track_caller]
     fn argument(
         &mut self,
         statement: Option<u32>,
@@ -372,6 +466,7 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
             // Inline children already belong to their owner's declaration.
             return Ok(());
         }
+        let caller = std::panic::Location::caller();
         let root = source_type(
             self.checked,
             self.state,
@@ -379,7 +474,11 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
             self.parameters,
             namespace,
             argument,
-        )?;
+        )
+        .map_err(|error| {
+            self.trace_storage_source(statement, argument, caller);
+            self.at_statement(statement, error)
+        })?;
         let mut path = argument.path.as_slice();
         if let Source::StructuralLocalBorrow {
             root_reference_hops,
@@ -442,7 +541,26 @@ fn source_type(
                 .filter(|result| result.binding_ordinal == binding_ordinal)
                 .map(|result| result.type_identity)
         }),
-        Source::StructuralExpression { expression } => statement
+        Source::StructuralExpression {
+            expression,
+            value_dependency: Some(value),
+            ..
+        } => value_facts(checked)
+            .structural_values
+            .root_for_value_home(value, expression)
+            .filter(|root| root.state == state && statement == Some(root.statement_ordinal))
+            .map(|root| stored_structural_identity(checked, root.type_reference)),
+        Source::StructuralExpression {
+            value_dependency: None,
+            logical_root_type_identity: Some(identity),
+            ..
+        } => Some(identity),
+        Source::StructuralExpression {
+            expression,
+            value_dependency: None,
+            logical_root_type_identity: None,
+            ..
+        } => statement
             .and_then(|statement| {
                 value_facts(checked)
                     .structural_values

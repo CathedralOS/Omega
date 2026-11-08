@@ -60,7 +60,7 @@ use selected_instructions::{
     CopyRemovalIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::remove_selected_copy;
 pub(crate) use validation::measured_steps;

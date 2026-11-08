@@ -27,7 +27,7 @@ pub(super) fn validated(
     }
     let input = session.unit().identity;
     let terminal = session.unit().psi;
-    let work_schedule = session.unit().work_schedule;
+    let fuel_schedule = session.unit().fuel_schedule;
     let (verified_input, _) = session.into_parts();
     let next = VerifiedPsiOptimizationSession::from_transformed(verified_input, validated.output)
         .map_err(LoopInvariantScalarMotionError::TransformedValidation)?;
@@ -43,7 +43,7 @@ pub(super) fn validated(
     };
     let ledger = PsiTransformationLedger::new(
         terminal,
-        work_schedule,
+        fuel_schedule,
         input,
         next.unit().identity,
         vec![record],

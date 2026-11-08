@@ -66,21 +66,46 @@ impl Execution<'_, '_, '_> {
             // Calls and constructions already own their completion facts.
             return;
         }
+        self.publish_owned_capture(expression, evaluated, contexts, constraints);
+    }
+
+    /// One completed producer supplies every saved namespace. Memberships do
+    /// not depend on whether the value also has a scalar or tag observation.
+    pub(super) fn publish_owned_capture(
+        &mut self,
+        parent: ExpressionHandle,
+        evaluated: &mut EvaluatedOperand,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) {
+        if evaluated.capture.state_symbol != self.state.symbol
+            || evaluated.capture.statement_index != self.statement_index
+            || !self.program.expression_table.expression_is_valid(parent)
+            || !evaluated.capture.type_reference.is_valid()
+            || validation::reference_shell(self.program, evaluated.capture.type_reference).is_some()
+        {
+            return;
+        }
         let values = self.captured_owned_value_observations(
             &[],
             evaluated.capture.type_reference,
             evaluated,
         );
-        if values.is_empty() {
-            return;
-        }
         let previous = self
             .context
             .contexts
             .constraint_refs
             .span_or_empty(*constraints)
             .len();
-        self.publish_owned_value_observations(expression, values, contexts, constraints);
+        self.publish_owned_value_observations(parent, values, contexts, constraints);
+        self.append_completed_qualifications(
+            parent,
+            &[],
+            evaluated.capture.type_reference,
+            evaluated,
+            contexts,
+            constraints,
+        );
         // capture_operand may already have withdrawn source facts invalidated
         // by child effects. Extend that filtered snapshot only with the newly
         // published value facts, never restore the ambient unfiltered prefix.
@@ -275,12 +300,25 @@ impl Execution<'_, '_, '_> {
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
         };
+        // A retained operand can outlive source writes in a later sibling or
+        // pattern. Its immutable completed constraint roster owns this copy;
+        // the caller's current ambient contexts are only the output frontier.
+        let captured_contexts = self
+            .context
+            .contexts
+            .constraint_refs
+            .span_or_empty(evaluated.capture.constraints)
+            .iter()
+            .filter_map(|reference| match reference.kind {
+                FlowConstraintKind::SemanticContext { context } => Some(context),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         let mut references = HandleSpan::empty();
         crate::flow::transfers::append_owned_qualification_transfer(
             self.program,
             self.semantic,
-            self.context,
-            *contexts,
+            &captured_contexts,
             evaluated.capture.expression,
             source,
             destination,

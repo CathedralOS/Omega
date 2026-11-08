@@ -20,6 +20,8 @@ pub struct CheckedCleanupControlPlans {
     pub paths: arena::Arena<CheckedUnitStructuralPathSegment>,
     /// One durable owner for sequence and graph normal completion transactions.
     pub normal_exit_rows: arena::Arena<CheckedNormalExitCleanupPlan>,
+    pub normal_result_completions: arena::Arena<CheckedNormalResultCompletion>,
+    pub normal_result_arms: arena::Arena<CheckedNormalResultArm>,
     pub value_completions: arena::Arena<CheckedValueCompletionPlan>,
     pub actions: arena::Arena<CheckedNormalCleanupAction>,
     pub normal_exit_regions: arena::Arena<super::CheckedUnitStructuralArgumentPlan>,
@@ -71,9 +73,51 @@ impl CheckedCleanupControlPlans {
         &self,
         rows: CheckedNormalExitCleanups,
     ) -> impl Iterator<Item = &CheckedNormalCleanupAction> {
-        self.normal_exits(rows)
-            .iter()
-            .flat_map(|row| self.actions.span_or_empty(row.actions))
+        self.normal_exits(rows).iter().flat_map(|row| {
+            self.actions
+                .span_or_empty(row.actions)
+                .iter()
+                .chain(self.result_actions(row.result_completion))
+        })
+    }
+
+    pub fn result_actions(
+        &self,
+        result: arena::Handle<CheckedNormalResultCompletion>,
+    ) -> impl Iterator<Item = &CheckedNormalCleanupAction> {
+        let mut pending = if result.is_valid() {
+            vec![result]
+        } else {
+            Vec::new()
+        };
+        let mut actions = self
+            .actions
+            .span_or_empty(arena::HandleSpan::empty())
+            .iter();
+        std::iter::from_fn(move || {
+            loop {
+                if let Some(action) = actions.next() {
+                    return Some(action);
+                }
+                match self.normal_result_completions.get(pending.pop()?) {
+                    CheckedNormalResultCompletion::NoNormal { .. } => {}
+                    CheckedNormalResultCompletion::Value {
+                        actions: selected, ..
+                    } => {
+                        actions = self.actions.span_or_empty(*selected).iter();
+                    }
+                    CheckedNormalResultCompletion::Dispatch { arms, .. } => {
+                        pending.extend(
+                            self.normal_result_arms
+                                .span_or_empty(*arms)
+                                .iter()
+                                .rev()
+                                .map(|arm| arm.result),
+                        );
+                    }
+                }
+            }
+        })
     }
 
     pub fn value_completion(
@@ -131,7 +175,9 @@ impl Default for CheckedUnitPartialAffineDiscardPlan {
     fn default() -> Self {
         Self {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency: None,
                 expression: arena::Handle::invalid(),
+                logical_root_type_identity: None,
             },
             path: Vec::new(),
             type_identity: TypeIdentityId::default(),
@@ -389,4 +435,40 @@ pub struct CheckedNormalExitCleanupPlan {
     pub selected_regions: arena::HandleSpan<super::CheckedUnitStructuralArgumentPlan>,
     pub exit: crate::FlowClaimJoinExit,
     pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
+    /// A selected scalar result completes its admitted transaction before the
+    /// private result join. Zero retains the ordinary single-edge actions.
+    pub result_completion: arena::Handle<CheckedNormalResultCompletion>,
+}
+
+/// Source-owned scalar result control with normal disposal at completed leaves.
+/// Subjects, patterns and operand computations remain in their ordinary plans.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedNormalResultCompletion {
+    /// The evaluated prefix remains executable but has no normal disposal edge.
+    NoNormal {
+        computation: crate::CheckedScalarComputationHandle,
+    },
+    Value {
+        computation: crate::CheckedScalarComputationHandle,
+        actions: arena::HandleSpan<CheckedNormalCleanupAction>,
+    },
+    Dispatch {
+        computation: crate::CheckedScalarComputationHandle,
+        arms: arena::HandleSpan<CheckedNormalResultArm>,
+    },
+}
+
+impl Default for CheckedNormalResultCompletion {
+    fn default() -> Self {
+        Self::Value {
+            computation: Default::default(),
+            actions: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedNormalResultArm {
+    pub arm: arena::Handle<crate::CheckedScalarDispatchArm>,
+    pub result: arena::Handle<CheckedNormalResultCompletion>,
 }

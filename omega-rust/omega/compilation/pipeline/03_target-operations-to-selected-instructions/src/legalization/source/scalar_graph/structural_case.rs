@@ -79,7 +79,7 @@ pub(super) fn project(
                 .structural_bindings,
             cleanup_actions: case.cleanup_actions.clone(),
             cleanup_calls: Vec::new(),
-            work: edge.work.clone(),
+            fuel: edge.fuel.clone(),
         });
     }
     Ok(LegalizedScalarTerminator::StructuralCase {

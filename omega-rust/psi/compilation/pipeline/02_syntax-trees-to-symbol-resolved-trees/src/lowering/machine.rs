@@ -325,11 +325,7 @@ fn lower_lexical_machine_parts(
                     matches!(contract.kind, CapabilityContractKind::Ensures)
                         && !contract.facts.is_empty()
                 });
-            if compiler_owned_boundary(lowerer, syntax_trees, machine) {
-                // Its implementation owes the complete declared contract.
-                // Treating this as an axiom would bypass that execution duty.
-                language_semantics::MachineSupplyMode::Boundary
-            } else if authors_fact {
+            if authors_fact {
                 language_semantics::MachineSupplyMode::AdmissionClaim
             } else {
                 language_semantics::MachineSupplyMode::Boundary
@@ -1030,25 +1026,4 @@ fn is_sealed_float_provider_member(
                             relative == std::path::Path::new("float_provider.omg")
                         })
             })
-}
-
-/// Classify exact bundled compiler operations before deciding whether a
-/// bodyless guarantee is an authored admission claim. Typed checking and
-/// execution still validate the signature and discharge its operation duties.
-fn compiler_owned_boundary(
-    lowerer: &Lowerer,
-    syntax: &SyntaxTrees,
-    machine: &syntax::item::Machine,
-) -> bool {
-    lowerer.sources.as_ref()
-        .and_then(|sources| sources.get(machine.name.source_span().source_id))
-        .is_some_and(|file| {
-            file.origin == source::SourceOrigin::Toolchain
-                && file.package_identity.is_none()
-                && file.path.strip_prefix(&file.package_root).ok()
-                    == Some(std::path::Path::new("static_interrupt.omg"))
-                && language_core::static_interrupts::StaticInterruptOperation::from_core_declaration(
-                    machine.name.as_str(syntax), file.source.as_bytes(),
-                ).is_some()
-        })
 }

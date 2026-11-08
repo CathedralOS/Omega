@@ -1,6 +1,3 @@
-// Rederivation and arena-link verification for data-definition invariant facts
-// (`require_rederived_data_definition_facts` and `rechecked_data_definition_evidence`).
-
 use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use facts::FactPlace;
@@ -38,6 +35,7 @@ pub(crate) enum RecheckedSemanticFactPlace {
     TypeReference(typed_trees::types::TypeReferenceHandle),
 }
 
+/// The canonical fact place — retained verbatim.
 pub(crate) type RecheckedFactPlace = validation::CanonicalPlace;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

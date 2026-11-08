@@ -278,6 +278,8 @@ vocabulary! {
         Match = "match",
         /// `saved-subject(depth(<digits>),<index>)`
         SavedSubject = "saved-subject",
+        /// `case-component(<index>)`: the case view of the same saved value.
+        CaseComponent = "case-component",
         /// `static-application(<index>,<argument or lifetime(<text>)>*)`: a
         /// selected declaration with its static operands.
         StaticApplication = "static-application",
@@ -310,10 +312,12 @@ vocabulary! {
     FieldActionForm {
         /// Bare.
         Bind = "bind",
+        BindCase = "bind-case",
         /// `equal(<index>)`
         Equal = "equal",
         /// Bare.
         Waive = "waive",
+        WaiveCase = "waive-case",
     }
 
     /// A fixed child of one production.

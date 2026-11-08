@@ -117,7 +117,7 @@ pub struct OutcomeSpecificCallEvidence {
 }
 
 /// One proof-only consumption of a selected guarded term by an exact direct
-/// tail-state `requires` position. It adds no runtime edge or work unit.
+/// tail-state `requires` position. It adds no runtime edge or fuel unit.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OutcomeSpecificEvidenceUse {
     pub target: MachineId,

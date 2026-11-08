@@ -1,5 +1,4 @@
-// We borrow the common authored dependency-request fields across canonical and
-// declaration request types without cloning locator strings.
+//! Borrow the common authored request fields without cloning hostile strings.
 
 use super::CanonicalDependencySourceRequest;
 use crate::declarations::dependencies::read::DependencySourceRequest;

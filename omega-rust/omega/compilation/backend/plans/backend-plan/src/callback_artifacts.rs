@@ -27,7 +27,12 @@ impl TerminalCallbackThunkArtifact {
     ) -> Result<Self, &'static str> {
         let module = artifact.semantic_module();
         let application = module
-            .callback_application(application_index)
+            .callback_applications
+            .binary_search_by_key(&application_index, |application| {
+                application.application_index
+            })
+            .ok()
+            .map(|position| &module.callback_applications[position])
             .ok_or("Terminal callback thunk has no retained application")?;
         let mut bodies = module.machines.iter().filter(|machine| {
             machine.declaration.as_ref().is_some_and(|declaration| {
@@ -107,18 +112,6 @@ impl TerminalCallbackOccurrenceProposal {
         }
     }
 
-    pub const fn application_index(&self) -> u32 {
-        self.application_index
-    }
-
-    pub const fn boundary_entry_plan(&self) -> &calling_conventions::BoundaryEntryPlan {
-        &self.boundary_entry_plan
-    }
-
-    pub fn entry_parameters(&self) -> &[crate::NativeCallbackEntryParameter] {
-        &self.entry_parameters
-    }
-
     pub const fn placement_index(&self) -> usize {
         self.placement_index
     }
@@ -171,7 +164,10 @@ pub fn validate_callback_thunk_joins(
             return Err("callback thunk must select a body in its caller's Terminal program");
         }
         let application = module
-            .callback_application(occurrence.application_index)
+            .callback_applications
+            .binary_search_by_key(&occurrence.application_index, |row| row.application_index)
+            .ok()
+            .map(|ordinal| &module.callback_applications[ordinal])
             .ok_or("callback thunk has no portable application")?;
         let body = thunk.artifact().semantic_module();
         let declaration = body

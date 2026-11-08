@@ -82,7 +82,7 @@ pub(crate) fn operand_source(
 ) -> Option<SourcePlan> {
     match operand {
         SourcePlan::StructuralLocal { symbol } => source(program, state, operations, *symbol),
-        SourcePlan::StructuralExpression { expression } => {
+        SourcePlan::StructuralExpression { expression, .. } => {
             let mut matching = results.iter().filter(|(binding, root)| {
                 *root == facts::PlaceRoot::Expression(*expression)
                     && operations

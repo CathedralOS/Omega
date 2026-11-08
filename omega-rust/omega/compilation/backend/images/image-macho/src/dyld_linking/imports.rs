@@ -253,7 +253,6 @@ pub(crate) fn install_import_thunks(
             byte_count: thunk_size,
             symbol: symbol.clone(),
             footprint: None,
-            entry_effects: None,
         });
         image.data_regions.push(FinalDataRegion {
             origin: FinalDataRegionOrigin::ImportBindingSlot,

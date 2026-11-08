@@ -1,6 +1,4 @@
-// Internal entry and tree observations (`SourceEntry`, `CapturedLocalTree`,
-// `CapturedLocalEntry`) and capture exclusion policy (`SourceTreePolicy`)
-// produced while traversing a source tree.
+//! Internal observations produced while traversing a source tree.
 
 use std::path::PathBuf;
 
@@ -42,6 +40,8 @@ pub(crate) enum CapturedLocalEntryKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SourceTreePolicy {
-    LocalPackage, // Mutable local package roots omit paths reserved for resolver/compiler output.
-    ExactMaterialized, // Resolver-owned materializations must be hashed exactly as published.
+    /// Mutable local package roots omit paths reserved for resolver or compiler output.
+    LocalPackage,
+    /// Resolver-owned materializations must be hashed exactly as published.
+    ExactMaterialized,
 }

@@ -1,5 +1,4 @@
-// Exact scalar expression recovery sharing Boolean recursion and allocation accounting.
-
+//! Exact scalar nodes share Boolean recursion and allocation accounting.
 use crate::encoding::recovery::policy::structural_expressions::Reader;
 use crate::encoding::recovery::policy::structural_expressions::boolean_expression;
 use crate::encoding::recovery::policy::structural_expressions::primitive_type;

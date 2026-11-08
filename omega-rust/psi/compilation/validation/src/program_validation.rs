@@ -49,7 +49,6 @@ use typed_trees::statement::StatementNode;
 
 mod completion_results;
 mod contract_queries;
-mod declaration_prologue;
 mod dependency_bodies;
 mod statements;
 pub use contract_queries::{
@@ -325,35 +324,224 @@ fn validate<'program>(
     let mut boundary_operator_applications = Vec::new();
     let mut arithmetic_decisions = arithmetic_domains::ArithmeticDecisions::default();
     let mut stored_integer_writes = Vec::new();
-    // The declaration validators before the machine pool; see
-    // `declaration_prologue` for when they run at once and when in order.
-    let prologue = declaration_prologue::PrologueInputs::build(
+    callable_overloads::validate_named_callable_overload_declarations(program, &mut diagnostics);
+    float_projection_bindings::validate_float_projection_operator_bindings(
         program,
-        effect_admission,
-        quotient_admission,
-        opaque_properties,
+        &mut diagnostics,
     );
-    let declaration_prologue::PrologueResults {
+    for machine in program.machines() {
+        if typed_trees::float_providers::is_catalog_declaration(program.typed_program(), machine)
+            && let Err(reason) = typed_trees::float_providers::authenticate_intrinsic_member(
+                program.typed_program(),
+                machine,
+            )
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "float provider member `{}` is not authenticated: {reason}",
+                machine.name,
+            )));
+        }
+    }
+    crate::value_custody::atomic_fences::validate_atomic_fence_declarations(
+        program,
+        &mut diagnostics,
+    );
+    let symbols = TopLevelSymbols::build(program, &mut diagnostics);
+    standard_declarations::validate_calling_vocabulary_uniqueness(program, &mut diagnostics);
+    let fact_plan = build_definition_fact_plan(program);
+
+    declaration_visibility::collect_declaration_visibility_diagnostics(program, &mut diagnostics);
+    cleanup::collect_reserved_cleanup_selection_diagnostics(program, &mut diagnostics);
+    validate_proposition_definitions(program, &mut diagnostics);
+    {
+        proposition_entailment::validate_proposition_entailment(program, &mut diagnostics);
+    };
+
+    {
+        literals::validate_suffix_landings(program, &mut diagnostics);
+        literals::validate_suffix_magnitudes(program, &mut diagnostics);
+        // Abstract calls consume the same scoped content formation that later
+        // fact construction uses. Keep its diagnostic-producing owner first.
+        content_projections::validate_content_projection_conformances(
+            program,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
+        validate_domain_definitions(
+            program,
+            &symbols,
+            &fact_plan,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        validate_callable_state_signatures(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        write_only_borrows::validate_checked_write_only_slice(program, &mut diagnostics);
+        arithmetic_domains::validate_abstract_total_specification_arithmetic(
+            program,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        cleanup::validate_cleanup_machine_declarations(program, &mut diagnostics);
+        validate_trait_requirements(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        for trait_definition in program.traits() {
+            validate_trait_conformance_bounds(
+                program,
+                trait_definition,
+                &symbols,
+                &mut diagnostics,
+                &mut formation_obligations,
+            );
+        }
+        qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
+    };
+    let (conformance_operational, conformance_service_reaches) = {
+        let conformance_operational = infer_operational_may(program);
+        let conformance_service_reaches = infer_service_reaches(program, &conformance_operational);
+        (conformance_operational, conformance_service_reaches)
+    };
+    if effect_admission == EffectAdmission::Complete {
+        {
+            validate_conformances(
+                program,
+                &conformance_service_reaches,
+                &symbols,
+                &mut diagnostics,
+                &mut formation_obligations,
+            );
+            if let Err(mut dynamic_diagnostics) = collect_dynamic_implementation_selections(program)
+            {
+                diagnostics.append(&mut dynamic_diagnostics);
+            }
+        };
+    }
+    let (
+        proof_only,
         integer_embedding_calls,
         quotient_formations,
         fact_call_projections,
         specification_calls,
-        proof_recursive_components,
-        struct_literals: literals,
-    } = declaration_prologue::run(&prologue, &mut diagnostics, &mut formation_obligations);
-    if let Some(literals) = literals {
-        stored_integer_writes.extend(literals.stored_integer_writes);
-        pending_construction_predicates.extend(literals.pending_predicates);
-    }
-    let declaration_prologue::PrologueInputs {
-        symbols,
-        conformance_operational,
-        conformance_service_reaches,
-        proof_only,
-        call_frames,
-        ..
-    } = prologue;
+    ) = {
+        crate::declarations::type_aliases::validate(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        validate_data_field_types(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        plan_laid::validate_plans(program, &mut diagnostics);
+        access_views::validate_plans(program, &mut diagnostics);
+        relevance::validate_relevance(program, &mut diagnostics);
+        // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
+        // spelled); every runtime consumption face refuses with the
+        // classification named.
+        let proof_only = crate::proof_only_classification(program);
+        proof_embeddings::validate_proof_embeddings(program, &proof_only, &mut diagnostics);
+        let integer_embedding_calls = if effect_admission == EffectAdmission::Complete {
+            proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics)
+        } else {
+            Vec::new()
+        };
+        let quotient_formations = quotients::validate_quotients(
+            program,
+            &proof_only,
+            quotient_admission,
+            &mut diagnostics,
+        );
+        let fact_call_projections = if effect_admission == EffectAdmission::Complete {
+            fact_call_projections::validate_fact_call_projections(
+                program,
+                &conformance_operational,
+                &conformance_service_reaches,
+                &mut diagnostics,
+            )
+        } else {
+            Vec::new()
+        };
+        let specification_calls = if effect_admission == EffectAdmission::Complete {
+            crate::machine_calls::denotational_calls::validate_specification_calls(
+                program,
+                &conformance_operational,
+                &conformance_service_reaches,
+                &mut diagnostics,
+            )
+        } else {
+            Vec::new()
+        };
+        proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
+        (
+            proof_only,
+            integer_embedding_calls,
+            quotient_formations,
+            fact_call_projections,
+            specification_calls,
+        )
+    };
+    // Chapter 3 / MR4: runtime call cycles require the constant-stack tail
+    // admission; erased proof-only SCCs instead require strict structural descent.
     let mut self_call_descents = Vec::new();
+    let proof_recursive_components = {
+        let components = call_cycles::validate_machine_call_cycles(program, &mut diagnostics);
+        let (opaque_property_receipts, allow_pending_opaque_copy) = match opaque_properties {
+            OpaquePropertyValidation::Required(receipts) => (receipts, false),
+            OpaquePropertyValidation::PendingBuildSelection => (&[][..], true),
+        };
+        properties::validate_data_properties(
+            program,
+            opaque_property_receipts,
+            allow_pending_opaque_copy,
+            &mut diagnostics,
+        );
+        components
+    };
+    let call_frames = calls::CallFrameResolver::new(program);
+    {
+        {
+            constants::validate_constants(program, &mut diagnostics);
+        };
+        // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
+        // before membership lowering synthesizes its internal tag compares; see
+        // 03_symbol-resolved-trees-to-typed-trees/src/equality.rs.
+        {
+            let literals = struct_literals::validate_struct_literal_fields(
+                program,
+                &mut diagnostics,
+                &mut formation_obligations,
+            );
+            stored_integer_writes.extend(literals.stored_integer_writes);
+            pending_construction_predicates.extend(literals.pending_predicates);
+        };
+        // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
+        // law on the parse-minted `__destructure#*` marker.
+        {
+            destructure::validate_destructure_exhaustiveness(program, &mut diagnostics);
+        };
+    };
+    {
+        recasts::validate_recasts(program, call_frames.as_ref(), &mut diagnostics);
+        wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
+        operators::validate_operator_declarations(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+    };
     let mut static_machine_selections =
         machine_parameters::PreparedStaticMachineSelections::default();
     let formation_diagnostic_start = diagnostics.len();

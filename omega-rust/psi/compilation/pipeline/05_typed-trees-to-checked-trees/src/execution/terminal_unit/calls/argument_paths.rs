@@ -522,6 +522,30 @@ pub(crate) fn projected_selected_path(
     )
 }
 
+/// Physical crossings before a projection enters a stored root's contents.
+/// A parameter's referent presentation is a different coordinate and does not
+/// call this operation. The caller retains its own access and endpoint debt.
+pub(crate) fn stored_reference_prefix(
+    program: &dyn ::validation::CheckingInput,
+    mut reference: TypeReferenceHandle,
+    mut can_cross: impl FnMut(ReferenceAccess) -> bool,
+) -> Option<Vec<PathSegment>> {
+    let mut prefix = Vec::new();
+    let mut remaining = program.type_reference_table.type_reference_count();
+    while let Some(shell) = reference_shell(program, reference) {
+        if !can_cross(shell.access) {
+            return None;
+        }
+        if !stores_reference_shape(program, reference, &[]) {
+            break;
+        }
+        remaining = remaining.checked_sub(1)?;
+        prefix.push(PathSegment::Referent);
+        reference = shell.referee;
+    }
+    Some(prefix)
+}
+
 /// `projected_selected_path` for a case observation, which reads the case
 /// value's storage rather than a descriptor. A retained local descriptor is
 /// crossed here; a borrowed parameter already denotes its referee's storage.
@@ -548,23 +572,30 @@ pub(crate) fn projected_observed_path(
         place,
         local_selector,
     )?;
-    if let PlaceRoot::Symbol(root) = place.root
-        && let Some(state) = program.state_by_symbol(state_symbol)
-        && let Some((ordinal, local)) = program.state_local_declaration(state, root)
-        && ordinal < statement_index
-    {
-        let mut reference = local.type_reference;
-        let mut crossings = Vec::new();
-        while let Some(shell) = reference_shell(program, reference) {
-            if shell.access == ReferenceAccess::WriteOnly {
-                return None;
-            }
-            if !stores_reference_shape(program, reference, &[]) {
-                break;
-            }
-            crossings.push(PathSegment::Referent);
-            reference = shell.referee;
-        }
+    // Locals and completed values own stored descriptors. Parameters already
+    // denote their supplied backing and keep the existing root presentation.
+    // This is geometry only; the consumer still requires the completed home
+    // and its exact read permission before executing the observation.
+    let stored_root = match place.root {
+        PlaceRoot::Symbol(root) => program
+            .state_by_symbol(state_symbol)
+            .and_then(|state| program.state_local_declaration(state, root))
+            .filter(|(ordinal, _)| *ordinal < statement_index)
+            .map(|(_, local)| local.type_reference),
+        PlaceRoot::Expression(_) => Some(canonical_place_type_reference(
+            program,
+            state_symbol,
+            statement_index,
+            &CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        )?),
+        _ => None,
+    };
+    if let Some(reference) = stored_root {
+        let mut crossings =
+            stored_reference_prefix(program, reference, |access| access.is_readable())?;
         crossings.append(&mut path);
         path = crossings;
     }

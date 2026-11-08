@@ -6,7 +6,9 @@
 use super::place_paths_overlap;
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::published::places::place_at;
-use checked_trees::{FlowOwnedSelectionReceipt, FlowOwnershipFacts, FlowPermissionEventFact};
+use checked_trees::{
+    CheckFacts, FlowOwnedSelectionReceipt, FlowOwnershipFacts, FlowPermissionEventFact,
+};
 use diagnostics::Diagnostic;
 use language_semantics::{Multiplicity, PermissionAccess, PermissionEventKind};
 use validation::CanonicalPlace;
@@ -82,7 +84,7 @@ impl SelectionOccurrences {
     pub(in crate::checks::multiplicity) fn check_statement(
         &self,
         program: &dyn validation::CheckingInput,
-        facts: checked_trees::CheckFactsRef<'_>,
+        facts: &CheckFacts,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statement_index: usize,
@@ -98,7 +100,7 @@ impl SelectionOccurrences {
             statement_index,
             statement,
             &[],
-            facts.operators,
+            &facts.operators,
         ) {
             if let crate::checks::ownership_occurrences::StatementStep::Observe { place, .. } =
                 occurrence.step

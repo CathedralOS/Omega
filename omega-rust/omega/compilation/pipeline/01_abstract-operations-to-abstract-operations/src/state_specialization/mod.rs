@@ -14,7 +14,7 @@
 //! resolved arm's block with its scalar bindings composed through the edge's
 //! own bindings, and the fused edge carries both source edges' custody —
 //! its own `PsiProvenance::Edge` first, then the resolved arm's — with one
-//! paired work settlement each. The incoming edge is either an unconditional
+//! paired fuel settlement each. The incoming edge is either an unconditional
 //! `Jump` successor or one arm of a `Conditional` predecessor; a fused
 //! conditional arm leaves its sibling arm byte-exact. The dispatch state and
 //! both of its arm edges remain for every other incoming edge, so no source

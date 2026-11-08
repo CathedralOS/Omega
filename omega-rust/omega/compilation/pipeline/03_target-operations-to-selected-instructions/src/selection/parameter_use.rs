@@ -51,9 +51,6 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 | LegalizedScalarInstructionKind::EstablishAccessReference { source, .. } => source.place == place,
                 LegalizedScalarInstructionKind::AtomicAccess { location, .. }
                 | LegalizedScalarInstructionKind::AccessorScalarAccess { location, .. } => location.place == place,
-                LegalizedScalarInstructionKind::StaticInterrupt { token, .. } => token.place == place,
-                LegalizedScalarInstructionKind::InstallStaticInterrupt { arguments, .. } =>
-                    arguments.iter().any(|argument| argument.place == place),
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
                 LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => left.source() == place || right.source() == place,
                 LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => operand.source() == place,

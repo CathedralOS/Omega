@@ -147,6 +147,7 @@ pub enum ProductExpressionKind {
         arms: HandleSpan<ProductMatchArm>,
     },
     SavedSubject {
+        component: language_core::PatternComponent,
         capture: Handle<ProductMatchSubject>,
         pattern_head: Handle<ProductOperandExpression>,
     },
@@ -277,6 +278,7 @@ pub enum ProductMatchPattern {
 }
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductMatchField {
+    pub component: language_core::PatternComponent,
     pub member: Handle<ProductOperandName>,
     pub action: ProductMatchFieldAction,
 }

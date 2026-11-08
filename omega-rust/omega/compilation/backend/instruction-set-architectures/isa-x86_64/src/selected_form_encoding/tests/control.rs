@@ -224,7 +224,7 @@ fn short_nonzero_branch_validation_rejects_every_noncanonical_form() {
 #[test]
 fn near_u64_less_than_branch_is_exact_jb_rel32_with_flag_control_effects() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let condition_flags = physical.model().view_named("condition_flags").unwrap();
+    let rflags = physical.model().view_named("rflags").unwrap();
     let rip = physical.model().view_named("rip").unwrap();
     let alternative = alternative(Family::ConditionalBranchU64LessThan, 0);
     for displacement in [i64::from(i32::MIN), -6, 0, 6, i64::from(i32::MAX)] {
@@ -242,7 +242,7 @@ fn near_u64_less_than_branch_is_exact_jb_rel32_with_flag_control_effects() {
             encoded.footprint().encoded.control,
             MachineEncodedControlEffect::ConditionalRelativeBranchV1
         );
-        assert!(condition_flags.units.iter().all(|unit| {
+        assert!(rflags.units.iter().all(|unit| {
             encoded
                 .footprint()
                 .encoded

@@ -1,6 +1,4 @@
-// Construction (`InvalidOptimizationManifestRecord`) and wire decoding
-// (`OptimizationManifestDecodeError`) errors shared across decision and pass
-// manifest records.
+//! Construction and decoding failures shared by manifest record families.
 
 use crate::CoreContractDecodeError;
 

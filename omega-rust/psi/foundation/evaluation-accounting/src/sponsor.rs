@@ -2,7 +2,7 @@
 
 //! Compiler-owned aggregate accounting for one build-evaluation session.
 //!
-//! This account measures deterministic evaluator work, retained BuildLog
+//! This account measures deterministic evaluator fuel, retained BuildLog
 //! bytes, canonical filesystem operation attempts, concurrently reserved
 //! filesystem handles, logical storage cells, owned backing payload bytes,
 //! and result custody. Its immutable measurement identity defines the units.
@@ -20,7 +20,7 @@ pub const BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION: u32 = 7;
 /// Immutable limits for one shared build-evaluation resource account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct BuildEvaluationSponsorLimits {
-    work_budget: u64,
+    maximum_fuel_units: u64,
     maximum_build_log_bytes: u64,
     maximum_filesystem_operation_attempts: u64,
     maximum_live_filesystem_handles: u64,
@@ -33,7 +33,7 @@ pub struct BuildEvaluationSponsorLimits {
 impl BuildEvaluationSponsorLimits {
     /// Construct the version-7 limit schema.
     pub const fn new(
-        work_budget: u64,
+        maximum_fuel_units: u64,
         maximum_build_log_bytes: u64,
         maximum_filesystem_operation_attempts: u64,
         maximum_live_filesystem_handles: u64,
@@ -42,7 +42,7 @@ impl BuildEvaluationSponsorLimits {
         maximum_result_storage_cells: u64,
         maximum_result_payload_bytes: u64,
     ) -> Option<Self> {
-        if work_budget == 0
+        if maximum_fuel_units == 0
             || maximum_build_log_bytes == 0
             || maximum_filesystem_operation_attempts == 0
             || maximum_live_filesystem_handles == 0
@@ -54,7 +54,7 @@ impl BuildEvaluationSponsorLimits {
             return None;
         }
         Some(Self {
-            work_budget,
+            maximum_fuel_units,
             maximum_build_log_bytes,
             maximum_filesystem_operation_attempts,
             maximum_live_filesystem_handles,
@@ -69,8 +69,8 @@ impl BuildEvaluationSponsorLimits {
         BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION
     }
 
-    pub const fn work_budget(self) -> u64 {
-        self.work_budget
+    pub const fn maximum_fuel_units(self) -> u64 {
+        self.maximum_fuel_units
     }
 
     /// Aggregate bytes emitted through the compiler-owned BuildLog facet.
@@ -140,7 +140,7 @@ pub(super) struct BuildEvaluationSponsorAccount {
 
 #[derive(Debug, Default)]
 pub(super) struct BuildEvaluationSponsorConsumption {
-    pub(super) work_units: u64,
+    pub(super) fuel_units: u64,
     pub(super) build_log_bytes: u64,
     pub(super) filesystem_operation_attempts: u64,
     pub(super) live_filesystem_handles: u64,
@@ -156,7 +156,7 @@ pub(super) struct BuildEvaluationSponsorConsumption {
 /// Cloneable compiler-side authority for one aggregate resource account.
 ///
 /// Every clone refers to the same atomically synchronized account. Evaluated
-/// Omega code cannot inspect this Rust object or its remaining budget.
+/// Omega code cannot inspect this Rust object or its remaining allowance.
 #[derive(Debug, Clone)]
 pub struct BuildEvaluationSponsor {
     pub(super) account: Arc<BuildEvaluationSponsorAccount>,
@@ -173,7 +173,7 @@ impl BuildEvaluationSponsor {
         }
     }
 
-    /// Create an account with explicit engine units. Numeric work markers alone
+    /// Create an account with explicit engine units. Numeric fuel markers alone
     /// never identify storage units. Legacy `new` always selects CheckedTree.
     pub fn new_with_measurement(
         limits: BuildEvaluationSponsorLimits,
@@ -215,8 +215,8 @@ impl BuildEvaluationSponsor {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    pub fn consumed_work_units(&self) -> u64 {
-        self.consumption().work_units
+    pub fn consumed_fuel_units(&self) -> u64 {
+        self.consumption().fuel_units
     }
 
     pub fn live_filesystem_handles(&self) -> u64 {
@@ -253,18 +253,18 @@ impl BuildEvaluationSponsor {
 
     /// Charge one historical checked-tree site. The caller owns site issuance
     /// and order; this counter does not establish a semantic receipt ledger.
-    pub fn charge_work_unit(&self) -> Result<(), String> {
+    pub fn charge_fuel_unit(&self) -> Result<(), String> {
         self.require_checked_tree()?;
-        let maximum = self.account.limits.work_budget();
+        let maximum = self.account.limits.maximum_fuel_units();
         let mut consumed = self.account.consumed.lock().map_err(|_| {
-            "build-evaluation aggregate work sponsor account is unavailable".to_owned()
+            "build-evaluation aggregate fuel sponsor account is unavailable".to_owned()
         })?;
-        if consumed.work_units >= maximum {
+        if consumed.fuel_units >= maximum {
             return Err(format!(
-                "build-evaluation aggregate work sponsor exhausted at {maximum} work units"
+                "build-evaluation aggregate fuel sponsor exhausted at {maximum} fuel units"
             ));
         }
-        consumed.work_units += 1;
+        consumed.fuel_units += 1;
         Ok(())
     }
 

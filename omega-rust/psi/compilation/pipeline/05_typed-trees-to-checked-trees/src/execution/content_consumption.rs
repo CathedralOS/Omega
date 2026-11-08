@@ -97,7 +97,11 @@ pub(crate) fn attach(
                         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
                     }
                     facts::PlaceRoot::Expression(expression) => {
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                            value_dependency: None,
+                            expression,
+                            logical_root_type_identity: None,
+                        }
                     }
                     _ => return Err(error("parent has no executable owned source")),
                 };

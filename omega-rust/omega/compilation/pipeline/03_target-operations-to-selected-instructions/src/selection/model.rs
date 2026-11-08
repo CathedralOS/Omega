@@ -30,7 +30,7 @@ pub struct SelectedInstructionValidationReceipt {
     pub(super) legalized: LegalizedOperationPlanIdentity,
     pub(super) legalization_validator: OptimizationValidatorIdentity,
     pub(super) optimization_unit: optimization_core::OptimizationUnitIdentity,
-    pub(super) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+    pub(super) fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
     pub(super) function_count: usize,
     pub(super) block_count: usize,
     pub(super) virtual_register_count: usize,
@@ -54,8 +54,8 @@ impl SelectedInstructionValidationReceipt {
         self.optimization_unit
     }
 
-    pub const fn work_schedule(self) -> semantic_vocabulary::WorkScheduleIdentity {
-        self.work_schedule
+    pub const fn fuel_schedule(self) -> semantic_vocabulary::FuelScheduleIdentity {
+        self.fuel_schedule
     }
 
     pub const fn function_count(self) -> usize {

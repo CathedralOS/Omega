@@ -111,7 +111,7 @@ pub(super) fn establish(
         owner,
         length,
         SelectedInstructionProvenance {
-            work: row.work.clone(),
+            fuel: row.fuel.clone(),
             ..evidence
         },
     )?;

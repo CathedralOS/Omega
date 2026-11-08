@@ -1,8 +1,9 @@
-/*
-Canonical package-review framing and semantic row encoding.
-
-We coordinate deterministic binary and text emission for the package policy baseline, component policies, and receipt-free review rows (`policy_rows`). Subordinate evidence-family encoders live under `values` and `declarations` so every persistence product shares one canonical field ordering and resource budget.
-*/
+//! Canonical package-review framing and semantic row encoding.
+//!
+//! `policy_rows` projects the receipt-free review rows the public persistence
+//! products carry. `values` contains their subordinate evidence-family
+//! encoders; it is deliberately a child of this owner rather than a peer
+//! persistence domain.
 
 mod baseline;
 mod callable_policy;
@@ -48,6 +49,9 @@ pub(super) fn type_identity(
 }
 
 impl crate::record::PackageReviewCallableContract {
+    /// Use the ordinary bounded semantic encoder for readable assumed-link
+    /// differences. Diagnostic spellings cannot omit proof clauses or choose
+    /// acceptance equality.
     pub(crate) fn canonical_set_text(
         contracts: &[Self],
     ) -> Result<String, PackageReviewEncodingError> {

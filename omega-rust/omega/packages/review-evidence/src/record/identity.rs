@@ -1,16 +1,8 @@
-// Nominal declaration identity, toolchain source digests, and semantic
-// dependency exposure vocabulary.
-//
-// `write_framed_identity` formats length-prefixed semantic identities
-// (`len:label`) independent of source capture or persistence envelopes.
-// `PackageReviewNominalOwner::Unresolved` surfaces any nominal reference that
-// checked lowering retained without an authored source owner or mandatory
-// compiler derivation origin so admission rejects it; `validate_resolved`
-// enforces non-empty path + resolved owner across all record families.
-
 use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 
+/// One shared length-prefixed semantic identity framing, independent of source
+/// capture and persistence envelopes. The caller chooses the storage strategy.
 pub(crate) fn write_framed_identity<'a>(
     writer: &mut impl std::fmt::Write,
     label: &str,
@@ -35,7 +27,13 @@ impl PackageReviewToolchainSourceIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewNominalOwner {
     Package(PackageKeyIdentity),
+    /// Exact authored toolchain source coordinate and bytes. This binds the
+    /// nominal declaration but is not the whole compiler/toolchain commitment
+    /// required by sealed admission.
     ToolchainSource(PackageReviewToolchainSourceIdentity),
+    /// Checked lowering retained a nominal reference without an authored
+    /// source owner or mandatory compiler derivation origin. Review surfaces
+    /// it explicitly; admission must reject it.
     Unresolved,
 }
 
@@ -52,6 +50,10 @@ impl PackageReviewNominalIdentity {
         &self.path
     }
 
+    /// Review evidence accepts a nominal identity only when it names a path
+    /// and an exact owner: absence is the `Unresolved` owner, never merely an
+    /// empty path. Every record family consumes this one predicate instead of
+    /// restating it.
     pub(crate) fn validate_resolved(&self) -> Result<(), &'static str> {
         if self.path.is_empty() || self.owner == PackageReviewNominalOwner::Unresolved {
             Err("nominal identity is empty or unresolved")

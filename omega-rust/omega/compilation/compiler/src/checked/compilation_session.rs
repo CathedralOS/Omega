@@ -1,23 +1,16 @@
-/*
-We hold invocation-scoped reusable source preparations, Pure Build judgments,
-retained Checked Psi checkpoints, and compiled independent-component products in
-`CompilationSession`.
-
-Application Build schedules package occurrences, supplies their custody and
-consent, and steps admitted Build activations. Callers never move parser
-frontiers, checker snapshots, or completed Pure Build values between calls;
-`CompilationSession` retains them across review rounds and target requests and
-drops them when the invocation finishes.
-*/
-
-/*
-Reuse conveys no authority: source custody, declaration selection, restricted
-consent, staging, and sponsor charges still pass through each request. Psi
-matches complete preparation inputs before taking a prior judgment, and
-`retain_component_product` compares the entire `IndependentComponentProduct`
-(including its native realization proposal), never deduplicating by component
-description alone.
-*/
+//! One compiler invocation owns reusable source and language judgments.
+//!
+//! Application Build schedules package occurrences and supplies their custody
+//! and consent, and steps admitted Build activations. The compiler retains source
+//! continuations for Product preparation. Callers never move parser
+//! frontiers, checker snapshots or completed Pure Build values between calls.
+//! This owner keeps them across review rounds and target requests, and drops
+//! them with the invocation.
+//!
+//! Reuse conveys no authority: source custody, declaration selection, restricted
+//! consent, staging and sponsor charges still pass through each request. Psi
+//! matches complete preparation inputs before taking a prior judgment; Build's
+//! pure-value owner independently requires exact inputs and fresh logical charge.
 
 use super::checking::compile_thread::run_on_compile_thread;
 use super::checking::{
@@ -52,6 +45,9 @@ struct PreparedSource {
 }
 
 impl CompilationSession {
+    /// Keep complete immutable component outputs in this invocation. Equal
+    /// descriptions alone cannot deduplicate products with different native
+    /// proposals; the whole product participates in this comparison.
     pub(super) fn retain_component_product(
         &mut self,
         product: compilation_products::IndependentComponentProduct,
@@ -74,6 +70,8 @@ impl CompilationSession {
         }
     }
 
+    /// Admit source and prepare its Build without executing it. The application
+    /// owns activation stepping; source storage remains with this opaque request.
     pub fn begin_source_compilation(
         &mut self,
         request: CheckedCompileRequest,
@@ -99,6 +97,8 @@ impl CompilationSession {
         })
     }
 
+    /// Finish a diagnostic request after the exact Build has returned. Target
+    /// settlement failure retains the Build's independent-component observations.
     pub fn complete_source_check(
         &mut self,
         source: SourceCompilation,
@@ -113,6 +113,8 @@ impl CompilationSession {
         .unwrap_or_else(|failure| refusal(failure).finish_check())
     }
 
+    /// Produce a requested artifact or inspection from its completed source
+    /// invocation. No execution, source reacquisition or Build replay occurs here.
     pub fn complete_source_product(
         &mut self,
         source: SourceCompilation,
@@ -163,6 +165,8 @@ impl CompilationSession {
         outcome
     }
 
+    /// Admit a dependency Build while retaining its pending Product source.
+    /// Execution proceeds independently before completion rejoins this session.
     pub(super) fn begin_build(
         &mut self,
         request: CheckedCompileRequest,
@@ -198,6 +202,8 @@ impl CompilationSession {
         &mut self,
         request: &CheckedCompileRequest,
     ) -> Result<PreparedCheckedSource, CompileFailure> {
+        // Bad target requests must fail before source acquisition, including a
+        // request whose source happens to have been prepared by an earlier call.
         if let Some(name) = request.target_name.as_deref() {
             target::TargetProfile::from_omega_target_name(Some(name))
                 .map_err(|diagnostic| vec![diagnostic])?;
@@ -221,6 +227,8 @@ impl CompilationSession {
         capture: Option<&package_compilation::CapturedLocalSource>,
         collect_timings: bool,
     ) -> Result<PreparedCheckedSource, CompileFailure> {
+        // Acquisition precedes lookup and consumes no compiler coordinates.
+        // Passing this same capture into assembly avoids a second snapshot.
         let acquired = if inputs.is_none() && capture.is_none() {
             Some(package_compilation::capture_anonymous_compilation_source(
                 root_path,
@@ -262,6 +270,8 @@ impl CompilationSession {
         Ok(source)
     }
 
+    /// Prepare the shared source prefix once; the caller executes its Build
+    /// before any target consumes the completed source judgment.
     pub(crate) fn prepare_shared_source(
         &mut self,
         shared: &compilation_products::compile_request::SharedCompileInputs,
@@ -313,6 +323,7 @@ fn retain_judgment(
         .iter_mut()
         .find(|retained| retained.same_judgment(check))
     {
+        // Exact reuse rejoins authority in this invocation; keep that current provenance.
         *retained = check.clone();
     } else {
         checks.push(check.clone());

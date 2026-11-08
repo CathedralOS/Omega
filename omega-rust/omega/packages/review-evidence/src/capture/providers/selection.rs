@@ -1,5 +1,3 @@
-// Selected-provider declaration ownership verification against expected package or toolchain custody.
-
 use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;

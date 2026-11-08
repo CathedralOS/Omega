@@ -1,18 +1,10 @@
-/*
-Project, dependency, and log host requests from an admitted Terminal Build.
-
-Source production authenticates protocol declarations and exact call sites, and
-each activation authenticates its original compiler-issued `Build` receiver (or
-projected `Build.log` facet) before accepting guest arguments. We validate all
-borrowed UTF-8, identifier, and workspace-member-path inputs before reserving
-accounting storage or copying request payloads.
-
-The coordinator drains `IssuedBuildRequest` items between execution steps to
-start dependency work while owning the final role, alias, and dependency join.
-Draining requests does not release payload accounting: each `IssuedBuildRequest`
-carries its own storage lease, and `BuildLog` retains its line leases until
-normal-return settlement charges result custody and publishes the log bytes.
-*/
+//! Receive evaluated host requests from one admitted Terminal Build.
+//!
+//! The producer authenticates protocol declarations and exact call sites; the
+//! activation authenticates its original receiver. Arguments are ordinary guest
+//! values. The coordinator drains requests between execution steps, starts
+//! dependency work, and owns the final role/alias/dependency join. Draining does
+//! not release payload accounting: each request carries its reservation.
 
 use build_declarations::{
     BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName, WorkspaceMemberPath,
@@ -47,10 +39,12 @@ pub struct TerminalBuildRequestHost {
     original_log: Option<TerminalStructuralValue>,
 }
 
+/// Actual output of the activation's log adapter. Its live reservations remain
+/// attached until normal-return settlement publishes the retained bytes.
 #[derive(Default)]
 pub(crate) struct BuildLog {
     bytes: Vec<u8>,
-    storage: Vec<EvaluationStorageLease>, // Retained until normal-return settlement publishes `bytes`.
+    storage: Vec<EvaluationStorageLease>,
 }
 
 impl BuildLog {
@@ -112,6 +106,8 @@ impl TerminalBuildRequestHost {
     }
 }
 
+/// The admitted entry is the compiler's Build shape. Project the exact catalog
+/// field into its original backing; a same-typed guest value is not that facet.
 pub(crate) fn build_facet(
     artifact: terminal_codec::TerminalExecutionView<'_>,
     original: &TerminalStructuralValue,
@@ -283,6 +279,8 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 _ => Err(refuse("Build request flag is not Boolean")),
             }
         };
+        // Validate borrowed inputs before reserving or copying. The source's
+        // ordinary helper already decomposed Path/Git and package selection.
         match call.action {
             Operation::Package | Operation::Application => name(text(1)?)?,
             Operation::Member if !WorkspaceMemberPath::is_valid(text(1)?) => {

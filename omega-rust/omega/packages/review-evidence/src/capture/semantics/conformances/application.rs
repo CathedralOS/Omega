@@ -1,12 +1,3 @@
-/*
-We project selected conformance applications into canonical review identities.
-
-Only synthesized type nodes belong to the checking projection; facts, selected
-applications, and source custody stay borrowed from the checked compilation.
-Source lifetime spellings are retained for the checked closure comparison while
-their ordinal projection applies the scoped mapping exactly once.
-*/
-
 use super::projected_application::ProjectedSelectedConformanceApplication;
 use crate::capture::EvidenceOption;
 use crate::capture::SourceDeclarationInput;
@@ -203,6 +194,8 @@ pub(crate) fn project_selected_conformance_application(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    // Only synthesized type nodes belong to projection. Keep facts, selected
+    // applications, and source custody borrowed from the checked compilation.
     let mut instantiated = CheckingProjection::new(compilation.checking_input);
     let mut substitutions = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(supplied) {
@@ -235,6 +228,10 @@ pub(crate) fn project_selected_conformance_application(
                 .clone()
         }),
     ));
+    // Keep these source spellings for the checked closure comparison below.
+    // Their ordinal projection applies the scoped mapping exactly once; the
+    // already-normalized declaration substitution targets above do not pass
+    // through that mapping again.
     let selected_trait_lifetimes = declaration
         .trait_lifetime_arguments
         .iter()

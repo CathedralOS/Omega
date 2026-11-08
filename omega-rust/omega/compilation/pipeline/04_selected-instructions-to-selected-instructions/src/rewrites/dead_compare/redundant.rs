@@ -74,7 +74,7 @@ use selected_instructions::{
     RedundantCompareIdentity, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::remove_redundant_compare;
 pub(crate) use validation::measured_steps;

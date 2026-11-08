@@ -35,7 +35,7 @@ pub(super) fn validate_exact_ranked_cycles(
 
 /// Opaque authority to use the contained SCC topology for optimizer analysis.
 ///
-/// This grants no Terminal execution, rewrite, interpretation, fixed-work,
+/// This grants no Terminal execution, rewrite, interpretation, fixed-fuel,
 /// native-lowering, or publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedOptimizerCycleComponents {

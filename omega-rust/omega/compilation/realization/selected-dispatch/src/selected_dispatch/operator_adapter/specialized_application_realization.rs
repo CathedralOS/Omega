@@ -1,13 +1,9 @@
-// D29 closed generic checked-body realization joins.
-//
-// A checked use owns demand, ProviderPlan settlement owns selection, and
-// authoritative machine specialization owns the concrete realization; this
-// module rejoins those three compiler-private facts without issuing Terminal,
-// native, admission, or universal generic-family coverage.
-//
-// derive_checked_specialized_operator_application_realizations rejoins nonempty
-// demands in the caller's executable population to one exact selected
-// specialized checked body, leaving all other checked demands untouched.
+//! D29 closed generic checked-body realization joins.
+//!
+//! A checked use owns demand, ProviderPlan settlement owns selection, and
+//! authoritative machine specialization owns the concrete realization. This
+//! module rejoins those three compiler-private facts without issuing Terminal,
+//! native, admission, or universal generic-family coverage.
 
 use super::{
     CheckedOperatorAuthoredUseKind, exact_operator_definition, exact_realization_contract,
@@ -22,6 +18,8 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
+/// One nonempty closed operator application whose selected realization is an
+/// authoritative specialization of a checked generic Omega body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedSpecializedOperatorApplicationRealization {
     pub application_site: CheckedBoundaryOperatorApplicationUseSite,
@@ -39,6 +37,9 @@ pub struct CheckedSpecializedOperatorApplicationRealization {
     pub realization_contract_commitment: checked_trees::MachineContractCommitment,
 }
 
+/// Rejoin nonempty demands in the caller's executable population to one exact
+/// selected specialized checked body. All other checked demands remain in the
+/// program; retention alone does not request a physical realization.
 pub fn derive_checked_specialized_operator_application_realizations<'application>(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,

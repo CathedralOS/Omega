@@ -25,6 +25,48 @@ pub fn unit_statement_call_is_admitted(
     {
         return true;
     }
+    let Some((position, terminal_arm)) = statement_occurrence(program, state, expression) else {
+        return false;
+    };
+    if terminal_arm {
+        // The selected result completes this caller. Match subjects, patterns
+        // and call arguments still have ordinary value-formation obligations.
+        return unit_type(program, state.return_type)
+            && completion_returns_unit(program, machine, expression);
+    }
+    if position + 1
+        == program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len()
+    {
+        return call_completes_unit_state(program, machine, state, expression);
+    }
+    call_returns_unit(program, machine, expression)
+}
+
+pub fn unit_return_call_is_admitted(
+    program: &dyn CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    statement_occurrence(program, state, expression).is_some_and(|(position, terminal_arm)| {
+        !terminal_arm
+            && position + 1
+                == program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len()
+    }) && call_completes_unit_state(program, machine, state, expression)
+}
+
+/// One exact statement root owns completion; reused operands do not inherit it.
+fn statement_occurrence(
+    program: &dyn CheckingInput,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(usize, bool)> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut occurrences = statements
         .iter()
@@ -43,37 +85,12 @@ pub fn unit_statement_call_is_admitted(
             }
             _ => None,
         });
-    let Some((position, terminal_arm)) = occurrences.next() else {
-        return false;
-    };
-    if occurrences.next().is_some() {
-        return false;
-    }
-    if terminal_arm {
-        // The whole invocation completes this caller. Unit is legal here,
-        // never as an argument or operand nested inside the arm expression.
-        return unit_type(program, state.return_type)
-            && call_returns_unit(program, machine, expression);
-    }
-    if position + 1 == statements.len() {
-        return unit_return_call_is_admitted(program, machine, state, expression);
-    }
-    call_returns_unit(program, machine, expression)
+    let occurrence = occurrences.next()?;
+    occurrences.next().is_none().then_some(occurrence)
 }
 
-pub fn unit_return_call_is_admitted(
-    program: &dyn CheckingInput,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-) -> bool {
-    matches!(program.statement_table.statements(state.statement_nodes).last(),
-        Some(typed_trees::statement::StatementNode::Expression(tail)) if *tail == expression)
-        && call_completes_unit_state(program, machine, state, expression)
-}
-
-/// Signature compatibility for a direct Unit completion. The caller supplies
-/// the actual statement/terminal position; nested operands never inherit it.
+/// Result compatibility for a Unit completion. Only selected result arms
+/// inherit completion; their subjects and operands receive no such position.
 pub(crate) fn call_completes_unit_state(
     program: &dyn CheckingInput,
     machine: &Machine,
@@ -82,7 +99,69 @@ pub(crate) fn call_completes_unit_state(
 ) -> bool {
     unit_type(program, state.return_type)
         && expression_table(program).expression_is_valid(expression)
-        && call_returns_unit(program, machine, expression)
+        && completion_returns_unit(program, machine, expression)
+}
+
+/// The result leaves of one completion, without walking evaluated operands.
+/// Full coordinates avoid revisiting shared match nodes without allocating
+/// scratch for unrelated expressions in the program's arena.
+fn completion_calls_all(
+    program: &dyn CheckingInput,
+    expression: ExpressionHandle,
+    mut accepts: impl FnMut(ExpressionHandle) -> bool,
+) -> bool {
+    let table = expression_table(program);
+    if table.call_node(expression).is_some() {
+        return accepts(expression);
+    }
+    let mut pending = vec![(expression, false)];
+    let mut active = std::collections::BTreeMap::new();
+    let mut saw_call = false;
+    while let Some((expression, completed)) = pending.pop() {
+        if !table.expression_is_valid(expression) {
+            return false;
+        }
+        let coordinate = (expression.arena_index(), expression.generation());
+        if completed {
+            active.insert(coordinate, false);
+            continue;
+        }
+        match active.get(&coordinate) {
+            Some(true) => return false,
+            Some(false) => continue,
+            None => {}
+        }
+        active.insert(coordinate, true);
+        match table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Match(dispatch) => {
+                let arms = table.match_arms(dispatch.arms);
+                if arms.is_empty() {
+                    return false;
+                }
+                pending.push((expression, true));
+                pending.extend(arms.iter().rev().map(|arm| (arm.value, false)));
+            }
+            typed_trees::expression::ExpressionNode::Call(_) => {
+                if !accepts(expression) {
+                    return false;
+                }
+                saw_call = true;
+                active.insert(coordinate, false);
+            }
+            _ => return false,
+        }
+    }
+    saw_call
+}
+
+fn completion_returns_unit(
+    program: &dyn CheckingInput,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> bool {
+    completion_calls_all(program, expression, |leaf| {
+        call_returns_unit(program, machine, leaf)
+    })
 }
 
 enum DeclaredCallResult<'program> {
@@ -258,18 +337,26 @@ fn has_inferred_value_return(program: &dyn CheckingInput, machine: &Machine) -> 
                     else {
                         continue;
                     };
-                    match declared_call_result(program, machine, *expression) {
-                        Some(DeclaredCallResult::IntrinsicUnit) => {}
-                        Some(DeclaredCallResult::Signature(reference))
-                            if unit_type(program, reference) => {}
-                        Some(DeclaredCallResult::Source { machine, state })
-                            if unit_type(program, state.return_type) =>
-                        {
-                            if !state.return_type.is_valid() {
-                                pending.push(machine);
+                    if !completion_calls_all(program, *expression, |expression| {
+                        match declared_call_result(program, machine, expression) {
+                            Some(DeclaredCallResult::IntrinsicUnit) => true,
+                            Some(DeclaredCallResult::Signature(reference))
+                                if unit_type(program, reference) =>
+                            {
+                                true
                             }
+                            Some(DeclaredCallResult::Source { machine, state })
+                                if unit_type(program, state.return_type) =>
+                            {
+                                if !state.return_type.is_valid() {
+                                    pending.push(machine);
+                                }
+                                true
+                            }
+                            _ => false,
                         }
-                        _ => return true,
+                    }) {
+                        return true;
                     }
                 }
             }

@@ -1,9 +1,13 @@
-// Wire codec for persisted build-execution records in the compiled-review
-// cache: `BuildEvaluationUsage` (`BEU\x01`), `BuildObservationSummary`, and
-// `RestrictedBuildRequest`. Decoders validate structural invariants (enum tags,
-// nonzero handle identities, canonical relative paths, and usage ceilings) and
-// return `None` on any malformation so callers treat corrupt cache entries as
-// misses.
+//! Wire codec for the build-execution records a retained compiled review
+//! carries: the evaluation usage the sponsor observed, the restricted build
+//! requests the authority projection issued, and the observation summary the
+//! activation produced.
+//!
+//! These values were produced by checked machinery before they entered a
+//! retained review record, so recovery validates shape (enum tags, nonzero
+//! identities, canonical paths) without re-running admission. Anything
+//! malformed or unexpected fails the decode and the caller treats the record
+//! as absent.
 
 use crate::reuse::review_record_encoding::{
     declaration_kind_tag, encode_optional, recover_declaration_kind, recover_optional,
@@ -17,8 +21,9 @@ use evaluation_accounting::{
     BuildEvaluationSponsorLimits, BuildEvaluationUsage, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };
-use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::FuelScheduleIdentity;
 
+// Untagged legacy usage had no way to distinguish two engines' schedule 1.
 const EVALUATION_USAGE_MAGIC: &[u8; 4] = b"BEU\x01";
 
 use super::observations::{
@@ -37,27 +42,28 @@ use build_output::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 
+/// Encode the evaluation-usage record a retained review carries.
 pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec<u8>) {
     out.extend_from_slice(EVALUATION_USAGE_MAGIC);
     match usage.measurement {
         EvaluationMeasurementIdentity::CheckedTree => out.push(0),
         EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule,
+            fuel_schedule,
             storage_schedule,
         } => {
             out.push(1);
-            crate::codec_bytes::push_encoded(out, work_schedule.marker().to_le_bytes());
+            crate::codec_bytes::push_encoded(out, fuel_schedule.marker().to_le_bytes());
             crate::codec_bytes::push_encoded(out, storage_schedule.marker().to_le_bytes());
         }
     }
     crate::codec_bytes::push_encoded(out, usage.usage_schema_version.to_le_bytes());
     crate::codec_bytes::push_encoded(out, usage.step_schedule_marker.to_le_bytes());
-    crate::codec_bytes::push_encoded(out, usage.invocation_work_budget.to_le_bytes());
+    crate::codec_bytes::push_encoded(out, usage.invocation_fuel_ceiling.to_le_bytes());
     encode_optional(usage.sponsor_schema_version.as_ref(), out, |value, out| {
         crate::codec_bytes::push_encoded(out, value.to_le_bytes())
     });
     for value in [
-        usage.session_work_budget,
+        usage.session_fuel_ceiling,
         usage.session_build_log_byte_ceiling,
         usage.session_filesystem_attempt_ceiling,
         usage.session_live_filesystem_handle_ceiling,
@@ -74,7 +80,7 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
         usage.session_peak_live_filesystem_handles,
         usage.session_peak_live_storage_cells,
         usage.session_peak_live_payload_bytes,
-        usage.work_units,
+        usage.fuel_units,
         usage.build_log_bytes,
         usage.filesystem_operation_attempts,
         usage.peak_live_storage_cells,
@@ -86,6 +92,7 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
     }
 }
 
+/// Recover a retained evaluation-usage record.
 pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvaluationUsage> {
     if cursor.bytes(4)? != EVALUATION_USAGE_MAGIC {
         return None;
@@ -93,16 +100,16 @@ pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvalua
     let measurement = match cursor.u8()? {
         0 => EvaluationMeasurementIdentity::CheckedTree,
         1 => EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: WorkScheduleIdentity::new(cursor.u32()?)?,
+            fuel_schedule: FuelScheduleIdentity::new(cursor.u32()?)?,
             storage_schedule: TerminalStorageScheduleIdentity::new(cursor.u32()?)?,
         },
         _ => return None,
     };
     let usage_schema_version = cursor.u32()?;
     let step_schedule_marker = cursor.u32()?;
-    let invocation_work_budget = cursor.u64()?;
+    let invocation_fuel_ceiling = cursor.u64()?;
     let sponsor_schema_version = recover_optional(cursor, Cursor::u32)?;
-    let session_work_budget = recover_optional(cursor, Cursor::u64)?;
+    let session_fuel_ceiling = recover_optional(cursor, Cursor::u64)?;
     let session_build_log_byte_ceiling = recover_optional(cursor, Cursor::u64)?;
     let session_filesystem_attempt_ceiling = recover_optional(cursor, Cursor::u64)?;
     let session_live_filesystem_handle_ceiling = recover_optional(cursor, Cursor::u64)?;
@@ -114,9 +121,9 @@ pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvalua
         measurement,
         usage_schema_version,
         step_schedule_marker,
-        invocation_work_budget,
+        invocation_fuel_ceiling,
         sponsor_schema_version,
-        session_work_budget,
+        session_fuel_ceiling,
         session_build_log_byte_ceiling,
         session_filesystem_attempt_ceiling,
         session_live_filesystem_handle_ceiling,
@@ -127,7 +134,7 @@ pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvalua
         session_peak_live_filesystem_handles: cursor.u64()?,
         session_peak_live_storage_cells: cursor.u64()?,
         session_peak_live_payload_bytes: cursor.u64()?,
-        work_units: cursor.u64()?,
+        fuel_units: cursor.u64()?,
         build_log_bytes: cursor.u64()?,
         filesystem_operation_attempts: cursor.u64()?,
         peak_live_storage_cells: cursor.u64()?,
@@ -341,6 +348,7 @@ fn recover_attempt(cursor: &mut Cursor) -> Option<BuildFilesystemOperationAttemp
     })
 }
 
+/// Encode the observation summary a retained review carries.
 pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut Vec<u8>) {
     crate::codec_bytes::push_encoded(out, summary.schema_version().to_le_bytes());
     out.push(summary.filesystem_host_observed() as u8);
@@ -414,6 +422,8 @@ pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut V
     push_framed(out, summary.build_log());
 }
 
+/// Recover a retained observation summary. A malformed record yields `None`
+/// so the caller treats the cache entry as absent.
 pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservationSummary> {
     let schema_version = cursor.u32()?;
     let filesystem_host_observed = match cursor.u8()? {
@@ -533,7 +543,7 @@ fn recover_sponsor_limits(cursor: &mut Cursor) -> Option<FilesystemSponsorLimits
 
 fn encode_evaluation_sponsor_limits(limits: &BuildEvaluationSponsorLimits, out: &mut Vec<u8>) {
     for value in [
-        limits.work_budget(),
+        limits.maximum_fuel_units(),
         limits.maximum_build_log_bytes(),
         limits.maximum_filesystem_operation_attempts(),
         limits.maximum_live_filesystem_handles(),
@@ -600,6 +610,7 @@ fn recover_grant(cursor: &mut Cursor) -> Option<RestrictedBuildGrant> {
     ))
 }
 
+/// Encode one restricted build request.
 pub fn encode_restricted_build_request(request: &RestrictedBuildRequest, out: &mut Vec<u8>) {
     out.push(match request.operation() {
         RestrictedBuildOperation::ScopedFilesystemExecution => 0,
@@ -652,6 +663,7 @@ pub fn encode_restricted_build_request(request: &RestrictedBuildRequest, out: &m
     }
 }
 
+/// Recover one restricted build request.
 pub fn recover_restricted_build_request(cursor: &mut Cursor) -> Option<RestrictedBuildRequest> {
     let operation = match cursor.u8()? {
         0 => RestrictedBuildOperation::ScopedFilesystemExecution,
@@ -741,7 +753,7 @@ mod evaluation_usage_controls {
 
     fn terminal() -> EvaluationMeasurementIdentity {
         EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         }
     }
@@ -776,7 +788,7 @@ mod evaluation_usage_controls {
     }
 
     #[test]
-    fn unsupported_storage_and_work_schedules_are_rejected() {
+    fn unsupported_storage_and_fuel_schedules_are_rejected() {
         for (offset, value) in [(5, 0_u32), (5, 2), (9, 0), (9, 2)] {
             let mut bytes = encoded(&measured(terminal()));
             bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
@@ -804,7 +816,7 @@ mod evaluation_usage_controls {
     #[test]
     fn counters_exceeding_declared_allowances_are_not_recovered() {
         let mut usage = measured(terminal());
-        usage.work_units = usage.invocation_work_budget + 1;
+        usage.fuel_units = usage.invocation_fuel_ceiling + 1;
         let bytes = encoded(&usage);
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&bytes)).is_none());
     }

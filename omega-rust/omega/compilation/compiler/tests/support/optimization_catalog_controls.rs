@@ -20,10 +20,12 @@ pub(super) fn prepared_unit(
     .map_err(|error| format!("optimization control lowering: {error:?}"))?
     .into_optimization_artifact()
     .into_optimization_input();
-    let (_, unit) =
-        build_verified_psi_optimization_unit(input, psi_work::WorkSchedule::CURRENT.identity())
-            .map_err(|error| format!("optimization control unit: {error:?}"))?
-            .into_parts();
+    let (_, unit) = build_verified_psi_optimization_unit(
+        input,
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .map_err(|error| format!("optimization control unit: {error:?}"))?
+    .into_parts();
     // This is only the same structural catalog formation operation used by
     // whole-unit validation. No body, ownership or execution verdict is made.
     validate_psi_structural_catalog(&unit)

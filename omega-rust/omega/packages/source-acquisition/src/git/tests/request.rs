@@ -1,6 +1,3 @@
-// Git source request validation tests covering canonical locator sanitization,
-// transport separation, endpoint port rejection, and revision byte/refspec bounds.
-
 use super::{
     GIT_LOCATOR_BYTE_LIMIT, GIT_REVISION_BYTE_LIMIT, GitExecutionTransport, GitSourceRequest,
     GitSourceRequestError, git_cache_identity,

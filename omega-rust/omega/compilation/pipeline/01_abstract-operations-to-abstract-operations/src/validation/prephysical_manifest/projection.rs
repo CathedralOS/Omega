@@ -22,7 +22,7 @@ pub(super) fn expected_record(
 ) -> Result<PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestError> {
     let initial = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input.clone(),
-        final_unit.work_schedule,
+        final_unit.fuel_schedule,
     )
     .map_err(|_| PrePhysicalOptimizationManifestError::InitialUnitProjection)?;
     Ok(PrePhysicalOptimizationManifest {
@@ -30,7 +30,7 @@ pub(super) fn expected_record(
         stage: OptimizationManifestStage::PrePhysicalAbstractPlan,
         physical_data: PhysicalOptimizationDataStatus::UnavailableBeforePhysicalRealization,
         psi: final_unit.psi,
-        work_schedule: final_unit.work_schedule,
+        fuel_schedule: final_unit.fuel_schedule,
         initial_unit: initial.unit().identity,
         final_unit: final_unit.identity,
         projection: projection.identity(),
