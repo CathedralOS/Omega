@@ -1,34 +1,23 @@
-//! Late native geometry, projected from the final placement owner.
-//!
-//! Canonical blob 348dfb1fa43ef749374a9ff46078b211443fcf6c:
-//! "Regions cover the emitted instruction spans attributed to that realization,
-//! including its retained entry and any split instruction regions."
-//!
-//! `wiki/spec/language/counts_and_addresses.md`, "Native code layout queries",
-//! requires exact attributed instruction spans, including the retained entry,
-//! and excludes padding, pools and transitive callees. A function's byte-count
-//! envelope is therefore not a code region. Frame application owns additional
-//! instructions absent from selected-instruction rows; include its final spans
-//! after branch reflow. This projection neither evaluates Psi nor emits code.
+/*
+We project placed native text sections (`StagedOptimizedFixedFrameTextSection`) into per-machine entry offsets and canonical instruction regions (`NativeCodeLayout`) to answer `code_layout<Machine>()` queries. We collect every non-empty instruction span and applied frame prologue/epilogue span attributed to the requested `MachineId`, verify that function-relative and section-relative coordinates agree within the fragment's byte envelope, and coalesce only overlapping or directly adjacent spans so unattributed gaps, padding, and transitive callees remain excluded.
+*/
 
 use machine_code::{FunctionAppliedFrameProtocol, PlacedFunctionFragment};
 use semantic_vocabulary::MachineId;
 
 use crate::StagedOptimizedFixedFrameTextSection;
 
-/// A relocation-independent span in the final native text section.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeCodeRegion {
-    pub section_offset: u64,
-    pub length: u64,
+    pub section_offset: u64, // Byte offset of the attributed span from the start of the text section.
+    pub length: u64,         // Non-zero byte length of the coalesced attributed span.
 }
 
-/// Native geometry only: object construction supplies address relocations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeCodeLayout {
-    pub machine: MachineId,
-    pub entry_section_offset: u64,
-    pub regions: Vec<NativeCodeRegion>,
+    pub machine: MachineId, // Specialized machine identity described by this layout.
+    pub entry_section_offset: u64, // Section-relative byte offset of the machine's entry point.
+    pub regions: Vec<NativeCodeRegion>, // Sorted, non-overlapping attributed instruction regions.
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,9 +29,6 @@ pub enum NativeCodeLayoutError {
     MissingEntryInstruction(MachineId),
 }
 
-/// Read the retained final placement without granting artifact publication
-/// authority. Machine identity is the exact specialized application identity;
-/// ISA alternative keys are not machine application identities.
 pub fn describe_native_code_layout(
     source: &StagedOptimizedFixedFrameTextSection,
     machine: MachineId,
@@ -55,9 +41,6 @@ pub fn describe_native_code_layout(
     let fragment = fragments
         .next()
         .ok_or(NativeCodeLayoutError::UnavailableRealization(machine))?;
-    // Current placement admits one fragment per exact MachineId. Do not infer
-    // an entry or duplicate frame attribution if a future split representation
-    // changes that invariant without supplying explicit per-fragment custody.
     if fragments.next().is_some() {
         return Err(NativeCodeLayoutError::AmbiguousRealization(machine));
     }
@@ -164,8 +147,6 @@ fn canonical_regions(
                 .section_offset
                 .checked_add(previous.length)
                 .ok_or(NativeCodeLayoutError::InvalidInstructionSpan(machine))?;
-            // Union overlapping attribution and coalesce only actual adjacency.
-            // A gap remains a gap even if both sides belong to this application.
             if span.section_offset <= previous_end {
                 previous.length = previous_end.max(end) - previous.section_offset;
                 continue;
@@ -193,7 +174,7 @@ mod tests {
             ],
         )
         .unwrap();
-        assert_eq!(regions, vec![code_region(10, 6), code_region(40, 3),]);
+        assert_eq!(regions, vec![code_region(10, 6), code_region(40, 3)]);
     }
 
     #[test]
@@ -257,10 +238,8 @@ mod tests {
         append_fragment_spans(&fragment, &frame, 122, &mut spans).unwrap();
         assert_eq!(
             canonical_regions(machine, spans).unwrap(),
-            vec![code_region(100, 8), code_region(118, 4),]
+            vec![code_region(100, 8), code_region(118, 4)]
         );
-        // A stale function/section coordinate join must reject, even if the
-        // section coordinate alone happens to stay inside the envelope.
         fragment.blocks[0].instructions[0].section_offset += 1;
         assert_eq!(
             append_fragment_spans(&fragment, &frame, 122, &mut Vec::new()),
