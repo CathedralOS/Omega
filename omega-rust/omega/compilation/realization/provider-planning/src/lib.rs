@@ -1,26 +1,24 @@
 #![forbid(unsafe_code)]
 
-//! Omega provider-plan derivation and realization.
-//!
-//! This crate prepares source provider declarations, calling-policy realization, component
-//! progress and task activation planning. The
-//! compiler coordinator supplies checked inputs and consumes the resulting
-//! plans; it does not define their domain model. Exact grants are resolved by
-//! backend provider evidence, independently of compiler trust reporting.
-//! Checked-tree and package-input custody dependencies remain a transitional
-//! realization bridge, not a completed Terminal-only handoff: typed vocabulary
-//! reaches this crate only through `checked_trees` re-exports, and
-//! `source_guards` fails the build if a source-input dependency edge or a
-//! facade-free typed spelling returns.
-//!
-//! Start at `provider_settlement.rs` for typed candidate derivation and selection,
-//! then `provider_planning.rs` for selected source correspondence;
-//! every other folder is one public vocabulary the compiler consumes by path.
-//! Whole-map choice, selected-plan binding and composition admission belong to `provider-selection`;
-//! this crate supplies exact invocation correspondence for Check/review and
-//! canonical declaration records for artifact publication.
-//! Source selection declarations are owned by Psi compile-time admission; the
-//! re-exported selection records below are inputs, not a second source decoder.
+/*
+We derive and realize Omega provider plans from checked source declarations,
+calling-policy evaluations, component progress contracts, and task activation
+plans. We receive checked inputs from the compiler coordinator and return
+target-specific provider plans without embedding target policy or layout choices
+inside the coordinator itself.
+
+We resolve exact execution grants from backend provider evidence independently of
+compiler trust reporting. Checked-tree and package-input custody dependencies
+serve as our realization bridge: typed vocabulary enters this crate exclusively
+through `checked_trees` re-exports, and `source_guards` rejects any direct
+source-input dependency edge or facade-free typed spelling.
+
+Start at `provider_settlement.rs` for typed candidate derivation and selection,
+then `provider_planning.rs` for selected source correspondence. Whole-map choice,
+selected-plan binding, and composition admission live in `provider-selection`,
+while we supply exact invocation correspondence for checking and review alongside
+canonical declaration records for artifact publication.
+*/
 
 pub mod calling_policy_plans;
 pub mod data_layout_queries;

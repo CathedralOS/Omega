@@ -9,7 +9,6 @@ use super::content_snapshots::Observation;
 use super::content_snapshots::preserve_projection;
 use super::content_snapshots::preserve_replacement;
 use super::linear_obligations::LinearPlace;
-use checked_trees::CheckFacts;
 use checked_trees::facts::{
     ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
 };
@@ -18,7 +17,7 @@ use validation::CanonicalPlace;
 
 pub(crate) fn observe_inputs(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     conservation: &ContentBodyConservationFact,
     places: &[LinearPlace],
 ) -> Result<
@@ -77,7 +76,7 @@ pub(crate) fn observe_inputs(
         };
         if !crate::flow::place_cases_are_selected(
             program,
-            &facts.semantic,
+            facts.semantic,
             &contexts,
             conservation.machine_symbol,
             conservation.state_symbol,
@@ -174,7 +173,7 @@ fn unique_live_input(
 }
 
 pub(crate) fn publish(
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     conservation: arena::Handle<ContentBodyConservationFact>,
     observed: Vec<(
         ContentBodyAvailableInput,

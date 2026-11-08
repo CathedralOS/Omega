@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{
-    OperationKind, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule, Terminator,
+    OperationKind, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
 };
 
 use crate::AdmittedTargetMachineSelections;
@@ -34,6 +34,11 @@ pub struct SynchronousCallGraph<'module> {
 }
 
 impl<'module> SynchronousCallGraph<'module> {
+    /// Borrow one body from the already validated immutable machine index.
+    pub fn machine(&self, identity: MachineId) -> Option<&'module terminal_psi::TerminalMachine> {
+        self.machines.get(&identity).copied()
+    }
+
     /// An optional admitted entry bridge retains its boundary demand and
     /// continues into its selected body. Target selection is required only for
     /// reached heads. Preparing once avoids rescanning the machine catalog for
@@ -154,6 +159,10 @@ impl<'module> SynchronousCallGraph<'module> {
                 body.module_invocations()
                     .map(|call| TargetMachineCallable::Machine(call.inputs.callee)),
             );
+            pending.extend(
+                body.boundary_invocations()
+                    .map(|call| TargetMachineCallable::Boundary(call.boundary)),
+            );
             for block in &body.blocks {
                 for (_, actions) in block.terminator.cleanup_rosters() {
                     for action in actions {
@@ -162,31 +171,19 @@ impl<'module> SynchronousCallGraph<'module> {
                         }
                     }
                 }
-                if let Terminator::ExternalCompletion { boundary, .. } = block.terminator {
-                    pending.push(TargetMachineCallable::Boundary(boundary));
-                }
                 for operation in &block.operations {
-                    match &operation.kind {
-                        OperationKind::BoundaryCall { boundary, .. } => {
-                            pending.push(TargetMachineCallable::Boundary(*boundary))
-                        }
-                        OperationKind::CallDynamic {
-                            interface,
-                            slot,
-                            family_actuals,
-                            ..
-                        } => {
-                            pending.extend(
-                                self.dynamic_callees(
-                                    *interface,
-                                    *slot,
-                                    !family_actuals.is_empty(),
-                                )?
+                    if let OperationKind::CallDynamic {
+                        interface,
+                        slot,
+                        family_actuals,
+                        ..
+                    } = &operation.kind
+                    {
+                        pending.extend(
+                            self.dynamic_callees(*interface, *slot, !family_actuals.is_empty())?
                                 .into_iter()
                                 .map(TargetMachineCallable::Machine),
-                            );
-                        }
-                        _ => {}
+                        );
                     }
                 }
             }

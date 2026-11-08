@@ -269,6 +269,12 @@ pub(crate) fn build_check_facts<'program>(
     // seeded semantic plan or the borrow, proof, domain, scalar-expression or
     // operator facts still rebuilds from source.
     let mut previous_construction: Option<FlowConstruction> = None;
+    // Each state's last permission walk, for the next pass to reuse where
+    // every input of that walk is unchanged (see `PermissionWalkMemory`).
+    // `retrying_permissions` holds only while the previous pass ended in
+    // permission preparation's own retry, so nothing else ran in between.
+    let mut walk_memory = crate::checks::PermissionWalkMemory::default();
+    let mut retrying_permissions = false;
     loop {
         prepared.semantic.clone_from(&semantic);
         contextual_cleanup::entry_flow::seed_entry_requirements(
@@ -279,6 +285,9 @@ pub(crate) fn build_check_facts<'program>(
         let reusable = previous_construction
             .as_ref()
             .filter(|construction| construction.read_the_same_inputs(&prepared));
+        let walk_inputs = crate::checks::WalkInputs {
+            restored: std::mem::take(&mut retrying_permissions) && reusable.is_some(),
+        };
         if let Some(construction) = reusable {
             prepared.semantic.clone_from(&construction.semantic_after);
             prepared.flow.clone_from(&construction.flow);
@@ -314,8 +323,11 @@ pub(crate) fn build_check_facts<'program>(
             &mut claim_outcomes,
             mutation_summaries,
             call_frames.as_ref(),
+            &mut walk_memory,
+            walk_inputs,
         );
         if permission_outcome? {
+            retrying_permissions = true;
             continue;
         }
         if contextual_cleanup::retain_selected_receiver_loans(

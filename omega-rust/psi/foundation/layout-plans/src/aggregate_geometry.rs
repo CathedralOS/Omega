@@ -9,6 +9,10 @@ pub struct StorageGeometry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConventionalSumGeometry {
+    /// The packer retains the discriminator separately from common/payload
+    /// storage, so observations need not include unrelated fields.
+    pub tag_byte_offset: u64,
+    pub tag: StorageGeometry,
     pub storage: StorageGeometry,
     pub common_field_offsets: Vec<u64>,
     pub payload_byte_offset: u64,
@@ -57,6 +61,8 @@ pub fn conventional_sum_geometry(
         .max(common.byte_alignment)
         .max(payload_alignment);
     Ok(ConventionalSumGeometry {
+        tag_byte_offset: 0,
+        tag,
         storage: StorageGeometry {
             byte_size: align_up(end, byte_alignment)?,
             byte_alignment,

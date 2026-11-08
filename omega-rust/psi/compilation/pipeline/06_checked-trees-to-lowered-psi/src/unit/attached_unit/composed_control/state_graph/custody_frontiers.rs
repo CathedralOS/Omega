@@ -79,9 +79,38 @@ pub(in crate::unit::attached_unit::composed_control) fn prepare(
         states.push(state);
         cursor += 1;
     }
-    let mut prepared = source.clone();
-    prepared.states = states;
-    Ok(prepared)
+    // Every field but `states` is copied from the source plan. Cloning the
+    // whole plan first also deep-copied every source state, with its contract
+    // requirements, only to drop them when `states` was replaced; the
+    // exhaustive pattern keeps this copy complete when the plan grows a field.
+    let Plan {
+        machine,
+        result,
+        result_reference_sources,
+        natural_ranks,
+        rank_components,
+        preserving_rank_edges,
+        body_qualifications,
+        contract_report_fingerprint,
+        contract_commitment,
+        contract_service_reach,
+        service_reach,
+        states: _,
+    } = source;
+    Ok(Plan {
+        machine: *machine,
+        result: result.clone(),
+        result_reference_sources: result_reference_sources.clone(),
+        natural_ranks: natural_ranks.clone(),
+        rank_components: rank_components.clone(),
+        preserving_rank_edges: preserving_rank_edges.clone(),
+        body_qualifications: body_qualifications.clone(),
+        contract_report_fingerprint: *contract_report_fingerprint,
+        contract_commitment: *contract_commitment,
+        contract_service_reach: *contract_service_reach,
+        service_reach: *service_reach,
+        states,
+    })
 }
 
 fn arrive(

@@ -47,7 +47,7 @@ turning its policy into language semantics.
 ## Proof discovery and evidence checking
 
 [Index compatibility](../proofs/contracts.md#proved-index-compatibility) separates
-proof discovery from semantic identity and from checking supplied evidence.
+proof discovery from semantic identity and from local checking of proof steps.
 Root [Build proof-work policy](../build/configuration.md#proof-work-policy)
 records the automatic expansion allowance, defaulting to 64 resulting terms
 per product expansion. This is a search-strategy ceiling; it is neither a
@@ -60,14 +60,30 @@ account, with its resource bounds/receipts, and charge before admitted work.
 An increased expansion allowance does not waive another work or storage limit.
 Missing proof or exhausted resources cannot establish a negative proposition.
 
-A successfully checked compatibility derivation is evidence, not a record that
-a search once returned true. Generic substitution carries that derivation.
-A published artifact consumer verifies its evidence under ordinary trust and
-verification-resource admission without rerunning discovery under the consumer's
-search limit. Importing a proof does not charge historical producer search.
-Local cached work remains subject to
+A successful compatibility judgment survives exact generic substitution. A
+host-authorized consumer of the trusted producer's exact artifact reuses it
+without repeating proof discovery. A smaller receiving discovery budget cannot
+invalidate that reuse. Neither a work receipt nor a success flag establishes
+producer trust. Local cached work follows
 [usage-record accounting](../language/evaluation.md#result-caching-and-published-evidence).
-Verification exhaustion must be diagnosed separately from unsuccessful search.
+
+## Loading and interpreter checks
+
+External loading and preparation have a host-granted aggregate work budget,
+separate from source proof-discovery limits and executed-program work. Charge
+parsing, canonicalization, structural validation and execution preparation before
+the work, including descriptor and entailment analysis. Per-query limits remain
+useful but do not replace the aggregate budget. Report exhaustion as a resource
+refusal, distinct from malformed input, unsupported semantics or a false predicate.
+
+Interpreter dispatch retains concrete safety and closed actual-value checks,
+with accounted work limits. Static declaration analysis belongs to preparation;
+repeated execution adds no proof search or scans over whole declaration tables.
+Ordinary traversal of runtime data still consumes its normal work. The operation
+schedule alone is not a bound on all implementation or host-service cost.
+Installed adapters enforce host-work quotas and outstanding-resource limits;
+a guest work meter cannot preempt a synchronous host call or reclaim storage
+still held by a provider. See [embedding](../build/embedding.md#loading-and-preparation).
 
 ## Composition and charged work
 

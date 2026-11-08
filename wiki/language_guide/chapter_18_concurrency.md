@@ -1,37 +1,29 @@
 # Chapter 18: Concurrency
 
-Concurrency uses ordinary machines plus an admitted task-runtime capability:
+Start a task when work should run in another activation. Keep its handle, do
+other work, then finish it to obtain the outcome:
 
 ```omega
-let task: Task<WorkResult> =
-    runtime.start<Worker::run>(move job);
+let task: Task<WorkResult> = runtime.start<Worker::run>(move job);
 
 do_other_work();
 
-let outcome: TaskOutcome<WorkResult> = suspend block Task::finish(move task);
+transition suspend block Task::finish(move task) {
+    TaskOutcome::Returned { value } -> use_result(value)
+    TaskOutcome::Cancelled -> handle_cancellation()
+    TaskOutcome::Failed { receipt } -> handle_provider_failure(receipt)
+}
 ```
 
-Calling `Worker::run(job)` runs in the current activation. Passing the static
-machine symbol to `runtime.start<Worker::run>` asks the selected runtime to
-establish another activation. There is no implicit capture, future, or detach.
+This protocol sketch assumes a runtime whose `start` returns immediately and
+whose `finish` permits suspension and blocking. The application supplies the
+worker, job and outcome handlers. A direct `Worker::run(job)` call instead runs
+in the current activation.
 
-Examples in this chapter illustrate the intended contracts, not complete native
-task support. They assume the named library operations and types are in scope.
-The start operation shown neither suspends nor blocks; the completion operation
-shown permits both. Call markers always follow that operation's actual contract,
-not the eventual behavior of the worker. The
-[task-runtime specification](../spec/build/task_runtime.md) and its
-[implementation note](../../omega-rust/omega/compilation/backend/runtime/task-plans/README.md)
-separate required behavior from current planning support.
+## Start a task
 
-## Starting Is A Provider Operation
-
-`TaskRuntime` is an ordinary boundary capability. Provider selection does not
-grant ambient authority: the caller still needs the capability and must satisfy
-the operation's admission and resource obligations.
-
-`start<M>` requires those obligations to be proved. `try_start<M>` handles genuine
-dynamic refusal through an ordinary sum:
+The selected runtime provides task creation. `start<M>` requires enough
+resources to start `M`; `try_start<M>` can report a dynamic refusal:
 
 ```omega
 transition runtime.try_start<Worker::run>(move job) {
@@ -40,22 +32,14 @@ transition runtime.try_start<Worker::run>(move job) {
 }
 ```
 
-Start is an ownership transaction. Rejection returns moved arguments and
-caller-supplied reservations, or proves their transfer to another authorized
-owner. Known static incompatibility rejects admission rather than becoming an
-avoidable runtime failure. A pending task is returned only after matching
-provider custody and storage exist.
+On rejection, the caller receives the moved arguments and reservations back,
+or their contract accounts for transfer to another owner. A static mismatch,
+such as an incompatible runtime contract, is a compile error.
 
-An activation plan describes the exact entry, contract, layouts, carry demands,
-and whole-call-graph stack requirement. A numeric capacity fact is not a
-reservation: another starter must not be able to spend the same capacity.
-Static planning is also not an invocation receipt. See
-[transactional start](../spec/build/task_runtime.md#transactional-start).
+## Finish or transfer the task handle
 
-## Task Is A Linear Lifecycle Claim
-
-`Task<T>` is ordinary linear data: its owner must settle or transfer one
-activation's lifecycle obligation. It can be stored for later work:
+`Task<T>` is linear: its holder is responsible for finishing the task or
+transferring that responsibility. You can store it while other work proceeds:
 
 ```omega
 data WorkerState {
@@ -64,258 +48,124 @@ data WorkerState {
 }
 ```
 
-Moving the task into `Running` transfers its obligation. Copying, overwriting,
-dropping it at ordinary scope exit, or losing it on a branch cannot discharge
-that obligation. `Task::request_cancel(&task)` retains the claim; requesting cancellation
-does not prove execution stopped. `Task::finish(move task)` consumes it into a terminal
-outcome such as `Returned(value)`, `Cancelled`, or `Failed(receipt)`.
-Application-level recoverable failure belongs inside `T`, not a second meaning
-of the outer lifecycle outcome.
+Moving the handle into `Running` transfers the obligation. Overwriting or
+discarding it would lose that obligation and rejects. `Task::finish(move task)`
+consumes the handle and returns the lifecycle outcome shown above. A worker's
+own recoverable errors belong in `WorkResult`.
 
-Long-lived background work transfers ownership explicitly:
+A supervisor can take responsibility for background work:
 
 ```omega
 Supervisor::adopt(&mut supervisor, move task);
 ```
 
-This is not detach. The supervisor becomes responsible for settlement. Automatic
-cleanup cannot join, park, fail, or silently settle a task.
+The supervisor must eventually finish or transfer it in turn. Automatic cleanup
+cannot wait for a task; use the explicit completion operation.
 
-## Suspension, Blocking, And Direct Calls
+## Mark calls that may wait
 
-`suspends` and `blocks` are independent operational ceilings on ordinary machine
-contracts. Their absence on a published contract supplies the corresponding
-negative guarantee; private omissions infer from the body. Neither is a future
-type, and neither implies positive progress or eventual completion.
-A provider cannot satisfy a narrower requirement by hiding its wider behavior.
-
-### Call-site acknowledgements
-
-Direct calls acknowledge the statically permitted behavior:
+Suspension parks the activation so its worker can do other work. Blocking can
+occupy the worker itself. A contract declares these possibilities with
+`suspends` and `blocks`; a caller acknowledges them with prefixes:
 
 ```omega
-operation();
-suspend operation();
-block operation();
-suspend block operation();
+let count: u32 = Counter::read(&counter);
+let event: Event = suspend Inbox::take(&mut inbox);
+let guard: Guard = block Mutex::lock(&mut mutex);
+let outcome: Outcome = suspend block Operation::finish(move operation);
 ```
 
-These lines illustrate the minimum markers for four operational envelopes.
-Missing or partial acknowledgements reject; extra markers are permitted without
-warnings. A marked call need not actually wait, and a redundant marker creates
-no effect. Combined order is `suspend block`; duplicate or reversed markers
-reject. Abstract calls use the published requirement's envelope; a checked
-refinement can narrow it without forcing the caller to delete a marker.
+These examples show the minimum markers for the four combinations. A permitted
+wait may complete immediately. Extra markers are allowed, so replacing a
+provider with a synchronous one need not change every caller. When both are
+written, the order is `suspend block`.
 
-Suspension parks the activation while retaining its fixed stack. Any call
-written with `suspend`, including a redundant marker, must
-be a complete statement, simple `let` right-hand side, transition subject, or
-terminal expression, including a final machine call in a transition arm. That
-arm invokes and forwards the eventual result; it does not start a task. Nested
-machines have the same acknowledgement rules. A call marked only `block` may
-nest when its checked envelope permits no suspension. A call permitting both
-uses `suspend block` and the suspension position rule:
+Put a call marked `suspend` at a place where evaluation can pause: a complete
+statement, simple `let` right-hand side, transition subject, or terminal
+expression. Split a larger expression into steps:
 
 ```omega
-let guard: Guard = block mutex.lock();
-let event: Event = suspend inbox.take();
-let wide: Event = suspend block source.take();
+// Rejected: the marked call is nested in an addition.
+let total: u64 = prefix + suspend Source::next(&mut source);
 
-// Rejected: partially evaluated expression state would cross suspension.
-let total: u64 = prefix + suspend source.next();
+// Use a separate binding, with the usual addition bounds established.
+let next: u64 = suspend Source::next(&mut source);
+let total: u64 = prefix + next;
 ```
 
-The markers make waiting sites reviewable, especially while a guard or scarce
-authority remains live. They do not change return types, propagate a different
-contract, or create another activation. Carry, loan, window and continuation
-checks use the checked envelope, including generic upper bounds. The opt-in
-[source rewrite](../spec/build/command_line.md#source-rewriting) removes redundant
-markers only when they are unnecessary in the source's own checking context.
-See [call-site acknowledgements](../spec/language/effects.md#call-site-acknowledgements).
+A redundant `suspend` still follows that placement rule. A blocking-only call
+may nest. Borrowing and carry checks follow what the checked contract actually
+permits. The optional [source rewrite](../spec/build/command_line.md#source-rewriting)
+can remove redundant markers.
 
-### Parked call lifecycle
+Published machines declare their suspension and blocking ceilings. Private
+bodies can infer them. Static callback applications substitute the selected
+callback's contract; [callback effects](chapter_19_capabilities_effects_boundaries.md#suspension-and-blocking-through-callbacks)
+shows a synchronous specialization of a suspending traversal.
 
-A parked call is incomplete. It has established no result, executed no later
-operations, and run no cleanup. Its values, loans, claims, and cleanup duties
-remain in the activation's live frontier. Resumption continues that same call;
-normal completion then makes its result available.
+## Borrow values across a wait
 
-Parking is not a return, crash, or second local successor. A static crossing in
-a loop may be visited repeatedly, but each parked dynamic occurrence has its
-own linear resume custody. Cancellation creates no hidden edge that discards
-this state. See [Psi suspension](../spec/terminal-psi/calls_and_outcomes.md#suspension)
-for the exact call/frontier and runtime-preservation joins.
-
-Safety is not progress. Preserving parked custody does not prove the call will
-resume. A root requiring bounded response needs finite-wait evidence for its
-dependencies; a general root may instead report the absence of that guarantee.
-
-### Preemption and safe points
-
-Architectural preemption may pause and restore opaque register/stack state at
-any instruction without changing the activation's semantic circumstances.
-It requires no source safe point. A semantic safe point is an explicit operation
-at which structured cancellation, permitted migration, or replacement can occur:
+A suspending read can borrow its destination buffer:
 
 ```omega
-process_simd_chunk(buffer);   // no semantic suspension; preemption is possible
-suspend scheduler.poll();    // explicit semantic safe point
-```
-
-Loops, terminal transfers, allocations, and ordinary calls are not implicit safe
-points. Optimization cannot insert a suspending poll into a non-suspending
-kernel. Blocking creates no safe point either; an unbounded wait can leave
-cancellation response and replacement quiescence unbounded.
-
-Whole-call-graph WCSU bounds simultaneously live stack space, not work or time.
-Sequential work adds; sequential stack frames can reuse capacity after return.
-Logical-work bounds create no native work counter or work-budget-induced suspension.
-Converting work to elapsed time requires a separate timing model. Hard-control
-profiles reject unknown or absent finite response guarantees rather than force-
-terminating a blocked holder. See [logical work](../spec/resources/logical_work.md).
-
-## Carry Policy Is A Product
-
-Values retained across execution transitions impose four independent demands:
-
-| Axis | Possibilities |
-| --- | --- |
-| Suspension | Allowed or forbidden. |
-| CPU | Same or any CPU. |
-| Host thread | Same or any thread. |
-| Address | Stable or movable. |
-
-Transparent data combines its live fields' demands. Type-wide `[carry(...)]`
-properties and per-value permissions use the same ordering. Admitted resource
-claims begin strict; their contracts may establish `Carry::AcrossSuspend`,
-`Carry::AnyCpu`, `Carry::AnyThread`, and `Carry::MovableAddress`.
-`Carry::Portable` means all four permissions.
-
-Moves, containment, loans, and conserved splits preserve provenance. Combining
-origins takes the stricter demand on each axis. Forgetting a permission narrows
-what is allowed; forgetting an authority qualification cannot erase its live
-claim or carry obligation.
-
-Exclusive transfer into another activation requires both ownership and runtime
-compatibility. Sharing additionally needs a sanctioned shared-access contract;
-copyability alone does not authorize concurrent mutation. CPU affinity and host-
-thread affinity are distinct.
-
-A live suspension-forbidden value rejects a possible suspension locally.
-Provider selection cannot erase that ceiling. CPU/thread preservation instead
-follows the activation's demands: portable values require neither guarantee.
-A host that migrates outside semantic points must establish activation-wide
-preservation when the activation may retain restricted values. Checked providers
-derive it; opaque providers supply exact admitted evidence. A receipt does not
-change the host's actual behavior.
-
-### Borrows across suspension
-
-Ordinary borrows, including service borrows, may survive a suspending call.
-Assuming a suspending `read` contract and established carry requirements:
-
-```omega
-let count = suspend storage.read(&mut buffer);
+let count: u64 = suspend Storage::read(&mut storage, &mut buffer);
 consume(buffer, count);
 ```
 
-The exclusive loan of `buffer` remains outstanding while `read` is incomplete.
-`consume` has not run, and neither the owner nor another alias regains conflicting
-access during the pause. Loans carried through fields, reborrows and helper
-calls keep the same provenance and lifetime requirements. A final arm call does
-not make those requirements disappear merely because the caller has no later use.
+While `read` is parked, the exclusive loan remains live and `consume` has not
+run. The buffer must stay valid and unavailable for conflicting access until
+the read completes according to its contract.
 
-Existing loan/carry evidence must establish backing lifetime, access restrictions,
-address/CPU/thread preservation and permitted cancellation outcomes. Stack
-residents derive address stability from their fixed stack lease. A guard whose
-carry policy forbids suspension still rejects; a service type or `suspends`
-clause does not grant an exemption. No special async-borrow type or mandatory
-provider-routing wrapper is needed. This proves preservation, not eventual completion.
-See [carry](../spec/resources/carry.md) and
-[task loans](../spec/build/task_runtime.md#carry-and-loans).
+Some retained resources impose further restrictions. A guard might forbid
+suspension; a host handle might require the same thread on resumption. Omega
+tracks four independent requirements:
 
-## Task Storage: Accountable, Provider-Planned
-
-Keep three owners separate:
-
-| Owner | Responsibility |
+| Requirement | What the runtime must preserve |
 | --- | --- |
-| Runtime provider | Execute, park, wake, and honor cancellation contracts. |
-| Storage owner | Account for backing and its lifetime. |
-| `Task<T>` holder | Settle or transfer the lifecycle claim. |
+| Suspension | Whether the value may survive a park. |
+| CPU | Whether execution must stay on the same CPU. |
+| Host thread | Whether execution must stay on the same thread. |
+| Address | Whether the value's location must stay stable. |
 
-Moving a task handle does not move its activation stack. Each local activation
-receives fixed nonmoving backing matching its stack plan before execution and
-retains it while parked. The parked control state is compiler/provider-owned;
-source cannot project it from `Task<T>`, recast it as bytes, borrow another
-activation's frames, or modify its saved return chain.
+A record combines the requirements of its live fields. Moving the record or
+putting it inside another value preserves them. The [carry reference](../spec/resources/carry.md)
+explains declarations and permissions for resource authors.
 
-A hosted provider may allocate a stack; an Arena-backed provider can lease a
-pre-provisioned slot; a remote provider accounts for execution-domain storage.
-Inline completion can shorten storage lifetime but still returns an unsettled
-linear task claim. These are provider strategies, not runtime-selectable
-representations for already-lowered control state.
+## Keep a resource across a callback
 
-A bounded pool fixes maximum capacity while individual starts and settlements
-account for availability. Tasks cannot outlive borrowed backing, and a pool or
-runtime cannot close with dependent claims or leases. Fresh activation/lease
-eras prevent reuse of stale settlement evidence. The
-[task storage contract](../spec/build/task_runtime.md#three-owners) owns these
-relationships and their exact runtime-instance accounting.
+One helper can retain a resource while calling synchronous or suspending code:
 
-### Many waiting connections, bounded workers
+```omega
+public machine around<T, machine F>(held: T) -> T
+requires machine F() suspends;
+suspends
+{
+    suspend F();
+    held
+}
+```
 
-A task retains its whole stack plan while parked. A stack pool makes allocation
-and reuse predictable, but a parked activation still occupies its lease. That
-storage becomes reusable only after the activation has ended and its storage
-obligations have been reconciled. Pool capacity therefore accounts for parked
-activations as well as running ones.
+Returning `held` keeps it live across F. The compiler records the condition:
+if F can suspend, held must permit suspension. A synchronous selection therefore
+accepts a suspension-forbidden guard. A suspending selection needs a resource
+that can cross a park; otherwise the application rejects, naming the resource
+and callback. The `suspend` marker stays valid in either case.
 
-A task per connection is convenient when the connection count and per-task
-stack plans fit the provisioned capacity. For a large population of mostly idle
-connections, keep connection state and buffers in an arena and use a bounded
-set of workers to process events. For example, 100,000 connection records can
-share 32 worker activations. Their storage demand includes the records, buffers,
-pending operations and bounded queues, plus 32 worker stack plans. Queue capacity
-bounds waiting submissions; worker count separately bounds simultaneous deep
-execution. Limiting workers does not bound per-connection data by itself.
+The helper still satisfies ordinary ownership, borrowing and invariant rules
+at the call. Other carry requirements, such as staying on the same CPU or thread,
+keep their usual checks. An independent suspending call needs suspension
+permission regardless of F. See [conditional carry](../spec/language/effects.md#conditional-suspension-carry)
+for the contract and forwarding rules.
 
-The worker processes an event, records the connection's next state, submits any
-next I/O operation, and returns to the queue. It does not keep a call suspended
-for each connection. A sum can describe connection progress and an exhaustive
-transition can dispatch it; runtime machine values are not required. Each return
-to the queue must leave the connection state satisfying its default domain and
-any additional published handoff obligations. This explicit state management is
-the authoring cost of sharing execution stacks. A worker that instead suspends
-mid-operation continues to occupy its own stack and worker slot.
+## Cancel a task
 
-Completion-based I/O lets the pending operation retain a linear claim and the
-storage custody it needs while no worker is processing that connection. The
-buffer must remain valid and unavailable for conflicting use until the completion
-protocol establishes that all external access has ended. Requesting cancellation
-alone does not establish that fact, and completing an unrelated worker task does
-not retire the I/O claim. See [foreign storage](../spec/build/foreign_storage.md)
-and [task cancellation](../spec/build/task_runtime.md#suspension-and-cancellation).
+`Task::request_cancel(&task)` asks for cancellation and leaves the task handle
+live. Requesting cancellation does not prove that the task stopped or release
+a borrowed buffer. Finish the task and honor any separate I/O settlement
+contract before reusing its storage.
 
-### Foreign execution
-
-Opaque calls on the activation's stack contribute admitted same-stack demand.
-A blocking-executor package may instead run native work on separately provisioned
-worker stacks while the Omega caller parks. That package composes queues, moved
-custody, and completion claims; it is not another language call kind.
-
-Unreturned in-process work retains its worker, storage, and provider era.
-Bounded recovery from a genuine hang requires suitable isolation. Pointers whose
-use ends before return may use call-scoped borrows; retention after return needs
-an ownership-conserving protocol. Callback entry has its own selected plan and
-registration lifetime. See [foreign storage](../spec/build/foreign_storage.md)
-and the [callback example](chapter_19_capabilities_effects_boundaries.md#foreign-callbacks-through-platform-adapters).
-
-## Cancellation Is A Value At The Wait
-
-Cancellation does not unwind arbitrary frames. It reaches source through an
-ordinary outcome at a declared wait or safe point; source then takes its cleanup
-path. This sketch assumes a suspending, nonblocking `take` contract:
+A worker handles cancellation through the outcome of a wait or explicit safe
+point. For example, given a suspending `Ring::take`:
 
 ```omega
 data Take {
@@ -323,26 +173,22 @@ data Take {
     case Got(frame: Frame);
 }
 
-machine Worker::run(worker: &mut Worker, ring: &mut Ring) {
-    let taken: Take = suspend Ring::take(ring);
-    transition taken {
+machine run_worker(worker: &mut Worker, ring: &mut Ring) {
+    transition suspend Ring::take(ring) {
         Take::Got { frame } -> work(worker, frame)
-        Take::Cancelled  -> cleanup(worker)
+        Take::Cancelled -> cleanup(worker)
     }
-    ...
 }
 ```
 
-The provider must honor its cancellation-request operation, but that does not
-promise every task eventually observes the request. A task that never suspends
-may be finishable without being cancellable. Only terminal settlement consumes
-the external task claim. Ordinary recoverable-outcome reasoning from
-[Chapter 16](chapter_16_errors_traps_failure.md) still applies.
+The cancellation arm takes the worker's cleanup path. It does not unwind
+arbitrary frames. A task that never reaches a cancellation point may never
+observe the request, even if it eventually finishes normally.
 
-## There Is No Select
+## Wait for several events
 
-Multiple producers can post a case-bearing event into one mailbox. The consumer
-waits once and uses an ordinary transition:
+Several producers can send different cases to one mailbox. The consumer waits
+once, then handles the event:
 
 ```omega
 data Event {
@@ -352,157 +198,129 @@ data Event {
     case Shutdown;
 }
 
-machine Server::run(server: &mut Server) {
-    let event: Event = suspend Inbox::take(&mut server.inbox);
-    transition event {
+machine run_server(server: &mut Server) {
+    transition suspend Inbox::take(&mut server.inbox) {
         Event::Packet { frame } -> Server::handle(server, frame)
-        Event::Tick          -> Server::heartbeat(server)
-        Event::Shutdown      -> Server::drain(server)
-        _                    -> Server::run(server)
+        Event::Tick -> Server::heartbeat(server)
+        Event::Shutdown -> Server::drain(server)
+        _ -> run_server(server)
     }
 }
 ```
 
-This is a library design, not a special select construct or a requirement that
-every native event use one mechanism. Mailbox storage and send/receive endpoints
-may have different owners. Closing a mailbox or losing a task must still leave
-every undelivered linear payload with an accountable owner.
+Mailboxes and supervisors are library data. Their closing protocols must
+account for queued payloads, including linear values that still need a consumer.
 
-## Completion And Supervision
+## Choose a stack budget
 
-Using the opening example's possibly suspending and blocking finish operation:
+Each task activation gets a fixed, nonmoving stack sized for its call graph.
+It retains the stack while parked, preserving addresses used by live borrows
+and external operations. Moving the task handle leaves that stack in place.
 
-```omega
-transition suspend block Task::finish(move task) {
-    TaskOutcome::Returned { value } -> use(value)
-    TaskOutcome::Cancelled -> handle_cancellation()
-    TaskOutcome::Failed { receipt } -> handle_provider_failure(receipt)
-}
+A stack pool gives predictable allocation and reuse, but parked tasks still
+occupy slots. Size it for live activations, including parked ones. The runtime
+must guarantee usable backing for each full stack plan throughout its lifetime;
+the provider chooses reservation and physical commitment policy underneath
+that guarantee. See [task storage](../spec/build/task_runtime.md#activation-description-and-stack).
+
+### Many waiting connections, bounded workers
+
+Every parked task retains its full stack-plan capacity guarantee, with physical
+residency governed by the provider; bounded workers limit the number of these
+plans while connection state waits in an arena.
+
+For 100,000 mostly idle connections, consider keeping connection records and
+buffers in an arena and using 32 worker tasks to process events. This gives
+32 worker stack plans, plus the connection data, I/O state and queues.
+
+```text
+completion event -> queue -> available worker
+                              1. update the connection record
+                              2. submit its next I/O operation
+                              3. return to the queue
+
+waiting connection -> record + buffer + pending I/O claim in the arena
 ```
 
-A supervisor owns task claims and policy: it can request cancellation, finish
-children, classify outcomes, and restart work. It need not own frame storage or
-be the runtime provider. A failure mailbox is optional; completion can read the
-provider-held outcome directly. Pools, supervisors, and mailboxes remain ordinary
-packages, with no ownerless fire-and-forget escape.
+The worker returns after submitting I/O. Suspending inside a connection handler
+would continue to occupy that worker and its stack. Queue capacity bounds
+waiting submissions; worker count bounds simultaneous deep execution. Bound
+the connection data and buffers separately.
 
-## Waitable Contracts: Retained Substrate Direction
+Before returning to the queue, restore the record's default invariant and any
+handoff guarantees. Keep its pending I/O claim until completion proves that
+external access ended. A timeout or cancellation request alone cannot release
+the buffer.
 
-A useful shared substrate is a small word/value wait plus wake-one/wake-many
-boundary. Libraries can build completion waits, locks, barriers, and queues over
-it where the target supports the required contract. This is an engineering
-direction, not permission to describe unlike host mechanisms as equivalent.
+This explicit state management costs more authoring effort than one task per
+connection. Use task-per-connection when its stack plans and population fit
+your storage budget. The [blocking-executor package](../../source/library/blocking-executor/README.md)
+describes the bounded-worker building blocks and provider work.
 
-Wait operations publish suspension/blocking and progress separately. Wake does
-not inherit a waiting ceiling merely because it reaches the scheduler. A protocol
-proof must know what can unblock a wait; otherwise the selected profile must
-accept or reject that opaque dependency explicitly. See
-[library and foreign providers](../spec/build/task_runtime.md#library-and-foreign-providers).
+## Safe points and response time
 
-## Atomics
+A scheduler can preempt and restore a task's register and stack state between
+instructions. Structured cancellation, migration and replacement instead use
+explicit semantic safe points:
 
-Ownership prevents ordinary shared mutation. Atomics provide sanctioned shared
-access where a counter, lock, queue, or protocol actually needs it. They are
-dedicated core types, not ordinary integers made implicitly atomic:
+```omega
+process_simd_chunk(buffer);
+suspend scheduler.poll();
+```
+
+Loops and allocations do not insert those polls automatically. Choose polling
+points where retained values satisfy the carry and cleanup requirements.
+
+A stack bound says how much storage is needed, not how soon work completes.
+A blocked operation needs a reason it will unblock before you can promise a
+response time. See [work and response bounds](../spec/resources/logical_work.md).
+
+## Use atomics for shared updates
+
+An atomic counter supports concurrent updates under its access contract:
 
 ```omega
 data TicketLine {
     next_ticket: AtomicU32;
 }
 
-machine TicketLine::take(line: &mut TicketLine) -> u32 {
+machine take_ticket(line: &mut TicketLine) -> u32 {
     AtomicU32::fetch_add(&line.next_ticket, 1, NoOrdering)
 }
 ```
 
-The result is the prior value observed by that atomic instruction, not a racing
-earlier load. `NoOrdering` supplies the atomic access and per-location order,
-not publication of other data.
+The operation returns the prior value from that same atomic update.
+`NoOrdering` supplies atomic access and per-location order. Publishing other
+data needs an appropriate ordering protocol:
 
-Every operation names proof-static ordering. `Receive` can observe what preceded
-a matching `Publish`; `ReceivePublish` combines those roles in a read-modify-write;
-`GlobalOrder` participates in the shared global order. Loads cannot publish and
-stores cannot receive. Compare-exchange has separate success/failure orderings;
-failure is read-only and cannot exceed success's ordering.
+| Ordering | Purpose |
+| --- | --- |
+| `Receive` | Observe work preceding a matching publication. |
+| `Publish` | Publish preceding work to a matching receiver. |
+| `ReceivePublish` | Combine those roles in a read-modify-write. |
+| `GlobalOrder` | Participate in the shared global order. |
 
-Generic code selects one sealed requirement per operation, not a universal
-atomic trait. Ordinary atomics and admitted accessors expose only their
-supported operations. Width, alignment, representation, and resident-custody
-conditions remain separate from arithmetic capability or shareability.
+Loads cannot publish; stores cannot receive. Compare-exchange has separate
+success and failure orderings, and a single-attempt operation may fail to
+commit even when comparison matched. Its outcome also accounts for the
+ownership of the proposed and displaced values.
 
-Compare-exchange has two independent choices: observing versus non-observing,
-and decisive versus single-attempt. A single attempt may report `Uncommitted`
-even when comparison matched. Non-observing exchange returns the proposal on
-failure and displaced resident on success, conserving ownership. Constructing
-an outcome value proves no atomic event occurred.
+Use the [atomic contracts](../spec/language/concurrency.md) when designing a
+protocol. CPU ordering and device/DMA visibility involve different participants;
+a device-status read alone does not prove that a device released its buffer.
 
-The [concurrency specification](../spec/language/concurrency.md) owns orderings,
-observation guarantees, fences, and protocol requirements;
-[access policies](../spec/resources/access.md#atomic-compare-exchange-outcomes)
-owns exact outcome types and operation-specific custody. Current support is
-recorded in the [atomic implementation note](../../omega-rust/psi/foundation/language-core/atomic_operations.md).
+## Check what can unblock a wait
 
-A CPU fence synchronizes only through qualifying observations; it does not
-publish arbitrary memory by itself. Same-context interruption ordering and
-device/DMA visibility have different participants and evidence. In particular,
-a successful device status does not prove release of a device loan. CPU access
-returns only after exact release and ordering obligations are met. See
-[device custody](../spec/resources/device_access.md).
-
-## Concurrent Protocol Model
-
-Atomic-event reasoning asks which observations and reorderings are legal.
-Concurrent transition reasoning asks which activations own, wait for, release,
-or unblock exact resources. Neither replaces ownership or initialization.
-Service reach is an audit/authority set, not that concrete interaction graph.
-
-Whole-composition extraction remains deferred until a concrete protocol or
-safety-profile customer needs it. The intended sealed erased model retains
-activation creation/bounds, resource identities, placement, priorities, wait/wake
-edges, and selected provider premises. Ordinary proof machines consume it;
-a guessed graph or bounded exploration supplies no proof authority.
-
-Implementation properties such as linearizability belong to their conformances.
-Composed deadlock freedom, starvation freedom, memory, and response guarantees
-depend on topology and provider evidence and need revalidation when those change.
-Dynamic creation remains legal; quantitative guarantees need a bounded
-interference envelope or a proof quantified over the dynamic structure.
-
-External arrival rates are assumptions with provenance unless an enforcing
-limiter establishes the admitted-work bound. Its rejection or backpressure is
-part of the service contract. A theorem explicitly covering eight participants
-is different from merely exploring four participants without a proof. See
-[protocol proofs](../spec/language/concurrency.md#protocol-proofs).
-
-## Minimal Deadlock Shapes
-
-Three useful questions for a protocol review are:
+Start with these common deadlocks:
 
 ```text
-Completion cycle:    A waits for B; B waits for A.
-Lock inversion:     one path takes A then B; another takes B then A.
-Missing producer:   receive has no reachable send, close, timeout, or event.
+Completion cycle: A waits for B; B waits for A.
+Lock inversion:   one path takes A then B; another takes B then A.
+Missing producer: receive has no reachable send, close, timeout, or event.
 ```
 
-Barrier arrival counts and external waits need similar scrutiny. These are
-obligations over the actual wait contracts, not special task-start syntax.
-
-## Proof Modes
-
-Build policy can ask for different guarantees: ownership safety, absence of
-internal wait cycles, audited host blocking, or progress under exact admitted
-premises. A memory-safe program does not automatically have bounded response.
-Reports must make the selected guarantee and its assumptions explicit.
-
-Multicore blocking analysis needs a scheduler and resource-sharing protocol.
-A single-core priority-ceiling theorem does not extend automatically: partition
-resources, prohibit cross-core sharing, or select a proved multiprocessor protocol
-with its own blocking analysis. These are deployment choices, not source keywords.
-
-## Connection To Boundaries
-
-Host and OS waits use the same boundary-contract system as other imported
-operations. A wait either has the unblocking/progress evidence the selected
-profile requires or remains an explicit opaque dependency. The report names
-what was admitted; the checker does not manufacture a completion guarantee from
-the absence of visible code. See [Chapter 19](chapter_19_capabilities_effects_boundaries.md).
+Check barrier counts and external waits too. Memory safety protects the state
+of a parked task; a progress guarantee additionally needs a scheduler and
+protocol that can resume it. Deployment policies can require those proofs.
+See [protocol proofs](../spec/language/concurrency.md#protocol-proofs) for
+deadlock, starvation and response guarantees.

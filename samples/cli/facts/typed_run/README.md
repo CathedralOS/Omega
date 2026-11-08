@@ -69,10 +69,31 @@ checked cell transformation into both engines without per-element runtime tags,
 custody tables or hidden occupancy updates. No part of that acceptance is closed
 by the presence of this first witness.
 
-The authored split/merge proof surface remains a decision under
-[`typed-run-cell-transfer-surface`](../../../../OWNER_QUESTIONS.md#q1---how-does-an-ordinary-run-split-or-merge-express-its-cell-transfer).
-The internal ordered-custody summary is already ratified. Geometry and count
-equations alone must not be used to admit the missing cell transfer.
+The ratified
+[`typed-run-cell-transfer-surface`](../../../../wiki/spec/resources/typed_runs.md#split-and-merge-contracts)
+uses total compiler-realized `Run::split` and `Run::merge`. Implement their exact
+catalog entries and retained custody through both engines under
+**EXTENT-LIBRARY-TRANSFORMS** in [TASKS.md](../../../../TASKS.md).
+The integrated Vec witness must also cover spare-tail restoration when
+initialization rejects, alongside linear elements, zero-sized cleanup, contained
+loans and failed growth. Each split/merge must perform constant runtime descriptor
+work. Existing singleton witnesses do not establish that acceptance; geometry and
+count equations alone still cannot admit a cell transfer.
+
+Remaining implementation includes `RunParts<P, T>`, both public primitive
+declarations and `Live` establishment routes, exact sealed-catalog admission,
+and ordered custody through checking, lowering, validation, interpretation and
+native realization. Register the trusted implementations in the trusted-surface
+inventory. Split/merge have no provider or `Role` parameter. Vec owns the ordinary
+live-run/spare-tail composition and recovery code. Pin exact order and disposition
+with controls rejecting invalid cuts, incompatible merges, forged or duplicate
+custody and invalidated loans; repeated split during disposal must add no scan
+of the remaining elements.
+
+The parent task also retains `core/content_*`, `bump_allocator_canary`,
+`uefi_os_handoff_invocation`, and `secondary_processor`/`address_translation`/
+`interrupt_table` acceptance. The integrated Vec witness supplements those
+existing extent, allocation and platform canaries.
 
 The [zero-sized element witness](../../../../tests/omega/pass/layouts/runtime_run_zero_sized_element_exit/README.md)
 retains an empty record's cleanup through singleton storage and extraction,

@@ -17566,8 +17566,8 @@ fail/ranges/guarded_case_payload_self_justifying rejected 701ms expected @2c185c
 	cannot form specification operator `<=` in data `Text` default-domain predicate: no exact selected meaning
 fail/ranges/guarded_case_payload_sibling_guard rejected 701ms expected @2c185c80180f
 	cannot form specification operator `<=` in data `Text` default-domain predicate: no exact selected meaning
-fail/ranges/index_signed_guard_below_zero rejected 14579ms unexpected @ccdb99ca2214
-	cannot prove index `main.j` is within length 4 in body::entry
+fail/ranges/index_signed_guard_below_zero rejected 16323ms expected @33a75c3f9dee
+	cannot prove index `main.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 12285ms expected @ccdb99ca2214
 	cannot prove index `main.i` is within length 4 in body::entry
 fail/ranges/loop_saved_guard_stale_counter rejected 3639ms unexpected @ccdb99ca2214
@@ -27156,12 +27156,10 @@ pass/providers/token_machine_family_override_exit rejected 333259ms check-target
 pass/providers/uncalled_boundary_provider_exit checked 3494ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unreached_console_provider_rows checked 16889ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unused_named_provider_candidates checked 3791ms check-target:macos_arm64 @ccdb99ca2214
-pass/range/data_parameter_counter_non_negative_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `main.i` is within length 2 in add::entry
+pass/range/data_parameter_counter_non_negative_exit checked 17440ms check-target:macos_arm64 @33a75c3f9dee
 pass/range/runtime_funnel_guard_agreement_exit checked 88469ms check-target:macos_arm64 @4e466851bcbe
 pass/range/runtime_guarded_runtime_index_increment_exit checked 12584ms check-target:macos_arm64 @89d5d2d7655c
-pass/ranges/loop_saved_guard_disjoint_write_exit rejected 2618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `main.index` is within length 3 in body::entry
+pass/ranges/loop_saved_guard_disjoint_write_exit checked 8907ms check-target:macos_arm64 @6d175b77abdc
 pass/ranges/runtime_array_element_full_width_receiving_exit checked 4151ms check-target:macos_arm64 @ccdb99ca2214
 pass/ranges/runtime_bounded_array_element_order_exit checked 5731ms check-target:macos_arm64 @911f6617ba9e
 pass/ranges/runtime_correlated_store_saved_values_exit checked 12690ms check-target:macos_arm64 @911f6617ba9e
@@ -27238,17 +27236,14 @@ pass/recast/runtime_captured_guard_conjunction_exit checked 4074ms check-target:
 pass/recast/runtime_encoded_record_view_loan_exit checked 11265ms check-target:macos_arm64 @0fab8dbb32c3
 pass/recast/runtime_field_precondition_capture_exit checked 11820ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_float_range_representation_recast_exit checked 76361ms check-target:macos_arm64 @911f6617ba9e
-pass/recast/runtime_guarded_offset_recast_exit rejected 7660ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `read` state `entry`: cannot bound the recast offset `off` -- the region holds 12 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
+pass/recast/runtime_guarded_offset_recast_exit checked 27816ms check-target:macos_arm64 @6bfec7307ed0
 pass/recast/runtime_inline_shared_slice_record_read_exit checked 86632ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_call_exit checked 75518ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_scalar_machine_exit checked 65921ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_shared_parameter_exit incomplete 13530ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`suffix_words` has no executable body: this compiler does not lower an expression of it yet (call operation: structural arguments: parameter path); in state `suffix_words::entry`, statement 0
 pass/recast/runtime_inline_slice_view_mutable_write_exit checked 65734ms check-target:macos_arm64 @911f6617ba9e
-pass/recast/runtime_integer_bit_view_recast_exit rejected 8270ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `region` state `entry`: cannot bound the recast offset `offset` -- the region holds 6 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
-	machine `region` state `entry`: cannot bound the recast offset `offset` -- the region holds 6 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
+pass/recast/runtime_integer_bit_view_recast_exit checked 19144ms check-target:macos_arm64 @6bfec7307ed0
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 64728ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_interior_slice_view_mutable_write_exit checked 59499ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 12865ms check-target:macos_arm64 @ccdb99ca2214
@@ -28047,7 +28042,7 @@ pass/traits/runtime_dyn_local_selection_exit checked 12900ms check-target:macos_
 pass/traits/runtime_dyn_mixed_scalar_borrow_boolean_exit checked 12458ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_mutable_byte_result checked 3783ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_nested_result_exit checked 2658ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_post_write_alternatives_exit checked 6977ms check-target:macos_arm64 @911f6617ba9e
+pass/traits/runtime_dyn_post_write_alternatives_exit checked 5123ms check-target:macos_arm64 @0282d7651c42
 pass/traits/runtime_dyn_qualified_byte_result checked 3393ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_ranked_dispatch_cycle_exit checked 2941ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_ranked_self_dispatch_exit checked 2702ms check-target:macos_arm64 @3caadfad789f+wt

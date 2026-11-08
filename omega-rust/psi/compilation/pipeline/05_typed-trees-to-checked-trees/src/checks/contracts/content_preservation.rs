@@ -150,11 +150,14 @@ pub(super) fn proves_readonly_source(
                         continue;
                     }
                     matched = true;
-                    if exit_parameter_origins(facts, exit).iter().any(|origin| {
-                        origin.contract == contract
-                            && !origin.state_parameter.is_valid()
-                            && !origin.retained_referent_type.is_valid()
-                    }) {
+                    if exit_parameter_origins(facts.view(), exit)
+                        .iter()
+                        .any(|origin| {
+                            origin.contract == contract
+                                && !origin.state_parameter.is_valid()
+                                && !origin.retained_referent_type.is_valid()
+                        })
+                    {
                         return false;
                     }
                 }

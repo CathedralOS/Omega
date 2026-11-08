@@ -5,6 +5,12 @@ This reference defines selection, transformation admission, and reporting;
 it does not imply implementation of every rule, phase, or program shape.
 [Psi](../terminal-psi/product.md) owns the portable boundary.
 
+Optimization may rely on producer-established facts only for trusted input under
+[Psi admission](../terminal-psi/product.md#publication-and-separate-consumption).
+A supplied certificate or canonical encoding does not authorize that trust.
+Interpreter containment does not authorize optimizing untrusted guest claims
+into omitted checks or lowering them to native code.
+
 ## Exact selection
 
 The build vocabulary exposes exact named selections through
@@ -82,6 +88,14 @@ transformation. A raw portable product leaves subsequent realization choices to
 its receiver.
 
 ## Observations and resources
+
+A [home-layout transformation](../layouts/plans.md#home-layout-realization) may
+change physical storage while preserving the semantic contract. This includes
+compact case encodings without a separate tag. Applicable layout commitments,
+queries, recasts and aliasing observations constrain the change alongside ABI
+contracts. All consumers must agree on the selected realization; a later pass
+cannot invalidate an admitted cast, change an already-fixed layout observation,
+or impose new source mutation restrictions to enable its encoding.
 
 A transformation preserves every observation admitted by the program and its
 selected boundary contracts:

@@ -328,7 +328,7 @@ fn selected_value(
             let state = program.machine_states(machine).first()?;
             arithmetic::scalar_term(
                 program,
-                facts,
+                facts.view(),
                 &Callable::Machine { machine, state },
                 *actual,
                 |_, _| None,

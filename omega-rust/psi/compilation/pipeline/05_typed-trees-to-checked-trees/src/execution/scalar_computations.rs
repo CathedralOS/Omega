@@ -71,6 +71,7 @@ mod atomic_loads;
 mod boundary_calls;
 mod byte_comparisons;
 mod call_arguments;
+mod call_result_types;
 mod cases;
 mod coordinate_reads;
 mod declaration_inputs;
@@ -102,6 +103,9 @@ pub(crate) fn build_checked_value_computation_plans(
     exact_integer_casts: &[ExactIntegerCastFact],
 ) -> (CheckedScalarComputationPlans, CheckedStructuralValuePlans) {
     dispatch_copies::withdraw_captured_pure_roots(program, flow, pure);
+    // Built once: every collector below plans over this same program.
+    let carriers = crate::execution::terminal_unit::types::carrier_index(program);
+    let call_result_types = call_result_types::CallResultTypes::build(program, flow, &carriers);
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = CheckedStructuralValuePlans::default();
     for machine in program.machines() {
@@ -131,7 +135,9 @@ pub(crate) fn build_checked_value_computation_plans(
                 let statement_nodes_start = plans.nodes.storage_slice().len();
                 let mut builder = Builder {
                     program,
-                    shapes: ShapeCollector::new(program),
+                    shapes: ShapeCollector::with_carrier_index(program, carriers.clone()),
+                    carriers: carriers.clone(),
+                    call_result_types: call_result_types.clone(),
                     operators,
                     semantic,
                     flow,

@@ -23,11 +23,11 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Migrate all customers ([range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)) and qualify filesystem oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: all sources pass `omega run --both`; suffix parsing (`parse_type.rs`) and `TypeConstraintNode::Range` are deleted.
 
-- **STATIC-MACHINE-MIGRATION.** (covers **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**, **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**) Finish [static machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state), [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent) and `dropped by`.
+- **STATIC-MACHINE-MIGRATION.** (covers **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**, **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**) Finish static machines, implementations, `dropped by` and [callback reach](wiki/drafts/designs/deferred_callback_reach.md).
   - Finish const-expression closure, package projection, calling policies and `source/psi/` evidence-binder parity.
   - Qualify `positional_implementation_binder`/`open_const_implementation`/`open_record_const_implementation`/`named_conformance_dispatch`/`generic_calling_policy`/`domain_selected_cleanup` on all hosts.
-  - Move Build facets to `Build::*`, retire `machine Data::operation`/attached helpers; finish suspension loans and conservative markers.
-  Acceptance: 9-place `dropped by`, `generic_counters`, clock/GUI and `traits/,layouts/,progress/` pass `--both`.
+  - Move Build facets to `Build::*`, retire `machine Data::operation`/attached helpers; finish suspension loans, markers and conditional carry.
+  Acceptance: 9-place `dropped by`, `generic_counters`, clock/GUI, `traits/,layouts/,progress/` and callback controls pass `--both`.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Replace `dyn` with [machine values and some](wiki/drafts/designs/machine_values_some.md).
   - Complete callable contracts, package openings, loans, envelopes, indirect lowering and codec migration on all hosts.
@@ -90,8 +90,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **STAGED-BUILD-CAPABILITIES.** Implement [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) and attenuated filesystem delegation, retiring `depend*` and `BuildInputs`/`BuildSource`/`BuildOutput`.
   Acceptance: root/dependency Builds, generators, and attenuated filesystem providers pass `omega run --both` with legacy Build paths deleted.
 
-- **LIBRARY-REPRESENTATION-FAMILIES.** Implement [representation applications](wiki/spec/layouts/plans.md#representation-applications), [transparent generic aliases](wiki/spec/language/generics.md#transparent-type-aliases), and [conversions](wiki/spec/layouts/codecs.md#representation-conversions).
-  Acceptance: 9-place rows for aliases, `FixedLayout<T>` ([fixed_region_byte_roundtrip](samples/cli/facts/fixed_region_byte_roundtrip/README.md), [fixed_layout_reference_readback](samples/cli/facts/fixed_layout_reference_readback/README.md), [implementation_region_forwarding](samples/cli/facts/implementation_region_forwarding/README.md)), and [representation_agreement](samples/cli/facts/representation_agreement/README.md) pass `--both`.
+- **LIBRARY-REPRESENTATION-FAMILIES.** Implement [representations](wiki/spec/layouts/plans.md#representation-applications), [aliases](wiki/spec/language/generics.md#transparent-type-aliases), [conversions](wiki/spec/layouts/codecs.md#representation-conversions), and [home layouts](wiki/drafts/designs/home_layout_optimization.md).
+  Acceptance: 9-place alias, `FixedLayout<T>` ([region](samples/cli/facts/fixed_region_byte_roundtrip/README.md), [readback](samples/cli/facts/fixed_layout_reference_readback/README.md), [forwarding](samples/cli/facts/implementation_region_forwarding/README.md)), [agreement](samples/cli/facts/representation_agreement/README.md), niche/repair/recast controls pass `--both`.
 
 - **DATA-DECOMPOSITION.** Implement [separate data and case decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition) (`case as binding`, `let Pattern = expr;`) and retire flattened case patterns.
   Acceptance: named and positional decomposition pass `omega run --both` across 9-place rows and reject twins with flattened patterns deleted.
@@ -141,8 +141,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **NORMALIZED-ABI-LOWERING.** (covers **OPAQUE-BY-VALUE-BOUNDARY-ABI**, **FOREIGN-RETAINED-ARGUMENT-BACKING**) Complete [calling plans](wiki/spec/build/calling_plans.md) and [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody) (`boundary_signatures.rs`, `retained_borrow_custody.rs`).
   Acceptance: `samples/cli/facts/{opaque_closed_carrier_exchange,foreign_retained_*,foreign_nested_record_backing}` and `providers/foreign_*` pass `omega run --both`.
 
-- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**) Finish [proofs](wiki/spec/proofs/foundation.md), identity and metatheory; source mutual/nested/derivation families, higher indices and open carrier transport; polymorphic-identity storage receipts and UIP/extensionality rejection controls.
-  Acceptance: `samples/cli/facts/{closed_integer_bound,negated_mathematical_order,source_indexed_*,erased_reference_contract}` and `proofs/quotient_*` pass `--both`.
+- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi preparation](wiki/drafts/designs/psi_claim_admission.md).
+  Acceptance: [kernel, admission and performance controls](wiki/drafts/designs/psi_claim_admission.md#acceptance), including existing proof samples through `--both`.
 
 ## Build-level behavior exclusions
 
@@ -176,8 +176,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## P5 - Cathedral over general Omega primitives
 
-- **EXTENT-LIBRARY-TRANSFORMS.** (covers **CONSERVATION-CONTRACT**, **TERMINAL-CONTENT-CLAIMS**, **BOUNDARY-ISSUANCE**, **BUMP-ALLOCATOR-CANARY**, **UEFI-PHYSICAL-SEMANTIC-ENTRY**, **AP-BRINGUP**, **ADDRESS-TRANSLATION-CANARY**, **EXCEPTION-ROOTS-AND-TIMER**) Complete [content custody](wiki/spec/resources/content_custody.md), `alloc/{bump,vec}.omg` ([typed_runs.md](wiki/spec/resources/typed_runs.md)), [UEFI handoff](wiki/spec/build/uefi_entry.md), and Cathedral AP/MMU/interrupt canaries.
-  Acceptance: `core/content_*`, `typed_run`, `bump_allocator_canary`, `uefi_os_handoff_invocation`, and `secondary_processor`/`address_translation`/`interrupt_table` canaries pass.
+- **EXTENT-LIBRARY-TRANSFORMS.** (covers **CONSERVATION-CONTRACT**, **TERMINAL-CONTENT-CLAIMS**, **BOUNDARY-ISSUANCE**, **BUMP-ALLOCATOR-CANARY**, **UEFI-PHYSICAL-SEMANTIC-ENTRY**, **AP-BRINGUP**, **ADDRESS-TRANSLATION-CANARY**, **EXCEPTION-ROOTS-AND-TIMER**) Complete [extent/run contracts](wiki/spec/resources/typed_runs.md#split-and-merge-contracts), core primitives, Vec/bump, UEFI handoff and Cathedral AP/MMU/interrupt canaries.
+  Acceptance: [Vec integration](wiki/spec/resources/allocation.md#dense-collections-over-allocated-backing), extent/content and UEFI/AP/MMU/interrupt canaries pass.
 
 ## Rust compiler release closure
 

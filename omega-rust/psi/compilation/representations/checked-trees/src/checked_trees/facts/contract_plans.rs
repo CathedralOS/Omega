@@ -333,6 +333,11 @@ pub struct MachineContractPlan {
     /// Clause grouping, ordering, duplicate predicates, and `true` spelling do
     /// not survive into the published carrier; sites do not enter identity.
     pub crash: CrashPlan,
+    /// Declaration predicates an exclusive-borrow parameter restores on
+    /// return, in roster order: the `restored_on_return` rows of the
+    /// declaration predicate roster. Checking spells the roster once; lowering
+    /// publishes these rows as normal-return guarantees without respelling it.
+    pub restored_declaration_predicates: Vec<crate::CheckedBooleanExpression>,
     /// Historical compact compatibility coordinate. This is report/cache data
     /// and never sufficient contract authority without `commitment`.
     pub report_fingerprint: u64,

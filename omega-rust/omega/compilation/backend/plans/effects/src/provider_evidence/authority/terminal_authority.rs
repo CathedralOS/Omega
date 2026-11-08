@@ -742,10 +742,18 @@ impl TerminalAuthorityDisposition {
     /// disposition. Both inputs are canonical sets, so containment never
     /// depends on authored order or duplicate spellings.
     pub fn contains_all(&self, other: &Self) -> bool {
+        self.first_missing_class(other).is_none()
+    }
+
+    /// One required class absent from this disposition, in canonical order.
+    /// A consumer can retain the actual refusal reason without reimplementing
+    /// containment or treating an unrelated setup failure as its control.
+    pub fn first_missing_class(&self, other: &Self) -> Option<TerminalAuthorityClass> {
         other
             .classes
             .iter()
-            .all(|class| self.classes.binary_search(class).is_ok())
+            .find(|class| self.classes.binary_search(class).is_err())
+            .copied()
     }
 }
 
@@ -815,6 +823,16 @@ impl TerminalAuthorityPermissionPolicyIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TerminalAuthorityClosureLeafOrigin {
     SelectedBoundary,
+    /// A narrowed foreign call checked at its exact canonical occurrence.
+    /// `context` identifies the substituted invocation path and operands,
+    /// independently of the mechanism's checked-argument proof commitment.
+    /// Changing an asserted proof cannot create a second occurrence. This is
+    /// descriptive receipt data; the receiver still replays the derivation.
+    CheckedBoundary {
+        machine: semantic_vocabulary::MachineId,
+        site: semantic_vocabulary::InvocationSite,
+        context: [u8; 32],
+    },
     CheckedPhysical {
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
@@ -826,6 +844,8 @@ pub enum TerminalAuthorityClosureLeafOrigin {
 }
 
 impl TerminalAuthorityClosureLeafOrigin {
+    /// A checked physical/intrinsic instruction site. A constrained boundary
+    /// keeps its distinct invocation-site namespace and is not a root instruction.
     pub const fn checked_site(
         self,
     ) -> Option<(
@@ -833,7 +853,7 @@ impl TerminalAuthorityClosureLeafOrigin {
         semantic_vocabulary::OperationId,
     )> {
         match self {
-            Self::SelectedBoundary => None,
+            Self::SelectedBoundary | Self::CheckedBoundary { .. } => None,
             Self::CheckedPhysical { machine, operation }
             | Self::CheckedIntrinsic { machine, operation } => Some((machine, operation)),
         }
@@ -910,6 +930,20 @@ impl TerminalAuthorityClosureLeaf {
     }
 
     fn validate(&self) -> Result<(), TerminalAuthorityClosureReviewBuildError> {
+        if let TerminalAuthorityClosureLeafOrigin::CheckedBoundary { site, context, .. } =
+            self.origin
+            && (context == [0; 32]
+                || matches!(site, semantic_vocabulary::InvocationSite::InvokeNoNormal(_))
+                || !matches!(
+                    self.mechanism,
+                    TerminalMechanismIdentity::NormalizedForeign(foreign)
+                        if matches!(foreign.argument_contract(),
+                            NormalizedForeignArgumentContract::Checked(checked)
+                                if !checked.is_zero())
+                ))
+        {
+            return Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch);
+        }
         if matches!(
             self.mechanism,
             TerminalMechanismIdentity::CheckedPhysical(_)
@@ -935,7 +969,7 @@ impl TerminalAuthorityClosureLeaf {
             self.custody,
             TerminalAuthorityClosureCustody::ProgramRoot { .. }
         ) {
-            if self.origin == TerminalAuthorityClosureLeafOrigin::SelectedBoundary {
+            if self.origin.checked_site().is_none() {
                 return Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch);
             }
             if self.exercised.is_none() {
@@ -950,9 +984,11 @@ impl TerminalAuthorityClosureLeaf {
                 .exercised
                 .as_ref()
                 .ok_or(TerminalAuthorityClosureReviewBuildError::UnclassifiedAuthority)?;
-            if !permitted.contains_all(exercised) {
+            if let Some(class) = permitted.first_missing_class(exercised) {
                 return Err(
-                    TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted,
+                    TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted {
+                        class,
+                    },
                 );
             }
         }
@@ -1142,7 +1178,9 @@ pub enum TerminalAuthorityClosureReviewBuildError {
     /// leaves, does not form one consistent receiver-admission axis.
     AdmissionAxisInconsistent,
     UnclassifiedAuthority,
-    ExercisedAuthorityNotPermitted,
+    ExercisedAuthorityNotPermitted {
+        class: TerminalAuthorityClass,
+    },
 }
 
 fn compare_closure_leaves(
@@ -1260,6 +1298,29 @@ fn terminal_authority_closure_review_identity(
         }
         match leaf.origin {
             TerminalAuthorityClosureLeafOrigin::SelectedBoundary => digest.byte(0),
+            TerminalAuthorityClosureLeafOrigin::CheckedBoundary {
+                machine,
+                site,
+                context,
+            } => {
+                digest.byte(3);
+                digest.raw(&machine.get().to_be_bytes());
+                match site {
+                    semantic_vocabulary::InvocationSite::Operation(operation) => {
+                        digest.byte(0);
+                        digest.raw(&operation.get().to_be_bytes());
+                    }
+                    semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+                        digest.byte(1);
+                        digest.raw(&edge.get().to_be_bytes());
+                    }
+                    semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+                        digest.byte(2);
+                        digest.raw(&edge.get().to_be_bytes());
+                    }
+                }
+                digest.raw(&context);
+            }
             TerminalAuthorityClosureLeafOrigin::CheckedPhysical { machine, operation } => {
                 digest.byte(1);
                 digest.raw(&machine.get().to_be_bytes());

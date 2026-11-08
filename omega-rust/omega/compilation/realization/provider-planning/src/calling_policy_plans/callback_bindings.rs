@@ -1,6 +1,15 @@
-//! Callback bindings: the calling-plan realization, the retained callback
-//! binders and the closure of
-//! outbound and direct callback materializations.
+/*
+We own `BoundaryCallingPlanRealization`—the Omega-owned realization state for one
+canonical source boundary contract—along with retained callback binders and the
+closure of outbound and direct callback materializations.
+
+Checked custody retains only the semantic key and fingerprint, while concrete
+ABI, register, and stack choices stay beside the native/provider pipeline that
+consumes them. The crate-sealed `validated_boundary_entry_plan` is minted with
+the validated realization; the public `report_fingerprint` remains a compact
+compatibility/report coordinate and cannot authorize replacement of the exact
+plan or materialized signature.
+*/
 
 use crate::calling_policy_plans::callback_layout_catalog;
 use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
@@ -14,32 +23,17 @@ use calling_conventions::{
 };
 use checked_trees::typed_trees::types::TypeReferenceHandle;
 
-/// Omega-owned realization state for one canonical source boundary contract.
-///
-/// Typed trees retain only the semantic key and fingerprint. Concrete ABI,
-/// register, and stack choices stay beside the native/provider pipeline that
-/// consumes them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanRealization {
     pub declaration: semantic_vocabulary::CallingSignatureId,
-    /// Complete canonical application of the Calling relationship's root.
-    /// An inherited member ABI may name a different declaring application.
-    pub(crate) calling_owner_application: String,
+    pub(crate) calling_owner_application: String, // complete canonical application of the Calling relationship's root
     pub boundary_trait: symbols::SymbolHandle,
     pub boundary_arguments: Vec<TypeReferenceHandle>,
-    /// Supplying declaration for lifetime-bearing type operands. An argument
-    /// handle alone does not place its regions in the boundary trait's scope.
-    pub(crate) argument_owner: symbols::SymbolHandle,
+    pub(crate) argument_owner: symbols::SymbolHandle, // supplying declaration for lifetime-bearing type operands
     pub requirement_machine: symbols::SymbolHandle,
-    /// Compact compatibility/report coordinate for the complete target-closed
-    /// application. Exact plan and materialized-signature custody below remain
-    /// the authority for realization joins.
-    pub report_fingerprint: u64,
+    pub report_fingerprint: u64, // compact compatibility/report coordinate; exact plan and signature remain authority
     pub commitment: effects::provider_plan::BoundaryCallingPlanCommitment,
     pub boundary_entry_plan: BoundaryEntryPlan,
-    /// Crate-sealed exact evidence minted with the validated realization.
-    /// The public fingerprint remains a compact compatibility/report
-    /// coordinate and cannot authorize replacement of this plan.
     pub(crate) validated_boundary_entry_plan: ValidatedBoundaryEntryPlan,
     pub callback_binders: Vec<BoundaryCallbackBinder>,
     pub callback_demands: Vec<NativeCallbackDemand>,
@@ -59,8 +53,6 @@ impl BoundaryCallingPlanRealization {
         self.argument_owner
     }
 
-    /// The named layout catalog and ABI signature are published together.
-    /// Callers may inspect them but cannot substitute an unhashed catalog.
     pub const fn materialized_signature(&self) -> &MaterializedBoundarySignature {
         &self.materialized_signature
     }
@@ -69,9 +61,6 @@ impl BoundaryCallingPlanRealization {
         self.validated_boundary_entry_plan.plan()
     }
 
-    /// Publish the completed ABI application without retaining evaluator state.
-    /// The validated plan is retained at production and callback closure, not
-    /// reconstructed by a downstream native stage.
     pub fn native_application(
         &self,
     ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
@@ -247,9 +236,6 @@ pub(crate) fn callback_materialization_context(
     }
 }
 
-/// Canonical source-free projection shared by policy evaluation and
-/// application publication. Admission recomputes this payload against an independently
-/// selected method commitment; this constructor grants no receiving authority.
 pub(super) fn source_free_application(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
@@ -260,29 +246,33 @@ pub(super) fn source_free_application(
         abi: signature.abi.clone(),
         calling_owner_application: Some(calling_owner_application.to_owned()),
         requirement_identity: signature.owner_requirement_identity().to_owned(),
-        target: policy.target, report_fingerprint: 0, commitment: [0;32],
+        target: policy.target,
+        report_fingerprint: 0,
+        commitment: [0; 32],
         plan: validated.clone(),
         dispatch_only_parameter_count: 0,
         signature: policy.geometry,
-        opaque_applications: signature.opaque_representation_uses().iter().map(|use_| {
-            calling_conventions::BoundaryOpaqueApplication {
-                shape_root: use_.shape_root(), application_report_fingerprint: use_.application_report_fingerprint(),
+        opaque_applications: signature
+            .opaque_representation_uses()
+            .iter()
+            .map(|use_| calling_conventions::BoundaryOpaqueApplication {
+                shape_root: use_.shape_root(),
+                application_report_fingerprint: use_.application_report_fingerprint(),
                 selected_application_commitment: use_.selected_application_commitment(),
                 conformance_application_commitment: use_.conformance_application_commitment,
                 representation_schema_version: use_.representation_schema_version,
-                checked_semantic_copy: matches!(use_.copy_disposition,
-                    representation_selections::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
-            }
-        }).collect(),
+                checked_semantic_copy: matches!(
+                    use_.copy_disposition,
+                    representation_selections::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+                ),
+            })
+            .collect(),
         callback_context: policy.callbacks,
         callback_context_closed: false,
     })
 }
 
 impl MaterializedBoundarySignature {
-    /// Detach the ABI input from source correspondence. Native publication and
-    /// policy activation consume this same projection, including unused callback
-    /// binders and every target-closed destination demand.
     pub fn policy_signature(&self) -> Result<super::CallingPolicySignature, String> {
         let signature = self;
         let mut callback_bindings = arena::Arena::with_capacity(signature.callback_binders.len());

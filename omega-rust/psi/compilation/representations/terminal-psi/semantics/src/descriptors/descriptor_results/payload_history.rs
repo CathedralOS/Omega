@@ -215,6 +215,7 @@ struct CachedHistory {
 struct HistoryReplay {
     premises: PremiseTable,
     cached: Option<CachedHistory>,
+    inventory: Option<DescriptorSlotKind>,
 }
 
 /// Exact declaration data in one current executable representation. Prepared
@@ -273,6 +274,25 @@ pub struct PayloadMembershipHistory<'input> {
     entry_snapshots: Option<Vec<(PlaceId, Vec<PayloadScalarObservation>)>>,
 }
 impl<'input> PayloadMembershipHistory<'input> {
+    fn require_analysis_context(
+        &mut self,
+        analysis: &DescriptorAnalysis<'_>,
+    ) -> Result<(), &'static str> {
+        if !analysis.uses_source_graph(self.types, self.graph) {
+            return Err("payload history analysis belongs to another immutable source graph");
+        }
+        match self.replay.inventory {
+            Some(inventory) if inventory != analysis.slot_kind() => {
+                Err("payload history analysis changed its descriptor inventory")
+            }
+            Some(_) => Ok(()),
+            None => {
+                self.replay.inventory = Some(analysis.slot_kind());
+                Ok(())
+            }
+        }
+    }
+
     pub fn new(
         types: &'input [StructuralTypeDeclaration],
         domains: &'input [terminal_psi::StructuralDomainDeclaration],
@@ -351,6 +371,7 @@ impl<'input> PayloadMembershipHistory<'input> {
         root: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<PayloadMembershipContract, &'static str> {
+        self.require_analysis_context(analysis)?;
         let identity = self.sources.identity();
         let sources = &self.sources;
         let source = |place| sources.contract(place);
@@ -410,6 +431,7 @@ impl<'input> PayloadMembershipHistory<'input> {
         position: DescriptorPosition,
         root: PlaceId,
     ) -> Result<PayloadMembershipContract, &'static str> {
+        self.require_analysis_context(analysis)?;
         let sources = &self.sources;
         let descriptor = self.descriptor;
         let incoming = self
@@ -439,6 +461,26 @@ impl<'input> PayloadMembershipHistory<'input> {
         root: PlaceId,
         path: &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
     ) -> Result<PayloadScalarObservation, &'static str> {
+        let mut analysis = self
+            .analysis
+            .take()
+            .unwrap_or_else(|| DescriptorAnalysis::new(self.types, self.graph));
+        let result = self.scalar_snapshot_in(&mut analysis, position, root, path);
+        self.analysis = Some(analysis);
+        result
+    }
+
+    /// The same immutable scalar snapshot with the caller's shared descriptor
+    /// analysis, including its independently chosen reference/view inventory.
+    /// Choosing an inventory does not establish contents or a backing origin.
+    pub fn scalar_snapshot_in(
+        &mut self,
+        analysis: &mut DescriptorAnalysis<'_>,
+        position: DescriptorPosition,
+        root: PlaceId,
+        path: &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
+    ) -> Result<PayloadScalarObservation, &'static str> {
+        self.require_analysis_context(analysis)?;
         if self.entry_snapshots.is_none() {
             self.entry_snapshots = Some(entry_snapshots::collect(
                 self.types,
@@ -446,7 +488,7 @@ impl<'input> PayloadMembershipHistory<'input> {
             ));
             self.replay.cached = None;
         }
-        let contract = self.current_payload_contract(position, root)?;
+        let contract = self.current_payload_contract_in(analysis, position, root)?;
         let expected = observation_type(self.types, contract.carrier, path)
             .ok_or("snapshot subject is not an exact primitive value")?;
         let mut observations = contract
@@ -1668,6 +1710,51 @@ mod tests {
             projected_qualifications: Vec::new(),
         };
         (machine, contract)
+    }
+
+    #[test]
+    fn shared_history_refuses_another_inventory_or_same_coordinate_graph() {
+        let (machine, contract) = forked_history(&[2, 3]);
+        let identity = machine.id;
+        let entry = machine.entry;
+        let graph = [machine];
+        let root = PlaceId::new(1).unwrap();
+        let contracts = [(root, contract)];
+        let mut history = PayloadMembershipHistory::for_current_contracts(
+            &[],
+            &[],
+            &graph,
+            identity,
+            &[],
+            &contracts,
+        )
+        .unwrap();
+        let mut views = DescriptorAnalysis::new(&[], &graph);
+        history
+            .current_payload_contract_in(&mut views, entry, root)
+            .unwrap();
+        assert!(history.replay.cached.is_some());
+
+        let mut borrowed = DescriptorAnalysis::with_borrowed_storage_slots(&[], &graph);
+        assert_eq!(
+            history
+                .current_payload_contract_in(&mut borrowed, entry, root)
+                .err(),
+            Some("payload history analysis changed its descriptor inventory")
+        );
+        let other_graph = [forked_history(&[2, 3]).0];
+        let mut same_coordinates = DescriptorAnalysis::new(&[], &other_graph);
+        assert_eq!(
+            history
+                .current_payload_contract_in(&mut same_coordinates, entry, root)
+                .err(),
+            Some("payload history analysis belongs to another immutable source graph")
+        );
+        assert!(history.replay.cached.is_some());
+        history
+            .current_payload_contract_in(&mut views, entry, root)
+            .unwrap();
+        assert_eq!(history.replay.inventory, Some(DescriptorSlotKind::Views));
     }
 
     #[test]

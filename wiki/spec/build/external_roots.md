@@ -122,6 +122,12 @@ remaining unresolved row. Equal service sets do not establish entry/completion
 or multi-operation protocol coherence; that requires exact provider execution
 and lineage.
 
+Ordinary generic APIs may publish deferred static callback/member reach under
+[static reach dependencies](../language/effects.md#static-callback-reach-dependencies).
+Their selected applications must likewise resolve to finite rows in the installed
+root closure. Such dependencies do not create installation slots, select
+providers, or grant authority.
+
 ## Interruption ordering
 
 Installation is the source of evidence for `Atomic::interruption_fence`.

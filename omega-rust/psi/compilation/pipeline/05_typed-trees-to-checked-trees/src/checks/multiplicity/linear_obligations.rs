@@ -7,7 +7,9 @@ use super::consumed_owners::ConsumedOwners;
 use crate::checks::multiplicity::linear_validation::{
     event_statement_index, validate_linear_permission_events,
 };
-use crate::checks::multiplicity::permission_events::record_crash_frontier_lower_bounds;
+use crate::checks::multiplicity::permission_events::{
+    derive_crash_frontier_lower_bounds, record_crash_frontier_lower_bounds,
+};
 use crate::checks::multiplicity::projected_affine;
 use crate::published::places::place_at;
 use checked_trees::CheckFacts;
@@ -107,7 +109,7 @@ pub(crate) enum CheckedClaimOutcomeSource {
     },
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ClaimIdentityAllocator {
     next_ordinal: u32,
     /// One past the highest ordinal handed out so far, kept across
@@ -132,7 +134,17 @@ impl ClaimIdentityAllocator {
         self.next_ordinal = window * CLAIM_ORDINALS_PER_STATE;
     }
 
-    /// Mint every later identity above all the ordinals the walk handed out.
+    /// Continue after every ordinal this allocator or `other` handed out.
+    pub(crate) fn absorb(&mut self, other: Self) {
+        self.high_water = self
+            .high_water
+            .max(self.next_ordinal)
+            .max(other.high_water)
+            .max(other.next_ordinal);
+        self.next_ordinal = self.high_water;
+    }
+
+    /// Mint after the walk: above every ordinal the walk's states used.
     pub(crate) fn finish_walk(&mut self) {
         self.high_water = self.high_water.max(self.next_ordinal);
         self.next_ordinal = self.high_water;
@@ -166,7 +178,10 @@ pub(crate) fn check_linear_obligations(
     // cleanup fixed point; recording them again here reproduced the same
     // events. Only the crash-frontier projection needs the incoming guard
     // index, which exists only now.
-    record_crash_frontier_lower_bounds(program, facts, incoming_guards);
+    // The checks below only read the facts; the crash frontiers are the one
+    // write, into the contract plans, made before the checks read them.
+    let frontiers = derive_crash_frontier_lower_bounds(program, facts, incoming_guards);
+    record_crash_frontier_lower_bounds(&mut facts.contract_plans, &frontiers);
     validate_linear_permission_events(program, facts)?;
     borrowed_windows::check_recorded_invocations(program, facts)
 }
@@ -220,7 +235,7 @@ pub(super) fn prepare_storage_deaths(
             // execution order. Every taken edge and implicit return must see
             // discharged windows; a continuing path may still repair them.
             let captures = crate::checks::StorageSelectorFacts {
-                flow: &facts.flow,
+                flow: facts.flow.view(),
                 semantic: &facts.semantic,
             };
             let mut windows = borrowed_windows::BorrowedStorageWindows::new(captures);

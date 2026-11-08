@@ -216,7 +216,7 @@ fn expression_value(
         let state = program.machine_states(machine).first()?;
         return arithmetic::scalar_term(
             program,
-            facts,
+            facts.view(),
             &super::Callable::Machine { machine, state },
             expression,
             |_, _| None,

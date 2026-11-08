@@ -1,23 +1,27 @@
 #![forbid(unsafe_code)]
 
-//! The native compiler: retained Terminal plus realization inputs to an image.
-//!
-//! Start at `compile.rs`. It prepares the supplied realization,
-//! admits entry/providers and drives the abstract, target and physical stages.
-//! Callback bodies take the same provider admission and physical pipeline,
-//! using their own artifact-local native proposal and no application entry.
-//! Source compilation, Build
-//! execution and package review stay outside this dependency boundary; this
-//! crate cannot obtain typed or checked trees to repair a missing Terminal fact.
-//! The artifact owner retains runtime provisions before emission consumes them.
-//! `application.rs` owns source-free Terminal application preparation and
-//! package-permission admission, shared by artifact publication and native work.
-//! It consumes exact source-issued inputs without acquiring or interpreting source.
+/*
+Source-free native compiler: lower retained Terminal and realization inputs to
+an executable image or admitted Terminal-runtime provisions.
+
+`compile` and `admit_runtime` prepare the supplied realization, admit entry and
+providers through Omega 00, and drive the abstract, target, and physical stages
+sequenced in `pipeline.rs`. Callback bodies and independent component exports
+traverse the same provider admission and physical pipeline using their own
+artifact-local native proposal and no application entry.
+*/
+
+/*
+Source compilation, Build execution, and package review remain outside this
+dependency boundary: `native-compiler` never reads typed or checked trees to
+repair a missing Terminal fact. `application.rs` owns source-free Terminal
+application preparation and package-permission admission, shared by artifact
+publication and native realization.
+*/
 
 mod application;
 mod compile;
 mod components;
-mod installation_environment;
 mod observations;
 mod pipeline;
 mod preparation;

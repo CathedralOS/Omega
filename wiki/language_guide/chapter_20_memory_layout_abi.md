@@ -1,12 +1,11 @@
-# Chapter 20: Memory Layout And ABI
+# Chapter 20: Memory layout and ABI
 
-A type describes a value; a layout describes its representation. Layout alone
-does not establish that bytes contain a valid value, that you own the backing,
-or that a device permits the access you want to perform.
+A layout determines how a value is stored: field offsets, alignment, and byte
+order. Use an explicit layout when matching a wire format, foreign ABI, or
+device register map.
 
-[Semantic reflection](chapter_21_reflection.md) describes fields and cases;
-layout supplies their target representation. A description is not a byte offset
-or permission to access storage.
+[Semantic reflection](chapter_21_reflection.md) supplies the fields and cases
+that a layout policy places.
 
 This chapter introduces ordinary storage, boundary calls and access views.
 The reference contracts are [layout plans](../spec/layouts/plans.md),
@@ -15,7 +14,7 @@ The reference contracts are [layout plans](../spec/layouts/plans.md),
 [recasts](../spec/layouts/recasts.md). Examples explain intended semantics,
 with layout, access policy, and backing authority kept distinct.
 
-## Zeroed Storage And Establishment
+## Zeroed storage and establishment
 
 The all-zero bit pattern is safe storage for every checked-shape `data` type.
 Whether it already establishes an accessible value is a separate question.
@@ -35,7 +34,7 @@ exactly their declared number of inline elements, with no hidden live-length
 word. A collection with a live length is a different record: zeroing its length
 may make it empty, but does not change the array's capacity.
 
-Aggregates zero their fields recursively. A sum's zero tag selects its first
+Aggregates zero their fields recursively. A sum's zero representation selects its first
 declared case, including a zeroed payload. That payload need not be empty:
 the first case could be `Integer(0)`. Layout optimization must not repurpose
 zero into a different meaning or an invalid representation.
@@ -60,7 +59,7 @@ public domain Command::Inert
 requires
     self in Command::None;
 
-public machine Command::empty() -> Command in Command::Inert {
+public machine empty_command() -> Command in Command::Inert {
     Command::None
 }
 ```
@@ -78,7 +77,7 @@ Changing a sum from a larger case to a smaller one may leave stale tail bytes.
 Those bytes are not part of the new value: destructuring and equality inspect
 only the active case. Padding and inactive payload are not a serialization API.
 
-## Default Layout
+## Default layout
 
 Data declares semantic structure, not an ambient representation:
 
@@ -94,7 +93,28 @@ particular compiler's current offsets. Ordinary storage declarations use the
 default representation when no explicit family is selected. That default is a
 rule of the storage use, not a policy attached to the data declaration.
 
-## Dense Owned Collections
+The compiler can optimize this home layout: pack fields, remove a separate sum
+tag, or eliminate storage altogether when the program's behavior is preserved.
+For an optional nonzero integer, a possible compact encoding is:
+
+```text
+stored zero       -> None
+stored nonzero n  -> Some(n)
+```
+
+The compiler must also preserve legal repairs, borrows and cleanup. A predicate
+that permits temporary zero during repair needs more reasoning than the table
+alone supplies. The encoding is an opportunity, not a promised size for every
+optional type.
+
+A cast that shares storage constrains both layouts. The compiler can shrink both
+if reads and writes through either view still agree; otherwise it keeps a
+compatible layout. Two twelve-byte layouts need not be compatible. Explicit
+placements and exposed bytes or addresses also constrain optimization, and
+`size_of` and `align_of` describe the selected target layout. See
+[home-layout realization](../spec/layouts/plans.md#home-layout-realization).
+
+## Dense owned collections
 
 An allocator-backed vector owns two adjacent regions: established elements and
 vacant spare capacity. A core `Run<P, T>` under its protected `Live` qualification
@@ -105,6 +125,18 @@ ownership contract; allocation and Vec growth remain ordinary library code.
 one allocation: [ T | T | T | T ][ vacant capacity ]
                  live run: 4
 ```
+
+Push and pop operate at the boundary between those two regions:
+
+```text
+push: take one vacant cell -> initialize it -> merge it onto the live run
+pop:  split off the last live cell -> extract it -> return its vacant storage
+```
+
+Initialization can reject. Push then joins the returned vacant cell back onto
+the spare tail and returns the original value to its caller. The live elements
+stay intact. Core supplies the checked run split/merge operations; the vector
+library handles allocation, capacity, growth and this recovery path.
 
 There is no tag or ownership table beside each element. Each live value retains
 its own obligations: four tasks can own four different resources. Pop transfers
@@ -123,12 +155,13 @@ reading `&[f32 in Km]` as `&[f32]` follows qualification erasure. Writing throug
 an unqualified mutable view must preserve or restore the original predicates
 before returning it. Casting does not discard access restrictions.
 
-Swaps move data, pop updates the count, and disposal runs required cleanup.
+Splitting and merging runs take constant runtime work: they update descriptors.
+Swaps move data, and disposal runs required cleanup for each element that needs it.
 The compiler checks the repeated custody transformation symbolically; it does
 not demand per-element runtime bookkeeping. See [dense owned runs](../spec/resources/typed_runs.md)
 for the complete contract and the distinction from single-value resident storage.
 
-## Stable Representation
+## Stable representation
 
 A storage or parameter declaration can select a library representation:
 
@@ -148,8 +181,7 @@ for the general core fixed-storage constructor with a selected library C ABI
 policy. A community package can define another family through the same facility;
 the compiler recognizes neither C nor protobuf by its spelling. Data declarations
 cannot select a layout through `in`, and domain qualification never changes
-geometry. This is the ratified design, with implementation tracked under
-`LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../TASKS.md).
+geometry. See [representation families](../spec/layouts/plans.md) for the underlying constructors.
 
 Policies are ordinary named implementations, not empty data types with attached
 machines. The compiler supplies the authorized schema and explicit target facts,
@@ -170,7 +202,7 @@ a policy; a new primitive needs compiler support. Programmable union and
 runtime-stride source forms remain unspecified; conventional sum reports do not
 define them.
 
-## Representation Conversions
+## Representation conversions
 
 Standard fallible `TryFrom` contracts connect selected complete representations
 through semantic T. Libraries author reusable conversion rules; typed reflection
@@ -185,7 +217,7 @@ Unknown-field handling and historical migration are explicit codec contracts,
 not an automatic consequence of sharing T. Geometry-only and one-way views do
 not falsely promise complete conversion. See [representation conversions](../spec/layouts/codecs.md#representation-conversions).
 
-## When Layout Is Needed
+## When layout is needed
 
 Importing a library does not calculate every layout used by its unused code.
 A console-only program need not lay out unused filesystem records merely
@@ -198,7 +230,7 @@ consumer can therefore reveal an incompatibility in a previously unused layout;
 deferral does not make that layout valid or weaken memory-access requirements.
 See [layout demand and validation](../spec/layouts/plans.md#layout-demand-and-validation).
 
-## Alignment And Padding
+## Alignment and padding
 
 Review field offsets and sizes, alignment, padding, total extent and target
 assumptions together. A correctly sized buffer can still have the wrong alignment
@@ -212,7 +244,7 @@ not a guessed private representation. An all-erased record has no by-value ABI
 carrier. Padding is not semantic data; protocols must not depend on uninitialized
 padding bytes.
 
-## Fat Descriptors
+## Fat descriptors
 
 A slice or text window can be understood as a pointer paired with a length.
 For slices the length counts elements; for text windows it counts bytes.
@@ -234,7 +266,7 @@ separate pointer/length arguments, a particular descriptor record, or a
 terminated string. A checked adapter exposes the safe Omega view while the
 native leaf declares the actual [foreign shape](../spec/build/boundary_shapes.md#foreign-declarations).
 
-## Size And Alignment
+## Size and alignment
 
 Use the compiler-known core queries on a data type:
 
@@ -271,67 +303,39 @@ observation may need runtime computation. An offset view must establish its own
 alignment, and interpreted address IDs are not physical alignment evidence.
 See [location alignment](../spec/language/counts_and_addresses.md#location-alignment).
 
-## Exposing Addresses
+## Exposing addresses
 
-Use `address_of` to observe an executable machine's entry or borrowed storage:
+Use `address_of` to observe an executable entry or borrowed storage:
 
 ```omega
-machine identity<T>(value: T) -> T {
-    value
-}
+machine identity<T>(value: T) -> T { value }
 
 machine addresses() {
     let value: u32 = 7;
-    let code_address = address_of<identity<u32>>();
-    let storage_address = address_of(&value);
+    let code_address: addr = address_of<identity<u32>>();
+    let storage_address: addr = address_of(&value);
 }
 ```
 
-The static machine argument needs no `&`: its declaration already names the entry.
-`<u32>` chooses a concrete application, not the ordinary `value` argument.
-Nothing is invoked, and a machine address captures no data argument. Data-owned
-machine declarations are retired; module, trait and implementation paths retain
-their ordinary declaration identities.
-The storage query observes `value`'s location, not a temporary borrow
-descriptor. These are compiler-known core queries, not new keywords or casts.
-Machine/reference `as addr` is not an alternate spelling.
+The first query selects a concrete machine application; the second observes
+`value`'s location. Neither invokes the machine or grants permission to access
+the observed address.
 
-A retained address request is enough to keep an executable entry even if
-nothing calls that machine. Native realization supplies its entry address;
-interpretation supplies a stable entry ID. Interpreted storage IDs occupy a
-different namespace, so a function and a local cannot collide merely because
-both happen to be number 42. Compatible views of the same storage keep the same
-identity; recursive calls and separately loaded programs cannot accidentally
-reuse an identity for distinct live locations. Tag bits are one implementation,
-not an authored representation to decode.
+Native execution supplies addresses. Interpretation supplies stable IDs for
+entries and storage in separate namespaces. Those IDs support comparison,
+not native byte offsets or instruction patching. Local addresses depend on
+the running invocation; final native entries may depend on loading.
 
-Proof-only entities with no executable realization reject in either mode.
-An ordinary executable machine used in a proof is not thereby proof-only.
-Interpreted execution does not return zero or build a native trampoline merely
-because its body is Psi. The accepted behavior is specified in
-[address exposure](../spec/language/counts_and_addresses.md#address-exposure);
-**ADDRESS-EXPOSURE** in [the task board](../../TASKS.md) tracks implementation.
+Taking an entry address keeps an executable entry available even if other calls
+are inlined. Code sharing can give distinct machines the same native address,
+so address equality is not declaration identity. See [address exposure](../spec/language/counts_and_addresses.md#address-exposure).
 
-Address observation is not address authority. The result does not by itself
-authorize calling, dereferencing, or patching code. Inlining other calls remains legal;
-an exposed entry is not a promise that every invocation passes through it.
-Native code sharing can give different machines the same entry address, so
-address equality is not declaration equality. Interpreted IDs support comparison,
-not native byte offsets or instruction patching.
-
-Nor is this necessarily compile-time arithmetic: local addresses depend on the
-running invocation, and final native entry bits may be fixed only at loading.
-A relocation is not an evaluated integer, and evaluator IDs cannot be baked into
-ordinary constants. Interpreted [assembly](chapter_22_inline_assembly.md#running-assembly-under-interpretation)
-executes supported instruction semantics separately; address IDs alone provide
-neither physical memory geometry nor authority over it.
-
-## Inspecting Emitted Code
+## Inspecting emitted code
 
 An exact native realization has more useful information than a total byte count:
 
 ```omega
-let code = code_layout<identity<u32>>();
+code_layout<identity<u32>>()
 ```
 
 The description contains its entry address and code regions, each with a base
@@ -356,7 +360,7 @@ authority in ordinary code. Typical programs should reject it; a deliberate
 code-modification experiment must identify its departure from the checked model
 and accept the resulting conditional guarantees.
 
-## Calling Conventions
+## Calling conventions
 
 Omega's internal calling convention is compiler-owned. A boundary pins an
 observable promise through `Calling<Policy>`, where `Policy` is an exact named
@@ -396,77 +400,11 @@ those demands but cannot create or reorder them. See the worked
 and the [calling-plan](../spec/build/calling_plans.md) and
 [private-callback](../spec/build/private_callbacks.md) contracts.
 
-## Access Policies And Externally Mutable Memory
+## Access policies and externally mutable memory
 
-Access belongs to domains. Ordinary RAM can use ordinary field expressions under
-the domain's reader/writer restrictions. Device or atomic-backed views retain
-restricted operation accessors where an ordinary reference would promise the
-wrong behavior. Another Omega thread alone does not require a device policy.
-
-### Geometry, demand, and supply
-
-Keep three descriptions separate:
-
-- `LayoutPlan`: how the type's semantic fields are represented.
-- `AccessPlan`: who may establish/access the qualified subject and its fields,
-  required observation/operation behavior, exposure and reach.
-- `ResourceProfile`: what the actual backing supports, bound by admitted evidence.
-
-An access plan contains no layout. It uses `reflect::TypeSchema` and symbolic
-field identities. Establishment joins that plan to an independently validated
-layout and the actual supply; neither policy construction nor layout compatibility
-supplies authority. Field names below are declaration selectors, not strings.
-
-```omega
-public data UartRegisters {
-    status: u32;
-    transmit: u32;
-}
-
-public domain UartRegisters::DeviceRegisters
-    access UartAccess;
-
-public UartAccess satisfies AccessPolicy {
-    machine plan(schema: reflect::TypeSchema) -> AccessPlan
-    reaches
-    terminates
-    {
-        let mut plan: AccessPlan = AccessPlan::new(&schema);
-        AccessPlan::establish(&mut plan, [reflect::callable(UartProvider::open)]);
-
-        AccessPlan::allow_writers(&mut plan, reflect::field(UartRegisters::status), []);
-        AccessPlan::allow_readers(&mut plan, reflect::field(UartRegisters::transmit), []);
-
-        AccessPlan::observe(
-            &mut plan, reflect::field(UartRegisters::status),
-            FieldAccess::External {
-                read: ExternalRead::Read,
-                write: false,
-                exposure: Exposure::Exported
-            }
-        );
-        AccessPlan::observe(
-            &mut plan, reflect::field(UartRegisters::transmit),
-            FieldAccess::External {
-                read: ExternalRead::None,
-                write: true,
-                exposure: Exposure::Exported
-            }
-        );
-        plan.reach = device_io_reach();
-        plan
-    }
-}
-```
-
-The platform supplies the exact admitted `UartProvider::open` contract, layout,
-resource profile and device correspondence; they are not manufactured by the
-policy above. The ordinary helper `device_io_reach` returns required reach data.
-Constructing it grants no reach.
-
-A boundary-established `UartRegisters in DeviceRegisters` view interprets that
-backing; it is not a newly allocated record. A whole qualified view can be passed
-to an ordinary machine, while projection produces an operation-governed accessor:
+A device register can change independently of Omega's borrows. Its access
+policy describes the reads and writes the hardware supports. Given a UART
+view whose status is read-only and transmit register is write-only:
 
 ```omega
 machine send(uart: &mut (UartRegisters in DeviceRegisters), byte: u32) -> u32 {
@@ -475,202 +413,71 @@ machine send(uart: &mut (UartRegisters in DeviceRegisters), byte: u32) -> u32 {
 }
 ```
 
-Only the explicit operation performs the event. The accessor retains its exact
-field, domain policy, independent layout, range, lifetime and authorization.
-A mutable loan of the view does not exclude hardware mutation or turn the
-underlying device into ordinary exclusive RAM. Writing `status`, reading
-`transmit`, or obtaining an unrestricted ordinary field loan rejects.
+Each explicit operation performs one device event. Reading `transmit`, writing
+`status`, or borrowing either as unrestricted RAM rejects. The mutable borrow
+serializes use of this view; it cannot prevent the device changing its status.
 
-### Where the view comes from
+The platform's provider supplies the qualified view with its backing, lifetime
+and device correspondence established. Application code passes that view to
+helpers and performs the permitted operations.
 
-For ordinary RAM, introducing a domain on a checked borrowed view retains the
-lender's original loan and narrows its access. Any establishment restriction still
-needs exact provenance. Ending the complete loan cohort restores the lender's
-prior access; erasing the displayed domain does not. No provider admission is
-needed to attenuate ordinary RAM.
+### Author an access policy
 
-For firmware, an OS or device backing, an admitted boundary contract supplies
-qualified backing or an established view. Borrowing existing resident content
-retains its exact `Extent in Granted & Resident<P, T>` custody. Build owns
-acceptance and provider selection, not the policy author. Issuance supplies
-`Granted`, the provider supplies `ResourceProfile`, and a device interpretation
-requires separate schema correspondence. Content validity, custody and lifetime
-remain required. `P` identifies the normalized domain policy, not a layout shell.
+A provider author connects three independently checked descriptions:
 
-### Access plans
-
-`AccessPlan::new(&schema)` adds no caller restrictions. A list narrows the relevant
-axis, and an empty list denies everyone. Whole-object, field and independently
-inherited lists intersect. This default does not admit new observation modes:
-actual backing and the selected operation contracts still decide which transfers
-are possible. There is no implicit grant of stable, external or atomic access.
-
-A symbolic field descriptor joins to the selected layout by exact identity.
-Several layout fragments of one field share its semantic rule. Wrong-owner,
-wrong-application or forged descriptors reject; omitted caller restrictions never
-license incomplete geometry or dropped custody. An authorized atomic reader/writer
-still owes the atomic operation's ordering and backing contract.
-
-| Observation | How to think about it |
+| Description | What it answers |
 | --- | --- |
-| Stable | Backing does not change behind the loan. Mutation still needs both source and current exclusivity. |
-| External | Each admitted transfer occurs once at its specified width. Device access is an explicit event. |
-| Atomic | Only individually admitted atomic operations and widths are available. |
+| `LayoutPlan` | Where and how the semantic fields are stored. |
+| `AccessPlan` | Who may access them and which observations are permitted. |
+| `ResourceProfile` | What the actual backing supports. |
 
-Two bitfields in one device word do not necessarily permit independent writes:
-read-patch-write touches the whole container. Stable exclusive storage may permit
-it; External storage needs a complete transfer or an explicitly supplied masked
-operation. A generated write must not hide a compare-exchange retry loop.
+For the UART, the access plan restricts establishment to the provider, denies
+status writes, denies transmit reads, and marks the transfers External. The
+layout separately supplies their offsets and widths. The provider establishes
+that this layout describes the actual device.
 
-A destructive read consumes one whole container snapshot. Read once, then project
-fields from the owned result. Separate destructive accessors cannot each consume
-the same event. W1C, read-back-to-flush and coherent snapshots belong in authored
-protocol machines, not additional access-plan cases.
+Use [access plans](../spec/resources/access.md) for the complete construction
+API and [layout plans](../spec/layouts/plans.md) for placement. Writing down a
+plan alone cannot grant access to an address.
 
-Helpers can accept just the operation they need:
+### Choose an observation contract
 
-```omega
-machine send_byte<T, Write satisfies Writable<T, u8>>(
-    transmit: &mut T,
-    byte: u8
-)
-{
-    Write::write(transmit, byte);
-}
-```
-
-An exclusive borrow of an External accessor serializes that value, not the device.
-Binding-private exposure controls naming and issuance; passing the accessor
-delegates its public operation requirements. Copyability, concurrent sharing and
-bounded-use permits remain separate concerns.
-
-Atomics preserve ownership too. Load needs a copyable resident; store needs
-permission to discard displaced content; swap returns it. Observing compare-exchange
-failure exposes the resident and requires copyability. Non-observing variants
-return proposed custody on failure and displaced custody on success. `Once` means
-single-attempt, not non-observing. The [exact outcomes](../spec/resources/access.md#atomic-compare-exchange-outcomes)
-explain these independent choices.
-
-### Admission and establishment
-
-An extent's address and length describe geometry, not authority:
-
-```omega
-public data Extent [linear] {
-    base: addr;
-    length: u64;
-}
-```
-
-This is core-library data, not a special language type. The compiler supports
-general linearity, domain authority, loans, mathematical contracts and the
-explicit `Content` conservation interface. Core uses those mechanisms to define
-extent operations; other libraries can use the same mechanisms for their own
-resources.
-
-Split and merge are ordinary machines with checked contracts. A merge must
-consume its inputs, conserve their content and establish its result's authority.
-Any required relationship between inputs belongs in their declared types,
-domains or contracts; common ancestry is not an automatic compiler restriction.
-Adjacency alone does not establish backing or permission, and different issuance
-calls alone do not forbid combination. See
-[library resources and language mechanisms](../spec/resources/content_custody.md#library-resources-and-language-mechanisms).
-
-Extent-backed establishment needs the exact source qualified as
-`Extent in Granted`. Reconstructing numeric fields does not reconstruct the grant.
-A caller-authored profile is not
-an admission receipt: the selected provider binds its normalized profile to that
-qualified range.
-
-| Family | Use it when |
+| Observation | Use it for |
 | --- | --- |
-| `view_borrowed` / `view_owned` | Content is already established for this interpretation. |
-| `initialize_borrowed` / `initialize_owned` | You own a new `T` and exclusive vacant Stable storage. |
-| `validate_borrowed` / `validate_owned` | Stable bytes need inspection by a checked static validator. |
+| Stable | Backing that stays unchanged behind a shared loan. Writes need exclusive access. |
+| External | Device transfers performed once at their specified widths. |
+| Atomic | Individually supported atomic operations and orderings. |
 
-Validation establishes representation and predicates, not ownership or uniqueness.
-Represented non-copy content needs initialization, existing resident custody or an
-admitted transfer. Device programming is an authored protocol, not generic External
-initialization.
+Two bitfields in one device word may share a write footprint. Read-patch-write
+touches the whole word and needs permission for that transfer. A destructive
+read similarly consumes one snapshot: read once, then inspect its fields.
+Write-one-to-clear and read-back-to-flush behavior belong in protocol machines.
 
-`Vacant` means no live established value occupies the range, not that bytes are
-zero. `Resident<P, T>` owns one complete value under that exact placement. Opening
-and retiring a resident view transfers or borrows the same claim, never a fresh
-one. Extent split/merge cannot cut or combine resident objects by geometry alone.
+### Establish and retire a view
 
-Their protection comes from declared establishment routes and checked custody,
-not from `Extent` being linear. Writing an empty `domain Extent::Vacant;` would
-declare a freely introducible tag, not certify vacancy. Initialization,
-retirement and admitted transfer must establish or forward the actual claim
-under [domain establishment rules](chapter_8_domains.md#establishing-and-qualifying-domains).
+A range's address and length describe geometry. Its `Granted` qualification
+supplies the backing authority needed for access. Choose the establishment
+operation according to what already occupies that range:
 
-Non-runtime Type fields still need custody. An authored record and explicit named
-conformance account for them without hidden representation bytes:
+| Family | Starting state |
+| --- | --- |
+| `view_borrowed` / `view_owned` | A value is already established there. |
+| `initialize_borrowed` / `initialize_owned` | A new value and exclusive vacant Stable storage. |
+| `validate_borrowed` / `validate_owned` | Stable bytes to inspect with a checked validator. |
 
-```omega
-data PacketCustody {
-    authority: DeviceAuthority;
-}
+`Vacant` means no live value occupies the range; it need not contain zero bytes.
+`Resident<P, T>` accounts for one complete value under the selected placement.
+Validation proves representation and predicates, while ownership and uniqueness
+need their own evidence.
 
-public PacketNativeCustody satisfies AccessCustody<PacketCustody, Native, Packet> {
-    // Exact required custody rows.
-}
-```
+If establishment can fail, its rejection result returns the resources it took
+or accounts for their disposition. Successful establishment keeps the source
+and any required custody with the view. Retirement must account for them again:
+destroy or move out owned content before declaring the range vacant; ending a
+borrowed view ends only its loan.
 
-The conformance checks exact field paths, types, multiplicities and plan decisions.
-The custody type alone does not trigger ambient search. Case-dependent custody
-follows an authored operation identifying the case. Proof conclusions cannot
-replace owned Type values.
-
-Dynamic rejection returns what the operation took:
-
-```omega
-data AccessOutcome<View, Returned, Reason> {
-    case Ready(view: View);
-    case Rejected(returned: Returned, reason: Reason);
-}
-
-data AccessReturn<Source, Custody> {
-    source: Source;
-    custody: Custody;
-}
-```
-
-Owned rejection returns source and custody. Borrowed rejection ends the loan and
-returns moved custody. Every other input also needs an explicit disposition;
-missing output is not proof of consumption. The selected validator's full
-contract and declared error sum remain visible, as specified by
-[establishment and retirement](../spec/resources/access.md#establishment-and-retirement).
-
-This schematic transition handles both outcomes; the caller supplies its policy,
-schema, exact custody conformance and validator:
-
-```omega
-transition validate_owned_access<
-    Native, Packet, PacketCustody, PacketNativeCustody, Validator
->(move source, move custody, move revision_ticket) {
-    AccessOutcome::Ready { view } ->
-        use(view)
-
-    AccessOutcome::Rejected {
-        returned: { source, custody },
-        reason
-    } ->
-        recover(move source, move custody, reason)
-}
-```
-
-Success embeds source and custody in the view; rejection returns them. If revision
-checking consumes the ticket on both paths, its contract must justify both
-dispositions. A statically proved check may make rejection impossible, but does
-not silently unwrap the sum: an irrefutable case pattern still needs that proof.
-
-Retirement accounts for everything embedded. Complete owned Stable content can
-be destroyed or moved out, returning `Vacant`, or retained with the same resident
-claim. A borrowed resident view ends only its loan. Partial content must be restored
-or fully disposed of before retirement; a crash record proves neither vacancy nor
-a complete resident. In-place migration takes out the old value, reaches vacancy
-and initializes the new value only if its footprint fits. Otherwise use another range.
+See [establishment and retirement](../spec/resources/access.md#establishment-and-retirement)
+for owned rejection, retained authority and partial-content rules.
 
 ### Stored integers
 
@@ -692,10 +499,8 @@ recovers the wider value after transfer. A mutable raw-byte view preserves the
 encoding and write-fit obligation; differently represented typed records do not
 thereby become interchangeable aliases.
 
-More complex conversion can use a checked adapter. The
-[layout contract](../spec/layouts/plans.md#placement-vocabulary) owns encoding;
-the [implementation note](../../omega-rust/psi/compilation/build-time-evaluation/layouts.md)
-records supported widths and materialization shapes without narrowing the language.
+More complex conversions can use a checked adapter. The
+[layout reference](../spec/layouts/plans.md#placement-vocabulary) defines the encoding operations.
 
 ### Loans, aliases, and phases
 
@@ -752,49 +557,27 @@ let header: &mut Header = &mut storage.bytes[offset] as &mut Header;
 let words: &mut [u16] = &mut storage.bytes as &mut [u16];
 ```
 
-These require compatible representations, not just equal byte counts. Shared
-views may forget facts; immediately established mutable views need equivalence in
-both directions. An exclusive cast may instead open an establishment window as
-described below. Source validity and custody must still hold at handback.
-Recasting itself performs no validation or executable conversion.
+A shared recast must preserve valid observation. A mutable recast must also
+allow every permitted target write to leave storage valid for its original
+owner, or open an initialization window that restores validity before handback.
 
-For example, `bool` has representations `{0,1}`. A shared unconstrained byte view
-forgets a fact. An unrestricted mutable byte view would permit writing `2`, so
-it cannot be admitted as an immediately established two-way view. A window cannot
-return such bytes as a `bool` without proving restored Boolean validity. Raw bytes
-cannot establish Boolean validity merely by receiving a type.
+For example, a `bool` contains only `0` or `1`. Viewing it as an unrestricted
+mutable byte would allow writing `2`. That view needs a window and a proof of
+restoration before the original Boolean can be used again.
 
-Recasts must also preserve access authority. Atomic operations can mutate through
-a shared reference, so `&u32` to `&Atomic<u32>` cannot manufacture permission to
-write. The reverse cannot turn concurrent atomic storage into an ordinary stable
-read: non-atomic observation requires exclusion over the actual backing.
-With genuine exclusive access, ordinary/atomic recasts remain eligible when
-layout, established validity or the deferred-establishment rules, and outstanding
-obligations permit them. Casting
-through bytes does not bypass these checks.
+A recast also checks alignment and the complete target extent, including padding.
+A slice's bytes must divide exactly into the target element stride. Equal sizes
+alone establish neither alignment nor valid contents.
 
-The same rule applies to domain reader/writer policies. Omitting the
-domain in a cast cannot unlock the governed storage, even with exclusive access
-or an atomic-to-atomic target. The view retains its restrictions or the broader
-use rejects. See [domain access](chapter_8_domains.md#read-and-write-authority).
+Access restrictions survive the recast. Turning a shared `u32` view into an
+atomic view would add write access, so it rejects. With exclusive access, an
+ordinary/atomic recast can be valid if its layout, value, and outstanding-loan
+requirements hold. Device views retain their planned observation operations;
+use a detached snapshot when ordinary memory access is needed.
 
-Atomic-to-atomic casts are not categorically forbidden; they must preserve the
-authorized operations and observation protocol. This is an access-preserving
-cast rule, not a mutex design or a new domain-minting restriction. A mutex still
-has to establish how acquiring and releasing its lock transfers payload custody.
-
-An interior recast borrows its entire target footprint, including padding, not
-only the selected byte. A slice must exactly tile the source region: length is
-byte extent divided by element stride, with no ignored remainder. Bounds alone
-do not establish alignment or the congruence needed for multi-byte elements.
-
-Recasts cannot re-plan an operation-governed access view or discard its policy:
-another shape could expose a denied field or bypass required observations.
-Ordinary Stable recasts retain restrictions on the same storage. Recast a detached
-snapshot under its own contract, or establish another operation-governed view
-through legitimate underlying authority. See the
-[recast judgment](../spec/layouts/recasts.md) and
-[implementation limits](../../omega-rust/psi/compilation/validation/recasts.md).
+See the [recast reference](../spec/layouts/recasts.md) for the full compatibility
+rules and [domain access](chapter_8_domains.md#read-and-write-authority) for
+reader and writer policies.
 
 ### Initializing a stricter shape in byte backing
 
@@ -824,15 +607,14 @@ still apply. A cast cannot replace explicit establishment of a new
 operation-governed interpretation.
 
 See [deferred establishment](../spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
-and [invariant windows](chapter_11_invariant_windows.md). This is accepted semantics,
-not a claim that the current compiler executes the complete initialization path.
+and [invariant windows](chapter_11_invariant_windows.md).
 
 ## Endianness
 
 Native layout follows the target. Wire protocols declare byte order or select
 field encodings that define it independently.
 
-## Relationship To Serialized Bytes
+## Relationship to serialized bytes
 
 Native and serialized layouts solve different problems. A value has one in-memory
 form, while its schema may support several encoding policies. They coincide only
@@ -894,6 +676,4 @@ The [codec contract](../spec/layouts/codecs.md) owns these policies and migratio
 requirements. A channel or store separately requests directional reading,
 writing, preservation, canonicalization, or complete peer-to-local migration
 through [build compatibility](../spec/build/configuration.md#directional-wire-compatibility).
-These are package patterns, not intrinsic versions or special migration syntax;
-the example illustrates the contract without promising every codec realization
-is implemented.
+A package can use separate migration lineages for disk, network and snapshot formats.

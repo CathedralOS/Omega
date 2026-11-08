@@ -81,17 +81,28 @@ Compiler-local handles and compression cannot change published identity.
 
 [Compatibility evidence](../proofs/contracts.md#exact-matching-and-evidence-transport)
 retains its exact proposition, subjects, substitution and selected law authority
-separately from keys. Proof-discovery policy and usage are provenance/accounting;
-they neither rename applications nor replace the evidence. Published proofs
-are verified at trust boundaries without repeating producer search.
-Artifact bytes or cache provenance may differ with proof records while semantic
-identities remain fixed. Closed values retain their own evaluation obligations.
+separately from keys. Reuse of established judgments follows
+[Psi admission](product.md#publication-and-separate-consumption): the host
+authorizes the trusted producer's exact artifact. Receipt requires neither
+theorem rediscovery nor certificate replay. Proof-discovery policy and usage
+are accounting; they neither rename applications nor establish claims. Closed
+values retain their own evaluation obligations.
 
 The migration must update identity-profile provenance and evidence serialization
 together, rejecting or explicitly migrating artifacts with legacy law-sensitive
 keys rather than silently reinterpreting them. No new numeric wire tags are
 assigned by this documentation change. Distributivity requires no runtime
 polynomial representation or executable wire operation.
+
+Mathematical proof-term tags 5 and 6, indexed theorem roots, carrier keys and
+the `PSICORE` framing remain supported canonical encodings. Their presence grants
+no truth, producer trust, execution permission or provider authority. Decoding
+checks their representation under shared count, depth, byte and work limits;
+it does not re-decide the encoded judgment. The
+[inspection/preparation split](../build/embedding.md#loading-and-preparation)
+preserves canonical and structural validation while assigning execution-only
+analyses to authorized preparation. No wire-format retirement follows from this
+admission policy.
 
 An optional predicate is a presence Boolean, followed when present by its
 subject value id and one canonical proposition. Its domain-local subject is
@@ -304,8 +315,10 @@ the verifier rejoins them to that callee's retained closed application. Argument
 tags distinguish type, const, proposition, and machine selections; machine
 arguments retain selected identity and contract commitment without duplicating
 the callee's dependency graph. Missing, differently typed, reordered, or changed
-tuples reject even if a stale commitment is unchanged. The original source
-projection remains producer-trusted without independently checkable openings.
+tuples reject even if a stale commitment is unchanged. Correspondence to the
+original source projection remains a compiler responsibility. Reuse of the
+producer's logical judgments requires host authorization for the exact artifact;
+receiving structural and installation checks retain their own obligations.
 These contract records add no executable call variant or work rule.
 
 An unused selected family retains its selected identity, public contract
@@ -927,7 +940,8 @@ specialization flag. When set, the flag is followed by template and template-cal
 identity-table indices and the 32-byte specialization commitment. Each identity-table
 index is a `u32`. Mathematical certificates use the `PSICORE\0` format described
 below; a carrier key uses that same format with the claimed type as both judgment
-roots.
+roots. Canonical decoding of either row grants no theorem or carrier law;
+reuse of producer judgments follows the host's exact-artifact trust decision.
 
 The quotient catalog retains nominal formations and executable copy/call joins.
 A call join names the public machine, representative machine and call occurrence,
@@ -1512,6 +1526,40 @@ when present, by the call application.
 | 1 | Const | identity index |
 | 2 | Proposition | identity index |
 | 3 | Machine | identity index + 32-byte contract commitment |
+
+### Deferred static reach summaries
+
+The [deferred reach contract](../language/effects.md#static-callback-reach-dependencies)
+requires published summaries to distinguish an open bound from every finite
+bound, including empty. Preserve structural and nominal machine-binder origins,
+and conformance projections keyed by evidence binder, exact requirement member
+and substitutions. Closed applications retain the selected published contract
+commitments and the resulting finite rows. Runtime callable ceilings stay finite;
+an installed root cannot retain unresolved static projections.
+
+Canonical identities include these distinctions. An old empty bound cannot be
+reinterpreted as an open one. The [migration](../../drafts/designs/deferred_callback_reach.md#implementation)
+must update the reach schema, wire-field tables, commitments and codecs together,
+with exact round-trip and refusal coverage. Source omission alone cannot recover
+an absent dependency from a previously published interface.
+
+### Conditional suspension-carry summaries
+
+An exported generic operational contract retains its
+[conditional carry rows](../language/effects.md#conditional-suspension-carry).
+Each row identifies the enclosing application and exact crossing, the symbolic
+live subject or claim, its scoped provenance, the required suspension permission,
+and the normalized suspension-dependency expression. Expressions use the existing
+fixed Boolean contributions and exact callback projections; they may name several
+binders. Forwarding retains substitutions for subjects as well as conditions.
+
+These rows participate in canonical interface identity and dependency checking.
+A decoder cannot interpret a missing row as permission. Closed applications
+discharge or satisfy their obligations before lowering, while ordinary call and
+outcome obligations remain enforced. Runtime callable types and installation-bound
+service rows gain no new form. The [implementation plan](../../drafts/designs/conditional_callback_carry.md#implementation)
+owns the coordinated schema, wire-table and codec update; it must verify that
+closed suspension call plans preserve the specialized live frontier and policies.
 
 ## Module declaration tables
 
@@ -2346,8 +2394,9 @@ re-encoding.
 
 A mathematical certificate is `PSICORE\0` + `u16` format marker 3 + `u32`
 level arity + the counted node table + the counted declaration signature +
-the counted context + two `u32` root handles. It is the self-contained
-judgment the kernel re-decides: declaration statements and bodies,
+the counted context + two `u32` root handles. It represents a self-contained
+judgment that the local kernel can decide. Canonical receipt does not perform
+that decision or confer admission authority. Declaration statements and bodies,
 context bindings, and the claimed `term : expected` pair all name rows in one
 shared term table.
 

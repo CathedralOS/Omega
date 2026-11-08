@@ -121,6 +121,11 @@ actual custody, not fresh authority inferred from its type or index.
 
 Validation checks initialization, extraction, partition/concatenation and
 relocation against that summary, including zero-footprint logical positions.
+Split records the exact input custody, cut and two resulting subsequences;
+merge records the two consumed inputs and their left-then-right concatenation.
+The contracts and primitive identity survive lowering, so validation checks
+the cell transfer as well as bounds, backing and count conservation. Merely
+matching descriptor bytes or a source helper name cannot authorize it.
 Calls and joins preserve its obligations. Ordinary element replacement and
 borrowed holes retain the existing restoration rules. Returning backing while
 cells remain live rejects; an authored consuming traversal may first dispose
@@ -131,6 +136,9 @@ Neither the interpreter nor native realization introduces a per-cell custody
 table, tag or liveness bitmap for a run. Source-free consumption preserves the
 checked transformations, actual cleanup effects and loans without re-enumerating
 the runtime element count in proof metadata.
+Split and merge realize constant-size descriptor transformations in both engines,
+independent of the live cell count. Per-element cleanup remains the work of the
+authored consuming traversal and its selected element operations.
 
 ## Borrowed-storage restoration
 

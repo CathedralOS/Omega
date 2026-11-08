@@ -319,6 +319,29 @@ impl<'plans> FlowBuildContext<'plans> {
         effects
     }
 
+    /// Call-site selector proofs do not belong in the target-only memo. The
+    /// unspecialized summary still answers every caller that has not narrowed
+    /// the same paths.
+    pub(super) fn stored_reference_effects_for_selectors(
+        &self,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        indices: &[Option<usize>],
+        selectors: &[(
+            symbols::SymbolHandle,
+            Vec<facts::PlaceSegment>,
+            symbols::SymbolHandle,
+        )],
+    ) -> Option<Rc<Vec<validation::StoredReferenceEffect>>> {
+        self.call_frames
+            .and_then(|frames| {
+                frames.state_stored_reference_effects_for_selectors(
+                    machine, state, indices, selectors,
+                )
+            })
+            .map(Rc::new)
+    }
+
     #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(

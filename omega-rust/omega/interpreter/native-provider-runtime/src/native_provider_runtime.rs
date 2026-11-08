@@ -1,9 +1,19 @@
-//! Sponsor one actual provider process and its immutable native homes.
-//!
-//! The process is a physical failure/lifetime boundary, not a semantic fallback.
-//! Each installed slot consumes a produced exact ABI image. Mapped ranges stay
-//! owned independently in both processes; only the interpreter can correlate
-//! normal calls with actual claims, content guarantees and retained loans.
+/*
+We sponsor an isolated provider process (`NativeProviderProcess`) and its
+immutable file-backed native homes (`NativeHomeId`).
+
+The provider process is a physical failure and lifetime boundary, not a semantic
+fallback. Each installed slot (`NativeAdapterId`) consumes a produced exact ABI
+image (`NativeForeignAdapterImage`). Mapped ranges stay owned independently in
+both processes; only the host interpreter can correlate normal calls with actual
+claims, content guarantees, and retained loans.
+
+When creating a shared home, we insert the parent's physical `SharedBacking`
+before lending the mapping to the worker so a rejected attach cannot free a
+mapping already opened by the worker. On exchange failure, we briefly poll
+`try_wait` so a real native trap's exit status is observed before forced
+process cleanup.
+*/
 
 use crate::{
     channel,
@@ -35,9 +45,6 @@ pub struct NativeHomeId {
     pub(crate) ordinal: u64,
 }
 
-/// Value transport and pointee geometry are separate joins. A foreign C
-/// pointer has an ordinary one-word integer ABI class; its original referent
-/// extent comes from the host's admitted semantic declaration and layout.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeParameterStorage {
     Value,
@@ -94,9 +101,6 @@ pub struct NativeProviderProcess {
 }
 
 impl NativeProviderProcess {
-    /// The executable must call `run_worker_if_requested` before ordinary
-    /// dispatch. This private sponsor provides native storage and no standard
-    /// stream capability; callers must admit the actual boundary's effects.
     pub fn launch(command: Command, timeout: Duration) -> Result<Self, NativeProviderError> {
         if timeout.is_zero() || timeout > Duration::from_secs(3600) {
             return Err(invalid("native sponsor deadline is out of range").into());
@@ -235,8 +239,6 @@ impl NativeProviderProcess {
             std::fs::remove_file(path)?;
             return Err(error.into());
         }
-        // Publish the parent's physical custodian before lending the mapping.
-        // A rejected attach cannot free a mapping already opened by the worker.
         self.homes.insert(ordinal, home);
         let mut packet = Packet::new(2);
         packet.number(ordinal);
@@ -336,10 +338,6 @@ impl NativeProviderProcess {
         self.exchange(packet)
     }
 
-    /// Retire the physical provider incarnation after its close request is
-    /// acknowledged and actual process exit is observed. The worker retains
-    /// libraries and homes throughout native exit callbacks. This is never
-    /// a normal completion or release receipt for a guest ownership claim.
     pub fn close(mut self) -> Result<(), NativeProviderError> {
         self.exchange(Packet::new(4))?;
         let deadline = Instant::now() + self.timeout;
@@ -390,8 +388,6 @@ impl NativeProviderProcess {
         })();
         exchange.map_err(|error| {
             self.faulted = true;
-            // A real trap can close the pipe slightly before its exit is
-            // reapable. Observe that original status before forced cleanup.
             let deadline = Instant::now() + self.timeout.min(Duration::from_millis(100));
             let mut status = None;
             while let Some(child) = &mut self.child {
@@ -432,10 +428,6 @@ impl NativeProviderProcess {
 
 impl Drop for NativeProviderProcess {
     fn drop(&mut self) {
-        // Abrupt private-domain abandonment is never a normal C completion.
-        // If cleanup refuses, leave the nonrecycled files for quarantine. A
-        // surviving worker owns its own mapping references, so parent Drop
-        // cannot invalidate any retained pointer in that address space.
         if self.retire_process().is_ok() {
             self.homes.clear();
             let _ = std::fs::remove_dir_all(&self.directory);

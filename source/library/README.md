@@ -97,8 +97,11 @@ machine clear_commands(commands: &mut [Command]) terminates {
 the exact statically selected machine once per element. Empty slices call
 nothing. `Element` needs no `copy` property; the callback receives a temporary
 exclusive element loan. The callback must explicitly satisfy
-`ElementStep<Element>::apply`, terminate, and have empty service reach with no
-blocking, suspension or crash behavior. This initial API has no captured
+`ElementStep<Element>::apply`, terminate, and have no blocking, suspension or
+crash behavior. Its omitted reach defers to the selected callback under
+[deferred requirement reach](../../wiki/spec/language/effects.md#deferred-requirement-reach).
+The traversal propagates that row, including application-defined services.
+This initial API has no captured
 context, result propagation, early stop or runtime dispatch. It is library
 code, not loop syntax or a compiler intrinsic.
 
@@ -106,6 +109,12 @@ Hollow's [input routing](../../samples/gui/dungeon_crawler/engine/control/routin
 uses the helper. The [executable fixture](../../tests/omega/pass/generics/core_slice_for_each/main.omg)
 covers mutable records, non-copy elements, a forwarded view and empty input;
 separate reject controls enforce callback and access obligations.
+
+The effectful-callback behavior requires the
+[callback reach migration](../../wiki/drafts/designs/deferred_callback_reach.md);
+the existing fixture is not evidence that this extension is implemented.
+`ElementStep::apply` keeps its omitted clause. Requirements elsewhere that rely
+on service-free behavior need explicit bare `reaches` in that migration.
 
 The language's [forwarded callback rule](../../wiki/spec/language/generics.md#forwarded-callback-requirements)
 lets a wrapper with an explicit `machine Step` binder inherit this exact
@@ -134,8 +143,7 @@ row neither proves opaque native behavior nor grants physical authority.
 Under the 2026-10-22 `optional-reach-ceilings` decision, checked library bodies
 may infer reach; an authored clause is a ceiling, and an empty clause permits
 no services. Boundary requirements must explicitly declare their rows. The
-existing mandatory/additive implementation and carrier-qualified helper
-declarations remain migration work under `OPTIONAL-REACH-CEILINGS` and
+remaining reach and carrier-qualified helper migrations are tracked with
 `STATIC-MACHINE-MIGRATION` in [TASKS.md](../../TASKS.md); publishing this contract
 does not claim those source migrations are complete.
 

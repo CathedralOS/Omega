@@ -1,5 +1,11 @@
-//! Real C registrations cross the persistent worker's independently mapped
-//! original homes; a real stale-token trap must fault only that incarnation.
+/*
+We test real foreign C registrations across the persistent worker's
+independently mapped original homes, verifying that updating an original home
+after completion is observed on subsequent registrations, that a stale-token
+trap faults only that incarnation without replay, and that Darwin guest `errno`
+survives worker IPC and dynamic-library constructor housekeeping.
+*/
+
 use super::*;
 use crate::{NativeArgument, NativeProviderProcess};
 use calling_conventions::{
@@ -183,8 +189,6 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
     process.read_home(observed, 0, &mut bytes).unwrap();
     assert_eq!(u64::from_le_bytes(bytes), 37);
     assert_eq!(capacity, returned);
-    // Following completion, update the same original home and re-register it.
-    // Reusing a staged registration snapshot would return the old value here.
     process
         .write_home(original, 0, &91_u64.to_le_bytes())
         .unwrap();
@@ -419,7 +423,6 @@ fn darwin_guest_errno_survives_worker_housekeeping() {
     ]);
     let mut process = NativeProviderProcess::launch(command, TIMEOUT).unwrap();
     let mut installed = Vec::new();
-    // The first poison image is loaded before the initial guest observation.
     for adapter in &products[..5] {
         installed.push(
             process
@@ -501,8 +504,6 @@ fn darwin_guest_errno_survives_worker_housekeeping() {
         )
         .unwrap();
     assert_eq!(i32::from_le_bytes(failed.try_into().unwrap()), -1);
-    // Loading another produced image runs its constructor on the worker's TLS
-    // between the failed guest close and the authentic __error / memcpy calls.
     process
         .install(&products[5], &parameter_storage(&products[5]))
         .unwrap();

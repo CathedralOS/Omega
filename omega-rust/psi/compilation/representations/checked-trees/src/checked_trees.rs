@@ -20,8 +20,14 @@ pub use flow::CheckedCallOrigin;
 pub mod keyed_rows;
 pub mod operators;
 pub mod proof;
+pub(crate) mod shifted_rows;
 pub mod statement;
 pub mod values;
+pub mod views;
+pub use views::{
+    CheckFactsRef, CheckFactsWalk, ContentProjectionFactsRef, ContentProjectionFactsWalk,
+    FlowFactsRef, FlowFactsWalk, QualificationFactsRef, QualificationFactsWalk,
+};
 
 pub use keyed_rows::{DurableRows, KeyedRows};
 
@@ -111,17 +117,18 @@ pub use facts::{
     ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     ContentPartitionInputClaimBinding, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite, ContentPartitionReturnFact, ContentProjectionFacts,
-    CrashCallSiteLocation, CrashCause, CrashContractCapsule, CrashInterface, CrashPlan,
-    CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket, CrashRouteBucketId,
-    CrashRouteGuard, CrashSiteLocation, DataCarryFact, DeclaredCallableContract,
-    DeclaredContractClause, DeclaredContractFact, DeclaredContractKind, DeclaredContractParameter,
-    DeclaredContractStructure, DeclaredProgressPremise, DeclaredTermination, DomainDependencyFact,
-    DomainDependencyPathFact, DomainFacts, DynamicConformanceFacts, DynamicConformanceRowFact,
-    DynamicConformanceRowSource, DynamicSelectionFact, IndexCompatibilityDischarge,
-    IndexCompatibilityFact, IndexCompatibilityFacts, MachineActivationCarryFact,
-    MachineBlockingFact, MachineContractCommitment, MachineContractIdentity, MachineContractPlan,
-    MachineContractPlans, MachineMutationFact, MachineQualifications, MachineServiceReachRows,
-    MachineSuspensionFact, MachineSynchronousInvocationFact, MachineTerminationFact, MutationFacts,
+    ContentWalkRows, CrashCallSiteLocation, CrashCause, CrashContractCapsule, CrashInterface,
+    CrashPlan, CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket,
+    CrashRouteBucketId, CrashRouteGuard, CrashSiteLocation, DataCarryFact,
+    DeclaredCallableContract, DeclaredContractClause, DeclaredContractFact, DeclaredContractKind,
+    DeclaredContractParameter, DeclaredContractStructure, DeclaredProgressPremise,
+    DeclaredTermination, DomainDependencyFact, DomainDependencyPathFact, DomainFacts,
+    DynamicConformanceFacts, DynamicConformanceRowFact, DynamicConformanceRowSource,
+    DynamicSelectionFact, IndexCompatibilityDischarge, IndexCompatibilityFact,
+    IndexCompatibilityFacts, MachineActivationCarryFact, MachineBlockingFact,
+    MachineContractCommitment, MachineContractIdentity, MachineContractPlan, MachineContractPlans,
+    MachineMutationFact, MachineQualifications, MachineServiceReachRows, MachineSuspensionFact,
+    MachineSynchronousInvocationFact, MachineTerminationFact, MutationFacts,
     NominalMachineUseFacts, NominalMachineUseSite, OperatorSiteLocation, PerformedIntegerWrite,
     QualificationFacts, RealizedMachineContractEnvelope, ReferenceCustodyFacts,
     ReferenceCustodyRow, RequirementCallSpecializationFacts, ResolvedCarrierType,

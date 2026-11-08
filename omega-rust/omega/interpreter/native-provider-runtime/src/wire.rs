@@ -1,6 +1,6 @@
-//! Bounded private-worker messages, not a language artifact or public protocol.
-//! One in-flight request on the owned stream correlates its exact response;
-//! transport success supplies no semantic completion or ownership receipt.
+// Bounded private-worker framing (`Packet`, `Cursor`, `Geometry`). One in-flight
+// request on the owned duplex stream correlates its exact response; transport
+// success alone supplies no semantic completion or ownership receipt.
 
 use std::io::{self, Read, Write};
 pub(crate) const MAXIMUM_PACKET_BYTES: usize = 16 * 1024 * 1024;

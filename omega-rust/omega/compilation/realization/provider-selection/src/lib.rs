@@ -1,16 +1,20 @@
-//! Whole-provider choice and admission over prepared declaration records.
-//!
-//! Source adapters retain invocation-local correspondence; portable adapters
-//! retain exact closed declarations. The policy compares those supplied identities
-//! and complete applications, never resolves names or opens a source program.
-//! Opaque owner data travels with a candidate or choice and is not selection
-//! authority. No index escapes to be reinterpreted against another inventory.
-//!
-//! Start at `publication.rs`: it selects canonical Build companions against the
-//! emitted Terminal demand catalog by calling `choice`. `choice/` chooses whole
-//! providers and admits their correspondence, `binding/` completes a chosen
-//! plan's closure, `bodies/` names the code each selection runs, and
-//! `boundary/` admits boundary applications and their declaration policy.
+/*
+Whole-provider choice and admission over prepared declaration records.
+
+Source adapters retain invocation-local correspondence, while portable adapters
+retain exact closed declarations. Our policy compares those supplied identities
+and complete applications without resolving names or opening a source program.
+Opaque owner data travels with a candidate or choice and is not selection
+authority, and no index escapes to be reinterpreted against another inventory.
+*/
+
+/*
+Start at publication.rs: it selects canonical Build companions against the
+emitted Terminal demand catalog by calling choice.rs. choice.rs chooses whole
+providers and admits their correspondence, binding.rs completes a chosen plan's
+closure, bodies.rs names the code each selection runs, and boundary.rs admits
+boundary applications and their declaration policy.
+*/
 
 mod binding;
 mod bodies;
@@ -24,33 +28,26 @@ pub use publication::{
     SelectedTargetProviderPublication, SelectedTargetProviders, TargetProviderChoice,
 };
 
-pub use choice::declarations::{
+pub use choice::{
     CandidateDeclarations, ProviderCandidate, ProviderDeclaration, ProviderFamily,
     ProviderFamilyCoordinate, ProviderIdentity, ProviderSubject, SelectedProvider,
-    SelectionProvenance,
+    SelectionProvenance, admit, choose, is_candidate_demanded,
 };
-pub use choice::provider_demands::is_candidate_demanded;
-pub use choice::provider_selection::{admit, choose};
 pub use language_semantics::declaration_selection::CompositionMode;
 
-pub use binding::installation_reach::{InstallationReachRow, resolve_installation_reach};
-pub use binding::provider_instances::{
-    GenericProviderInstanceDeclarations, ProviderInstanceDeclarations,
-    ProviderInstanceRowDeclarations, ProviderPlanInstanceDeclarations, project_provider_instances,
-};
-pub use binding::qualification_grants::validate_qualification_grants;
-pub use binding::selected_binding::{
-    SelectedPlanDeclarations, SelectedProviderPlanBinding, bind_selected_provider_plan_facts,
+pub use binding::{
+    GenericProviderInstanceDeclarations, InstallationReachRow, ProviderInstanceDeclarations,
+    ProviderInstanceRowDeclarations, ProviderPlanInstanceDeclarations, SelectedPlanDeclarations,
+    SelectedProviderPlanBinding, bind_selected_provider_plan_facts, project_provider_instances,
+    resolve_installation_reach, validate_qualification_grants,
 };
 
-pub use bodies::callback_roots::{
-    CallbackProviderDeclarations, SelectedCallbackRow, select_callback_declarations,
+pub use bodies::{
+    CallbackProviderDeclarations, CheckedBodyCandidate, DirectTargetBodyAbsences,
+    SelectedCallbackRow, reject_reached_inert_calls, select_callback_declarations,
+    select_checked_body, selected_external_execution,
 };
-pub use bodies::checked_bodies::{CheckedBodyCandidate, select_checked_body};
-pub use bodies::external_execution::selected_external_execution;
-pub use bodies::target_bodies::{DirectTargetBodyAbsences, reject_reached_inert_calls};
 
-pub use boundary::boundary_applications::{
-    CompilerIntrinsicPlanProvenance, select_boundary_applications,
+pub use boundary::{
+    BoundaryProviderAdmission, CompilerIntrinsicPlanProvenance, select_boundary_applications,
 };
-pub use boundary::boundary_review::BoundaryProviderAdmission;

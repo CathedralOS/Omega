@@ -37,7 +37,10 @@ Compiler-catalog semantic primitives are automatic. Target defaults still
 supply boundary float implementations; overrides must satisfy the canonical
 arithmetic contract, not choose a different meaning for `+`.
 Selection alone contributes no service reach. Boundary requirements declare
-their rows explicitly; omitted reach on a pure numeric requirement is empty.
+their rows explicitly, including bare `reaches` for service-free arithmetic.
+A non-boundary numeric requirement that promises service-free implementations
+also writes bare `reaches`; omission instead follows
+[deferred requirement reach](../language/effects.md#deferred-requirement-reach).
 Checked providers must fit that row, while imported or assumed implementations
 retain their trust and physical-authority findings independently of reach.
 

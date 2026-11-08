@@ -6,6 +6,8 @@ version.workspace = true
 
 [dependencies]
 language-core = { path = "../../../../psi/foundation/language-core" }
+layout = { path = "../../backend/layout" }
+runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 provider-selection = { path = "../../realization/provider-selection" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 component-description = { path = "../../backend/artifacts/component-description" }

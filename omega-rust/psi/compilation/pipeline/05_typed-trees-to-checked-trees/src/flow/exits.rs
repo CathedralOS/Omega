@@ -25,7 +25,7 @@ pub(super) use guards::{
 /// consumer reads the same two-level arena — the exit's own span, then each
 /// origin's row — so the read lives here once.
 pub(crate) fn exit_parameter_origins<'a>(
-    facts: &'a checked_trees::CheckFacts,
+    facts: checked_trees::CheckFactsRef<'a>,
     exit: &FlowExitFact,
 ) -> &'a [checked_trees::FlowExitParameterOrigin] {
     facts
@@ -37,7 +37,7 @@ pub(crate) fn exit_parameter_origins<'a>(
 
 /// The parameter origins every exit of one state retained, in exit order.
 pub(crate) fn state_exit_parameter_origins<'a>(
-    facts: &'a checked_trees::CheckFacts,
+    facts: checked_trees::CheckFactsRef<'a>,
     flow: &checked_trees::FlowStateFact,
 ) -> Vec<&'a checked_trees::FlowExitParameterOrigin> {
     facts

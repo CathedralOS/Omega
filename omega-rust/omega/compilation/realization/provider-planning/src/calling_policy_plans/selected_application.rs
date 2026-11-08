@@ -1,8 +1,8 @@
-//! Join selected physical ABI applications from canonical declarations.
-//!
-//! External calls and independent checked entries consume the same exact
-//! requirement, inherited receiver and policy-root keys. No Source catalog,
-//! symbol correspondence or repeated policy validation participates in this join.
+// We join selected physical ABI applications (`selected_calling_applications`
+// and `component_calling_applications`) from canonical declarations. External
+// calls and independent checked entries consume the same exact requirement,
+// inherited receiver, and policy-root keys without consulting a Source catalog,
+// symbol correspondence, or repeated policy validation.
 
 use crate::provider_planning::trait_name_text;
 use diagnostics::Diagnostic;
@@ -45,8 +45,6 @@ pub(crate) fn selected_calling_applications(
             module.identities.text(declaration.requirement_identity) == Some(requirement)
         })
         .collect::<Vec<_>>();
-    // An ordinary inherited trait has no boundary receiver view. Consume its
-    // independent owner refusal before receiver filtering could discard it.
     for declaration in &declarations {
         declaration
             .physical_owner
@@ -101,8 +99,6 @@ pub(crate) fn selected_calling_applications(
                     "selected ABI application has stale policy custody",
                 ));
             }
-            // The producer retains the validated plan. This is a data
-            // projection, not another policy execution or intra-stage replay.
             let application = realization
                 .native_application()
                 .map_err(Diagnostic::error)?;
@@ -127,8 +123,6 @@ pub(crate) fn selected_calling_applications(
     })
 }
 
-/// Root and inherited receivers belong to one whole schema. A method's
-/// declaring application is not necessarily the selected schema's root.
 fn receiver_accepts(
     module: &terminal_psi::TerminalModule,
     plan: &effects::provider_plan::ProviderPlan,
@@ -186,7 +180,6 @@ fn default_calling_abis(
                 formal.ordinal == operand.ordinal && formal.kind == operand.kind
             })
         {
-            // Open local tuples remain dormant metadata, never guessed actuals.
             continue;
         }
         let key = declaration.identity(&module.identities)?;
@@ -197,15 +190,11 @@ fn default_calling_abis(
     Ok(keys)
 }
 
-/// Exact canonical applications and their deferred compatibility requests.
-/// Retaining a key never grants provider supply or execution authority.
 pub(crate) struct SelectedCallingApplications {
     pub applications: Vec<calling_conventions::BoundaryCallingApplication>,
     pub default_abis: Result<Vec<CallingAbiIdentity>, Diagnostic>,
 }
 
-/// Materialize this producer's component applications from published storage.
-/// Fused internal calls need no compatibility ABI and never enter this route.
 pub fn component_calling_applications(
     profile: target::TargetProfile,
     program: &super::CallingProgram,
@@ -254,13 +243,21 @@ pub fn component_calling_applications(
             .map_err(|error| vec![error])?;
             let mut selected_applications = selected.applications;
             if selected_applications.is_empty() {
-                selected_applications.extend(super::plan_computation::evaluate_default_calling_applications(
-                    program,
-                    selected.default_abis.as_ref().map_err(|error| vec![error.clone()])?,
-                    profile,
-                    calling_conventions::CallingPolicy::native_for_target(native_target),
-                    0,
-                ).map_err(|reason| vec![Diagnostic::error(format!("cannot materialize component calling application for `{trait_name}::{}`: {reason}", row.method))])?);
+                selected_applications.extend(
+                    super::plan_computation::evaluate_default_calling_applications(
+                        program,
+                        selected.default_abis.as_ref().map_err(|error| vec![error.clone()])?,
+                        profile,
+                        calling_conventions::CallingPolicy::native_for_target(native_target),
+                        0,
+                    )
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "cannot materialize component calling application for `{trait_name}::{}`: {reason}",
+                            row.method
+                        ))]
+                    })?,
+                );
                 if selected_applications.is_empty() {
                     return Err(vec![Diagnostic::error(format!(
                         "component boundary `{requirement}` has no exact materializable declaration application"

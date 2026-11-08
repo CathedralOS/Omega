@@ -1,31 +1,27 @@
 # Chapter 3: Machines
 
-A machine is a **contracted transition system**. Given its
-inputs, state, and authority, it produces a contract-observable trace and may produce
-a terminal outcome. A productive machine may run forever, so an ordinary
-function-like call is one important use of a machine, not its definition.
+A machine takes explicit inputs and performs work. Its final expression supplies
+the result:
 
-> **Machine taxonomy.** Runtime calls, compile-time
-> evaluation, proof citation, concurrent activation, trait satisfaction, and
-> boundary provision, and operator syntax consume the same semantic construct.
-> Checked bodies, requirements, exact compiler primitives, external providers,
-> and accepted trust declarations are supply modes, not
-> separate machine species. See
-> [machines and contract refinement](../spec/language/machines.md).
+```omega
+machine double(value: u32) -> u32
+requires value <= 1000
+{
+    value * 2
+}
 
-All machines are static: every input is an ordinary declared parameter. Data
-does not own functions or provide a code namespace. Qualified paths name modules,
-trait requirements or named implementations, never an attachment to a data type.
-There is no special `self` parameter or receiver-style dot invocation.
-The `self` subject in data/domain predicates is separate: it names the value
-being constrained, never an implicit machine argument.
+let answer: u32 = double(21); // 42
+```
 
-Contracts state logical conditions; ordinary machines establish their
-conclusions. Traits and named conformances bundle mathematical operations,
-witnesses, and laws. General logical expressions do not add an executable
-machine supply mode; see [chapter 10](chapter_10_compile_time_proofs.md).
+The precondition makes multiplication safe for every accepted input. Callers
+must prove it before calling. Machines can also update borrowed data, transfer
+control to another machine, or keep processing events indefinitely.
 
-## Header Punctuation
+Put related machines in modules and pass their data explicitly. A qualified
+machine name selects a module, trait requirement or named implementation;
+data types do not supply an implicit receiver.
+
+## Header punctuation
 
 Machine clauses do not end with semicolons. The next clause or the body ends
 the current clause:
@@ -47,7 +43,7 @@ next clause belongs to the enclosing machine. `terminates`, `suspends`, and
 `blocks` have no special punctuation. See the
 [header delimiter rule](../spec/language/state_contracts.md#machine-header-delimiters).
 
-## Operational Inference And Public Contracts
+## Operational inference and public contracts
 
 A machine is private unless marked `public`. Private checked bodies may infer
 suspension and blocking from their calls. On public surfaces, omitting `suspends`
@@ -64,33 +60,18 @@ A wrapper can [inherit an exact forwarded callback requirement](chapter_13_gener
 instead of repeating its clause, whether public or private. This publishes a
 checked requirement; it does not guess a trait from a direct call's shape.
 
-## One Construct, Several Uses
+## Use machines in different contexts
 
-The same machine can be called at runtime and evaluated by the compiler when
-its contract, reach, and totality make that evaluation legal. It can also be
-cited as proof, started through a task runtime, or used to satisfy a
-trait requirement, including a requirement in a boundary trait.
+The same machine declaration can serve a runtime call, permitted compile-time
+evaluation, a proof citation, a task entry or a trait requirement. Its contract
+determines which uses are legal.
 
-An optional fixed token binds operator notation to a named machine:
-`machine + vector::add(...) { ... }`. Its body and contracts remain ordinary
-machine code; [chapter 5](chapter_5_expressions_evaluation.md#operators) covers
-selection, ownership, and the bodyless requirement/primitive cases.
-Those contexts change eligibility and lowering; they do not create parallel
-`async`, `proof`, or `const` machine identities.
+An operator is a machine with a fixed token, such as
+`machine + vector::add(...) { ... }`. [Expressions](chapter_5_expressions_evaluation.md#operators)
+explains selection. [Concurrency](chapter_18_concurrency.md) shows task creation,
+and [proofs](chapter_10_compile_time_proofs.md) shows theorem citations.
 
-A machine's substitutable contract is wider than its input/output relation. It
-also includes failure and cancellation; service reach; possible suspension and
-blocking; required authority; positive progress guarantees;
-atomicity and reentrancy; context-visible resource bounds; and a boundary
-calling plan where applicable. Provider substitution must refine the whole
-contract.
-
-Internal compiler/runtime transitions may be hidden only after projection
-through the declared observation surface and only above the floor imposed by
-the caller. A machine cannot hide blocking, authority, failure, or another
-context-forbidden behavior merely by calling it unobservable.
-
-## Operations With Explicit Data
+## Operations with explicit data
 
 An operation names its data input explicitly, just like any other input.
 Borrowing and ownership come from that parameter's type; the type does not own
@@ -104,7 +85,10 @@ data Player {
 machine take_damage(
     player: &mut Player,
     amount: i32
-) {
+)
+requires amount >= 0
+requires player.health >= amount
+{
     player.health = player.health - amount;
 }
 ```
@@ -114,7 +98,7 @@ Call it as `take_damage(&mut player, amount)`. Neither
 code-to-data binding. Put related machines in an ordinary module when a
 namespace is useful.
 
-## Free-Standing Machines
+## Free-standing machines
 
 Free-standing machines use an unqualified declaration name. Their parameter
 rules are identical to qualified machines.
@@ -123,7 +107,10 @@ rules are identical to qualified machines.
 machine add_i32(
     left: i32,
     right: i32
-) -> i32 {
+) -> i32
+requires left in 0..=1000
+requires right in 0..=1000
+{
     left + right
 }
 ```
@@ -131,7 +118,7 @@ machine add_i32(
 Free and module-scoped machines are equally suitable for math, proof helpers
 and operations on one or several data types. No data type is a code owner.
 
-## Program Entry
+## Program entry
 
 `build.omg` binds a target-owned program-entry slot to one exact machine. The
 binding selects what the target bridge will call; it is not itself a call and
@@ -172,34 +159,15 @@ explicit construction establishing that invariant. The local's storage and
 cleanup follow ordinary machine rules. There is no implicit program-lifetime
 instance created from a machine's qualified name.
 
-The target schema controls ordinary entry parameters: hosted entry normally
-exposes no physical arrival arguments, while freestanding entry may intentionally
-expose raw image or initial-storage extents. Any entry argument must be supplied
-by an explicitly installed call contract with actual backing and authority.
-A mutable context parameter does not request allocation or zero-initialization.
-Large local state is checked against stack supply by WCSU; ordinary static data
-is another placement choice with its own access rules, not ambient mutable state.
+The target's entry contract determines which parameters the launch adapter
+supplies. Hosted programs usually have no physical arrival arguments;
+freestanding targets may expose validated image or storage extents. The adapter
+must establish backing and authority before the entry uses them.
 
-The machine name is not special. The build binding chooses the machine, its
-source signature states its explicit arguments, and
-the target schema states how the launch environment supplies those needs.
+See [program entries](../spec/build/entry_roots.md) for platform return values,
+entry arguments and storage planning.
 
-Physical arrival and the source signature are separate. For example, a UEFI
-bridge can receive firmware handles while the source machine receives only
-validated image and initial-storage extents. Target-authored checked code
-establishes those values; a raw platform handle is not secretly an Omega extent.
-The bridge also defines platform return mapping and accounts for its storage.
-
-See [program-entry rules](../spec/build/entry_roots.md) and
-[UEFI arrival](../spec/build/uefi_entry.md) for the full contract.
-End-to-end physical entry support remains incomplete under
-[ENTRY-CONTENT-ROOTS](../../TASKS.md); selecting and checking an entry does not
-claim that its native bridge has been installed.
-The ratified contract does not claim that removal of carrier-qualified machines
-or automatic entry contexts is complete. `STATIC-MACHINE-MIGRATION` and
-`EXPLICIT-ENTRY-STORAGE` in [the task board](../../TASKS.md) own that migration.
-
-## Parameters And Returns
+## Parameters and returns
 
 Machine parameters are entry data. A machine return type is the value shape its
 body or control-flow graph produces if it reaches a returned terminal
@@ -257,93 +225,28 @@ Fixed operators remain operand-directed: an expected return type cannot change
 the meaning of `+` or `/`. This rule concerns explicit named calls. See
 [domain selection](../spec/language/domains.md) for classification and identity.
 
-## Supply Forms
+## Requirements and external implementations
 
-The callable machine model has five explicit supply forms:
-
-| Supply | Spelling |
-|---|---|
-| Checked Omega implementation | `{ ... }` body |
-| Trait requirement | Bodyless declaration inside the trait |
-| Native requirement backing | Package-local `Build::bind<Requirement>(builder, target, locator)` intent, validated and admitted under the requirement contract |
-| Admission-bearing claim | Bodyless `boundary machine ... ensures ...;` |
-| Compiler-supplied primitive | Exact toolchain declaration with a sealed catalog implementation, without an authored binding payload |
-
-A boundary operation is a requirement inside a boundary trait. When one
-operation needs independent provider selection, use a one-member boundary trait
-rather than a carrier-owned operation declaration. The standalone `boundary
-requirement Package::operation(...);` spelling is retired: a data path is not a
-code owner, and ordinary trait arguments already carry every data, authority and
-token type explicitly. The trait application, requirement name, static
-telescope, signature and contract form requirement identity.
+A machine with a body supplies checked Omega code. A bodyless machine inside
+a trait declares a requirement for an implementation to satisfy:
 
 ```omega
 public boundary trait InterruptCompletion {
     machine complete(acknowledgement: InterruptAcknowledgement)
-        reaches PortIo
-        requires
-            acknowledgement in InterruptAcknowledgement::Pending;
+    reaches PortIo
+    requires acknowledgement in InterruptAcknowledgement::Pending;
 }
 ```
 
-A named implementation maps that row to a checked machine, or package Build
-records its direct native backing. The qualified acknowledgement supplies
-the call's authority premise but neither chooses nor realizes the machine.
+This interface sketch assumes the acknowledgement and PortIo declarations.
+A checked implementation proves the contract; a foreign implementation needs
+explicit admission. Package Build binds irreducible native operations to their
+target locators. Compiler primitives use sealed declarations.
 
-The owning package's Build binds an irreducible imported operation directly to
-its exact requirement. This accepted form remains implementation work:
-
-```omega
-Build::bind<WindowsAudioPlaybackIo::c_play_sound>(
-    builder,
-    windows_x86_64,
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "winmm.dll",
-            export: "PlaySoundW",
-        },
-    }
-);
-```
-
-The locator is ordinary compile-time data, not a runtime machine body. Its
-fixed-byte lengths are inferred from the literal values; authors need not write
-`ForeignBinding<9, 10, 0>` or a per-symbol helper. Source `via` clauses and
-one-to-one bodyless realization declarations are retired. The binding retains
-the exact requirement, target, supplying package, calling policy and provenance;
-its foreign promise must be admitted under the full requirement contract.
-Import bytes and matching value signatures grant no execution authority.
-`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../TASKS.md#pipeline-route)
-tracks the compiler and source migration.
-
-Operating-system implementations are ordinary named implementations. Build
-records which implementation backs the requirement for each target; callers
-name the same portable requirement. Shared helpers and binding-value producers
-need no OS prefix. A target name before `machine` is retired syntax, not another
-way to select a provider.
-
-Every supplied implementation is resolved, typed, and checked independently of
-the realization set. Omega selects the target's Build provider row and checks
-the selected closure's native applicability. A missing or incompatible selected
-provider rejects that realization only. The compiler migration remains tracked
-by `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../TASKS.md#pipeline-route).
-
-If the trait has lifetime parameters, a checked satisfaction path supplies them
-explicitly and a direct native binding retains the requirement's full binder
-schema and application. [Foreign bindings](../spec/build/foreign_bindings.md) defines exact
-application identity, target-specific locators, calling plans, and admission.
-A compiler intrinsic has no binding payload: its declaration, normalized
-signature, and target identify the sealed implementation.
-
-Composite adaptation belongs in checked code. For example, a
-`Console::write_line` implementation may call bound `get_stdout` and
-`write_file` operations, cache a handle, or merge writes. Those choices belong
-in its body, not in authored provider-plan rows.
-
-Proof-position terms such as `embed(value)` and `old(&place)` are not extra
-machine supply modes. Nor does an arbitrary bodyless declaration create a
-proof symbol. [Machine supply](../spec/language/machines.md#supply) defines the
-closed alternatives.
+Composite work, such as obtaining a console handle and writing a line, belongs
+in a checked adapter. [Boundaries](chapter_19_capabilities_effects_boundaries.md)
+shows selection, authority and foreign supply. The [machine reference](../spec/language/machines.md#supply)
+also covers admission-bearing proof claims.
 
 ## Calls
 
@@ -364,7 +267,7 @@ direct call; they do not create another machine species or change the result
 type. Chapter 5 defines their call-position rules, and chapter 18 explains the
 concurrency consequences.
 
-## Termination And Ranked Cycles
+## Termination and ranked cycles
 
 `ensures` describes a return if one occurs. `terminates` additionally promises
 that a terminal outcome is eventually reached under the machine's progress
@@ -374,12 +277,12 @@ an exported or required promise is explicit or inherited from its requirement.
 A terminating cycle needs an authored ranking witness:
 
 ```omega
-machine sum(n: u64, acc: u64) -> u64
+machine countdown(n: u64)
 terminates by n -> Nat::Descending
 {
     transition n {
-        0 -> acc
-        _ -> sum(n - 1, acc + n)
+        0 -> {}
+        _ -> countdown(n - 1)
     }
 }
 ```
@@ -394,7 +297,7 @@ Two questions must stay separate:
   may run forever and owe no ranking.
 - **Can runtime code execute it without growing the stack?** Runtime recursive
   calls must be tail calls. They lower to iteration with no accumulating frames.
-    `3 * sum(...)` is not tail: multiplication remains after the return.
+    `1 + recursive_call(...)` is not tail: multiplication remains after the return.
   Non-tail runtime recursion rejects; use explicit work storage when an
   algorithm needs pending work.
 
@@ -425,88 +328,32 @@ across backedges and return. Writes affect the original field; conflicting
 parent access is unavailable while the loan is live. A changing traversal
 cursor can instead be an ordinary loop-carried reference parameter.
 
-This needs no special rebinding syntax. General ranked-callee native composition
-remains an [implementation gap](../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission),
-not permission to copy the referent or omit the callee's ranking check.
-
 ### Stack demand
 
 Once recursive cycles lower to backedges, ordinary runtime calls form an acyclic
 graph. Build-time WCSU composition accounts for maximum live frames, final spill
 storage, and admitted external/provider demands before activation. Register
 allocation may change that resource bound, not the machine's `crashes` contract.
-See [compiler-owned stack storage](chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
+See [compiler-owned stack storage](chapter_16_errors_traps_failure.md#provision-stack-storage-before-execution).
 
-## Contracts
-
-Machines may declare requirements and guarantees.
+## Return a guarantee
 
 ```omega
-machine enter_combat(player: &mut Player)
-requires
-    player in Player::Alive
-ensures
-    player in Player::InCombat
+machine double(value: u32) -> u32
+requires value <= 100
+ensures result <= 200
 {
+    value * 2
 }
 ```
 
-The caller must satisfy `requires`. The machine body must establish `ensures`.
-Independent may-ceilings publish service reach, suspension, blocking, and
-guarded crashes. In particular, `crashes Cause` lists alternative route
-predicates; callers may disprove routes for a concrete invocation, while the
-body must keep every derived crash site within the published guards. Chapter 16
-defines the crash surface, its no-cleanup terminal semantics, and the separate
-requirements for fault-tolerant continuation.
+The caller proves the requirement. The body proves the guarantee, which callers
+can use after the return. [Chapter 7](chapter_7_types_constraints_invariants.md)
+shows how branches and calls carry these facts; [Chapter 16](chapter_16_errors_traps_failure.md)
+shows guarantees for particular result cases and failure paths.
 
-A proof machine may consume mathematical witnesses and their laws through
-ordinary named trait/conformance bundles. Contract facts still follow from
-checked bodies and instantiated assumptions, not from a bundle's name.
-Projection and forwarding preserve the witness's identity and validity.
-See [chapter 10](chapter_10_compile_time_proofs.md#contracts-and-evidence-bundles)
-for the evidence model and its implementation limits.
+## Continue with control flow
 
-A result-case group makes postconditions conditional on one exact nominal case
-of the declared result sum:
-
-```omega
-machine find(items: &[Item], target: Item) -> SearchResult
-ensures
-    SearchResult::Found -> {
-        result.index < items.len;
-        items[result.index] == target;
-    }
-{
-    ...
-}
-```
-
-`->` is the existing case-directed token. The braces organize contract rows;
-they construct no value, package, aggregate, or independently identified group.
-The case path resolves against the declared result sum and normalizes to its
-exact case symbol. A group contains ordinary guarantees checked on that result
-path. It is not a domain declaration or arbitrary Boolean
-guard: the returned sum tag establishes the exclusive case fact, and that fact
-activates the rows. Use a qualified payload type such as `T in D` when domain
-membership belongs to the returned value itself; use a guarded guarantee for a
-relation specific to this invocation or outcome.
-
-## Machine Graph Compatibility
-
-Nested machines have their own identities and contracts, but their names are
-lexically scoped rather than separately exported. Values needed by a callee
-are explicit parameters; no receiver or enclosing runtime data is captured. Use local `let`
-bindings for scratch work and explicit transition arguments for loop-carried
-work. None of this introduces another temporary-storage scope or lifetime rule.
-
-Working rules:
-
-- Transition-call arguments must match the target machine's parameters.
-- Terminal values must satisfy the active machine's return type.
-- Every reachable terminal path in a typed machine graph must produce the
-  declared return type.
-- Transition dispatch arms add proof assumptions for the target edge.
-
-The [machine specification](../spec/language/machines.md) defines the complete
-contract. [Semantic representation notes](../../omega-rust/psi/compilation/representations/README.md)
-describe its compiler owners; this guide is not an implementation coverage report.
+Use [nested machines and transitions](chapter_4_nested_machines_transitions.md)
+to split work into explicit steps. Each receiver gets its declared parameters
+and must receive the facts its contract requires.

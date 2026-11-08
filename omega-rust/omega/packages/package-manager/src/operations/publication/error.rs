@@ -1,3 +1,5 @@
+// Error vocabulary (`PackagePublicationError`) for project file transaction locking, journaling, and atomic pair publication.
+
 use std::fmt;
 use std::path::PathBuf;
 
@@ -5,23 +7,16 @@ use platform_custody::record_file::RecordFileError;
 
 #[derive(Debug)]
 pub enum PackagePublicationError {
-    Io {
-        path: PathBuf,
-        message: String,
-    },
+    Io { path: PathBuf, message: String },
     File(RecordFileError),
     Busy,
     DirectoryChanged,
     RecoveryRequired,
-    ConcurrentEdit {
-        file: &'static str,
-    },
+    ConcurrentEdit { file: &'static str },
     InvalidJournal(&'static str),
     ByteLimitExceeded,
     AllocationFailed,
-    /// The intended pair is journaled; publication may be partially complete.
-    /// Preserve the journal and recover rather than reporting no mutation.
-    Pending(Box<PackagePublicationError>),
+    Pending(Box<PackagePublicationError>), // intended pair is journaled; preserve journal and recover rather than reporting no mutation
 }
 
 impl fmt::Display for PackagePublicationError {

@@ -1,13 +1,18 @@
-#![forbid(unsafe_code)]
+/*
+Checked-Psi dispatch settlement for exact build-selected realizations.
 
-//! Checked-Psi dispatch settlement for exact build-selected realizations.
-//!
-//! Start at `provider_binding.rs` for complete source-dependent preparation;
-//! `selected_execution.rs` is its retained result, not another phase. The
-//! optional checked-tree oracle prepares its own bindings beside its only
-//! consumer, the driver's corpus runner.
-//! Psi owns source checking and execution plans. This crate owns realization
-//! associations, not another entrance into source checking.
+We start at provider_binding.rs for complete source-dependent preparation;
+selected_execution.rs is its retained result rather than another phase. The
+optional checked-tree oracle prepares its own bindings beside its only
+consumer in the driver's corpus runner.
+*/
+
+/*
+Psi owns source checking and execution plans. We own realization associations
+and target-selected provider binding without reopening source checking.
+*/
+
+#![forbid(unsafe_code)]
 
 mod compiler_intrinsic;
 mod intrinsic_review;
@@ -30,10 +35,9 @@ pub use provider_binding::{
 };
 pub use selected_execution::SelectedExecution;
 
-pub use selected_dispatch::derive_selected_primitive_float_binary_execution;
-pub use selected_dispatch::float_comparisons::selected_executions as selected_float_comparison_executions;
 pub use selected_dispatch::{
     CheckedOperatorAuthoredUseKind, derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
+    derive_selected_primitive_float_binary_execution, selected_float_comparison_executions,
     settle_selected_comparison_execution,
 };

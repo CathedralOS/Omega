@@ -1,10 +1,10 @@
-# Chapter 6: Pattern Matching And Dispatch
+# Chapter 6: Pattern matching and dispatch
 
 Patterns select an arm and contribute facts about the saved subject. Expression
 matching returns a value; transition matching chooses a control edge. The
 [pattern specification](../spec/language/patterns.md) owns their shared rules.
 
-## Match Expressions
+## Match expressions
 
 A value-position match selects one result:
 
@@ -16,19 +16,11 @@ let category: i32 = match code {
 };
 ```
 
-The intended semantics evaluate the subject once, test arms in order, and
-evaluate only the selected arm. Arm values need compatible types and the
+A match evaluates the subject once, tests arms in order, and
+evaluates only the selected arm. Arm values need compatible types and the
 dispatch must be exhaustive.
 
-Scalar `match` implements that schedule today. The supported pattern and
-owned/borrowed custody frontier is recorded in the
-[source processing note](../../omega-rust/psi/compilation/pipeline/README.md#lexing-and-parsing).
-The data/case-view forms below state the accepted language; their implementation
-and source migration remain `DATA-DECOMPOSITION` work in [TASKS.md](../../TASKS.md).
-An accepted scalar example is not evidence that every pattern form or owned
-result is implemented.
-
-## Data And Case Patterns
+## Data and case patterns
 
 Common fields belong to the whole value, not to each case's payload. Match them
 once in an outer data pattern, then match the case-only view:
@@ -58,8 +50,8 @@ that final component; `case` is a pattern selector, not a stored field. Ordinary
 field renaming still uses `as`, while `field: value` tests a value.
 
 Patterns account for all components unless `..` explicitly waives the remaining
-ones. A case pattern mentions payload fields only; common-field bindings inside
-case patterns are retired. Pure sums still support direct case matching.
+ones. Bind common fields in the outer pattern and payload fields in the inner
+case pattern. Pure sums support direct case matching.
 Nested matches retain outer bindings and still-valid facts, and each dispatch
 must be exhaustive. The case view preserves the original subject's type
 constraints, identity, lifetime, access and custody; ignoring a binding does not
@@ -67,7 +59,7 @@ waive cleanup. Physical layout and case-literal construction are unchanged.
 The [pattern specification](../spec/language/patterns.md#data-and-case-decomposition)
 owns the full rule.
 
-## Irrefutable Bindings
+## Irrefutable bindings
 
 When a pattern only decomposes the value, a local binding avoids a one-arm outer
 match. Inside the example machine above, bind the same view before matching it:
@@ -82,13 +74,7 @@ fail; otherwise use ordinary match arms. A binding has no hidden trap, assertion
 or fallback. The original nested-match form remains valid, and there is no
 special `match expression as Pattern` header.
 
-Copies, moves, borrows and ignored-value cleanup keep their normal obligations.
-A borrowed source does not permit implicit moves or copies of non-copy fields;
-the case view retains its existing backing loan and lifetime. See
-[irrefutable data bindings](../spec/language/patterns.md#irrefutable-data-bindings).
-These forms remain part of the pending `DATA-DECOMPOSITION` implementation.
-
-## Transition Dispatch
+## Transition dispatch
 
 A transition can choose the next machine to invoke terminally:
 
@@ -103,7 +89,7 @@ transition navigation.choice {
 Only the chosen edge runs. Its pattern facts help establish the target machine's
 requirements, but do not waive its ordinary type, ownership, or authority checks.
 
-## Tuple Patterns
+## Tuple patterns
 
 Tuple dispatch combines explicit conditions:
 
@@ -123,7 +109,7 @@ but their components come from its declared fields and optional final case view,
 not an implicit conversion to unrelated tuple storage. Named and positional data
 patterns do not change representation or add runtime fields.
 
-## Named Facts Before Dispatch
+## Named facts before dispatch
 
 Name complicated conditions before branching:
 
@@ -163,7 +149,7 @@ can exclude it from coverage. Harder case predicates require established proof,
 not a guess: otherwise cover the case or explicitly discharge its dead arm.
 An arm's facts do not leak into other arms or survive invalidating mutation.
 
-## Tail Dispatch
+## Tail dispatch
 
 A transition ends the current straight-line segment. A machine target, nested
 or otherwise, is a final call whose result completes the current invocation.
@@ -172,7 +158,7 @@ acknowledgement markers; lexical nesting grants no exemption.
 [Chapter 4](chapter_4_nested_machines_transitions.md#final-calls-including-suspension)
 explains result forwarding and the retained loan/cleanup obligations.
 
-## Domain Patterns
+## Domain patterns
 
 A runtime domain pattern needs a finite, pure executable test and any required
 establishment provenance. Proof visibility alone does not make a test executable.

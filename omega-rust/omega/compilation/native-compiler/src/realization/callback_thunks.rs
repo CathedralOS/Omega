@@ -1,29 +1,39 @@
-//! Lower each settled callback thunk's canonical Terminal artifact to machine
-//! objects inside the same realization as the semantic program.
-//!
-//! The settlement carries a Terminal artifact, a caller-scoped private function
-//! identity and a boundary entry plan. Every thunk follows the ordinary native
-//! pipeline. The object linker retains the complete local closure under the
-//! caller-scoped identity, not a synthetic single-function byte projection.
+/*
+Lower settled callback thunks and installed interrupt handlers to machine objects
+inside the same realization as the semantic program.
+
+Each settlement carries a canonical Terminal artifact, a caller-scoped private
+function identity, and a boundary entry plan. Installed interrupt handlers are
+emitted before their installer needs a numeric stack guard, and final closure
+emission consumes those same retained objects so no body is compiled or emitted
+twice.
+*/
+
+/*
+`PreparedEntryPlans` carries the executing installation's admitted entry recipe
+(timer acknowledgement frame or fatal-context gate offsets) into each private
+handler body and verifies that reentry never changes the parent installation,
+artifact, or callback association.
+*/
 
 use crate::request::NativeRealizationRequest;
-mod installed_entry_plans;
 use backend_plan::NativeCallbackThunkSettlement;
 use diagnostics::Diagnostic;
 use image_emission::PrivateFunctionObject;
-use installed_entry_plans::PreparedEntryPlans;
+use runtime_abi::static_interrupts::{InstalledInterruptEntryPlan, InstalledInterruptFrame};
+use std::sync::Arc;
 use terminal_psi_to_abstract_operations::admit_prepared_native_realization;
-use terminal_psi_to_abstract_operations::provider_admission::realization_error;
+use terminal_psi_to_abstract_operations::provider_admission::{
+    AdmittedInstalledInterruptCohort, AdmittedInstalledInterruptEntry,
+    AdmittedInstalledInterruptScope, realization_error,
+};
 
-/// Installed handlers are emitted before their installer needs a numeric
-/// stack guard. Final closure emission consumes these same objects, so their
-/// bodies are neither recompiled nor emitted twice.
 pub(crate) struct PreparedCallbackObjects {
     objects: Vec<Option<PrivateFunctionObject>>,
     active: Vec<bool>,
     settlement_positions: Vec<Option<usize>>,
     installed_plans: PreparedEntryPlans,
-    program_provider_context: std::sync::Arc<
+    program_provider_context: Arc<
         terminal_psi_to_abstract_operations::provider_admission::AdmittedProgramProviderContext,
     >,
 }
@@ -31,7 +41,7 @@ pub(crate) struct PreparedCallbackObjects {
 impl PreparedCallbackObjects {
     pub fn new(
         request: &NativeRealizationRequest<'_>,
-        program_provider_context: &std::sync::Arc<
+        program_provider_context: &Arc<
             terminal_psi_to_abstract_operations::provider_admission::AdmittedProgramProviderContext,
         >,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -176,16 +186,10 @@ pub(crate) fn prepare_installed_callbacks(
     Ok(requirements)
 }
 
-/// Realize the executable scope's callback thunks into compiler-private code,
-/// preserving original placement identities and relative request order.
-///
-/// Each thunk selects an entry in the shared Terminal namespace. Admission
-/// uses the same prepared providers and independent receiving policy without
-/// manufacturing a ProgramEntry for the private body.
 pub(crate) fn lower_callback_thunks(
     request: &NativeRealizationRequest<'_>,
     native_callbacks: &[terminal_psi_to_abstract_operations::AdmittedNativeCallbackArgument],
-    installed_interrupts: &terminal_psi_to_abstract_operations::provider_admission::AdmittedInstalledInterruptCohort,
+    installed_interrupts: &AdmittedInstalledInterruptCohort,
     root: &image_emission::ObjectArtifact,
     mut prepared_objects: PreparedCallbackObjects,
 ) -> Result<Vec<PrivateFunctionObject>, Vec<Diagnostic>> {
@@ -323,10 +327,6 @@ fn lower_callback_thunk(
     let projection = super::callable_objects::emit_prepared_callable_object(prepared)?.projection;
     let emitted = projection.entry_call_plan()?;
     let declared = &settlement.boundary_entry_plan.call;
-    // Join independent Terminal lanes through their exact nominal origins.
-    // The body keeps its ordinary ABI; a differing admitted native recipe is
-    // realized by a separate physical entry, not by rewriting helper/recursion
-    // conventions or treating a thin scalar pointer as a descriptor.
     if emitted.parameters.len() != declared.parameters.len()
         || emitted.parameters.len() != settlement.parameter_formals.len()
         || settlement.entry_parameters.len() != declared.parameters.len()
@@ -369,10 +369,8 @@ fn lower_callback_thunk(
             Ok(parameter.application.native_ordinal)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let body = std::sync::Arc::new(projection.into_object());
+    let body = Arc::new(projection.into_object());
     if let Some((plan, _)) = installed_plan {
-        // The installer must check this exact hardware frame before storing
-        // the entry address. The bridge recipe is not evidence of that check.
         image_emission::create_installed_private_function_object(
             settlement.callback_function,
             body,
@@ -389,4 +387,141 @@ fn lower_callback_thunk(
         )
     }
     .map_err(|error| realization_error("callback entry ABI", error))
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct PreparedEntry {
+    scope: Arc<AdmittedInstalledInterruptScope>,
+    entry: AdmittedInstalledInterruptEntry,
+    plan: InstalledInterruptEntryPlan,
+}
+
+struct PreparedEntryPlans {
+    entries: Vec<Option<PreparedEntry>>,
+}
+
+impl PreparedEntryPlans {
+    fn new(count: usize) -> Self {
+        Self {
+            entries: vec![None; count],
+        }
+    }
+
+    fn retain(
+        &mut self,
+        scope: &AdmittedInstalledInterruptScope,
+        entries: &[&AdmittedInstalledInterruptEntry],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let fail = |reason| realization_error("installed entry preparation", reason);
+        let anchor = scope
+            .context_anchor()
+            .ok_or_else(|| fail("executing installation has no retained timer anchor"))?;
+        let mut matching = entries
+            .iter()
+            .filter(|entry| entry.placement.application_index == anchor.application());
+        let (Some(timer), None) = (matching.next(), matching.next()) else {
+            return Err(fail("timer anchor has no unique admitted callback"));
+        };
+        if timer.callback_function != anchor.function()
+            || timer.operation != scope.operation()
+            || timer.placement.application_index != scope.acknowledgement_application()
+        {
+            return Err(fail(
+                "timer anchor differs from its admitted installation entry",
+            ));
+        }
+        let scope = Arc::new(scope.clone());
+        for entry in entries {
+            if entry.operation != scope.operation()
+                || entry.entry().psi() != timer.entry().psi()
+                || entry.entry().target() != timer.entry().target()
+            {
+                return Err(fail(
+                    "installed entry changed its parent program, target or operation",
+                ));
+            }
+            let plan = if entry.placement.application_index == scope.acknowledgement_application() {
+                InstalledInterruptEntryPlan::new(InstalledInterruptFrame::NoErrorCode)
+            } else {
+                let mut matching = scope.fatal_entries().iter().filter(|fatal| {
+                    fatal.application() == entry.placement.application_index
+                        && fatal.machine() == entry.entry().machine()
+                });
+                let (Some(fatal), None) = (matching.next(), matching.next()) else {
+                    return Err(fail("private entry has no exact admitted fatal handler"));
+                };
+                InstalledInterruptEntryPlan::fatal_context(
+                    anchor.gate_byte_offset(),
+                    fatal.gate_byte_offset(),
+                    anchor.table_bytes(),
+                )
+                .ok_or_else(|| fail("fatal context has invalid retained gate geometry"))?
+            };
+            let retained = PreparedEntry {
+                scope: Arc::clone(&scope),
+                entry: (*entry).clone(),
+                plan,
+            };
+            let slot = self
+                .entries
+                .get_mut(entry.placement_index)
+                .ok_or_else(|| fail("installed placement exceeds the original callback roster"))?;
+            if slot.as_ref().is_some_and(|prior| prior != &retained) {
+                return Err(fail(
+                    "one private placement has incompatible parent installation evidence",
+                ));
+            }
+            *slot = Some(retained);
+        }
+        Ok(())
+    }
+
+    fn for_body(
+        &self,
+        settlement: &NativeCallbackThunkSettlement<'_>,
+        cohort: &AdmittedInstalledInterruptCohort,
+    ) -> Result<
+        Option<(
+            InstalledInterruptEntryPlan,
+            terminal_psi_to_abstract_operations::AdmittedInstalledEntryExecution,
+        )>,
+        Vec<Diagnostic>,
+    > {
+        let fail = |reason| realization_error("installed private entry", reason);
+        let mut matching = cohort
+            .entries()
+            .iter()
+            .filter(|entry| entry.placement_index == settlement.placement_index);
+        let entry = matching.next();
+        if matching.next().is_some() {
+            return Err(fail(
+                "private body has duplicate admitted placement identities",
+            ));
+        }
+        let retained = self
+            .entries
+            .get(settlement.placement_index)
+            .ok_or_else(|| fail("private placement exceeds the original callback roster"))?;
+        match (entry, retained) {
+            (None, None) => Ok(None),
+            (Some(entry), Some(retained))
+                if *entry == retained.entry
+                    && entry.entry().psi() == settlement.artifact.view().identity()
+                    && entry.entry().machine() == settlement.entry
+                    && entry.operation == settlement.terminal_operation
+                    && entry.callback_function == settlement.callback_function
+                    && retained.scope.operation() == entry.operation =>
+            {
+                let execution = terminal_psi_to_abstract_operations::AdmittedInstalledEntryExecution::for_entry(
+                    Arc::clone(&retained.scope),
+                    entry,
+                    cohort,
+                ).map_err(fail)?;
+                Ok(Some((retained.plan, execution)))
+            }
+            _ => Err(fail(
+                "private entry changed its original installation, artifact or callback association",
+            )),
+        }
+    }
 }

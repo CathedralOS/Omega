@@ -3,7 +3,7 @@
 //! atomic cell/value pair; a same-sized integer or another cell is not enough.
 use super::{QueryArgument, QueryArguments};
 use crate::published::places::place_at;
-use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
+use checked_trees::{FlowOperandFact, FlowStateFact};
 use typed_trees::types::PrimitiveType;
 use validation::CanonicalPlace;
 
@@ -31,7 +31,7 @@ fn query_primitive(
 
 fn receiver_places(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     flow: &FlowStateFact,
     state: &typed_trees::state::State,
     statement: usize,
@@ -51,8 +51,8 @@ fn receiver_places(
     }
     crate::flow::stored_views::address_before_statement(
         program,
-        &facts.semantic,
-        &facts.flow.control,
+        facts.semantic,
+        facts.flow.control,
         state,
         flow.statements,
         statement,
@@ -60,7 +60,10 @@ fn receiver_places(
     )
 }
 
-fn captured_places(facts: &CheckFacts, operand: &FlowOperandFact) -> Option<Vec<CanonicalPlace>> {
+fn captured_places(
+    facts: checked_trees::CheckFactsRef<'_>,
+    operand: &FlowOperandFact,
+) -> Option<Vec<CanonicalPlace>> {
     let rows = facts
         .flow
         .control
@@ -84,7 +87,7 @@ fn captured_places(facts: &CheckFacts, operand: &FlowOperandFact) -> Option<Vec<
 
 pub(super) fn matches_store(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     flow: &FlowStateFact,
     state: &typed_trees::state::State,
     statement: usize,
@@ -100,7 +103,7 @@ pub(super) fn matches_store(
 }
 fn store_matches(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     flow: &FlowStateFact,
     state: &typed_trees::state::State,
     statement: usize,
@@ -188,7 +191,7 @@ fn store_matches(
 
 pub(super) fn guarantee_matches(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     flow: &FlowStateFact,
     state: &typed_trees::state::State,
     statement: usize,

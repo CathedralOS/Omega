@@ -1,11 +1,8 @@
-//! Pure interpretation of an already admitted numeric host realization.
-//!
-//! The selected descriptor supplies operation and format; the exact demanded
-//! boundary supplies the signature. Numeric meaning stays in `numerics`, shared
-//! with folding, proof and ordinary Terminal operations. Host floating controls
-//! cannot select semantics. Payload-preserving operations retain operand bits,
-//! and a trapping conversion reports a crash for the core to admit against the
-//! declaration, never a made-up result or an unreconciled handler rejection.
+// We evaluate admitted IEEE-754 floating-point host realizations using the pure
+// numerics semantics shared with constant folding, proof, and ordinary Terminal
+// operations. Payload-preserving operations retain operand bits, and trapping
+// integer conversions report a Crash(CrashCause::Trap) for the core to admit
+// against the boundary declaration.
 
 use numerics::bignum::BigInt;
 use numerics::float_semantics::FloatClass;
@@ -202,8 +199,6 @@ fn evaluate(
             _ => Err(rejected("float import requires floating operands")),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    // Signature admission fixes arity and each operand format. Conversion
-    // alone reads the other format; decode each actual landed operand once.
     let meanings = operands
         .iter()
         .map(|value| terminal_interpreter::float_result_policy::meaning(*value))

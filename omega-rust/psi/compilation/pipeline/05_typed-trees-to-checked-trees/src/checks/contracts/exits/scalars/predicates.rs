@@ -132,22 +132,26 @@ impl ExitScalars<'_, '_> {
                 let state = caller?;
                 let values = crate::flow::captured_operand_values(
                     self.program,
-                    &self.facts.flow,
+                    self.facts.flow.view(),
                     &self.facts.semantic,
                     state,
                     operand,
                     entry.return_type,
                     &binding.place.segments,
                 )?;
-                let observed =
-                    captured_observation_places(self.program, &self.facts.flow, values.first()?)?;
+                let observed = captured_observation_places(
+                    self.program,
+                    self.facts.flow.view(),
+                    values.first()?,
+                )?;
                 let [observed] = observed.as_slice() else {
                     return None;
                 };
                 if !values.iter().all(|value| {
-                    captured_observation_places(self.program, &self.facts.flow, value).is_some_and(
-                        |places| places.len() == 1 && places[0].projected == observed.projected,
-                    )
+                    captured_observation_places(self.program, self.facts.flow.view(), value)
+                        .is_some_and(|places| {
+                            places.len() == 1 && places[0].projected == observed.projected
+                        })
                 }) {
                     return None;
                 }
