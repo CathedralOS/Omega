@@ -3,6 +3,7 @@
 // Numeric custody model only; no physical backing or access is granted.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 domain Region::First established by issue;
 domain Region::Second established by issue;
@@ -22,6 +23,12 @@ ensures result.base == 10, result.length == 48
 machine drop_region(region: &mut Region) {}
 data Input<'input> { item: &'input Region in First & Second; }
 data IssuedBox { first: Region in First & Second; second: Region in First & Second; }
-boundary trait Factory { machine acquire(input: Input) -> IssuedBox reaches requires input.item in Region::First, input.item in Region::Second ensures First::content(old(input.item)) == separate(First::content(&result.first), First::content(&result.second)), Second::content(old(input.item)) == separate(Second::content(&result.first), Second::content(&result.second)); }
+boundary trait Factory { machine acquire(input: Input) -> IssuedBox reaches requires input.item in Region::First, input.item in Region::Second ensures core::Identity<IntervalSet<Nat>>(
+    First::content(old(input.item)),
+    separate(First::content(&result.first), First::content(&result.second))
+), core::Identity<IntervalSet<Nat>>(
+    Second::content(old(input.item)),
+    separate(Second::content(&result.first), Second::content(&result.second))
+); }
 
 machine main() {}

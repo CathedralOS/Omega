@@ -6,6 +6,7 @@
 // recomposed.
 use omega::language::core::extent;
 use omega::language::core::content;
+use omega::language::core::nat;
 
 public data Split {
     taken: Extent in Granted & Vacant;
@@ -16,13 +17,17 @@ public boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     reaches
     ensures
-        Granted::content(old(&whole))
-        == separate(
-            Granted::content(&result.taken),
-            Granted::content(&result.rest),
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(old(&whole)),
+            separate(
+                Granted::content(&result.taken),
+                Granted::content(&result.rest),
+            )
         ),
-        Vacant::content(old(&whole))
-        == separate(Vacant::content(&result.taken), Vacant::content(&result.rest));
+        core::Identity<IntervalSet<Nat>>(
+            Vacant::content(old(&whole)),
+            separate(Vacant::content(&result.taken), Vacant::content(&result.rest))
+        );
 }
 
 data Bump {

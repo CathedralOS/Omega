@@ -10,17 +10,17 @@ public data Seq<T> {
 
 // Proof views: `Bag` is the multiset view over a slice (Chapter 10).
 // It uses the honest packaging form -- the view carries the slice
-// itself, so `Bag(a) == Bag(b)` is the sequence view's equality and never
-// affirms a false multiset fact. The sorted canonical representative
+// itself, so identity of `Bag(a)` and `Bag(b)` means identity of their
+// slice views, without asserting a multiset fact. The sorted representative
 // (order-insensitive multiplicity) rides the slice-extraction recursion
 // rungs that land later; this is the imported declaration the math_proofs
 // ladder's `Bag(items)` calls select.
 // Field note (review e561cf115d7e..088bd948dc20): pass/proofs/
 // proof_bag_view_reflexivity and fail/proofs/bag_view_false_twin describe
 // `Bag` as the *sorted canonical representative*; this stage is the slice
-// view, so `Bag([2,1]) == Bag([1,2])` is not derivable and a proof that
-// concludes `Bag(a) != Bag(b)` from slice inequality would affirm a false
-// multiset fact. Fix the canary comments or land the sorted form before
+// view, so the views of `[2,1]` and `[1,2]` are not identical. Their
+// different order does not establish different multisets. Fix the canary
+// comments or land the sorted form before
 // any rung relies on Bag inequality.
 public data BagView {
     items: &[u64];
@@ -87,7 +87,7 @@ terminates by s
 // length of the empty sequence is Zero (compute-mode: unfold the Empty arm).
 machine length_empty()
 ensures
-    (length(Seq::Empty)) == Nat::Zero
+    core::Identity<Nat>(length(Seq::Empty), Nat::Zero)
 {
 }
 
@@ -96,7 +96,7 @@ ensures
 // Lean analog: `List.length_cons`.
 machine length_cons(x: u64, s: Seq<u64>)
 ensures
-    (length(Seq::Cons { head: x, tail: s })) == (Nat::Succ { prev: length(s) })
+    core::Identity<Nat>(length(Seq::Cons { head: x, tail: s }), Nat::Succ { prev: length(s) })
 {
 }
 
@@ -115,7 +115,7 @@ terminates by s
 machine append_empty_right(s: Seq<u64>) -> Seq<u64>
 terminates by s
 ensures
-    (append(s, Seq::Empty)) == s
+    core::Identity<Seq<u64>>(append(s, Seq::Empty), s)
 {
     transition s {
         Seq::Empty -> Seq::Empty
@@ -128,7 +128,7 @@ ensures
 machine append_assoc(s: Seq<u64>, t: Seq<u64>, u: Seq<u64>) -> Seq<u64>
 terminates by s
 ensures
-    (append(append(s, t), u)) == (append(s, append(t, u)))
+    core::Identity<Seq<u64>>(append(append(s, t), u), append(s, append(t, u)))
 {
     transition s {
         Seq::Empty -> Seq::Empty
@@ -143,7 +143,7 @@ ensures
 public machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
 terminates by s
 ensures
-    (length(append(s, t))) == (add(length(s), length(t)))
+    core::Identity<Nat>(length(append(s, t)), add(length(s), length(t)))
 {
     transition s {
         Seq::Empty -> Nat::Zero
@@ -175,7 +175,7 @@ terminates by s
 machine length_reverse(s: Seq<u64>) -> Nat
 terminates by s
 ensures
-    (length(reverse(s))) == (length(s))
+    core::Identity<Nat>(length(reverse(s)), length(s))
 {
     transition s {
         Seq::Empty -> Nat::Zero
@@ -203,7 +203,7 @@ ensures
 machine reverse_append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
 terminates by s
 ensures
-    (reverse(append(s, t))) == (append(reverse(t), reverse(s)))
+    core::Identity<Seq<u64>>(reverse(append(s, t)), append(reverse(t), reverse(s)))
 {
     transition s {
         Seq::Empty -> ra_base(t)
@@ -231,7 +231,7 @@ ensures
 machine reverse_reverse(s: Seq<u64>) -> Seq<u64>
 terminates by s
 ensures
-    (reverse(reverse(s))) == s
+    core::Identity<Seq<u64>>(reverse(reverse(s)), s)
 {
     transition s {
         Seq::Empty -> Seq::Empty
@@ -260,7 +260,7 @@ machine snoc(s: Seq<u64>, x: u64) -> Seq<u64>
 // Lean analog: `List.reverse_concat`.
 machine reverse_snoc(s: Seq<u64>, x: u64) -> Seq<u64>
 ensures
-    (reverse(snoc(s, x))) == (Seq::Cons { head: x, tail: reverse(s) })
+    core::Identity<Seq<u64>>(reverse(snoc(s, x)), Seq::Cons { head: x, tail: reverse(s) })
 {
     _ = reverse_append(s, Seq::Cons { head: x, tail: Seq::Empty });
     transition { _ -> (reverse(s)) }
@@ -273,7 +273,7 @@ ensures
 // Lean analog: `List.length_concat`.
 machine length_snoc(s: Seq<u64>, x: u64) -> Nat
 ensures
-    (length(snoc(s, x))) == (Nat::Succ { prev: length(s) })
+    core::Identity<Nat>(length(snoc(s, x)), Nat::Succ { prev: length(s) })
 {
     _ = length_append(s, Seq::Cons { head: x, tail: Seq::Empty });
     _ = add_one_right(length(s));
@@ -285,7 +285,7 @@ ensures
 // same right-associated shape. Lean analog: `List.concat_append` mirrored.
 machine snoc_append(s: Seq<u64>, t: Seq<u64>, x: u64) -> Seq<u64>
 ensures
-    (snoc(append(s, t), x)) == (append(s, snoc(t, x)))
+    core::Identity<Seq<u64>>(snoc(append(s, t), x), append(s, snoc(t, x)))
 {
     _ = append_assoc(s, t, Seq::Cons { head: x, tail: Seq::Empty });
     transition { _ -> (append(s, t)) }
@@ -298,7 +298,7 @@ ensures
 // Lean analog: `List.reverse_cons`.
 machine snoc_reverse(x: u64, s: Seq<u64>) -> Seq<u64>
 ensures
-    (reverse(Seq::Cons { head: x, tail: s })) == (snoc(reverse(s), x))
+    core::Identity<Seq<u64>>(reverse(Seq::Cons { head: x, tail: s }), snoc(reverse(s), x))
 {
     transition { _ -> (reverse(s)) }
 }

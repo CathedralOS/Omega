@@ -313,34 +313,35 @@ mod mathematical_signature {
         use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
         use validation::expression_traversal::children;
         use validation::mathematical_applications::{
-            MathematicalBinderKind, expression_nodes, operand_type_reference,
-            source_generic_argument_plan,
+            MathematicalBinderKind, expression_nodes, source_generic_argument_plan,
         };
+
+        pub(super) struct SourceApplication {
+            pub(super) expression: ExpressionHandle,
+            pub(super) owner: SymbolHandle,
+            pub(super) term: TermHandle,
+            pub(super) domains: Vec<TermHandle>,
+            pub(super) level_arity: u32,
+            pub(super) captures: Vec<super::PreparedCapture>,
+            pub(super) emissions: std::ops::Range<usize>,
+        }
 
         impl Elaborator<'_> {
             pub(super) fn source_applications(
                 &mut self,
-            ) -> Result<
-                Vec<(
-                    ExpressionHandle,
-                    proof_admission::TermHandle,
-                    Vec<proof_admission::TermHandle>,
-                    Vec<super::PreparedCapture>,
-                )>,
-                Vec<Diagnostic>,
-            > {
-                if self.authored_index.is_empty() {
-                    return Ok(Vec::new());
-                }
+            ) -> Result<Vec<SourceApplication>, Vec<Diagnostic>> {
                 let candidate_calls = expression_table(self.program)
                     .iter_expressions()
                     .filter_map(|(expression, node)| {
                         let ExpressionNode::Call(call) = node else {
                             return None;
                         };
-                        self.authored_index
-                            .contains_key(&call.target_symbol)
-                            .then_some((expression, call.clone()))
+                        (self.authored_index.contains_key(&call.target_symbol)
+                            || validation::mathematical_applications::is_identity_call(
+                                self.program,
+                                call,
+                            ))
+                        .then_some((expression, call.clone()))
                     })
                     .collect::<Vec<_>>();
                 if candidate_calls.is_empty() {
@@ -354,7 +355,6 @@ mod mathematical_signature {
                 if calls.is_empty() {
                     return Ok(Vec::new());
                 }
-                let owners = OwnerEnvironmentIndex::new(self.program, &arena::Arena::default());
                 let mut applications = Vec::with_capacity(calls.len());
                 for (expression, call) in calls {
                     self.span = Some(self.program.expression_table.source_span(expression));
@@ -364,13 +364,20 @@ mod mathematical_signature {
                     self.source_owner = if retained_owner.is_valid() {
                         retained_owner
                     } else {
-                        source_declaration_owner(self.program, expression, &owners)
-                            .unwrap_or_default()
+                        source_declaration_owner(
+                            self.program,
+                            expression,
+                            self.source_owners.get_or_init(|| {
+                                OwnerEnvironmentIndex::for_preparation(self.program)
+                            }),
+                        )
+                        .unwrap_or_default()
                     };
                     self.scope.clear();
                     self.level_binders.clear();
                     self.level_names.clear();
                     self.generalized_levels = 0;
+                    self.source_type_levels.clear();
                     self.captured_expressions.clear();
                     self.source_family_values.clear();
                     let mut captures = Vec::new();
@@ -388,15 +395,23 @@ mod mathematical_signature {
                         let node = self.program.expression_table.expression(operand);
                         let mathematical = matches!(node, ExpressionNode::Call(call) if self.authored_index.contains_key(&call.target_symbol));
                         let declaration_description = matches!(node, ExpressionNode::Name(path)
-                    if self.program.symbols.builtin_type_member(path.symbol).is_some()
-                        || self.program.symbols.builtin_type_atom(path.symbol).is_some());
-                        if !mathematical
-                            && !declaration_description
-                            && let Some(reference) = operand_type_reference(self.program, operand)
-                        {
+                            if self.program.symbols.builtin_type_member(path.symbol).is_some()
+                                || self.program.symbols.builtin_type_atom(path.symbol).is_some());
+                        let reference = (!mathematical && !declaration_description)
+                            .then(|| self.source_operand_type_reference(operand))
+                            .flatten();
+                        if let Some(reference) = reference {
+                            // Capture the complete evaluated value. Splitting a fixed
+                            // Wrapping computation into source leaves would silently
+                            // replace its denotation with unbounded arithmetic.
                             let domain = self.elaborate_source_operand_type(reference)?;
-                            if let TypeReferenceNode::Generic { base_symbol, .. } =
-                                self.program.type_reference_table.type_reference(reference)
+                            // A relation may name an existing value without
+                            // constructing or duplicating its runtime resource. A
+                            // mathematical value actual still owes its constructor
+                            // evidence; Id formation only borrows the typed subject.
+                            if !self.call_returns_type(&call)
+                                && let TypeReferenceNode::Generic { base_symbol, .. } =
+                                    self.program.type_reference_table.type_reference(reference)
                                 && self.indexed_families.contains_key(base_symbol)
                             {
                                 let value =
@@ -415,13 +430,17 @@ mod mathematical_signature {
                             children(self.program, node, |child| pending.push(child));
                         }
                     }
+                    let emission_start = self.identity_emissions.len();
                     let term = self.elaborate_expression(expression)?;
-                    applications.push((
+                    applications.push(SourceApplication {
                         expression,
+                        owner: self.source_owner,
                         term,
-                        self.scope.iter().map(|entry| entry.domain).collect(),
+                        domains: self.scope.iter().map(|entry| entry.domain).collect(),
+                        level_arity: self.level_binders.len() as u32 + self.generalized_levels,
                         captures,
-                    ));
+                        emissions: emission_start..self.identity_emissions.len(),
+                    });
                 }
                 self.scope.clear();
                 self.captured_expressions.clear();
@@ -435,14 +454,15 @@ mod mathematical_signature {
                 symbol: SymbolHandle,
                 name: &Identifier,
                 arguments: &[StaticMachineArgument],
-            ) -> Result<TermHandle, Vec<Diagnostic>> {
+            ) -> Result<(TermHandle, Vec<super::source_domains::SourceInput>), Vec<Diagnostic>>
+            {
                 if !arguments.is_empty() {
                     if let Some(&index) = self.authored_index.get(&symbol) {
                         return self.instantiate_declaration(expression, index, arguments);
                     }
                     return Err(self.refuse(format!(
-                "mathematical callee `{name}` has no declaration telescope for static arguments"
-            )));
+                        "mathematical callee `{name}` has no declaration telescope for static arguments"
+                    )));
                 }
                 let term = if symbol.is_valid() {
                     self.named_term(symbol, name)?
@@ -451,7 +471,7 @@ mod mathematical_signature {
                 } else {
                     return Err(self.refuse(format!("unresolved mathematical callee `{name}`")));
                 };
-                Ok(term)
+                Ok((term, Vec::new()))
             }
 
             fn instantiate_declaration(
@@ -459,7 +479,8 @@ mod mathematical_signature {
                 expression: ExpressionHandle,
                 index: usize,
                 arguments: &[StaticMachineArgument],
-            ) -> Result<TermHandle, Vec<Diagnostic>> {
+            ) -> Result<(TermHandle, Vec<super::source_domains::SourceInput>), Vec<Diagnostic>>
+            {
                 let definition = &self.program.mathematical_definitions()[index];
                 let Some(&position) = self.authored_positions.get(&definition.symbol) else {
                     return Err(self.refuse(format!(
@@ -497,6 +518,7 @@ mod mathematical_signature {
                 let mut authored_levels = vec![None; level_binders.len()];
                 let mut terms = Vec::new();
                 let mut term_domains = Vec::new();
+                let mut term_requirements = Vec::new();
                 let mut generalized = Vec::new();
                 let mut constraints = Vec::new();
                 let mut level_position = 0;
@@ -512,6 +534,8 @@ mod mathematical_signature {
                         continue;
                     }
                     let argument = slot.argument.expect("checked generic arity");
+                    self.result_identity_requirements =
+                        super::identity::IdentityRequirements::default();
                     let (term, domain) = if let Some(literal) = &argument.const_literal {
                         self.static_integer_literal(binder, argument, literal)?
                     } else {
@@ -527,6 +551,10 @@ mod mathematical_signature {
                     {
                         constraints.push((position, term, &binder.name));
                     }
+                    if let Term::Variable(_) = self.arena.get(term) {
+                        self.retain_identity_parameter_value(term)?;
+                    }
+                    term_requirements.push(std::mem::take(&mut self.result_identity_requirements));
                     terms.push(term);
                     term_domains.push(domain);
                 }
@@ -577,16 +605,23 @@ mod mathematical_signature {
                     declaration: position,
                     levels,
                 });
-                let inputs = terms
+                let inputs: Vec<_> = terms
                     .into_iter()
                     .zip(term_domains)
-                    .map(|(term, domain)| super::source_domains::SourceInput {
-                        expression: ExpressionHandle::default(),
-                        term,
-                        domain,
+                    .zip(term_requirements)
+                    .map(|((term, domain), identity_requirements)| {
+                        super::source_domains::SourceInput {
+                            // Generic terms are already typed in the exact caller scope.
+                            // No anonymous ordinary-expression landing is available here.
+                            expression: ExpressionHandle::default(),
+                            term,
+                            domain,
+                            identity_requirements,
+                        }
                     })
                     .collect();
-                Ok(self.apply_source_inputs(expression, callee, inputs))
+                let term = self.apply_source_inputs(expression, callee, inputs.clone());
+                Ok((term, inputs))
             }
 
             fn binder_is_level(&self, binder: &TypeParameter) -> bool {
@@ -656,10 +691,48 @@ mod mathematical_signature {
                 &mut self,
                 argument: &StaticMachineArgument,
             ) -> Result<TermHandle, Vec<Diagnostic>> {
-                if argument.application.is_some()
-                    || argument.evidence_projection.is_some()
-                    || argument.const_literal.is_some()
-                {
+                if let Some(application) = argument.application.as_deref() {
+                    if argument.type_reference.is_valid()
+                        || argument.evidence_projection.is_some()
+                        || argument.const_literal.is_some()
+                        || application.member.is_valid()
+                        || !application.lifetime_arguments.is_empty()
+                    {
+                        return Err(self.refuse(
+                            "a mathematical type application carries conflicting operand or selection payloads"
+                                .to_owned(),
+                        ));
+                    }
+                    // The fixed vocabulary's unresolved fallback expects the full
+                    // qualified spelling. A resolved symbol remains authoritative.
+                    let name = Identifier::generated(
+                        argument
+                            .path
+                            .iter()
+                            .map(Identifier::as_str)
+                            .collect::<Vec<_>>()
+                            .join("::"),
+                    );
+                    let Some(sort) = self
+                        .fixed_core
+                        .classify(argument.symbol, &name)
+                        .and_then(|member| member.universe_sort())
+                    else {
+                        return Err(self.refuse(
+                            "a mathematical generic term application has no kernel denotation yet"
+                                .to_owned(),
+                        ));
+                    };
+                    let [level] = application.arguments.as_ref() else {
+                        return Err(self.refuse(
+                            "a mathematical universe application requires one level argument"
+                                .to_owned(),
+                        ));
+                    };
+                    let level = self.static_level(level)?;
+                    return Ok(self.arena.insert(Term::Sort(sort(level))));
+                }
+                if argument.evidence_projection.is_some() || argument.const_literal.is_some() {
                     return Err(self.refuse(
                         "a mathematical generic term argument has no kernel denotation yet"
                             .to_owned(),
@@ -1215,10 +1288,7 @@ mod mathematical_signature {
             }
 
             pub(super) fn constant(&mut self, position: u32) -> TermHandle {
-                self.arena.insert(Term::Constant {
-                    declaration: position,
-                    levels: Vec::new(),
-                })
+                self.quantified_constant(position)
             }
 
             pub(super) fn type_zero(&mut self) -> TermHandle {
@@ -1228,7 +1298,10 @@ mod mathematical_signature {
 
             pub(super) fn push_assumption(&mut self, ty: TermHandle) -> u32 {
                 let position = self.declarations.len() as u32;
-                self.declarations.push(Declaration::assumption(0, ty));
+                self.declarations.push(Declaration::assumption(
+                    proof_admission::universe_parameter_arity(&self.arena, &[ty]),
+                    ty,
+                ));
                 position
             }
 
@@ -1285,6 +1358,68 @@ mod mathematical_signature {
                 self.declarations.push(Declaration::definition(0, ty, body));
                 self.boolean_literals[value as usize] = Some(position);
                 self.constant(position)
+            }
+        }
+    }
+    mod content_values {
+        /*
+        The closed content algebras have mathematical values, rather than the
+        start/end fields used by their source literal formers. Source types and
+        captures use the same opaque carrier as canonical content derivations.
+        */
+
+        use super::Elaborator;
+        use diagnostics::Diagnostic;
+        use proof_admission::{
+            Budget, DEFAULT_CONVERSION_STEPS, Sort, SourceContentTheory, TermHandle, infer_sort,
+        };
+        use typed_trees::types::TypeReferenceHandle;
+
+        impl Elaborator<'_> {
+            pub(super) fn elaborate_content_carrier(
+                &mut self,
+                reference: TypeReferenceHandle,
+            ) -> Result<Option<TermHandle>, Vec<Diagnostic>> {
+                let Some(algebra) =
+                    validation::content_algebra_application(self.program, reference)
+                else {
+                    return Ok(None);
+                };
+                let parameter = self.elaborate_type_reference(algebra.parameter)?;
+                let context = self.instantiation_context();
+                let sort = infer_sort(
+                    &mut self.arena,
+                    &context,
+                    parameter,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .map_err(|error| {
+                    self.refuse(format!(
+                        "canonical content parameter fails formation: {error:?}"
+                    ))
+                })?;
+                let Sort::Type(level) = sort else {
+                    return Err(self.refuse(
+                        "canonical content requires a relevant coordinate or unit type".to_owned(),
+                    ));
+                };
+                let theory = self.source_content.get_or_insert_with(|| {
+                    SourceContentTheory::new(&mut self.arena, &mut self.declarations)
+                });
+                theory
+                    .carrier(
+                        &mut self.arena,
+                        &mut self.declarations,
+                        algebra.identity.canonical_algebra().kind,
+                        parameter,
+                        level,
+                    )
+                    .map(Some)
+                    .map_err(|error| {
+                        self.refuse(format!(
+                            "canonical content carrier fails formation: {error}"
+                        ))
+                    })
             }
         }
     }
@@ -1391,6 +1526,784 @@ mod mathematical_signature {
                 body = substitute(arena, inner, argument);
             }
             body
+        }
+    }
+    mod identity {
+        /*
+        Form the sealed relation using one transparent, universe-polymorphic Id.
+
+        Conversion retains this checked declaration's meaning, so a mathematical
+        wrapper returns the same typed identity value as a direct application.
+        Neither formation nor the declaration body supplies a witness of the Id.
+        */
+
+        use super::{Elaborator, Term, TermHandle};
+        use arena::HandleSpan;
+        use diagnostics::Diagnostic;
+        use proof_admission::{
+            Budget, DEFAULT_CONVERSION_STEPS, Declaration, Level, Sort, infer_sort,
+        };
+        use symbols::SymbolHandle;
+        use typed_trees::expression::StaticMachineArgument;
+        use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+        use typed_trees::type_identity::{
+            AppliedTypeIdentityScope, IndexIdentityArgument, applied_type_identity,
+        };
+        use typed_trees::types::TypeReferenceHandle;
+        use validation::mathematical_applications::{
+            MathematicalBinderKind, PreparedIdentityValue, source_generic_argument_plan,
+        };
+
+        impl Elaborator<'_> {
+            pub(super) fn elaborate_identity(
+                &mut self,
+                expression: ExpressionHandle,
+                call: &TableCallExpression,
+            ) -> Result<TermHandle, Vec<Diagnostic>> {
+                let application =
+                    validation::mathematical_applications::identity_application(self.program, call)
+                        .map_err(|reason| self.refuse(reason.to_owned()))?;
+                let ty = self.elaborate_source_operand_type(application.carrier)?;
+                let context = self.instantiation_context();
+                let sort = infer_sort(
+                    &mut self.arena,
+                    &context,
+                    ty,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .map_err(|error| {
+                    self.refuse(format!("core::Identity carrier fails formation: {error:?}"))
+                })?;
+                let Sort::Type(level) = sort else {
+                    return Err(
+                        self.refuse("core::Identity requires a relevant Type carrier".to_owned())
+                    );
+                };
+                let declaration = self.identity_declaration();
+                let mut term = self.arena.insert(Term::Constant {
+                    declaration,
+                    levels: vec![level],
+                });
+                term = self.arena.insert(Term::Apply {
+                    function: term,
+                    argument: ty,
+                });
+                for subject in application.subjects {
+                    let value = self.elaborate_expression(subject)?;
+                    self.retain_source_result(subject, ty, value, false)?;
+                    term = self.arena.insert(Term::Apply {
+                        function: term,
+                        argument: value,
+                    });
+                }
+                self.record_identity_emission(
+                    term,
+                    application.carrier,
+                    self.source_owner,
+                    Vec::new(),
+                    Vec::new(),
+                )?;
+                self.result_identity_requirements = IdentityRequirements {
+                    owner: self.source_owner,
+                    emissions: vec![self.identity_emissions.len() - 1],
+                    applications: Vec::new(),
+                };
+                self.span = Some(self.program.expression_table.source_span(expression));
+                Ok(term)
+            }
+
+            fn identity_declaration(&mut self) -> u32 {
+                if let Some(declaration) = self.identity_declaration {
+                    return declaration;
+                }
+                let universe = self
+                    .arena
+                    .insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+                let a = self.arena.insert(Term::Variable(0));
+                let a_under_left = self.arena.insert(Term::Variable(1));
+                let a_under_both = self.arena.insert(Term::Variable(2));
+                let right = self.arena.insert(Term::Variable(0));
+                let left = self.arena.insert(Term::Variable(1));
+                let result = self.arena.insert(Term::Id {
+                    ty: a_under_both,
+                    left,
+                    right,
+                });
+                let body = self.arena.insert(Term::Lambda {
+                    domain: a_under_left,
+                    body: result,
+                });
+                let body = self.arena.insert(Term::Lambda { domain: a, body });
+                let body = self.arena.insert(Term::Lambda {
+                    domain: universe,
+                    body,
+                });
+                let ty = self.arena.insert(Term::Pi {
+                    domain: a_under_left,
+                    codomain: universe,
+                });
+                let ty = self.arena.insert(Term::Pi {
+                    domain: a,
+                    codomain: ty,
+                });
+                let ty = self.arena.insert(Term::Pi {
+                    domain: universe,
+                    codomain: ty,
+                });
+                let declaration = self.declarations.len() as u32;
+                self.declarations.push(Declaration {
+                    level_arity: 1,
+                    ty,
+                    body: Some(body),
+                });
+                self.identity_declaration = Some(declaration);
+                declaration
+            }
+
+            pub(super) fn call_returns_type(&self, call: &TableCallExpression) -> bool {
+                validation::mathematical_applications::is_identity_call(self.program, call)
+                    || self
+                        .type_returning_declarations
+                        .contains(&call.target_symbol)
+            }
+
+            /// Every emission keeps its source type template and exact application
+            /// scopes. The calculus value follows the same level and beta substitution
+            /// as the authored declaration; no consumer reconstructs a source carrier
+            /// from an ambiguous shared kernel type.
+            fn record_identity_emission(
+                &mut self,
+                value: TermHandle,
+                source_type: TypeReferenceHandle,
+                source_owner: SymbolHandle,
+                source_scopes: Vec<IdentitySourceScope>,
+                pending: Vec<IdentitySourceParameter>,
+            ) -> Result<(), Vec<Diagnostic>> {
+                let mut abstraction = value;
+                for entry in self.scope.iter().rev() {
+                    abstraction = self.arena.insert(Term::Lambda {
+                        domain: entry.domain,
+                        body: abstraction,
+                    });
+                }
+                let Some(requirements) = self
+                    .identity_requirements_by_owner
+                    .get_mut(self.source_owner.arena_index() as usize)
+                else {
+                    return Err(self.refuse("Id emission has no retained source owner".into()));
+                };
+                if requirements.owner != self.source_owner {
+                    *requirements = IdentityRequirements {
+                        owner: self.source_owner,
+                        ..Default::default()
+                    };
+                }
+                requirements.emissions.push(self.identity_emissions.len());
+                self.identity_emissions.push(IdentityEmission {
+                    value,
+                    abstraction,
+                    source_type,
+                    source_owner,
+                    source_scopes,
+                    pending,
+                });
+                Ok(())
+            }
+
+            pub(super) fn transport_identity_requirements(
+                &mut self,
+                call: &TableCallExpression,
+                callee: TermHandle,
+                static_inputs: &[super::source_domains::SourceInput],
+                inputs: &[super::source_domains::SourceInput],
+            ) -> Result<(), Vec<Diagnostic>> {
+                let actuals = self
+                    .program
+                    .expression_table
+                    .expression_handles(call.arguments);
+                self.transport_identity_value(
+                    call.target_symbol,
+                    &call.machine_arguments,
+                    actuals,
+                    callee,
+                    static_inputs,
+                    inputs,
+                )
+            }
+
+            pub(super) fn transport_identity_value(
+                &mut self,
+                target: SymbolHandle,
+                static_arguments: &[StaticMachineArgument],
+                actuals: &[ExpressionHandle],
+                callee: TermHandle,
+                static_inputs: &[super::source_domains::SourceInput],
+                inputs: &[super::source_domains::SourceInput],
+            ) -> Result<(), Vec<Diagnostic>> {
+                let emission_start = self.identity_emissions.len();
+                let application_start = self.identity_applications.len();
+                self.transport_identity_value_requirements(
+                    target,
+                    static_arguments,
+                    actuals,
+                    callee,
+                    static_inputs,
+                    inputs,
+                )?;
+                self.result_identity_requirements = IdentityRequirements {
+                    owner: self.source_owner,
+                    emissions: (emission_start..self.identity_emissions.len()).collect(),
+                    applications: (application_start..self.identity_applications.len()).collect(),
+                };
+                Ok(())
+            }
+
+            fn transport_identity_value_requirements(
+                &mut self,
+                target: SymbolHandle,
+                static_arguments: &[StaticMachineArgument],
+                actuals: &[ExpressionHandle],
+                mut callee: TermHandle,
+                static_inputs: &[super::source_domains::SourceInput],
+                inputs: &[super::source_domains::SourceInput],
+            ) -> Result<(), Vec<Diagnostic>> {
+                if !self.authored_index.contains_key(&target) {
+                    if self.scope.iter().any(|entry| entry.symbol == Some(target)) {
+                        let mut value = callee;
+                        for input in inputs {
+                            value = self.arena.insert(Term::Apply {
+                                function: value,
+                                argument: input.term,
+                            });
+                        }
+                        self.record_identity_application(IdentityApplication {
+                            parameter: target,
+                            value,
+                            abstraction: value,
+                            arguments: inputs.iter().map(|input| input.expression).collect(),
+                            source_scopes: Vec::new(),
+                            pending: Vec::new(),
+                        })?;
+                    }
+                    return Ok(());
+                }
+                let requirements = self
+                    .identity_requirements_by_owner
+                    .get(target.arena_index() as usize)
+                    .filter(|requirements| requirements.owner == target)
+                    .cloned()
+                    .unwrap_or_default();
+                if requirements.emissions.is_empty() && requirements.applications.is_empty() {
+                    return Ok(());
+                }
+                let emitted = requirements
+                    .emissions
+                    .iter()
+                    .map(|position| self.identity_emissions[*position].clone())
+                    .collect::<Vec<_>>();
+                let Some(&index) = self.authored_index.get(&target) else {
+                    return Err(
+                        self.refuse("Id value lost its mathematical declaration owner".into())
+                    );
+                };
+                let definition = &self.program.mathematical_definitions()[index];
+                let binders = self
+                    .program
+                    .data_type_parameters
+                    .span_or_empty(definition.binders);
+                let plan = source_generic_argument_plan(
+                    self.program,
+                    binders,
+                    static_arguments,
+                    &self.fixed_core,
+                );
+                let mut arguments = Vec::new();
+                let mut static_formals = Vec::new();
+                let mut pending_static = Vec::new();
+                if let Some(plan) = plan {
+                    for slot in plan {
+                        if matches!(slot.kind, MathematicalBinderKind::Level) {
+                            continue;
+                        }
+                        static_formals.push(slot.binder.symbol);
+                        let actual = slot.argument.ok_or_else(|| {
+                            self.refuse("Id application lost a supplied generic operand".into())
+                        })?;
+                        arguments.push((
+                            slot.binder.symbol,
+                            IdentitySourceArgument::Static(actual.clone()),
+                        ));
+                    }
+                } else if static_arguments.is_empty()
+                    && static_inputs.is_empty()
+                    && actuals.is_empty()
+                    && inputs.is_empty()
+                {
+                    // A bare declaration value retains its whole unapplied Pi prefix.
+                    // The ordinary application operation supplies these actuals later.
+                    for binder in binders {
+                        static_formals.push(binder.symbol);
+                        pending_static.push(IdentitySourceParameter {
+                            declaration: definition.symbol,
+                            binder: binder.symbol,
+                        });
+                    }
+                } else {
+                    return Err(self
+                        .refuse("Id value lost its checked generic application telescope".into()));
+                }
+                let formals = self.program.mathematical_parameters(definition.parameters);
+                arguments.extend(formals.iter().zip(actuals).map(|(formal, actual)| {
+                    (formal.symbol, IdentitySourceArgument::Expression(*actual))
+                }));
+                let scope = IdentitySourceScope {
+                    declaration: definition.symbol,
+                    arguments,
+                };
+                let mut operands = Vec::new();
+                while let Term::Apply { function, argument } = self.arena.get(callee) {
+                    operands.push(argument);
+                    callee = function;
+                }
+                operands.reverse();
+                operands.extend(inputs.iter().map(|input| input.term));
+                let Term::Constant { levels, .. } = self.arena.get(callee) else {
+                    return Err(self.refuse("Id application has no checked constant spine".into()));
+                };
+                for row in emitted {
+                    let value =
+                        self.instantiate_identity_requirement(row.abstraction, &levels, &operands)?;
+                    self.retain_instantiated_identity(
+                        row,
+                        value,
+                        &scope,
+                        formals,
+                        actuals,
+                        &[],
+                        &pending_static,
+                    )?;
+                }
+                let static_arity = operands.len() - inputs.len();
+                let applications = requirements
+                    .applications
+                    .iter()
+                    .map(|position| self.identity_applications[*position].clone())
+                    .collect::<Vec<_>>();
+                for mut application in applications {
+                    let position = static_formals
+                        .iter()
+                        .position(|formal| *formal == application.parameter)
+                        .map(|position| (position, static_inputs.get(position)))
+                        .or_else(|| {
+                            formals
+                                .iter()
+                                .position(|formal| formal.symbol == application.parameter)
+                                .map(|position| (static_arity + position, inputs.get(position)))
+                        })
+                        .or_else(|| {
+                            application
+                                .pending
+                                .iter()
+                                .position(|parameter| parameter.binder == application.parameter)
+                                .map(|position| {
+                                    (
+                                        static_arity + formals.len() + position,
+                                        inputs.get(formals.len() + position),
+                                    )
+                                })
+                        });
+                    let Some((operand_position, input)) = position else {
+                        return Err(
+                            self.refuse("Id value dependency lost its exact source formal".into())
+                        );
+                    };
+                    let trailing = actuals
+                        .iter()
+                        .skip(formals.len())
+                        .copied()
+                        .collect::<Vec<_>>();
+                    self.complete_identity_scopes(
+                        &mut application.source_scopes,
+                        &application.pending,
+                        &trailing,
+                    )?;
+                    let mut pending = pending_static.clone();
+                    pending.extend(
+                        formals
+                            .iter()
+                            .skip(actuals.len())
+                            .map(|formal| IdentitySourceParameter {
+                                declaration: definition.symbol,
+                                binder: formal.symbol,
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                    pending.extend(application.pending.iter().skip(trailing.len()).cloned());
+                    application.pending = pending;
+                    let Some(input) = input else {
+                        // An unapplied function formal stays in the checked closure;
+                        // the next prefix application will supply its requirements.
+                        let value = self.instantiate_identity_requirement(
+                            application.abstraction,
+                            &levels,
+                            &operands,
+                        )?;
+                        let mut application = application;
+                        application.value = value;
+                        application.source_scopes.insert(0, scope.clone());
+                        self.record_identity_application(application)?;
+                        continue;
+                    };
+                    let rows = input
+                        .identity_requirements
+                        .emissions
+                        .iter()
+                        .map(|position| self.identity_emissions[*position].clone())
+                        .collect::<Vec<_>>();
+                    for row in rows {
+                        let mut kernel_operands = operands.clone();
+                        kernel_operands[operand_position] = row.value;
+                        let value = self.instantiate_identity_requirement(
+                            application.abstraction,
+                            &levels,
+                            &kernel_operands,
+                        )?;
+                        let mut row = row;
+                        row.source_scopes
+                            .splice(0..0, application.source_scopes.clone());
+                        self.retain_instantiated_identity(
+                            row,
+                            value,
+                            &scope,
+                            formals,
+                            actuals,
+                            &application.arguments,
+                            &pending_static,
+                        )?;
+                    }
+                    let deferred = input
+                        .identity_requirements
+                        .applications
+                        .iter()
+                        .map(|position| self.identity_applications[*position].clone())
+                        .collect::<Vec<_>>();
+                    for mut supplied in deferred {
+                        let mut kernel_operands = operands.clone();
+                        kernel_operands[operand_position] = supplied.value;
+                        let value = self.instantiate_identity_requirement(
+                            application.abstraction,
+                            &levels,
+                            &kernel_operands,
+                        )?;
+                        let consumed = supplied.pending.len().min(application.arguments.len());
+                        self.complete_identity_scopes(
+                            &mut supplied.source_scopes,
+                            &supplied.pending,
+                            &application.arguments[..consumed],
+                        )?;
+                        supplied.pending.drain(..consumed);
+                        supplied
+                            .arguments
+                            .extend_from_slice(&application.arguments[consumed..]);
+                        let mut scopes = Vec::with_capacity(
+                            1 + application.source_scopes.len() + supplied.source_scopes.len(),
+                        );
+                        scopes.push(scope.clone());
+                        scopes.extend(application.source_scopes.iter().cloned());
+                        scopes.extend(supplied.source_scopes);
+                        supplied.source_scopes = scopes;
+                        supplied
+                            .pending
+                            .splice(0..0, application.pending.iter().cloned());
+                        supplied.value = value;
+                        self.record_identity_application(supplied)?;
+                    }
+                }
+                Ok(())
+            }
+
+            pub(super) fn retain_identity_parameter_value(
+                &mut self,
+                value: TermHandle,
+            ) -> Result<(), Vec<Diagnostic>> {
+                let Term::Variable(index) = self.arena.get(value) else {
+                    return Ok(());
+                };
+                let Some(parameter) = self
+                    .scope
+                    .len()
+                    .checked_sub(index as usize + 1)
+                    .and_then(|position| self.scope[position].symbol)
+                else {
+                    return Ok(());
+                };
+                self.transport_identity_value(parameter, &[], &[], value, &[], &[])
+            }
+
+            fn instantiate_identity_requirement(
+                &mut self,
+                abstraction: TermHandle,
+                levels: &[Level],
+                arguments: &[TermHandle],
+            ) -> Result<TermHandle, Vec<Diagnostic>> {
+                let mut value =
+                    proof_admission::instantiate_levels(&mut self.arena, abstraction, levels)
+                        .map_err(|level| {
+                            self.refuse(format!("Id application lost universe parameter {level}"))
+                        })?;
+                for argument in arguments {
+                    value = self.arena.insert(Term::Apply {
+                        function: value,
+                        argument: *argument,
+                    });
+                }
+                Ok(value)
+            }
+
+            fn retain_instantiated_identity(
+                &mut self,
+                row: IdentityEmission,
+                value: TermHandle,
+                scope: &IdentitySourceScope,
+                formals: &[typed_trees::mathematical::MathematicalParameter],
+                actuals: &[ExpressionHandle],
+                function_arguments: &[ExpressionHandle],
+                pending_static: &[IdentitySourceParameter],
+            ) -> Result<(), Vec<Diagnostic>> {
+                let mut scopes = Vec::with_capacity(row.source_scopes.len() + 1);
+                scopes.push(scope.clone());
+                scopes.extend(row.source_scopes);
+                let trailing = actuals
+                    .iter()
+                    .skip(formals.len())
+                    .copied()
+                    .collect::<Vec<_>>();
+                let supplied = function_arguments
+                    .iter()
+                    .copied()
+                    .chain(trailing)
+                    .collect::<Vec<_>>();
+                self.complete_identity_scopes(&mut scopes, &row.pending, &supplied)?;
+                let mut pending = pending_static.to_vec();
+                pending.extend(
+                    formals
+                        .iter()
+                        .skip(actuals.len())
+                        .map(|formal| IdentitySourceParameter {
+                            declaration: scope.declaration,
+                            binder: formal.symbol,
+                        })
+                        .collect::<Vec<_>>(),
+                );
+                pending.extend(row.pending.into_iter().skip(supplied.len()));
+                self.record_identity_emission(
+                    value,
+                    row.source_type,
+                    row.source_owner,
+                    scopes,
+                    pending,
+                )
+            }
+
+            fn complete_identity_scopes(
+                &self,
+                scopes: &mut [IdentitySourceScope],
+                pending: &[IdentitySourceParameter],
+                supplied: &[ExpressionHandle],
+            ) -> Result<(), Vec<Diagnostic>> {
+                for (parameter, actual) in pending.iter().zip(supplied) {
+                    let Some(scope) = scopes
+                        .iter_mut()
+                        .find(|scope| scope.declaration == parameter.declaration)
+                    else {
+                        return Err(self
+                            .refuse("Id prefix application lost its supplying telescope".into()));
+                    };
+                    scope.arguments.push((
+                        parameter.binder,
+                        IdentitySourceArgument::Expression(*actual),
+                    ));
+                }
+                Ok(())
+            }
+
+            fn record_identity_application(
+                &mut self,
+                mut application: IdentityApplication,
+            ) -> Result<(), Vec<Diagnostic>> {
+                application.abstraction = application.value;
+                for entry in self.scope.iter().rev() {
+                    application.abstraction = self.arena.insert(Term::Lambda {
+                        domain: entry.domain,
+                        body: application.abstraction,
+                    });
+                }
+                let Some(requirements) = self
+                    .identity_requirements_by_owner
+                    .get_mut(self.source_owner.arena_index() as usize)
+                else {
+                    return Err(
+                        self.refuse("Id function application has no retained source owner".into())
+                    );
+                };
+                if requirements.owner != self.source_owner {
+                    *requirements = IdentityRequirements {
+                        owner: self.source_owner,
+                        ..Default::default()
+                    };
+                }
+                requirements
+                    .applications
+                    .push(self.identity_applications.len());
+                self.identity_applications.push(application);
+                Ok(())
+            }
+
+            pub(super) fn prepare_identity_values(
+                &mut self,
+                signature: &proof_admission::Signature,
+                context: &proof_admission::Context,
+                retained_constants: &std::collections::HashSet<u32>,
+                emissions: &std::ops::Range<usize>,
+            ) -> Result<HandleSpan<PreparedIdentityValue>, Vec<Diagnostic>> {
+                let mut values = Vec::with_capacity(emissions.len());
+                for position in emissions.clone() {
+                    let row = &self.identity_emissions[position];
+                    let term = super::normalization::normalize(
+                        &mut self.arena,
+                        signature,
+                        row.value,
+                        &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                        &|declaration| retained_constants.contains(&declaration),
+                    )
+                    .map_err(|error| {
+                        self.refuse(format!("Id value substitution failed: {error:?}"))
+                    })?;
+                    let mut head = term;
+                    let mut arity = 0;
+                    while let Term::Apply { function, .. } = self.arena.get(head) {
+                        arity += 1;
+                        head = function;
+                    }
+                    if arity != 3
+                        || !matches!(self.arena.get(head), Term::Constant { declaration, .. } if Some(declaration) == self.identity_declaration)
+                    {
+                        continue;
+                    }
+                    if !row.pending.is_empty() {
+                        return Err(
+                            self.refuse("formed Id retains unapplied source subjects".into())
+                        );
+                    }
+                    let arguments = row
+                        .source_scopes
+                        .iter()
+                        .map(|scope| {
+                            scope
+                                .arguments
+                                .iter()
+                                .map(|(binder, actual)| {
+                                    (
+                                        *binder,
+                                        match actual {
+                                            IdentitySourceArgument::Static(actual) => {
+                                                IndexIdentityArgument::StaticArgument(actual)
+                                            }
+                                            IdentitySourceArgument::Expression(actual) => {
+                                                IndexIdentityArgument::Expression(*actual)
+                                            }
+                                        },
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>();
+                    let scopes = row
+                        .source_scopes
+                        .iter()
+                        .zip(&arguments)
+                        .map(|(scope, arguments)| AppliedTypeIdentityScope {
+                            declaration: scope.declaration,
+                            arguments,
+                            lifetimes: &[],
+                        })
+                        .collect::<Vec<_>>();
+                    let type_identity = applied_type_identity(
+                        self.program,
+                        row.source_type,
+                        row.source_owner,
+                        &scopes,
+                    )
+                    .ok_or_else(|| {
+                        self.refuse(
+                            "Id application lost its exact source carrier substitution".into(),
+                        )
+                    })?;
+                    let ty = proof_admission::infer_type(
+                        &mut self.arena,
+                        context,
+                        term,
+                        &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                    )
+                    .map_err(|error| {
+                        self.refuse(format!("emitted Id value fails formation: {error:?}"))
+                    })?;
+                    values.push(PreparedIdentityValue {
+                        term,
+                        ty,
+                        type_identity,
+                    });
+                }
+                Ok(self.prepared.identity_values.insert_many(values))
+            }
+        }
+
+        #[derive(Clone)]
+        pub(super) struct IdentityEmission {
+            value: TermHandle,
+            abstraction: TermHandle,
+            source_type: TypeReferenceHandle,
+            source_owner: SymbolHandle,
+            source_scopes: Vec<IdentitySourceScope>,
+            pending: Vec<IdentitySourceParameter>,
+        }
+
+        #[derive(Clone)]
+        struct IdentitySourceScope {
+            declaration: SymbolHandle,
+            arguments: Vec<(SymbolHandle, IdentitySourceArgument)>,
+        }
+
+        #[derive(Clone)]
+        enum IdentitySourceArgument {
+            Static(StaticMachineArgument),
+            Expression(ExpressionHandle),
+        }
+
+        #[derive(Clone)]
+        struct IdentitySourceParameter {
+            declaration: SymbolHandle,
+            binder: SymbolHandle,
+        }
+
+        /// Requirements are retained on the checked mathematical value's owner. A
+        /// function formal records its typed application closure until an actual
+        /// supplies the emissions; the same level/beta substitution transports both.
+        #[derive(Clone, Default)]
+        pub(super) struct IdentityRequirements {
+            pub(super) owner: SymbolHandle,
+            pub(super) emissions: Vec<usize>,
+            pub(super) applications: Vec<usize>,
+        }
+
+        #[derive(Clone)]
+        pub(super) struct IdentityApplication {
+            parameter: SymbolHandle,
+            value: TermHandle,
+            abstraction: TermHandle,
+            arguments: Vec<ExpressionHandle>,
+            source_scopes: Vec<IdentitySourceScope>,
+            pending: Vec<IdentitySourceParameter>,
         }
     }
     mod level_types {
@@ -1511,9 +2424,19 @@ mod mathematical_signature {
                         "a mathematical type references a type that does not exist".to_owned(),
                     ));
                 }
+                if let Some(carrier) = self.elaborate_content_carrier(reference)? {
+                    return Ok(carrier);
+                }
                 if let Some(alias) = self.source_type_alias(reference)? {
                     return Ok(alias);
                 }
+                if let Some(carrier) = self.region_nominal_carrier(reference)? {
+                    return Ok(carrier);
+                }
+                // Arithmetic policy changes the selected source value operation, not
+                // the calculus domain. Source application admission and captured type
+                // references retain the complete shell; only this carrier projection
+                // peels policy-only layers. Other predicates remain unsupported here.
                 let reference = validation::peel_arithmetic_policy(self.program, reference);
                 match self.program.type_reference_table.type_reference(reference) {
                     TypeReferenceNode::Named { symbol, name } => self.named_type(*symbol, name),
@@ -1561,6 +2484,9 @@ mod mathematical_signature {
                                     arguments.len()
                                 ))),
                             },
+                            Some(FixedCore::Identity) => Err(self.refuse(
+                                "core::Identity requires its two typed subjects".to_owned(),
+                            )),
                             Some(FixedCore::Level) => Err(self.refuse(
                                 "`core::Level` is a universe level, not a type".to_owned(),
                             )),
@@ -1602,6 +2528,62 @@ mod mathematical_signature {
                 }
             }
 
+            /// A data type with only lifetime parameters has the same opaque proof
+            /// representation as an ordinary nominal type. Its key retains the
+            /// declaring scope and exact lifetimes. Type/value parameters continue
+            /// through the checked indexed-family representation.
+            fn region_nominal_carrier(
+                &mut self,
+                reference: TypeReferenceHandle,
+            ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
+                let TypeReferenceNode::Generic {
+                    base_symbol,
+                    lifetime_arguments,
+                    arguments,
+                    ..
+                } = self.program.type_reference_table.type_reference(reference)
+                else {
+                    return Ok(None);
+                };
+                if lifetime_arguments.is_empty()
+                    || !type_reference_table(self.program)
+                        .type_reference_handles(*arguments)
+                        .is_empty()
+                {
+                    return Ok(None);
+                }
+                let Some(data) = self.program.unique_data_definition_by_symbol(*base_symbol) else {
+                    return Ok(None);
+                };
+                if !self.program.data_type_parameters(data).is_empty()
+                    || data.lifetime_parameters.len() != lifetime_arguments.len()
+                {
+                    return Ok(None);
+                }
+                let identity = typed_trees::type_identity::applied_type_identity(
+                    self.program,
+                    reference,
+                    self.source_owner,
+                    &[],
+                )
+                .ok_or_else(|| {
+                    self.refuse("a nominal carrier lost its exact lifetime scope".into())
+                })?;
+                let position = if let Some(position) = self.region_carriers.get(&identity) {
+                    *position
+                } else {
+                    let position = self.push_type_carrier();
+                    self.region_carriers.insert(identity, position);
+                    position
+                };
+                Ok(Some(self.constant(position)))
+            }
+
+            /// Resolve a `Named` reference in type position. Scope entries
+            /// (type/subject binders) resolve by symbol; authored declarations
+            /// become `Constant`s; other resolved symbols intern as carrier
+            /// assumptions or refuse by kind; the fixed `core::*` vocabulary
+            /// refuses unapplied.
             pub(super) fn named_type(
                 &mut self,
                 symbol: SymbolHandle,
@@ -1621,6 +2603,22 @@ mod mathematical_signature {
                     }
                     if let Some(term) = self.constant_for_declaration(symbol)? {
                         return Ok(term);
+                    }
+                    if let Some(reference) = self
+                        .program
+                        .unique_data_definition_by_symbol(symbol)
+                        .and_then(|definition| definition.generic_instance)
+                    {
+                        if matches!(
+                            self.program.type_reference_table.type_reference(reference),
+                            TypeReferenceNode::Named { symbol: selected, .. } if *selected == symbol
+                        ) {
+                            return Err(self.refuse(
+                                "a specialized mathematical carrier lost its source application"
+                                    .into(),
+                            ));
+                        }
+                        return self.elaborate_type_reference(reference);
                     }
                     if let Some(term) = self.carrier_for_symbol(symbol) {
                         return Ok(term);
@@ -1704,7 +2702,7 @@ mod mathematical_signature {
         ($variant:ident { $($field:ident),+ }) => {
             Term::$variant { $($field: normalize(arena, signature, $field, budget, retain)?),+ }
         };
-    }
+            }
             let reduced = match original.clone() {
                 Term::Pi { domain, codomain } => children!(Pi { domain, codomain }),
                 Term::Lambda { domain, body } => children!(Lambda { domain, body }),
@@ -1797,13 +2795,15 @@ mod mathematical_signature {
         use super::{Elaborator, ScalarCarrier};
         use validation::expression_traversal::children;
         use validation::mathematical_applications::{
-            integer_embedding_meaning, operand_type_reference, source_operations_have_same_meaning,
+            PreparedSourceBinding, PreparedSourceBindingKind, integer_embedding_meaning,
+            source_operations_have_same_meaning,
         };
 
         pub(super) struct SourceOperationDeclaration {
             expression: ExpressionHandle,
             owner: symbols::SymbolHandle,
             source_type: TypeReferenceHandle,
+            bindings: Vec<PreparedSourceBinding>,
             declaration: u32,
         }
 
@@ -1999,17 +2999,20 @@ mod mathematical_signature {
                     let carrier = self.integer_carrier();
                     return self.numeric_literal(carrier, value);
                 }
-                if operand_type_reference(self.program, handle).is_some_and(|reference| {
-                    self.program
-                        .primitive_type_reference(reference)
-                        .is_some_and(|primitive| primitive.is_fixed_integer())
-                        && self.program.arithmetic_domain_for_type_reference(reference)
-                            != numerics::arithmetic::ArithmeticDomain::Exact
-                }) {
+                if self
+                    .source_operand_type_reference(handle)
+                    .is_some_and(|reference| {
+                        self.program
+                            .primitive_type_reference(reference)
+                            .is_some_and(|primitive| primitive.is_fixed_integer())
+                            && self.program.arithmetic_domain_for_type_reference(reference)
+                                != numerics::arithmetic::ArithmeticDomain::Exact
+                    })
+                {
                     return self.open_term(handle);
                 }
                 let references = [binary.left, binary.right]
-                    .map(|operand| operand_type_reference(self.program, operand));
+                    .map(|operand| self.source_operand_type_reference(operand));
                 let spelling = match binary.operator {
                     BinaryOperator::Add => language_core::OperatorSpelling::Add,
                     BinaryOperator::Subtract => language_core::OperatorSpelling::Subtract,
@@ -2069,19 +3072,26 @@ mod mathematical_signature {
                         return self.integer_operand(*argument);
                     }
                 }
-                let source_type = operand_type_reference(self.program, handle);
+                // An opaque operation's declared result can be the first occurrence
+                // of a data carrier. Elaborate that exact source domain before asking
+                // which carrier it denotes; signature occurrence is not authority.
+                let source_type = self.source_operand_type_reference(handle);
                 let source_domain = source_type
                     .map(|reference| self.elaborate_source_operand_type(reference))
                     .transpose()?;
-                let Some(carrier) = self.operand_carrier(handle) else {
-                    return Err(self.unsupported_expression(handle));
-                };
                 if let Some(meaning) = integer_embedding_meaning(self.program, handle) {
                     return self.embedding_term(handle, meaning);
                 }
+                // An applied data carrier already has its complete source domain.
+                // The scalar classifier cannot replace its retained type arguments.
                 let result_type = match source_domain {
                     Some(domain) => domain,
-                    None => self.carrier_term(carrier),
+                    None => {
+                        let carrier = self
+                            .operand_carrier(handle)
+                            .ok_or_else(|| self.unsupported_expression(handle))?;
+                        self.carrier_term(carrier)
+                    }
                 };
                 let mut dependencies = Vec::new();
                 free_positions(
@@ -2092,6 +3102,7 @@ mod mathematical_signature {
                 );
                 let mut pending = vec![handle];
                 let mut seen = Vec::new();
+                let mut occurrences = Vec::new();
                 while let Some(expression) = pending.pop() {
                     if !expression_table(self.program).expression_is_valid(expression)
                         || seen.contains(&expression)
@@ -2107,6 +3118,7 @@ mod mathematical_signature {
                         if !dependencies.contains(position) {
                             dependencies.push(*position);
                         }
+                        occurrences.push((expression, *position));
                         continue;
                     }
                     let node = self.program.expression_table.expression(expression);
@@ -2121,9 +3133,11 @@ mod mathematical_signature {
                                 entry.symbol.is_none()
                                     && name.is_some_and(|name| *name == entry.name)
                             }
-                        }) && !dependencies.contains(&position)
-                        {
-                            dependencies.push(position);
+                        }) {
+                            if !dependencies.contains(&position) {
+                                dependencies.push(position);
+                            }
+                            occurrences.push((expression, position));
                         }
                     }
                     children(self.program, node, |child| pending.push(child));
@@ -2141,9 +3155,66 @@ mod mathematical_signature {
                 }
                 dependencies.sort_unstable();
                 let source_type = source_type.unwrap_or_default();
+                let mut bindings = Vec::with_capacity(dependencies.len());
+                for (index, position) in dependencies.iter().copied().enumerate() {
+                    let expressions = occurrences
+                        .iter()
+                        .filter_map(|(expression, bound)| {
+                            (*bound == position).then_some(*expression)
+                        })
+                        .collect::<Vec<_>>();
+                    let symbol = self.scope[position]
+                        .symbol
+                        .or_else(|| {
+                            expressions.iter().find_map(|expression| {
+                                let ExpressionNode::Name(path) =
+                                    self.program.expression_table.expression(*expression)
+                                else {
+                                    return None;
+                                };
+                                path.symbol.is_valid().then_some(path.symbol)
+                            })
+                        })
+                        .unwrap_or_default();
+                    let source_type = expressions
+                        .iter()
+                        .find_map(|expression| self.source_operand_type_reference(*expression))
+                        .unwrap_or_default();
+                    let old = self.scope[..position]
+                        .iter()
+                        .map(|entry| entry.domain)
+                        .collect::<Vec<_>>();
+                    let domain = rebind_domain(
+                        &mut self.arena,
+                        self.scope[position].domain,
+                        &old,
+                        &dependencies[..index],
+                    );
+                    bindings.push(PreparedSourceBinding {
+                        source_domain: self.scope[position].domain,
+                        domain,
+                        kind: if matches!(
+                            self.arena.get(self.scope[position].domain),
+                            Term::Sort(_)
+                        ) {
+                            PreparedSourceBindingKind::Type
+                        } else {
+                            PreparedSourceBindingKind::Value
+                        },
+                        symbol,
+                        source_type,
+                        expressions,
+                    });
+                }
                 let position = match self.source_operations.iter().find(|operation| {
                     operation.owner == self.source_owner
                         && operation.source_type == source_type
+                        && operation.bindings.len() == bindings.len()
+                        && operation
+                            .bindings
+                            .iter()
+                            .zip(&bindings)
+                            .all(|(old, new)| old.same_source_binding(new))
                         && (operation.expression == handle
                             || source_operations_have_same_meaning(
                                 self.program,
@@ -2154,19 +3225,6 @@ mod mathematical_signature {
                 }) {
                     Some(operation) => operation.declaration,
                     None => {
-                        let mut domains = Vec::new();
-                        for (index, position) in dependencies.iter().enumerate() {
-                            let old = self.scope[..*position]
-                                .iter()
-                                .map(|entry| entry.domain)
-                                .collect::<Vec<_>>();
-                            domains.push(rebind_domain(
-                                &mut self.arena,
-                                self.scope[*position].domain,
-                                &old,
-                                &dependencies[..index],
-                            ));
-                        }
                         let old_domains = self
                             .scope
                             .iter()
@@ -2178,9 +3236,9 @@ mod mathematical_signature {
                             &old_domains,
                             &dependencies,
                         );
-                        for domain in domains.iter().rev() {
+                        for binding in bindings.iter().rev() {
                             ty = self.arena.insert(Term::Pi {
-                                domain: *domain,
+                                domain: binding.domain,
                                 codomain: ty,
                             });
                         }
@@ -2189,13 +3247,16 @@ mod mathematical_signature {
                             expression: handle,
                             owner: self.source_owner,
                             source_type,
+                            bindings: bindings.clone(),
                             declaration: position,
                         });
                         self.prepared.constants.append(super::PreparedConstant {
                             declaration: position,
                             meaning: super::PreparedConstantMeaning::SourceOperation {
                                 expression: handle,
+                                owner: self.source_owner,
                                 source_type,
+                                bindings,
                             },
                         });
                         position
@@ -2246,10 +3307,18 @@ mod mathematical_signature {
         use numerics::literals::FloatFormat;
         use typed_trees::proposition::ProofSubstitutions;
         use typed_trees::types::PrimitiveType;
-        use validation::mathematical_applications::operand_type_reference;
 
         impl<'a> Elaborator<'a> {
             pub(super) fn elaborate_proposition(
+                &mut self,
+                handle: ExpressionHandle,
+            ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
+                self.result_identity_requirements =
+                    super::identity::IdentityRequirements::default();
+                self.elaborate_proposition_term(handle)
+            }
+
+            fn elaborate_proposition_term(
                 &mut self,
                 handle: ExpressionHandle,
             ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
@@ -2260,6 +3329,15 @@ mod mathematical_signature {
                         self.elaborate_proposition(operand).map(|proposition| {
                             proposition.map(|term| self.negated_proposition(term))
                         })
+                    }
+                    ExpressionNode::Call(call)
+                        if validation::mathematical_applications::is_identity_call(
+                            self.program,
+                            call,
+                        ) =>
+                    {
+                        let call = call.clone();
+                        self.elaborate_identity(handle, &call).map(Some)
                     }
                     ExpressionNode::Name(..)
                     | ExpressionNode::Call(..)
@@ -2353,7 +3431,7 @@ mod mathematical_signature {
                         ))
                     })?;
                 let references = [binary.left, binary.right]
-                    .map(|operand| operand_type_reference(self.program, operand));
+                    .map(|operand| self.source_operand_type_reference(operand));
                 if let Some(term) = self.float_comparison(handle, binary, Some(carrier))? {
                     return Ok(term);
                 }
@@ -2389,7 +3467,7 @@ mod mathematical_signature {
                     .operand_carrier(binary.left)
                     .or_else(|| self.operand_carrier(binary.right));
                 let references = [binary.left, binary.right]
-                    .map(|operand| operand_type_reference(self.program, operand));
+                    .map(|operand| self.source_operand_type_reference(operand));
                 if let Some(term) = self.float_comparison(handle, binary, carrier)? {
                     return Ok(term);
                 }
@@ -2443,7 +3521,7 @@ mod mathematical_signature {
                     _ => return Ok(None),
                 };
                 let references = [binary.left, binary.right]
-                    .map(|operand| operand_type_reference(self.program, operand));
+                    .map(|operand| self.source_operand_type_reference(operand));
                 if !validation::has_builtin_or_sealed_float_comparison_meaning(
                     self.program,
                     self.source_owner,
@@ -2514,9 +3592,15 @@ mod mathematical_signature {
                 let mut operands = Vec::new();
                 self.proposition_spine(handle, operator, &mut operands);
                 let mut terms = Vec::with_capacity(operands.len());
+                let mut requirements = super::identity::IdentityRequirements::default();
                 for operand in operands {
                     match self.elaborate_proposition(operand)? {
-                        Some(term) => terms.push(term),
+                        Some(term) => {
+                            terms.push(term);
+                            let value = std::mem::take(&mut self.result_identity_requirements);
+                            requirements.emissions.extend(value.emissions);
+                            requirements.applications.extend(value.applications);
+                        }
                         None => {
                             return Err(self.refuse(format!(
                                 "operand `{}` of a proposition connective is not a proposition",
@@ -2526,6 +3610,7 @@ mod mathematical_signature {
                         }
                     }
                 }
+                self.result_identity_requirements = requirements;
                 terms.sort_by_key(|term| self.term_order_key(*term));
                 Ok(match operator {
                     BinaryOperator::And => self.right_nested_sigma(&terms, 0),
@@ -2647,7 +3732,15 @@ mod mathematical_signature {
                 if let Some(term) = self.carrier_for_symbol(symbol) {
                     return Ok(term);
                 }
-                Err(self.refuse(format!("`{name}` is not a mathematical term")))
+                let owner = self.program.symbols.display_path(self.source_owner, "::");
+                let owner = if owner.is_empty() {
+                    "an expression without a retained source owner"
+                } else {
+                    owner.as_str()
+                };
+                Err(self.refuse(format!(
+                    "`{name}` is not a mathematical term: its exact binding is unavailable in {owner}"
+                )))
             }
 
             pub(super) fn scope_term_for_symbol(
@@ -2730,6 +3823,32 @@ mod mathematical_signature {
                 &mut self,
                 symbol: SymbolHandle,
             ) -> Option<TermHandle> {
+                if self.program.symbols.get(symbol).kind == symbols::SymbolKind::TypeParameter
+                    && self
+                        .program
+                        .data_type_parameter_by_symbol(symbol)
+                        .is_some_and(|parameter| {
+                            matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                        })
+                {
+                    let level = self.source_type_level(symbol);
+                    let position = if let Some(&position) = self.carriers.get(&symbol) {
+                        position
+                    } else {
+                        let ty = self.arena.insert(Term::Sort(proof_admission::Sort::Type(
+                            proof_admission::Level::Parameter(0),
+                        )));
+                        let position = self.declarations.len() as u32;
+                        self.declarations
+                            .push(proof_admission::Declaration::assumption(1, ty));
+                        self.carriers.insert(symbol, position);
+                        position
+                    };
+                    return Some(self.arena.insert(Term::Constant {
+                        declaration: position,
+                        levels: vec![level],
+                    }));
+                }
                 if let Some(&position) = self.carriers.get(&symbol) {
                     return Some(self.constant(position));
                 }
@@ -2760,6 +3879,22 @@ mod mathematical_signature {
                 self.carriers.insert(symbol, position);
                 Some(self.constant(position))
             }
+
+            pub(super) fn source_type_level(
+                &mut self,
+                symbol: SymbolHandle,
+            ) -> proof_admission::Level {
+                if let Some((_, level)) = self
+                    .source_type_levels
+                    .iter()
+                    .find(|(bound, _)| *bound == symbol)
+                {
+                    return level.clone();
+                }
+                let level = self.generalized_level();
+                self.source_type_levels.push((symbol, level.clone()));
+                level
+            }
         }
     }
     mod source_domains {
@@ -2783,9 +3918,13 @@ mod mathematical_signature {
             pub carrier: ScalarCarrier,
         }
 
+        #[derive(Clone)]
         pub(super) struct SourceInput {
             pub expression: ExpressionHandle,
             pub term: TermHandle,
+            pub identity_requirements: super::identity::IdentityRequirements,
+            /// A source-typed ordinary value's complete domain. Mathematical function
+            /// terms instead use their instantiated calculus telescope directly.
             pub domain: Option<TermHandle>,
         }
 
@@ -2809,6 +3948,44 @@ mod mathematical_signature {
         }
 
         impl Elaborator<'_> {
+            /// Keep the declaration that supplied this value when reading its type.
+            /// In particular, a sibling requirement's result is scoped by the same
+            /// exact telescope as its operands, before any calculus conversion.
+            pub(super) fn source_operand_type_reference(
+                &self,
+                expression: ExpressionHandle,
+            ) -> Option<TypeReferenceHandle> {
+                let owners = self.source_owners.get_or_init(|| {
+                    validation::expression_owners::OwnerEnvironmentIndex::for_preparation(
+                        self.program,
+                    )
+                });
+                if owners.contains_expression(expression) {
+                    return validation::expression_owners::checked_expression_type_reference_from_exact_owner(
+                        self.program,
+                        &arena::Arena::default(),
+                        expression,
+                        expression,
+                        Some(owners),
+                    );
+                }
+                if self.source_owner.is_valid() {
+                    validation::mathematical_applications::operand_type_reference_in_declaration(
+                        self.program,
+                        self.source_owner,
+                        expression,
+                    )
+                } else {
+                    validation::mathematical_applications::operand_type_reference(
+                        self.program,
+                        expression,
+                    )
+                }
+            }
+
+            /// Construct all mathematical Apply spines and retain their source-domain
+            /// obligations together. Ordinary calls, generic terms and dependent type
+            /// applications differ in argument roles, never in application formation.
             pub(super) fn apply_source_inputs(
                 &mut self,
                 expression: ExpressionHandle,
@@ -2841,11 +4018,13 @@ mod mathematical_signature {
                 expression: ExpressionHandle,
             ) -> Result<SourceInput, Vec<Diagnostic>> {
                 let term = self.elaborate_expression(expression)?;
+                let identity_requirements = std::mem::take(&mut self.result_identity_requirements);
                 let domain = self.source_expression_domain(expression)?;
                 Ok(SourceInput {
                     expression,
                     term,
                     domain,
+                    identity_requirements,
                 })
             }
 
@@ -2898,6 +4077,7 @@ mod mathematical_signature {
                     expression,
                     term,
                     domain: None,
+                    identity_requirements: super::identity::IdentityRequirements::default(),
                 })
             }
 
@@ -2913,10 +4093,7 @@ mod mathematical_signature {
                 {
                     None
                 } else {
-                    validation::mathematical_applications::operand_type_reference(
-                        self.program,
-                        expression,
-                    )
+                    self.source_operand_type_reference(expression)
                 };
                 reference
                     .map(|reference| {
@@ -3007,6 +4184,7 @@ mod mathematical_signature {
                             expression,
                             term,
                             domain,
+                            identity_requirements: super::identity::IdentityRequirements::default(),
                         },
                     },
                     domains: self.scope.iter().map(|entry| entry.domain).collect(),
@@ -3321,17 +4499,16 @@ mod mathematical_signature {
         use crate::typed_expressions::{expression_table, statement_table, type_reference_table};
         use diagnostics::Diagnostic;
         use proof_admission::{
-            Level, Signature, Sort, Term, check_type, infer_sort, infer_type,
-            judgment_assumption_closure, substitute,
+            Signature, Sort, Term, check_type, infer_sort, infer_type, judgment_assumption_closure,
+            substitute,
         };
+        use symbols::SymbolHandle;
         use typed_trees::expression::{ExpressionHandle, ExpressionNode};
         use typed_trees::statement::StatementNode;
         use typed_trees::static_applications::StaticMachineBindingValue;
         use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
         use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
-        use validation::mathematical_applications::{
-            PreparedIndexedTheorem, operand_type_reference,
-        };
+        use validation::mathematical_applications::PreparedIndexedTheorem;
         use validation::mathematical_applications::{
             PreparedSourceCarrier, PreparedSourceEvidence,
         };
@@ -3346,8 +4523,10 @@ mod mathematical_signature {
                 if domains.is_empty() {
                     return domains;
                 }
-                let context = Context::empty()
-                    .with_signature(Signature::from_declarations(self.declarations.clone()));
+                let context = Context::with_level_arity(
+                    self.level_binders.len() as u32 + self.generalized_levels,
+                )
+                .with_signature(Signature::from_declarations(self.declarations.clone()));
                 if infer_sort(
                     &mut self.arena,
                     &context,
@@ -3377,6 +4556,7 @@ mod mathematical_signature {
                 let mut families = self.indexed_families.values().cloned().collect::<Vec<_>>();
                 families.sort_by_key(|family| family.symbol.arena_index());
                 for family in families {
+                    let saved_levels = self.enter_family_levels(&family.parameters);
                     for case in &family.cases {
                         self.scope.clear();
                         self.push_family_type_scope(&family.parameters);
@@ -3389,6 +4569,14 @@ mod mathematical_signature {
                             let ty = self.elaborate_type_reference(reference)?;
                             let domains = self.source_carrier_domains(ty);
                             self.prepared.source_carriers.append(PreparedSourceCarrier {
+                                level_arity: proof_admission::universe_parameter_arity(
+                                    &self.arena,
+                                    &domains
+                                        .iter()
+                                        .copied()
+                                        .chain(std::iter::once(ty))
+                                        .collect::<Vec<_>>(),
+                                ),
                                 source_type: reference,
                                 type_identity: self.program.normalized_type_identity(reference),
                                 ty,
@@ -3396,6 +4584,7 @@ mod mathematical_signature {
                             });
                         }
                     }
+                    self.restore_source_levels(saved_levels);
                 }
                 let machines = self.program.machines().to_vec();
                 for machine in &machines {
@@ -3443,11 +4632,13 @@ mod mathematical_signature {
                     }) {
                         continue;
                     }
+                    let saved_levels = self.enter_family_levels(&binders);
                     for binder in &binders {
                         let domain = match binder.kind {
-                            TypeParameterKind::Type => self
-                                .arena
-                                .insert(Term::Sort(Sort::Type(Level::Constant(0)))),
+                            TypeParameterKind::Type => {
+                                let level = self.source_type_level(binder.symbol);
+                                self.arena.insert(Term::Sort(Sort::Type(level)))
+                            }
                             TypeParameterKind::Value { type_reference } => {
                                 self.elaborate_type_reference(type_reference)?
                             }
@@ -3471,6 +4662,14 @@ mod mathematical_signature {
                                     self.elaborate_source_operand_type(parameter.type_reference)?;
                                 let domains = self.source_carrier_domains(domain);
                                 self.prepared.source_carriers.append(PreparedSourceCarrier {
+                                    level_arity: proof_admission::universe_parameter_arity(
+                                        &self.arena,
+                                        &domains
+                                            .iter()
+                                            .copied()
+                                            .chain(std::iter::once(domain))
+                                            .collect::<Vec<_>>(),
+                                    ),
                                     source_type: parameter.type_reference,
                                     type_identity: self
                                         .program
@@ -3498,6 +4697,14 @@ mod mathematical_signature {
                             let ty = self.elaborate_type_reference(reference)?;
                             let domains = self.source_carrier_domains(ty);
                             self.prepared.source_carriers.append(PreparedSourceCarrier {
+                                level_arity: proof_admission::universe_parameter_arity(
+                                    &self.arena,
+                                    &domains
+                                        .iter()
+                                        .copied()
+                                        .chain(std::iter::once(ty))
+                                        .collect::<Vec<_>>(),
+                                ),
                                 source_type: reference,
                                 type_identity: self.program.normalized_type_identity(reference),
                                 ty,
@@ -3542,6 +4749,7 @@ mod mathematical_signature {
                             }
                         }
                     }
+                    self.restore_source_levels(saved_levels);
                 }
                 self.scope.clear();
                 Ok(())
@@ -3550,11 +4758,18 @@ mod mathematical_signature {
             pub(super) fn retain_checked_source_application(
                 &mut self,
                 expression: ExpressionHandle,
+                owner: SymbolHandle,
                 term: TermHandle,
                 context: &Context,
                 signature: &Signature,
             ) -> Result<(), Vec<Diagnostic>> {
-                let Some(reference) = operand_type_reference(self.program, expression) else {
+                let Some(reference) =
+                    validation::mathematical_applications::operand_type_reference_in_declaration(
+                        self.program,
+                        owner,
+                        expression,
+                    )
+                else {
                     return Ok(());
                 };
                 if !self.known_source_family(reference) || !self.scope.is_empty() {
@@ -3576,7 +4791,7 @@ mod mathematical_signature {
                     .source_carriers
                     .iter()
                     .filter_map(|(_, carrier)| {
-                        carrier.domains.is_empty().then_some((
+                        (carrier.domains.is_empty() && carrier.level_arity == 0).then_some((
                             carrier.source_type,
                             carrier.type_identity,
                             carrier.ty,
@@ -3595,17 +4810,18 @@ mod mathematical_signature {
                     )? {
                         if selected.is_some_and(|(_, prior)| prior != identity) {
                             return Err(self.refuse(
-                        "mathematical initializer has ambiguous source carrier correspondence"
-                            .into(),
-                    ));
+                                "mathematical initializer has ambiguous source carrier correspondence"
+                                    .into(),
+                            ));
                         }
                         selected = Some((source_type, identity));
                     }
                 }
                 let Some((source_type, type_identity)) = selected else {
                     return Err(self.refuse(
-                "mathematical initializer has no exact formed source carrier correspondence".into(),
-            ));
+                        "mathematical initializer has no exact formed source carrier correspondence"
+                            .into(),
+                    ));
                 };
                 self.prepared
                     .source_evidence
@@ -3791,8 +5007,41 @@ mod mathematical_signature {
                             ));
                         }
                     }
-                    if telescope.len() > family.parameters.len() {
+                    let outer_types = if family.external_parameter_indices.is_empty() {
+                        Vec::new()
+                    } else {
+                        telescope
+                            .iter()
+                            .filter(|(_, _, reference)| reference.is_none())
+                            .map(|(symbol, _, _)| *symbol)
+                            .collect::<Vec<_>>()
+                    };
+                    if !family.external_parameter_indices.is_empty() {
+                        // Uniform declaration Types stay arbitrary outer carriers,
+                        // not changing value indices of the induction invariant.
+                        telescope.retain(|(_, _, reference)| reference.is_some());
+                    }
+                    if telescope.len() > family.index_parameter_indices.len() {
                         continue;
+                    }
+                    let saved_constructor_context =
+                        std::mem::take(&mut self.source_constructor_context);
+                    let mut outer_parameters = Vec::new();
+                    let mut lifted_declarations =
+                        super::source_families::ParameterAbstractions::default();
+                    let saved_levels = self.enter_family_levels(&binders);
+                    for symbol in outer_types {
+                        let level = self.source_type_level(symbol);
+                        let domain = self.arena.insert(Term::Sort(Sort::Type(level)));
+                        let position = self.declarations.len() as u32;
+                        self.declarations
+                            .push(proof_admission::Declaration::assumption(
+                                proof_admission::universe_parameter_arity(&self.arena, &[domain]),
+                                domain,
+                            ));
+                        let term = self.constant(position);
+                        self.source_constructor_context.values.push((symbol, term));
+                        outer_parameters.push((position, symbol, domain));
                     }
                     self.source_owner = machine.symbol;
                     self.scope.clear();
@@ -3801,8 +5050,10 @@ mod mathematical_signature {
                         let domain = if let Some(reference) = type_reference {
                             self.elaborate_type_reference(*reference)?
                         } else {
-                            self.arena
-                                .insert(Term::Sort(Sort::Type(Level::Constant(0))))
+                            {
+                                let level = self.source_type_level(*symbol);
+                                self.arena.insert(Term::Sort(Sort::Type(level)))
+                            }
                         };
                         self.push_scope(Some(*symbol), name.clone(), domain);
                     }
@@ -3811,10 +5062,15 @@ mod mathematical_signature {
                         .zip(&family.parameters)
                         .map(|(argument, parameter)| self.index_operand(*argument, parameter, &[]))
                         .collect::<Result<Vec<_>, _>>()?;
+                    let family = self.applied_source_family(&family, &actuals)?;
+                    let description = family
+                        .description_at(&mut self.arena, &actuals)
+                        .map_err(|reason| self.refuse(reason.into()))?;
+                    let index_actuals = family.index_actuals(&actuals);
                     let mut mapping = Vec::new();
                     for ordinal in 0..telescope.len() {
                         let variable = self.scope_variable(ordinal);
-                        let positions = actuals
+                        let positions = index_actuals
                             .iter()
                             .enumerate()
                             .filter_map(|(position, &actual)| {
@@ -3831,6 +5087,8 @@ mod mathematical_signature {
                     }
                     if mapping.len() != telescope.len() {
                         self.scope.clear();
+                        self.source_constructor_context = saved_constructor_context;
+                        self.restore_source_levels(saved_levels);
                         continue;
                     }
                     let expressions = self
@@ -3864,7 +5122,7 @@ mod mathematical_signature {
                             for _ in 0..position {
                                 projection = self.arena.insert(Term::Snd { pair: projection });
                             }
-                            if position + 1 < family.parameters.len() {
+                            if position + 1 < family.index_parameter_indices.len() {
                                 projection = self.arena.insert(Term::Fst { pair: projection });
                             }
                             let Term::Lambda { body, .. } = self.arena.get(proposition) else {
@@ -3873,11 +5131,39 @@ mod mathematical_signature {
                             proposition = substitute(&mut self.arena, body, projection);
                         }
                         let invariant = self.arena.insert(Term::Lambda {
-                            domain: family.description.index,
+                            domain: description.index,
                             body: proposition,
                         });
                         self.scope.clear();
-                        let theorem = self.source_family_induction(symbol, invariant, &actuals)?;
+                        let mut theorem =
+                            self.source_family_induction(symbol, invariant, &actuals)?;
+                        (theorem.theorem, theorem.ty) =
+                            super::source_families::abstract_parameter_closure(
+                                &mut self.arena,
+                                &mut self.declarations,
+                                theorem.theorem,
+                                theorem.ty,
+                                &outer_parameters,
+                                &mut lifted_declarations,
+                            )
+                            .map_err(|reason| self.refuse(reason.into()))?;
+                        check_type(
+                            &mut self.arena,
+                            &Context::with_level_arity(
+                                self.level_binders.len() as u32 + self.generalized_levels,
+                            )
+                            .with_signature(
+                                Signature::from_declarations(self.declarations.clone()),
+                            ),
+                            theorem.theorem,
+                            theorem.ty,
+                            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                        )
+                        .map_err(|error| {
+                            self.refuse(format!(
+                                "abstracted source Type theorem fails kernel checking: {error:?}"
+                            ))
+                        })?;
                         let signature = Signature::from_declarations(self.declarations.clone());
                         let closure = judgment_assumption_closure(
                             &self.arena,
@@ -3887,6 +5173,8 @@ mod mathematical_signature {
                         self.prepared
                             .indexed_theorems
                             .append(PreparedIndexedTheorem {
+                                level_arity: self.level_binders.len() as u32
+                                    + self.generalized_levels,
                                 machine: machine.symbol,
                                 expression,
                                 ensure_ordinal: ensure_ordinal as u32,
@@ -3900,12 +5188,16 @@ mod mathematical_signature {
                             let domain = if let Some(reference) = type_reference {
                                 self.elaborate_type_reference(*reference)?
                             } else {
-                                self.arena
-                                    .insert(Term::Sort(Sort::Type(Level::Constant(0))))
+                                {
+                                    let level = self.source_type_level(*symbol);
+                                    self.arena.insert(Term::Sort(Sort::Type(level)))
+                                }
                             };
                             self.push_scope(Some(*symbol), name.clone(), domain);
                         }
                     }
+                    self.source_constructor_context = saved_constructor_context;
+                    self.restore_source_levels(saved_levels);
                 }
                 self.scope.clear();
                 Ok(())
@@ -3968,8 +5260,9 @@ mod mathematical_signature {
                             .find_map(|(_, carrier)| {
                                 (identity.is_valid()
                                     && carrier.type_identity == identity
-                                    && carrier.domains.is_empty())
-                                .then_some(carrier.ty)
+                                    && carrier.domains.is_empty()
+                                    && carrier.level_arity == 0)
+                                    .then_some(carrier.ty)
                             })
                     else {
                         return Err(self.refuse(
@@ -4126,9 +5419,657 @@ mod mathematical_signature {
         }
     }
     mod source_families {
+        /*
+        Source descriptions for the checked indexed W scheme. Mathematical
+        encodings do not replace source nominal identity, field custody or native
+        layout: source-domain aliases keep the declaration head opaque to those
+        checks while the kernel checks its defined W body.
+
+        Every constructor label stores its common fields, exact active payload and
+        complete predicates. Recursive fields become ordered child positions whose
+        next indices are closed functions of that same source telescope. This file
+        does not turn legacy constructor-success verdicts into evidence: actual
+        constructor applications additionally need their retained derivations.
+
+        Uniform declaration parameters stay outside the W tree. Nonuniform Type
+        arguments are genuine family indices and retain their larger index sort.
+        The checked description keeps parameter, index and payload roles distinct.
+        */
+
+        macro_rules! term {
+            (Pi => $domain:expr => $codomain:expr) => {
+                Term::Pi {
+                    domain: $domain,
+                    codomain: $codomain,
+                }
+            };
+            (Sigma => $domain:expr => $codomain:expr) => {
+                Term::Sigma {
+                    domain: $domain,
+                    codomain: $codomain,
+                }
+            };
+            (Lambda => $domain:expr => $body:expr) => {
+                Term::Lambda {
+                    domain: $domain,
+                    body: $body,
+                }
+            };
+            (Apply => $function:expr => $argument:expr) => {
+                Term::Apply {
+                    function: $function,
+                    argument: $argument,
+                }
+            };
+            (Constant => $declaration:expr => $levels:expr) => {
+                Term::Constant {
+                    declaration: $declaration,
+                    levels: $levels,
+                }
+            };
+            (Pair => $first:expr => $second:expr) => {
+                Term::Pair {
+                    first: $first,
+                    second: $second,
+                }
+            };
+            (Refl => $ty:expr => $value:expr) => {
+                Term::Refl {
+                    ty: $ty,
+                    value: $value,
+                }
+            };
+        }
+
+        mod parameter_closure {
+            /*
+            Generated theorem definitions bind their source parameters so temporary
+            assumptions cannot escape. Parameterized copies preserve the immutable
+            signature prefix and reuse shared definitions; dependent assumptions remain
+            ungranted.
+            */
+
+            use proof_admission::{Declaration, Term, TermArena, TermHandle};
+            use symbols::SymbolHandle;
+
+            /// One immutable source telescope's copies in its generated declaration
+            /// fragment. Coordinates before this base cannot depend on the telescope.
+            #[derive(Default)]
+            pub(in super::super) struct ParameterAbstractions {
+                parameters: Vec<(u32, TermHandle)>,
+                base: usize,
+                copies: Vec<Option<u32>>,
+            }
+            impl ParameterAbstractions {
+                fn get(&self, position: u32) -> Option<u32> {
+                    (position as usize)
+                        .checked_sub(self.base)
+                        .and_then(|position| self.copies.get(position))
+                        .copied()
+                        .flatten()
+                }
+            }
+
+            /// Abstract temporary parameter assumptions without capturing existing binders.
+            pub(super) fn abstract_parameters(
+                arena: &mut TermArena,
+                proof: TermHandle,
+                ty: TermHandle,
+                parameters: &[(u32, SymbolHandle, TermHandle)],
+            ) -> Result<(TermHandle, TermHandle), &'static str> {
+                abstract_parameters_with_declarations(
+                    arena,
+                    proof,
+                    ty,
+                    parameters,
+                    &ParameterAbstractions::default(),
+                )
+            }
+
+            fn abstract_parameters_with_declarations(
+                arena: &mut TermArena,
+                proof: TermHandle,
+                ty: TermHandle,
+                parameters: &[(u32, SymbolHandle, TermHandle)],
+                lifted: &ParameterAbstractions,
+            ) -> Result<(TermHandle, TermHandle), &'static str> {
+                fn go(
+                    arena: &mut TermArena,
+                    term: TermHandle,
+                    parameters: &[(u32, SymbolHandle, TermHandle)],
+                    lifted: &ParameterAbstractions,
+                    depth: u32,
+                ) -> Result<TermHandle, &'static str> {
+                    macro_rules! at {
+                        ($value:expr) => {
+                            go(arena, $value, parameters, lifted, depth)?
+                        };
+                    }
+                    macro_rules! under {
+                        ($value:expr) => {
+                            go(arena, $value, parameters, lifted, depth + 1)?
+                        };
+                    }
+                    let node = match arena.get(term) {
+                        Term::Constant {
+                            declaration,
+                            levels,
+                        } => {
+                            if let Some(ordinal) = parameters
+                                .iter()
+                                .position(|(position, _, _)| *position == declaration)
+                            {
+                                let arity = proof_admission::universe_parameter_arity(
+                                    arena,
+                                    &[parameters[ordinal].2],
+                                );
+                                let expected = (0..arity)
+                                    .map(proof_admission::Level::Parameter)
+                                    .collect::<Vec<_>>();
+                                if levels != expected {
+                                    return Err(
+                                        "source value placeholder changed its exact universe application",
+                                    );
+                                }
+                                Term::Variable(depth + (parameters.len() - ordinal - 1) as u32)
+                            } else if let Some(replacement) = lifted.get(declaration) {
+                                let mut term = arena.insert(Term::Constant {
+                                    declaration: replacement,
+                                    levels,
+                                });
+                                for ordinal in 0..parameters.len() {
+                                    let argument = arena.insert(Term::Variable(
+                                        depth + (parameters.len() - ordinal - 1) as u32,
+                                    ));
+                                    term = arena.insert(Term::Apply {
+                                        function: term,
+                                        argument,
+                                    });
+                                }
+                                return Ok(term);
+                            } else {
+                                return Ok(term);
+                            }
+                        }
+                        Term::Variable(index) => {
+                            if index >= depth {
+                                return Err(
+                                    "source case proof contains an unbound value before abstraction",
+                                );
+                            }
+                            return Ok(term);
+                        }
+                        Term::Pi { domain, codomain } => {
+                            term!(Pi => at!(domain) => under!(codomain))
+                        }
+                        Term::Lambda { domain, body } => {
+                            term!(Lambda => at!(domain) => under!(body))
+                        }
+                        Term::Sigma { domain, codomain } => {
+                            term!(Sigma => at!(domain) => under!(codomain))
+                        }
+                        Term::Apply { function, argument } => {
+                            term!(Apply => at!(function) => at!(argument))
+                        }
+                        Term::Pair { first, second } => term!(Pair => at!(first) => at!(second)),
+                        Term::Fst { pair } => Term::Fst { pair: at!(pair) },
+                        Term::Snd { pair } => Term::Snd { pair: at!(pair) },
+                        Term::Id { ty, left, right } => Term::Id {
+                            ty: at!(ty),
+                            left: at!(left),
+                            right: at!(right),
+                        },
+                        Term::Refl { ty, value } => term!(Refl => at!(ty) => at!(value)),
+                        Term::IdElim {
+                            motive,
+                            base,
+                            endpoint,
+                            proof,
+                        } => Term::IdElim {
+                            motive: at!(motive),
+                            base: at!(base),
+                            endpoint: at!(endpoint),
+                            proof: at!(proof),
+                        },
+                        Term::CaseTwo {
+                            motive,
+                            zero_branch,
+                            one_branch,
+                            scrutinee,
+                        } => Term::CaseTwo {
+                            motive: at!(motive),
+                            zero_branch: at!(zero_branch),
+                            one_branch: at!(one_branch),
+                            scrutinee: at!(scrutinee),
+                        },
+                        Term::Box { ty } => Term::Box { ty: at!(ty) },
+                        Term::BoxIntro { ty, value } => Term::BoxIntro {
+                            ty: at!(ty),
+                            value: at!(value),
+                        },
+                        Term::BoxElim {
+                            motive,
+                            body,
+                            scrutinee,
+                        } => Term::BoxElim {
+                            motive: at!(motive),
+                            body: at!(body),
+                            scrutinee: at!(scrutinee),
+                        },
+                        Term::EmptyElim { ty, scrutinee } => Term::EmptyElim {
+                            ty: at!(ty),
+                            scrutinee: at!(scrutinee),
+                        },
+                        Term::W { carrier, children } => Term::W {
+                            carrier: at!(carrier),
+                            children: at!(children),
+                        },
+                        Term::Sup {
+                            carrier,
+                            children,
+                            label,
+                            function,
+                        } => Term::Sup {
+                            carrier: at!(carrier),
+                            children: at!(children),
+                            label: at!(label),
+                            function: at!(function),
+                        },
+                        Term::IndW { motive, step, tree } => Term::IndW {
+                            motive: at!(motive),
+                            step: at!(step),
+                            tree: at!(tree),
+                        },
+                        Term::Squash { ty } => Term::Squash { ty: at!(ty) },
+                        Term::SquashIntro { ty, value } => Term::SquashIntro {
+                            ty: at!(ty),
+                            value: at!(value),
+                        },
+                        Term::SquashElim {
+                            proposition,
+                            function,
+                            scrutinee,
+                        } => Term::SquashElim {
+                            proposition: at!(proposition),
+                            function: at!(function),
+                            scrutinee: at!(scrutinee),
+                        },
+                        Term::Dummy => return Err("source case proof contains a dummy term"),
+                        Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Empty => {
+                            return Ok(term);
+                        }
+                    };
+                    Ok(arena.insert(node))
+                }
+                let mut body = go(arena, proof, parameters, lifted, 0)?;
+                let mut statement = go(arena, ty, parameters, lifted, 0)?;
+                for (ordinal, &(_, _, domain)) in parameters.iter().enumerate().rev() {
+                    // A child/premise domain may depend on earlier value parameters. Its
+                    // binder is formed under that prefix, not under the full body scope.
+                    let domain = go(arena, domain, &parameters[..ordinal], lifted, 0)?;
+                    body = arena.insert(Term::Lambda { domain, body });
+                    statement = arena.insert(term!(Pi => domain => statement));
+                }
+                Ok((body, statement))
+            }
+
+            pub(super) fn excludes_parameters(
+                arena: &TermArena,
+                declarations: &[Declaration],
+                roots: &[TermHandle],
+                parameters: &[(u32, SymbolHandle, TermHandle)],
+            ) -> bool {
+                let mut seen_terms = Vec::new();
+                let Some(references) = collect_constant_references(arena, roots, &mut seen_terms)
+                else {
+                    return false;
+                };
+                let mut pending = references.into_iter().collect::<Vec<_>>();
+                let mut seen = Vec::<u64>::new();
+                while let Some(position) = pending.pop() {
+                    if parameters
+                        .iter()
+                        .any(|(parameter, _, _)| *parameter == position)
+                    {
+                        return false;
+                    }
+                    let Some(declaration) = declarations.get(position as usize) else {
+                        return false;
+                    };
+                    let word = position as usize / 64;
+                    if word >= seen.len() {
+                        seen.resize(word + 1, 0);
+                    }
+                    let bit = 1u64 << (position % 64);
+                    if seen[word] & bit != 0 {
+                        continue;
+                    }
+                    seen[word] |= bit;
+                    let roots = std::iter::once(declaration.ty)
+                        .chain(declaration.body)
+                        .collect::<Vec<_>>();
+                    let Some(references) =
+                        collect_constant_references(arena, &roots, &mut seen_terms)
+                    else {
+                        return false;
+                    };
+                    pending.extend(references);
+                }
+                true
+            }
+
+            /// Close an outer source telescope through shared generated definitions.
+            /// Dependent definitions are copied once as parameterized definitions; existing
+            /// declarations/caches remain immutable and no assumption gains authority.
+            pub(in super::super) fn abstract_parameter_closure(
+                arena: &mut TermArena,
+                declarations: &mut Vec<Declaration>,
+                proof: TermHandle,
+                ty: TermHandle,
+                parameters: &[(u32, SymbolHandle, TermHandle)],
+                lifted: &mut ParameterAbstractions,
+            ) -> Result<(TermHandle, TermHandle), &'static str> {
+                if parameters.is_empty() {
+                    return Ok((proof, ty));
+                }
+                let original_len = declarations.len();
+                let first = parameters
+                    .iter()
+                    .map(|(position, _, _)| *position as usize)
+                    .min()
+                    .ok_or("source telescope is empty")?;
+                let parameter_identities = parameters
+                    .iter()
+                    .map(|(position, _, domain)| (*position, *domain))
+                    .collect::<Vec<_>>();
+                if lifted.parameters.is_empty() {
+                    lifted.parameters = parameter_identities;
+                    lifted.base = first;
+                } else if lifted.parameters != parameter_identities {
+                    return Err("source theorem changed its outer telescope");
+                }
+                lifted.copies.resize(original_len - first, None);
+                let mut edges = vec![None; original_len - first];
+                let mut pending = constant_references(arena, &[proof, ty])
+                    .ok_or("source theorem has a dummy term")?
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                while let Some(position) = pending.pop() {
+                    let position = position as usize;
+                    if position >= original_len {
+                        return Err("source theorem has an unformed declaration");
+                    }
+                    if position <= first
+                        || lifted.get(position as u32).is_some()
+                        || edges[position - first].is_some()
+                    {
+                        continue;
+                    }
+                    let declaration = &declarations[position];
+                    let roots = std::iter::once(declaration.ty)
+                        .chain(declaration.body)
+                        .collect::<Vec<_>>();
+                    let references = constant_references(arena, &roots)
+                        .ok_or("source theorem declaration has a dummy term")?;
+                    if references
+                        .iter()
+                        .any(|&reference| reference as usize >= position)
+                    {
+                        return Err("source theorem changed its declaration prefix");
+                    }
+                    pending.extend(references.iter().copied());
+                    edges[position - first] = Some(references);
+                }
+                for position in first + 1..original_len {
+                    let Some(references) = &edges[position - first] else {
+                        continue;
+                    };
+                    if !references.iter().any(|reference| {
+                        parameters
+                            .iter()
+                            .any(|(parameter, _, _)| parameter == reference)
+                            || lifted.get(*reference).is_some()
+                    }) {
+                        continue;
+                    }
+                    let declaration = declarations[position].clone();
+                    let Some(body) = declaration.body else {
+                        return Err("source theorem retains an unabstracted dependent assumption");
+                    };
+                    let (body, ty) = abstract_parameters_with_declarations(
+                        arena,
+                        body,
+                        declaration.ty,
+                        parameters,
+                        lifted,
+                    )?;
+                    let replacement = declarations.len() as u32;
+                    declarations.push(Declaration::definition(declaration.level_arity, ty, body));
+                    lifted.copies[position - first] = Some(replacement);
+                }
+                let closed =
+                    abstract_parameters_with_declarations(arena, proof, ty, parameters, lifted)?;
+                if !excludes_parameters(arena, declarations, &[closed.0, closed.1], parameters) {
+                    return Err(
+                        "source theorem retains an outer parameter assumption after abstraction",
+                    );
+                }
+                Ok(closed)
+            }
+
+            fn constant_references(arena: &TermArena, roots: &[TermHandle]) -> Option<Vec<u32>> {
+                collect_constant_references(arena, roots, &mut Vec::new())
+            }
+
+            fn collect_constant_references(
+                arena: &TermArena,
+                roots: &[TermHandle],
+                seen_terms: &mut Vec<u64>,
+            ) -> Option<Vec<u32>> {
+                let mut pending = roots.to_vec();
+                let mut constants = Vec::new();
+                while let Some(term) = pending.pop() {
+                    // A stale sibling must not hide behind the current slot's visited bit.
+                    let node = arena.get(term);
+                    if matches!(node, Term::Dummy) {
+                        return None;
+                    }
+                    let position = term.arena_index() as usize;
+                    let word = position / 64;
+                    if word >= seen_terms.len() {
+                        seen_terms.resize(word + 1, 0);
+                    }
+                    let bit = 1u64 << (position % 64);
+                    if seen_terms[word] & bit != 0 {
+                        continue;
+                    }
+                    seen_terms[word] |= bit;
+                    match node {
+                        Term::Constant { declaration, .. } => {
+                            constants.push(declaration);
+                        }
+                        Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {
+                            pending.extend([domain, codomain])
+                        }
+                        Term::Lambda { domain, body } => pending.extend([domain, body]),
+                        Term::Apply { function, argument } => pending.extend([function, argument]),
+                        Term::Pair { first, second } => pending.extend([first, second]),
+                        Term::Fst { pair } | Term::Snd { pair } => pending.push(pair),
+                        Term::CaseTwo {
+                            motive,
+                            zero_branch,
+                            one_branch,
+                            scrutinee,
+                        } => pending.extend([motive, zero_branch, one_branch, scrutinee]),
+                        Term::Id { ty, left, right } => pending.extend([ty, left, right]),
+                        Term::Refl { ty, value }
+                        | Term::SquashIntro { ty, value }
+                        | Term::BoxIntro { ty, value } => pending.extend([ty, value]),
+                        Term::IdElim {
+                            motive,
+                            base,
+                            endpoint,
+                            proof,
+                        } => pending.extend([motive, base, endpoint, proof]),
+                        Term::W { carrier, children } => pending.extend([carrier, children]),
+                        Term::Sup {
+                            carrier,
+                            children,
+                            label,
+                            function,
+                        } => pending.extend([carrier, children, label, function]),
+                        Term::IndW { motive, step, tree } => pending.extend([motive, step, tree]),
+                        Term::EmptyElim { ty, scrutinee } => pending.extend([ty, scrutinee]),
+                        Term::Squash { ty } | Term::Box { ty } => pending.push(ty),
+                        Term::SquashElim {
+                            proposition,
+                            function,
+                            scrutinee,
+                        } => pending.extend([proposition, function, scrutinee]),
+                        Term::BoxElim {
+                            motive,
+                            body,
+                            scrutinee,
+                        } => pending.extend([motive, body, scrutinee]),
+                        Term::Dummy => return None,
+                        Term::Variable(_)
+                        | Term::Sort(_)
+                        | Term::Two
+                        | Term::TwoZero
+                        | Term::TwoOne
+                        | Term::Empty => {}
+                    }
+                }
+                Some(constants)
+            }
+
+            #[cfg(test)]
+            mod outer_type_closure_tests {
+                use super::*;
+                use proof_admission::{
+                    Budget, Context, Level, Sort, check_signature, check_type,
+                    judgment_assumption_closure,
+                };
+
+                #[test]
+                fn a_stale_term_cannot_hide_behind_a_visited_slot() {
+                    let mut arena = TermArena::new();
+                    let current = arena.insert(Term::Two);
+                    let stale =
+                        TermHandle::from_parts(current.arena_index(), current.generation() + 1);
+                    // Stack order visits the current handle before its stale sibling.
+                    assert!(constant_references(&arena, &[stale, current]).is_none());
+                }
+
+                #[test]
+                fn closes_shared_type_dependent_definitions_without_granting_an_assumption() {
+                    let mut arena = TermArena::new();
+                    let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+                    let parameter = SymbolHandle::from_arena_index(1);
+                    let mut declarations = vec![Declaration::assumption(0, sort)];
+                    let carrier = arena.insert(Term::Constant {
+                        declaration: 0,
+                        levels: vec![],
+                    });
+                    let value = arena.insert(Term::Variable(0));
+                    let relation = arena.insert(Term::Id {
+                        ty: carrier,
+                        left: value,
+                        right: value,
+                    });
+                    let ty = arena.insert(Term::Pi {
+                        domain: carrier,
+                        codomain: relation,
+                    });
+                    let reflexive = arena.insert(Term::Refl { ty: carrier, value });
+                    let body = arena.insert(Term::Lambda {
+                        domain: carrier,
+                        body: reflexive,
+                    });
+                    declarations.push(Declaration::definition(0, ty, body));
+                    let shared = arena.insert(Term::Constant {
+                        declaration: 1,
+                        levels: vec![],
+                    });
+                    declarations.push(Declaration::definition(0, ty, shared));
+                    let proof = arena.insert(Term::Constant {
+                        declaration: 2,
+                        levels: vec![],
+                    });
+                    check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
+                    let parameters = [(0, parameter, sort)];
+                    let mut lifted = ParameterAbstractions::default();
+                    let (closed, statement) = abstract_parameter_closure(
+                        &mut arena,
+                        &mut declarations,
+                        proof,
+                        ty,
+                        &parameters,
+                        &mut lifted,
+                    )
+                    .unwrap();
+                    assert!(excludes_parameters(
+                        &arena,
+                        &declarations,
+                        &[closed, statement],
+                        &parameters
+                    ));
+                    let signature =
+                        check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
+                    check_type(
+                        &mut arena,
+                        &Context::empty().with_signature(signature.clone()),
+                        closed,
+                        statement,
+                        &mut Budget::default(),
+                    )
+                    .unwrap();
+                    assert!(
+                        judgment_assumption_closure(&arena, &signature, &[closed, statement])
+                            .is_empty()
+                    );
+                    let count = declarations.len();
+                    let _ = abstract_parameter_closure(
+                        &mut arena,
+                        &mut declarations,
+                        proof,
+                        ty,
+                        &parameters,
+                        &mut lifted,
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        declarations.len(),
+                        count,
+                        "shared dependent definitions are lifted once"
+                    );
+
+                    // An arbitrary inhabitant cannot become a polymorphic theorem.
+                    let assumed = declarations.len() as u32;
+                    declarations.push(Declaration::assumption(0, carrier));
+                    let assumed = arena.insert(Term::Constant {
+                        declaration: assumed,
+                        levels: vec![],
+                    });
+                    assert!(
+                        abstract_parameter_closure(
+                            &mut arena,
+                            &mut declarations,
+                            assumed,
+                            carrier,
+                            &parameters,
+                            &mut lifted
+                        )
+                        .is_err()
+                    );
+                }
+            }
+        }
+        pub(super) use parameter_closure::{ParameterAbstractions, abstract_parameter_closure};
         mod construction {
             use super::super::Elaborator;
-            use super::terms::{abstract_parameters, constructor_children, excludes_parameters};
+            use super::parameter_closure::{abstract_parameters, excludes_parameters};
+            use super::terms::{constructor_children, lift_payload};
             use crate::typed_expressions::{expression_table, type_reference_table};
             use diagnostics::Diagnostic;
             use language_core::BindingRelevance;
@@ -4144,7 +6085,7 @@ mod mathematical_signature {
             use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
             use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
             use validation::mathematical_applications::{
-                PreparedSourceConstructor, PreparedSourceEvidence, operand_type_reference,
+                PreparedSourceConstructor, PreparedSourceEvidence,
             };
 
             #[derive(Default)]
@@ -4303,14 +6244,16 @@ mod mathematical_signature {
                         &temporary_parameters,
                     ) {
                         return Err(self.refuse(
-                "source constructor schema retains a temporary value or premise assumption".into(),
-            ));
+                            "source constructor schema retains a temporary value or premise assumption"
+                                .into(),
+                        ));
                     }
                     check_type(
                         &mut self.arena,
-                        &Context::empty().with_signature(Signature::from_declarations(
-                            self.declarations.clone(),
-                        )),
+                        &Context::with_level_arity(
+                            self.level_binders.len() as u32 + self.generalized_levels,
+                        )
+                        .with_signature(Signature::from_declarations(self.declarations.clone())),
                         schema,
                         schema_type,
                         &mut Budget::new(DEFAULT_CONVERSION_STEPS),
@@ -4320,8 +6263,14 @@ mod mathematical_signature {
                             "source constructor schema fails kernel checking: {error:?}"
                         ))
                     })?;
-                    self.declarations
-                        .push(Declaration::definition(0, schema_type, schema));
+                    self.declarations.push(Declaration::definition(
+                        proof_admission::universe_parameter_arity(
+                            &self.arena,
+                            &[schema_type, schema],
+                        ),
+                        schema_type,
+                        schema,
+                    ));
                     let ExpressionNode::StructLiteral(literal) =
                         self.program.expression_table.expression(expression)
                     else {
@@ -4363,6 +6312,10 @@ mod mathematical_signature {
                     self.prepared
                         .source_constructors
                         .append(PreparedSourceConstructor {
+                            level_arity: proof_admission::universe_parameter_arity(
+                                &self.arena,
+                                &[schema_type, schema],
+                            ),
                             expression,
                             constructor: expression,
                             source_type: reference,
@@ -4406,7 +6359,10 @@ mod mathematical_signature {
                     domain: TermHandle,
                 ) -> TermHandle {
                     let position = self.declarations.len() as u32;
-                    self.declarations.push(Declaration::assumption(0, domain));
+                    self.declarations.push(Declaration::assumption(
+                        proof_admission::universe_parameter_arity(&self.arena, &[domain]),
+                        domain,
+                    ));
                     let term = self.constant(position);
                     self.source_constructor_context
                         .parameters
@@ -4505,8 +6461,9 @@ mod mathematical_signature {
                                         .is_some()
                                     {
                                         return Err(self.refuse(
-                                "source indexed capture has duplicate declaration identity".into(),
-                            ));
+                                            "source indexed capture has duplicate declaration identity"
+                                                .into(),
+                                        ));
                                     }
                                 }
                             }
@@ -4533,9 +6490,9 @@ mod mathematical_signature {
                             })
                         {
                             return Err(self.refuse(
-                    "source indexed capture changed its declaration owner or lexical frontier"
-                        .into(),
-                ));
+                                "source indexed capture changed its declaration owner or lexical frontier"
+                                    .into(),
+                            ));
                         }
                         return self.source_family_constructor(value, actual, depth + 1);
                     }
@@ -4562,14 +6519,43 @@ mod mathematical_signature {
                         .type_reference_handles(*arguments)
                         .to_vec();
                     let family = self.source_family(*base_symbol)?;
+                    let actuals = family
+                        .parameters
+                        .iter()
+                        .zip(&arguments)
+                        .map(|(parameter, argument)| self.index_operand(*argument, parameter, &[]))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let family = self.applied_source_family(&family, &actuals)?;
+                    let description = family
+                        .description_at(&mut self.arena, &actuals)
+                        .map_err(|reason| self.refuse(reason.into()))?;
+                    let type_actuals = family
+                        .parameters
+                        .iter()
+                        .zip(&actuals)
+                        .filter_map(|(parameter, &actual)| {
+                            matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                                .then_some(actual)
+                        })
+                        .collect::<Vec<_>>();
+                    let stored_type_count = family
+                        .index_parameter_indices
+                        .iter()
+                        .filter(|&&position| {
+                            matches!(
+                                family.parameters[position].kind,
+                                typed_trees::data::TypeParameterKind::Type
+                            )
+                        })
+                        .count();
                     let case = if let Some(selected) = literal.case_symbol {
                         let actual = self
                             .program
                             .data_constructor_case(reference, literal.type_symbol, selected)
                             .ok_or_else(|| {
                                 self.refuse(
-                        "source indexed constructor lost its active case correspondence".into(),
-                    )
+                                    "source indexed constructor lost its active case correspondence".into(),
+                                )
                             })?;
                         family
                             .cases
@@ -4607,12 +6593,17 @@ mod mathematical_signature {
                             "source indexed constructor changed its exact field roster".into(),
                         ));
                     }
-                    let mut common = Vec::new();
-                    for (parameter, argument) in family.parameters.iter().zip(&arguments) {
-                        if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
-                            common.push(self.elaborate_type_reference(*argument)?);
-                        }
-                    }
+                    let mut common = family
+                        .index_parameter_indices
+                        .iter()
+                        .filter_map(|&position| {
+                            matches!(
+                                family.parameters[position].kind,
+                                typed_trees::data::TypeParameterKind::Type
+                            )
+                            .then_some(actuals[position])
+                        })
+                        .collect::<Vec<_>>();
                     let mut payload = Vec::new();
                     let mut children = Vec::new();
                     for field in &family.common {
@@ -4638,7 +6629,7 @@ mod mathematical_signature {
                             .source_constructor_operand(expression, reference, &literal, field)?;
                         self.span = Some(self.program.expression_table.source_span(operand));
                         let actual =
-                            operand_type_reference(self.program, operand).ok_or_else(|| {
+                            self.source_operand_type_reference(operand).ok_or_else(|| {
                                 self.refuse(
                                     "source recursive child has no retained actual application"
                                         .into(),
@@ -4677,16 +6668,21 @@ mod mathematical_signature {
                         let child = self.source_family_constructor(operand, actual, depth + 1)?;
                         self.span = Some(self.program.expression_table.source_span(operand));
                         let mut index = child_index;
-                        for &argument in common.iter().chain(payload.iter()) {
+                        for &argument in type_actuals
+                            .iter()
+                            .chain(common.iter().skip(stored_type_count))
+                            .chain(payload.iter())
+                        {
                             index = self.arena.insert(Term::Apply {
                                 function: index,
                                 argument,
                             });
                         }
-                        let expected = family.description.indexed_w(&mut self.arena, index);
-                        let context = Context::empty().with_signature(
-                            Signature::from_declarations(self.declarations.clone()),
-                        );
+                        let expected = description.indexed_w(&mut self.arena, index);
+                        let context = Context::with_level_arity(
+                            self.level_binders.len() as u32 + self.generalized_levels,
+                        )
+                        .with_signature(Signature::from_declarations(self.declarations.clone()));
                         match check_type(
                             &mut self.arena,
                             &context,
@@ -4713,7 +6709,11 @@ mod mathematical_signature {
                     }
                     self.span = Some(self.program.expression_table.source_span(expression));
                     let mut predicate = selected.constraints;
-                    for &argument in common.iter().chain(payload.iter()) {
+                    for &argument in type_actuals
+                        .iter()
+                        .chain(common.iter().skip(stored_type_count))
+                        .chain(payload.iter())
+                    {
                         predicate = self.arena.insert(Term::Apply {
                             function: predicate,
                             argument,
@@ -4754,8 +6754,10 @@ mod mathematical_signature {
                             argument,
                         });
                     }
-                    let context = Context::empty()
-                        .with_signature(Signature::from_declarations(self.declarations.clone()));
+                    let context = Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(Signature::from_declarations(self.declarations.clone()));
                     check_type(
                         &mut self.arena,
                         &context,
@@ -4765,8 +6767,8 @@ mod mathematical_signature {
                     )
                     .map_err(|error| {
                         self.refuse(format!(
-                "generated source constructor predicate proof fails kernel checking: {error:?}"
-            ))
+                            "generated source constructor predicate proof fails kernel checking: {error:?}"
+                        ))
                     })?;
                     let mut label = proof;
                     for value in payload.into_iter().rev() {
@@ -4774,6 +6776,24 @@ mod mathematical_signature {
                             first: value,
                             second: label,
                         });
+                    }
+                    if !family.payload_lifts.is_empty() {
+                        let mut lift_domains = Vec::new();
+                        for &function in &family.payload_lifts {
+                            let mut domain = function;
+                            for &actual in type_actuals
+                                .iter()
+                                .chain(common.iter().skip(stored_type_count))
+                            {
+                                domain = self.arena.insert(Term::Apply {
+                                    function: domain,
+                                    argument: actual,
+                                });
+                            }
+                            lift_domains.push(domain);
+                        }
+                        label = lift_payload(&mut self.arena, &lift_domains, label)
+                            .map_err(|reason| self.refuse(reason.into()))?;
                     }
                     if case + 1 < family.cases.len() {
                         let tag = self.arena.insert(Term::TwoZero);
@@ -4799,7 +6819,7 @@ mod mathematical_signature {
                         &mut self.arena,
                         &context,
                         label,
-                        family.description.carrier,
+                        description.carrier,
                         &mut Budget::new(DEFAULT_CONVERSION_STEPS),
                     )
                     .map_err(|error| {
@@ -4807,12 +6827,15 @@ mod mathematical_signature {
                             "generated source constructor label fails kernel checking: {error:?}"
                         ))
                     })?;
+                    // Projections must infer the declaration's dependent label telescope,
+                    // not the nondependent tuple type inferred for a raw pair literal.
+                    // Package the checked label as an ordinary transparent definition.
                     let parameters =
-                        self.source_constructor_dependencies(&[label, family.description.carrier]);
+                        self.source_constructor_dependencies(&[label, description.carrier]);
                     let (label_body, label_type) = abstract_parameters(
                         &mut self.arena,
                         label,
-                        family.description.carrier,
+                        description.carrier,
                         &parameters,
                     )
                     .map_err(|error| {
@@ -4821,8 +6844,14 @@ mod mathematical_signature {
                         ))
                     })?;
                     let label_position = self.declarations.len() as u32;
-                    self.declarations
-                        .push(Declaration::definition(0, label_type, label_body));
+                    self.declarations.push(Declaration::definition(
+                        proof_admission::universe_parameter_arity(
+                            &self.arena,
+                            &[label_type, label_body],
+                        ),
+                        label_type,
+                        label_body,
+                    ));
                     let mut label = self.constant(label_position);
                     for (position, _, _) in parameters {
                         let argument = self.constant(position);
@@ -4831,25 +6860,23 @@ mod mathematical_signature {
                             argument,
                         });
                     }
-                    let context = Context::empty()
-                        .with_signature(Signature::from_declarations(self.declarations.clone()));
+                    let context = Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(Signature::from_declarations(self.declarations.clone()));
                     let child_domain = self.arena.insert(Term::Apply {
-                        function: family.description.children,
+                        function: description.children,
                         argument: label,
                     });
-                    let children_fn = constructor_children(
-                        &mut self.arena,
-                        &family.description,
-                        label,
-                        &children,
-                    )
-                    .map_err(|error| {
-                        self.refuse(format!(
-                            "source constructor child-function production failed: {error}"
-                        ))
-                    })?;
+                    let children_fn =
+                        constructor_children(&mut self.arena, &description, label, &children)
+                            .map_err(|error| {
+                                self.refuse(format!(
+                                    "source constructor child-function production failed: {error}"
+                                ))
+                            })?;
                     let next = self.arena.insert(Term::Apply {
-                        function: family.description.next,
+                        function: description.next,
                         argument: label,
                     });
                     let p = self.arena.insert(Term::Variable(0));
@@ -4857,7 +6884,7 @@ mod mathematical_signature {
                         function: next,
                         argument: p,
                     });
-                    let codomain = family.description.indexed_w(&mut self.arena, index);
+                    let codomain = description.indexed_w(&mut self.arena, index);
                     let expected_children = self.arena.insert(Term::Pi {
                         domain: child_domain,
                         codomain,
@@ -4871,13 +6898,15 @@ mod mathematical_signature {
                     )
                     .map_err(|error| {
                         self.refuse(format!(
-                "generated source constructor child function fails kernel checking: {error:?}"
-            ))
+                            "generated source constructor child function fails kernel checking: {error:?}"
+                        ))
                     })?;
-                    let term = family.description.sup(&mut self.arena, label, children_fn);
+                    let term = description.sup(&mut self.arena, label, children_fn);
                     let expected = self.elaborate_type_reference(reference)?;
-                    let context = Context::empty()
-                        .with_signature(Signature::from_declarations(self.declarations.clone()));
+                    let context = Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(Signature::from_declarations(self.declarations.clone()));
                     check_type(
                         &mut self.arena,
                         &context,
@@ -4900,14 +6929,15 @@ mod mathematical_signature {
                     literal: &TableStructLiteral,
                     field: &DataField,
                 ) -> Result<ExpressionHandle, Vec<Diagnostic>> {
-                    let selected =
-                        self.program
-                            .data_constructor_field(reference, literal.type_symbol, field.symbol)
-                            .ok_or_else(|| {
-                                self.refuse(
-                    "source constructor lost its exact declared field correspondence".into(),
-                )
-                            })?;
+                    let selected = self
+                        .program
+                        .data_constructor_field(reference, literal.type_symbol, field.symbol)
+                        .ok_or_else(|| {
+                            self.refuse(
+                                "source constructor lost its exact declared field correspondence"
+                                    .into(),
+                            )
+                        })?;
                     let mut operands = expression_table(self.program)
                         .struct_fields(literal.fields)
                         .iter()
@@ -4940,8 +6970,8 @@ mod mathematical_signature {
             use super::terms;
             use diagnostics::Diagnostic;
             use proof_admission::{
-                Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort,
-                Term, TermHandle,
+                Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Signature, Sort, Term,
+                TermHandle,
             };
             use symbols::SymbolHandle;
             use typed_trees::data::TypeParameterKind;
@@ -4998,20 +7028,23 @@ mod mathematical_signature {
                             ty: statement,
                         },
                         declarations: declarations.clone(),
+                        parameter_actuals: Vec::new(),
                     };
                     let same_statement = arena.insert(Term::Id {
                         ty: two,
                         left: b,
                         right: zero,
                     });
-                    assert!(cached.reusable(&arena, &declarations, same_statement));
+                    assert!(cached.reusable(&arena, &declarations, same_statement, &[]));
                     let mut extended = declarations.clone();
                     extended.push(Declaration::definition(0, two, one));
-                    assert!(cached.reusable(&arena, &extended, same_statement));
+                    assert!(cached.reusable(&arena, &extended, same_statement, &[]));
                     check(&mut arena, &extended, statement).unwrap();
 
+                    // The raw handles stay identical, but changing b's transparent body
+                    // makes the formerly checked proof invalid in a still-valid signature.
                     let changed = vec![Declaration::definition(0, two, one)];
-                    assert!(!cached.reusable(&arena, &changed, statement));
+                    assert!(!cached.reusable(&arena, &changed, statement, &[]));
                     assert!(check(&mut arena, &changed, statement).is_err());
 
                     let changed_statement = arena.insert(Term::Id {
@@ -5019,7 +7052,7 @@ mod mathematical_signature {
                         left: b,
                         right: one,
                     });
-                    assert!(!cached.reusable(&arena, &declarations, changed_statement));
+                    assert!(!cached.reusable(&arena, &declarations, changed_statement, &[]));
                     assert!(check(&mut arena, &declarations, changed_statement).is_err());
                 }
             }
@@ -5029,6 +7062,7 @@ mod mathematical_signature {
                 raw_invariant: TermHandle,
                 result: SourceInduction,
                 declarations: Vec<Declaration>,
+                parameter_actuals: Vec<TermHandle>,
             }
 
             impl CheckedSourceInduction {
@@ -5037,8 +7071,15 @@ mod mathematical_signature {
                     arena: &proof_admission::TermArena,
                     declarations: &[Declaration],
                     raw_invariant: TermHandle,
+                    parameter_actuals: &[TermHandle],
                 ) -> bool {
                     declarations.starts_with(&self.declarations)
+                        && self.parameter_actuals.len() == parameter_actuals.len()
+                        && self
+                            .parameter_actuals
+                            .iter()
+                            .zip(parameter_actuals)
+                            .all(|(&left, &right)| arena.structurally_equal(left, right))
                         && arena.structurally_equal(self.raw_invariant, raw_invariant)
                 }
             }
@@ -5082,26 +7123,63 @@ mod mathematical_signature {
                     invariant: TermHandle,
                     index_actuals: &[TermHandle],
                 ) -> Result<SourceInduction, Vec<Diagnostic>> {
-                    let family = self.source_family(symbol)?;
+                    let template = self.source_family(symbol)?;
+                    let family = self.applied_source_family(&template, index_actuals)?;
+                    let description = family
+                        .description_at(&mut self.arena, index_actuals)
+                        .map_err(|reason| self.refuse(reason.into()))?;
+                    let external_actuals = family
+                        .external_parameter_indices
+                        .iter()
+                        .map(|&position| {
+                            (family.parameters[position].symbol, index_actuals[position])
+                        })
+                        .collect::<Vec<_>>();
+                    let parameter_actuals = external_actuals
+                        .iter()
+                        .map(|(_, actual)| *actual)
+                        .collect::<Vec<_>>();
+                    let all_parameter_actuals = index_actuals;
+                    let index_actuals = family.index_actuals(index_actuals);
                     let raw_invariant = invariant;
+                    // The family model is immutable after its first construction. Raw
+                    // structural identity retains every constant and universe argument;
+                    // exact prefix equality additionally forbids reusing a derivation
+                    // after changing any referenced declaration's statement or body.
+                    // Appending declarations cannot change this checked judgment. Each
+                    // source occurrence still retains its own expression, carrier and
+                    // receiver-policy association at the caller.
                     if let Some(previous) = family.checked_inductions.iter().find(|previous| {
-                        previous.reusable(&self.arena, &self.declarations, raw_invariant)
+                        previous.reusable(
+                            &self.arena,
+                            &self.declarations,
+                            raw_invariant,
+                            &parameter_actuals,
+                        )
                     }) {
                         return Ok(previous.result.clone());
                     }
+                    let result_level = terms::result_sort_level(
+                        &mut self.arena,
+                        &self.declarations,
+                        invariant,
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .map_err(|reason| self.refuse(reason))?;
                     let sort = self
                         .arena
-                        .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+                        .insert(Term::Sort(Sort::Type(result_level.clone())));
                     let invariant_type = self.arena.insert(Term::Pi {
-                        domain: family.description.index,
+                        domain: description.index,
                         codomain: sort,
                     });
                     self.check_induction_term(invariant, invariant_type, "index invariant")?;
                     let invariant = terms::intern_invariant(
                         &mut self.arena,
                         &mut self.declarations,
-                        &family.description,
+                        &description,
                         invariant,
+                        result_level,
                     );
                     let signature = Signature::from_declarations(self.declarations.clone());
                     let index = self.arena.insert(Term::Variable(0));
@@ -5120,7 +7198,10 @@ mod mathematical_signature {
                             "source invariant normalization is unsupported: {error:?}"
                         ))
                     })?;
-                    let context = Context::empty().with_signature(signature);
+                    let context = Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(signature);
                     if proof_admission::infer_sort(
                         &mut self.arena,
                         &context,
@@ -5129,10 +7210,21 @@ mod mathematical_signature {
                     )
                     .is_ok()
                     {
-                        if let Some(result) =
-                            self.instantiated_open_induction(&family, index_actuals)?
-                        {
-                            self.record_source_induction(symbol, raw_invariant, &result);
+                        // A closed specialization is this family's inductive theorem at
+                        // those indices. Instantiating it keeps the distributive law the
+                        // induction used. A fresh numeral equation would name a different
+                        // bodyless assumption and drop that law.
+                        if let Some(result) = self.instantiated_open_induction(
+                            &family,
+                            &index_actuals,
+                            &parameter_actuals,
+                        )? {
+                            self.record_source_induction(
+                                symbol,
+                                raw_invariant,
+                                &result,
+                                &parameter_actuals,
+                            );
                             return Ok(result);
                         }
                         let proof = if let Some(theory) = self.integer_theory.as_mut() {
@@ -5140,8 +7232,8 @@ mod mathematical_signature {
                                 .closed_predicate(&mut self.arena, &mut self.declarations, goal)
                                 .map_err(|error| {
                                     self.refuse(format!(
-                            "closed source invariant derivation is unsupported: {error:?}"
-                        ))
+                                        "closed source invariant derivation is unsupported: {error:?}"
+                                    ))
                                 })?
                         } else {
                             None
@@ -5149,7 +7241,7 @@ mod mathematical_signature {
                         if let Some(proof) = proof {
                             let (theorem, ty) = terms::constant_invariant_theorem(
                                 &mut self.arena,
-                                &family.description,
+                                &description,
                                 invariant,
                                 proof,
                             );
@@ -5159,7 +7251,12 @@ mod mathematical_signature {
                                 "closed source invariant theorem",
                             )?;
                             let result = SourceInduction { theorem, ty };
-                            self.record_source_induction(symbol, raw_invariant, &result);
+                            self.record_source_induction(
+                                symbol,
+                                raw_invariant,
+                                &result,
+                                &parameter_actuals,
+                            );
                             return Ok(result);
                         }
                     }
@@ -5168,7 +7265,13 @@ mod mathematical_signature {
                     let common_types = family
                         .common
                         .iter()
-                        .map(|field| self.source_field_function(field, &family.parameters))
+                        .map(|field| {
+                            self.source_field_function(
+                                field,
+                                &family.parameters,
+                                &family.type_levels,
+                            )
+                        })
                         .collect::<Result<Vec<_>, _>>()?;
                     let mut common = family
                         .common
@@ -5186,23 +7289,56 @@ mod mathematical_signature {
                         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
                         .map(|parameter| parameter.symbol)
                         .collect::<Vec<_>>();
-                    let type_sort = self
-                        .arena
-                        .insert(Term::Sort(Sort::Type(Level::Constant(0))));
-                    common.splice(0..0, type_symbols.iter().map(|symbol| (*symbol, type_sort)));
+                    let mut external_slots = vec![false; family.parameters.len()];
+                    for &position in &family.external_parameter_indices {
+                        external_slots[position] = true;
+                    }
+                    let stored_type_slots = family
+                        .parameters
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, parameter)| matches!(parameter.kind, TypeParameterKind::Type))
+                        .enumerate()
+                        .filter_map(|(type_slot, (position, _))| {
+                            (!external_slots[position]).then_some(type_slot)
+                        })
+                        .collect::<Vec<_>>();
+                    let stored_type_symbols = stored_type_slots
+                        .iter()
+                        .map(|&slot| type_symbols[slot])
+                        .collect::<Vec<_>>();
+                    common.splice(
+                        0..0,
+                        stored_type_symbols.iter().map(|symbol| {
+                            let ordinal = type_symbols
+                                .iter()
+                                .position(|bound| bound == symbol)
+                                .expect("retained Type binder");
+                            (
+                                *symbol,
+                                self.arena.insert(Term::Sort(Sort::Type(
+                                    family.type_levels[ordinal].clone(),
+                                ))),
+                            )
+                        }),
+                    );
                     let mut index_fields = self
                         .program
                         .data_value_parameter_fields(data)
                         .map(|(_, field)| field.symbol)
                         .collect::<Vec<_>>();
-                    index_fields.splice(0..0, type_symbols.iter().copied());
+                    index_fields.splice(0..0, stored_type_symbols.iter().copied());
                     for case in &family.cases {
                         let payload = case
                             .payload
                             .iter()
                             .map(|field| {
-                                self.source_field_function(field, &family.parameters)
-                                    .map(|ty| (field.symbol, ty))
+                                self.source_field_function(
+                                    field,
+                                    &family.parameters,
+                                    &family.type_levels,
+                                )
+                                .map(|ty| (field.symbol, ty))
                             })
                             .collect::<Result<Vec<_>, _>>()?;
                         let fields = common
@@ -5212,9 +7348,19 @@ mod mathematical_signature {
                             .collect::<Vec<_>>();
                         let mut values = Vec::new();
                         let mut parameters = Vec::new();
-                        for &(field, mut domain) in &fields {
-                            if !type_symbols.contains(&field) {
-                                for actual in values.iter().take(type_symbols.len()) {
+                        let mut type_actuals = family
+                            .parameters
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(position, parameter)| {
+                                matches!(parameter.kind, TypeParameterKind::Type)
+                                    .then_some(all_parameter_actuals[position])
+                            })
+                            .collect::<Vec<_>>();
+                        for (field_ordinal, &(field, mut domain)) in fields.iter().enumerate() {
+                            let type_slot = stored_type_slots.get(field_ordinal).copied();
+                            if type_slot.is_none() {
+                                for actual in &type_actuals {
                                     domain = self.arena.insert(Term::Apply {
                                         function: domain,
                                         argument: *actual,
@@ -5223,15 +7369,25 @@ mod mathematical_signature {
                             }
                             let position = self.declarations.len() as u32;
                             self.declarations.push(Declaration {
-                                level_arity: 0,
+                                level_arity: proof_admission::universe_parameter_arity(
+                                    &self.arena,
+                                    &[domain],
+                                ),
                                 ty: domain,
                                 body: None,
                             });
                             parameters.push((position, field, domain));
-                            values.push(self.constant(position));
+                            let value = self.constant(position);
+                            if let Some(type_slot) = type_slot {
+                                type_actuals[type_slot] = value;
+                            }
+                            values.push(value);
                         }
                         let mut predicate = case.constraints;
-                        for &value in &values {
+                        for &value in type_actuals
+                            .iter()
+                            .chain(values.iter().skip(stored_type_symbols.len()))
+                        {
                             predicate = self.arena.insert(Term::Apply {
                                 function: predicate,
                                 argument: value,
@@ -5254,7 +7410,10 @@ mod mathematical_signature {
                         let mut assumptions = vec![predicate];
                         for &child in &case.child_indices {
                             let mut index = child;
-                            for &value in &values {
+                            for &value in type_actuals
+                                .iter()
+                                .chain(values.iter().skip(stored_type_symbols.len()))
+                            {
                                 index = self.arena.insert(Term::Apply {
                                     function: index,
                                     argument: value,
@@ -5282,10 +7441,14 @@ mod mathematical_signature {
                             });
                         }
                         self.check_induction_term(proof, ty, "case predicate derivation")?;
-                        let (lemma, lemma_type) =
-                            terms::abstract_parameters(&mut self.arena, proof, ty, &parameters)
-                                .map_err(|error| self.refuse(error.into()))?;
-                        if !terms::excludes_parameters(
+                        let (lemma, lemma_type) = super::parameter_closure::abstract_parameters(
+                            &mut self.arena,
+                            proof,
+                            ty,
+                            &parameters,
+                        )
+                        .map_err(|error| self.refuse(error.into()))?;
+                        if !super::parameter_closure::excludes_parameters(
                             &self.arena,
                             &self.declarations,
                             &[lemma, lemma_type],
@@ -5298,8 +7461,14 @@ mod mathematical_signature {
                         }
                         self.check_induction_term(lemma, lemma_type, "abstracted source case")?;
                         let position = self.declarations.len() as u32;
-                        self.declarations
-                            .push(Declaration::definition(0, lemma_type, lemma));
+                        self.declarations.push(Declaration::definition(
+                            proof_admission::universe_parameter_arity(
+                                &self.arena,
+                                &[lemma_type, lemma],
+                            ),
+                            lemma_type,
+                            lemma,
+                        ));
                         lemmas.push(self.constant(position));
                         schemes.push(terms::Case {
                             payload,
@@ -5309,7 +7478,7 @@ mod mathematical_signature {
                     }
                     let (theorem, ty, step, step_type) = terms::induction(
                         &mut self.arena,
-                        &family.description,
+                        &description,
                         &common,
                         &index_fields,
                         &schemes,
@@ -5317,12 +7486,19 @@ mod mathematical_signature {
                         &lemmas,
                         &mut self.declarations,
                         &type_symbols,
+                        &external_actuals,
+                        &family.payload_lifts,
                     )
-                    .map_err(|error| self.refuse(error.into()))?;
+                    .map_err(|error| self.refuse(error))?;
                     self.check_induction_term(step, step_type, "indexed-family induction step")?;
                     self.check_induction_term(theorem, ty, "derived indexed-family theorem")?;
                     let result = SourceInduction { theorem, ty };
-                    self.record_source_induction(symbol, raw_invariant, &result);
+                    self.record_source_induction(
+                        symbol,
+                        raw_invariant,
+                        &result,
+                        &parameter_actuals,
+                    );
                     Ok(result)
                 }
 
@@ -5330,12 +7506,18 @@ mod mathematical_signature {
                     &mut self,
                     family: &super::SourceFamily,
                     index_actuals: &[TermHandle],
+                    parameter_actuals: &[TermHandle],
                 ) -> Result<Option<SourceInduction>, Vec<Diagnostic>> {
-                    if index_actuals.is_empty() || index_actuals.len() != family.parameters.len() {
+                    if index_actuals.is_empty()
+                        || index_actuals.len() != family.index_parameter_indices.len()
+                    {
                         return Ok(None);
                     }
                     let signature = Signature::from_declarations(self.declarations.clone());
-                    let context = Context::empty().with_signature(signature.clone());
+                    let context = Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(signature.clone());
                     if index_actuals
                         .iter()
                         .any(|actual| term_mentions_variable(&self.arena, *actual))
@@ -5344,6 +7526,17 @@ mod mathematical_signature {
                     }
                     let open = {
                         let Some(matched) = family.checked_inductions.iter().find(|previous| {
+                            if previous.parameter_actuals.len() != parameter_actuals.len()
+                                || !previous
+                                    .parameter_actuals
+                                    .iter()
+                                    .zip(parameter_actuals)
+                                    .all(|(&left, &right)| {
+                                        self.arena.structurally_equal(left, right)
+                                    })
+                            {
+                                return false;
+                            }
                             let index = self.arena.insert(Term::Variable(0));
                             let applied = self.arena.insert(Term::Apply {
                                 function: previous.raw_invariant,
@@ -5394,6 +7587,7 @@ mod mathematical_signature {
                     symbol: SymbolHandle,
                     raw_invariant: TermHandle,
                     result: &SourceInduction,
+                    parameter_actuals: &[TermHandle],
                 ) {
                     self.indexed_families
                         .get_mut(&symbol)
@@ -5403,6 +7597,7 @@ mod mathematical_signature {
                             raw_invariant,
                             result: result.clone(),
                             declarations: self.declarations.clone(),
+                            parameter_actuals: parameter_actuals.to_vec(),
                         });
                 }
 
@@ -5412,8 +7607,10 @@ mod mathematical_signature {
                     ty: TermHandle,
                     role: &str,
                 ) -> Result<(), Vec<Diagnostic>> {
-                    let context = Context::empty()
-                        .with_signature(Signature::from_declarations(self.declarations.clone()));
+                    let context = Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(Signature::from_declarations(self.declarations.clone()));
                     let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
                     let result = proof_admission::check_type(
                         &mut self.arena,
@@ -5429,56 +7626,41 @@ mod mathematical_signature {
             }
         }
         mod terms {
+            /*
+            Untrusted source-family description production. All generated applications
+            are ordinary terms checked against indexed_scheme; no admission follows
+            from this builder or from a source constructor's Boolean verdict.
+
+            Each source common/payload binder keeps its exact symbol key. Constraint
+            and child-index functions are closed over that ordered source telescope,
+            so moving them under tag/payload eliminators cannot capture a source name.
+            Finite child positions use the profile's boxed strict empty/unit types.
+
+            To combine payloads at different levels, let A : Type u and define
+            P(A) = (a : A) -> squash(Id A a a) : Strict u. Its canonical proof is
+            a -> sq(refl A a), so U(A) = Box P(A) : Type u is inhabited even when
+            A is empty. Box elimination reduces identity with the canonical box to
+            equality of strict proofs, which holds by strict proof irrelevance.
+            Thus x -> (canonical, x) and second projection preserve a payload in
+            Sigma(_: U(A)). B : Type max(u, v), for B : Type v. The reverse composite
+            is propositionally equal by this contraction; no conversion rule changes.
+
+            For a multi-case family, A is one shared product of its complete unpadded
+            branch types, closed over the common source telescope. Its level is exactly
+            their maximum, including case constraints, without assuming any branch is
+            inhabited. One U(A) component raises each branch to that same level. Common
+            fields and indices keep their separately inferred levels. Single-case data
+            needs no padding. A Type0 Box or data with an unused high-level parameter
+            therefore stays Type0.
+            */
+
+            #[cfg(test)]
+            use super::parameter_closure::{abstract_parameters, excludes_parameters};
             use proof_admission::{
                 Declaration, IndexedFamily, Level, Sort, Term, TermArena, TermHandle, shift,
                 substitute,
             };
             use symbols::SymbolHandle;
-
-            macro_rules! term {
-                (Pi => $domain:expr => $codomain:expr) => {
-                    Term::Pi {
-                        domain: $domain,
-                        codomain: $codomain,
-                    }
-                };
-                (Sigma => $domain:expr => $codomain:expr) => {
-                    Term::Sigma {
-                        domain: $domain,
-                        codomain: $codomain,
-                    }
-                };
-                (Lambda => $domain:expr => $body:expr) => {
-                    Term::Lambda {
-                        domain: $domain,
-                        body: $body,
-                    }
-                };
-                (Apply => $function:expr => $argument:expr) => {
-                    Term::Apply {
-                        function: $function,
-                        argument: $argument,
-                    }
-                };
-                (Constant => $declaration:expr => $levels:expr) => {
-                    Term::Constant {
-                        declaration: $declaration,
-                        levels: $levels,
-                    }
-                };
-                (Pair => $first:expr => $second:expr) => {
-                    Term::Pair {
-                        first: $first,
-                        second: $second,
-                    }
-                };
-                (Refl => $ty:expr => $value:expr) => {
-                    Term::Refl {
-                        ty: $ty,
-                        value: $value,
-                    }
-                };
-            }
 
             #[derive(Clone, Copy, PartialEq, Eq)]
             pub(super) enum Key {
@@ -5489,9 +7671,12 @@ mod mathematical_signature {
             #[derive(Clone)]
             enum S {
                 Closed(TermHandle),
-                SourceDomain(TermHandle, Vec<Key>),
+                SourceDomain(TermHandle, Vec<S>),
                 Var(Key),
                 Type,
+                Universe(Level),
+                Squashed(Box<S>),
+                SquashValue(Box<S>, Box<S>),
                 Two,
                 Zero,
                 One,
@@ -5548,12 +7733,7 @@ mod mathematical_signature {
                         Self::SourceDomain(function, parameters) => {
                             let mut result = *function;
                             for parameter in parameters {
-                                let position = scope
-                                    .iter()
-                                    .rposition(|key| key == parameter)
-                                    .ok_or("source payload domain lost its Type binder")?;
-                                let actual = arena
-                                    .insert(Term::Variable((scope.len() - 1 - position) as u32));
+                                let actual = parameter.term(arena, scope)?;
                                 let Term::Lambda { body, .. } = arena.get(result) else {
                                     return Err(
                                         "source payload domain lost its generated Type telescope",
@@ -5571,6 +7751,14 @@ mod mathematical_signature {
                                 .ok_or("generated source-family binder escaped its telescope")?,
                         ),
                         Self::Type => Term::Sort(Sort::Type(Level::Constant(0))),
+                        Self::Universe(level) => Term::Sort(Sort::Type(level.clone())),
+                        Self::Squashed(ty) => Term::Squash {
+                            ty: ty.term(arena, scope)?,
+                        },
+                        Self::SquashValue(ty, value) => Term::SquashIntro {
+                            ty: ty.term(arena, scope)?,
+                            value: value.term(arena, scope)?,
+                        },
                         Self::Two => Term::Two,
                         Self::Zero => Term::TwoZero,
                         Self::One => Term::TwoOne,
@@ -5647,6 +7835,81 @@ mod mathematical_signature {
                 pub child_indices: Vec<TermHandle>,
             }
 
+            pub(super) fn result_sort_level(
+                arena: &mut TermArena,
+                declarations: &[Declaration],
+                function: TermHandle,
+                level_arity: u32,
+            ) -> Result<Level, String> {
+                let context = proof_admission::Context::with_level_arity(level_arity)
+                    .with_signature(proof_admission::Signature::from_declarations(
+                        declarations.to_vec(),
+                    ));
+                result_sort_level_in(arena, &context, function)
+            }
+
+            fn result_sort_level_in(
+                arena: &mut TermArena,
+                context: &proof_admission::Context,
+                function: TermHandle,
+            ) -> Result<Level, String> {
+                let mut ty = proof_admission::infer_type(
+                    arena,
+                    context,
+                    function,
+                    &mut proof_admission::Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS),
+                )
+                .map_err(|error| {
+                    format!("source descriptor domain fails universe inference: {error:?}")
+                })?;
+                while let Term::Pi { codomain, .. } = arena.get(ty) {
+                    ty = codomain;
+                }
+                match arena.get(ty) {
+                    Term::Sort(sort) => Ok(sort.level()),
+                    _ => Err("source descriptor domain does not return a universe".to_owned()),
+                }
+            }
+
+            fn payload_sort_level(
+                arena: &mut TermArena,
+                declarations: &[Declaration],
+                cases: &[Case],
+                level_arity: u32,
+            ) -> Result<Level, String> {
+                let context = proof_admission::Context::with_level_arity(level_arity)
+                    .with_signature(proof_admission::Signature::from_declarations(
+                        declarations.to_vec(),
+                    ));
+                let mut level = Level::Constant(0);
+                for case in cases {
+                    level = level.maximum(result_sort_level_in(arena, &context, case.constraints)?);
+                    for (_, domain) in &case.payload {
+                        level = level.maximum(result_sort_level_in(arena, &context, *domain)?);
+                    }
+                }
+                Ok(level)
+            }
+
+            /// The constructor uses the same contractible padding as the descriptor.
+            /// Dropping these first components recovers the exact original payload.
+            pub(super) fn lift_payload(
+                arena: &mut TermArena,
+                domains: &[TermHandle],
+                mut payload: TermHandle,
+            ) -> Result<TermHandle, &'static str> {
+                let mut terms = SourceTerms::default();
+                for &domain in domains.iter().rev() {
+                    let (_, witness) = terms.level_unit(S::Closed(domain));
+                    let witness = witness.term(arena, &mut Vec::new())?;
+                    payload = arena.insert(Term::Pair {
+                        first: witness,
+                        second: payload,
+                    });
+                }
+                Ok(payload)
+            }
+
             #[derive(Clone, Copy)]
             enum ResultKind {
                 Positions,
@@ -5674,9 +7937,45 @@ mod mathematical_signature {
                     let u = self.unit_strict();
                     S::Boxed(Box::new(u))
                 }
+                fn unit_value(&mut self) -> S {
+                    let domain = self.unit_strict();
+                    let value = self.fresh();
+                    S::BoxIntro(
+                        Box::new(domain),
+                        Box::new(lam(value, S::Empty, S::Var(value))),
+                    )
+                }
                 fn type_motive(&mut self) -> S {
+                    self.type_motive_at(Level::Constant(0))
+                }
+                fn type_motive_at(&mut self, level: Level) -> S {
                     let k = self.fresh();
-                    lam(k, S::Two, S::Type)
+                    lam(k, S::Two, S::Universe(level))
+                }
+                fn level_unit(&mut self, carrier: S) -> (S, S) {
+                    // This boxed strict function is inhabited for every A : Type u,
+                    // including empty A, and lives at exactly Type u. Pairing it with a
+                    // lower payload is an explicit lift; projecting the payload is its
+                    // inverse up to strict proof irrelevance. No universe is resized.
+                    let x = self.fresh();
+                    let identity = S::Identity(
+                        Box::new(carrier.clone()),
+                        Box::new(S::Var(x)),
+                        Box::new(S::Var(x)),
+                    );
+                    let proposition =
+                        pi(x, carrier.clone(), S::Squashed(Box::new(identity.clone())));
+                    let reflexivity =
+                        S::Reflexivity(Box::new(carrier.clone()), Box::new(S::Var(x)));
+                    let proof = lam(
+                        x,
+                        carrier,
+                        S::SquashValue(Box::new(identity), Box::new(reflexivity)),
+                    );
+                    (
+                        S::Boxed(Box::new(proposition.clone())),
+                        S::BoxIntro(Box::new(proposition), Box::new(proof)),
+                    )
                 }
                 fn positions(&mut self, count: usize) -> S {
                     match count {
@@ -5746,8 +8045,18 @@ mod mathematical_signature {
                 index_fields: &'a [SymbolHandle],
                 cases: &'a [Case],
                 type_parameters: &'a [SymbolHandle],
+                external_actuals: &'a [(SymbolHandle, TermHandle)],
+                payload_level: Level,
+                payload_lifts: &'a [TermHandle],
             }
             impl Builder<'_> {
+                fn type_actual(&self, symbol: SymbolHandle) -> S {
+                    self.external_actuals
+                        .iter()
+                        .find(|(parameter, _)| *parameter == symbol)
+                        .map(|(_, actual)| S::Closed(*actual))
+                        .unwrap_or(S::Var(Key::Source(symbol)))
+                }
                 fn domain(&self, symbol: SymbolHandle, ty: TermHandle) -> S {
                     if self.type_parameters.is_empty() || self.type_parameters.contains(&symbol) {
                         S::Closed(ty)
@@ -5756,8 +8065,7 @@ mod mathematical_signature {
                             ty,
                             self.type_parameters
                                 .iter()
-                                .copied()
-                                .map(Key::Source)
+                                .map(|symbol| self.type_actual(*symbol))
                                 .collect(),
                         )
                     }
@@ -5783,17 +8091,111 @@ mod mathematical_signature {
                 }
                 fn constraint_application(&self, case: usize) -> S {
                     let mut term = S::Closed(self.cases[case].constraints);
-                    for (symbol, _) in self.common.iter().chain(self.cases[case].payload.iter()) {
+                    for symbol in self.type_parameters {
+                        term = app(term, self.type_actual(*symbol));
+                    }
+                    for (symbol, _) in self
+                        .common
+                        .iter()
+                        .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+                        .chain(self.cases[case].payload.iter())
+                    {
                         term = app(term, S::Var(Key::Source(*symbol)));
                     }
                     term
                 }
-                fn payload_type(&self, case: usize) -> S {
+                fn lift_count(&self) -> usize {
+                    self.payload_lifts.len()
+                }
+                fn unlift_payload(&self, mut payload: S) -> S {
+                    for _ in 0..self.lift_count() {
+                        payload = snd(payload);
+                    }
+                    payload
+                }
+                fn raw_payload_type(&self, case: usize) -> S {
                     let mut body = self.constraint_application(case);
                     for (symbol, ty) in self.cases[case].payload.iter().rev() {
                         body = sigma(Key::Source(*symbol), self.domain(*symbol, *ty), body);
                     }
                     body
+                }
+                fn common_application(&self, mut function: S) -> S {
+                    for symbol in self.type_parameters {
+                        function = app(function, self.type_actual(*symbol));
+                    }
+                    for (symbol, _) in self
+                        .common
+                        .iter()
+                        .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+                    {
+                        function = app(function, S::Var(Key::Source(*symbol)));
+                    }
+                    function
+                }
+                fn payload_type(&mut self, case: usize) -> S {
+                    let mut body = self.raw_payload_type(case);
+                    for &function in self.payload_lifts.iter().rev() {
+                        let carrier = self.common_application(S::Closed(function));
+                        let (unit, _) = self.terms.level_unit(carrier);
+                        let binder = self.terms.fresh();
+                        body = sigma(binder, unit, body);
+                    }
+                    body
+                }
+                fn payload_type_functions(
+                    &self,
+                    arena: &mut TermArena,
+                    type_domains: &[TermHandle],
+                ) -> Result<Vec<TermHandle>, &'static str> {
+                    if type_domains.len() != self.type_parameters.len() {
+                        return Err("source payload lift lost its exact Type telescope");
+                    }
+                    (0..self.cases.len())
+                        .map(|case| {
+                            let mut body = self.raw_payload_type(case);
+                            for &(symbol, domain) in self
+                                .common
+                                .iter()
+                                .rev()
+                                .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+                            {
+                                body = lam(Key::Source(symbol), self.domain(symbol, domain), body);
+                            }
+                            for (&symbol, &domain) in
+                                self.type_parameters.iter().zip(type_domains).rev()
+                            {
+                                body = lam(Key::Source(symbol), S::Closed(domain), body);
+                            }
+                            body.term(arena, &mut Vec::new())
+                        })
+                        .collect()
+                }
+                fn shared_payload_type_function(
+                    &mut self,
+                    arena: &mut TermArena,
+                    type_domains: &[TermHandle],
+                ) -> Result<TermHandle, &'static str> {
+                    let Some(last) = self.cases.len().checked_sub(1) else {
+                        return Err("source payload lift has no constructor cases");
+                    };
+                    let mut body = self.raw_payload_type(last);
+                    for case in (0..last).rev() {
+                        let binder = self.terms.fresh();
+                        body = sigma(binder, self.raw_payload_type(case), body);
+                    }
+                    for &(symbol, domain) in self
+                        .common
+                        .iter()
+                        .rev()
+                        .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+                    {
+                        body = lam(Key::Source(symbol), self.domain(symbol, domain), body);
+                    }
+                    for (&symbol, &domain) in self.type_parameters.iter().zip(type_domains).rev() {
+                        body = lam(Key::Source(symbol), S::Closed(domain), body);
+                    }
+                    body.term(arena, &mut Vec::new())
                 }
                 fn sum_type(&mut self, start: usize) -> S {
                     if start == self.cases.len() {
@@ -5803,7 +8205,7 @@ mod mathematical_signature {
                         return self.payload_type(start);
                     }
                     let tag = self.terms.fresh();
-                    let motive = self.terms.type_motive();
+                    let motive = self.terms.type_motive_at(self.payload_level.clone());
                     let zero = self.payload_type(start);
                     let one = self.sum_type(start + 1);
                     sigma(tag, S::Two, choose(motive, zero, one, S::Var(tag)))
@@ -5823,7 +8225,14 @@ mod mathematical_signature {
                 }
                 fn child_index(&self, case: usize, child: usize, payload: S) -> S {
                     let mut term = S::Closed(self.cases[case].child_indices[child]);
-                    for (symbol, _) in self.common {
+                    for symbol in self.type_parameters {
+                        term = app(term, self.type_actual(*symbol));
+                    }
+                    for (symbol, _) in self
+                        .common
+                        .iter()
+                        .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+                    {
                         term = app(term, S::Var(Key::Source(*symbol)));
                     }
                     for ordinal in 0..self.cases[case].payload.len() {
@@ -5837,6 +8246,7 @@ mod mathematical_signature {
                     payload: S,
                     kind: ResultKind,
                 ) -> Result<S, &'static str> {
+                    let payload = self.unlift_payload(payload);
                     let count = self.cases[case].child_indices.len();
                     let positions = self.terms.positions(count);
                     if matches!(kind, ResultKind::Positions) {
@@ -5879,7 +8289,7 @@ mod mathematical_signature {
                     }
                     let tag = self.terms.fresh();
                     let payload = self.terms.fresh();
-                    let tm = self.terms.type_motive();
+                    let tm = self.terms.type_motive_at(self.payload_level.clone());
                     let zero_type = self.payload_type(start);
                     let one_type = self.sum_type(start + 1);
                     let payload_type = choose(tm, zero_type.clone(), one_type.clone(), S::Var(tag));
@@ -5923,7 +8333,7 @@ mod mathematical_signature {
                         indices.push(Self::projected(label.clone(), ordinal));
                     }
                     let Some(mut body) = indices.pop() else {
-                        return Err("an indexed family requires an index telescope");
+                        return Ok(self.terms.unit_value());
                     };
                     for index in indices.into_iter().rev() {
                         body = pair(index, body);
@@ -5951,20 +8361,82 @@ mod mathematical_signature {
                 lam(position, S::Closed(child_domain), body).term(arena, &mut Vec::new())
             }
 
+            pub(super) struct SourceDescription {
+                pub family: IndexedFamily,
+                /// One shared product of complete case types, abstracted over ordered
+                /// Type parameters and common values. All constructor and eliminator
+                /// paths use this same definition as the universe lift's carrier.
+                pub payload_lifts: Vec<TermHandle>,
+            }
+
+            /// Each multi-case payload is explicitly lifted by the same contractible
+            /// witnesses. The shared sort is computed from represented fields and their
+            /// constraints, not from the unused generic telescope. A single-case record
+            /// needs no padding, and a Type0 Box therefore stays at Type0.
+            ///
+            /// Closed producer terms. The caller must check the resulting ordinary scheme
+            /// application and retain source correspondence before admitting any use.
             pub(super) fn description(
                 arena: &mut TermArena,
                 common: &[(SymbolHandle, TermHandle)],
                 index_fields: &[SymbolHandle],
                 cases: &[Case],
                 type_parameters: &[SymbolHandle],
-            ) -> Result<IndexedFamily, &'static str> {
+                external_parameters: &[SymbolHandle],
+                declarations: &mut Vec<Declaration>,
+                type_domains: &[TermHandle],
+                level_arity: u32,
+            ) -> Result<SourceDescription, String> {
                 let mut b = Builder {
                     terms: SourceTerms::default(),
                     common,
                     index_fields,
                     cases,
                     type_parameters,
+                    external_actuals: &[],
+                    payload_level: Level::Constant(0),
+                    payload_lifts: &[],
                 };
+                // Close every entire branch type over the shared telescope. A constraint
+                // can live above all case-local fields, so field domains alone cannot
+                // supply the required lift. No inhabitant of another case is assumed.
+                let functions = b.payload_type_functions(arena, type_domains)?;
+                let context = proof_admission::Context::with_level_arity(level_arity)
+                    .with_signature(proof_admission::Signature::from_declarations(
+                        declarations.to_vec(),
+                    ));
+                let mut payload_level = Level::Constant(0);
+                for &function in &functions {
+                    payload_level =
+                        payload_level.maximum(result_sort_level_in(arena, &context, function)?);
+                }
+                let payload_lifts = if cases.len() > 1 && payload_level != Level::Constant(0) {
+                    // A single shared product has the maximum of all complete branch
+                    // sorts. Unit(product) needs no branch inhabitant and adds only one
+                    // component per alternative, rather than a quadratic padding roster.
+                    let body = b.shared_payload_type_function(arena, type_domains)?;
+                    let ty = proof_admission::infer_type(
+                        arena,
+                        &context,
+                        body,
+                        &mut proof_admission::Budget::new(
+                            proof_admission::DEFAULT_CONVERSION_STEPS,
+                        ),
+                    )
+                    .map_err(|error| {
+                        format!("shared source payload carrier fails formation: {error:?}")
+                    })?;
+                    let declaration = declarations.len() as u32;
+                    declarations.push(Declaration::definition(level_arity, ty, body));
+                    vec![arena.insert(Term::Constant {
+                        declaration,
+                        levels: (0..level_arity).map(Level::Parameter).collect(),
+                    })]
+                } else {
+                    Vec::new()
+                };
+                b.payload_level = payload_level.clone();
+                b.payload_lifts = &payload_lifts;
                 let carrier = b.carrier();
                 let index = b.index_type()?;
                 let a = b.terms.fresh();
@@ -5976,211 +8448,165 @@ mod mathematical_signature {
                 let a = b.terms.fresh();
                 let next_body = b.unpack(S::Var(a), ResultKind::Next)?;
                 let next = lam(a, carrier.clone(), next_body);
-                Ok(IndexedFamily {
-                    levels: [
-                        Level::Constant(u32::from(!type_parameters.is_empty())),
-                        Level::Constant(u32::from(!type_parameters.is_empty())),
-                        Level::Constant(0),
-                    ],
-                    index: index.term(arena, &mut Vec::new())?,
-                    carrier: carrier.term(arena, &mut Vec::new())?,
-                    children: children.term(arena, &mut Vec::new())?,
-                    out: out.term(arena, &mut Vec::new())?,
-                    next: next.term(arena, &mut Vec::new())?,
+                let context = proof_admission::Context::with_level_arity(level_arity)
+                    .with_signature(proof_admission::Signature::from_declarations(
+                        declarations.to_vec(),
+                    ));
+                let mut index_level = Level::Constant(0);
+                let mut carrier_level = payload_level;
+                for (symbol, domain) in common {
+                    let level = result_sort_level_in(arena, &context, *domain)?;
+                    carrier_level = carrier_level.maximum(level.clone());
+                    if index_fields.contains(symbol) {
+                        index_level = index_level.maximum(level);
+                    }
+                }
+                let mut scope = external_parameters
+                    .iter()
+                    .copied()
+                    .map(Key::Source)
+                    .collect::<Vec<_>>();
+                Ok(SourceDescription {
+                    family: IndexedFamily {
+                        levels: [index_level, carrier_level, Level::Constant(0)],
+                        index: index.term(arena, &mut scope)?,
+                        carrier: carrier.term(arena, &mut scope)?,
+                        children: children.term(arena, &mut scope)?,
+                        out: out.term(arena, &mut scope)?,
+                        next: next.term(arena, &mut scope)?,
+                    },
+                    payload_lifts,
                 })
             }
 
+            /// Share a description under its declaration parameters. Type parameters
+            /// outside the W label stay ordinary Pi/Lambda parameters of all five fields.
+            /// Only the remaining true indices and stored payloads contribute to W levels.
             pub(super) fn intern_description(
                 arena: &mut TermArena,
                 declarations: &mut Vec<Declaration>,
                 mut family: IndexedFamily,
+                parameter_domains: &[TermHandle],
+                level_arity: u32,
             ) -> Result<IndexedFamily, &'static str> {
                 fn retain(
                     arena: &mut TermArena,
                     declarations: &mut Vec<Declaration>,
-                    ty: TermHandle,
-                    body: TermHandle,
-                ) -> TermHandle {
+                    mut ty: TermHandle,
+                    mut body: TermHandle,
+                    parameter_domains: &[TermHandle],
+                    level_arity: u32,
+                ) -> (TermHandle, TermHandle) {
+                    let parameter_count = parameter_domains.len();
+                    for &parameter_sort in parameter_domains.iter().rev() {
+                        body = arena.insert(Term::Lambda {
+                            domain: parameter_sort,
+                            body,
+                        });
+                        ty = arena.insert(Term::Pi {
+                            domain: parameter_sort,
+                            codomain: ty,
+                        });
+                    }
                     let declaration = declarations.len() as u32;
-                    declarations.push(Declaration::definition(0, ty, body));
-                    arena.insert(term!(Constant => declaration => vec![]))
+                    declarations.push(Declaration::definition(level_arity, ty, body));
+                    let constant = arena.insert(
+                        term!(Constant => declaration => (0..level_arity).map(Level::Parameter).collect()),
+                    );
+                    let mut applied = constant;
+                    for ordinal in 0..parameter_count {
+                        let argument =
+                            arena.insert(Term::Variable((parameter_count - ordinal - 1) as u32));
+                        applied = arena.insert(Term::Apply {
+                            function: applied,
+                            argument,
+                        });
+                    }
+                    (constant, applied)
                 }
                 let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
                 let index_sort = arena.insert(Term::Sort(Sort::Type(family.levels[0].clone())));
                 let carrier_sort = arena.insert(Term::Sort(Sort::Type(family.levels[1].clone())));
-                family.index = retain(arena, declarations, index_sort, family.index);
-                family.carrier = retain(arena, declarations, carrier_sort, family.carrier);
-                let ty = arena.insert(term!(Pi => family.carrier => sort));
-                family.children = retain(arena, declarations, ty, family.children);
-                let ty = arena.insert(term!(Pi => family.carrier => family.index));
-                family.out = retain(arena, declarations, ty, family.out);
+                let (index, applied_index) = retain(
+                    arena,
+                    declarations,
+                    index_sort,
+                    family.index,
+                    parameter_domains,
+                    level_arity,
+                );
+                let (carrier, applied_carrier) = retain(
+                    arena,
+                    declarations,
+                    carrier_sort,
+                    family.carrier,
+                    parameter_domains,
+                    level_arity,
+                );
+                let ty = arena.insert(term!(Pi => applied_carrier => sort));
+                let (children, applied_children) = retain(
+                    arena,
+                    declarations,
+                    ty,
+                    family.children,
+                    parameter_domains,
+                    level_arity,
+                );
+                let index_under_label = shift(arena, applied_index, 0, 1);
+                let ty = arena.insert(term!(Pi => applied_carrier => index_under_label));
+                let (out, _) = retain(
+                    arena,
+                    declarations,
+                    ty,
+                    family.out,
+                    parameter_domains,
+                    level_arity,
+                );
                 let a = arena.insert(Term::Variable(0));
-                let domain = arena.insert(term!(Apply => family.children => a));
-                let codomain = arena.insert(term!(Pi => domain => family.index));
-                let ty = arena.insert(term!(Pi => family.carrier => codomain));
-                family.next = retain(arena, declarations, ty, family.next);
+                let children_under_label = shift(arena, applied_children, 0, 1);
+                let domain = arena.insert(term!(Apply => children_under_label => a));
+                let index_under_position = shift(arena, applied_index, 0, 2);
+                let codomain = arena.insert(term!(Pi => domain => index_under_position));
+                let ty = arena.insert(term!(Pi => applied_carrier => codomain));
+                let (next, _) = retain(
+                    arena,
+                    declarations,
+                    ty,
+                    family.next,
+                    parameter_domains,
+                    level_arity,
+                );
+                family.index = index;
+                family.carrier = carrier;
+                family.children = children;
+                family.out = out;
+                family.next = next;
                 Ok(family)
             }
 
-            pub(super) fn abstract_parameters(
+            pub(super) fn apply_description(
                 arena: &mut TermArena,
-                proof: TermHandle,
-                ty: TermHandle,
-                parameters: &[(u32, SymbolHandle, TermHandle)],
-            ) -> Result<(TermHandle, TermHandle), &'static str> {
-                fn go(
+                template: &IndexedFamily,
+                parameters: &[TermHandle],
+            ) -> IndexedFamily {
+                fn apply(
                     arena: &mut TermArena,
-                    term: TermHandle,
-                    parameters: &[(u32, SymbolHandle, TermHandle)],
-                    depth: u32,
-                ) -> Result<TermHandle, &'static str> {
-                    macro_rules! at {
-                        ($value:expr) => {
-                            go(arena, $value, parameters, depth)?
-                        };
+                    mut function: TermHandle,
+                    parameters: &[TermHandle],
+                ) -> TermHandle {
+                    for &argument in parameters {
+                        function = arena.insert(Term::Apply { function, argument });
                     }
-                    macro_rules! under {
-                        ($value:expr) => {
-                            go(arena, $value, parameters, depth + 1)?
-                        };
-                    }
-                    let node = match arena.get(term) {
-                        Term::Constant {
-                            declaration,
-                            levels,
-                        } => {
-                            if let Some(ordinal) = parameters
-                                .iter()
-                                .position(|(position, _, _)| *position == declaration)
-                            {
-                                if !levels.is_empty() {
-                                    return Err(
-                                        "source value placeholder acquired universe arguments",
-                                    );
-                                }
-                                Term::Variable(depth + (parameters.len() - ordinal - 1) as u32)
-                            } else {
-                                return Ok(term);
-                            }
-                        }
-                        Term::Variable(index) => {
-                            if index >= depth {
-                                return Err(
-                                    "source case proof contains an unbound value before abstraction",
-                                );
-                            }
-                            return Ok(term);
-                        }
-                        Term::Pi { domain, codomain } => {
-                            term!(Pi => at!(domain) => under!(codomain))
-                        }
-                        Term::Lambda { domain, body } => {
-                            term!(Lambda => at!(domain) => under!(body))
-                        }
-                        Term::Sigma { domain, codomain } => {
-                            term!(Sigma => at!(domain) => under!(codomain))
-                        }
-                        Term::Apply { function, argument } => {
-                            term!(Apply => at!(function) => at!(argument))
-                        }
-                        Term::Pair { first, second } => term!(Pair => at!(first) => at!(second)),
-                        Term::Fst { pair } => Term::Fst { pair: at!(pair) },
-                        Term::Snd { pair } => Term::Snd { pair: at!(pair) },
-                        Term::Id { ty, left, right } => Term::Id {
-                            ty: at!(ty),
-                            left: at!(left),
-                            right: at!(right),
-                        },
-                        Term::Refl { ty, value } => term!(Refl => at!(ty) => at!(value)),
-                        Term::IdElim {
-                            motive,
-                            base,
-                            endpoint,
-                            proof,
-                        } => Term::IdElim {
-                            motive: at!(motive),
-                            base: at!(base),
-                            endpoint: at!(endpoint),
-                            proof: at!(proof),
-                        },
-                        Term::CaseTwo {
-                            motive,
-                            zero_branch,
-                            one_branch,
-                            scrutinee,
-                        } => Term::CaseTwo {
-                            motive: at!(motive),
-                            zero_branch: at!(zero_branch),
-                            one_branch: at!(one_branch),
-                            scrutinee: at!(scrutinee),
-                        },
-                        Term::Box { ty } => Term::Box { ty: at!(ty) },
-                        Term::BoxIntro { ty, value } => Term::BoxIntro {
-                            ty: at!(ty),
-                            value: at!(value),
-                        },
-                        Term::BoxElim {
-                            motive,
-                            body,
-                            scrutinee,
-                        } => Term::BoxElim {
-                            motive: at!(motive),
-                            body: at!(body),
-                            scrutinee: at!(scrutinee),
-                        },
-                        Term::EmptyElim { ty, scrutinee } => Term::EmptyElim {
-                            ty: at!(ty),
-                            scrutinee: at!(scrutinee),
-                        },
-                        Term::W { carrier, children } => Term::W {
-                            carrier: at!(carrier),
-                            children: at!(children),
-                        },
-                        Term::Sup {
-                            carrier,
-                            children,
-                            label,
-                            function,
-                        } => Term::Sup {
-                            carrier: at!(carrier),
-                            children: at!(children),
-                            label: at!(label),
-                            function: at!(function),
-                        },
-                        Term::IndW { motive, step, tree } => Term::IndW {
-                            motive: at!(motive),
-                            step: at!(step),
-                            tree: at!(tree),
-                        },
-                        Term::Squash { ty } => Term::Squash { ty: at!(ty) },
-                        Term::SquashIntro { ty, value } => Term::SquashIntro {
-                            ty: at!(ty),
-                            value: at!(value),
-                        },
-                        Term::SquashElim {
-                            proposition,
-                            function,
-                            scrutinee,
-                        } => Term::SquashElim {
-                            proposition: at!(proposition),
-                            function: at!(function),
-                            scrutinee: at!(scrutinee),
-                        },
-                        Term::Dummy => return Err("source case proof contains a dummy term"),
-                        Term::Sort(_) | Term::Two | Term::TwoZero | Term::TwoOne | Term::Empty => {
-                            return Ok(term);
-                        }
-                    };
-                    Ok(arena.insert(node))
+                    function
                 }
-                let mut body = go(arena, proof, parameters, 0)?;
-                let mut statement = go(arena, ty, parameters, 0)?;
-                for (ordinal, &(_, _, domain)) in parameters.iter().enumerate().rev() {
-                    let domain = go(arena, domain, &parameters[..ordinal], 0)?;
-                    body = arena.insert(Term::Lambda { domain, body });
-                    statement = arena.insert(term!(Pi => domain => statement));
+                IndexedFamily {
+                    levels: template.levels.clone(),
+                    index: apply(arena, template.index, parameters),
+                    carrier: apply(arena, template.carrier, parameters),
+                    children: apply(arena, template.children, parameters),
+                    out: apply(arena, template.out, parameters),
+                    next: apply(arena, template.next, parameters),
                 }
-                Ok((body, statement))
             }
 
             struct InductionBuilder<'a, 'b> {
@@ -6260,7 +8686,7 @@ mod mathematical_signature {
                     for (symbol, _) in self.b.common {
                         body = app(body, S::Var(Key::Source(*symbol)));
                     }
-                    let mut predicate = payload.clone();
+                    let mut predicate = self.b.unlift_payload(payload.clone());
                     for _ in &self.b.cases[case].payload {
                         body = app(body, fst(predicate.clone()));
                         predicate = snd(predicate);
@@ -6284,7 +8710,7 @@ mod mathematical_signature {
                     }
                     let tag = self.b.terms.fresh();
                     let payload = self.b.terms.fresh();
-                    let tm = self.b.terms.type_motive();
+                    let tm = self.b.terms.type_motive_at(self.b.payload_level.clone());
                     let zero_type = self.b.payload_type(start);
                     let one_type = self.b.sum_type(start + 1);
                     let payload_type = choose(tm, zero_type.clone(), one_type.clone(), S::Var(tag));
@@ -6356,12 +8782,17 @@ mod mathematical_signature {
                 declarations: &mut Vec<Declaration>,
                 family: &IndexedFamily,
                 invariant: TermHandle,
+                result_level: Level,
             ) -> TermHandle {
-                let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+                let sort = arena.insert(Term::Sort(Sort::Type(result_level)));
                 let ty = arena.insert(term!(Pi => family.index => sort));
                 let declaration = declarations.len() as u32;
-                declarations.push(Declaration::definition(0, ty, invariant));
-                arena.insert(term!(Constant => declaration => vec![]))
+                declarations.push(Declaration::definition(
+                    proof_admission::universe_parameter_arity(arena, &[ty, invariant]),
+                    ty,
+                    invariant,
+                ));
+                arena.insert(term!(Constant => declaration => (0..declarations[declaration as usize].level_arity).map(Level::Parameter).collect()))
             }
 
             pub(super) fn constant_invariant_theorem(
@@ -6392,10 +8823,19 @@ mod mathematical_signature {
                 lemmas: &[TermHandle],
                 declarations: &mut Vec<Declaration>,
                 type_parameters: &[SymbolHandle],
-            ) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), &'static str>
-            {
+                external_actuals: &[(SymbolHandle, TermHandle)],
+                payload_lifts: &[TermHandle],
+            ) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), String> {
+                let level_arity = proof_admission::universe_parameter_arity(
+                    arena,
+                    &[family.index, family.carrier, invariant],
+                );
+                let payload_level = payload_sort_level(arena, declarations, cases, level_arity)?;
+                let result_level = result_sort_level(arena, declarations, invariant, level_arity)?;
                 if cases.len() != lemmas.len() {
-                    return Err("source induction lemma roster differs from its exact cases");
+                    return Err(
+                        "source induction lemma roster differs from its exact cases".to_owned()
+                    );
                 }
                 fn retain(
                     arena: &mut TermArena,
@@ -6404,8 +8844,12 @@ mod mathematical_signature {
                     body: TermHandle,
                 ) -> TermHandle {
                     let declaration = declarations.len() as u32;
-                    declarations.push(Declaration::definition(0, ty, body));
-                    arena.insert(term!(Constant => declaration => vec![]))
+                    declarations.push(Declaration::definition(
+                        proof_admission::universe_parameter_arity(arena, &[ty, body]),
+                        ty,
+                        body,
+                    ));
+                    arena.insert(term!(Constant => declaration => (0..declarations[declaration as usize].level_arity).map(Level::Parameter).collect()))
                 }
                 let w_sort = arena.insert(Term::Sort(Sort::Type(
                     family
@@ -6427,6 +8871,9 @@ mod mathematical_signature {
                     index_fields,
                     cases,
                     type_parameters,
+                    external_actuals,
+                    payload_level: payload_level.clone(),
+                    payload_lifts,
                 };
                 let tail = builder.terms.fresh();
                 let sum_type = builder.sum_type(0);
@@ -6460,7 +8907,7 @@ mod mathematical_signature {
                 let goal = shift(arena, goal, 0, 1);
                 let result = arena.insert(term!(Pi => hypotheses => goal));
                 let result = arena.insert(term!(Lambda => family.carrier => result));
-                let proposition_sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+                let proposition_sort = arena.insert(Term::Sort(Sort::Type(result_level.clone())));
                 let result_type = arena.insert(term!(Pi => family.carrier => proposition_sort));
                 let logical_result = retain(arena, declarations, result_type, result);
                 let mut producer = InductionBuilder {
@@ -6470,6 +8917,9 @@ mod mathematical_signature {
                         index_fields,
                         cases,
                         type_parameters,
+                        external_actuals,
+                        payload_level,
+                        payload_lifts,
                     },
                     family,
                     iw,
@@ -6505,14 +8955,18 @@ mod mathematical_signature {
                 let step_type =
                     pi(a, S::Closed(family.carrier), result_type).term(arena, &mut Vec::new())?;
                 let declaration = declarations.len() as u32;
-                declarations.push(Declaration::definition(0, step_type, step_body));
-                let step = arena.insert(term!(Constant => declaration => vec![]));
+                declarations.push(Declaration::definition(
+                    proof_admission::universe_parameter_arity(arena, &[step_type, step_body]),
+                    step_type,
+                    step_body,
+                ));
+                let step = arena.insert(term!(Constant => declaration => (0..declarations[declaration as usize].level_arity).map(Level::Parameter).collect()));
                 let i = arena.insert(Term::Variable(1));
                 let proposition = arena.insert(term!(Apply => invariant => i));
                 let motive_body = arena.insert(term!(Lambda => iw_body => proposition));
                 let motive = arena.insert(term!(Lambda => family.index => motive_body));
                 let tree = arena.insert(Term::Variable(0));
-                let body = family.ind(arena, Level::Constant(0), motive, step, i, tree);
+                let body = family.ind(arena, result_level, motive, step, i, tree);
                 let body = arena.insert(term!(Lambda => iw_body => body));
                 let theorem = arena.insert(term!(Lambda => family.index => body));
                 let result = arena.insert(term!(Pi => iw_body => proposition));
@@ -6525,6 +8979,289 @@ mod mathematical_signature {
                 use super::*;
                 use proof_admission::{Budget, Context, DEFAULT_CONVERSION_STEPS, Signature};
                 use proof_admission::{check_signature, check_type, indexed_scheme, infer_type};
+
+                #[test]
+                fn explicit_payload_lift_preserves_its_value_at_the_required_universe() {
+                    let mut arena = TermArena::new();
+                    let higher = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+                    let two = arena.insert(Term::Two);
+                    let zero = arena.insert(Term::TwoZero);
+                    let mut terms = SourceTerms::default();
+                    let (unit, witness) = terms.level_unit(S::Closed(higher));
+                    let unit = unit.term(&mut arena, &mut Vec::new()).unwrap();
+                    let witness = witness.term(&mut arena, &mut Vec::new()).unwrap();
+                    let context = Context::with_level_arity(1);
+                    check_type(&mut arena, &context, witness, unit, &mut Budget::default())
+                        .unwrap();
+                    // Every boxed inhabitant contracts to the canonical witness. The
+                    // eliminator enters the strict proof binder, where irrelevance makes
+                    // its boxed value agree with the canonical proof; no Box eta axiom is
+                    // needed to prove this relevant identity.
+                    let Term::Box { ty: proposition } = arena.get(unit) else {
+                        unreachable!()
+                    };
+                    let boxed = arena.insert(Term::Variable(0));
+                    let conclusion = arena.insert(Term::Id {
+                        ty: unit,
+                        left: witness,
+                        right: boxed,
+                    });
+                    let motive = arena.insert(Term::Lambda {
+                        domain: unit,
+                        body: conclusion,
+                    });
+                    let proof = arena.insert(Term::Variable(0));
+                    let boxed_proof = arena.insert(Term::BoxIntro {
+                        ty: proposition,
+                        value: proof,
+                    });
+                    let reflexive = arena.insert(Term::Refl {
+                        ty: unit,
+                        value: boxed_proof,
+                    });
+                    let branch = arena.insert(Term::Lambda {
+                        domain: proposition,
+                        body: reflexive,
+                    });
+                    let contraction = arena.insert(Term::BoxElim {
+                        motive,
+                        body: branch,
+                        scrutinee: boxed,
+                    });
+                    check_type(
+                        &mut arena,
+                        &context.extend(unit),
+                        contraction,
+                        conclusion,
+                        &mut Budget::default(),
+                    )
+                    .unwrap();
+
+                    let unit_sort = arena.insert(Term::Sort(Sort::Type(
+                        Level::Parameter(0).successor().unwrap(),
+                    )));
+                    check_type(
+                        &mut arena,
+                        &context,
+                        unit,
+                        unit_sort,
+                        &mut Budget::default(),
+                    )
+                    .unwrap();
+                    assert!(
+                        check_type(&mut arena, &context, unit, higher, &mut Budget::default())
+                            .is_err()
+                    );
+                    let lifted = lift_payload(&mut arena, &[higher], zero).unwrap();
+                    let expected = arena.insert(Term::Sigma {
+                        domain: unit,
+                        codomain: two,
+                    });
+                    check_type(
+                        &mut arena,
+                        &context,
+                        lifted,
+                        expected,
+                        &mut Budget::default(),
+                    )
+                    .unwrap();
+                    let recovered = arena.insert(Term::Snd { pair: lifted });
+                    assert!(
+                        proof_admission::convertible(
+                            &mut arena,
+                            &context,
+                            recovered,
+                            zero,
+                            two,
+                            &mut Budget::default()
+                        )
+                        .unwrap()
+                    );
+                    // No implicit resizing: this lifted value is not an ordinary Two.
+                    assert!(
+                        check_type(&mut arena, &context, lifted, two, &mut Budget::default())
+                            .is_err()
+                    );
+                    assert!(
+                        check_type(
+                            &mut arena,
+                            &Context::empty(),
+                            witness,
+                            unit,
+                            &mut Budget::default()
+                        )
+                        .is_err()
+                    );
+                }
+
+                #[test]
+                fn shared_high_universe_constraint_is_lifted_without_assuming_its_truth() {
+                    let mut arena = TermArena::new();
+                    let mut declarations = indexed_scheme(&mut arena);
+                    let a_symbol = SymbolHandle::from_arena_index(71);
+                    let x_symbol = SymbolHandle::from_arena_index(72);
+                    let y_symbol = SymbolHandle::from_arena_index(73);
+                    let a = Key::Source(a_symbol);
+                    let x = Key::Source(x_symbol);
+                    let y = Key::Source(y_symbol);
+                    let sort = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+                    let field = lam(a, S::Closed(sort), S::Var(a))
+                        .term(&mut arena, &mut Vec::new())
+                        .unwrap();
+                    let mut terms = SourceTerms::default();
+                    let unit = terms.unit().term(&mut arena, &mut Vec::new()).unwrap();
+                    let unit_value = terms
+                        .unit_value()
+                        .term(&mut arena, &mut Vec::new())
+                        .unwrap();
+                    let high = S::Identity(
+                        Box::new(S::Var(a)),
+                        Box::new(S::Var(x)),
+                        Box::new(S::Var(y)),
+                    );
+                    let close = |body: S| {
+                        lam(
+                            a,
+                            S::Closed(sort),
+                            lam(x, S::Var(a), lam(y, S::Var(a), body)),
+                        )
+                    };
+                    let high = close(high).term(&mut arena, &mut Vec::new()).unwrap();
+                    let low = close(S::Closed(unit))
+                        .term(&mut arena, &mut Vec::new())
+                        .unwrap();
+                    let cases = [
+                        Case {
+                            payload: Vec::new(),
+                            constraints: high,
+                            child_indices: Vec::new(),
+                        },
+                        Case {
+                            payload: Vec::new(),
+                            constraints: low,
+                            child_indices: Vec::new(),
+                        },
+                    ];
+                    let described = description(
+                        &mut arena,
+                        &[(x_symbol, field), (y_symbol, field)],
+                        &[],
+                        &cases,
+                        &[a_symbol],
+                        &[a_symbol],
+                        &mut declarations,
+                        &[sort],
+                        1,
+                    )
+                    .unwrap();
+                    assert_eq!(described.payload_lifts.len(), 1);
+                    let family = intern_description(
+                        &mut arena,
+                        &mut declarations,
+                        described.family,
+                        &[sort],
+                        1,
+                    )
+                    .unwrap();
+                    let signature =
+                        check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
+                    let two = arena.insert(Term::Two);
+                    let zero = arena.insert(Term::TwoZero);
+                    let one = arena.insert(Term::TwoOne);
+                    let mut carrier = proof_admission::instantiate_levels(
+                        &mut arena,
+                        family.carrier,
+                        &[Level::Constant(0)],
+                    )
+                    .unwrap();
+                    carrier = arena.insert(Term::Apply {
+                        function: carrier,
+                        argument: two,
+                    });
+                    let mut lift_domains = Vec::new();
+                    for function in described.payload_lifts {
+                        let mut domain = proof_admission::instantiate_levels(
+                            &mut arena,
+                            function,
+                            &[Level::Constant(0)],
+                        )
+                        .unwrap();
+                        for argument in [two, zero, one] {
+                            domain = arena.insert(Term::Apply {
+                                function: domain,
+                                argument,
+                            });
+                        }
+                        lift_domains.push(domain);
+                    }
+                    let lifted = lift_payload(&mut arena, &lift_domains, unit_value).unwrap();
+                    let mut label = arena.insert(Term::Pair {
+                        first: one,
+                        second: lifted,
+                    });
+                    label = arena.insert(Term::Pair {
+                        first: one,
+                        second: label,
+                    });
+                    label = arena.insert(Term::Pair {
+                        first: zero,
+                        second: label,
+                    });
+                    check_type(
+                        &mut arena,
+                        &Context::empty().with_signature(signature.clone()),
+                        label,
+                        carrier,
+                        &mut Budget::default(),
+                    )
+                    .unwrap();
+                    // The other branch's Id Two zero one is uninhabited. Its lift needs
+                    // only the TYPE, and cannot turn the low branch into that proof.
+                    assert!(
+                        check_type(
+                            &mut arena,
+                            &Context::empty().with_signature(signature),
+                            unit_value,
+                            lift_domains[0],
+                            &mut Budget::default()
+                        )
+                        .is_err()
+                    );
+
+                    // An unused high-universe argument is outside the represented sum.
+                    let phantom = lam(a, S::Closed(sort), S::Closed(unit))
+                        .term(&mut arena, &mut Vec::new())
+                        .unwrap();
+                    let phantom_cases = [
+                        Case {
+                            payload: Vec::new(),
+                            constraints: phantom,
+                            child_indices: Vec::new(),
+                        },
+                        Case {
+                            payload: Vec::new(),
+                            constraints: phantom,
+                            child_indices: Vec::new(),
+                        },
+                    ];
+                    let phantom_description = description(
+                        &mut arena,
+                        &[],
+                        &[],
+                        &phantom_cases,
+                        &[a_symbol],
+                        &[a_symbol],
+                        &mut declarations,
+                        &[sort],
+                        1,
+                    )
+                    .unwrap();
+                    assert!(phantom_description.payload_lifts.is_empty());
+                    assert_eq!(
+                        phantom_description.family.levels,
+                        [Level::Constant(0), Level::Constant(0), Level::Constant(0)]
+                    );
+                }
 
                 #[test]
                 fn constructor_abstraction_binds_dependent_child_and_premise_domains() {
@@ -6564,6 +9301,8 @@ mod mathematical_signature {
                     )
                     .unwrap();
 
+                    // The returned proof is parametric: changing the supplied child's
+                    // endpoint cannot establish a different receiving equality.
                     let zero = arena.insert(Term::TwoZero);
                     let one = arena.insert(Term::TwoOne);
                     let supplied = arena.insert(term!(Apply => proof => zero));
@@ -6581,6 +9320,229 @@ mod mathematical_signature {
                             supplied,
                             false_result,
                             &mut Budget::new(DEFAULT_CONVERSION_STEPS)
+                        )
+                        .is_err()
+                    );
+                }
+
+                #[test]
+                fn lifted_constructor_projection_and_induction_compute_at_a_generalized_level() {
+                    let mut arena = TermArena::new();
+                    let mut declarations = indexed_scheme(&mut arena);
+                    let sort = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
+                    let carrier_position = declarations.len() as u32;
+                    declarations.push(Declaration::assumption(1, sort));
+                    let carrier = arena.insert(Term::Constant {
+                        declaration: carrier_position,
+                        levels: vec![Level::Parameter(0)],
+                    });
+                    let two = arena.insert(Term::Two);
+                    let zero = arena.insert(Term::TwoZero);
+                    let one = arena.insert(Term::TwoOne);
+                    let mut terms = SourceTerms::default();
+                    let unit = terms.unit().term(&mut arena, &mut Vec::new()).unwrap();
+                    let unit_value = terms
+                        .unit_value()
+                        .term(&mut arena, &mut Vec::new())
+                        .unwrap();
+                    let fields = [81, 82].map(SymbolHandle::from_arena_index);
+                    let cases = [(fields[0], carrier), (fields[1], two)]
+                        .into_iter()
+                        .map(|(field, domain)| Case {
+                            payload: vec![(field, domain)],
+                            constraints: lam(
+                                Key::Source(field),
+                                S::Closed(domain),
+                                S::Closed(unit),
+                            )
+                            .term(&mut arena, &mut Vec::new())
+                            .unwrap(),
+                            child_indices: vec![],
+                        })
+                        .collect::<Vec<_>>();
+                    let described = description(
+                        &mut arena,
+                        &[],
+                        &[],
+                        &cases,
+                        &[],
+                        &[],
+                        &mut declarations,
+                        &[],
+                        1,
+                    )
+                    .unwrap();
+                    assert_eq!(described.payload_lifts.len(), 1);
+                    assert_eq!(described.family.levels[1].parameter_arity(), 1);
+                    let family =
+                        intern_description(&mut arena, &mut declarations, described.family, &[], 1)
+                            .unwrap();
+
+                    // Build the low branch in the same high-level descriptor. The extra
+                    // component is generated from the retained plan, without an A value.
+                    let payload = arena.insert(Term::Pair {
+                        first: one,
+                        second: unit_value,
+                    });
+                    let payload =
+                        lift_payload(&mut arena, &described.payload_lifts, payload).unwrap();
+                    let label = arena.insert(Term::Pair {
+                        first: one,
+                        second: payload,
+                    });
+                    let projected = arena.insert(Term::Snd { pair: label });
+                    let projected = arena.insert(Term::Snd { pair: projected });
+                    let projected = arena.insert(Term::Fst { pair: projected });
+                    let children = constructor_children(&mut arena, &family, label, &[]).unwrap();
+                    let constructor = family.sup(&mut arena, label, children);
+                    let index = arena.insert(Term::Apply {
+                        function: family.out,
+                        argument: label,
+                    });
+                    let constructor_type = family.indexed_w(&mut arena, index);
+
+                    // The result itself lives at the generalized level. Returning the
+                    // low branch's actual field makes dropping the padding incorrectly
+                    // observable in the derived computation, rather than just formation.
+                    let (result_unit, result_witness) = terms.level_unit(S::Closed(carrier));
+                    let result_unit = result_unit.term(&mut arena, &mut Vec::new()).unwrap();
+                    let result_witness = result_witness.term(&mut arena, &mut Vec::new()).unwrap();
+                    let result_type = arena.insert(Term::Sigma {
+                        domain: result_unit,
+                        codomain: two,
+                    });
+                    let invariant = arena.insert(Term::Lambda {
+                        domain: family.index,
+                        body: result_type,
+                    });
+                    let invariant = intern_invariant(
+                        &mut arena,
+                        &mut declarations,
+                        &family,
+                        invariant,
+                        Level::Parameter(0),
+                    );
+                    let mut lemmas = Vec::new();
+                    for (ordinal, case) in cases.iter().enumerate() {
+                        let (field, domain) = case.payload[0];
+                        let value = if ordinal == 0 {
+                            S::Closed(zero)
+                        } else {
+                            S::Var(Key::Source(field))
+                        };
+                        let predicate = terms.fresh();
+                        let body = lam(
+                            Key::Source(field),
+                            S::Closed(domain),
+                            lam(
+                                predicate,
+                                S::Closed(unit),
+                                pair(S::Closed(result_witness), value),
+                            ),
+                        )
+                        .term(&mut arena, &mut Vec::new())
+                        .unwrap();
+                        let context = Context::with_level_arity(1)
+                            .with_signature(Signature::from_declarations(declarations.clone()));
+                        let ty =
+                            infer_type(&mut arena, &context, body, &mut Budget::default()).unwrap();
+                        let declaration = declarations.len() as u32;
+                        declarations.push(Declaration::definition(1, ty, body));
+                        lemmas.push(arena.insert(Term::Constant {
+                            declaration,
+                            levels: vec![Level::Parameter(0)],
+                        }));
+                    }
+                    let (theorem, theorem_type, step, step_type) = induction(
+                        &mut arena,
+                        &family,
+                        &[],
+                        &[],
+                        &cases,
+                        invariant,
+                        &lemmas,
+                        &mut declarations,
+                        &[],
+                        &[],
+                        &described.payload_lifts,
+                    )
+                    .unwrap();
+                    let signature =
+                        check_signature(&mut arena, &declarations, &mut Budget::default()).unwrap();
+                    let context = Context::with_level_arity(1).with_signature(signature.clone());
+                    for (term, ty) in [
+                        (family.carrier, sort),
+                        (label, family.carrier),
+                        (constructor, constructor_type),
+                        (step, step_type),
+                        (theorem, theorem_type),
+                    ] {
+                        check_type(&mut arena, &context, term, ty, &mut Budget::default()).unwrap();
+                    }
+                    assert!(
+                        proof_admission::convertible(
+                            &mut arena,
+                            &context,
+                            projected,
+                            one,
+                            two,
+                            &mut Budget::default()
+                        )
+                        .unwrap()
+                    );
+                    let at_index = arena.insert(Term::Apply {
+                        function: theorem,
+                        argument: index,
+                    });
+                    let computed = arena.insert(Term::Apply {
+                        function: at_index,
+                        argument: constructor,
+                    });
+                    let expected = arena.insert(Term::Pair {
+                        first: result_witness,
+                        second: one,
+                    });
+                    let wrong_result = arena.insert(Term::Pair {
+                        first: result_witness,
+                        second: zero,
+                    });
+                    check_type(
+                        &mut arena,
+                        &context,
+                        computed,
+                        result_type,
+                        &mut Budget::default(),
+                    )
+                    .unwrap();
+                    assert!(
+                        proof_admission::convertible(
+                            &mut arena,
+                            &context,
+                            computed,
+                            expected,
+                            result_type,
+                            &mut Budget::default()
+                        )
+                        .unwrap()
+                    );
+                    assert!(
+                        !proof_admission::convertible(
+                            &mut arena,
+                            &context,
+                            computed,
+                            wrong_result,
+                            result_type,
+                            &mut Budget::default()
+                        )
+                        .unwrap()
+                    );
+                    assert!(
+                        check_type(
+                            &mut arena,
+                            &Context::empty().with_signature(signature),
+                            theorem,
+                            theorem_type,
+                            &mut Budget::default(),
                         )
                         .is_err()
                     );
@@ -6668,9 +9630,21 @@ mod mathematical_signature {
                             child_indices: vec![child_index; count],
                         })
                         .collect::<Vec<_>>();
+                    let family = description(
+                        &mut arena,
+                        &[(field, two)],
+                        &[field],
+                        &cases,
+                        &[],
+                        &[],
+                        &mut declarations,
+                        &[],
+                        0,
+                    )
+                    .unwrap()
+                    .family;
                     let family =
-                        description(&mut arena, &[(field, two)], &[field], &cases, &[]).unwrap();
-                    let family = intern_description(&mut arena, &mut declarations, family).unwrap();
+                        intern_description(&mut arena, &mut declarations, family, &[], 0).unwrap();
                     let index = arena.insert(Term::Variable(0));
                     let reflexive = arena.insert(Term::Id {
                         ty: two,
@@ -6678,8 +9652,13 @@ mod mathematical_signature {
                         right: index,
                     });
                     let invariant = arena.insert(term!(Lambda => two => reflexive));
-                    let invariant =
-                        intern_invariant(&mut arena, &mut declarations, &family, invariant);
+                    let invariant = intern_invariant(
+                        &mut arena,
+                        &mut declarations,
+                        &family,
+                        invariant,
+                        Level::Constant(0),
+                    );
                     let mut lemmas = Vec::new();
                     for case in &cases {
                         let constant =
@@ -6719,6 +9698,8 @@ mod mathematical_signature {
                         &lemmas,
                         &mut declarations,
                         &[],
+                        &[],
+                        &[],
                     )
                     .unwrap();
                     let context = Context::empty()
@@ -6757,91 +9738,9 @@ mod mathematical_signature {
                 }
             }
 
-            pub(super) fn excludes_parameters(
-                arena: &TermArena,
-                declarations: &[Declaration],
-                roots: &[TermHandle],
-                parameters: &[(u32, SymbolHandle, TermHandle)],
-            ) -> bool {
-                let mut pending = roots.to_vec();
-                let mut seen_terms = std::collections::HashSet::new();
-                let mut seen_declarations = std::collections::HashSet::new();
-                while let Some(term) = pending.pop() {
-                    if !seen_terms.insert(term) {
-                        continue;
-                    }
-                    match arena.get(term) {
-                        Term::Constant { declaration, .. } => {
-                            if parameters
-                                .iter()
-                                .any(|(position, _, _)| *position == declaration)
-                            {
-                                return false;
-                            }
-                            if seen_declarations.insert(declaration) {
-                                let Some(declaration) = declarations.get(declaration as usize)
-                                else {
-                                    return false;
-                                };
-                                pending.push(declaration.ty);
-                                pending.extend(declaration.body);
-                            }
-                        }
-                        Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {
-                            pending.extend([domain, codomain])
-                        }
-                        Term::Lambda { domain, body } => pending.extend([domain, body]),
-                        Term::Apply { function, argument } => pending.extend([function, argument]),
-                        Term::Pair { first, second } => pending.extend([first, second]),
-                        Term::Fst { pair } | Term::Snd { pair } => pending.push(pair),
-                        Term::CaseTwo {
-                            motive,
-                            zero_branch,
-                            one_branch,
-                            scrutinee,
-                        } => pending.extend([motive, zero_branch, one_branch, scrutinee]),
-                        Term::Id { ty, left, right } => pending.extend([ty, left, right]),
-                        Term::Refl { ty, value }
-                        | Term::SquashIntro { ty, value }
-                        | Term::BoxIntro { ty, value } => pending.extend([ty, value]),
-                        Term::IdElim {
-                            motive,
-                            base,
-                            endpoint,
-                            proof,
-                        } => pending.extend([motive, base, endpoint, proof]),
-                        Term::W { carrier, children } => pending.extend([carrier, children]),
-                        Term::Sup {
-                            carrier,
-                            children,
-                            label,
-                            function,
-                        } => pending.extend([carrier, children, label, function]),
-                        Term::IndW { motive, step, tree } => pending.extend([motive, step, tree]),
-                        Term::EmptyElim { ty, scrutinee } => pending.extend([ty, scrutinee]),
-                        Term::Squash { ty } | Term::Box { ty } => pending.push(ty),
-                        Term::SquashElim {
-                            proposition,
-                            function,
-                            scrutinee,
-                        } => pending.extend([proposition, function, scrutinee]),
-                        Term::BoxElim {
-                            motive,
-                            body,
-                            scrutinee,
-                        } => pending.extend([motive, body, scrutinee]),
-                        Term::Dummy => return false,
-                        Term::Variable(_)
-                        | Term::Sort(_)
-                        | Term::Two
-                        | Term::TwoZero
-                        | Term::TwoOne
-                        | Term::Empty => {}
-                    }
-                }
-                true
-            }
-
+            /// Check actual dependency closure rather than the ambient signature roster:
+            /// a temporary value assumption may remain stored, but no theorem declaration
+            /// or type can reach it through a transparent definition or another constant.
             #[cfg(test)]
             mod indexed_vector_budget_tests {
                 use super::*;
@@ -6910,6 +9809,8 @@ mod mathematical_signature {
                     let compact = close(arena, kernel, count, body);
                     let context = Context::empty()
                         .with_signature(Signature::from_declarations(declarations.to_vec()));
+                    // For child-index functions the result is I rather than Type0;
+                    // conversion is still typed at the independently inferred Pi below.
                     let inferred = infer_type(
                         arena,
                         &context,
@@ -6967,6 +9868,10 @@ mod mathematical_signature {
                     arena.insert(term!(Constant => declaration => vec![]))
                 }
 
+                /// Exact structural/arithmetic obligation of the frozen source vector:
+                /// indices (Length,Total), Cons payload (previous,previous_total,head),
+                /// complete constructor constraints, and the one child induction premise.
+                /// Source declaration correspondence is separately exercised by the CLI.
                 #[test]
                 fn indexed_vector_integer_pair_step_and_theorem_fit_admission_budget() {
                     vector_budget(false);
@@ -7023,6 +9928,9 @@ mod mathematical_signature {
                             )
                             .unwrap()
                         );
+                        // Independently selected fixed integer embedding has this
+                        // denotation; the raw identity is retained above only to
+                        // check the representation change by kernel conversion.
                         value
                     };
                     let add = constant(&mut arena, vocabulary.add);
@@ -7104,10 +10012,25 @@ mod mathematical_signature {
                             child_indices: vec![child_index],
                         },
                     ];
+                    // The internal W uses the fixed primitive carrier; exact authored
+                    // alias domains remain in the constraint/invariant functions above.
                     let common = [(length_symbol, integer), (total_symbol, integer)];
                     let indices = [length_symbol, total_symbol];
-                    let family = description(&mut arena, &common, &indices, &cases, &[]).unwrap();
-                    let family = intern_description(&mut arena, &mut declarations, family).unwrap();
+                    let family = description(
+                        &mut arena,
+                        &common,
+                        &indices,
+                        &cases,
+                        &[],
+                        &[],
+                        &mut declarations,
+                        &[],
+                        0,
+                    )
+                    .unwrap()
+                    .family;
+                    let family =
+                        intern_description(&mut arena, &mut declarations, family, &[], 0).unwrap();
                     let i = arena.insert(Term::Variable(0));
                     let length = arena.insert(Term::Fst { pair: i });
                     let total = arena.insert(Term::Snd { pair: i });
@@ -7127,6 +10050,9 @@ mod mathematical_signature {
                         let authored = close(&mut arena, scalar, 2, goal);
                         let applied = apply(&mut arena, authored, length);
                         let raw_goal = apply(&mut arena, applied, total);
+                        // Reduce only the binder/application scaffolding just built by
+                        // the source invariant producer. No authored source function or
+                        // predicate declaration is normalized or discarded.
                         let Term::Lambda { body, .. } = arena.get(authored) else {
                             unreachable!()
                         };
@@ -7155,8 +10081,13 @@ mod mathematical_signature {
                         goal
                     };
                     let invariant = arena.insert(term!(Lambda => family.index => goal));
-                    let invariant =
-                        intern_invariant(&mut arena, &mut declarations, &family, invariant);
+                    let invariant = intern_invariant(
+                        &mut arena,
+                        &mut declarations,
+                        &family,
+                        invariant,
+                        Level::Constant(0),
+                    );
                     let mut lemmas = Vec::new();
                     for (ordinal, case) in cases.iter().enumerate() {
                         let fields = common
@@ -7233,6 +10164,8 @@ mod mathematical_signature {
                         &lemmas,
                         &mut declarations,
                         &[],
+                        &[],
+                        &[],
                     )
                     .unwrap();
                     checked(&mut arena, &declarations, step, step_type, "step");
@@ -7244,6 +10177,8 @@ mod mathematical_signature {
                         DEFAULT_CONVERSION_STEPS - budget.remaining()
                     );
                     result.unwrap();
+                    // Closed source specializations use direct arithmetic evidence instead
+                    // of replaying the generic induction step for every generated clone.
                     let eighty = theory
                         .literal(&mut arena, &mut declarations, BigInt::from_i128(80))
                         .unwrap();
@@ -7360,7 +10295,13 @@ mod mathematical_signature {
                     MathematicalType::Application { callee, .. } => mathematical(program, *callee),
                 }
             }
-            !erased_family_demands(program).is_empty()
+            program.expression_table.iter_expressions().any(|(_, node)| {
+                matches!(node, typed_trees::expression::ExpressionNode::Call(call)
+                    if validation::mathematical_applications::is_mathematical_call(program, call)
+                        && call.machine_arguments.iter().any(|argument|
+                            argument.type_reference.is_valid() && reference(program, argument.type_reference)))
+            })
+                || !erased_family_demands(program).is_empty()
                 || program.mathematical_definitions().iter().any(|definition| {
                     mathematical(program, definition.result)
                         || program
@@ -7382,11 +10323,8 @@ mod mathematical_signature {
                 || validation::mathematical_applications::expression_nodes(program)
                     .iter()
                     .any(|expression| {
-                        validation::mathematical_applications::operand_type_reference(
-                            program,
-                            *expression,
-                        )
-                        .is_some_and(|handle| reference(program, handle))
+                        validation::mathematical_applications::operand_type_reference(program, *expression)
+                            .is_some_and(|handle| reference(program, handle))
                     })
         }
 
@@ -7614,9 +10552,14 @@ mod mathematical_signature {
             pub declaration: u32,
             pub symbol: SymbolHandle,
             pub parameters: Vec<TypeParameter>,
+            pub type_levels: Vec<Level>,
+            /// Shared complete-payload product over Type parameters and common values.
+            pub payload_lifts: Vec<TermHandle>,
             pub common: Vec<DataField>,
             pub cases: Vec<SourceCase>,
-            pub description: IndexedFamily,
+            description_template: IndexedFamily,
+            pub external_parameter_indices: Vec<usize>,
+            pub index_parameter_indices: Vec<usize>,
             pub checked_inductions: Vec<induction::CheckedSourceInduction>,
         }
         #[derive(Clone)]
@@ -7629,7 +10572,90 @@ mod mathematical_signature {
             pub child_indices: Vec<TermHandle>,
         }
 
+        impl SourceFamily {
+            pub(super) fn at_levels(
+                &self,
+                arena: &mut proof_admission::TermArena,
+                levels: &[Level],
+            ) -> Result<Self, &'static str> {
+                if levels.len() != self.type_levels.len() {
+                    return Err("source description lost its exact universe telescope");
+                }
+                let mut result = self.clone();
+                result.type_levels = levels.to_vec();
+                let instantiate = |arena: &mut proof_admission::TermArena, term| {
+                    proof_admission::instantiate_levels(arena, term, levels)
+                        .map_err(|_| "source description has an unbound universe parameter")
+                };
+                result.description_template = IndexedFamily {
+                    levels: [
+                        self.description_template.levels[0]
+                            .instantiate(levels)
+                            .map_err(|_| "source index universe is unbound")?,
+                        self.description_template.levels[1]
+                            .instantiate(levels)
+                            .map_err(|_| "source label universe is unbound")?,
+                        self.description_template.levels[2]
+                            .instantiate(levels)
+                            .map_err(|_| "source position universe is unbound")?,
+                    ],
+                    index: instantiate(arena, self.description_template.index)?,
+                    carrier: instantiate(arena, self.description_template.carrier)?,
+                    children: instantiate(arena, self.description_template.children)?,
+                    out: instantiate(arena, self.description_template.out)?,
+                    next: instantiate(arena, self.description_template.next)?,
+                };
+                for domain in &mut result.payload_lifts {
+                    *domain = instantiate(arena, *domain)?;
+                }
+                for case in &mut result.cases {
+                    case.constraints = instantiate(arena, case.constraints)?;
+                    for child in &mut case.child_indices {
+                        *child = instantiate(arena, *child)?;
+                    }
+                }
+                Ok(result)
+            }
+            pub(super) fn description_at(
+                &self,
+                arena: &mut proof_admission::TermArena,
+                actuals: &[TermHandle],
+            ) -> Result<IndexedFamily, &'static str> {
+                if actuals.len() != self.parameters.len() {
+                    return Err("source description lost its exact parameter telescope");
+                }
+                let parameters = self
+                    .external_parameter_indices
+                    .iter()
+                    .map(|&position| actuals[position])
+                    .collect::<Vec<_>>();
+                Ok(terms::apply_description(
+                    arena,
+                    &self.description_template,
+                    &parameters,
+                ))
+            }
+            pub(super) fn index_actuals(&self, actuals: &[TermHandle]) -> Vec<TermHandle> {
+                self.index_parameter_indices
+                    .iter()
+                    .map(|&position| actuals[position])
+                    .collect()
+            }
+        }
+
         impl Elaborator<'_> {
+            pub(super) fn applied_source_family(
+                &mut self,
+                family: &SourceFamily,
+                actuals: &[TermHandle],
+            ) -> Result<SourceFamily, Vec<Diagnostic>> {
+                let levels = self.family_actual_levels(&family.parameters, actuals)?;
+                family
+                    .at_levels(&mut self.arena, &levels)
+                    .map_err(|reason| self.refuse(reason.into()))
+            }
+            /// Seed source evidence demanded without any mathematical declaration or
+            /// application. Each model still passes the same exact declaration/W checks.
             pub(super) fn demand_source_family_declarations(
                 &mut self,
             ) -> Result<(), Vec<Diagnostic>> {
@@ -7655,9 +10681,18 @@ mod mathematical_signature {
                         self.refuse("source indexed application changed its index arity".into())
                     );
                 }
-                let mut term = self.constant(family.declaration);
-                for (parameter, argument) in family.parameters.iter().zip(arguments) {
-                    let operand = self.index_operand(*argument, parameter, &[])?;
+                let actuals = family
+                    .parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, argument)| self.index_operand(*argument, parameter, &[]))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let levels = self.family_actual_levels(&family.parameters, &actuals)?;
+                let mut term = self.arena.insert(Term::Constant {
+                    declaration: family.declaration,
+                    levels,
+                });
+                for operand in actuals {
                     term = self.arena.insert(Term::Apply {
                         function: term,
                         argument: operand,
@@ -7710,7 +10745,9 @@ mod mathematical_signature {
                 self.source_owner = symbol;
                 self.span = self.program.symbols.symbol_source_span(symbol);
                 self.indexed_family_stack.push(symbol);
+                let saved_levels = self.enter_family_levels(&parameters);
                 let result = self.build_source_family(&data, parameters);
+                self.restore_source_levels(saved_levels);
                 self.indexed_family_stack.pop();
                 self.scope = saved_scope;
                 self.source_owner = saved_owner;
@@ -7732,6 +10769,11 @@ mod mathematical_signature {
                 data: &DataDefinition,
                 parameters: Vec<TypeParameter>,
             ) -> Result<SourceFamily, Vec<Diagnostic>> {
+                let type_levels = parameters
+                    .iter()
+                    .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                    .map(|parameter| self.source_type_level(parameter.symbol))
+                    .collect::<Vec<_>>();
                 let mut common = Vec::new();
                 let mut common_children = Vec::new();
                 let mut variants = Vec::new();
@@ -7750,6 +10792,57 @@ mod mathematical_signature {
                         DataMember::Variant(case) => variants.push(case),
                     }
                 }
+                let mut uniform = parameters
+                    .iter()
+                    .map(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                    .collect::<Vec<_>>();
+                for field in common_children.iter().chain(
+                    variants
+                        .iter()
+                        .flat_map(|case| self.program.data_payload_fields(case)),
+                ) {
+                    if let Some(arguments) = self.direct_child(data.symbol, field.type_reference)? {
+                        if arguments.len() != parameters.len() {
+                            return Err(self.refuse(
+                                "source recursive child changed the family telescope".into(),
+                            ));
+                        }
+                        for (ordinal, (argument, parameter)) in
+                            arguments.iter().zip(&parameters).enumerate()
+                        {
+                            uniform[ordinal] &= matches!(self.program.type_reference_table.type_reference(*argument), TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol);
+                        }
+                    }
+                }
+                if parameters.iter().enumerate().any(|(position, parameter)| {
+                    matches!(parameter.kind, TypeParameterKind::Type) && !uniform[position]
+                }) {
+                    // A changing Type child remains the existing fully indexed family.
+                    // Do not erase its index or impose a new source uniformity rule.
+                    uniform.fill(false);
+                }
+                let external_parameter_indices = uniform
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, uniform)| uniform.then_some(position))
+                    .collect::<Vec<_>>();
+                let index_parameter_indices = parameters
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, parameter)| {
+                        (matches!(parameter.kind, TypeParameterKind::Type) && !uniform[position])
+                            .then_some(position)
+                    })
+                    .chain(
+                        parameters
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(position, parameter)| {
+                                matches!(parameter.kind, TypeParameterKind::Value { .. })
+                                    .then_some(position)
+                            }),
+                    )
+                    .collect::<Vec<_>>();
                 let index_fields = self
                     .program
                     .data_value_parameter_fields(data)
@@ -7806,7 +10899,7 @@ mod mathematical_signature {
                         self.push_scope(Some(field.symbol), field.name.clone(), domain);
                         payload_types.push((
                             field.symbol,
-                            self.source_field_function(&field, &parameters)?,
+                            self.source_field_function(&field, &parameters, &type_levels)?,
                         ));
                         payload.push(field);
                     }
@@ -7829,9 +10922,9 @@ mod mathematical_signature {
                     for fact in self.program.proof_facts.span_or_empty(case_facts) {
                         let Some(expression) = fact.as_expression().copied() else {
                             return Err(self.refuse(
-                        "source indexed constraint has no relevant proposition denotation yet"
-                            .into(),
-                    ));
+                                "source indexed constraint has no relevant proposition denotation yet"
+                                    .into(),
+                            ));
                         };
                         predicate_expressions.push(expression);
                     }
@@ -7840,8 +10933,9 @@ mod mathematical_signature {
                         let proposition =
                             self.elaborate_proposition(expression)?.ok_or_else(|| {
                                 self.refuse(
-                        "source indexed constraint has no checked proposition denotation".into(),
-                    )
+                                "source indexed constraint has no checked proposition denotation"
+                                    .into(),
+                            )
                             })?;
                         propositions.push(proposition);
                     }
@@ -7874,10 +10968,10 @@ mod mathematical_signature {
                             ));
                         }
                         let mut indices = Vec::new();
-                        for (argument, parameter) in arguments.iter().zip(&parameters) {
+                        for &position in &index_parameter_indices {
                             indices.push(self.index_operand(
-                                *argument,
-                                parameter,
+                                arguments[position],
+                                &parameters[position],
                                 &index_fields,
                             )?);
                         }
@@ -7902,7 +10996,7 @@ mod mathematical_signature {
                 let mut common_pairs = common
                     .iter()
                     .map(|field| {
-                        self.source_field_function(field, &parameters)
+                        self.source_field_function(field, &parameters, &type_levels)
                             .map(|ty| (field.symbol, ty))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -7911,50 +11005,108 @@ mod mathematical_signature {
                     .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
                     .map(|parameter| parameter.symbol)
                     .collect::<Vec<_>>();
-                let type_sort = self
-                    .arena
-                    .insert(Term::Sort(Sort::Type(Level::Constant(0))));
-                common_pairs.splice(0..0, type_symbols.iter().map(|symbol| (*symbol, type_sort)));
+                let external_symbols = external_parameter_indices
+                    .iter()
+                    .map(|&position| parameters[position].symbol)
+                    .collect::<Vec<_>>();
+                let stored_types = type_symbols
+                    .iter()
+                    .copied()
+                    .filter(|symbol| !external_symbols.contains(symbol))
+                    .collect::<Vec<_>>();
+                let stored_domains = stored_types
+                    .iter()
+                    .map(|symbol| {
+                        let ordinal = type_symbols
+                            .iter()
+                            .position(|bound| bound == symbol)
+                            .expect("retained Type binder");
+                        (
+                            *symbol,
+                            self.arena
+                                .insert(Term::Sort(Sort::Type(type_levels[ordinal].clone()))),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                common_pairs.splice(0..0, stored_domains);
                 let mut index_symbols = index_fields
                     .iter()
                     .map(|(_, field)| *field)
                     .collect::<Vec<_>>();
-                index_symbols.splice(0..0, type_symbols.iter().copied());
+                index_symbols.splice(0..0, stored_types.iter().copied());
+                let external_domains = external_parameter_indices
+                    .iter()
+                    .map(|&position| {
+                        let ordinal = type_symbols
+                            .iter()
+                            .position(|symbol| *symbol == parameters[position].symbol)
+                            .expect("external Type parameter");
+                        self.arena
+                            .insert(Term::Sort(Sort::Type(type_levels[ordinal].clone())))
+                    })
+                    .collect::<Vec<_>>();
+                let type_domains = type_levels
+                    .iter()
+                    .cloned()
+                    .map(|level| self.arena.insert(Term::Sort(Sort::Type(level))))
+                    .collect::<Vec<_>>();
                 let description = terms::description(
                     &mut self.arena,
                     &common_pairs,
                     &index_symbols,
                     &schemes,
                     &type_symbols,
+                    &external_symbols,
+                    &mut self.declarations,
+                    &type_domains,
+                    type_levels.len() as u32,
+                )
+                .map_err(|error| self.refuse(error))?;
+                let payload_lifts = description.payload_lifts;
+                let description = terms::intern_description(
+                    &mut self.arena,
+                    &mut self.declarations,
+                    description.family,
+                    &external_domains,
+                    type_levels.len() as u32,
                 )
                 .map_err(|error| self.refuse(error.into()))?;
-                let description =
-                    terms::intern_description(&mut self.arena, &mut self.declarations, description)
-                        .map_err(|error| self.refuse(error.into()))?;
+                self.scope.clear();
                 let mut domains = Vec::new();
                 for parameter in &parameters {
                     let domain = match parameter.kind {
-                        TypeParameterKind::Type => type_sort,
+                        TypeParameterKind::Type => {
+                            let level = self.source_type_level(parameter.symbol);
+                            self.arena.insert(Term::Sort(Sort::Type(level)))
+                        }
                         TypeParameterKind::Value { type_reference } => {
                             self.elaborate_type_reference(type_reference)?
                         }
                         _ => unreachable!(),
                     };
+                    self.push_scope(Some(parameter.symbol), parameter.name.clone(), domain);
                     domains.push(domain);
                 }
-                let indices = (0..parameters.len())
-                    .map(|ordinal| {
-                        self.arena
-                            .insert(Term::Variable((parameters.len() - 1 - ordinal) as u32))
-                    })
+                let actuals = (0..parameters.len())
+                    .map(|ordinal| self.scope_variable(ordinal))
+                    .collect::<Vec<_>>();
+                let external_actuals = external_parameter_indices
+                    .iter()
+                    .map(|&position| actuals[position])
+                    .collect::<Vec<_>>();
+                let applied =
+                    terms::apply_description(&mut self.arena, &description, &external_actuals);
+                let indices = index_parameter_indices
+                    .iter()
+                    .map(|&position| actuals[position])
                     .collect();
                 let index = self.index_tuple(indices)?;
-                let mut body = description.indexed_w(&mut self.arena, index);
+                let mut body = applied.indexed_w(&mut self.arena, index);
                 let mut ty = self.arena.insert(Term::Sort(Sort::Type(
-                    description.levels[0]
+                    applied.levels[0]
                         .clone()
-                        .maximum(description.levels[1].clone())
-                        .maximum(description.levels[2].clone()),
+                        .maximum(applied.levels[1].clone())
+                        .maximum(applied.levels[2].clone()),
                 )));
                 for domain in domains.into_iter().rev() {
                     body = self.arena.insert(Term::Lambda { domain, body });
@@ -7965,7 +11117,7 @@ mod mathematical_signature {
                 }
                 let declaration = self.declarations.len() as u32;
                 self.declarations.push(Declaration {
-                    level_arity: 0,
+                    level_arity: type_levels.len() as u32,
                     ty,
                     body: Some(body),
                 });
@@ -7974,9 +11126,13 @@ mod mathematical_signature {
                     declaration,
                     symbol: data.symbol,
                     parameters,
+                    type_levels,
+                    payload_lifts,
                     common,
                     cases: source_cases,
-                    description,
+                    description_template: description,
+                    external_parameter_indices,
+                    index_parameter_indices,
                     checked_inductions: Vec::new(),
                 })
             }
@@ -8008,9 +11164,9 @@ mod mathematical_signature {
                         if self.contains_family(owner, reference, &mut Vec::new(), &mut Vec::new())
                         {
                             return Err(self.refuse(
-                        "nested or mutual source-family recursion has no checked encoding yet"
-                            .into(),
-                    ));
+                                "nested or mutual source-family recursion has no checked encoding yet"
+                                    .into(),
+                            ));
                         }
                         Ok(None)
                     }
@@ -8033,13 +11189,26 @@ mod mathematical_signature {
                 )
             }
             pub(super) fn push_family_type_scope(&mut self, parameters: &[TypeParameter]) {
-                for parameter in parameters
+                let levels = parameters
                     .iter()
                     .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                    .map(|parameter| self.source_type_level(parameter.symbol))
+                    .collect::<Vec<_>>();
+                self.push_family_type_scope_at(parameters, &levels);
+            }
+
+            pub(super) fn push_family_type_scope_at(
+                &mut self,
+                parameters: &[TypeParameter],
+                levels: &[Level],
+            ) {
+                for (parameter, level) in parameters
+                    .iter()
+                    .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                    .zip(levels)
                 {
-                    let domain = self
-                        .arena
-                        .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+                    let level = level.clone();
+                    let domain = self.arena.insert(Term::Sort(Sort::Type(level)));
                     self.push_scope(Some(parameter.symbol), parameter.name.clone(), domain);
                 }
             }
@@ -8048,9 +11217,10 @@ mod mathematical_signature {
                 &mut self,
                 field: &DataField,
                 parameters: &[TypeParameter],
+                levels: &[Level],
             ) -> Result<TermHandle, Vec<Diagnostic>> {
                 let saved = std::mem::take(&mut self.scope);
-                self.push_family_type_scope(parameters);
+                self.push_family_type_scope_at(parameters, levels);
                 let result = self
                     .kernel_field_domain(field)
                     .map(|body| self.close_family_telescope(body));
@@ -8064,8 +11234,10 @@ mod mathematical_signature {
             ) -> Result<TermHandle, Vec<Diagnostic>> {
                 let domain = self.elaborate_type_reference(field.type_reference)?;
                 let context = self.scope.iter().fold(
-                    Context::empty()
-                        .with_signature(Signature::from_declarations(self.declarations.clone())),
+                    proof_admission::Context::with_level_arity(
+                        self.level_binders.len() as u32 + self.generalized_levels,
+                    )
+                    .with_signature(Signature::from_declarations(self.declarations.clone())),
                     |context, entry| context.extend(entry.domain),
                 );
                 let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
@@ -8124,7 +11296,17 @@ mod mathematical_signature {
                 mut indices: Vec<TermHandle>,
             ) -> Result<TermHandle, Vec<Diagnostic>> {
                 let Some(mut tuple) = indices.pop() else {
-                    return Err(self.refuse("indexed family has no index tuple".into()));
+                    let empty = self.arena.insert(Term::Empty);
+                    let domain = self.arena.insert(Term::Pi {
+                        domain: empty,
+                        codomain: empty,
+                    });
+                    let variable = self.arena.insert(Term::Variable(0));
+                    let value = self.arena.insert(Term::Lambda {
+                        domain: empty,
+                        body: variable,
+                    });
+                    return Ok(self.arena.insert(Term::BoxIntro { ty: domain, value }));
                 };
                 for index in indices.into_iter().rev() {
                     tuple = self.arena.insert(Term::Pair {
@@ -8163,7 +11345,10 @@ mod mathematical_signature {
                         let expected = self.elaborate_type_reference(carrier)?;
                         let signature = Signature::from_declarations(self.declarations.clone());
                         let context = self.scope.iter().fold(
-                            Context::empty().with_signature(signature.clone()),
+                            Context::with_level_arity(
+                                self.level_binders.len() as u32 + self.generalized_levels,
+                            )
+                            .with_signature(signature.clone()),
                             |context, entry| context.extend(entry.domain),
                         );
                         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
@@ -8242,6 +11427,102 @@ mod mathematical_signature {
                         "source index operand is not a bound value or closed scalar".into(),
                     )),
                 }
+            }
+        }
+    }
+    mod source_levels {
+        /*
+        Source types keep one universe per binder, including when a data description
+        is prepared inside another declaration. A family template has its own level
+        telescope; applying it substitutes the actual type levels before any field,
+        constructor or theorem consumes the description.
+        */
+
+        use super::{Elaborator, Level, Term, TermHandle};
+        use symbols::SymbolHandle;
+        use typed_trees::{
+            data::{TypeParameter, TypeParameterKind},
+            name::Identifier,
+        };
+
+        pub(super) struct SourceLevelScope {
+            binders: Vec<SymbolHandle>,
+            names: Vec<Identifier>,
+            generalized: u32,
+            types: Vec<(SymbolHandle, Level)>,
+        }
+
+        impl Elaborator<'_> {
+            pub(super) fn enter_family_levels(
+                &mut self,
+                parameters: &[TypeParameter],
+            ) -> SourceLevelScope {
+                let saved = SourceLevelScope {
+                    binders: std::mem::take(&mut self.level_binders),
+                    names: std::mem::take(&mut self.level_names),
+                    generalized: std::mem::take(&mut self.generalized_levels),
+                    types: std::mem::take(&mut self.source_type_levels),
+                };
+                for parameter in parameters
+                    .iter()
+                    .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                {
+                    self.source_type_level(parameter.symbol);
+                }
+                saved
+            }
+
+            pub(super) fn restore_source_levels(&mut self, saved: SourceLevelScope) {
+                self.level_binders = saved.binders;
+                self.level_names = saved.names;
+                self.generalized_levels = saved.generalized;
+                self.source_type_levels = saved.types;
+            }
+
+            pub(super) fn family_actual_levels(
+                &mut self,
+                parameters: &[TypeParameter],
+                actuals: &[TermHandle],
+            ) -> Result<Vec<Level>, Vec<diagnostics::Diagnostic>> {
+                if parameters.len() != actuals.len() {
+                    return Err(
+                        self.refuse("source family lost its exact level/type telescope".into())
+                    );
+                }
+                let context = self.instantiation_context();
+                let mut levels = Vec::new();
+                for (parameter, actual) in parameters.iter().zip(actuals) {
+                    if matches!(parameter.kind, TypeParameterKind::Type) {
+                        let sort = proof_admission::infer_sort(
+                            &mut self.arena,
+                            &context,
+                            *actual,
+                            &mut proof_admission::Budget::new(
+                                proof_admission::DEFAULT_CONVERSION_STEPS,
+                            ),
+                        )
+                        .map_err(|error| {
+                            self.refuse(format!(
+                                "source family type argument fails universe formation: {error:?}"
+                            ))
+                        })?;
+                        let proof_admission::Sort::Type(level) = sort else {
+                            return Err(self.refuse(
+                                "source family Type argument belongs to the strict layer".into(),
+                            ));
+                        };
+                        levels.push(level);
+                    }
+                }
+                Ok(levels)
+            }
+
+            pub(super) fn quantified_constant(&mut self, position: u32) -> TermHandle {
+                let arity = self.declarations[position as usize].level_arity;
+                self.arena.insert(Term::Constant {
+                    declaration: position,
+                    levels: (0..arity).map(Level::Parameter).collect(),
+                })
             }
         }
     }
@@ -8427,7 +11708,7 @@ mod mathematical_signature {
     }
 
     use crate::typed_expressions::expression_table;
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::{BTreeMap, HashMap, HashSet};
 
     use numerics::bignum::BigInt;
     use validation::mathematical_applications::{
@@ -8481,7 +11762,17 @@ mod mathematical_signature {
         program: &'a dyn ::validation::CheckingInput,
         arena: TermArena,
         declarations: Vec<Declaration>,
+        /// Canonical content types are opaque algebra values, never the source
+        /// literal former's start/end record representation.
+        source_content: Option<proof_admission::SourceContentTheory>,
+        /// Carrier symbol -> signature position (a `Type 0` assumption).
         carriers: HashMap<SymbolHandle, u32>,
+        /// Region-only nominal types retain their exact scoped lifetime identity.
+        region_carriers: HashMap<typed_trees::type_identity::NormalizedTypeIdentity, u32>,
+        /// `Int : Type 0` — the shared mathematical-integer carrier every
+        /// fixed-width integer carrier denotes into: `i8`–`u64`, `Int` and
+        /// `UInt` all name it, exactly as the bounded denotation's scalar
+        /// terms embed.
         integer: Option<u32>,
         boolean: Option<u32>,
         address: Option<u32>,
@@ -8504,11 +11795,16 @@ mod mathematical_signature {
         level_binders: Vec<SymbolHandle>,
         level_names: Vec<Identifier>,
         generalized_levels: u32,
+        /// Ordinary source binders reuse one inferred universe in this telescope.
+        source_type_levels: Vec<(SymbolHandle, Level)>,
+        /// Term scope for the declaration under elaboration: ordered
+        /// telescope entries plus in-flight arrow binders.
         scope: Vec<ScopeEntry>,
         fixed_core: FixedCoreVocabulary,
         address_bound: Option<u32>,
         span: Option<SourceSpan>,
         source_owner: SymbolHandle,
+        source_owners: std::sync::OnceLock<validation::expression_owners::OwnerEnvironmentIndex>,
         captured_expressions: Vec<(ExpressionHandle, usize)>,
         source_family_values: HashMap<ExpressionHandle, TermHandle>,
         source_constructor_context: source_families::SourceConstructorContext,
@@ -8520,6 +11816,12 @@ mod mathematical_signature {
         integer_theory: Option<proof_admission::SourceIntegerTheory>,
         integer_multiply: Option<u32>,
         prepared: PreparedMathematicalApplications,
+        identity_declaration: Option<u32>,
+        type_returning_declarations: Vec<SymbolHandle>,
+        identity_emissions: Vec<identity::IdentityEmission>,
+        identity_applications: Vec<identity::IdentityApplication>,
+        result_identity_requirements: identity::IdentityRequirements,
+        identity_requirements_by_owner: Vec<identity::IdentityRequirements>,
     }
 
     pub(crate) fn check_mathematical_signature(
@@ -8536,7 +11838,9 @@ mod mathematical_signature {
             program,
             arena,
             declarations,
+            source_content: None,
             carriers: HashMap::new(),
+            region_carriers: HashMap::new(),
             integer: None,
             boolean: None,
             address: None,
@@ -8563,11 +11867,13 @@ mod mathematical_signature {
             level_binders: Vec::new(),
             level_names: Vec::new(),
             generalized_levels: 0,
+            source_type_levels: Vec::new(),
             scope: Vec::new(),
             fixed_core: FixedCoreVocabulary::resolve(&program.symbols),
             address_bound: None,
             span: None,
             source_owner: SymbolHandle::default(),
+            source_owners: std::sync::OnceLock::new(),
             captured_expressions: Vec::new(),
             source_family_values: HashMap::new(),
             source_constructor_context: source_families::SourceConstructorContext::default(),
@@ -8579,6 +11885,15 @@ mod mathematical_signature {
             integer_theory: None,
             integer_multiply: None,
             prepared: PreparedMathematicalApplications::default(),
+            identity_declaration: None,
+            type_returning_declarations: Vec::new(),
+            identity_emissions: Vec::new(),
+            identity_applications: Vec::new(),
+            result_identity_requirements: identity::IdentityRequirements::default(),
+            identity_requirements_by_owner: vec![
+                identity::IdentityRequirements::default();
+                program.symbols.symbols().len()
+            ],
         };
         if needs_scheme {
             let theory = proof_admission::SourceIntegerTheory::new(
@@ -8615,6 +11930,7 @@ mod mathematical_signature {
             self.level_binders.clear();
             self.level_names.clear();
             self.generalized_levels = 0;
+            self.source_type_levels.clear();
             self.scope.clear();
 
             let binders = self
@@ -8651,6 +11967,9 @@ mod mathematical_signature {
 
             let result = self.elaborate_mathematical_type(definition.result)?;
             let strict_result = matches!(self.arena.get(result), Term::Sort(Sort::Strict(_)));
+            if matches!(self.arena.get(result), Term::Sort(_)) {
+                self.type_returning_declarations.push(definition.symbol);
+            }
             let mut ty = result;
             for entry in self.scope.iter().rev() {
                 ty = self.arena.insert(Term::Pi {
@@ -8662,6 +11981,10 @@ mod mathematical_signature {
                 MathematicalBody::Assumption => None,
                 MathematicalBody::Definition(term) => {
                     let mut body = self.elaborate_body(*term, strict_result)?;
+                    let mut requirements = std::mem::take(&mut self.result_identity_requirements);
+                    requirements.owner = definition.symbol;
+                    self.identity_requirements_by_owner[definition.symbol.arena_index() as usize] =
+                        requirements;
                     self.retain_source_result(*term, result, body, strict_result)?;
                     for entry in self.scope.iter().rev() {
                         body = self.arena.insert(Term::Lambda {
@@ -8764,6 +12087,21 @@ mod mathematical_signature {
             &mut self,
             handle: ExpressionHandle,
         ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+            self.result_identity_requirements = identity::IdentityRequirements::default();
+            let term = self.elaborate_expression_term(handle)?;
+            if !matches!(
+                self.program.expression_table.expression(handle),
+                ExpressionNode::Name(..) | ExpressionNode::Call(..) | ExpressionNode::Binary(..)
+            ) {
+                self.result_identity_requirements = identity::IdentityRequirements::default();
+            }
+            Ok(term)
+        }
+
+        fn elaborate_expression_term(
+            &mut self,
+            handle: ExpressionHandle,
+        ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
             if let Some(term) = self.source_family_values.get(&handle) {
                 return Ok(*term);
             }
@@ -8782,7 +12120,9 @@ mod mathematical_signature {
                         .to_vec();
                     if symbol.is_valid() {
                         let name = members.last().cloned().unwrap_or_default();
-                        return self.named_term(symbol, &name);
+                        let term = self.named_term(symbol, &name)?;
+                        self.transport_identity_value(symbol, &[], &[], term, &[], &[])?;
+                        return Ok(term);
                     }
                     match members.as_slice() {
                         [name] => {
@@ -8798,6 +12138,10 @@ mod mathematical_signature {
                 }
                 ExpressionNode::Call(call) => {
                     let call = call.clone();
+                    if validation::mathematical_applications::is_identity_call(self.program, &call)
+                    {
+                        return self.elaborate_identity(handle, &call);
+                    }
                     let target_symbol = validation::call_target_symbol(self.program, &call);
                     if target_symbol.is_valid()
                         && !self.authored_index.contains_key(&target_symbol)
@@ -8838,7 +12182,7 @@ mod mathematical_signature {
                     }
                     let target = call.target.clone();
                     let static_arguments = call.machine_arguments.clone();
-                    let callee =
+                    let (callee, static_inputs) =
                         self.elaborate_callee(handle, target_symbol, &target, &static_arguments)?;
                     let mut inputs = Vec::new();
                     let mut prefix = callee;
@@ -8853,6 +12197,7 @@ mod mathematical_signature {
                         });
                         inputs.push(input);
                     }
+                    self.transport_identity_requirements(&call, callee, &static_inputs, &inputs)?;
                     Ok(self.apply_source_inputs(handle, callee, inputs))
                 }
                 ExpressionNode::Integer(literal) => {
@@ -8955,7 +12300,8 @@ mod mathematical_signature {
             self.check_source_domains(&signature)?;
             for (_, carrier) in self.prepared.source_carriers.iter() {
                 let context = carrier.domains.iter().copied().fold(
-                    Context::empty().with_signature(signature.clone()),
+                    Context::with_level_arity(carrier.level_arity)
+                        .with_signature(signature.clone()),
                     |context, domain| context.extend(domain),
                 );
                 infer_sort(
@@ -8970,14 +12316,36 @@ mod mathematical_signature {
                     ))
                 })?;
             }
-            for (expression, term, domains, captures) in applications {
-                let context = domains.into_iter().fold(
-                    Context::empty().with_signature(signature.clone()),
-                    |context, domain| context.extend(domain),
-                );
+            let retained_constants = self.retained_application_constants();
+            for application in applications {
+                let applications::SourceApplication {
+                    expression,
+                    owner,
+                    term,
+                    domains,
+                    captures,
+                    emissions,
+                    level_arity,
+                } = application;
+                let mut context =
+                    Context::with_level_arity(level_arity).with_signature(signature.clone());
+                for domain in &domains {
+                    infer_sort(
+                        &mut self.arena,
+                        &context,
+                        *domain,
+                        &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                    )
+                    .map_err(|error| {
+                        self.refuse(format!(
+                            "mathematical source subject fails formation: {error:?}"
+                        ))
+                    })?;
+                    context = context.extend(*domain);
+                }
                 let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-                proof_admission::infer_type(&mut self.arena, &context, term, &mut budget).map_err(
-                    |error| {
+                let ty = proof_admission::infer_type(&mut self.arena, &context, term, &mut budget)
+                    .map_err(|error| {
                         self.refuse(format!(
                             "mathematical application `{}` fails checking: {error:?}",
                             self.program.render_proof_expression(
@@ -8985,44 +12353,40 @@ mod mathematical_signature {
                                 typed_trees::proposition::ProofSubstitutions::None
                             )
                         ))
-                    },
-                )?;
+                    })?;
                 if captures.is_empty() {
-                    self.retain_checked_source_application(expression, term, &context, &signature)?;
+                    self.retain_checked_source_application(
+                        expression, owner, term, &context, &signature,
+                    )?;
                 }
-                let literals = &self.numeric_literals;
-                let embeddings = self
-                    .prepared
-                    .constants
-                    .iter()
-                    .filter_map(|(_, constant)| {
-                        matches!(
-                            constant.meaning,
-                            PreparedConstantMeaning::IntegerEmbedding { .. }
-                        )
-                        .then_some(constant.declaration)
-                    })
-                    .collect::<Vec<_>>();
                 let term = normalization::normalize(
                     &mut self.arena,
                     &signature,
                     term,
                     &mut budget,
-                    &|declaration| {
-                        literals.values().any(|position| *position == declaration)
-                            || embeddings.contains(&declaration)
-                    },
+                    &|declaration| retained_constants.contains(&declaration),
                 )
                 .map_err(|error| {
                     self.refuse(format!(
                         "mathematical application reduction failed: {error:?}"
                     ))
                 })?;
+                let identity_values = self.prepare_identity_values(
+                    &signature,
+                    &context,
+                    &retained_constants,
+                    &emissions,
+                )?;
                 let captures = self.prepared.captures.insert_many(captures);
                 self.prepared.applications.append(PreparedApplication {
+                    level_arity,
                     expression,
+                    owner,
                     term,
+                    ty,
+                    domains,
                     captures,
+                    identity_values,
                 });
             }
             self.retain_source_evidence_aliases()?;
@@ -9036,6 +12400,27 @@ mod mathematical_signature {
             })
         }
 
+        fn retained_application_constants(&self) -> HashSet<u32> {
+            self.numeric_literals
+                .values()
+                .copied()
+                .chain(self.prepared.constants.iter().filter_map(|(_, row)| {
+                    matches!(
+                        row.meaning,
+                        PreparedConstantMeaning::IntegerEmbedding { .. }
+                    )
+                    .then_some(row.declaration)
+                }))
+                .chain(self.identity_declaration)
+                .chain(self.source_aliases.iter().map(|alias| alias.declaration))
+                .chain(
+                    self.indexed_families
+                        .values()
+                        .map(|family| family.declaration),
+                )
+                .collect()
+        }
+
         fn retain_constant_meanings(&mut self) {
             let mut retain = |declaration, meaning| {
                 self.prepared.constants.append(PreparedConstant {
@@ -9043,6 +12428,9 @@ mod mathematical_signature {
                     meaning,
                 });
             };
+            if let Some(declaration) = self.identity_declaration {
+                retain(declaration, PreparedConstantMeaning::Identity);
+            }
             for ((_, value), position) in &self.numeric_literals {
                 retain(*position, PreparedConstantMeaning::Integer(value.clone()));
             }
@@ -9160,6 +12548,13 @@ mod mathematical_signature {
 
     pub(super) fn has_source_evidence_demand(program: &dyn validation::CheckingInput) -> bool {
         source_families::needs_scheme(program)
+            || program
+                .expression_table
+                .iter_expressions()
+                .any(|(_, node)| {
+                    matches!(node, ExpressionNode::Call(call)
+                    if validation::mathematical_applications::is_identity_call(program, call))
+                })
     }
 }
 

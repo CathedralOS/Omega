@@ -1726,6 +1726,8 @@ pub(crate) mod attached_unit {
                             };
                             let content = &self.checked.facts.qualifications.content;
                             let equation = content.body_conservations.get(derived.conservation);
+                            // Psi05 authenticates the source law and completed frame before
+                            // publishing Boundary custody. Lower its original formal positions.
                             let body_law = &content.conservation_plans[equation.plan_index];
                             let mut retained_requirements = Vec::new();
                             for requirement in content
@@ -1746,8 +1748,9 @@ pub(crate) mod attached_unit {
                                     .ok_or(LoweringError::Unsupported(
                                         "boundary body custody lost its retained public law",
                                     ))?;
-                                let lowered =
-                                    crate::proofs::content_conservation::lower_content_conservation_plan(source_law)?;
+                                let lowered = crate::proofs::content_conservation::lower_content_conservation_plan(
+                                    source_law,
+                                )?;
                                 let semantic_vocabulary::Proposition::ContentConservation(
                                     conservation,
                                 ) = lowered.proposition
@@ -1799,14 +1802,18 @@ pub(crate) mod attached_unit {
                                             .iter()
                                             .map(|segment| match segment {
                                                 language_semantics::content::ContentPlaceSegment::Field(field) => {
-                                                    semantic_vocabulary::ContentPlaceSegment::Field(field.name.clone())
+                                                    semantic_vocabulary::ContentPlaceSegment::Field(
+                                                        field.name.clone(),
+                                                    )
                                                 }
                                                 language_semantics::content::ContentPlaceSegment::Case(case) => {
-                                                    semantic_vocabulary::ContentPlaceSegment::Case(case.name.clone())
+                                                    semantic_vocabulary::ContentPlaceSegment::Case(
+                                                        case.name.clone(),
+                                                    )
                                                 }
-                                                language_semantics::content::ContentPlaceSegment::FixedIndex(index) => {
-                                                    semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index)
-                                                }
+                                                language_semantics::content::ContentPlaceSegment::FixedIndex(
+                                                    index,
+                                                ) => semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index),
                                             })
                                             .collect::<Vec<_>>();
                                         if source_segments != subject.segments

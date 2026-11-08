@@ -3242,6 +3242,22 @@ fn claim_outcomes_for_expression(
         };
     }
     let segments = &ownership.segments;
+    // The selection retains each arm's consumed frontier. Read that evidence
+    // before the joined home, whose provenance can hide distinct arm origins.
+    if ownership
+        .owned_selection_for_expression(state.symbol, statement_index as u32, expression)
+        .is_some()
+    {
+        return claim_outcomes_for_owned_selection(
+            program,
+            state,
+            statement_index,
+            expression,
+            ownership,
+            permission_events,
+            output_prefix,
+        );
+    }
     if !matches!(
         program.expression_table.expression(expression),
         typed_trees::expression::ExpressionNode::Call(_)
@@ -3413,15 +3429,6 @@ fn claim_outcomes_for_expression(
                 })
                 .collect()
         }
-        typed_trees::expression::ExpressionNode::Match(_) => claim_outcomes_for_owned_selection(
-            program,
-            state,
-            statement_index,
-            expression,
-            ownership,
-            permission_events,
-            output_prefix,
-        ),
         typed_trees::expression::ExpressionNode::Cast(cast)
             if validation::value_preserving_cast_operand(
                 program,
@@ -3468,8 +3475,9 @@ fn output_path_type(
     entry per frontier claim, landing at the claim's position below the moved
     leaf. A parameter source binds the caller's claim at its exact input path;
     a local source publishes the established identity the roster recorded. A
-    fresh per-edge product establishes its claim inside the selection, so its
-    origin is intentionally untracked.
+    computed owner has no named storage source, but its checked completion still
+    records each actual claim. Keep those origins too: omitting a fresh arm
+    could make another arm's input appear to be the common source.
 */
 fn claim_outcomes_for_owned_selection(
     program: &dyn ::validation::CheckingInput,
@@ -3480,21 +3488,16 @@ fn claim_outcomes_for_owned_selection(
     permission_events: &PermissionEvents<'_>,
     output_prefix: &[facts::PlaceSegment],
 ) -> Vec<CheckedClaimOutcomeEntry> {
-    let Some((_, receipt)) = ownership.owned_selection_at(state.symbol, statement_index as u32)
+    let Some((_, receipt)) =
+        ownership.owned_selection_for_expression(state.symbol, statement_index as u32, expression)
     else {
         return Vec::new();
     };
-    if receipt.expression != expression {
-        return Vec::new();
-    }
     let mut entries = Vec::new();
     for transfer in ownership
         .selection_transfers
         .span_or_empty(receipt.transfers)
     {
-        if !transfer.source.is_valid() {
-            continue;
-        }
         let leaf_path = ownership.segments.span_or_empty(transfer.path);
         for claim in ownership
             .selection_transfer_claims
@@ -3503,7 +3506,9 @@ fn claim_outcomes_for_owned_selection(
             if claim.claim_identity == PermissionClaimIdentity::Unknown
                 || claim.provenance == PermissionProvenance::Unknown
             {
-                continue;
+                // Every active arm participates in the common-origin judgment.
+                // An unresolved arm cannot disappear behind another arm's input.
+                return Vec::new();
             }
             let claim_path = ownership.segments.span_or_empty(claim.path);
             let Some(suffix) = claim_path.strip_prefix(leaf_path) else {

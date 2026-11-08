@@ -1,5 +1,5 @@
 // Expected exit: 0
-// Every actual arrival establishes the helper's required equality.
+// Every actual arrival establishes the helper's required identity.
 // The helper needs no handwritten duplicate of that inferred requirement.
 data Branch {
     case End;
@@ -7,7 +7,7 @@ data Branch {
 }
 
 machine same(left: Branch, right: Branch)
-requires left == right
+requires core::Identity<Branch>(left, right)
 {}
 
 machine visit(value: Branch) {

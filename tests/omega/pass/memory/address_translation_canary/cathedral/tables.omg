@@ -54,6 +54,14 @@ public data TableEntry [copy] {
     raw: u64;
 }
 
+// This page-table format stores address bits in exactly 64-bit slots. The
+// shared view uses ordinary layout admission: an address model with different
+// geometry cannot supply this codec, and no count/address width law follows.
+public machine TableEntry::address_bits(value: addr) -> u64 {
+    let bits: &u64 = &value as &u64;
+    bits
+}
+
 // The 9-bit slot index `depth` selects out of `virtual_base`. Levels count
 // root-first: depth 0 is the root table's field (bits 39..48), depth 3 the
 // leaf table's (bits 12..21). The shift `39 - 9 * depth` stays nonnegative

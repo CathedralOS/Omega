@@ -514,7 +514,9 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            133
+            // Explicit Id formation retains its checked mathematical signature
+            // and subject telescope independently of executable comparisons.
+            134
         }
     }
 }

@@ -625,6 +625,20 @@ mod content_transformations {
                 .conservation_plans
                 .get(equation.plan_index)
                 .ok_or("boundary custody law is absent")?;
+            let completed_law = content
+                .body_conservation_plans
+                .get(equation.body_plan_index)
+                .ok_or("boundary custody has no exact completed-body equation")?;
+            if completed_law.owner != equation.machine_symbol
+                || completed_law.callable != equation.state_symbol
+            {
+                return Err("boundary custody equation belongs to another completion frame");
+            }
+            // Transporting an equation does not make a terminal helper the declared
+            // provider implementation. Its caller's public authorization stays there.
+            if law.owner != completed_law.owner {
+                return Err("terminal content demands do not transfer boundary authorization");
+            }
             let sources = validation::content_conservation_plans(program);
             let body = sources
                 .iter()
@@ -1078,14 +1092,14 @@ mod content_transformations {
             {
                 return Err("derived transaction has more than one completion");
             }
-            if transaction.equations.iter().any(|derived| {
-                content
-                    .body_conservations
-                    .get(derived.conservation)
-                    .plan_index
-                    == equation.plan_index
-            }) {
-                continue;
+            let body_plan = content
+                .body_conservation_plans
+                .get(equation.body_plan_index)
+                .ok_or("derived transaction has no exact completed-body equation")?;
+            if body_plan.owner != equation.machine_symbol
+                || body_plan.callable != equation.state_symbol
+            {
+                return Err("derived equation does not retain its exact completion frame");
             }
             let available = content
                 .body_available_inputs
@@ -1119,6 +1133,22 @@ mod content_transformations {
                     program, facts, equation,
                 )?)
             };
+            // Independently checked declarations can impose the same completed
+            // equation. Keep one exact transaction rather than spending it twice.
+            // Boundary replay still retains its own authenticated source law.
+            if transaction.equations.iter().any(|derived| {
+                let previous = content.body_conservations.get(derived.conservation);
+                let same_custody = match (&derived.custody, &custody) {
+                    (PreparedCustody::Derived, PreparedCustody::Derived) => true,
+                    (PreparedCustody::Boundary(_), PreparedCustody::Boundary(_)) => {
+                        previous.plan_index == equation.plan_index
+                    }
+                    _ => false,
+                };
+                same_custody && same_completed_equation(facts, previous, equation)
+            }) {
+                continue;
+            }
             let mut roots = Vec::new();
             let mut owner = None;
             for input in available {
@@ -1498,6 +1528,59 @@ mod content_transformations {
             }
         }
         places
+    }
+
+    fn same_completed_equation(
+        facts: checked_trees::CheckFactsRef<'_>,
+        left: &ContentBodyConservationFact,
+        right: &ContentBodyConservationFact,
+    ) -> bool {
+        let content = &facts.qualifications.content;
+        let paths = &facts.flow.ownership.segments;
+        let same_binding = |left: &ContentBodyClaimBinding, right: &ContentBodyClaimBinding| {
+            same_qualification(left, right)
+                && left.parameter_symbol == right.parameter_symbol
+                && left.observation == right.observation
+                && paths.span_or_empty(left.segments) == paths.span_or_empty(right.segments)
+        };
+        let same_bindings = |left, right| {
+            let left = content.body_claim_bindings.span_or_empty(left);
+            let right = content.body_claim_bindings.span_or_empty(right);
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| same_binding(left, right))
+        };
+        let left_available = content
+            .body_available_inputs
+            .span_or_empty(left.available_inputs);
+        let right_available = content
+            .body_available_inputs
+            .span_or_empty(right.available_inputs);
+        left.machine_symbol == right.machine_symbol
+            && left.state_symbol == right.state_symbol
+            && left.returned_at == right.returned_at
+            && left.completed_value == right.completed_value
+            && left.evaluation == right.evaluation
+            && content.body_conservation_plans.get(left.body_plan_index)
+                == content.body_conservation_plans.get(right.body_plan_index)
+            && same_bindings(left.inputs, right.inputs)
+            && same_bindings(left.outputs, right.outputs)
+            && left_available.len() == right_available.len()
+            && left_available
+                .iter()
+                .zip(right_available)
+                .all(|(left, right)| {
+                    left.root == right.root
+                        && left.provenance == right.provenance
+                        && paths.span_or_empty(left.segments) == paths.span_or_empty(right.segments)
+                        && same_binding(
+                            content.body_claim_bindings.get(left.binding),
+                            content.body_claim_bindings.get(right.binding),
+                        )
+                        && same_bindings(left.entry_bindings, right.entry_bindings)
+                })
     }
 
     fn same_qualification(left: &ContentBodyClaimBinding, right: &ContentBodyClaimBinding) -> bool {

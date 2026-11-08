@@ -23,5 +23,8 @@ satisfies Content<Region, IntervalSet<ByteUnit>>::project
 public data Pair { left: Region in Owned; right: Region in Owned; }
 machine retain(left: Region in Owned, right: Region in Owned) -> Pair
 requires left.start == 10 && left.end == 18 && right.start == 10 && right.end == 18
-ensures separate(Owned::content(old(&left)), Owned::content(old(&right))) == separate(Owned::content(&result.left), Owned::content(&result.right))
+ensures core::Identity<IntervalSet<ByteUnit>>(
+    separate(Owned::content(old(&left)), Owned::content(old(&right))),
+    separate(Owned::content(&result.left), Owned::content(&result.right))
+)
 { Pair { left: left, right: right } }

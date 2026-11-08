@@ -3,7 +3,7 @@ data Packet<'buffer> { tag: u8; output: &'buffer mut [u8]; }
 data Slot<'buffer> { before: u8; answer: Packet<'buffer>; after: u8; }
 
 machine through_field<'buffer>(incoming: Packet<'buffer>) -> Slot<'buffer>
-ensures result.answer == incoming
+ensures core::Identity<Packet<'buffer>>(result.answer, incoming)
 { Slot { before: 83u8, answer: incoming, after: 89u8 } }
 
 machine need_unchanged(before: u8, after: u8)

@@ -1,6 +1,7 @@
 // A scalar read before mutation cannot establish entry conservation across a state transfer.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 data Region [linear] dropped by drop_region { base: addr; length: u64; }
 machine drop_region(region: &mut Region) {}
 domain Region::Owned;
@@ -11,7 +12,7 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 }
 machine observe(region: &Region) -> u64 { region.length }
 machine keep(mut whole: Region in Owned) -> Region in Owned
-ensures Owned::content(old(&whole)) == Owned::content(&result)
+ensures core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
 {
     let captured: u64 = observe(&whole);
     whole.length = 0;

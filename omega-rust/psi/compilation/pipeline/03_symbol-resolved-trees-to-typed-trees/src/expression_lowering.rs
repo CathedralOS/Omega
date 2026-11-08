@@ -5,6 +5,35 @@ native code layout requests.
 */
 
 pub(crate) mod expression {
+    /*
+    Entry points for typing one expression from a resolved expression table.
+
+    Each entry builds an `ExpressionTableLowerer` (in `table`) and lowers one
+    expression handle and its operands into the typed trees. They differ in
+    their inputs:
+
+    - `lower_expression_handle` reads the package's body expression table
+      through the `Lowerer` and carries its current equality scope, so `==`
+      can find an operand's data type. Declaration and statement lowering use
+      it.
+    - `lower_expression_handle_from_table` and
+      `lower_expression_handle_from_table_with_symbol_substitution` take any
+      expression table, with or without the resolved program; the second can
+      substitute one resolved binder with a typed expression. Type references and
+      constraints use them.
+    - `lower_expression_handle_from_table_in_fact_position` lowers a proof
+      fact with its proposition-placement diagnostics. Comparisons keep their
+      selected executable meaning in this context too.
+
+    `lower_static_machine_argument` lowers a static machine argument with its
+    type reference and nested application arguments; machine, trait and call
+    lowering use it, and so does `table`.
+
+    Children: `table` holds the expression-table lowerer; `domain_membership`,
+    `name_paths` and `operators` lower membership tests, name paths and binary
+    operators for it.
+    */
+
     use crate::lowerer::Lowerer;
     use crate::tables::resolved_expressions;
     use diagnostics::Diagnostic;
@@ -629,10 +658,10 @@ pub(crate) mod expression {
                     ) -> Result<typed::expression::TableDestructurePattern, Diagnostic>
                     {
                         let program = self.program.ok_or_else(|| {
-            Diagnostic::error(
+                            Diagnostic::error(
                 "structural match predicates require their resolved declaration context",
-            )
-        })?;
+                            )
+                        })?;
                         if !pattern.condition.is_valid() {
                             return Err(Diagnostic::error(
                                 "structural match has no resolved executable predicate",
@@ -793,6 +822,8 @@ pub(crate) mod expression {
                 symbol_substitution:
                     Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
                 pub(crate) equality_scope: Option<&'scope EqualityScope>,
+                /// Tracks proposition-only placement diagnostics. Calls and value
+                /// children leave this context explicitly; comparison meaning is unchanged.
                 pub(crate) fact_position: bool,
                 lowered_expressions: Vec<(
                     resolved::expression::ExpressionHandle,
@@ -1118,10 +1149,10 @@ pub(crate) mod expression {
                         resolved::expression::ExpressionNode::Cast(cast) => {
                             let value = self.lower_value(cast.value)?;
                             let program = self.program.ok_or_else(|| {
-                    Diagnostic::error(
-                        "cast target type lowering requires the enclosing resolved program",
-                    )
-                })?;
+                                Diagnostic::error(
+                                    "cast target type lowering requires the enclosing resolved program",
+                                )
+                            })?;
                             let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
                 );
@@ -1328,24 +1359,24 @@ pub(crate) mod expression {
                             let arguments = self.lower_expression_handle_span(call.arguments)?;
                             let target_symbol = if !call.target_symbol.is_valid() {
                                 self.program
-                        .map(|program| {
-                            let declared = super::declared_receiver_method_target(
-                                program,
-                                self.source,
-                                call.receiver,
-                                &call.target,
-                            );
-                            if declared.is_valid() {
-                                return declared;
-                            }
-                            crate::expressions::call_results::computed_receiver_method_target(
-                                program,
-                                &self.target_trees.expression_table,
-                                receiver,
-                                &call.target,
-                            )
-                        })
-                        .unwrap_or_default()
+                                    .map(|program| {
+                                        let declared = super::declared_receiver_method_target(
+                                            program,
+                                            self.source,
+                                            call.receiver,
+                                            &call.target,
+                                        );
+                                        if declared.is_valid() {
+                                            return declared;
+                                        }
+                                        crate::expressions::call_results::computed_receiver_method_target(
+                                            program,
+                                            &self.target_trees.expression_table,
+                                            receiver,
+                                            &call.target,
+                                        )
+                                    })
+                                    .unwrap_or_default()
                             } else {
                                 call.target_symbol
                             };
@@ -1613,10 +1644,10 @@ pub(crate) mod expression {
                         }
                         resolved::expression::ExpressionNode::ZeroValue(type_reference) => {
                             let program = self.program.ok_or_else(|| {
-                    Diagnostic::error(
-                        "zero-value type lowering requires the enclosing resolved program",
-                    )
-                })?;
+                                Diagnostic::error(
+                                    "zero-value type lowering requires the enclosing resolved program",
+                                )
+                            })?;
                             if let Some(quotient) = quotient_zero_value_target(
                                 program,
                                 program.child_type_reference(*type_reference),
@@ -1732,25 +1763,25 @@ pub(crate) mod expression {
                     }
 
                     let theorem_evidence = selected_theorems
-            .iter()
-            .enumerate()
-            .map(|(position, selected)| {
-                Ok(typed::expression::QuotientTheoremSelection {
-                    role: if position == 0 {
-                        typed::expression::QuotientTheoremRole::Congruence
-                    } else {
-                        typed::expression::QuotientTheoremRole::ForwardPreconditionTransport
-                    },
-                    application: lower_static_machine_argument(
-                        self.program,
-                        self.target_trees,
-                        None,
-                        selected,
-                    )?,
-                })
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?
-            .into_boxed_slice();
+                        .iter()
+                        .enumerate()
+                        .map(|(position, selected)| {
+                            Ok(typed::expression::QuotientTheoremSelection {
+                                role: if position == 0 {
+                                    typed::expression::QuotientTheoremRole::Congruence
+                                } else {
+                                    typed::expression::QuotientTheoremRole::ForwardPreconditionTransport
+                                },
+                                application: lower_static_machine_argument(
+                                    self.program,
+                                    self.target_trees,
+                                    None,
+                                    selected,
+                                )?,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, Diagnostic>>()?
+                        .into_boxed_slice();
 
                     Ok(Some(typed::expression::QuotientOperationRequest {
                         kind,
@@ -1884,9 +1915,9 @@ pub(crate) mod expression {
                     }
                     let [operand] = call.machine_arguments.as_ref() else {
                         return Err(Diagnostic::error(format!(
-                "`{spelling}` requires exactly one static type argument, `{spelling}<T>()`"
-            ))
-            .with_source_span(call.target.source_span()));
+                            "`{spelling}` requires exactly one static type argument, `{spelling}<T>()`"
+                        ))
+                        .with_source_span(call.target.source_span()));
                     };
                     if operand.const_literal.is_some() || operand.evidence_projection.is_some() {
                         return Err(Diagnostic::error(format!(
@@ -2177,7 +2208,7 @@ pub(crate) mod expression {
             program, self.target_trees, program.child_type_reference(application),
             self.source.authored_expression_exposure(source_expression).unwrap_or(
                 language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
-        )
+                    )
                 }
 
                 fn lower_membership_expression(
@@ -2807,7 +2838,7 @@ pub(crate) mod expression {
                     "authored synthesized equality call retains contradictory selection custody",
                 ));
             }
-        }
+                    }
                     self.target_trees
                         .retain_authored_declaration_selections(selections);
                     Ok(())
@@ -2818,9 +2849,6 @@ pub(crate) mod expression {
                     binary: &resolved::expression::TableBinaryExpression,
                 ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic>
                 {
-                    if self.fact_position {
-                        return Ok(None);
-                    }
                     let Some(program) = self.program else {
                         return Ok(None);
                     };
@@ -2893,7 +2921,7 @@ pub(crate) mod expression {
                         EqualitySelection::Selected(implementation) => implementation,
                         EqualitySelection::Missing => {
                             return Err(Diagnostic::error(format!(
-                                "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality",
+                                "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality, or use `core::Identity<{type_name}>(left, right)` for mathematical identity",
                                 suggested_equality_declaration(&type_name)
                             )));
                         }
@@ -2959,8 +2987,8 @@ pub(crate) mod expression {
             .target()
             .insert(typed::expression::ExpressionNode::Call(
                 typed::expression::TableCallExpression {
- authored_call_selection: None,
- authored_call_binding: None,
+             authored_call_selection: None,
+             authored_call_binding: None,
                     authored_machine_application: Default::default(),
                     requirement_application: Default::default(),
                     exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
@@ -3705,6 +3733,8 @@ pub(crate) mod expression {
         )
     }
 
+    /// Lower an expression in proof-fact position. Erased propositions retain
+    /// their placement checks; comparisons use the ordinary selection rules.
     pub(crate) fn lower_expression_handle_from_table_in_fact_position(
         program: &resolved::SymbolResolvedTrees,
         source: &resolved::expression::ExpressionTable,

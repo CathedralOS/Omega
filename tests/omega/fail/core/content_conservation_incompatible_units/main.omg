@@ -17,7 +17,7 @@ satisfies Content<Region, CountedQuantity<WordUnit>>::project
 data Pieces { left: Region in Bytes; right: Region in Words; }
 trait InvalidSplit {
     machine split(whole: Region in Bytes) -> Pieces
-    ensures Bytes::content(old(&whole))
-        == separate(Bytes::content(&result.left), Words::content(&result.right));
+    ensures core::Identity<CountedQuantity<ByteUnit>>(Bytes::content(old(&whole)),
+        separate(Bytes::content(&result.left), Words::content(&result.right)));
 }
 machine main() {}

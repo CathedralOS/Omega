@@ -1,1 +1,1 @@
-data identity requires the same complete operand type
+mathematical result does not preserve its declared carrier and policy

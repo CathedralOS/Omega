@@ -404,66 +404,22 @@ pub mod carrier_contents {
     }
 }
 
-pub mod contextual_identity {
+pub mod proposition_context {
+    /*
+    Logical connective children retain proposition context. Calls and ordinary
+    value expressions keep their declared argument roles; comparison spelling
+    supplies no separate identity interpretation.
+    */
+
     use typed_trees::expression::{
         BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
     };
-    use typed_trees::type_identity::NormalizedTypeIdentity;
-    use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+    use typed_trees::types::PrimitiveType;
 
-    pub fn contextual_identity_subject_type(
-        program: &dyn crate::CheckingInput,
-        mut reference: TypeReferenceHandle,
-        root_borrow: bool,
-    ) -> Option<NormalizedTypeIdentity> {
-        if let Some(shell) = crate::reference_shell(program, reference) {
-            if !root_borrow || shell.access == language_core::ReferenceAccess::WriteOnly {
-                return None;
-            }
-            reference = shell.referee;
-        }
-        if program.primitive_type_reference(reference).is_some() {
-            return None;
-        }
-        let carrier = program
-            .type_reference_table
-            .unconstrained_type_reference(reference);
-        if program.closed_data_definition(reference).is_some() {
-            return Some(program.normalized_type_identity(reference));
-        }
-        match program.type_reference_table.type_reference(carrier) {
-            TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Unit => {}
-            TypeReferenceNode::Named { symbol, .. } => {
-                let declaration = program.unique_data_definition_by_symbol(*symbol)?;
-                if !declaration.type_parameters.is_empty()
-                    || !declaration.lifetime_parameters.is_empty()
-                {
-                    return None;
-                }
-            }
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                lifetime_arguments,
-                ..
-            } => {
-                let declaration = program.unique_data_definition_by_symbol(*base_symbol)?;
-                if program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                    .len()
-                    != declaration.type_parameters.len()
-                    || lifetime_arguments.len() != declaration.lifetime_parameters.len()
-                {
-                    return None;
-                }
-            }
-            _ => return None,
-        }
-        Some(program.normalized_type_identity(reference))
-    }
-
-    pub fn contextual_proposition_children(
+    /// Logical composition supplies proposition context to its children. Ordinary
+    /// expression-call arguments are value terms; nominal proposition applications
+    /// have their own declared proof telescope, outside this expression grammar.
+    pub fn logical_proposition_children(
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
     ) -> [Option<ExpressionHandle>; 2] {
@@ -477,75 +433,14 @@ pub mod contextual_identity {
                         binary.operator,
                         BinaryOperator::Equal | BinaryOperator::NotEqual
                     ) && [binary.left, binary.right].into_iter().all(|operand| {
-                        crate::proof_contracts::mathematical_applications::operand_type_reference(
-                            program, operand,
-                        )
-                        .and_then(|reference| program.primitive_type_reference(reference))
+                        crate::mathematical_applications::operand_type_reference(program, operand)
+                            .and_then(|reference| program.primitive_type_reference(reference))
                             == Some(PrimitiveType::Bool)
                     })) =>
             {
                 [Some(binary.left), Some(binary.right)]
             }
             _ => [None, None],
-        }
-    }
-
-    pub(crate) fn validate(
-        program: &dyn crate::CheckingInput,
-        root: ExpressionHandle,
-        owner: &impl std::fmt::Display,
-        diagnostics: &mut Vec<diagnostics::Diagnostic>,
-    ) {
-        let mut pending = vec![root];
-        let mut visited = Vec::new();
-        while let Some(expression) = pending.pop() {
-            if !program.expression_table.expression_is_valid(expression)
-                || visited.contains(&expression)
-            {
-                continue;
-            }
-            visited.push(expression);
-            pending.extend(
-                contextual_proposition_children(program, expression)
-                    .into_iter()
-                    .flatten(),
-            );
-            let Some(binary) = program.expression_table.binary_node(expression) else {
-                continue;
-            };
-            if !matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) {
-                continue;
-            }
-            let references = [binary.left, binary.right].map(|operand| {
-                crate::proof_contracts::mathematical_applications::operand_type_reference(
-                    program, operand,
-                )
-            });
-            let [Some(left), Some(right)] = references else {
-                continue;
-            };
-            let identities =
-                [(binary.left, left), (binary.right, right)].map(|(operand, reference)| {
-                    contextual_identity_subject_type(
-                        program,
-                        reference,
-                        matches!(
-                            program.expression_table.expression(operand),
-                            ExpressionNode::Name(_) | ExpressionNode::Borrow(_)
-                        ),
-                    )
-                });
-            if identities.iter().any(Option::is_some)
-                && (identities[0].is_none() || identities[0] != identities[1])
-            {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "{owner} data identity requires the same complete operand type, found `{}` and `{}`",
-                program.display_type_reference(left), program.display_type_reference(right),
-            )).with_source_span(program.expression_table.source_span(expression)));
-            }
         }
     }
 }
@@ -927,7 +822,7 @@ pub mod contract_results {
         }
         let mut owner = None;
         let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
-        for (callable, return_type, parameters, contract) in callable_contract_scopes(program) {
+        for (callable, return_type, parameters, _, contract) in callable_contract_scopes(program) {
             contract_nodes(program, contract, &mut nodes, &mut seen);
             if !seen.contains(&expression) || !seen.contains(&root) {
                 continue;
@@ -965,6 +860,38 @@ pub mod contract_results {
         Some(program.state_parameters.span_or_empty(parameters))
     }
 
+    /// Preserve the supplying scope alongside each exact copied telescope.
+    pub(crate) fn retained_callable_contracts(
+        program: &dyn crate::CheckingInput,
+    ) -> impl Iterator<Item = typed_trees::typed_trees::CallableContractScope<'_>> {
+        fn unscoped(
+            signature: &typed_trees::signature::StateSignature,
+        ) -> typed_trees::typed_trees::CallableContractScope<'_> {
+            typed_trees::typed_trees::CallableContractScope {
+                signature,
+                trait_scope: None,
+            }
+        }
+        program
+            .traits()
+            .iter()
+            .flat_map(move |definition| program.trait_machine_signatures(definition))
+            .map(unscoped)
+            .chain(program.prepared_callable_contracts())
+            .chain(
+                machine_parameter_contract_signatures(program)
+                    .into_iter()
+                    .map(|(_, signature)| unscoped(signature)),
+            )
+    }
+
+    /// Every callable contract in the order owner resolution visits them:
+    /// machines with an entry state, operators, then authored and applied requirement
+    /// signatures and reachable machine-parameter contracts.
+    /// Operators own their result guarantees even when their boundary body is
+    /// absent; ignoring them leaves the result projection without an owner. A trait
+    /// symbol cannot distinguish sibling requirements, and manufacturing a machine
+    /// for a bodyless signature would give it the wrong result owner.
     pub fn callable_contract_scopes(
         program: &dyn crate::CheckingInput,
     ) -> impl Iterator<
@@ -972,6 +899,7 @@ pub mod contract_results {
             symbols::SymbolHandle,
             TypeReferenceHandle,
             arena::HandleSpan<StateParameter>,
+            Option<typed_trees::trait_definition::RetainedTraitScope>,
             &SignatureContract,
         ),
     > + '_ {
@@ -981,40 +909,34 @@ pub mod contract_results {
                 machine.symbol,
                 entry.return_type,
                 entry.parameters,
+                None,
                 program.machine_contracts(machine),
             ))
         });
-        let requirements = program
-            .traits()
-            .iter()
-            .flat_map(|definition| program.trait_machine_signatures(definition))
-            .chain(program.prepared_callable_signatures())
-            .chain(
-                machine_parameter_contract_signatures(program)
-                    .into_iter()
-                    .map(|(_, signature)| signature),
+        let requirements = retained_callable_contracts(program).map(|scope| {
+            let signature = scope.signature;
+            (
+                signature.symbol,
+                signature.return_type,
+                signature.parameters,
+                scope.trait_scope,
+                program.state_signature_contracts(signature),
             )
-            .map(|signature| {
-                (
-                    signature.symbol,
-                    signature.return_type,
-                    signature.parameters,
-                    program.state_signature_contracts(signature),
-                )
-            });
+        });
         let operators = program.operators().iter().map(|operator| {
             (
                 operator.symbol,
                 operator.return_type,
                 operator.parameters,
+                None,
                 program.operator_contracts(operator),
             )
         });
         machines.chain(operators).chain(requirements).flat_map(
-            |(callable, return_type, parameters, contracts)| {
+            |(callable, return_type, parameters, trait_scope, contracts)| {
                 contracts
                     .iter()
-                    .map(move |contract| (callable, return_type, parameters, contract))
+                    .map(move |contract| (callable, return_type, parameters, trait_scope, contract))
             },
         )
     }
@@ -1174,7 +1096,9 @@ pub mod contract_results {
             let mut contracts = Vec::new();
             let mut containing = symbols::SymbolKeyMap::<ExpressionHandle, Vec<u32>>::default();
             let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
-            for (callable, return_type, parameters, contract) in callable_contract_scopes(program) {
+            for (callable, return_type, parameters, _, contract) in
+                callable_contract_scopes(program)
+            {
                 let position =
                     u32::try_from(contracts.len()).expect("callable contract position overflow");
                 contract_nodes(program, contract, &mut nodes, &mut seen);
@@ -1314,9 +1238,9 @@ pub mod contract_structure {
                 program, *argument,
             )
         })
-    {
+            {
         return None;
-    }
+            }
             if !application.proposition.is_valid()
                 || scopes
                     .iter()
@@ -3112,6 +3036,7 @@ pub mod expression_owners {
         ) -> TypeEnvironment {
             TypeEnvironment {
                 owner,
+                trait_scope: None,
                 self_type,
                 result_type: result_type.is_valid().then_some(result_type),
                 bindings: parameters
@@ -3584,7 +3509,9 @@ pub mod expression_owners {
             index
         }
 
-        pub(crate) fn index_authored_contract_environments(
+        /// Preparation needs the lexical binders of retained contracts, but cannot
+        /// mint the checked fact handles installed by the checking pass above.
+        pub(crate) fn index_contract_environments(
             program: &dyn CheckingInput,
             index: &mut OwnerIndex,
         ) {
@@ -3609,18 +3536,18 @@ pub mod expression_owners {
                     );
                 }
             }
-            for definition in program.traits() {
-                for signature in program.trait_machine_signatures(definition) {
-                    add_contracts(
-                        program.state_signature_contracts(signature),
-                        environment_from_parameters(
-                            signature.symbol,
-                            program.state_signature_parameters(signature),
-                            signature.return_type,
-                            None,
-                        ),
-                    );
-                }
+            for contract in
+                crate::proof_contracts::contract_results::retained_callable_contracts(program)
+            {
+                let signature = contract.signature;
+                let mut environment = environment_from_parameters(
+                    signature.symbol,
+                    program.state_signature_parameters(signature),
+                    signature.return_type,
+                    None,
+                );
+                environment.trait_scope = contract.trait_scope;
+                add_contracts(program.state_signature_contracts(signature), environment);
             }
             for operator in program.all_operators() {
                 add_contracts(
@@ -3826,15 +3753,16 @@ pub mod expression_owners {
                     }
                 }
             }
-            for definition in program.traits() {
-                for signature in program.trait_machine_signatures(definition) {
-                    index_telescope_parameters(
-                        program,
-                        signature.symbol,
-                        program.state_signature_parameters(signature),
-                        index,
-                    );
-                }
+            for contract in
+                crate::proof_contracts::contract_results::retained_callable_contracts(program)
+            {
+                index_telescope_parameters_in_scope(
+                    program,
+                    contract.signature.symbol,
+                    program.state_signature_parameters(contract.signature),
+                    contract.trait_scope,
+                    index,
+                );
             }
             for operator in program.all_operators() {
                 index_telescope_parameters(
@@ -3860,16 +3788,28 @@ pub mod expression_owners {
             parameters: &[StateParameter],
             index: &mut OwnerIndex,
         ) {
+            index_telescope_parameters_in_scope(program, owner, parameters, None, index);
+        }
+
+        fn index_telescope_parameters_in_scope(
+            program: &dyn CheckingInput,
+            owner: symbols::SymbolHandle,
+            parameters: &[StateParameter],
+            trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
+            index: &mut OwnerIndex,
+        ) {
             for (parameter_index, parameter) in parameters.iter().enumerate() {
                 index.add_all(
                     type_reference_reachable_expressions(program, parameter.type_reference),
                     || {
-                        environment_from_parameters(
+                        let mut environment = environment_from_parameters(
                             owner,
                             &parameters[..parameter_index],
                             TypeReferenceHandle::invalid(),
                             None,
-                        )
+                        );
+                        environment.trait_scope = trait_scope;
+                        environment
                     },
                 );
             }
@@ -3966,9 +3906,15 @@ pub mod expression_owners {
         }
     }
     pub(crate) mod inference {
+        /*
+        Type inference over authored expressions: the inferred nominal symbol,
+        collection view, and member resolution each environment can answer.
+        */
+
         use super::{InferredType, OwnerMemberTarget, TypeEnvironment};
         use crate::collection_operations::MeasureReceiver;
         use language_semantics::declaration_selection::CollectionMeasure;
+        /// Handle-keyed indexes and reach sets take the integer hasher.
         use symbols::SymbolHandle;
         use typed_trees::data::DataMember;
         use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
@@ -4015,7 +3961,7 @@ pub mod expression_owners {
                 } => {
                     type_reference_contains_expression(program, *element_type, expression, visited)
                         || matches!(length, typed_trees::types::FixedArrayLength::Expression(value)
-                    if type_reference_contains_expression(program, *value, expression, visited))
+                            if type_reference_contains_expression(program, *value, expression, visited))
                 }
                 TypeReferenceNode::Slice { element_type } => {
                     type_reference_contains_expression(program, *element_type, expression, visited)
@@ -4060,6 +4006,9 @@ pub mod expression_owners {
                 })
         }
 
+        /// The measure a member selects on its inferred receiver, asked of
+        /// [`crate::collection_operations::collection_measure_member`] in that query's
+        /// receiver vocabulary. A nominal or compiler-text receiver has no measure.
         pub(crate) fn collection_measure_in_environment(
             program: &dyn crate::CheckingInput,
             member: &TableMemberExpression,
@@ -4127,134 +4076,162 @@ pub mod expression_owners {
             }
             visited.push(expression);
             match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(saved) => program
-            .saved_value_source(saved)
-            .and_then(|subject| infer_expression_type(program, subject, environment, visited)),
-        ExpressionNode::Match(dispatch) => {
-            let mut result = None;
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                let arm_type =
-                    infer_expression_type(program, arm.value, environment, &mut visited.clone())?;
-                if result.is_some_and(|previous| previous != arm_type) {
-                    return None;
+                ExpressionNode::SavedSubject(saved) => {
+                    program.saved_value_source(saved).and_then(|subject| {
+                        infer_expression_type(program, subject, environment, visited)
+                    })
                 }
-                result = Some(arm_type);
-            }
-            result
-        }
-        ExpressionNode::Atomic(atomic) => {
-            infer_expression_type(program, atomic.value, environment, visited)
-        }
-        ExpressionNode::Borrow(inner) => {
-            infer_expression_type(program, inner.target, environment, visited)
-        }
-        ExpressionNode::Cast(cast) => Some(InferredType::TypeReference(cast.target_type)),
-        ExpressionNode::Name(path) => {
-            if path.symbol.is_valid()
-                && let Some(type_reference) =
-                    crate::value_custody::expression_types::named_value_type_reference(
-                        program, path,
-                    )
-                    .or_else(|| crate::declaration_type_reference(program, path.symbol))
-            {
-                return Some(InferredType::TypeReference(type_reference));
-            }
-            let [name] = program.expression_table.name_path_members(path.members) else {
-                return None;
-            };
-            if !path.symbol.is_valid() && !path.head_symbol.is_valid() && name.is_self_receiver() {
-                return environment.self_type;
-            }
-            if program.expression_table.names_reserved_result(expression) {
-                return environment.result_type.map(InferredType::TypeReference);
-            }
-            let mut matches = environment
-                .bindings
-                .iter()
-                .filter(|binding| {
-                    (path.head_symbol.is_valid() && binding.symbol == path.head_symbol)
-                        || (path.symbol.is_valid() && binding.symbol == path.symbol)
-                        || (!path.head_symbol.is_valid()
-                            && !path.symbol.is_valid()
-                            && binding.name == name.as_str())
-                })
-                .map(|binding| binding.type_reference);
-            let first = matches.next()?;
-            matches
-                .all(|type_reference| type_reference == first)
-                .then_some(InferredType::TypeReference(first))
-        }
-        ExpressionNode::Member(member) => {
-            let receiver = infer_expression_type(program, member.receiver, environment, visited)?;
-            let field_type = match receiver {
-                InferredType::TypeReference(reference) => {
-                    crate::value_custody::places::applied_data_member_field(
-                        program, reference, member,
-                    )
-                    .map(|field| field.type_reference)
+                ExpressionNode::Match(dispatch) => {
+                    let mut result = None;
+                    for arm in program.expression_table.match_arms(dispatch.arms) {
+                        let arm_type = infer_expression_type(
+                            program,
+                            arm.value,
+                            environment,
+                            &mut visited.clone(),
+                        )?;
+                        if result.is_some_and(|previous| previous != arm_type) {
+                            return None;
+                        }
+                        result = Some(arm_type);
+                    }
+                    result
                 }
-                InferredType::Nominal(_) => resolve_member_symbol(program, receiver, member)
-                    .and_then(|symbol| crate::declaration_type_reference(program, symbol)),
-                InferredType::CollectionView(_) | InferredType::CompilerString => None,
-            };
-            if let Some(reference) = field_type {
-                return Some(InferredType::TypeReference(reference));
+                ExpressionNode::Atomic(atomic) => {
+                    infer_expression_type(program, atomic.value, environment, visited)
+                }
+                ExpressionNode::Borrow(inner) => {
+                    infer_expression_type(program, inner.target, environment, visited)
+                }
+                ExpressionNode::Cast(cast) => Some(InferredType::TypeReference(cast.target_type)),
+                ExpressionNode::Name(path) => {
+                    if path.symbol.is_valid()
+                        && let Some(type_reference) =
+                            crate::value_custody::expression_types::named_value_type_reference(
+                                program, path,
+                            )
+                            .or_else(|| crate::declaration_type_reference(program, path.symbol))
+                    {
+                        return Some(InferredType::TypeReference(type_reference));
+                    }
+                    let [name] = program.expression_table.name_path_members(path.members) else {
+                        return None;
+                    };
+                    if !path.symbol.is_valid()
+                        && !path.head_symbol.is_valid()
+                        && name.is_self_receiver()
+                    {
+                        return environment.self_type;
+                    }
+                    if program.expression_table.names_reserved_result(expression) {
+                        return environment.result_type.map(InferredType::TypeReference);
+                    }
+                    let mut matches = environment
+                        .bindings
+                        .iter()
+                        .filter(|binding| {
+                            (path.head_symbol.is_valid() && binding.symbol == path.head_symbol)
+                                || (path.symbol.is_valid() && binding.symbol == path.symbol)
+                                || (!path.head_symbol.is_valid()
+                                    && !path.symbol.is_valid()
+                                    && binding.name == name.as_str())
+                        })
+                        .map(|binding| binding.type_reference);
+                    let first = matches.next()?;
+                    matches
+                        .all(|type_reference| type_reference == first)
+                        .then_some(InferredType::TypeReference(first))
+                }
+                ExpressionNode::Member(member) => {
+                    let receiver =
+                        infer_expression_type(program, member.receiver, environment, visited)?;
+                    let field_type = match receiver {
+                        InferredType::TypeReference(reference) => {
+                            // Chained field lookup needs the actual payload type.
+                            // Reopening its generic declaration loses that substitution.
+                            crate::value_custody::places::applied_data_member_field(
+                                program, reference, member,
+                            )
+                            .map(|field| field.type_reference)
+                        }
+                        InferredType::Nominal(_) => {
+                            resolve_member_symbol(program, receiver, member).and_then(|symbol| {
+                                crate::declaration_type_reference(program, symbol)
+                            })
+                        }
+                        InferredType::CollectionView(_) | InferredType::CompilerString => None,
+                    };
+                    if let Some(reference) = field_type {
+                        return Some(InferredType::TypeReference(reference));
+                    }
+                    // Measures have no authored field declaration. Their selected
+                    // receiver fixes a count carrier in declaration contracts too.
+                    collection_measure_in_environment(program, member, receiver)?;
+                    crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                        program,
+                        symbols::BuiltinTypeAtom::U64,
+                    )
+                    .map(InferredType::TypeReference)
+                }
+                ExpressionNode::Call(_)
+                | ExpressionNode::Binary(_)
+                | ExpressionNode::Unary(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::Integer(_) => {
+                    // The environment binds leaves; the ordinary result-type owner
+                    // selects computations. A separate call/binary recognizer here
+                    // lost proof Int and treated known operands as overload wildcards.
+                    // Keep the declaring owner so its trait meanings remain in scope.
+                    crate::value_custody::expression_types::declaration_expression_result_type_reference(
+                        program,
+                        environment.owner,
+                        environment.trait_scope,
+                        &|leaf| match infer_expression_type(
+                            program,
+                            leaf,
+                            environment,
+                            &mut visited.clone(),
+                        )? {
+                            InferredType::TypeReference(reference) => Some(reference),
+                            _ => None,
+                        },
+                        expression,
+                    )
+                    .map(InferredType::TypeReference)
+                }
+                ExpressionNode::Indexed(indexed) => {
+                    let collection =
+                        infer_expression_type(program, indexed.collection, environment, visited)?;
+                    let element_type = collection_element_type(program, collection)?;
+                    Some(
+                        if matches!(
+                            program.expression_table.expression(indexed.index),
+                            ExpressionNode::Range(_)
+                        ) {
+                            InferredType::CollectionView(element_type)
+                        } else {
+                            InferredType::TypeReference(element_type)
+                        },
+                    )
+                }
+                ExpressionNode::StructLiteral(literal) => {
+                    if literal.application_type.is_valid() {
+                        Some(InferredType::TypeReference(literal.application_type))
+                    } else {
+                        literal
+                            .type_symbol
+                            .is_valid()
+                            .then_some(InferredType::Nominal(literal.type_symbol))
+                    }
+                }
+                ExpressionNode::String(_) => Some(InferredType::CompilerString),
+                ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::UndeterminedNaN(_)
+                | ExpressionNode::Range(_)
+                | ExpressionNode::TypeExpression(_)
+                | ExpressionNode::ZeroValue(_) => None,
             }
-            collection_measure_in_environment(program, member, receiver)?;
-            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                program,
-                symbols::BuiltinTypeAtom::U64,
-            )
-            .map(InferredType::TypeReference)
-        }
-        ExpressionNode::Call(_)
-        | ExpressionNode::Binary(_)
-        | ExpressionNode::Unary(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_) => {
-            crate::value_custody::expression_types::declaration_expression_result_type_reference(
-                program,
-                environment.owner,
-                &|leaf| match infer_expression_type(
-                    program,
-                    leaf,
-                    environment,
-                    &mut visited.clone(),
-                )? {
-                    InferredType::TypeReference(reference) => Some(reference),
-                    _ => None,
-                },
-                expression,
-            )
-            .map(InferredType::TypeReference)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            let collection =
-                infer_expression_type(program, indexed.collection, environment, visited)?;
-            let element_type = collection_element_type(program, collection)?;
-            Some(
-                if matches!(
-                    program.expression_table.expression(indexed.index),
-                    ExpressionNode::Range(_)
-                ) {
-                    InferredType::CollectionView(element_type)
-                } else {
-                    InferredType::TypeReference(element_type)
-                },
-            )
-        }
-        ExpressionNode::StructLiteral(literal) => literal
-            .type_symbol
-            .is_valid()
-            .then_some(InferredType::Nominal(literal.type_symbol)),
-        ExpressionNode::String(_) => Some(InferredType::CompilerString),
-        ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Range(_)
-        | ExpressionNode::TypeExpression(_)
-        | ExpressionNode::ZeroValue(_) => None,
-    }
         }
 
         pub(crate) fn resolve_member_symbol(
@@ -4335,6 +4312,7 @@ pub mod expression_owners {
             }
         }
     }
+
     pub(crate) mod reachability {
         pub(crate) type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
         use crate::frozen_program::expression_table;
@@ -4425,6 +4403,7 @@ pub mod expression_owners {
     #[derive(Debug, Clone, Default)]
     pub(crate) struct TypeEnvironment {
         owner: SymbolHandle,
+        trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
         self_type: Option<InferredType>,
         result_type: Option<TypeReferenceHandle>,
         bindings: Vec<Binding>,
@@ -4485,9 +4464,11 @@ pub mod expression_owners {
     }
 
     impl OwnerEnvironmentIndex {
+        /// Lexical environments for retained contracts before checking publishes
+        /// proof facts. These roots identify binders, never checked evidence.
         pub fn for_preparation(program: &dyn crate::CheckingInput) -> Self {
             let mut owners = Self::new(program, &arena::Arena::default());
-            indexing::index_authored_contract_environments(program, &mut owners.index);
+            indexing::index_contract_environments(program, &mut owners.index);
             owners
         }
 
@@ -4498,6 +4479,9 @@ pub mod expression_owners {
             Self::with_call_signatures(program, contract_facts, &arena::Arena::default())
         }
 
+        /// Checked invocation signatures retain their complete applied parameter
+        /// environment. Preparation uses `for_preparation` to retain source typing
+        /// without checked-contract authority.
         pub fn with_call_signatures(
             program: &dyn crate::CheckingInput,
             contract_facts: &arena::Arena<ContractProofFact>,
@@ -6223,6 +6207,34 @@ pub mod proof_embeddings {
                 }
             }
         }
+        // Preparing a callable can replace a copied signature while its old
+        // expression rows remain allocated. Those contract rows still describe
+        // proof contexts. This census grants no fact and runtime uses below
+        // remain executable demands, even when the same node occurs in a contract.
+        for (_, clause) in program.signature_contracts.iter() {
+            for fact in program.proof_facts.span_or_empty(clause.facts) {
+                match fact {
+                    ProofFact::Expression(expression) => {
+                        collect_expression_nodes(
+                            program,
+                            *expression,
+                            &mut proof_nodes,
+                            &mut proof_seen,
+                        );
+                    }
+                    ProofFact::Membership(membership) => {
+                        nodes!(program => membership.value => &mut proof_nodes => &mut proof_seen);
+                    }
+                    ProofFact::Proposition(application) => {
+                        for argument in
+                            expression_table(program).expression_handles(application.arguments)
+                        {
+                            nodes!(program => *argument => &mut proof_nodes => &mut proof_seen);
+                        }
+                    }
+                }
+            }
+        }
         for expression in crate::mathematical_applications::expression_nodes(program) {
             collect_expression_nodes(program, expression, &mut proof_nodes, &mut proof_seen);
         }
@@ -6298,12 +6310,23 @@ pub mod proof_embeddings {
                     program.symbols.builtin_type_member(path.symbol).is_some()
                 }
                 ExpressionNode::Call(call) => {
-                    crate::mathematical_applications::selected_definition(program, call).is_some()
+                    crate::mathematical_applications::is_mathematical_call(program, call)
                 }
                 _ => false,
             };
             if mathematical && (!proof_seen.contains(&handle) || runtime_seen.contains(&handle)) {
-                diagnostics.push(Diagnostic::error("mathematical terms are proof-only and cannot be used as executable values or statements"));
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "mathematical terms are proof-only and cannot be used as executable values or statements: `{}` {}",
+                        expression_table(program).display_name(handle),
+                        if runtime_seen.contains(&handle) {
+                            "is demanded by executable code"
+                        } else {
+                            "has no retained proof context"
+                        },
+                    ))
+                    .with_source_span(expression_table(program).source_span(handle)),
+                );
             }
             let ExpressionNode::Call(call) = node else {
                 continue;
@@ -6727,7 +6750,7 @@ pub mod proof_facts {
         argument,
         parameter_type,
         substitutions,
-    )
+            )
         }
     }
 
@@ -7003,12 +7026,6 @@ pub mod proof_facts {
         owner: ProofFactOwner<'_>,
     ) {
         for fact in fact_plan.boolean_facts_for_symbol(domain.symbol) {
-            crate::proof_contracts::contextual_identity::validate(
-                program,
-                fact.expression,
-                &owner,
-                diagnostics,
-            );
             if !is_boolean_fact_expression(program, fact.expression) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} proof fact `{}` is not boolean-shaped",
@@ -7057,12 +7074,6 @@ pub mod proof_facts {
             }
             match fact {
                 ProofFact::Expression(expression) => {
-                    crate::proof_contracts::contextual_identity::validate(
-                        program,
-                        *expression,
-                        &owner,
-                        diagnostics,
-                    );
                     if !is_boolean_owned_fact_expression(program, *expression, owner) {
                         diagnostics.push(Diagnostic::error(format!(
                             "{owner} proof fact `{}` is not boolean-shaped",
@@ -10326,8 +10337,7 @@ pub mod relevance {
                     }
                     if context == Context::ErasedInitializer
                         && !call_targets_proof_machine(program, proof_only, call.target_symbol)
-                        && !(crate::mathematical_applications::selected_definition(program, call)
-                            .is_some()
+                        && !(crate::mathematical_applications::is_mathematical_call(program, call)
                             && program
                                 .prepared_mathematics()
                                 .is_some_and(|view| view.application(expression).is_some()))

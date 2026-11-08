@@ -1,1 +1,3 @@
-cannot prove requires contract for call split_vacant_extent
+cannot prove ensures contract for exit from exchange
+result.storage.base == storage.base
+result.storage.length == storage.length

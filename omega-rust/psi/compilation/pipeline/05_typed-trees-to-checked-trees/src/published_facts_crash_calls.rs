@@ -212,7 +212,6 @@ mod private_summaries {
     use typed_trees::operator::declaration_by_symbol;
     use typed_trees::signature::SignatureContract;
     use typed_trees::signature::SignatureContractKind;
-    use typed_trees::signature::StateParameter;
     use typed_trees::signature::StateSignature;
     use validation::CallSite;
     use validation::ContentConservationSourcePlan;
@@ -1197,7 +1196,6 @@ mod private_summaries {
     pub(crate) fn crash_route_expressions_by_identity(
         program: &dyn ::validation::CheckingInput,
         contracts: &[SignatureContract],
-        parameters: &[StateParameter],
         parameter_names: &[String],
         content_conservation: &[ContentConservationSourcePlan],
     ) -> std::collections::BTreeMap<CrashPredicateIdentity, ExpressionHandle> {
@@ -1213,10 +1211,9 @@ mod private_summaries {
                 if is_true_crash_route(program, fact) {
                     continue;
                 }
-                let structured = super::proof_crash_predicate_from_expression(
+                let structured = super::crash_predicate_from_expression(
                     program,
                     *expression,
-                    parameters,
                     parameter_names,
                     Some(content_conservation),
                 );
@@ -2726,7 +2723,6 @@ mod route_substitution {
         let route_expressions = crash_route_expressions_by_identity(
             program,
             contracts,
-            target_parameters,
             target_parameter_names,
             content_conservation,
         );
@@ -3614,13 +3610,8 @@ mod entry_equations {
                 ) else {
                     continue;
                 };
-                let identity = super::proof_crash_predicate_from_expression(
-                    program,
-                    *expression,
-                    parameters,
-                    &names,
-                    None,
-                );
+                let identity =
+                    super::crash_predicate_from_expression(program, *expression, &names, None);
                 collect(&checked, &identity, &mut equations);
                 if super::summary_predicates::executable_entry_predicate(&checked) {
                     excluded.extend(excluded_comparisons(&checked, &identity, false, 0));
@@ -4920,13 +4911,11 @@ use crate::published::facts::crash_calls::summary_predicates::{
 };
 use crate::published::facts::crash_plan_facts::declared_parameter_names;
 use crate::shared::call_formals::arguments_aligned_to_formals;
-use crate::values::scalar::machine_parameter_booleans::structural_equality::subjects;
 use checked_trees::CrashPredicateExpression;
 pub(crate) use private_summaries::{
     PreparedCrashSummaryGraph, prepare_crash_summary_graph, selected_invocation_target,
 };
 use symbols::SymbolHandle;
-use typed_trees::signature::StateParameter;
 
 pub(super) fn crash_predicate_from_expression(
     program: &dyn ::validation::CheckingInput,
@@ -4934,34 +4923,7 @@ pub(super) fn crash_predicate_from_expression(
     parameter_names: &[String],
     content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
 ) -> CrashPredicateExpression {
-    predicate_expression(
-        program,
-        expression,
-        parameter_names,
-        content_conservation,
-        None,
-    )
-}
-
-/*
-    Proof clauses retain contextual identity in the canonical key itself.
-    Runtime guards use the executable producer above; provenance of their
-    operands cannot change the meaning of a selected equality operation.
-*/
-pub(super) fn proof_crash_predicate_from_expression(
-    program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-    parameters: &[StateParameter],
-    parameter_names: &[String],
-    content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
-) -> CrashPredicateExpression {
-    predicate_expression(
-        program,
-        expression,
-        parameter_names,
-        content_conservation,
-        Some(parameters),
-    )
+    predicate_expression(program, expression, parameter_names, content_conservation)
 }
 
 fn predicate_expression(
@@ -4969,7 +4931,6 @@ fn predicate_expression(
     expression: typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
     content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
-    proof_parameters: Option<&[StateParameter]>,
 ) -> CrashPredicateExpression {
     use typed_trees::expression::ExpressionNode;
 
@@ -4985,43 +4946,24 @@ fn predicate_expression(
     if !expression.is_valid() {
         return CrashPredicateExpression::Invalid;
     }
-    let proposition_children = validation::contextual_proposition_children(program, expression);
-    let lower = |operand| {
-        predicate_expression(
-            program,
-            operand,
-            parameter_names,
-            content_conservation,
-            proof_parameters.filter(|_| proposition_children.contains(&Some(operand))),
-        )
-    };
-    if let Some(parameters) = proof_parameters
-        && let Some(binary) = program.expression_table.binary_node(expression)
-        && matches!(
-            binary.operator,
-            typed_trees::expression::BinaryOperator::Equal
-                | typed_trees::expression::BinaryOperator::NotEqual
-        )
-        && let Some((_, _, type_identity)) =
-            subjects(program, parameters, binary.left, binary.right)
+    let lower =
+        |operand| predicate_expression(program, operand, parameter_names, content_conservation);
+    if program
+        .expression_table
+        .call_node(expression)
+        .is_some_and(|call| {
+            validation::mathematical_applications::is_mathematical_call(program, call)
+        })
+        && let Ok(identity) =
+            validation::mathematical_applications::identity_application_at(program, expression)
     {
-        let left = lower(binary.left);
-        let right = lower(binary.right);
-        let identity = CrashPredicateExpression::structural_identity(
-            type_identity,
+        return CrashPredicateExpression::structural_identity(
+            program.normalized_type_identity(identity.carrier),
             &program.type_identities,
-            left,
-            right,
+            lower(identity.subjects[0]),
+            lower(identity.subjects[1]),
         )
         .unwrap_or(CrashPredicateExpression::Invalid);
-        return if binary.operator == typed_trees::expression::BinaryOperator::NotEqual {
-            CrashPredicateExpression::Unary {
-                operator: typed_trees::expression::UnaryOperator::LogicalNot as u8,
-                operand: Box::new(identity),
-            }
-        } else {
-            identity
-        };
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => CrashPredicateExpression::Binary {

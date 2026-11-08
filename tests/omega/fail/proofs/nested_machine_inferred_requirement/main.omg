@@ -1,11 +1,11 @@
-// One valid arrival cannot donate equality to a different incoming path.
+// An identity fact on one arrival cannot justify a different incoming path.
 data Branch {
     case End;
     case Next(child: Branch);
 }
 
 machine same(left: Branch, right: Branch)
-requires left == right
+requires core::Identity<Branch>(left, right)
 {}
 
 machine visit(value: Branch) {

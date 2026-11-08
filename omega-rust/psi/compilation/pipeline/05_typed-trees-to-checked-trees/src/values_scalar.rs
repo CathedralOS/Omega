@@ -1683,6 +1683,16 @@ pub(crate) mod call_lowering {
             if let Some(constructor) = view.source_constructor(expression)
                 && constructor.type_identity == program.normalized_type_identity(expected_type)
             {
+                // Both publication forms carry closed mathematical judgments.
+                // A quantified source schema is useful during source checking,
+                // but must be specialized before entering either receiving lane.
+                if constructor.level_arity != 0 {
+                    return None;
+                }
+                // Abstraction can produce a closed value under an unrelated
+                // lexical scalar scope. Its empty dependency roster is already
+                // kernel checked; retain that exact value rather than rebuilding
+                // its source fields or treating it as an open function actual.
                 if constructor.parameters.is_empty() {
                     return Some(CheckedProofTerm::Mathematical {
                         type_identity: constructor.type_identity,
@@ -3028,7 +3038,6 @@ pub(crate) mod contract_entry {
                 parameters,
                 remaining: 4096,
                 subjects: None,
-                proof_context: true,
                 logical_captures: Vec::new(),
             }
             .boolean(expression, 0)?;
@@ -3061,7 +3070,6 @@ pub(crate) mod contract_entry {
                 parameters: program.state_parameters(state),
                 remaining: 4096,
                 subjects: None,
-                proof_context: false,
                 logical_captures: Vec::new(),
             }
             .boolean(expression, 0)
@@ -3092,7 +3100,6 @@ pub(crate) mod contract_entry {
                 parameters,
                 remaining: 4096,
                 subjects: Some(subjects),
-                proof_context: false,
                 logical_captures: Vec::new(),
             }
             .boolean(expression, 0)?;
@@ -3151,7 +3158,6 @@ pub(crate) mod contract_entry {
                 parameters: super::authored_entry_parameters(program, machine)?,
                 remaining: 4096,
                 subjects: None,
-                proof_context: true,
                 logical_captures: Vec::new(),
             };
             crate::values::lower_unit_scalar_argument_for_places(
@@ -3212,7 +3218,6 @@ pub(crate) mod contract_entry {
             parameters: &'program [StateParameter],
             remaining: usize,
             subjects: Option<&'program mut EntrySubjectResolver<'program>>,
-            proof_context: bool,
             logical_captures: Vec<LogicalMatchBinding>,
         }
 
@@ -3267,7 +3272,6 @@ pub(crate) mod contract_entry {
                 parameters,
                 remaining: 4096,
                 subjects: None,
-                proof_context: true,
                 logical_captures: Vec::new(),
             }
             .boolean(expression, 0)
@@ -3392,20 +3396,6 @@ pub(crate) mod contract_entry {
                     .expression_is_valid(expression)
                 {
                     return None;
-                }
-                if self.proof_context
-                    && let Some(binary) = self.program.expression_table.binary_node(expression)
-                    && matches!(
-                        binary.operator,
-                        BinaryOperator::Equal | BinaryOperator::NotEqual
-                    )
-                    && let Some(identity) = self.data_identity(binary.left, binary.right, depth + 1)
-                {
-                    return Some(if binary.operator == BinaryOperator::NotEqual {
-                        CheckedBooleanExpression::Not(Box::new(identity))
-                    } else {
-                        identity
-                    });
                 }
                 match self.program.expression_table.expression(expression) {
                     ExpressionNode::Boolean(value) => {
@@ -3532,38 +3522,8 @@ pub(crate) mod contract_entry {
                 }
             }
 
-            fn data_identity(
-                &mut self,
-                left: ExpressionHandle,
-                right: ExpressionHandle,
-                depth: usize,
-            ) -> Option<CheckedBooleanExpression> {
-                use super::super::machine_parameter_booleans::structural_equality::subject_type;
-                let left = self.subject(left, depth)?;
-                let right = self.subject(right, depth)?;
-                let left_type =
-                    subject_type(self.program, left.type_reference, left.path.is_empty())?;
-                let right_type =
-                    subject_type(self.program, right.type_reference, right.path.is_empty())?;
-                if left_type != right_type {
-                    return None;
-                }
-                let subject = |field: FieldPath| {
-                    Some(checked_trees::CheckedStructuralParameterField {
-                        parameter_position: u32::try_from(field.parameter_position).ok()?,
-                        path: field.path,
-                    })
-                };
-                Some(CheckedBooleanExpression::StructuralIdentity {
-                    left: subject(left)?,
-                    right: subject(right)?,
-                })
-            }
-
-            /*
-                One comparison operand resolved once; the family its carrier selects
-                also lowers it.
-            */
+            /// One comparison operand resolved once; the family its carrier selects
+            /// also lowers it.
             fn comparison_operand(
                 &mut self,
                 expression: ExpressionHandle,
@@ -5594,7 +5554,7 @@ pub(crate) mod machine_parameter_booleans {
             places keep authored parameter positions; scalar parameters use the dense
             scalar namespace.
         */
-        use super::structural_equality;
+
         use super::structural_paths::{path_primitive_type, path_type_reference};
         use crate::flow::expressions;
         use crate::values::scalar::boolean_lowering::construct_integer_comparison;
@@ -5642,21 +5602,6 @@ pub(crate) mod machine_parameter_booleans {
                     observation: expression,
                     parameter_position,
                     path,
-                });
-            }
-
-            if let Some(binary) = program.expression_table.binary_node(expression)
-                && matches!(
-                    binary.operator,
-                    BinaryOperator::Equal | BinaryOperator::NotEqual
-                )
-                && let Some(equality) =
-                    structural_equality::lower(program, parameters, binary.left, binary.right)
-            {
-                return Some(if binary.operator == BinaryOperator::NotEqual {
-                    CheckedBooleanExpression::Not(Box::new(equality))
-                } else {
-                    equality
                 });
             }
 
@@ -5893,69 +5838,6 @@ pub(crate) mod machine_parameter_booleans {
                     case,
                 },
             )
-        }
-    }
-    pub(crate) mod structural_equality {
-        /*
-            Contextual data identity over invocation-entry subjects.
-
-            A proof fact's `Id T left right` is not executable field equality. Retain
-            the two typed subjects instead of expanding records, sums and arrays into
-            scalar comparisons. Neither IEEE equality nor equality of projected
-            FloatMeaning values defines identity of a containing record. The entry
-            contract owns the observation frame; body readers must first establish
-            correspondence to that frame before reusing these subjects.
-        */
-        use super::structural_paths::path_type_reference;
-        use crate::values::scalar::structural_fields::structural_parameter_field_path;
-        use checked_trees::{CheckedBooleanExpression, CheckedStructuralParameterField};
-        use typed_trees::expression::ExpressionHandle;
-        use typed_trees::signature::StateParameter;
-        pub(crate) use validation::contextual_identity_subject_type as subject_type;
-
-        /*
-            Called only by the contract/proposition reader, never executable operator
-            selection. Primitive comparisons retain their independently selected rules.
-        */
-        pub(crate) fn lower(
-            program: &dyn ::validation::CheckingInput,
-            parameters: &[StateParameter],
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-        ) -> Option<CheckedBooleanExpression> {
-            let (left, right, _) = subjects(program, parameters, left, right)?;
-            Some(CheckedBooleanExpression::StructuralIdentity { left, right })
-        }
-
-        pub(crate) fn subjects(
-            program: &dyn ::validation::CheckingInput,
-            parameters: &[StateParameter],
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-        ) -> Option<(
-            CheckedStructuralParameterField,
-            CheckedStructuralParameterField,
-            typed_trees::type_identity::NormalizedTypeIdentity,
-        )> {
-            let subjects = [left, right].map(|expression| {
-                let mut path = Vec::new();
-                let parameter_position =
-                    structural_parameter_field_path(program, parameters, expression, &mut path)?;
-                let reference =
-                    path_type_reference(program, parameters, parameter_position, &path)?;
-                let identity = subject_type(program, reference, path.is_empty())?;
-                Some((
-                    CheckedStructuralParameterField {
-                        parameter_position,
-                        path,
-                    },
-                    identity,
-                ))
-            });
-            let [Some((left, left_type)), Some((right, right_type))] = subjects else {
-                return None;
-            };
-            (left_type == right_type).then_some((left, right, left_type))
         }
     }
     mod structural_paths {

@@ -2644,14 +2644,38 @@ pub(crate) mod namespaces {
             &self,
             call: &TableCallExpression,
         ) -> Option<&signature::StateSignature> {
+            self.resolve_named_conformance_call_signature(call)
+                .ok()
+                .flatten()
+        }
+
+        /// Separate an ordinary receiver from a named map whose selected public
+        /// view refuses. An absent or ambiguous map must not borrow an ambient
+        /// trait application after losing its own selection.
+        pub(super) fn resolve_named_conformance_call_signature(
+            &self,
+            call: &TableCallExpression,
+        ) -> Result<Option<&signature::StateSignature>, &'static str> {
             if call.static_requirement_dispatch.is_some() || call.requirement_application.is_valid()
             {
-                return None;
+                return Ok(None);
             }
-            let receiver = self.expression_table.name_path_node(call.receiver)?;
-            let selected = self.conformance_by_symbol(receiver.symbol)?;
+            let Some(receiver) = self.expression_table.name_path_node(call.receiver) else {
+                return Ok(None);
+            };
+            let Some(selected) = self.conformance_by_symbol(receiver.symbol) else {
+                return if receiver.symbol.is_valid()
+                    && self.symbols.get(receiver.symbol).kind == SymbolKind::Conformance
+                {
+                    Err("named public view lost its selected implementation")
+                } else {
+                    Ok(None)
+                };
+            };
+            // Applied generic maps retain their independently supplied tuple in
+            // the ordinary dispatch path above; a bare declaration cannot supply it.
             if !selected.type_parameters.is_empty() || !selected.lifetime_parameters.is_empty() {
-                return None;
+                return Err("named public view has no complete selected application");
             }
             let closed = self.closed_requirement_application(call.target_symbol);
             let template = closed
@@ -2661,16 +2685,20 @@ pub(crate) mod namespaces {
                 .rows
                 .iter()
                 .filter(|row| row.requirement == template);
-            let row = rows.next()?;
+            let row = rows
+                .next()
+                .ok_or("named public view has no exact requirement row")?;
             if rows.next().is_some() {
-                return None;
+                return Err("named public view has ambiguous requirement rows");
             }
-            let scope = AppliedTraitScope::from_conformance(self, selected)?
-                .declaring_scope(self, row.declaring_trait)?;
+            let scope = AppliedTraitScope::from_conformance(self, selected)
+                .ok_or("named public view lost its complete trait application")?
+                .declaring_scope(self, row.declaring_trait)
+                .ok_or("named public view lost its declaring trait scope")?;
             if closed.is_some()
                 && !self.requirement_application_matches_scope(call.target_symbol, &scope)
             {
-                return None;
+                return Err("named public view disagrees with its selected trait application");
             }
             self.applied_callable_signature(&scope, template)
                 .or_else(|| {
@@ -2679,6 +2707,8 @@ pub(crate) mod namespaces {
                     .then(|| self.trait_machine_signature_by_symbol(scope.declaration, template))
                     .flatten()
                 })
+                .map(Some)
+                .ok_or("named public view has no prepared applied signature")
         }
     }
 }
@@ -3277,14 +3307,22 @@ pub(crate) mod payloads {
                     expression::ExpressionNode::ZeroValue(self.type_reference(program, reference)?),
                 ),
                 expression::ExpressionNode::Call(mut call) => {
+                    call.requirement_application =
+                        self.type_reference(program, call.requirement_application)?;
+                    call.exact_coercion_target =
+                        self.type_reference(program, call.exact_coercion_target)?;
                     if let Some(request) = &mut call.installed_interrupt_operation {
                         request.invalidate_preparation();
                         self.static_arguments(program, std::slice::from_mut(&mut request.registrar))?;
                         self.static_arguments(program, std::slice::from_mut(&mut request.timer_slot))?;
                     }
                     self.static_arguments(program, &mut call.machine_arguments)?;
-                    let application = call.authored_machine_application;
-                    if application.is_valid() {
+                    if let Some(query) = &mut call.native_code_layout {
+                        self.static_arguments(program, std::slice::from_mut(&mut query.operand))?;
+                    }
+                    for application in
+                        crate::references::StaticArgumentCall::Expression(handle, &call).applications()
+                    {
                         let lifetimes = program
                             .static_machine_application_lifetimes(application)
                             .iter()
@@ -5650,6 +5688,7 @@ pub(crate) mod table {
                 owner: AppliedCallableOwner::Trait {
                     declaration: Default::default(),
                     application: Default::default(),
+                    scope: Default::default(),
                 },
                 signature: Default::default(),
             });
@@ -5738,6 +5777,38 @@ pub(crate) mod trait_scopes {
                 .ok()
         }
 
+        /// Copied contracts retain the full outer application even though their
+        /// logical owner and bare sibling targets keep the declaration symbols.
+        /// Explicit selections still own their result; only an implicit sibling
+        /// may use the exact supplying scope, including inherited/nullary members.
+        pub fn requirement_call_signature_in_scope(
+            &self,
+            lexical_owner: SymbolHandle,
+            call: &crate::expression::TableCallExpression,
+            supplying_scope: crate::trait_definition::RetainedTraitScope,
+        ) -> Option<&signature::StateSignature> {
+            if let Some(signature) = self.resolve_named_conformance_call_signature(call).ok()? {
+                return Some(signature);
+            }
+            if let Some(signature) = self.requirement_call_signature(lexical_owner, call) {
+                return Some(signature);
+            }
+            if call.requirement_application.is_valid() || call.static_requirement_dispatch.is_some()
+            {
+                return None;
+            }
+            let (declaration, declared) = self.trait_machine_signature(call.target_symbol)?;
+            let scope = supplying_scope
+                .scope(self)?
+                .declaring_scope(self, declaration.symbol)?;
+            self.applied_callable_signature(&scope, declared.symbol)
+                .filter(|signature| {
+                    signature.type_parameters.is_empty() && signature.lifetime_parameters.is_empty()
+                })
+        }
+
+        /// The same logical view with the reason its exact source cannot supply it.
+        /// Optional queries above keep their existing refusal behavior.
         pub fn resolve_requirement_call_signature(
             &self,
             lexical_owner: SymbolHandle,
@@ -6090,6 +6161,7 @@ pub(crate) mod trait_scopes {
                     let AppliedCallableOwner::Trait {
                         declaration,
                         application: prepared_identity,
+                        ..
                     } = &prepared.owner
                     else {
                         return None;
@@ -6178,6 +6250,7 @@ pub(crate) mod trait_scopes {
                         AppliedCallableOwner::Trait {
                             declaration,
                             application,
+                            ..
                         } => Some(row_key(prepared.signature.symbol, declaration, application)),
                         _ => None,
                     })
@@ -6220,6 +6293,7 @@ pub(crate) mod trait_scopes {
                     applied
                 };
                 self.apply_callable_refinements(&mut applied, &clauses)?;
+                let scope = environment.retain(self)?;
                 let inserted = row_key(applied.symbol, owner, identity);
                 produced.push(applied.clone());
                 let before_insert = self.applied_callable_signatures.revision();
@@ -6228,6 +6302,7 @@ pub(crate) mod trait_scopes {
                         owner: AppliedCallableOwner::Trait {
                             declaration: owner,
                             application: identity,
+                            scope,
                         },
                         signature: applied,
                     });
@@ -6345,16 +6420,29 @@ impl TypedTrees {
         &self,
         trait_symbol: SymbolHandle,
     ) -> impl Iterator<Item = &signature::StateSignature> {
+        self.applied_trait_contracts(trait_symbol)
+            .map(|contract| contract.signature)
+    }
+
+    pub fn applied_trait_contracts(
+        &self,
+        trait_symbol: SymbolHandle,
+    ) -> impl Iterator<Item = CallableContractScope<'_>> {
         self.applied_callable_signatures
             .iter()
             .filter(|(_, prepared)| self.callable_application_owner_is_live(prepared))
             .filter_map(move |(_, prepared)| match prepared.owner {
-                AppliedCallableOwner::Trait { declaration, .. }
-                | AppliedCallableOwner::RequirementInstance { declaration, .. }
-                    if declaration == trait_symbol =>
-                {
-                    Some(&prepared.signature)
+                AppliedCallableOwner::Trait {
+                    declaration, scope, ..
                 }
+                | AppliedCallableOwner::RequirementInstance {
+                    declaration,
+                    trait_scope: scope,
+                    ..
+                } if declaration == trait_symbol => Some(CallableContractScope {
+                    signature: &prepared.signature,
+                    trait_scope: Some(scope),
+                }),
                 _ => None,
             })
     }
@@ -6377,6 +6465,14 @@ impl TypedTrees {
     }
 
     pub fn prepared_callable_signatures(&self) -> impl Iterator<Item = &signature::StateSignature> {
+        self.prepared_callable_contracts()
+            .map(|contract| contract.signature)
+    }
+
+    /// The copied telescope and its supplying trait application travel
+    /// together. Logical declaration symbols deliberately remain unchanged
+    /// when preparation substitutes a concrete outer application.
+    pub fn prepared_callable_contracts(&self) -> impl Iterator<Item = CallableContractScope<'_>> {
         self.applied_callable_signatures
             .iter()
             .filter(|(_, prepared)| self.callable_application_owner_is_live(prepared))
@@ -6389,9 +6485,20 @@ impl TypedTrees {
                     } => [required.as_ref(), Some(source_required)],
                     _ => [None, None],
                 };
+                let trait_scope = match prepared.owner {
+                    AppliedCallableOwner::Trait { scope, .. } => Some(scope),
+                    AppliedCallableOwner::RequirementInstance { trait_scope, .. } => {
+                        Some(trait_scope)
+                    }
+                    _ => None,
+                };
                 [Some(&prepared.signature), counterparts[0], counterparts[1]]
                     .into_iter()
                     .flatten()
+                    .map(move |signature| CallableContractScope {
+                        signature,
+                        trait_scope,
+                    })
             })
     }
 
@@ -6421,6 +6528,7 @@ impl TypedTrees {
                 AppliedCallableOwner::Trait {
                     declaration,
                     application,
+                    ..
                 } if !live.contains(&(declaration, application)) => Some(handle),
                 _ => None,
             })
@@ -6453,6 +6561,14 @@ impl TypedTrees {
             self.applied_callable_signatures.free(application);
         }
     }
+}
+
+/// A retained callable telescope and the exact outer scope that produced it.
+/// This is source typing context, never a conformance or checked proof.
+#[derive(Clone, Copy)]
+pub struct CallableContractScope<'a> {
+    pub signature: &'a signature::StateSignature,
+    pub trait_scope: Option<crate::trait_definition::RetainedTraitScope>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -6491,6 +6607,7 @@ pub(crate) enum AppliedCallableOwner {
     Trait {
         declaration: SymbolHandle,
         application: crate::type_identity::NormalizedTypeIdentity,
+        scope: crate::trait_definition::RetainedTraitScope,
     },
     RequirementInvocation {
         declaration: SymbolHandle,

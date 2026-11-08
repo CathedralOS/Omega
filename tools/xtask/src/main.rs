@@ -17,10 +17,13 @@ mod boundary;
 mod claims;
 mod corpus;
 mod doctor;
+mod execution;
 mod fmt;
 mod focused_test;
 mod landing;
+mod producer;
 mod provenance;
+mod qualification;
 mod rules;
 mod samples;
 mod worktree;
@@ -46,6 +49,7 @@ commands:
   check-rules      Verify commit lane, PR provenance, ratchets, and corpus/board hygiene
   corpus           Run focused corpus verification, recording, or regression listing
   sample-gate      Run differential native + Terminal Psi sample verification
+  qualify          Execute exact corpus and CLI selections with retained producer evidence
   doctor           Run host toolchain and repository preflight checks
   focused-test     Validate, prepare, or run a focused CI Rust test selection
   land             Inspect, enqueue, or land a pull request via the GitHub merge queue
@@ -67,6 +71,7 @@ fn main() -> ExitCode {
         "check-rules" => rules::run(&args),
         "corpus" => corpus::run(&args),
         "sample-gate" => samples::run(&args),
+        "qualify" => qualification::run(&args),
         "doctor" => doctor::run(&args),
         "focused-test" => focused_test::run(&args),
         "land" => landing::run(&args),

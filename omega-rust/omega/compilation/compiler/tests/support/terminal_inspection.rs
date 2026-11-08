@@ -24,6 +24,8 @@ mod closed_reach_controls;
 mod dynamic_image_controls;
 #[path = "terminal_host_provisions.rs"]
 mod host_provisions;
+#[path = "identity_formations.rs"]
+mod identity_formations;
 #[path = "indexed_family_controls.rs"]
 mod indexed_family_controls;
 #[path = "invocation_value_controls.rs"]
@@ -54,6 +56,7 @@ enum InspectionControls<'selection> {
     ConformanceApplications,
     IndexedFamily,
     MathematicalActuals,
+    IdentityFormations,
     DynamicImage,
     ClosedReach,
     ClosedReachCaptures,
@@ -133,6 +136,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "closed-reach-controls"] => {
                 (*machine, false, Some(InspectionControls::ClosedReach))
             }
+            [machine, "identity-formation-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::IdentityFormations),
+            ),
             [machine, "mathematical-actuals"] => (
                 *machine,
                 false,
@@ -196,7 +204,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls`, `ownership-claim-controls`, `invocation-value-controls`, `result-claim-controls`, `optimization-catalog-controls` or `dynamic-image-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `identity-formation-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls`, `ownership-claim-controls`, `invocation-value-controls`, `result-claim-controls`, `optimization-catalog-controls` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -205,6 +213,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             conformance_controls,
             Some(
                 InspectionControls::MathematicalActuals
+                    | InspectionControls::IdentityFormations
                     | InspectionControls::IndexedFamily
                     | InspectionControls::TaskActivations
                     | InspectionControls::CallbackBodies
@@ -261,6 +270,10 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             .map_err(|errors| format!("inspection {machine} checking: {errors:?}"))?;
             drop(prepared);
             match conformance_controls {
+                Some(InspectionControls::IdentityFormations) => {
+                    let _artifact = identity_formations::produce(&checked, machine)?;
+                    observations.push("identity-formation-controls:match".into());
+                }
                 Some(InspectionControls::MathematicalActuals) => {
                     let _artifact = mathematical_actuals::produce(&checked, machine)?;
                 }
@@ -432,6 +445,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 | InspectionControls::CallbackTelescope(_)
                 | InspectionControls::NativeLayouts
                 | InspectionControls::IndexedFamily
+                | InspectionControls::IdentityFormations
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
                 }

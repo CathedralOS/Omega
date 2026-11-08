@@ -2,9 +2,9 @@
 
 The minimum call's checked IEEE meaning survives transport and discharges `require_min` for its exact captured result.
 
-This row qualifies the named-operator write-origin prerequisite of **R5** in `TASKS.md`. The source imports the selected float operator roster explicitly. `forward` returns `F32::minimum(left, right)` and proves its declared `FloatMeaning` equation. The caller transports that captured result, then consumes the equation in `require_min`. Every invalid twin changes only the implementation expression from `F32::minimum` to `F32::maximum`, retaining the minimum guarantee and its consumer. It must reject with `ensures contract proof fact`.
+This source migration supports the explicit identity requirement in **PROOF-KERNEL-CORE** in `TASKS.md`. `forward` returns `F32::minimum(left, right)` and states that the result's `FloatMeaning` is identical to the specified minimum's meaning. The caller transports the result and uses that identity in `require_min`. Its runtime check still uses ordinary IEEE comparison.
 
-The repair shares the ordinary exact operator selection, formal operand types, chronological origin capture and signature write ceiling. It adds no float-specific proof rule. The declaration namespace is not runtime receiver storage; treating it as an unknown receiver had made the empty completion frame opaque and discarded the equation's input observations. Mutable explicit arguments and operand effects still contribute their full writes.
+Every invalid twin changes only `F32::minimum` to `F32::maximum`, retaining the minimum guarantee and consumer. It must reject because `forward` cannot prove that guarantee. Identity of a `FloatMeaning` does not assert identity of the underlying float representation or change IEEE comparison behavior.
 
 | Place | Positive | Invalid twin |
 | --- | --- | --- |
@@ -18,27 +18,21 @@ The repair shares the ordinary exact operator selection, formal operand types, c
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
 
-All positive projects bind `ProgramEntry` for all four hosted targets. On the available Linux x86-64 host, `omega run --both` must report native and Terminal Psi exit `0`; the runtime branch checks the returned value is `1.0`. Each matching pass/fail fixture under `tests/omega/{pass,fail}/facts/float_meaning_result_through_*` retains byte-identical source and build declarations.
+All positive projects bind `ProgramEntry` for all four hosted targets. Qualification requires native and Terminal Psi exit `0` on each host; the runtime check expects `1.0`. The nine positive fixtures under `tests/omega/pass/facts/float_meaning_result_through_*` retain byte-identical source and Build declarations. The nine invalid samples above exist, but matching `tests/omega/fail/facts/` mirrors are absent.
 
-1. **Establishment.** The selected minimum operation supplies its checked public normal-return equation; `forward` must prove it. Maximum cannot establish that equation for arbitrary inputs.
-2. **Identity and lifetime.** The equation names the captured result and operand observations. An empty completion write frame preserves those observations without making runtime calls repeatable or granting Float substitution identity.
-3. **Composition.** The same equation reaches a local, record field, parameter, call result, match join, named constants, successor state, forwarding machine and target body. `require_min` consumes it without a new guard establishing the fact.
-4. **Soundness boundaries.** The negative twins retain the claimed minimum equation but select maximum. Focused mutable-argument and effectful-operand controls retain invalidation independently of this scalar row.
-5. **Checked-to-Terminal Psi (Psi 06–08).** The equation justifies the consumer; the actual minimum and result branch execute under the interpreter.
-6. **Provider settlement, layout and ABI (Omega 00–02).** Hosted entry bindings and ordinary f32 value lanes follow the selected target program.
-7. **Instructions, register homes and activations (Omega 03–06).** Native execution computes minimum and transports the returned scalar through each source place.
-8. **Encoding and native image emission (Omega 07–09).** Native and interpreter exit zero agree for every positive. No execution is claimed for unavailable foreign hosts.
+The checks must establish:
 
-This is a parser-admission prerequisite witness, not a claim that this row alone completes R5. The finite-cycle and other may-write rows remain required, as does ordinary parser package admission and convergence.
+- The selected operation's checked return contract supplies the identity, and `forward` proves it for its original operands.
+- The identity names the exact captured result and argument storage versions. Writes retain their ordinary invalidation rules.
+- All nine places preserve the same fact; `require_min` consumes it without a new guard establishing it.
+- Interpreter and native execution compute and transport the f32 result through the selected target's calling and storage rules, and satisfy the authored result check.
+
+The migration preserves the existing programs and does not establish new execution results. The `match_join` program currently invokes only `joined(true)` and has identical arm bodies, so its oracle does not distinguish branch selection. That coverage gap and the missing invalid corpus mirrors remain open; this change closes no row or parent acceptance.
 
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.
-`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
-implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
-by explicit target-keyed Build rows. The operation, inputs, contracts and exit
-oracle are unchanged. The entry wrapper and each implementation check a tag
-(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
-Linux x86-64 native and Terminal Psi agreement for the positive and source
-rejection for the twin; the other hosted targets keep their authored rows,
-unexecuted here.
+Ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait
+requirement are selected by explicit target-keyed Build rows. The entry wrapper
+and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong
+selection traps. These Build declarations, inputs and exit oracles are unchanged.

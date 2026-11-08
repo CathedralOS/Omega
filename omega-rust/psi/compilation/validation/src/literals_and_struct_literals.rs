@@ -2169,9 +2169,9 @@ pub mod literals {
                     }
                     if let Some(dispatch) = program.expression_table.match_node(expression) {
                         let destination =
-            match crate::value_custody::expression_types::expression_result_type_reference(
+                            match crate::value_custody::expression_types::expression_result_type_reference(
                 program, machine, state, expression,
-            ) {
+                            ) {
                 Some(retained) => retained,
                 None if matches!(
                     program.type_reference_table.type_reference(
@@ -2188,7 +2188,7 @@ pub mod literals {
                     destination
                 }
                 None => return,
-            };
+                            };
                         active.push(expression);
                         for arm in program.expression_table.match_arms(dispatch.arms) {
                             visit_result_values_inner(
@@ -2628,7 +2628,7 @@ pub mod literals {
             Some(Diagnostic::warning(format!(
         "anonymous arithmetic preserves the exact fractional intermediate `{}` before landing as integer `{integer}`; type an operand if typed integer division was intended",
         fractional.value,
-    )).with_source_span(program.expression_table.source_span(evaluated.fractional_origin)))
+            )).with_source_span(program.expression_table.source_span(evaluated.fractional_origin)))
         }
 
         pub fn land_integer_value(
@@ -3180,15 +3180,16 @@ pub mod struct_literals {
                 ExpressionNode::Binary(binary) => {
                     let operand_type = |expression| {
                         crate::value_custody::expression_types::declaration_expression_result_type_reference(
-                    program,
-                    owner,
-                    &|expression| {
-                        crate::proof_contracts::proof_embeddings::expression_type_reference(
-                            program, expression,
+                            program,
+                            owner,
+                            None,
+                            &|expression| {
+                                crate::proof_contracts::proof_embeddings::expression_type_reference(
+                                    program, expression,
+                                )
+                            },
+                            expression,
                         )
-                    },
-                    expression,
-                )
                     };
                     let references = [binary.left, binary.right].map(operand_type);
                     let left = bounds_eval(program, owner, valuation, declared, binary.left);
@@ -3208,19 +3209,19 @@ pub mod struct_literals {
                         return tri(float_comparison(left, right, binary.operator));
                     }
                     if let Some(spelling) =
-                crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
-                    binary.operator,
-                )
-                && !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    program,
-                    owner,
-                    expression,
-                    spelling,
-                    &references,
-                )
-            {
-                return Bounds::UNKNOWN;
-            }
+                        crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
+                            binary.operator,
+                        )
+                        && !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                            program,
+                            owner,
+                            expression,
+                            spelling,
+                            &references,
+                        )
+                    {
+                        return Bounds::UNKNOWN;
+                    }
                     match binary.operator {
                         BinaryOperator::Add
                         | BinaryOperator::Subtract
@@ -3620,12 +3621,12 @@ pub mod struct_literals {
                                     && let Some(case_name) = literal.case_name.as_ref()
                                 {
                                     predicate_diagnostics.push(Diagnostic::error(format!(
-                                "data `{}` case `{}` literal violates the case constraint: a \
+                                        "data `{}` case `{}` literal violates the case constraint: a \
                                  `requires` fact evaluates FALSE at this construction (ch12: \
                                  construction is the gate)",
-                                literal.type_name.as_str(),
-                                case_name.as_str()
-                            )));
+                                        literal.type_name.as_str(),
+                                        case_name.as_str()
+                                    )));
                                 }
                             }
                             StructuralJudgment::Unknown
@@ -3694,20 +3695,20 @@ pub mod struct_literals {
                         });
                         let proven = if selected.is_some() {
                             authored_value.map_or_else(
-                        || {
-                            crate::proof_contracts::proof_facts::domain_admits_zero_bytes(
-                                program,
-                                membership.domain_symbol,
+                                || {
+                                    crate::proof_contracts::proof_facts::domain_admits_zero_bytes(
+                                        program,
+                                        membership.domain_symbol,
+                                    )
+                                },
+                                |value| {
+                                    crate::proof_contracts::proof_facts::string_literal_grants_domain(
+                                        program,
+                                        value,
+                                        membership.domain_symbol,
+                                    )
+                                },
                             )
-                        },
-                        |value| {
-                            crate::proof_contracts::proof_facts::string_literal_grants_domain(
-                                program,
-                                value,
-                                membership.domain_symbol,
-                            )
-                        },
-                    )
                         } else {
                             crate::proof_contracts::proof_facts::string_literal_grants_domain(
                                 program,
@@ -4082,7 +4083,7 @@ pub mod struct_literals {
                 let Ok(targets) = crate::layout_checking_targets(program, [carrier]) else {
                     diagnostics.push(Diagnostic::error(format!(
             "IntegerAt construction in {owner} has no complete layout alternative roster"
-        )));
+                    )));
                     return Vec::new();
                 };
                 let initial_diagnostics = diagnostics.len();
@@ -4167,7 +4168,7 @@ pub mod struct_literals {
                 semantic_vocabulary::IntegerSign::Signed => "signed",
                 semantic_vocabulary::IntegerSign::Unsigned => "unsigned",
             },
-        )));
+                    )));
                     return None;
                 }
                 Some(CheckedStoredIntegerWrite {

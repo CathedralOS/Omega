@@ -16,6 +16,9 @@ satisfies Content<Envelope, CountedQuantity<Units>>::project {
 }
 machine renew_empty(whole: Envelope in Accounted) -> Envelope in Accounted
 requires whole in Envelope::Occupied
-ensures Accounted::content(old(&whole)) == Accounted::content(&result) {
+ensures core::Identity<CountedQuantity<Units>>(
+    Accounted::content(old(&whole)),
+    Accounted::content(&result)
+) {
     Envelope::Empty { quantity: whole.quantity }
 }

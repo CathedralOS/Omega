@@ -6477,19 +6477,22 @@ pub(crate) mod attached_unit {
                                     .iter()
                                     .zip(&self.rank_parameters[position])
                                     .map(|(root, parameter)| {
-                                        let rank_type = crate::scalar_lowering::computations::computation_value_type(
-                                            identities,
-                                            checked,
-                                            &evaluation.shared_qualifications,
-                                            root.root,
-                                            &bindings,
-                                            &values
-                                                .iter()
-                                                .map(|value| value.value_type())
-                                                .collect::<Vec<_>>(),
-                                        )?;
+                                        let rank_type =
+                                            crate::scalar_lowering::computations::computation_value_type(
+                                                identities,
+                                                checked,
+                                                &evaluation.shared_qualifications,
+                                                root.root,
+                                                &bindings,
+                                                &values
+                                                    .iter()
+                                                    .map(|value| value.value_type())
+                                                    .collect::<Vec<_>>(),
+                                            )?;
                                         if rank_type.scalar_type.as_integer().is_none() {
-                                            return unsupported("Unit graph rank observation lost its integer carrier");
+                                            return unsupported(
+                                                "Unit graph rank observation lost its integer carrier",
+                                            );
                                         }
                                         Ok(ValueDeclaration {
                                             id: *parameter,
@@ -6581,7 +6584,8 @@ pub(crate) mod attached_unit {
                                     }
                                 }
                                 CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
-                                    when_true, ..
+                                    when_true,
+                                    ..
                                 } => when_true.statement_ordinal(),
                                 _ => None,
                             };
@@ -6611,7 +6615,9 @@ pub(crate) mod attached_unit {
                                     return_when_true: false,
                                     ..
                                 } => successor_may_read_payloads(jump),
-                                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { return_arm, .. }
+                                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                                    return_arm, ..
+                                }
                                 | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
                                     when_true: return_arm,
                                     ..
@@ -6840,7 +6846,9 @@ pub(crate) mod attached_unit {
                                         state_parameters,
                                         arm_namespace,
                                         match &planned_guard {
-                                            Some((planned, _)) if *return_when_true => planned.established.as_slice(),
+                                            Some((planned, _)) if *return_when_true => {
+                                                planned.established.as_slice()
+                                            }
                                             _ => &[],
                                         },
                                         &[],
@@ -6913,9 +6921,9 @@ pub(crate) mod attached_unit {
                                     .map(|case| match &case.outcome {
                                         checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm)
                                             if case.values.is_empty()
-                                                && shared_return_blocks
-                                                    .iter()
-                                                    .any(|(ordinal, _)| *ordinal == return_arm.statement_ordinal()) =>
+                                                && shared_return_blocks.iter().any(|(ordinal, _)| {
+                                                    *ordinal == return_arm.statement_ordinal()
+                                                }) =>
                                         {
                                             let (_, target) = shared_return_blocks
                                                 .iter()
@@ -7247,19 +7255,75 @@ pub(crate) mod attached_unit {
                                         lookup_type_id(&self.catalogs.type_ids, &result.type_identity)?,
                                         &self.catalogs.structural_types,
                                     )?;
-                                    if self.content_entry_claims.iter().any(|entry| {
+                                    // Each return uses its own checked correspondence. A proof on
+                                    // another arm cannot supply this arm's missing guarantee.
+                                    let identity_parameters = self.state_contract_rosters[position]
+                                        .iter()
+                                        .map(|(_, parameter)| parameter.clone())
+                                        .collect::<Vec<_>>();
+                                    let state_identities =
+                                        crate::unit::attached_unit::claims::lower_result_identity(
+                                            checked,
+                                            owner,
+                                            state.state,
+                                            &state.structural_parameters,
+                                            &identity_parameters,
+                                            &self.machine_result,
+                                            &self.claims.source_claims,
+                                        )?;
+                                    if let Some(entry) = self.content_entry_claims.iter().find(|entry| {
                                         returned_claims
                                             .iter()
                                             .any(|binding| binding.claim == entry.claim)
-                                            && !self.content_identity_reshuffles.iter().any(|identity| {
+                                            && !state_identities.iter().any(|identity| {
                                                 identity.claim == entry.claim
                                                     && identity.input == entry.input
                                                     && identity.projections == entry.projections
                                             })
                                     }) {
-                                        return unsupported(
-                                            "structural return lost its checked content identity guarantee",
-                                        );
+                                        let reason = if state_identities.is_empty() {
+                                            "structural return lost its checked content identity guarantee: returning state has no checked content rows"
+                                        } else if !state_identities.iter().any(|identity| identity.claim == entry.claim) {
+                                            "structural return lost its checked content identity guarantee: no checked row names the returned claim"
+                                        } else if !state_identities.iter().any(|identity| identity.claim == entry.claim && identity.input == entry.input) {
+                                            "structural return lost its checked content identity guarantee: checked row names another input place"
+                                        } else {
+                                            "structural return lost its checked content identity guarantee: checked projections disagree"
+                                        };
+                                        return unsupported(reason);
+                                    }
+                                    let invocation_identities = state_identities
+                                        .into_iter()
+                                        .filter(|identity| {
+                                            self.content_entry_claims.iter().any(|entry| {
+                                                identity.claim == entry.claim
+                                                    && identity.input == entry.input
+                                                    && identity.projections == entry.projections
+                                            })
+                                        })
+                                        .collect::<Vec<_>>();
+                                    if let Some(common) = &mut self.content_identity_reshuffles {
+                                        let keys = invocation_identities
+                                            .iter()
+                                            .map(|identity| {
+                                                (
+                                                    identity.claim,
+                                                    &identity.input,
+                                                    &identity.output,
+                                                    &identity.projections,
+                                                )
+                                            })
+                                            .collect::<std::collections::BTreeSet<_>>();
+                                        common.retain(|identity| {
+                                            keys.contains(&(
+                                                identity.claim,
+                                                &identity.input,
+                                                &identity.output,
+                                                &identity.projections,
+                                            ))
+                                        });
+                                    } else {
+                                        self.content_identity_reshuffles = Some(invocation_identities);
                                     }
                                     Terminator::ReturnStructural {
                                         edge: edge_id(allocate_dense(&mut next_edge)?),
@@ -7320,9 +7384,13 @@ pub(crate) mod attached_unit {
                                             ..
                                         } => (
                                             match &planned_guard {
-                                                Some((planned, namespace)) => {
-                                                    successor(when_true, &[], false, namespace, &planned.established)?
-                                                }
+                                                Some((planned, namespace)) => successor(
+                                                    when_true,
+                                                    &[],
+                                                    false,
+                                                    namespace,
+                                                    &planned.established,
+                                                )?,
                                                 None => successor(when_true, &[], false, &values, &[])?,
                                             },
                                             successor(when_false, &[], false, &values, &[])?,
@@ -7338,23 +7406,22 @@ pub(crate) mod attached_unit {
                                                 }
                                                 _ => successor(jump, &[], false, &values, &[])?,
                                             };
-                                            let return_edge =
-                                                conditional_return_edge
-                                                    .take()
-                                                    .ok_or(LoweringError::Unsupported(
-                                                        "Unit graph conditional return lost its staged edge",
-                                                    ))?;
+                                            let return_edge = conditional_return_edge.take().ok_or(
+                                                LoweringError::Unsupported(
+                                                    "Unit graph conditional return lost its staged edge",
+                                                ),
+                                            )?;
                                             if *return_when_true {
                                                 (return_edge, jump_edge)
                                             } else {
                                                 (jump_edge, return_edge)
                                             }
                                         }
-                                        CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => {
-                                            completion_edges.take().ok_or(LoweringError::Unsupported(
-                                                "Unit graph conditional completion lost its staged edges",
-                                            ))?
-                                        }
+                                        CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                                            ..
+                                        } => completion_edges.take().ok_or(LoweringError::Unsupported(
+                                            "Unit graph conditional completion lost its staged edges",
+                                        ))?,
                                         _ => unreachable!(),
                                     };
                                     if let Some((planned, guard_values)) = &planned_guard {
@@ -7392,9 +7459,13 @@ pub(crate) mod attached_unit {
                                             }
                                         };
                                         selected.push(match planned {
-                                            Some((planned, namespace)) => {
-                                                successor(&plan.successor, &[], false, namespace, &planned.established)?
-                                            }
+                                            Some((planned, namespace)) => successor(
+                                                &plan.successor,
+                                                &[],
+                                                false,
+                                                namespace,
+                                                &planned.established,
+                                            )?,
                                             None => {
                                                 let namespace = if index == 0 {
                                                     guarded_first_namespace.as_slice()
@@ -7413,15 +7484,19 @@ pub(crate) mod attached_unit {
                                         checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) => {
                                             successor(fallback, &[], false, &values, &[])?
                                         }
-                                        checked_trees::CheckedGuardedJumpFallbackPlan::Return(_) => guarded_return_edge
-                                            .take()
-                                            .ok_or(LoweringError::Unsupported(
-                                                "Unit graph guarded return lost its staged edge",
-                                            ))?,
+                                        checked_trees::CheckedGuardedJumpFallbackPlan::Return(_) => {
+                                            guarded_return_edge
+                                                .take()
+                                                .ok_or(LoweringError::Unsupported(
+                                                    "Unit graph guarded return lost its staged edge",
+                                                ))?
+                                        }
                                     });
                                     let draft_count = guarded_drafts.len();
-                                    for (index, (id, parameters, structural_parameters, operations_draft, guard, _)) in
-                                        guarded_drafts.into_iter().enumerate()
+                                    for (
+                                        index,
+                                        (id, parameters, structural_parameters, operations_draft, guard, _),
+                                    ) in guarded_drafts.into_iter().enumerate()
                                     {
                                         let when_false = if index + 1 == draft_count {
                                             fallback_edge.take().ok_or(LoweringError::Unsupported(
@@ -9373,7 +9448,10 @@ pub(crate) mod attached_unit {
                     machine_result: TerminalMachineResult,
                     claims: LoweredUnitClaims,
                     content_entry_claims: Vec<terminal_psi::ContentEntryClaim>,
-                    content_identity_reshuffles: Vec<terminal_psi::ContentIdentityReshuffle>,
+                    /// Common rows across every emitted normal structural return. No row is
+                    /// published before a return has supplied its checked correspondence.
+                    content_identity_reshuffles:
+                        Option<Vec<terminal_psi::ContentIdentityReshuffle>>,
                     loan_completions: Vec<terminal_psi::LoanCompletion>,
                     block_entry_claims: Vec<terminal_psi::EntryClaim>,
                     entry_reentered: bool,
@@ -9675,16 +9753,6 @@ pub(crate) mod attached_unit {
                             &entry.entry_claims,
                             &claims.source_claims,
                         )?;
-                    let content_identity_reshuffles =
-                        crate::unit::attached_unit::claims::lower_result_identity(
-                            checked,
-                            plan.machine,
-                            entry.state,
-                            &entry.structural_parameters,
-                            &parameters,
-                            &machine_result,
-                            &claims.source_claims,
-                        )?;
                     let entry_reentered = plan
                         .states
                         .iter()
@@ -9909,35 +9977,38 @@ pub(crate) mod attached_unit {
                             },
                         });
                     }
-                    let presents = |stored: typed_trees::type_identity::TypeIdentityId,
-                                    member: &checked_trees::CheckedUnitStructuralParameterPlan| {
-                        if stored == member.type_identity {
-                            return true;
-                        }
-                        let (Ok(stored), Ok(formal)) = (
-                            lookup_type_id(&catalogs.type_ids, &stored),
-                            lookup_type_id(&catalogs.type_ids, &member.type_identity),
-                        ) else {
-                            return false;
-                        };
-                        let requested = terminal_access(member.access);
-                        terminal_semantics::borrowed_referent_presentation(
-                            catalogs.structural_types.iter(),
-                            stored,
-                            formal,
-                        ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
-                            && terminal_psi::find_structural_type(catalogs.structural_types.as_ref(), stored)
+                    let presents =
+                        |stored: typed_trees::type_identity::TypeIdentityId,
+                         member: &checked_trees::CheckedUnitStructuralParameterPlan| {
+                            if stored == member.type_identity {
+                                return true;
+                            }
+                            let (Ok(stored), Ok(formal)) = (
+                                lookup_type_id(&catalogs.type_ids, &stored),
+                                lookup_type_id(&catalogs.type_ids, &member.type_identity),
+                            ) else {
+                                return false;
+                            };
+                            let requested = terminal_access(member.access);
+                            terminal_semantics::borrowed_referent_presentation(
+                                catalogs.structural_types.iter(),
+                                stored,
+                                formal,
+                            ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+                                && terminal_psi::find_structural_type(
+                                    catalogs.structural_types.as_ref(),
+                                    stored,
+                                )
                                 .is_some_and(|declaration| match declaration.shape {
                                     terminal_psi::StructuralTypeShape::ElementView { access, .. }
                                     | terminal_psi::StructuralTypeShape::ByteSequence(
                                         terminal_psi::ByteSequenceCarrier::BorrowedView { access }
                                         | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
-                                    ) => {
-                                        access.is_none_or(|access| structural_access_can_supply(access, requested))
-                                    }
+                                    ) => access
+                                        .is_none_or(|access| structural_access_can_supply(access, requested)),
                                     _ => false,
                                 })
-                    };
+                        };
                     let loan_chains = loan_chains::LoanChains::plan(
                         checked,
                         plan,
@@ -10006,7 +10077,7 @@ pub(crate) mod attached_unit {
                         machine_result,
                         claims,
                         content_entry_claims,
-                        content_identity_reshuffles,
+                        content_identity_reshuffles: None,
                         loan_completions: Vec::new(),
                         block_entry_claims,
                         entry_reentered,
@@ -10074,6 +10145,12 @@ pub(crate) mod attached_unit {
                         mut rank_edges,
                         ..
                     } = emission;
+                    let content_identity_reshuffles =
+                        content_identity_reshuffles.unwrap_or_default();
+                    // A retained `requires` becomes the header's scalar block invariant:
+                    // every incoming Jump or Conditional edge discharges it before the block
+                    // runs. A plain entry publishes its clauses on the machine contract
+                    // instead — invocation is an arrival without an edge proof.
                     for (position, state) in plan.states.iter().enumerate() {
                         let declaration = checked.state_by_symbol(state.state).ok_or(
                             LoweringError::Unsupported(

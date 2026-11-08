@@ -928,7 +928,7 @@ pub(crate) mod canonical_values {
     }
 }
 pub use callable_applications::{
-    AppliedMachineCallable, AppliedMachineCallableId, CallableSubstitution,
+    AppliedMachineCallable, AppliedMachineCallableId, CallableContractScope, CallableSubstitution,
     ClosedRequirementApplication, RequirementLocalArgument,
 };
 pub(crate) mod frozen {

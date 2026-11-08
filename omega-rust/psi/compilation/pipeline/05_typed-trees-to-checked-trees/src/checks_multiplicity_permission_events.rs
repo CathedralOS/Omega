@@ -85,6 +85,7 @@ pub(crate) fn prepare_permission_events(
 ) -> Result<bool, Vec<Diagnostic>> {
     claim_outcomes.begin();
     facts.qualifications.content.body_conservations = Default::default();
+    facts.qualifications.content.body_conservation_plans.clear();
     facts.qualifications.content.body_claim_bindings = Default::default();
     facts.qualifications.content.body_available_inputs = Default::default();
     facts.qualifications.content.body_transformations = Default::default();
@@ -714,6 +715,7 @@ fn walk_state_apart<'program>(
                     plans: &shared_content.plans,
                     conservation_plans: &shared_content.conservation_plans,
                     body_conservations: &mut content.body_conservations,
+                    body_conservation_plans: &mut content.body_conservation_plans,
                     body_claim_bindings: &mut content.body_claim_bindings,
                     body_available_inputs: &mut content.body_available_inputs,
                     body_transformations: &mut content.body_transformations,
