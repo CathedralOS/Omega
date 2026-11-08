@@ -19947,6 +19947,7 @@ pass/build/generated_declaration_continuation_exit rejected 874ms check-target:m
 pass/build/generated_source_selects_authored rejected 1413ms published:none regressed-from:checked+published:files/generated.omg @ccdb99ca2214
 	tests/omega/pass/build/generated_source_selects_authored/.omega/generated/generated.omg:16:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
 	published outputs [] differ from expected_published.txt [files/generated.omg]
+pass/build/initial_build_core_identity_exit checked 3259ms check-target:macos_arm64 @0992bbc6a472
 pass/build/installed_entry_ram_live_stack_exit checked 10648ms check-target:macos_arm64 @f6fb7ca6e997
 pass/build/installed_entry_ram_stack_occurrence_exit checked 4719ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/installed_entry_ram_two_occurrences_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
