@@ -1,20 +1,17 @@
-//! One ordering suite for both block-order derivations: the producer's
-//! `ordinary::order::derive` and the independent checker's
-//! `validation::ordinary::order::derive`. Each runs the same raw graph
-//! expectations through `order_suite!`, so the checker is tested against the
-//! fixtures, never against the producer's answer. These fixtures carry raw
-//! ordering premises only; they manufacture no selection authority.
-use super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
+/*
+We provide the shared block-ordering test suite (`order_suite!`) and synthetic control-flow graph builders exercised against both the producer's block-order derivation (`ordinary::derive_order`) and the independent validator's reconstruction (`validation::derive_order`). Each implementation is checked directly against raw control-flow fixtures so the validator is never tested merely by agreeing with the producer.
+*/
+
 use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
-use selected_instructions::{SelectedBlock, SelectedFunction, SelectedTerminator};
 use selected_instructions::{
-    SelectedBlockId, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedSuccessor,
+    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
-/// A block-order derivation under test.
-pub(super) type Derive =
+use crate::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
+
+pub(crate) type Derive =
     for<'a> fn(
         &'a SelectedFunction,
         SelectedFunctionLayoutPolicy,
@@ -35,6 +32,7 @@ pub(crate) fn instruction(block: u32, kind: SelectedInstructionKind) -> Selected
         provenance: Default::default(),
     }
 }
+
 pub(crate) fn successor(target: u32) -> SelectedSuccessor {
     SelectedSuccessor {
         structural_case: None,
@@ -47,12 +45,14 @@ pub(crate) fn successor(target: u32) -> SelectedSuccessor {
         work: Vec::new(),
     }
 }
+
 fn jump(source: u32, destination: u32) -> SelectedTerminator {
     SelectedTerminator::Jump {
         instruction: instruction(source, SelectedInstructionKind::Jump),
         successor: successor(destination),
     }
 }
+
 pub(crate) fn branch(source: u32, taken: u32, otherwise: u32) -> SelectedTerminator {
     SelectedTerminator::ConditionalBranch {
         instruction: instruction(source, SelectedInstructionKind::ConditionalBranchNonZero),
@@ -60,12 +60,14 @@ pub(crate) fn branch(source: u32, taken: u32, otherwise: u32) -> SelectedTermina
         when_zero: successor(otherwise),
     }
 }
+
 fn returned(source: u32) -> SelectedTerminator {
     SelectedTerminator::Return {
         instruction: instruction(source, SelectedInstructionKind::ReturnUnit),
         psi_return_edge: EdgeId::new(u64::from(source) + 1).unwrap(),
     }
 }
+
 pub(crate) fn block_with(
     id: u32,
     instructions: Vec<SelectedInstruction>,
@@ -109,6 +111,7 @@ fn function(terminators: Vec<SelectedTerminator>) -> SelectedFunction {
             .collect(),
     )
 }
+
 fn order(derive: Derive, function: &SelectedFunction) -> Vec<u32> {
     derive(
         function,
@@ -119,21 +122,25 @@ fn order(derive: Derive, function: &SelectedFunction) -> Vec<u32> {
     .map(|block| block.id.0)
     .collect()
 }
-pub(super) fn nonentry_branch_and_explicit_backedge_use_ordinary_fallthrough_order(derive: Derive) {
+
+pub(crate) fn nonentry_branch_and_explicit_backedge_use_ordinary_fallthrough_order(derive: Derive) {
     let graph = function(vec![jump(0, 1), branch(1, 2, 3), jump(2, 1), returned(3)]);
     assert_eq!(order(derive, &graph), vec![0, 1, 3, 2]);
 }
-pub(super) fn explicit_jump_cycles_do_not_impose_fallthrough_cycles(derive: Derive) {
+
+pub(crate) fn explicit_jump_cycles_do_not_impose_fallthrough_cycles(derive: Derive) {
     assert_eq!(
         order(derive, &function(vec![jump(0, 1), jump(1, 0)])),
         vec![0, 1]
     );
 }
-pub(super) fn existing_diamond_order_is_preserved(derive: Derive) {
+
+pub(crate) fn existing_diamond_order_is_preserved(derive: Derive) {
     let graph = function(vec![branch(0, 1, 2), jump(1, 3), jump(2, 3), returned(3)]);
     assert_eq!(order(derive, &graph), vec![0, 2, 1, 3]);
 }
-pub(super) fn conflicting_or_cyclic_fallthrough_is_not_silently_reordered(derive: Derive) {
+
+pub(crate) fn conflicting_or_cyclic_fallthrough_is_not_silently_reordered(derive: Derive) {
     for graph in [
         function(vec![branch(0, 1, 2), branch(1, 0, 2), returned(2)]),
         function(vec![jump(0, 1), branch(1, 0, 2), branch(2, 0, 1)]),
@@ -148,7 +155,7 @@ pub(super) fn conflicting_or_cyclic_fallthrough_is_not_silently_reordered(derive
     }
 }
 
-pub(super) fn sparse_unsorted_identities_preserve_storage_order_and_fallthrough(derive: Derive) {
+pub(crate) fn sparse_unsorted_identities_preserve_storage_order_and_fallthrough(derive: Derive) {
     let mut graph = function(vec![branch(0, 1, 2), returned(1), returned(2)]);
     graph.entry_block = SelectedBlockId(100);
     graph.blocks[0].id = SelectedBlockId(100);
@@ -158,7 +165,7 @@ pub(super) fn sparse_unsorted_identities_preserve_storage_order_and_fallthrough(
     assert_eq!(order(derive, &graph), vec![100, 7, u32::MAX]);
 }
 
-pub(super) fn malformed_block_rosters_reject(derive: Derive) {
+pub(crate) fn malformed_block_rosters_reject(derive: Derive) {
     let mut duplicate = function(vec![returned(0), returned(1)]);
     duplicate.blocks[1].id = duplicate.blocks[0].id;
     let mut missing_entry = function(vec![returned(0)]);
@@ -181,7 +188,7 @@ pub(super) fn malformed_block_rosters_reject(derive: Derive) {
     }
 }
 
-pub(super) fn many_disconnected_roots_and_reverse_fallthrough_chains_keep_canonical_order(
+pub(crate) fn many_disconnected_roots_and_reverse_fallthrough_chains_keep_canonical_order(
     derive: Derive,
 ) {
     let count = 4096;
@@ -204,37 +211,45 @@ pub(super) fn many_disconnected_roots_and_reverse_fallthrough_chains_keep_canoni
     assert_eq!(order(derive, &graph), expected);
 }
 
-/// Instantiate the suite as `#[test]`s over one derivation.
 macro_rules! order_suite {
     ($derive:path) => {
         #[test]
         fn nonentry_branch_and_explicit_backedge_use_ordinary_fallthrough_order() {
-            crate::resolved_selected_form_layout::order_suite::nonentry_branch_and_explicit_backedge_use_ordinary_fallthrough_order($derive);
+            crate::order_suite::nonentry_branch_and_explicit_backedge_use_ordinary_fallthrough_order(
+                $derive,
+            );
         }
         #[test]
         fn explicit_jump_cycles_do_not_impose_fallthrough_cycles() {
-            crate::resolved_selected_form_layout::order_suite::explicit_jump_cycles_do_not_impose_fallthrough_cycles($derive);
+            crate::order_suite::explicit_jump_cycles_do_not_impose_fallthrough_cycles($derive);
         }
         #[test]
         fn existing_diamond_order_is_preserved() {
-            crate::resolved_selected_form_layout::order_suite::existing_diamond_order_is_preserved($derive);
+            crate::order_suite::existing_diamond_order_is_preserved($derive);
         }
         #[test]
         fn conflicting_or_cyclic_fallthrough_is_not_silently_reordered() {
-            crate::resolved_selected_form_layout::order_suite::conflicting_or_cyclic_fallthrough_is_not_silently_reordered($derive);
+            crate::order_suite::conflicting_or_cyclic_fallthrough_is_not_silently_reordered(
+                $derive,
+            );
         }
         #[test]
         fn sparse_unsorted_identities_preserve_storage_order_and_fallthrough() {
-            crate::resolved_selected_form_layout::order_suite::sparse_unsorted_identities_preserve_storage_order_and_fallthrough($derive);
+            crate::order_suite::sparse_unsorted_identities_preserve_storage_order_and_fallthrough(
+                $derive,
+            );
         }
         #[test]
         fn malformed_block_rosters_reject() {
-            crate::resolved_selected_form_layout::order_suite::malformed_block_rosters_reject($derive);
+            crate::order_suite::malformed_block_rosters_reject($derive);
         }
         #[test]
         fn many_disconnected_roots_and_reverse_fallthrough_chains_keep_canonical_order() {
-            crate::resolved_selected_form_layout::order_suite::many_disconnected_roots_and_reverse_fallthrough_chains_keep_canonical_order($derive);
+            crate::order_suite::many_disconnected_roots_and_reverse_fallthrough_chains_keep_canonical_order(
+                $derive,
+            );
         }
     };
 }
-pub(super) use order_suite;
+
+pub(crate) use order_suite;

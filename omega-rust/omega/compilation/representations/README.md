@@ -18,7 +18,7 @@ tokens or replay evidence that a stage retains alongside it.
 | `target-operations/` | [`TargetOperationPlan`](target-operations/src/lib.rs) | [Omega 02](../pipeline/02_abstract-operations-to-target-operations/src/lowering/optimized.rs) lowers abstract operations with target and provider settlements; Omega 03 consumes the resulting target program. |
 | `selected-instructions/` | [`SelectedInstructionPlan`](selected-instructions/src/selected_instructions.rs) | [Omega 03](../pipeline/03_target-operations-to-selected-instructions/src/optimized.rs) legalizes target operations and selects instructions; [Omega 04](../pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs) rewrites that same program form; Omega 05 assigns register homes. |
 | `register-homes/` | [`AllocatedProgram`](register-homes/src/lib.rs), including [`RegisterHomePlan`](register-homes/src/lib.rs) | [Omega 05](../pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs) consumes the selected program and publishes its current allocation; Omega 06 consumes the replayed allocation. |
-| `post-allocation-machine/` | [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [Omega 06](../pipeline/06_register-homes-to-post-allocation-machine/src/post_allocation_machine.rs) derives physical machine instructions from the allocation; Omega 07 encodes them. The Cargo package is still named `physical-instructions`. |
+| `post-allocation-machine/` | [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [Omega 06](../pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) derives physical machine instructions from the allocation; Omega 07 encodes them. The Cargo package is still named `physical-instructions`. |
 | `machine-code/` | Encoding, resolved-layout, and emitted-code roots listed below | Omega 07–09 and backend emission share this family while retaining distinct program forms. |
 
 Two additional representation packages belong beneath their program families:
@@ -50,8 +50,8 @@ roots rather than treating its name as one undifferentiated IR:
 
 | Program form | Root and operation |
 | --- | --- |
-| Layout-independent selected-form encoding | [`SelectedFormEncoding`](machine-code/src/encoding.rs), produced by [Omega 07](../pipeline/07_post-allocation-machine-to-selected-form-encoding/src/selected_form_encoding.rs) from the post-allocation machine and selected-program roots. |
-| Function-relative resolved layout | [`ResolvedMachineLayout`](machine-code/src/layout.rs), produced by [Omega 08](../pipeline/08_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout.rs) from encoded forms. [Omega 09](../pipeline/09_resolved-layout-to-resolved-layout/src/phase.rs) optimizes the same layout type. |
+| Layout-independent selected-form encoding | [`SelectedFormEncoding`](machine-code/src/encoding.rs), produced by [Omega 07](../pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs) from the post-allocation machine and selected-program roots. |
+| Function-relative resolved layout | [`ResolvedMachineLayout`](machine-code/src/layout.rs), produced by [Omega 08](../pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs) from encoded forms. [Omega 09](../pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) optimizes the same layout type. |
 | Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/text_section.rs), containing target fragments and their executable bytes. [Backend machine emission](../backend/machine-emission/src/lib.rs) owns function realization, fragment emission, frame application, and text placement; object and image owners consume their results. |
 
 [`ResolvedMachineProgram`](machine-code/src/layout_program.rs)
