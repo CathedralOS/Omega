@@ -123,7 +123,7 @@
 1 omega-rust/psi/compilation/proof/admission/src/proof/traversal.rs
 5 omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature.rs
 3 omega-rust/psi/compilation/psi-compiler/terminal-production/src/build_bindings/native_locator.rs
-2 omega-rust/psi/compilation/representations/checked-trees/src/provider_inventory.rs
+2 omega-rust/psi/compilation/representations/checked-trees/src/providers_and_trust.rs
 9 omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/codec/src/term_wire.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/access.rs
@@ -135,13 +135,12 @@
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural.rs
 9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs
+1 omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs
+2 omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs
+1 omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
+2 omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs
 25 omega-rust/psi/compilation/representations/typed-trees/src/references.rs
-1 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees.rs
-1 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declaration_tables.rs
-2 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declarations/domain.rs
-2 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declarations/product_operand/input_selections.rs
-3 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/type_predicates.rs
-1 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/types.rs
+4 omega-rust/psi/compilation/representations/typed-trees/src/type_system.rs
 2 omega-rust/psi/compilation/validation/src/declarations/symbols/top_level.rs
 3 omega-rust/psi/compilation/validation/src/machine_calls/attached_method_bounds.rs
 8 omega-rust/psi/compilation/validation/src/machine_calls/calls/write_frames/demand.rs

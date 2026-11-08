@@ -439,7 +439,7 @@ failure to normalize or different normal forms are not refutations.
 
 The 2026-11-06 [identity/compatibility split](../../../../wiki/spec/proofs/contracts.md#licensed-normalization)
 retires selected-law expansion from canonical keys.
-[open_index_identity.rs](../representations/typed-trees/src/typed_trees/type_system/type_identity/open_index_identity.rs)
+[type_identity.rs](../representations/typed-trees/src/type_identity.rs)
 still contains the legacy implementation; this ratification does not claim it
 has been migrated. Fixed core-operation identity simplifications must be
 separated from user-law discovery, including user AC and literal-unit laws.
