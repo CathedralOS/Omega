@@ -501,6 +501,17 @@ fn source_type(
         }
         _ => None,
     };
+    if identity.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        let source = format!("{:?}", argument.source);
+        let shown_source = source.chars().take(512).collect::<String>();
+        let shown_path = argument.path.iter().take(8).collect::<Vec<_>>();
+        eprintln!(
+            "CHECKSITE operation-storage-source-type-refused state={state:?} statement={statement:?} source={shown_source} source_truncated={} supplied_type={:?} path={shown_path:?} path_truncated={}",
+            source.chars().count() > 512,
+            argument.type_identity,
+            argument.path.len() > 8,
+        );
+    }
     identity.ok_or(LoweringError::Unsupported(
         "operation storage path has no retained source type",
     ))
