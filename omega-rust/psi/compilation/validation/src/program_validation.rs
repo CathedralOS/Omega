@@ -4376,7 +4376,7 @@ fn validate<'program>(
                         )
                     })
                 };
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if crate::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT completed-value-writes caller={} state={} statement={} written={value_written:?}",
                         machine.name, state.name, statement_index

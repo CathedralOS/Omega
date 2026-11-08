@@ -8092,7 +8092,7 @@ pub(crate) mod write_frames {
                         inference,
                     ),
                 };
-                if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                if crate::trace_flags::call_write_trace() {
                     eprintln!(
                         "CALLWRITE boundary-argument caller={} parameter={:?} argument={argument:?} origins={origins:?}",
                         current_machine.name, parameter.symbol
@@ -8407,7 +8407,7 @@ pub(crate) mod write_frames {
                 target,
                 site,
             );
-            if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+            if crate::trace_flags::call_write_trace() {
                 eprintln!(
                     "CALLWRITE boundary-signature caller={} receiver={receiver:?} target={target} selected={}",
                     current_machine.name,
@@ -8433,7 +8433,7 @@ pub(crate) mod write_frames {
                 arguments,
                 bindings,
             );
-            if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+            if crate::trace_flags::call_write_trace() {
                 eprintln!(
                     "CALLWRITE boundary-application caller={} target={target} selected={}",
                     current_machine.name,
@@ -12083,7 +12083,7 @@ pub(crate) mod write_frames {
                         completed.scalar_read_completed(self.program, state)
                     })();
                     if let Err(reason) = result {
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        if crate::trace_flags::struct_trace() {
                             eprintln!(
                                 "STRUCT completed-scalar-read-refused expression={expression:?} reason={reason}"
                             );
@@ -12156,7 +12156,7 @@ pub(crate) mod write_frames {
                         return None;
                     }
                     let sources = completed.reference_sources(self.program);
-                    if sources.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if sources.is_none() && crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT captured-reference-address-refused machine={} expression={expression:?} phase=descriptor",
                             self.program.symbols.name(machine.symbol)
@@ -12257,7 +12257,7 @@ pub(crate) mod write_frames {
                         let (owner, completed) = self.completed_read_value(machine, expression)?;
                         (owner == state.symbol).then_some(completed)
                     })();
-                    if completed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if completed.is_none() && crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT captured-reference-dependency-refused machine={:?} expression={expression:?} phase=completion",
                             machine.symbol
@@ -12267,7 +12267,7 @@ pub(crate) mod write_frames {
             .iter()
             .map(|path| {
                 let result = completed.as_ref()?.invalidation_paths(self.program, path);
-                if result.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if result.is_none() && crate::trace_flags::struct_trace() {
                     eprintln!("STRUCT captured-reference-dependency-refused machine={:?} expression={expression:?} path={path:?} phase=projection", machine.symbol);
                 }
                 result
@@ -13112,7 +13112,7 @@ pub(crate) mod write_frames {
                         }
                         _ => return None,
                     };
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT invocation-entry-subjects caller={:?} entries={entries:?}",
                             machine.symbol
@@ -13277,7 +13277,7 @@ pub(crate) mod write_frames {
                             Ok(Some(subject)) => entries.push(subject),
                             Ok(None) => {}
                             Err(reason) => {
-                                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                                if crate::trace_flags::struct_trace() {
                                     eprintln!(
                                         "STRUCT reference-entry-refused caller={} parameter={} argument={argument:?} reason={reason}",
                                         machine.name, parameter.name,
@@ -14343,7 +14343,7 @@ pub(crate) mod write_frames {
                 StatementReferenceTransferRefusal,
             > {
                 let trace_refusal = |phase: &str, state: SymbolHandle, index: Option<usize>| {
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    if crate::trace_flags::check_sites() {
                         eprintln!(
                             "CHECKSITE stored-reference-statement-transfer-refusal machine={:?} state={:?} statement={:?} phase={}",
                             machine.symbol, state, index, phase,
@@ -15285,7 +15285,7 @@ pub(crate) mod write_frames {
                 match written {
                     Ok(paths) => NormalizedWriteFrame::complete(paths),
                     Err(reason) => {
-                        if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                        if crate::trace_flags::call_write_trace() {
                             eprintln!(
                                 "CALLWRITE signature-invocation-unavailable caller={} reason={reason}",
                                 current_machine.name
@@ -15302,7 +15302,7 @@ pub(crate) mod write_frames {
                 expression: ExpressionHandle,
             ) -> NormalizedWriteFrame {
                 let trace_unavailable = |stage: &str| {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT unavailable-operation-write caller={} expression={expression:?} stage={stage}",
                             current_machine.name,
@@ -21387,7 +21387,7 @@ pub(crate) mod write_frames {
                     {
                         return None;
                     }
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT captured-reference-coarse-dependency path={} source={:?}",
                             source.origin.path, source.origin.source
@@ -21455,7 +21455,7 @@ pub(crate) mod write_frames {
                             program, &read, &projected, stored,
                         );
                         let Some(next_reads) = next_reads else {
-                            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                            if crate::trace_flags::struct_trace() {
                                 eprintln!(
                                     "STRUCT read-projection-refused phase=next-descriptor-suppliers source={:?} suffix={:?} loaded={before}",
                                     read.source,
@@ -21467,7 +21467,7 @@ pub(crate) mod write_frames {
                         for next in next_reads {
                             let next = admitted(program, next, usage)?;
                             if load_required && next.slots.len() == before {
-                                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                                if crate::trace_flags::struct_trace() {
                                     eprintln!(
                                         "STRUCT read-projection-refused phase=missing-independent-descriptor-load source={:?} suffix={:?} loaded={before} next={next:?}",
                                         read.source,
@@ -21519,7 +21519,7 @@ pub(crate) mod write_frames {
                     None
                 };
                 if let Some(reason) = reason {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!("STRUCT read-admission-refused reason={reason} read={read:?}");
                     }
                     None
@@ -21542,7 +21542,7 @@ pub(crate) mod write_frames {
                     || !source.recasts.is_empty()
                     || source.representation.is_some()
                 {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT read-coordinate-refused phase=namespace-builtin-or-representation origin={origin:?}"
                         );
@@ -21551,7 +21551,7 @@ pub(crate) mod write_frames {
                 }
                 let Some(reference) = crate::declaration_type_reference(program, source.root)
                 else {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT read-coordinate-refused phase=source-declaration-type origin={origin:?}"
                         );
@@ -21562,7 +21562,7 @@ pub(crate) mod write_frames {
                 for segment in &source.segments {
                     while cursor.reference_access().is_some() {
                         if cursor.enter_referee().is_none() {
-                            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                            if crate::trace_flags::struct_trace() {
                                 eprintln!(
                                     "STRUCT read-coordinate-refused phase=reference-or-case-crossing origin={origin:?} segment={segment:?}"
                                 );
@@ -21571,7 +21571,7 @@ pub(crate) mod write_frames {
                         }
                     }
                     if cursor.advance_fixed(segment).is_none() {
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        if crate::trace_flags::struct_trace() {
                             eprintln!(
                                 "STRUCT read-coordinate-refused phase=declared-field-case-or-fixed-extent origin={origin:?} segment={segment:?}"
                             );
@@ -23571,7 +23571,7 @@ pub(crate) mod write_frames {
                 {
                     return None;
                 }
-                if std::env::var_os("OMEGA_COMPILER_TRACE_INSTALLED_CONTEXT").is_some() {
+                if crate::trace_flags::trace_installed_context() {
                     eprintln!(
                         "INSTALLED_CONTEXT primitive relation machine={:?} state={:?} referent={:?} acknowledgement={:?}",
                         machine.symbol, state.symbol, context.referent, acknowledgement.symbol
@@ -26291,7 +26291,7 @@ pub(crate) mod write_frames {
                 };
                 let replaces_local_binding =
                     super::reference_subjects::replaces_binding(program, machine, statement)?;
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                if crate::trace_flags::struct_trace()
                     && let Some(assignment) = statement.as_assignment()
                     && let Some(receiving) = reference_subjects::assignment_stored_value_type(
                         program, machine, state, assignment,
@@ -27180,7 +27180,7 @@ pub(crate) mod write_frames {
                 target: symbols::SymbolHandle,
                 call_expression: ExpressionHandle,
             ) -> bool {
-                let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
+                let trace = crate::trace_flags::struct_trace();
                 let parameters = if let Some(slot) = program.dynamic_slot_by_symbol(target) {
                     &slot.parameters
                 } else if let Some((_, signature)) =
@@ -27611,7 +27611,7 @@ pub(crate) mod write_frames {
                 while index < states.len() {
                     let (machine, state) = states[index];
                     let refusal = |phase| {
-                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        if crate::trace_flags::check_sites() {
                             eprintln!(
                                 "CHECKSITE slot-exit-equation-refusal machine={} state={} phase={}",
                                 machine.name, state.name, phase
@@ -27713,7 +27713,7 @@ pub(crate) mod write_frames {
                             symbols,
                         )
                         .or_else(|| {
-                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            if crate::trace_flags::check_sites() {
                                 eprintln!(
                                     "CHECKSITE slot-exit-solve-refusal state={} phase=instantiate",
                                     equation.state.name
@@ -27728,7 +27728,7 @@ pub(crate) mod write_frames {
                             &instantiated.substitutions,
                             &mut substitutions,
                         ).or_else(|| {
-                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() { eprintln!("CHECKSITE slot-exit-solve-refusal state={} phase=finite-substitution", equation.state.name); }
+                            if crate::trace_flags::check_sites() { eprintln!("CHECKSITE slot-exit-solve-refusal state={} phase=finite-substitution", equation.state.name); }
                             None
                         })?;
                                     let mut completed = prefix.clone();
@@ -27793,7 +27793,7 @@ pub(crate) mod write_frames {
                         for stored in &returned {
                             collect_exit(program, equation.state, &inventory, stored, &mut candidate).or_else(
                     || {
-                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        if crate::trace_flags::check_sites() {
                             eprintln!(
                                 "CHECKSITE slot-exit-solve-refusal state={} phase=exit-inventory",
                                 equation.state.name
@@ -27958,7 +27958,7 @@ pub(crate) mod write_frames {
                             continue;
                         }
                         None => {
-                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            if crate::trace_flags::check_sites() {
                                 eprintln!(
                                     "CHECKSITE slot-exit-source state={} slot={} phase=unknown-contents",
                                     state.name, slot.local_path
@@ -28000,7 +28000,7 @@ pub(crate) mod write_frames {
                                 return None;
                             }
                             let parameter = program.state_parameter_by_symbol(state, source.source.root).or_else(|| {
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    if crate::trace_flags::check_sites() {
                         eprintln!("CHECKSITE slot-exit-source state={} slot={} phase=local-source source={supplied:?}", state.name, slot.local_path);
                     }
                     None
@@ -28089,7 +28089,7 @@ pub(crate) mod write_frames {
                 symbols: &TopLevelSymbols<'_>,
             ) -> Option<InstantiatedSlots> {
                 if parameters.len() != arguments.len() {
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    if crate::trace_flags::check_sites() {
                         eprintln!(
                             "CHECKSITE stored-reference-input-context-refusal machine={:?} phase={} parameter_count={} capture_count={} divergent_count={}",
                             machine.symbol,
@@ -28204,7 +28204,7 @@ pub(crate) mod write_frames {
                 source: Option<&SlotSource>,
                 reason: &str,
             ) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+                if !crate::trace_flags::check_sites() {
                     return;
                 }
                 eprintln!(
@@ -29499,7 +29499,7 @@ pub(crate) mod write_frames {
                         self.machine,
                         caller_aliases::CallerWriteSite::Expression(expression),
                     );
-                    if owner.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if owner.is_none() && crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT captured-input-refused machine={} expression={expression:?} node={:?} phase=owner",
                             self.program.symbols.name(self.machine.symbol),
@@ -29518,7 +29518,7 @@ pub(crate) mod write_frames {
                         self.symbols,
                         &mut observed_inference,
                     );
-                    if returned.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if returned.is_none() && crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT captured-input-refused machine={} expression={expression:?} node={:?} phase=relation",
                             self.program.symbols.name(self.machine.symbol),
@@ -29537,7 +29537,7 @@ pub(crate) mod write_frames {
                         }
                         let origin = leaf.origin?;
                         let observed = self.capture_source(captured, origin.clone(), reference);
-                        if observed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        if observed.is_none() && crate::trace_flags::struct_trace() {
                             eprintln!(
                                 "STRUCT captured-input-refused machine={} expression={expression:?} origin={origin:?} phase=source",
                                 self.program.symbols.name(self.machine.symbol)
@@ -30081,7 +30081,7 @@ pub(crate) mod write_frames {
                     expression,
                 );
                 let Some((captured, after)) = completed else {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT completed-value-read-refused machine={:?} expression={expression:?} reference={reference:?} phase=ordered-value",
                             machine.symbol
@@ -30093,7 +30093,7 @@ pub(crate) mod write_frames {
                     program, machine, &captured, reference, symbols,
                 );
                 let Some(returned) = returned else {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT completed-value-read-refused machine={:?} expression={expression:?} reference={reference:?} phase=suppliers",
                             machine.symbol
@@ -30197,7 +30197,7 @@ pub(crate) mod write_frames {
                     program: &dyn crate::CheckingInput,
                 ) -> Option<Vec<frames::LocalWriteSource>> {
                     let addressed = self.sources_at_boundary(program, &[]);
-                    if addressed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if addressed.is_none() && crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT completed-address-refused reference={:?} leaves={:?}",
                             program.type_reference_table.type_reference(self.reference),
@@ -30341,7 +30341,7 @@ pub(crate) mod write_frames {
                                 .is_none_or(|dependencies| !dependencies.is_empty())
                             || !matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(access) if access.is_readable())
                         {
-                            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                            if crate::trace_flags::struct_trace() {
                                 eprintln!(
                                     "STRUCT completed-value-read-refused path={path:?} phase=leaf may_select={} lifetime_debts={:?} source={:?}",
                                     leaf.may_select,
@@ -30362,7 +30362,7 @@ pub(crate) mod write_frames {
                                 }
                             }
                             ReferenceSource::Symbolic(origin) => {
-                                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                                if crate::trace_flags::struct_trace() {
                                     eprintln!(
                                         "STRUCT completed-value-read-refused path={path:?} phase=symbolic origin={origin:?}"
                                     );
@@ -32762,7 +32762,7 @@ pub(crate) mod write_frames {
                 return Some(SlotRelationTransfer::complete(Vec::new()));
             }
             let trace_refusal = |phase: &str| {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if crate::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE stored-reference-invocation-refusal machine={:?} state={:?} target={:?} expression={:?} phase={} argument_count={} capture_count={} divergent_count={} machine_arguments_empty={}",
                         machine.symbol,
@@ -35433,7 +35433,7 @@ pub(crate) mod write_frames {
                         remaining_projection_precision(&relative, origin.precision),
                     );
                     if origin.precision == FramePathPrecision::CollectionCoarse
-                        && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                        && crate::trace_flags::struct_trace()
                     {
                         eprintln!(
                             "FRAME reference-load slot={:?} captured={:?} remaining={:?} builtin={} result={:?}",
@@ -38148,7 +38148,7 @@ pub(crate) mod write_frames {
             let correspondence =
                 call_binding_correspondence(program, current_machine.symbol, &call)
                     .inspect_err(|reason| {
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        if crate::trace_flags::struct_trace() {
                             eprintln!(
                                 "STRUCT write arguments caller={} callee={} reason={reason}",
                                 current_machine.name, signature.name
@@ -39053,7 +39053,7 @@ pub(crate) mod write_frames {
                 )
             });
         inference.active_states.pop();
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT resolved-call-write-summary caller={} callee={} state={:?} relative={relative_paths:?} arguments={argument_origins:?}",
                 caller_machine.name, callee_machine.name, callee_state.symbol
@@ -39788,7 +39788,7 @@ pub(crate) fn validate_call_arguments(
         if !type_matches(*argument, parameter.type_reference) {
             let expected_type =
                 program.display_type_reference_with_constraints(parameter.type_reference);
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if crate::trace_flags::struct_trace() {
                 eprintln!(
                     "ARGUMENT_MISMATCH caller={} scope={} target={} formal={} actual={}",
                     current_machine.name,
@@ -39942,7 +39942,7 @@ fn validate_value_call_arguments(
             return;
         }
     };
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+    if crate::trace_flags::struct_trace()
         && program
             .typed_program()
             .callable_body_has_open_parameters(callee_machine)

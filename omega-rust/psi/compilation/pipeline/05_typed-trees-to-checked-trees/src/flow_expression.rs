@@ -421,7 +421,7 @@ mod call_storage {
         ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
             let actual_value = *self.context.control.operands.get(actual);
             let desired = reference_shell(self.program, destination)?;
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE call-backing-value-input state={:?} statement={} actual={actual:?} actual_type={:?} destination={destination:?} source_root={:?} source_path={:?} recasts={:?} representation={:?}",
                     self.state.symbol,
@@ -531,7 +531,7 @@ mod call_storage {
                     retention,
                     ..Default::default()
                 });
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE call-backing-value-created kind=reborrow state={:?} statement={} value={value:?} actual={actual:?} retention={retention:?} reborrow_sources={reborrow_sources:?}",
                         self.state.symbol, self.statement_index
@@ -556,7 +556,7 @@ mod call_storage {
                 retention,
                 ..Default::default()
             });
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE call-backing-value-created kind=presentation state={:?} statement={} value={value:?} actual={actual:?} retention={retention:?}",
                     self.state.symbol, self.statement_index
@@ -2056,7 +2056,7 @@ mod reference_projection {
         ) -> Option<CapturedReferenceProjection> {
             let result = self.try_capture_reference_projection(actual, segments, projection);
             if let Err(reason) = &result
-                && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                && ::validation::trace_flags::check_sites()
             {
                 eprintln!(
                     "CHECKSITE reference-projection-refusal machine={:?} state={:?} statement={} expression={:?} type={:?} destination={} path_count={} path_prefix={:?} position={:?} reason={:?}",
@@ -3732,7 +3732,7 @@ mod stored_call_values {
                     if matches!(
                         selected,
                         validation::completed_storage::StoredOperand::Unavailable
-                    ) && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    ) && ::validation::trace_flags::check_sites()
                     {
                         let actual = self.context.control.operands.get(input);
                         eprintln!(
@@ -4175,7 +4175,7 @@ mod stored_call_values {
                             let retained = match retained {
                                 Ok(retained) => retained,
                                 Err(reason) => {
-                                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                                    if ::validation::trace_flags::struct_trace() {
                                         eprintln!(
                                             "STRUCT supplied-output-retention-refused identity={identity:?} destination={:?} reason={reason}",
                                             effect.destination.local_segments
@@ -4241,7 +4241,7 @@ mod stored_call_values {
                                 break;
                             };
                             if observed.places.len() != 1 || observed.places != carrier.places {
-                                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                if ::validation::trace_flags::check_sites() {
                                     eprintln!(
                                         "CHECKSITE stored-reference-source-correspondence machine={:?} state={:?} statement={} call={:?} observed_count={} carrier_count={} observed={:?} carrier={:?}",
                                         self.machine.symbol,
@@ -4318,9 +4318,7 @@ mod stored_call_values {
                     if has_image && has_local {
                         known = false;
                     }
-                    if (!known || origins.is_empty())
-                        && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                    {
+                    if (!known || origins.is_empty()) && ::validation::trace_flags::check_sites() {
                         eprintln!(
                             "CHECKSITE stored-reference-capture-unavailable machine={:?} state={:?} statement={} call={:?} target={:?} destination={:?}:path_count={}:prefix={:?} known={} origins={} sources={} incoming_identity={} retains_incoming={}",
                             self.machine.symbol,
@@ -4420,7 +4418,7 @@ mod stored_call_values {
                             };
                             if supplies_output
                                 && !descriptor_loan.is_valid()
-                                && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                                && ::validation::trace_flags::struct_trace()
                             {
                                 eprintln!(
                                     "STRUCT supplied-descriptor-binding-refused known={known} type={reference:?} origins={origins:?} completed={:?}",
@@ -4464,7 +4462,7 @@ mod stored_call_values {
                                 retention,
                                 ..Default::default()
                             });
-                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            if ::validation::trace_flags::check_sites() {
                                 eprintln!(
                                     "CHECKSITE stored-call-value-created state={:?} statement={} target={:?} value={value:?} retention={retention:?} reference={reference:?} suppliers_known={suppliers_known} suppliers={:?} sources={:?}",
                                     self.state.symbol,
@@ -9549,7 +9547,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     .collect::<Option<Vec<_>>>()
             })
             .flatten();
-        if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+        if ::validation::trace_flags::call_write_trace() {
             eprintln!(
                 "CALLWRITE recorded state={:?} statement={} ordinal={} bindings={binding_writes:?} observations={observations:?}",
                 self.state.symbol, borrowed_call.statement_index, borrowed_call.call_ordinal

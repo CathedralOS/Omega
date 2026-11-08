@@ -46466,7 +46466,7 @@ pub(crate) mod structural_judgment {
                         self.intake_admitted_value_predicates(reference, value.clone());
                     }
                 }
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if crate::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT case-domain data={} case={} admitted={} reference={:?} subject={:?}",
                         definition.name, variant.name, admitted, subject_type, admitted_subject
@@ -46497,7 +46497,7 @@ pub(crate) mod structural_judgment {
                                 }],
                             )
                         else {
-                            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                            if crate::trace_flags::struct_trace() {
                                 eprintln!(
                                     "STRUCT case-domain projection-refused data={} field={} reference={:?}",
                                     definition.name, field.name, subject_type
@@ -83006,8 +83006,7 @@ use structural_terms::{
 };
 
 pub(crate) fn struct_trace() -> bool {
-    static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
+    crate::trace_flags::struct_trace()
 }
 
 const RESULT_BINDER: &str = "result";

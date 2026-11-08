@@ -1651,8 +1651,9 @@ mod referents {
         domains: &DomainFacts,
         writes: Option<&[ObservedCallMutation]>,
     ) {
-        let trace = std::env::var("OMEGA_STATE_REFERENCE_DIAGNOSTICS")
-            .is_ok_and(|selected| selected == "1" || selected == machine.name.as_str());
+        let trace = ::validation::trace_flags::state_reference_diagnostics()
+            && std::env::var("OMEGA_STATE_REFERENCE_DIAGNOSTICS")
+                .is_ok_and(|selected| selected == "1" || selected == machine.name.as_str());
         let key = (
             machine.symbol,
             state.symbol,

@@ -5687,7 +5687,7 @@ mod result_arguments {
         } else {
             result.multiplicity
         };
-        if !storage_identity_matches && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if !storage_identity_matches && ::validation::trace_flags::struct_trace() {
             eprintln!(
                 "RESULT_ARGUMENT_IDENTITY machine={} state={} statement={} root={:?} access={:?} referent={} storage={:?} established={:?} formal={:?}",
                 program.symbols.display_path(machine, "::"),
@@ -6838,7 +6838,7 @@ pub(crate) mod structural_arguments {
                 )
                 .is_none()
             {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     let plans = &facts.values.scalar_computations;
                     let children = plans
                         .operands

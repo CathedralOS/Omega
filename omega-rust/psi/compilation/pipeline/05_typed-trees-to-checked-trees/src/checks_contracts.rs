@@ -1629,7 +1629,7 @@ mod nominal_inputs {
                     .is_some_and(|projections| {
                         !projections.is_empty()
                             && projections.iter().all(|captured| {
-                                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                if ::validation::trace_flags::check_sites() {
                                     eprintln!("CHECKSITE nominal-field-capture state={:?} statement={} target={:?} parameter={:?} required_path={segments:?} domain={domain_symbol:?} observation={:?} observation_type={:?} observation_projection={:?} observation_subjects={:?} producer={:?} producer_type={:?} producer_projection={:?} producer_subjects={:?}", state.state_symbol, call.statement_index, call.target_symbol, parameter.symbol, *captured.observation, captured.observation_type, captured.observation_projection.remaining, captured_observation_places(program, facts.flow.view(), captured).map(|places| places.into_iter().map(|place| (place.storage, place.projected)).collect::<Vec<_>>()), *captured.operand, captured.type_reference, captured.projection.remaining, captured_value_places(program, facts.flow.view(), captured).map(|places| places.into_iter().map(|place| (place.storage, place.projected)).collect::<Vec<_>>()));
                                 }
                                 let invocation = facts
@@ -1688,7 +1688,7 @@ mod nominal_inputs {
                                             source_statement,
                                         ) else {
                                             route_refusals[route] = Some("operand context unavailable");
-                                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                            if ::validation::trace_flags::check_sites() {
                                                 eprintln!("CHECKSITE nominal-field-context-unavailable state={:?} statement={} target={:?} expression={:?} reference={reference:?} source_state={source_state:?} source_statement={source_statement} invocation={invocation:?}", state.state_symbol, call.statement_index, call.target_symbol, operand.expression);
                                             }
                                             return false;
@@ -1725,7 +1725,7 @@ mod nominal_inputs {
                                                             "source case not selected"
                                                         });
                                                     }
-                                                    if !satisfied && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                                    if !satisfied && ::validation::trace_flags::check_sites() {
                                                         eprintln!("CHECKSITE nominal-field-proof-refused state={:?} statement={} target={:?} expression={:?} reference={reference:?} subject={:?} storage={:?} source_state={source_state:?} source_statement={source_statement} contexts={:?} constraints={:?}", state.state_symbol, call.statement_index, call.target_symbol, operand.expression, place.projected, place.storage, selection.contexts, facts.flow.contexts.constraint_refs.span_or_empty(invocation));
                                                     }
                                                     satisfied
@@ -11649,9 +11649,7 @@ pub(super) fn check_flow_call_contracts(
             .is_some_and(|machine| proof_only.is_proof_machine(program, machine))
     };
 
-    static STRUCT_TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    let struct_trace =
-        *STRUCT_TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some());
+    let struct_trace = ::validation::trace_flags::struct_trace();
     let has_activation_claim = program
         .data_definitions()
         .iter()

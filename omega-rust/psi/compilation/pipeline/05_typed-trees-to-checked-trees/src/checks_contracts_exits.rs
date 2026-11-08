@@ -688,7 +688,7 @@ mod cyclic_headers {
                     remaining: &mut usize,
                 ) -> Option<Self> {
                     let owner = machine.symbol;
-                    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
+                    let trace = ::validation::trace_flags::struct_trace();
                     let entry = program.machine_states(machine).first()?;
                     if !crate::checks::contracts::prover::has_builtin_operators(
                         program,
@@ -869,7 +869,7 @@ mod cyclic_headers {
                         call,
                         program.state_parameters(target),
                     );
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if ::validation::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT terminal-referent forward caller={} target={:?} writes_complete={} subjects={places:?} correspondence={correspondence:?}",
                             machine.name, target.symbol, call.normal_return_writes_complete
@@ -943,7 +943,7 @@ mod cyclic_headers {
                         })
                         .collect::<Option<Vec<_>>>();
                     let Some(bindings) = bindings else {
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        if ::validation::trace_flags::struct_trace() {
                             eprintln!(
                                 "STRUCT terminal-referent leaf-unavailable owner={} state={:?} subjects={places:?}",
                                 machine.name, state.symbol
@@ -957,7 +957,7 @@ mod cyclic_headers {
                         bindings,
                     };
                     let proven = values.proves(program, machine, &goal);
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if ::validation::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT terminal-referent leaf owner={} state={:?} goal={goal:?} proven={proven}",
                             machine.name, state.symbol
@@ -7589,7 +7589,7 @@ mod scalars {
                         "ensures return comparison".to_owned(),
                     ))
                 })();
-                if condition.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if condition.is_none() && ::validation::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT return-range refused machine={} expression={expression:?} stage={stage}",
                         self.machine.name,

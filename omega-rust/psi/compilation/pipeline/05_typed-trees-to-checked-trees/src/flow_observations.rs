@@ -182,7 +182,7 @@ mod captured_subject {
             expression,
         );
         if let Err(CapturedCaseSubjectFailure::Correspondence(reason)) = subject.as_ref()
-            && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+            && ::validation::trace_flags::check_sites()
         {
             trace_captured_subject_refusal(
                 program,
@@ -1244,7 +1244,7 @@ mod descriptors {
     ) -> Result<CanonicalPlace, DescriptorObservationRefusal> {
         let result = observation_agrees(program, control, observation, operand);
         if let Err(reason) = &result
-            && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+            && ::validation::trace_flags::check_sites()
         {
             eprintln!(
                 "[checked descriptor observation] context={context:?} observation={observation:?} consumer={:?} state={:?} statement={} refusal={reason:?}",
