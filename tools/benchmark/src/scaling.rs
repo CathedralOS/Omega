@@ -22,12 +22,18 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const USAGE: &str =
-    "omega-bench scaling --omega <release-omega> [--sizes 0,1000,2000] [--runs N] [--max-ratio R]";
+const USAGE: &str = "omega-bench scaling --omega <release-omega> [--shape machines|citations] [--sizes 0,1000,2000] [--runs N] [--max-ratio R]";
+
+#[derive(Clone, Copy)]
+enum Shape {
+    Machines,
+    Citations,
+}
 
 pub fn run(arguments: &[String]) -> Result<(), String> {
     let mut omega = None;
-    let mut sizes = vec![0_usize, 1000, 2000];
+    let mut shape = Shape::Machines;
+    let mut sizes = None;
     let mut runs = 1_usize;
     let mut max_ratio = 1.3_f64;
     let mut arguments = arguments.iter();
@@ -37,18 +43,31 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             .ok_or_else(|| format!("{argument} needs a value\nusage: {USAGE}"))?;
         match argument.as_str() {
             "--omega" => omega = Some(PathBuf::from(value)),
+            "--shape" => {
+                shape = match value.as_str() {
+                    "machines" => Shape::Machines,
+                    "citations" => Shape::Citations,
+                    _ => return Err("--shape takes machines or citations".into()),
+                };
+            }
             "--sizes" => {
-                sizes = value
-                    .split(',')
-                    .map(|size| size.trim().parse())
-                    .collect::<Result<_, _>>()
-                    .map_err(|_| "--sizes takes comma-separated machine counts")?;
+                sizes = Some(
+                    value
+                        .split(',')
+                        .map(|size| size.trim().parse())
+                        .collect::<Result<Vec<usize>, _>>()
+                        .map_err(|_| "--sizes takes comma-separated counts")?,
+                );
             }
             "--runs" => runs = value.parse().map_err(|_| "--runs takes a count")?,
             "--max-ratio" => max_ratio = value.parse().map_err(|_| "--max-ratio takes a number")?,
             _ => return Err(format!("unknown argument {argument}\nusage: {USAGE}")),
         }
     }
+    let sizes = sizes.unwrap_or_else(|| match shape {
+        Shape::Machines => vec![0, 1000, 2000],
+        Shape::Citations => vec![0, 8, 16],
+    });
     let omega = omega.ok_or_else(|| format!("--omega is required\nusage: {USAGE}"))?;
     let omega =
         fs::canonicalize(&omega).map_err(|error| format!("{}: {error}", omega.display()))?;
@@ -61,7 +80,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     let mut points = Vec::new();
     for &size in &sizes {
         let project = scratch.join(format!("n{size}"));
-        write_program(size, &project)?;
+        write_program(shape, size, &project)?;
         let main = project.join("main.omg").display().to_string();
         let template = ["--check", "--build-dir", "{build}", main.as_str()];
         let mut costs = Vec::new();
@@ -105,41 +124,55 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     for (pair, cost) in points.windows(2).zip(&marginals) {
         let _ = writeln!(
             table,
-            "  N {:>6} -> {:>6}: {cost:.4e} {} per machine",
+            "  N {:>6} -> {:>6}: {cost:.4e} {} per added unit",
             pair[0].0, pair[1].0, pair[0].2
         );
     }
     print!("{table}");
     let report: Value = json!({
         "metric": points[0].2,
-        "points": points.iter().map(|(size, cost, _)| json!({"machines": size, "cost": cost})).collect::<Vec<_>>(),
-        "marginal_per_machine": marginals,
+        "points": points.iter().map(|(size, cost, _)| json!({"size": size, "cost": cost})).collect::<Vec<_>>(),
+        "marginal_per_unit": marginals,
         "ratio": ratio,
         "max_ratio": max_ratio,
     });
     println!("{report}");
     if ratio > max_ratio {
         return Err(format!(
-            "per-machine cost grew {ratio:.2}x from the first to the last interval (limit {max_ratio}): \
-             some check still walks the whole program per machine"
+            "per-unit cost grew {ratio:.2}x from the first to the last interval (limit {max_ratio}): \
+             some check walks the whole program or state prefix per unit"
         ));
     }
-    println!("scaling: per-machine cost ratio {ratio:.2} (limit {max_ratio})");
+    println!("scaling: per-unit cost ratio {ratio:.2} (limit {max_ratio})");
     Ok(())
 }
 
-/// The one-line program plus `machines` uncalled copies of the same machine.
-fn write_program(machines: usize, directory: &Path) -> Result<(), String> {
+/// `machines`: the one-line program plus `size` uncalled copies of one machine,
+/// exposing checks that scan the whole program per machine.
+/// `citations`: one state citing the same lemma `size` times, every citation
+/// needing preconditions proved, exposing checks that replay a state's prefix
+/// per call (cost per citation then grows with the citations before it).
+fn write_program(shape: Shape, size: usize, directory: &Path) -> Result<(), String> {
     fs::create_dir_all(directory).map_err(|error| error.to_string())?;
     let build = "machine build(builder: &mut Build) {\n    Build::application(builder, \"machine_count\");\n    builder.freestanding = true;\n}\n";
-    let mut main = String::from(
-        "data Main {\n    marker: u64;\n}\nmachine Main::main(main: &mut Main) {\n    main.marker = 0;\n}\n",
-    );
-    for index in 1..=machines {
-        let _ = write!(
-            main,
-            "machine Main::step_{index}(main: &mut Main) {{\n    main.marker = {index};\n}}\n"
-        );
+    let mut main = String::new();
+    match shape {
+        Shape::Machines => {
+            main.push_str("data Main {\n    marker: u64;\n}\nmachine Main::main(main: &mut Main) {\n    main.marker = 0;\n}\n");
+            for index in 1..=size {
+                let _ = write!(
+                    main,
+                    "machine Main::step_{index}(main: &mut Main) {{\n    main.marker = {index};\n}}\n"
+                );
+            }
+        }
+        Shape::Citations => {
+            main.push_str("machine keep(a: Nat, b: Nat)\nrequires\n    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero)\nensures\n    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n}\n\nmachine chain(a: Nat, b: Nat)\nrequires\n    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n");
+            for _ in 0..size {
+                main.push_str("    keep(a, b);\n");
+            }
+            main.push_str("}\n\nmachine main() {\n}\n");
+        }
     }
     let write = |name: &str, text: &str| {
         fs::write(directory.join(name), text).map_err(|error| format!("write {name}: {error}"))

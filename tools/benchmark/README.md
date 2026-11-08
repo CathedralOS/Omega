@@ -16,7 +16,18 @@ machine in the last interval exceeds the first by more than `--max-ratio`
 
 ```text
 target/debug/omega-bench scaling --omega target/release/omega
+target/debug/omega-bench scaling --omega target/release/omega --shape citations --sizes 0,100,200,400
 ```
+
+`--shape machines` (the default) adds uncalled machines and catches checks
+that scan the whole program per machine. `--shape citations` puts N calls of
+one local lemma in a single state and catches checks that replay a state from
+its first statement per call. On main `06af8fee3fe` (omega-linux, release):
+
+| Shape | Cost per added unit, first → last interval | Ratio |
+| --- | --- | ---: |
+| machines, 0/1000/2000 | 14.3 M → 15.6 M instructions | 1.09 |
+| citations, 0/100/200/400 | 49 M → 174 M → 454 M instructions | 9.24 (fails) |
 
 Cost is `instructions:u` from `perf stat` on Linux and CPU time elsewhere, so
 run it on `omega-linux`. A change that removes a whole-program walk shows its
