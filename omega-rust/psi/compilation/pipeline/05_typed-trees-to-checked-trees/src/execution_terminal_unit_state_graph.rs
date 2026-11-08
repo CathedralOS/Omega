@@ -92,6 +92,7 @@ mod closed_sum {
         state_index: usize,
         signatures: &[Signature],
         edge_calls: EdgeCalls<'_>,
+        place_loans: &[checked_trees::CheckedPlaceLoanPlan],
         result: &checked_trees::CheckedControlResultPlan,
         next_scalar_binding: usize,
         operations: &mut Vec<OperationPlan>,
@@ -146,101 +147,149 @@ mod closed_sum {
                 transition_start,
             )?),
         };
-        let (mut subject, mut type_reference) =
-            if let DispatchSubject::Computed(subject_expression) = dispatch {
-                trace.phase("state graph: terminator: case subject call");
-                trace.statement(u32::try_from(transition_start).ok());
-                let (result, type_reference) = subject_call(
-                    program,
-                    facts,
-                    scalar_callees,
-                    shapes,
-                    machine,
-                    state,
-                    structural,
-                    entry_claims,
-                    operations,
-                    transition_start,
-                    subject_expression,
-                    trace,
-                )?;
-                (
-                    ArgumentPlan::structural_result(
-                        result.binding_ordinal,
-                        result.type_identity,
-                        StructuralAccess::Owned,
-                    ),
-                    type_reference,
-                )
-            } else if let Some((index, parameter)) = program
-                .state_parameters(state)
+        let (mut subject, mut type_reference) = if let DispatchSubject::Computed(
+            subject_expression,
+        ) = dispatch
+        {
+            trace.phase("state graph: terminator: case subject call");
+            trace.statement(u32::try_from(transition_start).ok());
+            let (result, type_reference) = subject_call(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural,
+                entry_claims,
+                operations,
+                transition_start,
+                subject_expression,
+                trace,
+            )?;
+            (
+                ArgumentPlan::structural_result(
+                    result.binding_ordinal,
+                    result.type_identity,
+                    StructuralAccess::Owned,
+                ),
+                type_reference,
+            )
+        } else if let Some(loan) = place_loans
+            .iter()
+            .find(|loan| dispatch.is_symbol(loan.symbol))
+        {
+            if loan.access != StructuralAccess::SharedBorrow
+                || place_loans
+                    .iter()
+                    .filter(|candidate| candidate.symbol == loan.symbol)
+                    .count()
+                    != 1
+            {
+                return None;
+            }
+            let (formation, local) = program.state_local_declaration(state, loan.symbol)?;
+            if crate::execution::terminal_unit::control::statement_sequence::dispatch_observation(
+                program,
+                facts,
+                machine,
+                state,
+                structural,
+                u32::try_from(formation).ok()?,
+                local,
+            )
+            .as_ref()
+                != Some(loan)
+            {
+                return None;
+            }
+            let source = match loan.root {
+                checked_trees::CheckedPlaceLoanRoot::StructuralParameter { parameter_index } => {
+                    SourcePlan::Parameter { parameter_index }
+                }
+                checked_trees::CheckedPlaceLoanRoot::Local { symbol } => {
+                    SourcePlan::StructuralLocal { symbol }
+                }
+                checked_trees::CheckedPlaceLoanRoot::ScalarParameter { .. } => return None,
+            };
+            (
+                ArgumentPlan {
+                    projection_evaluations: Default::default(),
+                    source,
+                    path: loan.path.clone(),
+                    type_identity: shapes.add_type(loan.referee, &[], &[])?,
+                    access: loan.access,
+                },
+                loan.referee,
+            )
+        } else if let Some((index, parameter)) = program
+            .state_parameters(state)
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| dispatch.is_symbol(parameter.symbol))
+        {
+            let (position, retained) = structural
                 .iter()
                 .enumerate()
-                .find(|(_, parameter)| dispatch.is_symbol(parameter.symbol))
+                .find(|(_, retained)| retained.position as usize == index)?;
+            let inspected = match retained.access {
+                StructuralAccess::Owned => parameter.type_reference,
+                checked_trees::checked_borrowed_access_pair_pattern!() => {
+                    let TypeReferenceNode::Reference { referee, .. } = program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    else {
+                        return None;
+                    };
+                    *referee
+                }
+                StructuralAccess::WriteOnlyBorrow => return None,
+            };
+            if !matches!(
+                retained.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            ) || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
+                || !retained.qualifications.is_empty()
+                || retained.primitive_referent.is_some()
             {
-                let (position, retained) = structural
-                    .iter()
-                    .enumerate()
-                    .find(|(_, retained)| retained.position as usize == index)?;
-                let inspected = match retained.access {
-                    StructuralAccess::Owned => parameter.type_reference,
-                    checked_trees::checked_borrowed_access_pair_pattern!() => {
-                        let TypeReferenceNode::Reference { referee, .. } = program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference)
-                        else {
-                            return None;
-                        };
-                        *referee
-                    }
-                    StructuralAccess::WriteOnlyBorrow => return None,
-                };
-                if !matches!(
-                    retained.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                ) || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
-                    || !retained.qualifications.is_empty()
-                    || retained.primitive_referent.is_some()
-                {
-                    return None;
-                }
-                (
-                    ArgumentPlan {
-                        projection_evaluations: Default::default(),
-                        source: SourcePlan::Parameter {
-                            parameter_index: u32::try_from(position).ok()?,
-                        },
-                        path: Vec::new(),
-                        type_identity: retained.type_identity,
-                        access: retained.access,
+                return None;
+            }
+            (
+                ArgumentPlan {
+                    projection_evaluations: Default::default(),
+                    source: SourcePlan::Parameter {
+                        parameter_index: u32::try_from(position).ok()?,
                     },
-                    inspected,
+                    path: Vec::new(),
+                    type_identity: retained.type_identity,
+                    access: retained.access,
+                },
+                inspected,
+            )
+        } else {
+            let mut matching = operations
+                .iter()
+                .filter_map(super::retained_structural_result)
+                .filter_map(|result| {
+                    let local = statements
+                        .get(result.statement_index as usize)?
+                        .as_local_data()?;
+                    (dispatch.is_symbol(local.symbol)
+                        && !local.is_mutable
+                        && result.statement_index < transition_start as u32)
+                        .then_some((result, local))
+                });
+            let (result, local) = matching.next()?;
+            if matching.next().is_some()
+                || !matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
                 )
-            } else {
-                let mut matching = operations
-                    .iter()
-                    .filter_map(super::retained_structural_result)
-                    .filter_map(|result| {
-                        let local = statements
-                            .get(result.statement_index as usize)?
-                            .as_local_data()?;
-                        (dispatch.is_symbol(local.symbol)
-                            && !local.is_mutable
-                            && result.statement_index < transition_start as u32)
-                            .then_some((result, local))
-                    });
-                let (result, local) = matching.next()?;
-                if matching.next().is_some()
-                    || !matches!(
-                        result.multiplicity,
-                        Multiplicity::Affine | Multiplicity::Unrestricted
-                    )
-                {
-                    return None;
-                }
-                let (subject, inspected) = if let Some(shell) =
-                    validation::reference_shell(program, local.type_reference)
-                {
+            {
+                return None;
+            }
+            let (subject, inspected) =
+                if let Some(shell) = validation::reference_shell(program, local.type_reference) {
                     if result.multiplicity != Multiplicity::Affine
                         || shell.access == language_semantics::ReferenceAccess::WriteOnly
                     {
@@ -272,8 +321,8 @@ mod closed_sum {
                         local.type_reference,
                     )
                 };
-                (subject, inspected)
-            };
+            (subject, inspected)
+        };
         let mut established_results = local_results.to_vec();
         if let DispatchSubject::Computed(expression) = dispatch {
             let SourcePlan::StructuralResult { binding_ordinal } = subject.source else {
@@ -7996,6 +8045,7 @@ mod terminator {
         signatures: &[Signature],
         entry_claims: &[CheckedUnitEntryClaimPlan],
         local_results: &[(CheckedUnitStructuralResultBindingPlan, PlaceRoot)],
+        place_loans: &[checked_trees::CheckedPlaceLoanPlan],
         scalar_result: Option<&CheckedUnitScalarResultBindingPlan>,
         structural_result: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
         next_scalar_binding: usize,
@@ -8229,6 +8279,7 @@ mod terminator {
             state_index,
             signatures,
             edge_calls,
+            place_loans,
             &result,
             next_scalar_binding,
             operations,
@@ -9772,6 +9823,7 @@ pub(super) fn build_traced(
             &signatures,
             &state_entry_claims[state_index],
             &sequence.structural_results,
+            &sequence.place_loans,
             sequence.scalar_result.as_ref(),
             sequence.structural_result.as_ref(),
             sequence.next_scalar_binding,

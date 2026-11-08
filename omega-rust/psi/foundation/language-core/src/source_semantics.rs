@@ -117,18 +117,26 @@ pub enum LocalBindingRole {
     AtomicObservedResult, // Reserved immutable binding established by the associated atomic event.
     RecordPattern,
     ArmPattern,
+    /// A prepared private dispatch capture of existing storage.
+    DispatchObservation,
 }
 
 impl LocalBindingRole {
     pub const fn is_runtime_binding(self) -> bool {
         matches!(
             self,
-            Self::Value | Self::DispatchSubject | Self::AtomicObservedResult
+            Self::Value
+                | Self::DispatchSubject
+                | Self::DispatchObservation
+                | Self::AtomicObservedResult
         )
     }
 
     pub const fn has_ordinary_initializer(self) -> bool {
-        matches!(self, Self::Value | Self::DispatchSubject)
+        matches!(
+            self,
+            Self::Value | Self::DispatchSubject | Self::DispatchObservation
+        )
     }
 }
 

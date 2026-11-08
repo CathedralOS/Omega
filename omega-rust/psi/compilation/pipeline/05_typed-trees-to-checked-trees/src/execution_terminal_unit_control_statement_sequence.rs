@@ -1206,6 +1206,8 @@ mod completion {
         })
     }
 }
+pub(in crate::execution::terminal_unit) use local_data::dispatch_observation;
+
 mod local_data {
     /*
         Planning one `let` statement of a single-state body.
@@ -1399,6 +1401,18 @@ mod local_data {
                 return Some(LocalPlan::Planned);
             }
             return None;
+        }
+        if let Some(loan) = dispatch_observation(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            statement_index,
+            local,
+        ) {
+            place_loans.push(loan);
+            return Some(LocalPlan::Planned);
         }
         let reference_capture =
             super::super::reference_captures::plan(program, facts, machine, state, index, local);
@@ -1908,6 +1922,116 @@ mod local_data {
             result.local = initialized_local(program, machine, state, local);
             Some(LocalPlan::StructuralCall(result))
         }
+    }
+
+    // A private case observation reads the original inline storage. It does not
+    // need a descriptor that would keep a separate child loan alive in the arm.
+    // Keep ordinary reference production whenever the captured value can escape.
+    pub(in crate::execution::terminal_unit) fn dispatch_observation(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        statement_index: u32,
+        local: &typed_trees::statement::TableLocalData,
+    ) -> Option<checked_trees::CheckedPlaceLoanPlan> {
+        use typed_trees::expression::BinaryOperator;
+        use typed_trees::statement::StatementRootRole;
+
+        if !local.symbol.is_valid()
+            || local.role != language_core::LocalBindingRole::DispatchObservation
+        {
+            return None;
+        }
+        let PlaceLoan::Captured(loan) = place_loan(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            statement_index,
+            local,
+        )?
+        else {
+            return None;
+        };
+        if loan.access != CheckedStructuralAccess::SharedBorrow
+            || loan.recast_source.is_valid()
+            || loan.path.iter().any(|step| {
+                !matches!(
+                    step,
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                        | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
+                )
+            })
+        {
+            return None;
+        }
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let following = statements.get(usize::try_from(statement_index).ok()?.checked_add(1)?..)?;
+        if following.is_empty() {
+            return None;
+        }
+        let mut visits = std::collections::HashMap::<_, _, symbols::BuildSymbolHasher>::default();
+        let mut epoch = 0u32;
+        for statement in following {
+            statement.as_transition()?;
+            for (role, root) in program.tables.expression_roots(statement) {
+                epoch = epoch.checked_add(1)?;
+                let mut pending = vec![(root, false)];
+                while let Some((expression, leaving)) = pending.pop() {
+                    if !expression.is_valid() {
+                        continue;
+                    }
+                    if !expressions(program).expression_is_valid(expression) {
+                        return None;
+                    }
+                    if leaving {
+                        visits.insert(expression, (epoch, true));
+                        continue;
+                    }
+                    if let Some((seen, complete)) = visits.get(&expression)
+                        && *seen == epoch
+                    {
+                        if *complete {
+                            continue;
+                        }
+                        return None;
+                    }
+                    visits.insert(expression, (epoch, false));
+                    let node = expressions(program).expression(expression);
+                    if matches!(node, ExpressionNode::Name(path)
+                        if path.resolved_symbol() == Some(local.symbol))
+                    {
+                        return None;
+                    }
+                    pending.push((expression, true));
+                    if role == StatementRootRole::TransitionGuard
+                        && let ExpressionNode::Binary(binary) = node
+                        && binary.operator == BinaryOperator::CaseMembership
+                        && let ExpressionNode::Name(path) =
+                            expressions(program).expression(binary.left)
+                        && path.resolved_symbol() == Some(local.symbol)
+                        && expressions(program).name_path_members(path.members).len() == 1
+                    {
+                        pending.push((binary.right, false));
+                    } else if let ExpressionNode::SavedSubject(saved) = node {
+                        // Inspect the dependency without evaluating its producer.
+                        let source = program.saved_value_source(saved)?;
+                        if !expressions(program).expression_is_valid(source) {
+                            return None;
+                        }
+                        pending.push((source, false));
+                    } else {
+                        validation::expression_traversal::children(program, node, |child| {
+                            pending.push((child, false));
+                        });
+                    }
+                }
+            }
+        }
+        Some(loan)
     }
 
     /*
