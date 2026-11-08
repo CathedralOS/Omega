@@ -85,6 +85,7 @@ pub(crate) fn prepare_permission_events(
 ) -> Result<bool, Vec<Diagnostic>> {
     claim_outcomes.begin();
     facts.qualifications.content.body_conservations = Default::default();
+    facts.qualifications.content.body_conservation_plans.clear();
     facts.qualifications.content.body_claim_bindings = Default::default();
     facts.qualifications.content.body_available_inputs = Default::default();
     facts.qualifications.content.body_transformations = Default::default();

@@ -9562,6 +9562,7 @@ mod crashes {
                         machine,
                         operators,
                         parameter_names,
+                        &entry_predicates,
                         *expression,
                     ) {
                         continue;
@@ -9599,14 +9600,14 @@ mod crashes {
                             machine,
                             operators,
                             parameter_names,
+                            &entry_predicates,
                             *expression,
                         )
                     {
                         continue;
                     }
                     if proved
-                        || common.establishes(*expression, false, &result.consequences, 0)
-                            == Some(true)
+                        || common.establishes(*expression, false, &result.consequences, 0) == Some(true)
                     {
                         result.consequences.push(canonical_crash_contract_predicate(
                             program,
@@ -9632,28 +9633,32 @@ mod crashes {
             machine: &Machine,
             operators: &CheckedOperatorFacts,
             parameter_names: &[String],
+            entry_predicates: &validation::EntryPredicateObservations<'_>,
             expression: ExpressionHandle,
         ) -> bool {
-            if lower_machine_entry_crash_contract_expression(
-                program,
-                operators,
-                machine,
-                expression,
-                &[],
-            )
-            .is_none()
-            {
-                return false;
-            }
             let Some(entry) = program.machine_states(machine).first() else {
                 return false;
             };
             let parameters = program.state_parameters(entry);
-            parameter_names.len() == parameters.len()
-                && parameter_names
+            if parameter_names.len() != parameters.len()
+                || !parameter_names
                     .iter()
                     .zip(parameters)
                     .all(|(name, parameter)| name == parameter.name.as_str())
+            {
+                return false;
+            }
+            let scalar = |expression| {
+                lower_machine_entry_crash_contract_expression(
+                    program,
+                    operators,
+                    machine,
+                    expression,
+                    &[],
+                )
+                .is_some()
+            };
+            scalar(expression) || entry_predicates.has_formed_identity_predicate(expression, scalar)
         }
     }
     mod operation_sites {

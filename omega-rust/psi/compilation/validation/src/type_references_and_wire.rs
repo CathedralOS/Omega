@@ -3940,6 +3940,9 @@ pub mod type_references {
     }
     pub(crate) mod static_argument_scope {
         use super::StaticTypeArgumentOwner;
+        use crate::mathematical_applications::{
+            FixedCoreVocabulary, MathematicalBinderKind, mathematical_binder_kind,
+        };
         use std::borrow::Cow;
         use symbols::{SymbolHandle, SymbolKind};
         use typed_trees::{data::TypeParameter, name::Identifier};
@@ -4040,6 +4043,18 @@ pub mod type_references {
                         binders,
                     } => {
                         let mut types = binders.to_vec();
+                        let vocabulary = FixedCoreVocabulary::resolve(&program.symbols);
+                        for parameter in &mut types {
+                            if matches!(
+                                mathematical_binder_kind(program, parameter, &vocabulary),
+                                Some(MathematicalBinderKind::Type)
+                            ) {
+                                // The mathematical telescope retains A: Type<u>
+                                // as a term binder. This type-checking view must
+                                // retain its authenticated type-forming role.
+                                parameter.kind = typed_trees::data::TypeParameterKind::Type;
+                            }
+                        }
                         let (outer_types, lifetimes) =
                             enclosing_parameters(program, declaration.symbol);
                         let mut lifetimes = lifetimes;

@@ -59,7 +59,7 @@ public data TableEntry [copy] {
 // geometry cannot supply this codec, and no count/address width law follows.
 public machine TableEntry::address_bits(value: addr) -> u64 {
     let bits: &u64 = &value as &u64;
-    *bits
+    bits
 }
 
 // The 9-bit slot index `depth` selects out of `virtual_base`. Levels count

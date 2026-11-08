@@ -87,8 +87,7 @@ mod body_conservation {
             state: &State,
         ) -> Vec<ContentConservationPlan> {
             if source.owner == machine.symbol
-                || super::owned_return_sides(source.equation.left(), source.equation.right())
-                    .is_none()
+                || super::owned_return_sides(source.equation.left(), source.equation.right()).is_none()
             {
                 return Vec::new();
             }
@@ -101,8 +100,7 @@ mod body_conservation {
             let mut pending = Vec::new();
             for initial in program.machine_states(owner) {
                 if (initial.symbol == source.callable || entry.symbol == source.callable)
-                    && let Some(plan) =
-                        super::plan_at_state(program, facts, initial, source.clone())
+                    && let Some(plan) = super::plan_at_state(program, facts, initial, source.clone())
                 {
                     pending.push(plan);
                 }
@@ -166,7 +164,7 @@ mod body_conservation {
                             program,
                             outgoing.transition_target,
                         ) {
-                            if let Some(next) = transfer(
+                            let transferred = transfer(
                                 program,
                                 facts,
                                 current_state,
@@ -176,7 +174,15 @@ mod body_conservation {
                                 invocation.arguments,
                                 &plan,
                                 &mut remaining,
-                            ) {
+                            );
+                            trace_transfer(
+                                program,
+                                state,
+                                current_state,
+                                invocation.target,
+                                &transferred,
+                            );
+                            if let Ok(next) = transferred {
                                 pending.push(next);
                             }
                         }
@@ -190,7 +196,8 @@ mod body_conservation {
                             let capture = facts.flow.control.operands.get(returned);
                             if let Some(invocation) =
                                 validation::completing_call_transfer(program, capture.expression)
-                                && let Some(next) = transfer(
+                            {
+                                let transferred = transfer(
                                     program,
                                     facts,
                                     current_state,
@@ -200,9 +207,17 @@ mod body_conservation {
                                     invocation.arguments,
                                     &plan,
                                     &mut remaining,
-                                )
-                            {
-                                pending.push(next);
+                                );
+                                trace_transfer(
+                                    program,
+                                    state,
+                                    current_state,
+                                    invocation.target,
+                                    &transferred,
+                                );
+                                if let Ok(next) = transferred {
+                                    pending.push(next);
+                                }
                             }
                         }
                     }
@@ -222,26 +237,35 @@ mod body_conservation {
             arguments: &[ExpressionHandle],
             plan: &ContentConservationPlan,
             remaining: &mut usize,
-        ) -> Option<ContentConservationPlan> {
+        ) -> Result<ContentConservationPlan, &'static str> {
             if !spend(remaining, 1) {
-                return None;
+                return Err("terminal demand transport work exhausted");
             }
-            let next_state = validation::call_target_state(program, target)?;
-            let next_machine = program.machine_holding_state(next_state.symbol)?;
+            let next_state = validation::call_target_state(program, target)
+                .ok_or("terminal demand has no concrete target state")?;
+            let next_machine = program
+                .machine_holding_state(next_state.symbol)
+                .ok_or("terminal demand target has no declaration owner")?;
             if next_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || !same_type(program, state.return_type, next_state.return_type)
             {
-                return None;
+                return Err(
+                    "terminal demand target is not a checked body with the same result carrier",
+                );
             }
-            let flow = facts.flow.control.unique_state(plan.owner, state.symbol)?;
+            let flow = facts
+                .flow
+                .control
+                .unique_state(plan.owner, state.symbol)
+                .ok_or("terminal demand source has no unique state flow")?;
             if !spend(remaining, flow.calls.len()) {
-                return None;
+                return Err("terminal demand call-roster work exhausted");
             }
             let mut calls = facts
                 .flow
                 .control
                 .calls
-                .span(flow.calls)?
+                .span(flow.calls).ok_or("terminal demand call roster is unavailable")?
                 .iter()
                 .filter(|call| {
                     call.statement_index == outgoing.statement_index
@@ -270,18 +294,20 @@ mod body_conservation {
                                 })
                             })
                 });
-            let call = calls.next()?;
+            let call = calls.next().ok_or(
+                "terminal demand has no exact source call, argument roster and evaluation lane",
+            )?;
             if calls.next().is_some() {
-                return None;
+                return Err("terminal demand source call is ambiguous");
             }
             let parameters = program.state_parameters(next_state);
             if parameters.len() != call.argument_operands().len() {
-                return None;
+                return Err("terminal demand argument count does not match its target telescope");
             }
             let mut bindings = Vec::new();
             for (parameter, operand) in parameters.iter().zip(call.argument_operands().handles()) {
                 if !spend(remaining, 1) {
-                    return None;
+                    return Err("terminal demand argument transport work exhausted");
                 }
                 if parameter.is_mutable || parameter.is_const {
                     continue;
@@ -300,14 +326,39 @@ mod body_conservation {
             let mut plan = plan.clone();
             let mut left = plan.equation.left().clone();
             let mut right = plan.equation.right().clone();
-            rebase(&mut left, parameters, &bindings)?;
-            rebase(&mut right, parameters, &bindings)?;
+            rebase(&mut left, parameters, &bindings)
+                .ok_or("terminal demand left side has no exact unchanged incoming binding")?;
+            rebase(&mut right, parameters, &bindings)
+                .ok_or("terminal demand right side has no exact unchanged incoming binding")?;
             plan.owner = next_machine.symbol;
             plan.callable = next_state.symbol;
             plan.equation = ContentConservationEquation::new(left, right);
-            plan.report_fingerprint =
-                conservation_report_fingerprint(&plan.algebra, &plan.equation);
-            Some(plan)
+            plan.report_fingerprint = conservation_report_fingerprint(&plan.algebra, &plan.equation);
+            Ok(plan)
+        }
+
+        fn trace_transfer(
+            program: &dyn validation::CheckingInput,
+            requested: &State,
+            source: &State,
+            target: SymbolHandle,
+            result: &Result<ContentConservationPlan, &'static str>,
+        ) {
+            if (std::env::var_os("OMEGA_RECEIVING_TRACE").is_some()
+                || std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
+                && validation::call_target_state(program, target)
+                    .is_some_and(|target| target.symbol == requested.symbol)
+            {
+                static EVENTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+                if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 64 {
+                    return;
+                }
+                let outcome = result.as_ref().map(|plan| (plan.owner, plan.callable));
+                eprintln!(
+                    "RECEIVING content-demand source={:?} source_result={:?} target={:?} target_result={:?} outcome={outcome:?}",
+                    source.symbol, source.return_type, requested.symbol, requested.return_type,
+                );
+            }
         }
 
         /// Every predecessor must be the same unchanged complete entry value. A local
@@ -399,12 +450,8 @@ mod body_conservation {
                     completed.insert(key);
                     continue;
                 }
-                let predecessors = crate::flow::completed_values::predecessors(
-                    program,
-                    facts,
-                    operand,
-                    &projection,
-                )?;
+                let predecessors =
+                    crate::flow::completed_values::predecessors(program, facts, operand, &projection)?;
                 if predecessors.is_empty() {
                     return None;
                 }

@@ -112,23 +112,25 @@ jobs:
           if [ -n "$QUALIFICATION_SAMPLES" ]; then arguments+=(--samples "$QUALIFICATION_SAMPLES"); fi
           if [ -n "$QUALIFICATION_CONTROLS" ]; then arguments+=(--runtime-controls "$QUALIFICATION_CONTROLS"); fi
           mbx xtask "${arguments[@]}"
-      - name: Capture the remaining wrapper refusal
-        if: ${{ always() && contains(inputs.qualification_corpus, 'pass/core/content_conservation_wrapper_match_independent_body_exit') }}
+      - name: Capture remaining receiving refusals
+        if: ${{ always() && (contains(inputs.qualification_corpus, 'pass/core/generic_content_static_callback') || contains(inputs.qualification_corpus, 'pass/facts/content_reunion_through_other_state_exit')) }}
         continue-on-error: true
         shell: bash
         run: |
-          if python3 - <<'PYTRACE'
-          import json, pathlib, sys
+          trace_index=0
+          while IFS= read -r fixture; do
+            OMEGA_RECEIVING_TRACE=1 mbx xtask qualify --output "build/qualification-receiving-$trace_index" --corpus "$fixture" || true
+            trace_index=$((trace_index + 1))
+          done < <(python3 - <<'PYTRACE'
+          import json, pathlib
           path = pathlib.Path('build/qualification/checking-rows.json')
-          if not path.exists():
-              sys.exit(1)
-          fixture = 'pass/core/content_conservation_wrapper_match_independent_body_exit'
-          rows = json.loads(path.read_text())
-          sys.exit(0 if any(row['fixture'] == fixture and row['status'] not in ('checked', 'built') for row in rows) else 1)
+          if path.exists():
+              selected = {'pass/core/generic_content_static_callback', 'pass/facts/content_reunion_through_other_state_exit'}
+              for row in json.loads(path.read_text()):
+                  if row['fixture'] in selected and (row['status'] not in ('checked', 'built') or row.get('diagnostics')):
+                      print(row['fixture'])
           PYTRACE
-          then
-            OMEGA_STRUCT_TRACE=1 mbx xtask qualify --output build/qualification-wrapper-trace --corpus pass/core/content_conservation_wrapper_match_independent_body_exit
-          fi
+          )
       - name: Execute length sample with native/Psi agreement and rejection control
         if: ${{ inputs.qualification_corpus == '' && inputs.qualification_runtime == '' && inputs.qualification_samples == '' && inputs.qualification_controls == '' }}
         run: |
@@ -154,7 +156,7 @@ jobs:
           name: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             build/qualification/
-            build/qualification-wrapper-trace/
+            build/qualification-receiving-*/
             build/sample-gate-runs/
             build/corpus-runs/
           if-no-files-found: warn

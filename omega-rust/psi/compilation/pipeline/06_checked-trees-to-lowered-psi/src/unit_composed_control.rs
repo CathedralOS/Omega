@@ -7271,7 +7271,7 @@ pub(crate) mod attached_unit {
                                             &self.machine_result,
                                             &self.claims.source_claims,
                                         )?;
-                                    if self.content_entry_claims.iter().any(|entry| {
+                                    if let Some(entry) = self.content_entry_claims.iter().find(|entry| {
                                         returned_claims
                                             .iter()
                                             .any(|binding| binding.claim == entry.claim)
@@ -7281,9 +7281,16 @@ pub(crate) mod attached_unit {
                                                     && identity.projections == entry.projections
                                             })
                                     }) {
-                                        return unsupported(
-                                            "structural return lost its checked content identity guarantee",
-                                        );
+                                        let reason = if state_identities.is_empty() {
+                                            "structural return lost its checked content identity guarantee: returning state has no checked content rows"
+                                        } else if !state_identities.iter().any(|identity| identity.claim == entry.claim) {
+                                            "structural return lost its checked content identity guarantee: no checked row names the returned claim"
+                                        } else if !state_identities.iter().any(|identity| identity.claim == entry.claim && identity.input == entry.input) {
+                                            "structural return lost its checked content identity guarantee: checked row names another input place"
+                                        } else {
+                                            "structural return lost its checked content identity guarantee: checked projections disagree"
+                                        };
+                                        return unsupported(reason);
                                     }
                                     let invocation_identities = state_identities
                                         .into_iter()

@@ -12631,6 +12631,96 @@ pub(crate) mod statement_predicates {
             })
         }
 
+        /// Read formed Id propositions at this invocation's declared entry.
+        /// This classifies a premise; it neither proves it nor installs a goal.
+        pub fn has_formed_identity_predicate(
+            &self,
+            expression: ExpressionHandle,
+            mut scalar_leaf: impl FnMut(ExpressionHandle) -> bool,
+        ) -> bool {
+            use super::structural_judgment::StructuralTerm;
+            use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+            use typed_trees::signature::SignatureContractKind;
+
+            let Some(entry) = self.program.machine_states(self.machine).first() else {
+                return false;
+            };
+            let owned = self
+                .program
+                .machine_contracts(self.machine)
+                .iter()
+                .chain(self.program.state_contracts(entry))
+                .filter(|contract| {
+                    matches!(
+                        contract.kind,
+                        SignatureContractKind::Requires | SignatureContractKind::Crashes { .. }
+                    )
+                })
+                .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
+                .any(|fact| fact.as_expression() == Some(&expression));
+            if !owned {
+                return false;
+            }
+            let judge = self.judge();
+            let mut pending = vec![(expression, 0usize)];
+            let mut remaining = 4096usize;
+            let mut has_identity = false;
+            while let Some((expression, depth)) = pending.pop() {
+                let Some(next) = remaining.checked_sub(1) else {
+                    return false;
+                };
+                remaining = next;
+                if depth >= 64
+                    || !self
+                        .program
+                        .expression_table
+                        .expression_is_valid(expression)
+                {
+                    return false;
+                }
+                match self.program.expression_table.expression(expression) {
+                    ExpressionNode::Binary(binary)
+                        if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+                    {
+                        pending.push((binary.right, depth + 1));
+                        pending.push((binary.left, depth + 1));
+                    }
+                    ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                        pending.push((unary.operand, depth + 1));
+                    }
+                    _ => {
+                        if scalar_leaf(expression) {
+                            continue;
+                        }
+                        let Some(predicate) = judge.predicate_term_in_scope(
+                            (self.machine, entry, entry.return_type),
+                            expression,
+                            &[],
+                            0,
+                        ) else {
+                            return false;
+                        };
+                        let StructuralTerm::Identity {
+                            carrier,
+                            left,
+                            right,
+                        } = predicate.semantic_value()
+                        else {
+                            return false;
+                        };
+                        if !carrier.is_valid()
+                            || !judge.identity_value_is_available(left)
+                            || !judge.identity_value_is_available(right)
+                        {
+                            return false;
+                        }
+                        has_identity = true;
+                    }
+                }
+            }
+            has_identity
+        }
+
         pub fn proves_crash_condition(&self, expression: ExpressionHandle) -> bool {
             let Some(entry) = self.program.machine_states(self.machine).first() else {
                 return false;
@@ -53534,7 +53624,7 @@ pub(crate) mod structural_judgment {
             }
 
             impl StructuralJudge<'_> {
-                pub(crate) fn rewrite_identity_context(
+                pub(super) fn rewrite_identity_context(
                     &self,
                     mut value: StructuralTerm,
                     depth: usize,
@@ -66521,7 +66611,28 @@ pub(crate) mod structural_judgment {
                     .iter()
                     .find(|parameter| parameter.name.as_str() == name && !parameter.is_mutable)
             };
+            let closed_scalar = |reference| {
+                crate::unrestricted_builtin_primitive(judge.program, reference).is_some_and(
+                    |primitive| primitive.is_fixed_integer() || primitive == PrimitiveType::Bool,
+                )
+            };
             match value {
+                StructuralTerm::ObservedValue {
+                    observed_type,
+                    descriptor: None,
+                    value,
+                } => {
+                    // A completed owned field keeps its scalar type and policy.
+                    // Validate that closed shell without stripping it from the
+                    // exported equation or admitting the enclosing aggregate.
+                    closed_scalar(*observed_type)
+                        && super::super::structural_terms::scalar_operand_is_observed(
+                            judge.program,
+                            *observed_type,
+                            value,
+                        )
+                        && declaration_input_value(judge, parameters, value)
+                }
                 StructuralTerm::Integer(_) => true,
                 StructuralTerm::Constructor {
                     identity, fields, ..
@@ -66554,11 +66665,7 @@ pub(crate) mod structural_judgment {
                         else {
                             return false;
                         };
-                        let Some(primitive) = judge.program.primitive_type_reference(reference)
-                        else {
-                            return false;
-                        };
-                        (primitive.is_fixed_integer() || primitive == PrimitiveType::Bool)
+                        closed_scalar(reference)
                             && super::super::structural_terms::scalar_operand_is_observed(
                                 judge.program,
                                 reference,
@@ -66579,11 +66686,13 @@ pub(crate) mod structural_judgment {
                         .into_iter()
                         .zip(references)
                         .all(|(operand, reference)| {
-                            super::super::structural_terms::scalar_operand_is_observed(
-                                judge.program,
-                                *reference,
-                                operand,
-                            ) && declaration_input_value(judge, parameters, operand)
+                            closed_scalar(*reference)
+                                && super::super::structural_terms::scalar_operand_is_observed(
+                                    judge.program,
+                                    *reference,
+                                    operand,
+                                )
+                                && declaration_input_value(judge, parameters, operand)
                         })
                 }
                 _ => false,
