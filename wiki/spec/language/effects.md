@@ -131,9 +131,11 @@ body, private or public, and defers to the selected implementation on a
 bodyless non-boundary requirement. `crashes none` promises no route and rejects
 a body or selection that has one. An inferred public route that a body edit
 introduces therefore propagates to callers that imposed no constraint, and
-the published contract changes with it. Crash policy is decided deliberately
-at two places: `crashes none` on the surface that commits to crash-freedom,
-where such an edit rejects, and
+the published contract changes with it. Across packages the change arrives
+through the [dependency update](../packages/acceptance.md#ordinary-compilation)
+boundary, which has no crash-specific approval of its own. Crash policy is
+decided deliberately at two places: `crashes none` on the surface that
+commits to crash-freedom, where such an edit rejects, and
 [build-level behavior exclusions](../build/behavior_exclusions.md#two-independent-checks)
 where the requirement belongs to the whole executable, where any route in the
 selected closure rejects at admission. A public generic that admits a suspending or
