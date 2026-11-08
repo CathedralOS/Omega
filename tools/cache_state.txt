@@ -4,8 +4,7 @@
 # (AGENTS.md conventions).
 # Written by `python tools/check_rules.py --update-cache-state`.
 1 omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/providers/provider_plan.rs
-1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/home_assignment/compute/domain.rs
-1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/home_assignment/physical_requirement.rs
+2 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/home_assignment.rs
 1 omega-rust/omega/compilation/realization/provider-planning/src/native_bindings/plans.rs
 1 omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay/named_provider_plans.rs
 1 omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs

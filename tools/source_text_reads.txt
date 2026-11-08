@@ -6,8 +6,8 @@
 78 omega-rust/omega/compilation/compiler/src/product_boundary.rs
 4 omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs
 1 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lib.rs
-1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output/retained/tests.rs
-7 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation/route_tests.rs
+1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output.rs
+7 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs
 1 omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs
 5 omega-rust/omega/interpreter/terminal-runtime/src/runtime_boundary.rs
 8 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/immutable_checking_input.rs
