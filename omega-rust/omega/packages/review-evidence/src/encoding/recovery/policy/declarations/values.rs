@@ -1,3 +1,5 @@
+// Bounded recovery for proposition shapes, constant shapes, and operator spellings.
+
 use super::super::{
     Error,
     contracts::{contract_fact, evidence_interface, proposition_binder},
@@ -64,7 +66,7 @@ mod constant_meaning_tests {
     use super::*;
 
     fn prefix() -> Vec<u8> {
-        let mut bytes = vec![0]; // Exact package owner of the public declaration.
+        let mut bytes = vec![0];
         bytes.extend_from_slice(&[1; 32]);
         for text in ["RAW_SIZE", "named(name(u64))"] {
             bytes.extend_from_slice(&(text.len() as u64).to_le_bytes());
@@ -77,7 +79,7 @@ mod constant_meaning_tests {
     fn deferred_constant_meaning_never_recovers_as_a_folded_value() {
         let canonical = "named(name(u8))";
         let mut bytes = prefix();
-        bytes.extend_from_slice(&[1, 27, 0]); // Dependency, size query.
+        bytes.extend_from_slice(&[1, 27, 0]);
         bytes.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
         bytes.extend_from_slice(canonical.as_bytes());
         let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();

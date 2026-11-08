@@ -1,4 +1,4 @@
-//! Structural signature scope; no compiler replay or canonical-type parsing.
+// Structural signature scope and binder telescope validation without compiler replay or canonical-type parsing. Recursive wire owners (`depth`) track zero-based nesting across machine contracts, contract expressions, and static arguments.
 
 use super::{
     signature_contracts as contracts, signature_expressions as expressions,
@@ -93,7 +93,6 @@ impl Scope<'_> {
     }
 }
 
-/// Root binder telescope of one callable's own statics and formals.
 fn callable_scope(callable: &PackagePolicyCallable) -> Scope<'_> {
     Scope {
         parameters: callable.parameters.len(),
@@ -200,14 +199,9 @@ pub(in crate::record) fn owned_pair(
 }
 pub(in crate::record) fn operator(value: &PackageReviewOperatorCoordinate) -> Result {
     value.identity.validate_resolved()?;
-    // Empty result dispatch is exact meaning for operand-directed operators.
     text(&value.parameter_dispatch)
 }
 pub(in crate::record) fn depth(depth: usize) -> Result {
-    // Zero-based depth of recursive wire owners: machine contracts,
-    // contract expressions, and static arguments. Nonrecursive signature,
-    // fact, proposition, and behavior wrappers do not consume another level.
-    // This agrees with Reader::nested and the policy writer at the frontier.
     if depth >= 128 {
         Err("signature structure exceeds bounded nesting")
     } else {

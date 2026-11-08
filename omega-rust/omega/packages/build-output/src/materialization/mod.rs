@@ -1,8 +1,11 @@
-//! Materializing a retained tree onto the host filesystem.
-//!
-//! Fresh materialization does not re-read what it writes. Reusing an earlier
-//! host export is a separate trust boundary: the completed-output product owner
-//! checks its manifest and files against the retained content before reuse.
+// Materializes a retained `BuildStagedOutputTree` into an existing empty
+// concrete host directory and validates retained tree invariants.
+//
+// Fresh materialization writes directories, `create_new` files, and relative
+// symlinks in canonical entry order without re-reading what it just wrote;
+// reusing an existing host export is verified separately by the completed-output
+// product owner. Non-Unix hosts reject executable file modes and symlink
+// entries cleanly rather than silently dropping mode bits or link semantics.
 
 #[cfg(test)]
 use crate::portable_paths::canonical_symlink_target;

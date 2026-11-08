@@ -1,11 +1,32 @@
-//! Resource-bounded native child execution with owned process-tree cleanup.
-//!
-//! Start at `bounded_process.rs` for the complete run loop. `preparation` owns
-//! opaque structured command setup, `process_child` owns native limits and
-//! process-container closure, and `bounded_process` owns bounded duplex I/O
-//! under one wall-clock deadline. These controls bound concrete resources and
-//! cleanup; they do not claim filesystem, executable, credential, or network
-//! isolation.
+/*
+Resource-bounded native child execution with owned process-tree cleanup and
+authenticated private observation lanes.
+
+We wrap native child processes so every helper invocation runs inside an OS
+process container (a Unix process group via `command-group` or a suspended-start
+Windows Job Object), closes unretained ambient descriptors across `exec`,
+enforces CPU/memory/file/process ceilings, and terminates the entire descendant
+container before returning or on drop.
+
+Why separate `preparation`, `process_child`, and `bounded_process`?
+- `preparation` (`BoundedProcessPrepared`, `BoundedProcessLimits`) validates
+  command argument/environment byte ceilings (4,096 args, 1,024 env entries,
+  4 MiB total configuration bytes) and requires explicit `Null` or `Piped`
+  disposition on all three standard streams before spawn.
+- `process_child` (`BoundedProcessChild`, `BoundedProcessCompletion`) owns
+  container creation, descriptor hygiene, optional kernel resource-usage
+  collection (`wait4` on Unix, `GetProcessTimes` / `GetProcessMemoryInfo` /
+  `QueryProcessCycleTime` on Windows), and container termination/reaping.
+- `bounded_process` (`run_bounded_process`, `BoundedCaptureBudget`) drives
+  concurrent stdin transfer and bounded stdout/stderr capture under a single
+  wall-clock deadline with reserved cleanup time.
+- `private_observation` provides an authenticated out-of-band byte channel
+  (FD 3 Unix socketpair or PID-verified Windows named pipe) for runtime
+  observation rosters separate from guest stdout/stderr.
+
+These controls bound concrete host resources and descendant cleanup; they do not
+claim filesystem, executable, credential, or network sandboxing.
+*/
 
 #![deny(unsafe_op_in_unsafe_fn)]
 

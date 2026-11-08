@@ -1,30 +1,66 @@
-//! Console adapter for the project compilation operation.
+/*
 
-use crate::arguments::CompileArguments;
+Console adapter for `omega [path]` and `omega --check [path]`.
+
+We translate `CompileArguments` into an `orchestration::BuildRequest`, run
+`orchestration::build`, and format the resulting `BuildReport`s on stdout and
+stderr, in `--timings`, and in `--report-file`.
+
+How target selection shapes the run:
+- Zero `--target` flags select `BuildTargets::Host`; one selects
+  `BuildTargets::Single`; two or more select `BuildTargets::Batch`.
+- A single-target invocation (`present_single`) prints the check summary or
+  published artifact lines directly and writes `--report-file` only when
+  compilation succeeds.
+- A multi-target invocation (`present_batch`) compiles every requested target
+  in one prepared session and continues past individual target failures so a
+  cross-target sweep reports all broken targets in one pass. Each target block
+  is headed by `target <name>:`, `--report-file` records both passing and
+  failing targets in canonical order, and we exit nonzero at the end if any
+  target refused.
+- For macOS application bundles, publication prints the `.app` root
+  (`checked_native_package_path`) while the inner Mach-O executable remains
+  addressable through `checked_native_executable_path`.
+
+*/
+
+/*
+
+Why `refusal_exit_status` requires unanimity before returning 2 (`Incomplete`):
+
+The compiler distinguishes a definitive refutation (`CompilerRequestOutcome::Reject`,
+exit code 1) from a search that exhausted a private resource bound without a
+verdict (`CompilerRequestOutcome::Incomplete`, exit code 2). In a multi-target
+batch, if one target hits an `Incomplete` bound while another target is
+outright `Reject`ed, returning 2 for the batch would hide a proven source or
+target violation behind a resource-bound status. We therefore return 2 only
+when every refusal in the batch is `Incomplete`; any `Reject` wins and produces
+exit code 1.
+
+*/
+
+use std::path::Path;
+use std::time::Instant;
+
 use compiler::CompilerRequestOutcome;
 use orchestration::{
-    BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct, TargetBuildOutcome,
-    build,
+    BuildError, BuildOutcome, BuildReport, BuildRequest, BuildTargets, NativeDestination,
+    ProjectProduct, TargetBuildOutcome, build,
 };
 
+use crate::arguments::CompileArguments;
+
 pub(crate) fn run(arguments: CompileArguments) {
-    let started = arguments.timings.then(std::time::Instant::now);
-    let report_file = arguments.report_file.clone();
+    let started = arguments.timings.then(Instant::now);
+    let report_file = arguments.report_file;
+    let installation_assumptions = arguments.installation_assumptions.clone();
+    for row in &installation_assumptions {
+        println!("{}", assumption_text(row));
+    }
     let target_names = arguments.target_names;
-    let targets = match target_names.as_slice() {
-        [] => Ok(BuildTargets::Host),
-        [name] => target::TargetProfile::from_omega_target_name(Some(name))
-            .map(BuildTargets::Single)
-            .map_err(|error| vec![error]),
-        names => target::ExplicitTargetSet::from_caller_names(names).map(BuildTargets::Batch),
-    };
-    let targets = match targets {
+    let targets = match resolve_targets(&target_names) {
         Ok(targets) => targets,
-        Err(diagnostics) => {
-            let error = BuildError::Diagnostics(diagnostics);
-            eprintln!("{error}");
-            std::process::exit(refusal_exit_status([&error]));
-        }
+        Err(error) => exit_on_refusal([&error]),
     };
     let request = BuildRequest {
         build_directory: arguments.build_dir,
@@ -34,6 +70,7 @@ pub(crate) fn run(arguments: CompileArguments) {
             ProjectProduct::Check
         } else {
             ProjectProduct::Native {
+                installation_assumptions: arguments.installation_assumptions,
                 destination: NativeDestination::Published,
                 private_entry_ram: Vec::new(),
             }
@@ -47,15 +84,46 @@ pub(crate) fn run(arguments: CompileArguments) {
             .build_inputs
             .map(|capture| compiler::BuildSnapshotRequest::scoped(std::iter::empty(), capture)),
     };
+
     if target_names.len() > 1 {
-        compile_several_targets(request, started, report_file.as_deref());
-        return;
+        present_batch(
+            request,
+            started,
+            report_file.as_deref(),
+            &installation_assumptions,
+        );
+    } else {
+        present_single(
+            request,
+            target_names.first().map(String::as_str),
+            started,
+            report_file.as_deref(),
+            &installation_assumptions,
+        );
     }
-    let report_target_name = target_names.first();
+}
+
+fn resolve_targets(target_names: &[String]) -> Result<BuildTargets, BuildError> {
+    match target_names {
+        [] => Ok(BuildTargets::Host),
+        [name] => target::TargetProfile::from_omega_target_name(Some(name))
+            .map(BuildTargets::Single)
+            .map_err(|error| BuildError::Diagnostics(vec![error])),
+        names => target::ExplicitTargetSet::from_caller_names(names)
+            .map(BuildTargets::Batch)
+            .map_err(BuildError::Diagnostics),
+    }
+}
+
+fn present_single(
+    request: BuildRequest,
+    target_name: Option<&str>,
+    started: Option<Instant>,
+    report_file: Option<&Path>,
+    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
+) {
     let result = build(request).and_then(|outcomes| match outcomes.into_iter().next() {
-        Some(outcome) => outcome
-            .result
-            .and_then(orchestration::BuildOutcome::into_report),
+        Some(outcome) => outcome.result.and_then(BuildOutcome::into_report),
         None => Err(BuildError::Diagnostics(vec![
             diagnostics::Diagnostic::error("build lost the requested target outcome"),
         ])),
@@ -68,48 +136,51 @@ pub(crate) fn run(arguments: CompileArguments) {
     }
     let outcome = match result {
         Ok(outcome) => outcome,
-        Err(error) => {
-            eprintln!("{error}");
-            std::process::exit(refusal_exit_status([&error]));
-        }
+        Err(error) => exit_on_refusal([&error]),
     };
-    if let Some(path) = &report_file {
+    if let Some(path) = report_file {
         write_report_or_exit(
             path,
-            &report_text(report_target_name.map(String::as_str), &outcome),
+            &report_text(target_name, &outcome, installation_assumptions),
         );
     }
     print_outcome(&outcome);
 }
 
-/// Several targets: one block per target in canonical order. A failed target
-/// is reported and the rest still run; the command fails if any target did.
-fn compile_several_targets(
+fn present_batch(
     request: BuildRequest,
-    started: Option<std::time::Instant>,
-    report_file: Option<&std::path::Path>,
+    started: Option<Instant>,
+    report_file: Option<&Path>,
+    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
 ) {
     let outcomes = match build(request) {
         Ok(outcomes) => outcomes,
         Err(error) => {
-            eprintln!("{error}");
-            std::process::exit(1);
+            if let Some(started) = started {
+                print_elapsed(started);
+            }
+            exit_on_refusal([&error]);
         }
     };
     let mut report_contents = String::new();
     let mut failed = Vec::new();
     let mut refusals = Vec::new();
     let target_count = outcomes.len();
+
     for TargetBuildOutcome { target, result } in outcomes {
         let name = target.target_name();
         println!("target {name}:");
-        match result.and_then(orchestration::BuildOutcome::into_report) {
+        match result.and_then(BuildOutcome::into_report) {
             Ok(outcome) => {
                 if started.is_some() {
                     print_timings(&outcome);
                 }
                 print_outcome(&outcome);
-                report_contents.push_str(&report_text(Some(name), &outcome));
+                report_contents.push_str(&report_text(
+                    Some(name),
+                    &outcome,
+                    installation_assumptions,
+                ));
             }
             Err(error) => {
                 eprintln!("{error}");
@@ -137,11 +208,14 @@ fn compile_several_targets(
     }
 }
 
-/// The exit status of a compile command that refused: the compiler request's
-/// halt value. Several refused targets aggregate by the same rule one
-/// refusal's diagnostics follow — `Incomplete` (2) only when every refusal is
-/// incomplete, else `Reject` (1) — so an established violation in any target
-/// is never reported as a search that merely stopped early.
+fn exit_on_refusal<'a>(refusals: impl IntoIterator<Item = &'a BuildError>) -> ! {
+    let list: Vec<&BuildError> = refusals.into_iter().collect();
+    for error in &list {
+        eprintln!("{error}");
+    }
+    std::process::exit(refusal_exit_status(list));
+}
+
 fn refusal_exit_status<'a>(refusals: impl IntoIterator<Item = &'a BuildError>) -> i32 {
     let mut outcomes = refusals.into_iter().map(BuildError::outcome);
     match outcomes.next() {
@@ -154,15 +228,13 @@ fn refusal_exit_status<'a>(refusals: impl IntoIterator<Item = &'a BuildError>) -
     }
 }
 
-fn print_timings(outcome: &orchestration::BuildReport) {
-    for timing in outcome.timings.phases() {
-        eprintln!(
-            "{:>10.3} ms  {}",
-            timing.microseconds as f64 / 1_000.0,
-            timing.phase
-        );
-    }
-    for timing in outcome.report.timings() {
+fn print_timings(outcome: &BuildReport) {
+    for timing in outcome
+        .timings
+        .phases()
+        .iter()
+        .chain(outcome.report.timings())
+    {
         eprintln!(
             "{:>10.3} ms  {}",
             timing.microseconds as f64 / 1_000.0,
@@ -171,45 +243,68 @@ fn print_timings(outcome: &orchestration::BuildReport) {
     }
 }
 
-fn print_elapsed(started: std::time::Instant) {
+fn print_elapsed(started: Instant) {
     eprintln!(
         "{:>10.3} ms  total elapsed",
         started.elapsed().as_secs_f64() * 1_000.0
     );
 }
 
-fn print_outcome(outcome: &orchestration::BuildReport) {
+fn print_outcome(outcome: &BuildReport) {
     if outcome.executable_path.is_none() {
         println!("{}", outcome.report.summary());
     }
     print!("{}", format_publication_lines(outcome));
 }
 
-/// Render the produced outcome as the plain-text observation `--report-file`
-/// requests: the requested product, the named target, the report summary,
-/// and every publication line the console reports.
-fn report_text(target_name: Option<&str>, outcome: &orchestration::BuildReport) -> String {
+fn assumption_text(row: &compilation_products::InstallationEnvironmentAssumption) -> String {
+    format!(
+        "Caller assumption (not proof or observation): {}; entry {:?}; installation {:?}; target {}; Psi {}; environment SHA-256 {}; source {}; caller {}",
+        row.description(),
+        row.entry(),
+        row.installation(),
+        row.profile().target_name(),
+        row.psi().program_fingerprint,
+        row.environment_description_sha256()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+        row.source_provenance(),
+        row.caller_provenance()
+    )
+}
+
+fn report_text(
+    target_name: Option<&str>,
+    outcome: &BuildReport,
+    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
+) -> String {
     let product = if outcome.executable_path.is_some() {
         "native artifact"
     } else {
         "check"
     };
     let target = target_name.unwrap_or("host default");
-    format!(
-        "product: {product}\ntarget: {target}\n{}\n{}",
-        outcome.report.summary(),
-        format_publication_lines(outcome)
-    )
+    let mut contents = format!("product: {product}\ntarget: {target}\n");
+    for row in installation_assumptions
+        .iter()
+        .filter(|row| target_name.is_none_or(|target| row.profile().target_name() == target))
+    {
+        contents.push_str(&assumption_text(row));
+        contents.push('\n');
+    }
+    contents.push_str(&outcome.report.summary());
+    contents.push('\n');
+    contents.push_str(&format_publication_lines(outcome));
+    contents
 }
 
-fn format_publication_lines(outcome: &orchestration::BuildReport) -> String {
+fn format_publication_lines(outcome: &BuildReport) -> String {
     let mut lines = String::new();
     if let Some(path) = &outcome.executable_path {
         if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
             lines.push_str(&format!("optimizer rollback: {receipt}\n"));
         }
-        // A published macOS package reports its `.app` root; the inner
-        // executable stays reachable through `checked_native_executable_path`.
         if let Some(package_root) = outcome.report.checked_native_package_path() {
             lines.push_str(&format!(
                 "published macOS package to {}\n",
@@ -232,22 +327,18 @@ fn format_publication_lines(outcome: &orchestration::BuildReport) -> String {
     lines
 }
 
-fn write_report_or_exit(path: &std::path::Path, contents: &str) {
-    if let Err(error) = write_report_text(path, contents) {
+fn write_report_or_exit(path: &Path, contents: &str) {
+    let result = (|| -> std::io::Result<()> {
+        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, contents)
+    })();
+    if let Err(error) = result {
         eprintln!(
             "cannot write compile report to `{}`: {error}",
             path.display()
         );
         std::process::exit(1);
     }
-}
-
-fn write_report_text(path: &std::path::Path, contents: &str) -> std::io::Result<()> {
-    if let Some(parent) = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(path, contents)
 }

@@ -86,6 +86,13 @@ pub enum LoweringError {
         retired_binding_count: usize,
         retired_bindings: Vec<(semantic_vocabulary::PlaceId, Option<u32>, &'static str)>,
     },
+    /// An actual edge operand needs its completed source names before those
+    /// names can be transported to the edge's fresh receiving parameter.
+    MissingCapturedArgumentNamespace {
+        block: semantic_vocabulary::BlockId,
+        argument: terminal_psi::StructuralArgument,
+        last_operation: Option<semantic_vocabulary::OperationId>,
+    },
     /// An observation must resolve one live home, never an inferred backing.
     ObservationHomeCountMismatch {
         root: checked_trees::CheckedStorageRoot,

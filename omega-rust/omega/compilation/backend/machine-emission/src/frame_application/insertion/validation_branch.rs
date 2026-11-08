@@ -20,12 +20,12 @@ use target::Architecture;
 use super::FrameApplicationError;
 use super::branch_reach::{conditional_branch_family, holds_long_form};
 
-pub(super) fn validate(
+pub(in crate::frame_application) fn validate(
     source: &FunctionFragmentInstructionSpan,
     candidate: &FunctionFragmentInstructionSpan,
     architecture: Architecture,
     physical: &ValidatedPhysicalRegisterModel,
-    block_offsets: &std::collections::BTreeMap<SelectedBlockId, u64>,
+    block_offset: impl Fn(SelectedBlockId) -> Option<u64>,
 ) -> Result<(), FrameApplicationError> {
     let (Some(source_branch), Some(branch)) =
         (source.branch.as_deref(), candidate.branch.as_deref())
@@ -40,7 +40,7 @@ pub(super) fn validate(
         {
             return Err(FrameApplicationError::ArtifactMismatch);
         }
-        let target = block_offsets.get(&branch.target_block).copied().ok_or(
+        let target = block_offset(branch.target_block).ok_or(
             FrameApplicationError::MissingTargetBlock(branch.target_block),
         )?;
         let reference = match architecture {
@@ -100,15 +100,12 @@ pub(super) fn validate(
     {
         return Err(FrameApplicationError::ArtifactMismatch);
     }
-    let taken = block_offsets.get(&branch.when_taken_block).copied().ok_or(
+    let taken = block_offset(branch.when_taken_block).ok_or(
         FrameApplicationError::MissingTargetBlock(branch.when_taken_block),
     )?;
-    let fallthrough = block_offsets
-        .get(&branch.when_fallthrough_block)
-        .copied()
-        .ok_or(FrameApplicationError::MissingTargetBlock(
-            branch.when_fallthrough_block,
-        ))?;
+    let fallthrough = block_offset(branch.when_fallthrough_block).ok_or(
+        FrameApplicationError::MissingTargetBlock(branch.when_fallthrough_block),
+    )?;
     let end = candidate
         .offset
         .checked_add(

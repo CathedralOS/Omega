@@ -528,6 +528,15 @@ impl Execution<'_, '_, '_> {
             // every context's root lookup and place reconstruction per member.
             // The shared reader still checks all matching payloads for agreement.
             let mut assignment_values = None;
+            // The destinations already in `values`, to test a member path in one
+            // lookup. Testing it against every earlier entry made a large
+            // aggregate quadratic in its own member count. It is kept equal to
+            // the paths in `values` at every step: seeded from it here and
+            // extended beside every push below.
+            let mut seen_paths = values
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<std::collections::HashSet<Vec<PlaceSegment>>>();
             for context in &captured_contexts {
                 for fact in self
                     .semantic
@@ -584,7 +593,7 @@ impl Execution<'_, '_, '_> {
                     // The first established observation already won this exact
                     // destination below. Re-querying duplicate source facts can
                     // neither change that result nor contribute more evidence.
-                    if values.iter().any(|(existing, _)| *existing == path) {
+                    if seen_paths.contains(&path) {
                         continue;
                     }
                     if place
@@ -642,6 +651,7 @@ impl Execution<'_, '_, '_> {
                     let Some(value) = value else {
                         continue;
                     };
+                    seen_paths.insert(path.clone());
                     values.push((path, value));
                 }
             }

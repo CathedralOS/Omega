@@ -1,17 +1,19 @@
-//! Select the toolchain Build prelude without capturing source-stage execution.
+// Conditional toolchain `<build-prelude>` selection (`prepare_build_prelude`).
+//
+// Injects `build_declarations::build_prelude_source()` only when the selected `build`
+// entry source declares a `build` machine without declaring its own `Build` data type.
+// When another file in the program declares a product-local `Build` data type, we
+// also emit a `SourceScopedTopLevelBinding` alias (`alias_for`) so `build.omg` binds
+// to the toolchain `Build` declaration while the product's own `Build` retains its
+// separate identity.
 
 use super::SourceStorage;
 
-/// Source and the Build occurrence needing a scoped alias. The binding target
-/// comes from the admitted prelude, never a prediction of parser order.
 pub(crate) struct BuildPrelude {
-    pub source: String,
-    pub alias_for: Option<source::SourceId>,
+    pub source: String,                      // Toolchain build-prelude source text.
+    pub alias_for: Option<source::SourceId>, // Optional `build.omg` `SourceId` requiring a scoped `Build` alias.
 }
 
-/// Supply the prelude only for the selected build entry when that source has
-/// no authored Build declaration. A product-local Build retains its identity;
-/// only the build source receives an alias to the toolchain declaration.
 pub(crate) fn prepare_build_prelude(
     source_storage: &SourceStorage,
     build_source_id: Option<source::SourceId>,

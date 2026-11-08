@@ -312,10 +312,39 @@ impl Builder<'_, '_> {
             } else {
                 ExpressionHandle::invalid()
             };
+            // Retaining a noncopy owner uses the existing operand path: it
+            // keeps that exact home and access until an arm consumes it.
+            // A borrowed subject still captures only its admitted view.
+            let retains_owned_place = self.program.type_multiplicity(reference)
+                != language_semantics::Multiplicity::Unrestricted
+                && validation::has_contents(
+                    self.program,
+                    reference,
+                    &[],
+                    validation::ContentsRequirement::StructuralConstruction,
+                )
+                && validation::ownership_place_from_expression_in_state(
+                    self.program,
+                    self.state,
+                    self.statement_index,
+                    dispatch.subject,
+                )
+                .and_then(|place| {
+                    validation::canonical_owned_place_type_reference(
+                        self.program,
+                        self.state,
+                        self.statement_index,
+                        &place,
+                    )
+                })
+                .is_some_and(|owned| {
+                    validation::declared_carriers_match(self.program, owned, reference)
+                });
             // A source-checked place is observed under its existing custody.
             // Copy captures and stored descriptors keep their independent value
             // producer; neither path can turn an affine referent into an owner.
-            if !self.uses_captured_dispatch_value(dispatch.subject)
+            if !retains_owned_place
+                && !self.uses_captured_dispatch_value(dispatch.subject)
                 && validation::reference_shell(self.program, reference).is_none()
                 && let Some(place) = self.canonical_place(dispatch.subject)
             {

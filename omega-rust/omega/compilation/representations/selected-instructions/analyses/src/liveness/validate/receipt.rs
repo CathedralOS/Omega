@@ -18,7 +18,7 @@ pub(crate) fn admit_validated_liveness(
         identity: liveness_identity_from_digests(&plan, &function_digests),
         selected: plan.selected,
         optimization_unit: plan.optimization_unit,
-        fuel_schedule: plan.fuel_schedule,
+        work_schedule: plan.work_schedule,
     };
     ValidatedLiveness {
         plan: plan.into(),

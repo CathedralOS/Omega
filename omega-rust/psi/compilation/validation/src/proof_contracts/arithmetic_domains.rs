@@ -35,6 +35,8 @@ mod atomic_observations;
 pub(crate) use atomic_observations::{atomic_resident_interval, atomic_result_interval};
 
 mod abstract_shift_count;
+mod declared_integer_facts;
+pub(crate) use declared_integer_facts::record_admitted_integer_fields;
 mod declared_float_facts;
 pub(crate) use declared_float_facts::record_declared_float_fields;
 pub use declared_float_facts::{DeclaredFloatFieldBound, declared_float_field_bounds};

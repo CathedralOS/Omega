@@ -210,6 +210,9 @@ pub(crate) fn lower_declarations(
                         checked_trees::CheckedBoundaryExecutionPlan::EmptyRunRelease => {
                             terminal_psi::CheckedBoundaryExecution::EmptyRunRelease
                         }
+                        checked_trees::CheckedBoundaryExecutionPlan::StaticInterrupt(operation) => {
+                            static_interrupt_execution(operation)
+                        }
                     },
                     method_arguments: checked_method_arguments(identities, checked, plan.machine)?,
                 })
@@ -575,4 +578,23 @@ fn unconditional_termination(
     Ok(
         matches!(guarantee, Some(TerminationGuarantee::Terminates { premises }) if premises.is_empty()),
     )
+}
+
+/// Keep compiler execution ownership on the callable even when its installation
+/// records are absent. A provider cannot fill that missing obligation.
+fn static_interrupt_execution(
+    operation: language_core::static_interrupts::StaticInterruptOperation,
+) -> terminal_psi::CheckedBoundaryExecution {
+    use language_core::static_interrupts::StaticInterruptOperation;
+    use terminal_psi::CheckedBoundaryExecution;
+    match operation {
+        StaticInterruptOperation::Install => CheckedBoundaryExecution::StaticInterruptInstall,
+        StaticInterruptOperation::Context => CheckedBoundaryExecution::StaticInterruptContext,
+        StaticInterruptOperation::BeginCompletion => {
+            CheckedBoundaryExecution::StaticInterruptBeginCompletion
+        }
+        StaticInterruptOperation::FinishCompletion => {
+            CheckedBoundaryExecution::StaticInterruptFinishCompletion
+        }
+    }
 }

@@ -1,4 +1,5 @@
-//! One bounded decoder for the complete inert calling-policy graph.
+// One bounded decoder for the complete inert calling-policy graph.
+// `application` decodes inner fields with the caller's aggregate budgets and framing; the enclosing record validates all structural associations after decoding.
 
 pub(in crate::encoding::recovery) mod callbacks;
 pub(in crate::encoding::recovery) mod opaque;
@@ -21,8 +22,6 @@ impl PackagePolicyCallingPlan {
     );
 }
 
-/// Decode inner fields with the caller's aggregate budgets and framing.
-/// The enclosing record validates all structural associations after decoding.
 pub(in crate::encoding::recovery) fn application(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCallingPlan, Error> {

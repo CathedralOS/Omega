@@ -1,3 +1,6 @@
+// Canonical encoding for nominal identities, selection owners, callable supply tags, and target contexts.
+// `encode_selection_owner` encodes the wire shape shared by calling-opaque and representation policies (identical owner tags, differing only in the unresolved-ownership context label), while `encode_target_context` records authored scope as inert disclosure independent of selected-provider authority.
+
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
@@ -30,9 +33,6 @@ pub(crate) fn encode_nominal(
     encoder.field("path", |encoder| encoder.string(&identity.path))
 }
 
-/// The `selection_owner` wire shape shared by calling-opaque and
-/// representation policies: the same owner arms under identical tags; only
-/// the caller's unresolved-ownership context label differs.
 pub(in crate::encoding) fn encode_selection_owner(
     encoder: &mut Encoder,
     owner: &PackageReviewNominalOwner,
@@ -76,7 +76,6 @@ pub(crate) fn encode_supply(
     Ok(())
 }
 
-/// Authored scope is inert disclosure, independent of selected-provider authority.
 pub(in crate::encoding::encode) fn encode_target_context(
     encoder: &mut Encoder,
     context: &crate::record::PackagePolicyTargetContext,

@@ -60,6 +60,10 @@ pub enum StatementSnapshot {
         receiver: Option<Vec<String>>,
         target: String,
         machine_arguments: Vec<StaticArgumentSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        installed_registrar: Option<StaticArgumentSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        installed_timer_slot: Option<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         evidence_arguments: Vec<String>,
@@ -221,6 +225,8 @@ pub enum ExpressionSnapshot {
         machine_arguments: Vec<StaticArgumentSnapshot>,
         #[serde(skip_serializing_if = "Option::is_none")]
         private_layout_slot: Option<StaticArgumentSnapshot>,
+        installed_registrar: Option<StaticArgumentSnapshot>,
+        installed_timer_slot: Option<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         evidence_arguments: Vec<String>,
@@ -377,6 +383,14 @@ pub(crate) fn statement_snapshot(
                 .iter()
                 .map(|argument| snapshot_static_argument(program, argument))
                 .collect(),
+            installed_registrar: call
+                .installed_interrupt_operation
+                .as_ref()
+                .map(|request| snapshot_static_argument(program, &request.registrar)),
+            installed_timer_slot: call
+                .installed_interrupt_operation
+                .as_ref()
+                .map(|request| snapshot_static_argument(program, &request.timer_slot)),
             arguments: statement_expression_span_snapshot(program, call.arguments),
             evidence_arguments: to_strings(call.evidence_arguments.iter()),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
@@ -569,6 +583,14 @@ pub(crate) fn expression_snapshot(
                 .private_layout_operation
                 .as_ref()
                 .map(|operation| snapshot_static_argument(program, &operation.selected_slot)),
+            installed_registrar: call
+                .installed_interrupt_operation
+                .as_ref()
+                .map(|operation| snapshot_static_argument(program, &operation.registrar)),
+            installed_timer_slot: call
+                .installed_interrupt_operation
+                .as_ref()
+                .map(|operation| snapshot_static_argument(program, &operation.timer_slot)),
             arguments: expression_span_snapshot(program, call.arguments),
             evidence_arguments: to_strings(call.evidence_arguments.iter()),
             acknowledgement_synthesized: call.operational_acknowledgement.origin

@@ -35,7 +35,7 @@ impl ComponentFunctionImage {
 /// application commitment; its spelling is linker metadata, never selection.
 pub fn prepare_component_function_image(
     body: crate::ObjectArtifact,
-    entry_bridge: Option<NativeEntryBridge>,
+    transport: crate::CallableEntryTransport,
     slot_commitment: [u8; 32],
 ) -> Result<ComponentFunctionImage, Diagnostic> {
     let invalid = |reason: &str| Diagnostic::error(format!("component function image: {reason}"));
@@ -48,6 +48,10 @@ pub fn prepare_component_function_image(
             "export lacks an exact slot or carries another entry's installation",
         ));
     }
+    crate::entries::callable_entry_transport::validate_callable_transport(&body, &transport)
+        .map_err(|error| invalid(&error.to_string()))?;
+    let entry_bridge = transport.bridge;
+    let entry_effects = transport.effects;
     let mut image = image::build_final_image(FinalImageInput {
         target: body.target(),
         object: body.object(),
@@ -112,6 +116,27 @@ pub fn prepare_component_function_image(
             symbol
         }
     };
+    let export = image.symbol_table.symbols.get(export_symbol);
+    let offset = export.offset;
+    let size = export.size;
+    if let Some(region) = image
+        .executable_regions
+        .iter_mut()
+        .find(|region| region.section_offset == offset && region.byte_count == size)
+    {
+        region.entry_effects = Some(entry_effects.clone());
+    } else if let Some(bridge) = &entry_bridge {
+        image.executable_regions.push(image::FinalExecutableRegion {
+            origin: image::FinalExecutableRegionOrigin::CompilerFunction,
+            section_offset: offset,
+            byte_count: size,
+            symbol: export.name.clone(),
+            footprint: Some(bridge.generated().effects.footprint().clone()),
+            entry_effects: Some(entry_effects.clone()),
+        });
+    } else {
+        return Err(invalid("identity entry has no exact body region"));
+    }
     Ok(ComponentFunctionImage {
         body,
         entry_bridge,

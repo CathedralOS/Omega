@@ -1,18 +1,15 @@
-//! Product admission over canonical Terminal and retained semantic operations.
-//!
-//! Behavior exclusions are Omega product policy: authored exclusions, the
-//! selected provider plan facts and the target profile. Psi's production
-//! sequence never executes this policy. The product consumer checks the produced
-//! artifact and source-issued root roster, without reading source or re-running Psi.
+// We enforce authored behavior exclusions (`TerminalBehaviorExclusions`) over
+// the canonical Terminal Psi module and its retained semantic operations.
+// Behavior exclusions are Omega product policy: Psi's production sequence never
+// executes them, and we verify each root's entry, callbacks, and physical
+// adapter in order against the closed provider specialization facts without
+// reopening source trees.
 
 use diagnostics::Diagnostic;
 use effects::{AuthoredBehaviorExclusion, authored_behavior_exclusion_set_in};
 use effects::{BehaviorExclusionReport, BehaviorExclusionVerdict, establish_behavior_exclusions};
 use terminal_psi::TerminalMachineProvenance;
 
-/// The artifact retains the unoptimized semantic operations; these are not a
-/// successful-policy flag. Each target still checks its exact selected scope,
-/// provider facts and restrictions after code publication.
 pub(super) struct TerminalBehaviorExclusions<'a> {
     authored: &'a [effects::AuthoredBehaviorExclusion],
     providers: &'a effects::SelectedProviderPlanFacts,
@@ -48,26 +45,17 @@ impl TerminalBehaviorExclusions<'_> {
             Item = Result<psi_compiler::TerminalAdmissionRoot, Vec<Diagnostic>>,
         >,
     ) -> Result<(), Vec<Diagnostic>> {
-        // Projection errors precede policy setup for the first root, but a
-        // later projection must not hide an earlier root's behavior refusal.
         let Some(first) = roots.next() else {
             return Ok(());
         };
         let first = first?;
         let exclusions = authored_behavior_exclusion_set_in(self.authored, module);
         if exclusions.is_empty() {
-            // Every authored row named a service this composition never
-            // declares. Still consume the exact body correspondences: an
-            // empty exclusion set does not excuse a missing admission root.
             for root in roots {
                 root?;
             }
             return Ok(());
         }
-        // Read the associations in this actual unoptimized composition, not a
-        // checked-source reconstruction that native publication would replace.
-        // Deferred native preparation errors matter only when this composition
-        // actually has an exclusion to establish.
         let sources = self.native_sources.as_ref().map_err(Clone::clone)?;
         let providers = backend_plan::close_checked_provider_specializations(
             self.providers.clone(),
@@ -75,9 +63,6 @@ impl TerminalBehaviorExclusions<'_> {
             module,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        // One application owns this provider/exclusion context. Judge its
-        // entry, callbacks and physical adapter in order, not as one union:
-        // the first failing root owns the report and its caller attribution.
         for root in std::iter::once(Ok(first)).chain(roots) {
             let root = root?;
             let report = establish_behavior_exclusions(
@@ -112,9 +97,6 @@ fn behavior_exclusion_diagnostics(
         authored.len()
     )));
     for prohibited in &report.prohibited {
-        // The rejection points at the authored `exclude_*` selection that
-        // named the requirement, not an internal Terminal coordinate, and
-        // names it as authored rather than by its hermetic identity.
         let row = authored.iter().find(|row| {
             effects::resolve_authored_behavior_exclusion(row, module) == Some(prohibited.exclusion)
         });
@@ -130,9 +112,6 @@ fn behavior_exclusion_diagnostics(
             diagnostic = diagnostic.with_source_span(row.source_span);
         }
         diagnostics.push(diagnostic);
-        // A second row attributes the retained possible behavior to the
-        // declaration that contributes it: a possible path, not a witnessed
-        // runtime execution.
         if let Some(span) = provenance.source_span(prohibited.machine) {
             diagnostics.push(
                 Diagnostic::error(format!(

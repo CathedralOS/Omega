@@ -1,7 +1,8 @@
-//! Save everything a requested target needs before publishing shared code.
-//! Targets keep their own build settings and package permissions. Saved errors
-//! are reported at the same later selection step, so preparing an unused
-//! declaration cannot reject a valid program early.
+// We capture everything a requested target needs (`PreparedProductTarget`) from
+// `CheckedProductSource` before shared Terminal code is published. Targets keep
+// their own build settings and package permissions, and declaration errors are
+// retained inside `Result` fields so preparing an unused declaration never
+// rejects a valid program before target provider selection runs.
 
 use super::checking::timed;
 use artifacts::compile_timings::{CompileTimings, EXECUTION_SETTLEMENT};
@@ -82,8 +83,6 @@ impl PreparedProductTarget {
         };
         let deployment = source.computed_build_config.config.provider_deployment();
         let declarations = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
-            // Ownership/default acquisition used to refuse before Calling, but
-            // a formed entry's refusal belongs after provider selection.
             let declarations = (|| {
                 let services = source
                     .provider_inventory
@@ -106,11 +105,6 @@ impl PreparedProductTarget {
                 );
                 Ok((entry, target_machines))
             })();
-            // Evaluate the same complete authored population under this actual
-            // occurrence's fallback target. Do not filter inactive authored
-            // leaves or execute an arbitrary catalog of unrequested profiles.
-            // ConstEvaluable admission has no ambient host effects. Retain its
-            // complete Result so Calling/publication failures still win.
             let evaluated_bindings =
                 provider_planning::evaluated_via_bindings::evaluate_checked_via_bindings(
                     &source.program,

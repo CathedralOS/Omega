@@ -1428,7 +1428,7 @@ pub(super) fn adapt(
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CapturedBacking {
     StorageAddress,
-    ElementViewPayload,
+    DescriptorPayload,
     AccessInterpretation,
     /// An index selects bytes the sequence already names. The element has no
     /// structural declaration, and the sequence cell is not a pointer slot.
@@ -1466,28 +1466,32 @@ fn captured_storage_source(
         CapturedBacking::ByteWindow
     } else if plain_owned_shape(types.iter(), prefix_type) {
         CapturedBacking::StorageAddress
-    } else if matches!(prefix_shape, StructuralTypeShape::ElementView { .. }) {
-        // A view index captures its current payload lineage, including any
-        // prior window. Reading the descriptor's established origins and
-        // appending this position-bound projection preserves both; capturing
-        // the descriptor cell as owned storage would lose that relationship.
-        CapturedBacking::ElementViewPayload
+    } else if is_descriptor(types.iter(), prefix_type) {
+        // Byte and element views retain their current backing, including prior
+        // slices. The indexed reference captures that backing and this exact
+        // selector occurrence, not the descriptor cell's address.
+        CapturedBacking::DescriptorPayload
     } else if crate::access::access_view_plans::is_access_projection_shape(types, prefix_type) {
         CapturedBacking::AccessInterpretation
     } else {
         return None;
     };
-    if matches!(capture, CapturedBacking::ByteWindow) {
-        if suffix.iter().any(|segment| {
+    if matches!(capture, CapturedBacking::ByteWindow)
+        && suffix.iter().any(|segment| {
             !matches!(
                 segment,
                 StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::FixedIndex(_)
             )
-        }) {
-            return None;
-        }
-    } else {
-        crate::runtime_structural_path_tip(types.iter(), prefix_type, suffix)?;
+        })
+    {
+        return None;
+    }
+    // Both structural and inline primitive endpoints retain a complete typed
+    // projection. These queries do not grant access or establish bounds.
+    if crate::runtime_structural_path_tip(types.iter(), prefix_type, suffix).is_none()
+        && crate::primitive_projection_type(types.iter(), prefix_type, suffix).is_none()
+    {
+        return None;
     }
     Some((
         location,
@@ -1563,6 +1567,7 @@ fn selected_effects_machine(
             if let OperationKind::SelectImplementation { table } = operation.kind {
                 return Some(crate::UnchangedScalarOrigin::Known(SelectedTable(table)));
             }
+            let selector_machine = selector_graph?.iter().find(|row| row.id == machine.id)?;
             let sources = super::unchanged_stored_scalar_sources(
                 &module.structural_types,
                 selector_graph?,
@@ -1577,50 +1582,15 @@ fn selected_effects_machine(
                     else {
                         return Vec::new();
                     };
-                    let Some(graph) = selector_graph
-                        .and_then(|graph| graph.iter().find(|row| row.id == machine.id))
-                    else {
-                        return Vec::new();
-                    };
-                    let mut writes = Vec::new();
-                    let mut write = |root, path: &[StructuralPathSegment], field, actual| {
-                        if let Some(location) = graph.place_types.get(&root).and_then(|ty| {
-                            descriptor_location(&module.structural_types, root, *ty, path, field)
-                        }) {
-                            writes.push((location, actual));
-                        }
-                    };
-                    match &operation.kind {
-                        OperationKind::EstablishPrimitiveLocal { value, .. } => {
-                            if let Some(result) = operation.result.structural() {
-                                write(result.place, &[], None, *value);
-                            }
-                        }
-                        OperationKind::WriteOnlyPrimitiveStore {
-                            destination,
-                            path,
-                            value,
-                            ..
-                        } => write(*destination, path, None, *value),
-                        OperationKind::StructuralScalarFieldStore {
-                            destination,
-                            path,
-                            field,
-                            value,
-                            ..
-                        } => write(*destination, path, Some(*field), *value),
-                        OperationKind::EstablishRecord { fields } => {
-                            if let Some(result) = operation.result.structural() {
-                                for field in fields {
-                                    if let RecordFieldValue::Scalar { value, .. } = &field.value {
-                                        write(result.place, &[], Some(field.field), *value);
-                                    }
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                    writes
+                    // Reuse the complete canonical writer roster. Unsupported
+                    // projections provide no selector provenance.
+                    super::scalar_storage_writes(
+                        module,
+                        |root| selector_machine.place_types.get(&root).copied(),
+                        operation,
+                    )
+                    .and_then(Result::ok)
+                    .unwrap_or_default()
                 },
             )?;
             return Some(crate::UnchangedScalarOrigin::Incoming(sources));

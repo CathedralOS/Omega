@@ -1,3 +1,13 @@
+// Validates the boundary shape DAG and opaque-representation occurrences for
+// `PackagePolicyCallingPlan`.
+//
+// The normalized boundary vocabulary caps shapes, fields, and opaque uses at
+// 256 slots so cycle checking uses fixed stack scratch (`[u8; 256]`) and
+// cross-owner occurrence scans stay allocation-free. Opaque selections belong
+// to the nongeneric authoritative build rather than to the boundary
+// requirement's lifetime telescope, so their lifetime argument vectors must be
+// empty.
+
 use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
 use crate::record::validation::ordered;
 use crate::record::{
@@ -8,8 +18,6 @@ use crate::record::{
 
 pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static str> {
     let graph = &policy.shape_graph;
-    // The compiler's normalized boundary vocabulary has 256 shape/field slots.
-    // Fixed stack scratch also bounds cycle checking for untrusted recovery.
     if graph.shapes.len() > 256 || graph.fields.len() > 256 {
         return Err("calling shape graph exceeds the supported normalized capacity");
     }
@@ -82,8 +90,6 @@ fn visit(
 }
 
 pub(super) fn validate_opaque(policy: &PackagePolicyCallingPlan) -> Result<(), &'static str> {
-    // Every retained opaque use originates at a materialized shape node.
-    // The bound also keeps cross-owner occurrence scans allocation-free.
     let mut occurrence_count = 0usize;
     for use_ in &policy.opaque_uses {
         occurrence_count = occurrence_count
@@ -95,9 +101,6 @@ pub(super) fn validate_opaque(policy: &PackagePolicyCallingPlan) -> Result<(), &
     }
     ordered(&policy.opaque_uses)?;
     for (index, use_) in policy.opaque_uses.iter().enumerate() {
-        // Opaque selections belong to the nongeneric authoritative build, not
-        // to the boundary requirement's lifetime telescope. Callback slots
-        // retain their separate calling-relative lifetime validation.
         if !use_.application.lifetime_arguments.is_empty()
             || !use_.application.trait_lifetime_arguments.is_empty()
         {

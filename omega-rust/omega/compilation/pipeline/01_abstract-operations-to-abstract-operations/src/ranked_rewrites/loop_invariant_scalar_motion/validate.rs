@@ -94,7 +94,7 @@ fn reconstruct_provenance(
             };
             let (output_location, output_node) = unique_source(output, machine, source)
                 .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
-            if output_node.provenance != node.provenance || output_node.fuel != node.fuel {
+            if output_node.provenance != node.provenance || output_node.work != node.work {
                 return Err(LoopInvariantScalarMotionError::CandidateMismatch);
             }
             if input_location == output_location
@@ -104,18 +104,18 @@ fn reconstruct_provenance(
             {
                 continue;
             }
-            let (sources, fuel) = candidate
+            let (sources, work) = candidate
                 .relocations()
                 .iter()
                 .find(|relocation| relocation.node().location() == input_location)
                 .map(|relocation| {
                     (
                         relocation.node().provenance().to_vec(),
-                        relocation.node().fuel().to_vec(),
+                        relocation.node().work().to_vec(),
                     )
                 })
-                .unwrap_or_else(|| (node.provenance.clone(), node.fuel.clone()));
-            if sources != node.provenance || fuel != node.fuel {
+                .unwrap_or_else(|| (node.provenance.clone(), node.work.clone()));
+            if sources != node.provenance || work != node.work {
                 return Err(LoopInvariantScalarMotionError::CandidateMismatch);
             }
             rows.push(ProvenanceRewrite {
@@ -124,7 +124,7 @@ fn reconstruct_provenance(
                     output_location,
                 )),
                 sources,
-                fuel,
+                work,
             });
         }
     }

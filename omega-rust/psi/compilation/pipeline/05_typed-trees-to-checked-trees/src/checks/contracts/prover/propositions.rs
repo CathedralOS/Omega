@@ -73,7 +73,7 @@ impl<'program> PropositionProof<'program> {
                     Some(environment) => self.parameter_value(environment, *argument, primitive),
                     None => live_scalar_value(
                         self.program,
-                        self.facts,
+                        self.facts.view(),
                         self.state,
                         self.statement,
                         self.contexts,

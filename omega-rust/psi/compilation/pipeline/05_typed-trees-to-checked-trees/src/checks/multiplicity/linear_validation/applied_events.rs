@@ -254,7 +254,7 @@ pub(crate) fn permission_event_statement_index(source: PermissionEventSource) ->
 
 pub(crate) fn append_borrow_permission_events(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     permission_events: &mut Vec<EventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
 ) {
@@ -349,7 +349,7 @@ pub(crate) fn append_borrow_permission_events(
 
 fn append_borrow_permission_event(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
+    facts: &mut checked_trees::CheckFactsWalk<'_>,
     permission_events: &mut Vec<EventFact>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,

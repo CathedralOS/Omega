@@ -1,5 +1,7 @@
-//! Project a checked applied field back to its authored public declaration.
-//! The producer owns the correspondence; review never rebuilds a type view.
+// Checked applied field projection back to its authored public declaration. The
+// producer owns the correspondence so review never rebuilds a type view, and
+// identical records encountered across shared traversals agree while distinct
+// applications or coordinates are rejected.
 
 use super::AuthoredMember;
 use crate::capture::SourceDeclarationInput;
@@ -54,8 +56,6 @@ pub(super) fn authored_projection(
             row.origin == origin && row.fact == fact && row.expression == source.expression
         });
     let (_, selected) = projections.next()?;
-    // A shared traversal can encounter the same projection twice. Identical
-    // records agree; two different applications/coordinates never do.
     if projections.any(|(_, row)| row != selected)
         || selected.authored_field != source.field
         || selected.applied_field != applied.1

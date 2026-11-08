@@ -1,3 +1,14 @@
+/*
+Machine capability flow projection (`CapabilityFlowProjection` and `capability_flows`).
+
+`CapabilityFlowProjection` indexes raw machines, realized contract envelopes,
+service-reach rows, and state owners in original declaration order so duplicate
+or invalid symbols remain visible to per-use uniqueness checks, deduplicating
+only repeated state symbols within a single machine row. `reachable_capability_flows`
+traverses the checked machine call closure without fabricating edges for trait
+requirements or static machine parameters that lack a concrete machine body.
+*/
+
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
@@ -9,8 +20,6 @@ use std::cell::OnceCell;
 use symbols::{SymbolHandle, SymbolMap};
 use typed_trees::machine::Machine;
 
-/// Invocation-local raw associations, never a cached policy or authority verdict.
-/// The immutable supplied program stays separate from compiler custody.
 pub(crate) struct CapabilityFlowProjection<'input, 'program> {
     compilation: &'input PackageReviewInput<'program>,
     rows: OnceCell<FlowRows<'program>>,
@@ -24,10 +33,6 @@ impl<'input, 'program> CapabilityFlowProjection<'input, 'program> {
         }
     }
 
-    /// Disclose the authority exercised anywhere in this checked machine call
-    /// closure, independently of whether an acquired value escapes to its caller.
-    /// The service-reach topology is machine-wide, as is capability inference;
-    /// this is not a claim about dynamically feasible execution paths.
     pub(crate) fn reachable_capability_flows(
         &self,
         root: &RealizedMachineContractEnvelope,
@@ -78,9 +83,6 @@ impl<'input, 'program> CapabilityFlowProjection<'input, 'program> {
                     "service-reach state",
                 )?;
                 for call in graph.calls_for(checked_state) {
-                    // Requirements and machine parameters have signature symbols,
-                    // but no concrete machine body. Do not fabricate closure edges
-                    // for them or infer an implementation from a rendered name.
                     let mut owners = rows.state_owners(call.target_state);
                     let owner = owners.next();
                     if owners.next().is_some()
@@ -147,8 +149,6 @@ pub(crate) fn capability_flows(
     Ok(projected)
 }
 
-/// Complete raw rosters in original order. Duplicate/invalid symbols remain
-/// data for the original per-use uniqueness and owner checks.
 struct FlowRows<'program> {
     machines: SymbolMap<Vec<&'program Machine>>,
     envelopes: SymbolMap<Vec<&'program RealizedMachineContractEnvelope>>,
@@ -171,8 +171,6 @@ impl<'program> FlowRows<'program> {
                 .push(machine);
             for state in program.machine_states(machine) {
                 let owners = rows.owners.entry(state.symbol).or_default();
-                // A machine row is one owner even if its state roster repeats
-                // the symbol. Distinct rows with identical machine IDs remain.
                 if owners
                     .last()
                     .is_none_or(|(previous, _)| *previous != position)

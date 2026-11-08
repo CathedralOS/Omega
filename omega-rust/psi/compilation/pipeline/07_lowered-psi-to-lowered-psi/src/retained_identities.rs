@@ -15,7 +15,6 @@ pub(crate) mod ranked_coverage;
 
 use semantic_vocabulary::{BlockId, OperationId, ValueId};
 use std::collections::BTreeSet;
-use terminal_psi::TerminalSuspensionLoanCapture;
 
 /// Rows a module's semantic record names by identity rather than through an
 /// executable use: the block, operation and value rows a rewrite may not drop
@@ -35,77 +34,12 @@ pub(crate) struct RecordNamedRows {
 /// row; each rewrite keeps the named value identities exact. One read serves
 /// all of them, so a carrier added here reaches every consumer at once.
 pub(crate) fn record_named_rows(module: &terminal_psi::TerminalModule) -> RecordNamedRows {
-    let mut rows = RecordNamedRows::default();
-    for observation in module.scalar_applications.conditions.observations() {
-        if let terminal_psi::ScalarRangeObservation::EntryResult { result, .. } = observation {
-            rows.values.insert(*result);
-        }
+    let rows = terminal_semantics::scalar_demand::record_named_rows(module);
+    RecordNamedRows {
+        blocks: rows.blocks.into_iter().collect(),
+        operations: rows.operations.into_iter().collect(),
+        values: rows.values.into_iter().collect(),
     }
-    for machine in &module.machines {
-        for invocation in machine.module_invocations() {
-            proof_values::retain_invocation_inputs(invocation.inputs, &mut rows.values);
-        }
-    }
-    rows.operations
-        .extend(module.quotients.operations.iter().map(|row| row.call));
-    rows.operations
-        .extend(module.quotients.adaptations.iter().map(|row| row.copy));
-    rows.values.extend(quotient_call_results(module));
-    rows.operations.extend(
-        module
-            .boundary_application_demands
-            .iter()
-            .map(|demand| demand.terminal_operation()),
-    );
-    for site in &module.suspension_call_sites {
-        rows.operations.insert(site.operation);
-    }
-    for plan in &module.suspension_call_plans {
-        rows.operations.insert(plan.operation);
-        plan.visit_value_ids(|value| {
-            rows.values.insert(value);
-        });
-        for (_, loan) in plan.loans.occurrences.iter() {
-            match loan.capture {
-                TerminalSuspensionLoanCapture::Reference { formation, .. } => {
-                    rows.operations.insert(formation);
-                }
-                TerminalSuspensionLoanCapture::CompletedOutput { call, .. }
-                | TerminalSuspensionLoanCapture::CallInput { call, .. } => {
-                    rows.operations.insert(call);
-                }
-                _ => {}
-            }
-        }
-    }
-    for projection in &module.float_meaning_projections {
-        match &projection.source {
-            terminal_psi::FloatMeaningSource::DirectMachineParameter(row) => {
-                rows.values.insert(row.parameter);
-            }
-            terminal_psi::FloatMeaningSource::DirectMachineResult(row) => {
-                rows.values.insert(row.result);
-            }
-            terminal_psi::FloatMeaningSource::DirectBlockParameter(row) => {
-                rows.blocks.insert(row.block);
-                rows.values.insert(row.parameter);
-            }
-            terminal_psi::FloatMeaningSource::DirectOperationResult(row) => {
-                rows.operations.insert(row.producer);
-                rows.values.insert(row.result);
-            }
-            terminal_psi::FloatMeaningSource::DirectCallResult(row) => {
-                rows.operations.insert(row.producer);
-                rows.values.insert(row.result);
-            }
-            terminal_psi::FloatMeaningSource::TransitionalInput(_)
-            | terminal_psi::FloatMeaningSource::DirectStructuralLeaf(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_)
-            | terminal_psi::FloatMeaningSource::SemanticApplication(_) => {}
-        }
-    }
-    rows
 }
 
 /// Selected boundary operations retain their meaning until Omega supplies
@@ -208,23 +142,4 @@ pub(crate) fn prune_debug_map(
     debug.semantic = terminal_codec::terminal_psi_identity(&after.semantic_module)
         .map_err(crate::PsiOptimizationStageError::InvalidSemantic)?;
     Ok(())
-}
-
-/// The catalog joins a selected representative call to its public operation.
-/// Its scalar result remains an exact correspondence endpoint even when no
-/// ordinary executable use survives; preserve it until catalog-aware rewriting
-/// can transport that judgment along with the computation.
-pub(crate) fn quotient_call_results(
-    module: &terminal_psi::TerminalModule,
-) -> impl Iterator<Item = semantic_vocabulary::ValueId> + '_ {
-    module
-        .operations()
-        .filter(|operation| {
-            module
-                .quotients
-                .operations
-                .iter()
-                .any(|row| row.call == operation.id)
-        })
-        .filter_map(|operation| operation.result.scalar().map(|result| result.id))
 }

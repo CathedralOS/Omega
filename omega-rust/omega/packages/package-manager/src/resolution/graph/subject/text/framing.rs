@@ -1,4 +1,6 @@
-//! Bounded ASCII tokens and lossless quoted byte strings.
+// We format and parse bounded ASCII tokens and lossless quoted byte strings for
+// canonical source-closure text records. Sequence counts are checked against
+// remaining framing bytes before reserving semantic collections.
 
 use super::super::usage::Budget;
 use super::Error;
@@ -189,8 +191,6 @@ impl<'text> Reader<'text> {
 
     pub(super) fn count(&mut self, maximum: usize) -> Result<usize, Error> {
         let count = self.number(maximum)?;
-        // Every following record needs at least one byte. Reject impossible
-        // large declarations before reserving their semantic collection.
         if count > self.text.len() - self.position {
             return Err(Error::new(
                 "source-closure text count exceeds remaining framing",

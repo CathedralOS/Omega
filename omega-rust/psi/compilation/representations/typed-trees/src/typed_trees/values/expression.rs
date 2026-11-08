@@ -1770,6 +1770,10 @@ pub struct TableCallExpression {
     /// conformance is proof-static identity; ordinary generic dispatch never
     /// sees it and source code never receives the resulting private place.
     pub private_layout_operation: Option<PrivateLayoutOperationRequest>,
+    /// Exact registrar application and timer slot requested by the canonical
+    /// x86 installation operation. These declarations select retained evidence;
+    /// they are neither executable callback values nor runtime addresses.
+    pub installed_interrupt_operation: Option<InstalledInterruptOperationRequest>,
     /// Exact compiler-known `size_of<T>`/`align_of<T>` request. The operand's
     /// lowered static argument keeps the queried type's authored selection
     /// custody. The answer needs the selected target's validated layout, so
@@ -1782,6 +1786,39 @@ pub struct TableCallExpression {
     pub arguments: HandleSpan<ExpressionHandle>,
     pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
+}
+
+/// The caller explicitly identifies the whole registrar and its timer slot.
+/// Retention is not admission: checking must join the selected satisfaction,
+/// complete callback roster, exact table occurrence and installed root evidence.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct InstalledInterruptOperationRequest {
+    /// Occurrence-owned source tuple prepared after specialization. This is
+    /// derivation data; the installation validator still admits its contracts.
+    pub registrar_application: crate::static_applications::StaticMachineApplicationHandle,
+    /// Exact closed public requirement. Invalid while source operands remain open.
+    pub registrar_target: SymbolHandle,
+    /// Selected child application, before projecting an inherited member's owner.
+    pub registrar_receiving_scope: crate::trait_definition::RetainedTraitScope,
+    /// Exact authored occurrence of the registrar requirement, retained before
+    /// static argument identifiers lose their source coordinates.
+    pub registrar_selection:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    /// Selected trait, distinct from an inherited requirement's declaring owner.
+    /// Its complete authored application remains in `registrar`.
+    pub registrar_trait: SymbolHandle,
+    pub registrar: StaticMachineArgument,
+    pub timer_slot: StaticMachineArgument,
+}
+
+impl InstalledInterruptOperationRequest {
+    /// A copied or substituted request must prepare its own source tuple.
+    pub fn invalidate_preparation(&mut self) {
+        self.registrar_application =
+            crate::static_applications::StaticMachineApplicationHandle::invalid();
+        self.registrar_target = SymbolHandle::invalid();
+        self.registrar_receiving_scope = Default::default();
+    }
 }
 
 /// A compiler-known native query, never an invocation of its selected machine.

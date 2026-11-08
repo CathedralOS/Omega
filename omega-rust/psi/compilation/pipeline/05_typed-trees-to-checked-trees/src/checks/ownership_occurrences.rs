@@ -396,6 +396,7 @@ fn observed_owned_temporaries_from_occurrences(
 /// a selected or constructed parent. An observed receiver instead retains its
 /// own residual owner for exit cleanup. Production alone does not establish
 /// that residual-cleanup role.
+#[derive(Clone)]
 pub(super) struct OwnedTemporaryOccurrences {
     pub(super) completed: Vec<(ExpressionHandle, TypeReferenceHandle)>,
     pub(super) observed: Vec<(ExpressionHandle, TypeReferenceHandle)>,

@@ -1,25 +1,27 @@
-//! Selected target geometry for Psi's source layout-query evaluation.
-//!
-//! Psi owns query formation, deferral and literal installation. This adapter
-//! supplies the selected target's layout answer and prepares one private
-//! target-family view per pass. It does not schedule evaluation or rewrite
-//! source.
-//!
-//! The answer walks typed declarations, so it lives here with the other source
-//! correspondence rather than in the backend `layout` crate, which stays
-//! source-free. Start at `layout_plan.rs` for the `LayoutPlan` vocabulary;
-//! `builder.rs` turns a typed reference into a `TypeLayout` whose descriptor
-//! records packed fields, bit-field fragments and case payloads;
-//! `callback_layout` retains and checks private callback field paths and their
-//! target geometry. Pointer and descriptor words come from `layout`. Nothing
-//! here consumes check facts; callers must not manufacture a checked program
-//! to request geometry before checking.
+/*
+We supply selected target geometry (`TargetLayoutQueries` and
+`TargetLayoutMeasurements`) for Psi's source layout-query evaluation. Psi owns
+query formation, deferral, and literal installation, while this adapter supplies
+the selected target's layout answer and prepares one private target-family view
+per pass without scheduling evaluation or rewriting source.
+
+The answer walks typed declarations, so it lives here alongside source
+correspondence rather than in the source-free backend `layout` crate. Invariant
+programs borrow the caller's current program instead of copying its arenas,
+while family-laid programs clone a single private layout view closed under the
+selected target profile so source alternatives remain intact for Terminal
+production.
+
+We also fold source primitive geometry (`sizing`) over the backend's pointer
+and descriptor words directly into this module entrypoint. Nothing here consumes
+check facts; callers must never manufacture a checked program to request
+geometry before checking.
+*/
 
 mod builder;
 mod callback_layout;
 mod layout_plan;
 mod packing;
-mod sizing;
 
 pub use builder::{
     build_layout_plan, build_layout_plan_for_roots, layout_type_reference,
@@ -41,7 +43,6 @@ use checked_trees::typed_trees::expression::DataLayoutQueryRequest;
 use diagnostics::Diagnostic;
 use language_core::data_layout_queries::DataLayoutQueryKind;
 
-/// Target/representation inputs stay outside Psi's evaluation sequence.
 pub struct TargetLayoutQueries<'selection> {
     pub target: target::TargetProfile,
     pub applications: Option<&'selection [build_time_evaluation::LayoutApplicationTargetInput]>,
@@ -49,8 +50,6 @@ pub struct TargetLayoutQueries<'selection> {
         &'selection [representation_selections::OpaqueRepresentationSelection],
 }
 
-/// Invocation-local backend view; invariant programs borrow the caller's
-/// current program instead of copying its arenas.
 pub struct TargetLayoutMeasurements<'selection> {
     target: target::TargetProfile,
     opaque_representations:
@@ -84,9 +83,6 @@ impl<'selection> LayoutQueryProvider for TargetLayoutQueries<'selection> {
 
     fn prepare(&self, program: &TypedTrees) -> Self::Measurements {
         let target = self.target;
-        // The physical backend consumes invariant geometry. A family needs one
-        // private layout view closed under this exact profile; source alternatives
-        // remain intact for Terminal production. All queries borrow that same view.
         let layout_program = program
             .plan_laid_layouts
             .iter()
@@ -139,5 +135,39 @@ impl LayoutQueryMeasurements for TargetLayoutMeasurements<'_> {
             DataLayoutQueryKind::Size => layout.size,
             DataLayoutQueryKind::Alignment => layout.alignment,
         }))
+    }
+}
+
+pub(crate) mod sizing {
+    use crate::data_layout_queries::{TypeLayout, type_layout};
+    use checked_trees::typed_trees::types::PrimitiveType;
+    pub(crate) use layout::{fat_descriptor_layout, pointer_layout};
+    use target::NativeTarget;
+
+    fn primitive_layout(
+        pointer_size: usize,
+        pointer_alignment: usize,
+        primitive_type: PrimitiveType,
+    ) -> TypeLayout {
+        match primitive_type {
+            PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => type_layout(1, 1),
+            PrimitiveType::I16 | PrimitiveType::U16 => type_layout(2, 2),
+            PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => type_layout(4, 4),
+            PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 => type_layout(8, 8),
+            PrimitiveType::Addr | PrimitiveType::Selector => {
+                type_layout(pointer_size, pointer_alignment)
+            }
+        }
+    }
+
+    pub(super) fn primitive_type_layout(
+        target: NativeTarget,
+        primitive_type: PrimitiveType,
+    ) -> TypeLayout {
+        primitive_layout(
+            target.pointer_size,
+            target.pointer_alignment,
+            primitive_type,
+        )
     }
 }

@@ -220,6 +220,7 @@ fn has_embedding_shape(call: &TableCallExpression) -> bool {
         && call.static_requirement_dispatch.is_none()
         && call.quotient_operation.is_none()
         && call.private_layout_operation.is_none()
+        && call.installed_interrupt_operation.is_none()
 }
 
 pub(crate) fn is_exact_embed_call(program: &dyn CheckingInput, call: &TableCallExpression) -> bool {

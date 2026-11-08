@@ -36,6 +36,8 @@ pub(super) fn record(
     if admitted.observations.is_empty() {
         return;
     }
+    // Built once: every collector below plans over this same program.
+    let carriers = crate::execution::terminal_unit::types::carrier_index(program);
     let mut roster = Vec::<NaturalRank>::new();
     for machine in program.machines() {
         if let Some((ranks, _)) = crate::execution::terminal_unit::state_graph::natural_rank_plans(
@@ -190,7 +192,12 @@ pub(super) fn record(
             let statement_nodes_start = plans.nodes.storage_slice().len();
             let mut builder = Builder {
                 program,
-                shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
+                shapes: crate::execution::terminal_unit::types::ShapeCollector::with_carrier_index(
+                    program,
+                    carriers.clone(),
+                ),
+                carriers: carriers.clone(),
+                call_result_types: Default::default(),
                 operators,
                 semantic,
                 flow,

@@ -1,4 +1,9 @@
-//! One whole-provider choice policy for invocation and canonical declarations.
+// One whole-provider choice policy for invocation and canonical declarations.
+// NativeCandidate consumes one borrowed whole-plan description while keeping
+// ABI realization with the adapter and admission outside the shared chooser.
+// Every plan names the selected target, so the plan's target field cannot
+// distinguish an authored Build row from an implementation in scope; native
+// Build plans exist only for targets that a Build::bind row names.
 
 use crate::{ProviderCandidate, ProviderDeclaration, ProviderSubject, SelectionProvenance};
 use effects::provider_plan::ProviderPlan;
@@ -70,8 +75,6 @@ pub(crate) struct SelectedProviderPlanIndex<Declaration, Origin> {
     pub(crate) selected_by: SelectionProvenance<Declaration, Origin>,
 }
 
-/// The policy consumes one borrowed whole-plan description. ABI realization
-/// remains with this adapter and admission, outside the shared chooser.
 struct NativeCandidate<'plan> {
     plan: &'plan ProviderPlan,
     native_build: bool,
@@ -104,9 +107,6 @@ impl language_semantics::declaration_selection::provider_choices::Candidate
     fn target(&self) -> &str {
         &self.plan.target
     }
-    // Every plan names the selected target, so the plan's target field cannot
-    // tell an authored Build row from an implementation in scope. Native Build
-    // plans exist only for targets that a `Build::bind` row names.
     fn build_keyed(&self) -> bool {
         self.native_build
     }

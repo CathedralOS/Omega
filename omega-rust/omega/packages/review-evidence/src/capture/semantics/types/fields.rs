@@ -1,3 +1,5 @@
+// Projection of typed data fields into canonical package-review field records.
+
 use super::review_signature_type_identity_with_binders;
 use crate::capture::SourceDeclarationInput;
 use crate::record::PackageReviewDataField;

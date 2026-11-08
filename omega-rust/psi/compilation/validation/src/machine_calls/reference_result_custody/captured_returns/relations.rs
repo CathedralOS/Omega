@@ -54,6 +54,11 @@ fn key(state: SymbolHandle) -> (u32, u32) {
 }
 
 impl ReturnRelations {
+    pub(super) fn productive(&self, state: SymbolHandle) -> bool {
+        self.position(state)
+            .is_some_and(|position| self.rows[position].productive)
+    }
+
     fn position(&self, state: SymbolHandle) -> Option<usize> {
         self.rows
             .binary_search_by_key(&key(state), |row| key(row.state))

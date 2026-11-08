@@ -24,7 +24,9 @@ pub(crate) mod debug_map;
 pub(crate) mod declarations;
 pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
+mod installed_interrupts;
 pub(crate) mod machine_dispatch;
+mod scalar_transport;
 
 use crate::shared::checked_facts::flow_facts;
 use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
@@ -105,11 +107,41 @@ pub fn lower_machine(
             .filter(|usage| usage.callback_entry.is_some())
             .map(|usage| usage.selected_machine),
     );
+    // The core installer has no source body with ordinary calls to its
+    // selected validator, work and completion helpers. Their exact source
+    // occurrence still owns the nominal selections that must survive here.
+    roots.extend(
+        checked
+            .facts
+            .nominal_machine_uses
+            .uses
+            .iter()
+            .filter(|usage| {
+                checked
+                    .facts
+                    .installed_interrupt_registrations
+                    .iter()
+                    .any(|registration| registration.site == usage.site)
+            })
+            .map(|usage| usage.selected_machine),
+    );
     roots.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
     roots.dedup();
+    // An installation names a registrar contract without calling it. Retain
+    // that exact closed declaration so target planning can consume its ABI.
+    let mut boundaries = program_roots.boundaries.to_vec();
+    boundaries.extend(
+        checked
+            .facts
+            .installed_interrupt_registrations
+            .iter()
+            .map(|registration| registration.target),
+    );
+    boundaries.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
+    boundaries.dedup();
     let program_roots = crate::TerminalProgramRoots {
         machines: &roots,
-        boundaries: program_roots.boundaries,
+        boundaries: &boundaries,
     };
     let selection = match machine {
         TerminalMachineSelection::Declarations => None,
@@ -151,10 +183,21 @@ pub fn lower_machine(
         &mut lowered,
     )
     .map_err(LoweringError::InvalidDeclarationIdentity)?;
+    installed_interrupts::retain(
+        &mut identities,
+        checked,
+        exact_toolchain_sources,
+        &mut lowered,
+    )
+    .map_err(LoweringError::InvalidDeclarationIdentity)?;
     lowered.semantic_module.task_activation_demands =
         crate::lower_task_activation_demands(checked, &mut identities)
             .map_err(LoweringError::TaskActivation)?;
     lowered.semantic_module.identities = identities.build();
+    // Private completion blocks need only the values their completed graph
+    // actually reads. Keep every source operation and all retained evidence.
+    scalar_transport::complete(&mut lowered);
+
     // Declaration and evidence producers intern beyond the body snapshot.
     // Validate against their complete module-owned table before publication.
     if let Err(reason) =

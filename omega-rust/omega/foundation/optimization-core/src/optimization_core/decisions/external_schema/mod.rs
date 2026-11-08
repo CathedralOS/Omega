@@ -1,9 +1,13 @@
-//! Optimizer module role: executable entrance. External-policy schema v2 entrance.
-//!
-//! This file owns the closed request/response vocabulary, `identity` binds
-//! every context and per-candidate feature, and `codec` is the strict canonical
-//! wire boundary. This entrance alone canonicalizes finite candidate sets and joins
-//! them to their point/log identities; it never validates or applies a rewrite.
+// External optimization decision wire schema v2 (`ExternalDecisionLog`,
+// `ExternalDecisionPoint`, `ExternalCandidateFeatures`, `ExternalDecisionContext`).
+//
+// `ExternalCandidateFeatures::new` sorts and deduplicates consumed fact
+// references, and `ExternalDecisionPoint::new` sorts and deduplicates legal
+// candidates by `OptimizationCandidateIdentity` while verifying that any
+// `Choose(candidate)` action is in the legal candidate set. `write_point_row`
+// and `ExternalCandidateFeatures::write_row` emit the shared row bytes for both
+// wire (`CountFrame::Wire`) and canonical identity (`CountFrame::Canonical`)
+// encodings.
 
 mod codec;
 mod identity;
@@ -64,9 +68,6 @@ impl ExternalDecisionPoint {
         })
     }
 
-    /// The authoritative point row, written once for both encodings. The wire
-    /// point frames the candidate count as u32 and the canonical identity row as
-    /// u64; the feature rows are the same either way.
     pub(super) fn write_row(&self, encoded: &mut Vec<u8>, frame: CountFrame) {
         write_point_row(
             self.input,
@@ -79,9 +80,6 @@ impl ExternalDecisionPoint {
     }
 }
 
-/// The authoritative point row, written once for both encodings. The wire point
-/// frames the candidate count as u32 and the canonical identity row as u64; the
-/// feature rows are the same either way.
 fn write_point_row(
     input: OptimizationUnitIdentity,
     rule: OptimizationRuleIdentity,
@@ -142,13 +140,13 @@ impl ExternalDecisionLog {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExternalDecisionContext {
-    schema: OptimizationDecisionSchemaIdentity,
-    source: OptimizationUnitIdentity,
-    selections: OptimizationSelectionIdentity,
-    phase_selections: OptimizationSelectionIdentity,
-    target: OptimizationDecisionTargetIdentity,
-    rule_set: OptimizationRuleSetIdentity,
-    cost_model: TargetCostModelIdentity,
+    schema: OptimizationDecisionSchemaIdentity, // Feature schema digest (`external_psi_decision_schema_identity`).
+    source: OptimizationUnitIdentity,           // Source optimization unit digest.
+    selections: OptimizationSelectionIdentity,  // Complete build optimization selection digest.
+    phase_selections: OptimizationSelectionIdentity, // Phase-local optimization selection digest.
+    target: OptimizationDecisionTargetIdentity, // Target context digest (`psi_target_neutral_decision_target_identity` for Psi).
+    rule_set: OptimizationRuleSetIdentity,      // Ordered rule-set digest.
+    cost_model: TargetCostModelIdentity,        // Cost model digest.
 }
 
 crate::record_views! {
@@ -164,16 +162,11 @@ crate::record_views! {
     }
 }
 
-/// Authoritative, identity-bearing features for one already validated candidate.
-///
-/// Analysis bits come from the rule contract. Fact references come from the
-/// immutable candidate and are sorted here so insertion order never reaches
-/// the external-policy boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalCandidateFeatures {
-    summary: ValidatedCandidateSummary,
-    consumed_analyses: AnalysisSet,
-    consumed_facts: Vec<OptimizationFactReference>,
+    summary: ValidatedCandidateSummary, // Candidate identity and signed structural cost delta.
+    consumed_analyses: AnalysisSet,     // Rule-contract analysis bitset.
+    consumed_facts: Vec<OptimizationFactReference>, // Strictly ascending consumed fact references.
 }
 
 crate::record_views! {
@@ -213,8 +206,6 @@ impl ExternalCandidateFeatures {
         self.summary.predicted_cost_delta
     }
 
-    /// One candidate's authoritative feature row, written once for both
-    /// encodings; only the fact-count frame differs between them.
     pub(super) fn write_row(&self, encoded: &mut Vec<u8>, frame: CountFrame) {
         encoded.extend_from_slice(&self.summary.candidate.bytes());
         encoded.extend_from_slice(&self.summary.predicted_cost_delta.to_le_bytes());
@@ -228,11 +219,11 @@ impl ExternalCandidateFeatures {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalDecisionPoint {
-    identity: OptimizationDecisionIdentity,
-    input: OptimizationUnitIdentity,
-    rule: OptimizationRuleIdentity,
-    legal_candidates: Vec<ExternalCandidateFeatures>,
-    action: ExternalDecisionAction,
+    identity: OptimizationDecisionIdentity, // Canonical digest of the decision point row.
+    input: OptimizationUnitIdentity,        // Optimization unit identity at this decision point.
+    rule: OptimizationRuleIdentity,         // Rule identity evaluated at this point.
+    legal_candidates: Vec<ExternalCandidateFeatures>, // Strictly ascending legal candidates.
+    action: ExternalDecisionAction,         // Selected candidate or `NotProfitable` skip.
 }
 
 crate::record_views! {
@@ -248,8 +239,6 @@ crate::record_views! {
     }
 }
 
-/// One member of a decision point's finite action set. Every point admits
-/// `Choose` for each listed candidate plus the explicit model-free skip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExternalDecisionAction {
     Choose(OptimizationCandidateIdentity),
@@ -267,9 +256,9 @@ impl From<BaselineDecisionOutcome> for ExternalDecisionAction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalDecisionLog {
-    identity: OptimizationDecisionLogIdentity,
-    context: ExternalDecisionContext,
-    points: Vec<ExternalDecisionPoint>,
+    identity: OptimizationDecisionLogIdentity, // Canonical digest of context and ordered point identities.
+    context: ExternalDecisionContext,          // Shared policy context for all points in the log.
+    points: Vec<ExternalDecisionPoint>,        // Distinct decision points in execution order.
 }
 
 crate::record_views! {

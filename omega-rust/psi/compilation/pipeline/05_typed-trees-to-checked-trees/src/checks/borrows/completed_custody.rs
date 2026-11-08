@@ -11,12 +11,12 @@ use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::checks::ownership_occurrences::{
     StatementStep, routes_compatible, statement_steps_at_evaluation,
 };
-use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowOperandFact};
+use checked_trees::{BorrowAccessKind, CapturedPlace, FlowOperandFact};
 use validation::CanonicalPlace;
 
 pub(crate) fn require_unborrowed_completion(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     operand: &FlowOperandFact,
@@ -54,7 +54,7 @@ pub(crate) fn require_unborrowed_completion(
         operand.statement_index,
         node,
         moves,
-        &facts.operators,
+        facts.operators,
         Some(evaluation),
     );
     let mut completions = occurrences.iter().enumerate().filter(|(_, occurrence)| {
@@ -107,7 +107,7 @@ pub(crate) fn require_unborrowed_completion(
                 program,
                 parent,
                 *handle,
-                &facts.borrow,
+                facts.borrow,
                 &[],
                 &mut bounds,
             ) {
@@ -161,7 +161,7 @@ pub(crate) fn require_unborrowed_completion(
             };
             if !super::overlap::captured_place_compatibility(
                 program,
-                &facts.borrow,
+                facts.borrow,
                 &borrowed,
                 &loan.kind,
                 &owned,
@@ -188,7 +188,7 @@ pub(crate) fn require_unborrowed_completion(
         .iter()
         .filter(|call| call.statement_index == operand.statement_index)
     {
-        let flow_call = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
+        let flow_call = crate::flow::call_flows(facts.flow.control, state_flow.calls)
             .iter()
             .find(|candidate| {
                 candidate.statement_index == call.statement_index
@@ -267,7 +267,7 @@ pub(crate) fn require_unborrowed_completion(
                 if backings.iter().any(|backing| {
                     !super::overlap::captured_place_compatibility(
                         program,
-                        &facts.borrow,
+                        facts.borrow,
                         &backing.place,
                         &access.kind,
                         &owned,

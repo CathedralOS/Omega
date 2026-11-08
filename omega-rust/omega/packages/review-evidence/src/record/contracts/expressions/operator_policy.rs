@@ -1,3 +1,15 @@
+// Framed policy-requirement and `named-callable` coordinate comparison for
+// `PackageReviewOperatorCoordinate`.
+//
+// `matches_policy_requirement` compares framed semantic coordinates without
+// allocating during recovery: a named boundary operator's policy requirement is
+// the framed `boundary-operator-policy` coordinate, while a top-level `boundary
+// requirement` is selected by its normalized `named-callable` overload
+// (`named-callable(path(..),parameters(..),result-dispatch(..))` with `\`, `(`,
+// `)`, and `,` escaped inside each atom). `write_qualified_path` qualifies the
+// declaration path under its owner namespace (`toolchain-owner` without source
+// digest, or `package-owner(32:<hex>)`).
+
 use super::PackageReviewOperatorCoordinate;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 use std::fmt::Write;
@@ -12,13 +24,6 @@ impl PackageReviewOperatorCoordinate {
         }
     }
 
-    /// Compare framed semantic coordinates without allocating during recovery.
-    ///
-    /// A named boundary operator's policy requirement is the framed
-    /// `boundary-operator-policy` coordinate; a top-level `boundary
-    /// requirement` is selected by its normalized named-callable overload,
-    /// whose path, parameters and result dispatch are the same three
-    /// coordinate parts under the `named-callable` framing typed Psi writes.
     pub(crate) fn matches_policy_requirement(&self, expected: &str) -> bool {
         let mut writer = MatchingWriter {
             remaining: expected,
@@ -32,11 +37,6 @@ impl PackageReviewOperatorCoordinate {
         self.write_named_callable_requirement(&mut writer).is_ok() && writer.remaining.is_empty()
     }
 
-    /// The exact text the program's interned callable identity renders for
-    /// this coordinate's parts: `named-callable(path(..),parameters(..),
-    /// result-dispatch(..))` with `\`, `(`, `)` and `,` escaped inside each atom.
-    /// A review row is compared against a persisted expectation, so this side
-    /// of the join writes the framing rather than taking a handle.
     fn write_named_callable_requirement(&self, writer: &mut impl Write) -> std::fmt::Result {
         writer.write_str("named-callable(")?;
         write_atom(writer, "path", |value| self.write_qualified_path(value))?;
@@ -51,14 +51,6 @@ impl PackageReviewOperatorCoordinate {
         writer.write_char(')')
     }
 
-    /// The declaration path under the owner namespace typed Psi qualifies
-    /// every callable path with: `nominal(<owner>,path(<declaration path>))`.
-    ///
-    /// A callable identity is rendered without exact toolchain sources, so a
-    /// toolchain declaration carries the digest-less `toolchain-owner`; the
-    /// source digest stays on the coordinate's owner, which every join on the
-    /// selected plan compares beside this path. A package declaration carries
-    /// its package digest as a length-prefixed lowercase hexadecimal atom.
     fn write_qualified_path(&self, writer: &mut impl Write) -> std::fmt::Result {
         writer.write_str("nominal(")?;
         match self.identity.owner {
@@ -91,9 +83,6 @@ impl PackageReviewOperatorCoordinate {
     }
 }
 
-/// `tag(value)` where the value's reserved characters are escaped. Nesting an
-/// atom inside another atom's value escapes it once per enclosing level, which
-/// is how a nominal path appears inside a callable identity.
 fn write_atom<W: Write>(
     writer: &mut W,
     tag: &str,
@@ -136,9 +125,6 @@ mod tests {
     use crate::record::PackageReviewToolchainSourceIdentity;
     use semantic_vocabulary::PackageKeyIdentity;
 
-    // Callable identities typed Psi rendered for the bundled standard library:
-    // a toolchain `boundary machine + Float::add` overload and a requirement
-    // the standard library package itself declares.
     const FLOAT_ADD: &str = r"named-callable(path(nominal\(toolchain-owner\,path\(Float::add\)\)),parameters(parameter\(mutable\(no\)\,const\(no\)\,named\(name\(f64\)\)\)\,parameter\(mutable\(no\)\,const\(no\)\,named\(name\(f64\)\)\)),result-dispatch())";
     const FLOAT_ADD_PARAMETERS: &str = "parameter(mutable(no),const(no),named(name(f64))),parameter(mutable(no),const(no),named(name(f64)))";
     const CLOCK_SLEEP: &str = r"named-callable(path(nominal\(package-owner\(32:a0fc4b8bb77397bb6cba1ab5d7153b87d64b2536369880f681fe4c78c70d6144\)\,path\(Clock::sleep\)\)),parameters(parameter\(mutable\(no\)\,const\(no\)\,named\(name\(u32\)\)\)),result-dispatch())";
@@ -183,7 +169,6 @@ mod tests {
     fn toolchain_requirement_matches_its_owner_qualified_callable_path() {
         let add = coordinate(toolchain(), "Float::add", FLOAT_ADD_PARAMETERS);
         assert!(add.matches_policy_requirement(FLOAT_ADD));
-        // The source digest is the owner's coordinate, not part of the path.
         let other_source = coordinate(
             PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
                 digest: [9; 32],
@@ -212,7 +197,6 @@ mod tests {
             "Clock::sleep",
             CLOCK_SLEEP_PARAMETERS,
         );
-        // A package declaration is not the toolchain declaration of that path.
         assert!(
             !coordinate(
                 package(STANDARD_LIBRARY_DIGEST),
@@ -233,7 +217,6 @@ mod tests {
             )
             .matches_policy_requirement(FLOAT_ADD)
         );
-        // Another package's digest is another namespace.
         let mut other = digest(STANDARD_LIBRARY_DIGEST);
         other[31] ^= 1;
         let other_hex = other
@@ -244,14 +227,12 @@ mod tests {
             !coordinate(package(&other_hex), "Clock::sleep", CLOCK_SLEEP_PARAMETERS)
                 .matches_policy_requirement(CLOCK_SLEEP)
         );
-        // The unqualified path typed Psi no longer renders is not accepted.
         let unqualified = FLOAT_ADD.replace(
             r"nominal\(toolchain-owner\,path\(Float::add\)\)",
             "Float::add",
         );
         assert_ne!(unqualified, FLOAT_ADD);
         assert!(!add.matches_policy_requirement(&unqualified));
-        // Path, parameter dispatch and result dispatch each bind the text.
         assert!(
             !coordinate(toolchain(), "Float::subtract", FLOAT_ADD_PARAMETERS)
                 .matches_policy_requirement(FLOAT_ADD)

@@ -74,6 +74,17 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
         false
     }
 
+    /// A retained view cannot establish its own formation through a later read.
+    /// The ancestry depth also bounds chains of distinct formation queries.
+    #[doc(hidden)]
+    fn has_active_recast_formation(
+        &self,
+        _expression: typed_trees::expression::ExpressionHandle,
+        depth: usize,
+    ) -> bool {
+        depth >= 64
+    }
+
     /// Preliminary source work cannot settle a pending representation's
     /// physical judgments. Strict checks and bare trees never defer them.
     fn defers_pending_layout_geometry(&self) -> bool {
@@ -107,6 +118,17 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
 
     #[doc(hidden)]
     fn checking_memos(&self) -> Option<&CheckingMemos>;
+
+    /// How many recursion-cut answers have been read through this input: an
+    /// `has_active_*` that answered `true` because a `CheckingQuery` is live.
+    /// `CutGuard` compares it before and after computing a memo.
+    #[doc(hidden)]
+    fn cut_reads(&self) -> u64;
+
+    /// The outermost checking context's memos, which hold only answers that
+    /// read no recursion cut. Queries read and publish through `CutGuard`.
+    #[doc(hidden)]
+    fn shared_memos(&self) -> Option<&CheckingMemos>;
 
     /// Structural classification observes only these immutable typed trees,
     /// unlike geometry-sensitive checking memos. Layout views can share this
@@ -195,6 +217,14 @@ impl CheckingInput for TypedTrees {
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         None
     }
+
+    fn cut_reads(&self) -> u64 {
+        0
+    }
+
+    fn shared_memos(&self) -> Option<&CheckingMemos> {
+        None
+    }
 }
 
 /// One sorted, deduplicated `(symbol, OnceLock)` memo row set — the row
@@ -219,6 +249,14 @@ impl CheckingInput for typed_trees::FrozenTypedTrees {
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         None
     }
+
+    fn cut_reads(&self) -> u64 {
+        0
+    }
+
+    fn shared_memos(&self) -> Option<&CheckingMemos> {
+        None
+    }
 }
 
 impl CheckingInput for checked_trees::CheckedTrees {
@@ -239,6 +277,14 @@ impl CheckingInput for checked_trees::CheckedTrees {
     }
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {
+        None
+    }
+
+    fn cut_reads(&self) -> u64 {
+        0
+    }
+
+    fn shared_memos(&self) -> Option<&CheckingMemos> {
         None
     }
 }
@@ -501,6 +547,14 @@ impl CheckingInput for CheckingContext<'_> {
         Some(&self.memos)
     }
 
+    fn cut_reads(&self) -> u64 {
+        0
+    }
+
+    fn shared_memos(&self) -> Option<&CheckingMemos> {
+        Some(&self.memos)
+    }
+
     fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
         self.call_frame_tables
             .get_or_init(|| {
@@ -592,6 +646,16 @@ impl CheckingInput for CheckingProjection<'_> {
         self.original.external_invocation_roots()
     }
 
+    fn has_active_recast_formation(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        depth: usize,
+    ) -> bool {
+        self.memo_source().map_or(depth >= 64, |input| {
+            input.has_active_recast_formation(expression, depth)
+        })
+    }
+
     fn has_active_completed_case_population(&self, machine: symbols::SymbolHandle) -> bool {
         self.memo_source()
             .is_some_and(|input| input.has_active_completed_case_population(machine))
@@ -644,6 +708,14 @@ impl CheckingInput for CheckingProjection<'_> {
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         self.memo_source()?.checking_memos()
+    }
+
+    fn cut_reads(&self) -> u64 {
+        self.memo_source().map_or(0, CheckingInput::cut_reads)
+    }
+
+    fn shared_memos(&self) -> Option<&CheckingMemos> {
+        self.memo_source()?.shared_memos()
     }
 
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
@@ -1031,6 +1103,23 @@ impl CheckingMemos {
         }
     }
 
+    /// A recursion query's own memos (`CheckingQuery`). A query's cut makes an
+    /// answer computed under it depend on where it was asked, so by default
+    /// nothing the query computes reaches this context's memos: it reads the
+    /// typed-tree answers already completed here, and every write lands in
+    /// this copy, which drops with the query. Completed `OnceLock` Arcs are
+    /// immutable, maps are copied, and `caller_sites`, an Arc of mutable maps,
+    /// starts empty instead of being shared. A memo that publishes through
+    /// `CutGuard` (numeric rows, operand fits, completed cases, returned
+    /// fields, shared proof walks) reaches the outermost context only when
+    /// its computation read no cut.
+    pub(crate) fn query_scratch(&self) -> Self {
+        Self {
+            caller_sites: OnceLock::new(),
+            ..self.clone_typed_tree_memos()
+        }
+    }
+
     fn clone_typed_tree_memos(&self) -> Self {
         Self {
             requirement_satisfiers: self.requirement_satisfiers.clone(),
@@ -1111,6 +1200,42 @@ pub(crate) enum SelectedCarrierVerdict {
 /// The reusable memos explicitly carried by a frozen checking input.
 pub(crate) fn frozen_program_memos(program: &dyn CheckingInput) -> Option<&CheckingMemos> {
     program.checking_memos()
+}
+
+/// Where a memo computed under `program` may be kept. It goes to the outermost
+/// context's memos only while no query in `program`'s ancestry has ever
+/// answered a cut: then neither the computation nor any scratch memo it read
+/// can depend on one, since every scratch write under that ancestry happened
+/// after its own cut read was counted. Otherwise the answer stays in
+/// `program`'s own memos, which a `CheckingQuery` drops with itself. Every cut
+/// answer is counted inside the `has_active_*` accessors of `CheckingQuery`,
+/// so no read path escapes the count. Ask `memos()` only after computing.
+pub(crate) struct CutGuard<'a> {
+    program: &'a dyn CheckingInput,
+}
+
+impl<'a> CutGuard<'a> {
+    pub(crate) fn start(program: &'a dyn CheckingInput) -> Self {
+        Self { program }
+    }
+
+    pub(crate) fn memos(&self) -> Option<&'a CheckingMemos> {
+        if self.program.cut_reads() == 0 {
+            self.program.shared_memos()
+        } else {
+            self.program.checking_memos()
+        }
+    }
+}
+
+/// The memos a lookup under `program` reads: the outermost context's, which
+/// hold only cut-free answers, then `program`'s own when they differ.
+pub(crate) fn readable_memos(program: &dyn CheckingInput) -> impl Iterator<Item = &CheckingMemos> {
+    let shared = program.shared_memos();
+    let own = program
+        .checking_memos()
+        .filter(|own| !shared.is_some_and(|shared| std::ptr::eq(shared, *own)));
+    shared.into_iter().chain(own)
 }
 
 /// Compute once in the input's invocation, or one-shot for a bare typed program.

@@ -337,7 +337,7 @@ fn main() {
             provisions: report.runtime_provisions(),
             provider_proposal: None,
             target: Some("linux_x86_64"),
-            fuel_allowance: 1_000_000,
+            work_budget: 1_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(std::io::Cursor::new(input))),
             clock: Some(TerminalClockSnapshot::capture_host_epoch().unwrap().into()),

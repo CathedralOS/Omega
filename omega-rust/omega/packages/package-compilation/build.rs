@@ -1,3 +1,8 @@
+// Build-script custody for the bundled Omega standard-library root. Release
+// builds verify and export `OMEGA_RELEASE_LIBRARY_SHA256`, whereas development
+// builds locate `source/library` from the workspace ancestry and export
+// `OMEGA_DEVELOPMENT_LIBRARY_ROOT`.
+
 use std::path::PathBuf;
 
 fn main() {

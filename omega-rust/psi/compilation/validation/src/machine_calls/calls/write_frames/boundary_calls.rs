@@ -1494,6 +1494,11 @@ pub(super) fn bodyless_callee_result_origins(
     inference: &mut FrameInference,
     callee_state: &State,
 ) -> Option<Vec<FramePlaceOrigin>> {
+    if let Some(context) =
+        crate::compiler_operations::static_interrupt_context(program, callee_state.symbol).ok()?
+    {
+        return invocation_result_origin(expression, context.referent);
+    }
     let mut bindings = TypeBindings::new();
     let referent = {
         let result_type = live_unconstrained_type(program, callee_state.return_type)?;

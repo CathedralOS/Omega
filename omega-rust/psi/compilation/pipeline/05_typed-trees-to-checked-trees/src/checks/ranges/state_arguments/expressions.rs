@@ -32,6 +32,13 @@ impl ExpressionTransferSink for CallArguments<'_, '_, '_> {
     }
 
     fn call_entry(&mut self, facts: &RangeFacts<'_>, call: &TableCallExpression) {
+        // Nested-machine calls carry the caller's field bounds. This hook
+        // runs before the call's write frame retires those facts.
+        let target = super::family_transition_state(
+            self.context.program,
+            self.context.machine.symbol,
+            call.target_symbol,
+        );
         collect_state_argument_facts_for_call(
             self.context.program,
             self.context.machine,
@@ -42,7 +49,8 @@ impl ExpressionTransferSink for CallArguments<'_, '_, '_> {
                 .program
                 .expression_table
                 .expression_handles(call.arguments),
-            false,
+            target.is_some(),
+            target,
             self.collected,
         );
     }

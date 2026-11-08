@@ -1,9 +1,11 @@
-//! Exact selected-conformance applications and callable bounds.
-//!
-//! Reconstruct selections against the original checked input. Reifying their
-//! arguments appends type references to invocation-local typed trees; it never
-//! mutates or clones a checked compilation for scratch space. The common
-//! type-identity projector borrows the original exact source commitments.
+/*
+We project exact selected-conformance applications and callable bounds.
+
+We reconstruct selections against the original checked input. Reifying their
+arguments appends type references to invocation-local typed trees rather than
+mutating or cloning a checked compilation for scratch space, while the common
+type-identity projector borrows the original exact source commitments.
+*/
 
 mod application;
 mod bounds;

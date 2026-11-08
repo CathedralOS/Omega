@@ -1,3 +1,5 @@
+// Canonical encoding for data properties, members, fields, type identities, and binding relevance.
+
 use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
 use crate::record::{

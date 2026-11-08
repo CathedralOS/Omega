@@ -18,7 +18,7 @@ use validation::{
 };
 
 pub(super) struct CapturedFieldLength {
-    pub(super) path: Vec<SymbolHandle>,
+    pub(super) path: Vec<facts::PlaceSegment>,
     pub(super) name: String,
     pub(super) type_reference: TypeReferenceHandle,
     pub(super) value: ScopedArithmeticValue,
@@ -96,7 +96,7 @@ impl CurrentScalarValues<'_> {
         } else {
             LengthSubject::Field {
                 owner,
-                path: super::declaration_field_path(path)?,
+                path: super::static_descriptor_path(path).then(|| path.to_vec())?,
             }
         };
         self.lengths
@@ -119,7 +119,7 @@ impl CurrentScalarValues<'_> {
     pub(crate) fn length_field_observations(
         &self,
         parameter: SymbolHandle,
-    ) -> impl Iterator<Item = (&[SymbolHandle], &ScopedArithmeticValue)> {
+    ) -> impl Iterator<Item = (&[facts::PlaceSegment], &ScopedArithmeticValue)> {
         self.lengths.iter().filter_map(move |length| {
             let LengthSubject::Field { owner, path } = &length.subject else {
                 return None;
@@ -143,12 +143,7 @@ impl CurrentScalarValues<'_> {
         }
         self.captured_field_lengths(actual, 0)
             .into_iter()
-            .find(|field| {
-                field.path.len() == path.len()
-                    && field.path.iter().zip(path).all(|(field, segment)| {
-                        matches!(segment, facts::PlaceSegment::Field { symbol } if symbol == field)
-                    })
-            })
+            .find(|field| field.path == path)
             .map(|field| field.value)
     }
 
@@ -164,6 +159,17 @@ impl CurrentScalarValues<'_> {
                 .expression_is_valid(expression)
         {
             return None;
+        }
+        if validation::value_has_builtin_coordinates(
+            self.program,
+            self.machine,
+            self.state,
+            expression,
+        ) && let Some((owner, path)) = super::descriptor_storage_path(self.program, expression)
+            && !path.is_empty()
+            && let Some(value) = self.coordinate_collection_length(owner, &path)
+        {
+            return Some(value);
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Borrow(borrow) => self.collection_length(borrow.target, depth + 1),
@@ -386,31 +392,57 @@ impl CurrentScalarValues<'_> {
             ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none() => {
                 self.literal_field_lengths(literal, depth + 1)
             }
+            ExpressionNode::ArrayLiteral(elements) => {
+                let mut fields = Vec::new();
+                for (index, value) in self
+                    .program
+                    .expression_table
+                    .expression_handles(*elements)
+                    .iter()
+                    .enumerate()
+                {
+                    self.append_child_lengths(
+                        &mut fields,
+                        *value,
+                        facts::PlaceSegment::FixedIndex { index },
+                        depth,
+                    );
+                }
+                fields
+            }
             ExpressionNode::Borrow(borrow) => self.captured_field_lengths(borrow.target, depth + 1),
             ExpressionNode::Call(call) => self.call_field_lengths(expression, call),
             ExpressionNode::Member(member)
-                if super::field_storage_path(self.program, expression).is_none() =>
+                if super::descriptor_storage_path(self.program, expression).is_none() =>
             {
                 self.captured_field_lengths(member.receiver, depth + 1)
                     .into_iter()
                     .filter_map(|mut field| {
-                        let selected = *field.path.first()?;
+                        let facts::PlaceSegment::Field { symbol: selected } =
+                            *field.path.first()?
+                        else {
+                            return None;
+                        };
                         if field.path.len() <= 1 || !self.selects_field(member, selected) {
                             return None;
                         }
                         field.path.remove(0);
-                        field.name = field
-                            .path
-                            .iter()
-                            .map(|symbol| self.program.symbols.name(*symbol))
-                            .collect::<Vec<_>>()
-                            .join(".");
+                        field.name = self.descriptor_path_name(&field.path)?;
                         Some(field)
                     })
                     .collect()
             }
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-                let Some((owner, prefix)) = super::field_storage_path(self.program, expression)
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                if !validation::value_has_builtin_coordinates(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                ) {
+                    return Vec::new();
+                }
+                let Some((owner, prefix)) =
+                    super::descriptor_storage_path(self.program, expression)
                 else {
                     return Vec::new();
                 };
@@ -431,11 +463,7 @@ impl CurrentScalarValues<'_> {
                             return None;
                         }
                         let path = path[prefix.len()..].to_vec();
-                        let name = path
-                            .iter()
-                            .map(|symbol| self.program.symbols.name(*symbol))
-                            .collect::<Vec<_>>()
-                            .join(".");
+                        let name = self.descriptor_path_name(&path)?;
                         Some(CapturedFieldLength {
                             path,
                             name,
@@ -485,37 +513,63 @@ impl CurrentScalarValues<'_> {
             if !field.field_symbol.is_valid() {
                 continue;
             }
-            for mut nested in self.captured_field_lengths(field.value, depth + 1) {
-                nested.path.insert(0, field.field_symbol);
-                nested.name = format!("{}.{}", field.name, nested.name);
-                fields.push(nested);
-            }
-            let Some(value) = self.collection_length(field.value, depth + 1) else {
-                continue;
-            };
-            let Some(type_reference) = validation::expression_result_type_reference(
-                self.program,
-                self.machine,
-                self.state,
+            self.append_child_lengths(
+                &mut fields,
                 field.value,
-            ) else {
-                continue;
-            };
-            if fixed_length(self.program, type_reference, String::new).is_none() {
-                continue;
-            }
-            let value = self
-                .exact_length(&value)
-                .map(ScopedArithmeticValue::Integer)
-                .unwrap_or(value);
-            fields.push(CapturedFieldLength {
-                path: vec![field.field_symbol],
-                name: field.name.as_str().to_owned(),
-                type_reference,
-                value,
-            });
+                facts::PlaceSegment::Field {
+                    symbol: field.field_symbol,
+                },
+                depth,
+            );
         }
         fields
+    }
+
+    /// Each constructor child contributes its own completed descriptor and
+    /// descendant observations. Fields and array cells retain the same typed
+    /// coordinate and current-value rules through every later transfer.
+    fn append_child_lengths(
+        &self,
+        fields: &mut Vec<CapturedFieldLength>,
+        expression: ExpressionHandle,
+        prefix: facts::PlaceSegment,
+        depth: usize,
+    ) {
+        for mut nested in self.captured_field_lengths(expression, depth + 1) {
+            nested.path.insert(0, prefix);
+            if let Some(name) = self.descriptor_path_name(&nested.path) {
+                nested.name = name;
+                fields.push(nested);
+            }
+        }
+        let Some(type_reference) = validation::expression_result_type_reference(
+            self.program,
+            self.machine,
+            self.state,
+            expression,
+        ) else {
+            return;
+        };
+        if fixed_length(self.program, type_reference, String::new).is_none() {
+            return;
+        }
+        let Some(value) = self.collection_length(expression, depth + 1) else {
+            return;
+        };
+        let value = self
+            .exact_length(&value)
+            .map(ScopedArithmeticValue::Integer)
+            .unwrap_or(value);
+        let path = vec![prefix];
+        let Some(name) = self.descriptor_path_name(&path) else {
+            return;
+        };
+        fields.push(CapturedFieldLength {
+            path,
+            name,
+            type_reference,
+            value,
+        });
     }
 
     fn slice_lengths_agree(
@@ -783,9 +837,10 @@ impl CurrentScalarValues<'_> {
                     else {
                         continue;
                     };
-                    let Some(path) = super::declaration_field_path(&place.segments) else {
+                    if !super::static_descriptor_path(&place.segments) {
                         continue;
-                    };
+                    }
+                    let path = place.segments.clone();
                     let reference = place.type_reference;
                     if place.machine_symbol != machine.symbol
                         || path.is_empty()
@@ -843,11 +898,9 @@ impl CurrentScalarValues<'_> {
                     } else {
                         value
                     };
-                    let name = path
-                        .iter()
-                        .map(|symbol| self.program.symbols.name(*symbol))
-                        .collect::<Vec<_>>()
-                        .join(".");
+                    let Some(name) = self.descriptor_path_name(&path) else {
+                        continue;
+                    };
                     fields.push(CapturedFieldLength {
                         path,
                         name,
@@ -868,8 +921,28 @@ impl CurrentScalarValues<'_> {
     ) -> Option<ScopedArithmeticValue> {
         self.captured_field_lengths(member.receiver, depth + 1)
             .into_iter()
-            .find(|field| field.path.len() == 1 && self.selects_field(member, field.path[0]))
+            .find(|field| field.path.len() == 1 && matches!(field.path[0], facts::PlaceSegment::Field { symbol } if self.selects_field(member, symbol)))
             .map(|field| field.value)
+    }
+
+    fn descriptor_path_name(&self, path: &[facts::PlaceSegment]) -> Option<String> {
+        let mut name = String::new();
+        for segment in path {
+            match segment {
+                facts::PlaceSegment::Field { symbol } if symbol.is_valid() => {
+                    if !name.is_empty() {
+                        name.push('.');
+                    }
+                    name.push_str(self.program.symbols.name(*symbol));
+                }
+                facts::PlaceSegment::FixedIndex { index } => {
+                    use std::fmt::Write;
+                    write!(&mut name, "[{index}]").ok()?;
+                }
+                _ => return None,
+            }
+        }
+        Some(name)
     }
 
     fn selects_field(
@@ -887,7 +960,7 @@ impl CurrentScalarValues<'_> {
     pub(super) fn capture_record_fields(
         &mut self,
         owner: SymbolHandle,
-        path: &[SymbolHandle],
+        path: &[facts::PlaceSegment],
         initializer: ExpressionHandle,
     ) {
         let fields = self.captured_field_lengths(initializer, 0);
@@ -897,7 +970,7 @@ impl CurrentScalarValues<'_> {
     pub(super) fn replace_record_fields(
         &mut self,
         owner: SymbolHandle,
-        prefix: &[SymbolHandle],
+        prefix: &[facts::PlaceSegment],
         fields: Vec<CapturedFieldLength>,
     ) {
         self.lengths.retain(|length| !matches!(&length.subject,
@@ -905,10 +978,7 @@ impl CurrentScalarValues<'_> {
         for field in fields {
             let mut path = prefix.to_vec();
             path.extend(field.path);
-            let coordinate = path
-                .iter()
-                .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
-                .collect::<Vec<_>>();
+            let coordinate = path.clone();
             // Extent belongs to the descriptor binding, not its payload.
             // Whole/field replacement overlaps `.len`; an element store does
             // not. Entry seeds and later copies use this same frame owner.

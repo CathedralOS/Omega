@@ -155,6 +155,10 @@ pub(crate) fn validate_transports(
     if !function.blocks.iter().any(|block| {
         matches!(block.origin, SelectedBlockOrigin::Operation { .. })
             || matches!(block.terminator, SelectedTerminator::OperationTrap { .. })
+            || matches!(
+                block.terminator,
+                SelectedTerminator::OperationInvokeNoNormal { .. }
+            )
             || !terminator_successors(&block.terminator).is_empty()
     }) {
         return Ok(());
@@ -167,15 +171,52 @@ pub(crate) fn validate_transports(
         {
             return Err(mismatch());
         }
+        if let SelectedTerminator::OperationInvokeNoNormal {
+            instruction,
+            operation,
+        } = &block.terminator
+        {
+            let mut calls = function
+                .calls
+                .iter()
+                .filter(|row| row.instruction == instruction.id);
+            let (Some(call), None) = (calls.next(), calls.next()) else {
+                return Err(mismatch());
+            };
+            if !matches!(block.origin, SelectedBlockOrigin::Operation { operation: owner, .. } if owner == *operation)
+                || !matches!(
+                    instruction.kind,
+                    selected_instructions::SelectedInstructionKind::InvokeNoNormal { .. }
+                )
+                || instruction.kind.call_target()
+                    != Some(selected_instructions::SelectedCallTarget::from_native(
+                        call.call.target,
+                    ))
+                || call.owner
+                    != (target_operations::CallSiteOwner::Installation {
+                        operation: *operation,
+                        role: target_operations::InstallationCallRole::Work,
+                    })
+                || instruction.provenance.operations.as_slice() != [*operation]
+                || !instruction.provenance.edges.is_empty()
+                || !instruction.provenance.work.is_empty()
+            {
+                return Err(mismatch());
+            }
+        }
         if let SelectedTerminator::OperationTrap {
             instruction,
             operation,
         } = &block.terminator
             && (!matches!(block.origin, SelectedBlockOrigin::Operation { operation: owner, .. } if owner == *operation)
-                || instruction.kind != selected_instructions::SelectedInstructionKind::Crash
+                || !matches!(
+                    instruction.kind,
+                    selected_instructions::SelectedInstructionKind::Crash
+                        | selected_instructions::SelectedInstructionKind::PrivilegedCrash
+                )
                 || instruction.provenance.operations.as_slice() != [*operation]
                 || !instruction.provenance.edges.is_empty()
-                || !instruction.provenance.fuel.is_empty())
+                || !instruction.provenance.work.is_empty())
         {
             return Err(mismatch());
         }
@@ -201,7 +242,7 @@ pub(crate) fn validate_transports(
                     | SelectedBlockOrigin::CaseDispatch { .. }
                     | SelectedBlockOrigin::Operation { .. },
                     SelectedSuccessorRole::CaseDispatchContinuation,
-                ) if edge.fuel.is_empty()
+                ) if edge.work.is_empty()
                     && edge.bindings.is_empty()
                     && edge.structural_bindings.is_empty()
                     && edge.structural_case.is_none()
@@ -213,7 +254,7 @@ pub(crate) fn validate_transports(
                     SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::Operation { .. },
                     SelectedSuccessorRole::OperationContinuation { operation },
                 ) if edge.source_target == block.source_block()
-                    && edge.fuel.is_empty()
+                    && edge.work.is_empty()
                     && edge.bindings.is_empty()
                     && edge.structural_bindings.is_empty()
                     && edge.structural_case.is_none()
@@ -227,7 +268,7 @@ pub(crate) fn validate_transports(
                         .is_empty()
                     && selected_instructions::terminator_instruction(&block.terminator)
                         .provenance
-                        .fuel
+                        .work
                         .is_empty() => {}
                 (
                     SelectedBlockOrigin::EdgeTransfer {
@@ -237,7 +278,7 @@ pub(crate) fn validate_transports(
                     SelectedSuccessorRole::EdgeTransferContinuation,
                 ) if Some(owner) == edge.psi_edge
                     && target == edge.source_target
-                    && edge.fuel.is_empty()
+                    && edge.work.is_empty()
                     && matches!(block.terminator, SelectedTerminator::Jump { .. }) => {}
                 _ => return Err(mismatch()),
             }

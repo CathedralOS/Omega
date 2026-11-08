@@ -84,11 +84,11 @@ pub(super) fn validate(
         machine: patch.location.machine,
         edge: selected.psi_edge,
     };
-    let selected_fuel = accepted_provenance
+    let selected_work = accepted_provenance
         .iter()
         .find(|row| row.disposition == ProvenanceDisposition::RealizedAt(selected_site))
         .expect("independent accounting includes the selected edge")
-        .fuel
+        .work
         .clone();
 
     accept_region_rewrite(
@@ -131,11 +131,11 @@ pub(super) fn validate(
                 bindings: selected.bindings.clone(),
                 cleanup_actions: selected.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(selected.psi_edge)],
-                fuel: selected_fuel,
+                work: selected_work,
             }];
             output_node.ownership.clear();
             output_node.provenance.clear();
-            output_node.fuel.clear();
+            output_node.work.clear();
             output_function
                 .blocks
                 .retain(|block| reachable.contains(&block.id));
@@ -177,12 +177,12 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
     let mut realized = vec![realized_at_own_site(
         selected_site,
         &selected.provenance,
-        &selected.fuel,
+        &selected.work,
     )];
     let mut unreachable = vec![proven_unreachable_at_own_site(
         rejected_site,
         &rejected.provenance,
-        &rejected.fuel,
+        &rejected.work,
     )];
     let mut expected_effect = 0u64;
     for block in &function.blocks {
@@ -198,7 +198,7 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                     unreachable.push(proven_unreachable_at_own_site(
                         site,
                         &node.provenance,
-                        &node.fuel,
+                        &node.work,
                     ));
                 }
                 for edge in &node.successors {
@@ -209,7 +209,7 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                     unreachable.push(proven_unreachable_at_own_site(
                         site,
                         &edge.provenance,
-                        &edge.fuel,
+                        &edge.work,
                     ));
                 }
             }
@@ -227,7 +227,7 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(realized_at_own_site(site, &node.provenance, &node.fuel));
+                    realized.push(realized_at_own_site(site, &node.provenance, &node.work));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

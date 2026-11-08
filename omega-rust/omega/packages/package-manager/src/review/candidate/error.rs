@@ -1,3 +1,14 @@
+/*
+    We define `CompileResolvedPackageReviewsError` for failures encountered
+    while staging build sessions, verifying source custody, resolving semantic
+    bindings, compiling occurrences, and projecting normalized policy rows.
+
+    Pending restricted build consent (`CompileFailure::BuildConsentRequired`) is
+    preserved at the package boundary via `from_compilation` rather than parsed
+    from diagnostic strings, and `render_package_diagnostics` bounds displayed
+    package names and compiler diagnostics.
+*/
+
 use super::PackageSourceVerificationPhase;
 use crate::declarations::PackageKey;
 use crate::lock::PackageCheckedContext;
@@ -6,6 +17,7 @@ use crate::resolution::source::PackageSourceSelectionEvidenceError;
 use crate::review::restricted_build_grants::UngrantedRestrictedBuildRequest;
 use compilation_products::CompileFailure;
 use diagnostics::Diagnostic;
+use diagnostics::write_bounded_diagnostics;
 use filesystem_authority::FilesystemSponsorError;
 use package_compilation::{
     AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputError,
@@ -16,7 +28,7 @@ use std::fmt;
 use std::io;
 use std::path::PathBuf;
 
-mod diagnostic_output;
+const MAXIMUM_PACKAGE_NAME_BYTES: usize = 256;
 
 #[derive(Debug)]
 pub enum CompileResolvedPackageReviewsError {
@@ -108,10 +120,6 @@ pub enum CompileResolvedPackageReviewsError {
         package: PackageKey,
         maximum_bytes: usize,
     },
-    /// A consumer's `Independent` selection names a dependency occurrence
-    /// carried from a persisted record that retains no component description.
-    /// The closure pass reruns with that occurrence compiled fresh; this
-    /// escapes only if the fresh occurrence still publishes none.
     ComponentDescriptionNotRetained {
         package: PackageKey,
         component: semantic_vocabulary::PackageKeyIdentity,
@@ -120,9 +128,6 @@ pub enum CompileResolvedPackageReviewsError {
 }
 
 impl CompileResolvedPackageReviewsError {
-    /// One occurrence's assembled compilation inputs refused. The occurrence
-    /// whose assembly was running owns the refusal, not the dependency that
-    /// contributed the row.
     pub(super) fn compilation_inputs(
         package: &PackageKey,
         errors: Vec<PackageCompilationInputError>,
@@ -133,8 +138,6 @@ impl CompileResolvedPackageReviewsError {
         }
     }
 
-    /// Preserve pending Build consent at the package boundary rather than
-    /// parsing its diagnostic rendering or retrying it as product discovery.
     pub(crate) fn from_compilation(
         package: PackageKey,
         context: PackageCheckedContext,
@@ -165,6 +168,30 @@ impl CompileResolvedPackageReviewsError {
             }
         }
     }
+}
+
+fn render_package_diagnostics(
+    formatter: &mut fmt::Formatter<'_>,
+    phase: &str,
+    package: &PackageKey,
+    diagnostics: &[Diagnostic],
+) -> fmt::Result {
+    let name = package.name().as_str();
+    let shown_name = name.len().min(MAXIMUM_PACKAGE_NAME_BYTES);
+    write!(
+        formatter,
+        "{phase} failed for package `{0}",
+        &name[..shown_name]
+    )?;
+    if shown_name != name.len() {
+        write!(
+            formatter,
+            "...[{} name bytes omitted]",
+            name.len() - shown_name
+        )?;
+    }
+    write!(formatter, "` with {} diagnostic(s)", diagnostics.len())?;
+    write_bounded_diagnostics(formatter, diagnostics)
 }
 
 impl fmt::Display for CompileResolvedPackageReviewsError {
@@ -273,11 +300,11 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             Self::Compilation {
                 package,
                 diagnostics,
-            } => diagnostic_output::render(formatter, "checked compilation", package, diagnostics),
+            } => render_package_diagnostics(formatter, "checked compilation", package, diagnostics),
             Self::Projection {
                 package,
                 diagnostics,
-            } => diagnostic_output::render(formatter, "review projection", package, diagnostics),
+            } => render_package_diagnostics(formatter, "review projection", package, diagnostics),
             Self::Encoding { package, error } => write!(
                 formatter,
                 "review encoding failed for package `{}`: {error}",
@@ -291,7 +318,7 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             Self::SourceConsumptionDrift {
                 package,
                 diagnostics,
-            } => diagnostic_output::render(
+            } => render_package_diagnostics(
                 formatter,
                 "compiler-consumed source verification",
                 package,

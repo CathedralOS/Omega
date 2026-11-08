@@ -29,7 +29,7 @@ pub(in crate::checks::borrows) fn retained_places(
     let typed_state = program.state_by_symbol(state.state_symbol)?;
     let mut pending = resolve_captured_all(
         program,
-        facts,
+        facts.view(),
         loan_occurrences,
         state,
         statement,
@@ -239,7 +239,8 @@ fn returned_places(
         CheckedReferenceOriginProjection as Projection, CheckedUnitStructuralPathSegment as Segment,
     };
     let call = facts.flow.control.calls.get(call_handle);
-    let (operands, receiver_offset) = captured_call_operands(program, &facts.flow, state, call)?;
+    let (operands, receiver_offset) =
+        captured_call_operands(program, facts.flow.view(), state, call)?;
     let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let target = validation::call_target_state(program, call.target_symbol)?;
     let sources = validation::reference_result_custody::call_return_sources(

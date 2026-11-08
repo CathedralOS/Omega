@@ -1,6 +1,6 @@
 //! The identities every terminal artifact names: machines, blocks, edges,
 //! operations, values, places, claims, obligations, contracts, services,
-//! structural types, domains and fields, plus package-key, fuel-schedule
+//! structural types, domains and fields, plus package-key, work-schedule
 //! and scalar-qualification-set identities.
 
 use std::fmt;
@@ -118,9 +118,9 @@ impl PackageKeyIdentity {
 /// light identity so installation/resource records can name its units without
 /// depending on a semantic evaluator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-pub struct FuelScheduleIdentity(NonZeroU32);
+pub struct WorkScheduleIdentity(NonZeroU32);
 
-impl FuelScheduleIdentity {
+impl WorkScheduleIdentity {
     pub const fn new(marker: u32) -> Option<Self> {
         match NonZeroU32::new(marker) {
             Some(marker) => Some(Self(marker)),
@@ -429,14 +429,14 @@ impl compiler_storage::Record for PackageKeyIdentity {
 
 #[cfg(test)]
 mod tests {
-    use super::{FuelScheduleIdentity, PackageKeyIdentity};
+    use super::{PackageKeyIdentity, WorkScheduleIdentity};
 
     #[test]
-    fn fuel_schedule_identity_is_nonzero_and_separate_from_semantic_ids() {
-        assert_eq!(FuelScheduleIdentity::new(0), None);
+    fn work_schedule_identity_is_nonzero_and_separate_from_semantic_ids() {
+        assert_eq!(WorkScheduleIdentity::new(0), None);
         assert_eq!(
-            FuelScheduleIdentity::new(3)
-                .expect("nonzero fuel schedule")
+            WorkScheduleIdentity::new(3)
+                .expect("nonzero work schedule")
                 .marker(),
             3
         );

@@ -1,4 +1,4 @@
-//! Canonical package-review identities for checked types and data fields.
+// Canonical package-review identities for checked types and data fields.
 
 mod fields;
 mod identity;

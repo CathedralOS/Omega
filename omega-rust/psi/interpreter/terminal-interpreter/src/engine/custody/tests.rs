@@ -198,3 +198,136 @@ fn overlapping_custody_bearing_arguments_still_alias() {
         TerminalInterpretError::StructuralArgumentAliasing(7)
     );
 }
+
+fn mutable_lender_pair(
+    root_shape: terminal_psi::StructuralTypeShape,
+    child_path: Vec<StructuralPathSegment>,
+    admitted_parent_access: StructuralAccess,
+) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    let declarations = [
+        terminal_psi::StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: structural_type(1),
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            owns_linear_claim: false,
+            copyable: true,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: false,
+            shape: root_shape,
+            scalar_restriction: None,
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: structural_type(2),
+            identity: terminal_psi::TerminalIdentityIndex(2),
+            owns_linear_claim: false,
+            copyable: true,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: false,
+            shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                semantic_vocabulary::ScalarType::Boolean,
+            ),
+            scalar_restriction: None,
+        },
+    ];
+    let mut parameters = [
+        parameter(1, 0, 1, StructuralMultiplicity::Unrestricted),
+        parameter(2, 1, 2, StructuralMultiplicity::Unrestricted),
+    ];
+    for parameter in &mut parameters {
+        parameter.access = StructuralAccess::MutableBorrow;
+    }
+    let values = [value(7, 1, Vec::new()), value(7, 2, child_path)];
+    let sources = [50, 51].map(|raw| StructuralArgument {
+        place: place(raw),
+        path: Vec::new(),
+        access: StructuralAccess::MutableBorrow,
+    });
+    let mut source_parameters = parameters.clone();
+    source_parameters[0].place = place(50);
+    source_parameters[0].access = admitted_parent_access;
+    source_parameters[1].place = place(51);
+    let provenance =
+        source_parameters
+            .each_ref()
+            .map(|parameter| super::StructuralArgumentProvenance {
+                parameter: Some(parameter),
+                reference_projection: None,
+            });
+    // External input cannot turn these equal backing identities into lineage.
+    assert_eq!(
+        bind_structural_arguments(&parameters, &values, None).unwrap_err(),
+        TerminalInterpretError::StructuralArgumentAliasing(7),
+    );
+    let types = crate::embedding::program::ProgramDeclarations::new(&declarations);
+    super::bind_active_retained_arguments(
+        &parameters,
+        &sources,
+        &values,
+        &provenance,
+        &|argument_index, rows| {
+            crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
+                &types,
+                &values[argument_index],
+                &BTreeMap::new(),
+                rows,
+            )
+        },
+        &types,
+        None,
+    )
+}
+
+fn boolean_array() -> terminal_psi::StructuralTypeShape {
+    terminal_psi::StructuralTypeShape::FixedArray {
+        element: structural_type(2),
+        length: terminal_psi::ArrayExtent::Literal(2),
+    }
+}
+
+#[test]
+fn internal_call_retains_admitted_mutable_parent_and_inline_child() {
+    let values = mutable_lender_pair(
+        boolean_array(),
+        vec![StructuralPathSegment::FixedIndex(0)],
+        StructuralAccess::MutableBorrow,
+    )
+    .unwrap();
+    assert_eq!(values.len(), 2);
+    assert_eq!(
+        values.get(&place(2)).unwrap().path,
+        vec![StructuralPathSegment::FixedIndex(0)]
+    );
+}
+
+#[test]
+fn retained_mutable_parent_does_not_admit_duplicate_extent_or_shared_source() {
+    for (path, access) in [
+        (Vec::new(), StructuralAccess::MutableBorrow),
+        (
+            vec![StructuralPathSegment::FixedIndex(0)],
+            StructuralAccess::SharedBorrow,
+        ),
+    ] {
+        assert_eq!(
+            mutable_lender_pair(boolean_array(), path, access).unwrap_err(),
+            TerminalInterpretError::StructuralArgumentAliasing(7),
+        );
+    }
+}
+
+#[test]
+fn stored_pointer_cannot_supply_inline_child_lineage() {
+    assert_eq!(
+        mutable_lender_pair(
+            terminal_psi::StructuralTypeShape::Reference {
+                referent: structural_type(2),
+                access: StructuralAccess::MutableBorrow,
+            },
+            vec![StructuralPathSegment::Referent],
+            StructuralAccess::MutableBorrow,
+        )
+        .unwrap_err(),
+        TerminalInterpretError::StructuralArgumentAliasing(7),
+    );
+}

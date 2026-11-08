@@ -1,3 +1,10 @@
+// Read-only field accessors for `PackagePolicyCallable`.
+//
+// `published_service_reach` returns the explicit/governing ceiling or the full
+// checked realized row when the body requests inference; concrete realization
+// never attenuates that contract, and unknown bodies supply no inferred
+// fallback.
+
 use crate::record::PackagePolicyCallable;
 use crate::record::PackagePolicyCallableConformance;
 use crate::record::PackagePolicyCallableRole;
@@ -40,10 +47,6 @@ impl PackagePolicyCallable {
         self.declared_service_reach.as_deref()
     }
 
-    /// A callable publishes its explicit/governing ceiling, or the full
-    /// checked realized row when its body requests inference. Concrete
-    /// realization cannot attenuate that contract; unknown bodies supply no
-    /// inferred fallback.
     pub fn published_service_reach(&self) -> Option<&[PackageReviewNominalIdentity]> {
         self.declared_service_reach()
             .or_else(|| self.checked_service_reach().realized())

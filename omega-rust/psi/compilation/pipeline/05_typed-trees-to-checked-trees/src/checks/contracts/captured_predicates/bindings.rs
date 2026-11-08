@@ -104,8 +104,8 @@ fn producer_alias<'facts>(
     {
         return None;
     }
-    let observed = crate::flow::captured_observation_places(program, &facts.flow, captured)?;
-    let produced = crate::flow::captured_value_places(program, &facts.flow, captured)?;
+    let observed = crate::flow::captured_observation_places(program, facts.flow.view(), captured)?;
+    let produced = crate::flow::captured_value_places(program, facts.flow.view(), captured)?;
     let ([observed], [produced]) = (observed.as_slice(), produced.as_slice()) else {
         return None;
     };
@@ -122,7 +122,7 @@ fn producer_alias<'facts>(
         && captured.producer_epoch.is_none()
         && !crate::flow::operand_observations_agree(
             program,
-            &facts.flow,
+            facts.flow.view(),
             captured.operand.row(),
             captured.producer_epoch.map_or(epoch, |read| read.row()),
             &produced.projected,
@@ -145,7 +145,7 @@ fn producer_alias<'facts>(
         if let Some(read) = captured.producer_epoch {
             !crate::flow::operand_bindings_agree(
                 program,
-                &facts.flow,
+                facts.flow.view(),
                 captured.operand.row(),
                 read.row(),
                 prefix,
@@ -198,7 +198,8 @@ pub(in crate::checks::contracts) fn collect_alternative_reads<'facts>(
         let (Some(epoch), [choice]) = (value.producer_epoch, value.choices.as_slice()) else {
             continue;
         };
-        let Some(places) = crate::flow::captured_value_places(program, &facts.flow, value) else {
+        let Some(places) = crate::flow::captured_value_places(program, facts.flow.view(), value)
+        else {
             continue;
         };
         for place in places {

@@ -1,9 +1,34 @@
-//! Retain one source-issued Build activation and its original receiver.
-//!
-//! This is the execution owner, not source discovery or package resolution.
-//! The caller advances execution, receives requests between fuel slices, and must join
-//! them before publishing a product. Protocol adapters retain one activation's state;
-//! a pause never reconstructs the instance or replays earlier effects.
+/*
+Retain and step a single source-issued `Build` activation (`TerminalBuildHost`,
+`TerminalBuildActivation`, `ReturnedBuild`).
+
+Why `TerminalBuildActivation` is a stateful coroutine owned by the caller rather
+than a callback loop:
+1. One `TerminalBuildHost` mints a single invocation-local root receiver
+   (`original = TerminalStructuralValue::minted(1, ...)`), wires the request,
+   binding, and filesystem host adapters (`TerminalBuildRequestHost`,
+   `TerminalBuildBindingHost`, `TerminalBuildFilesystemHost`) to that exact
+   receiver token, and starts at most one `TerminalBuildActivation` (`started`
+   atomic guard). Neither a second instance nor a guest-constructed struct of
+   the same type can forge host requests.
+2. `orchestration` drives the activation in work slices via `advance(additional_work)`.
+   Whenever `advance` pauses on a provider readiness demand (`AwaitingEffect`) or
+   a Product declaration query (`HostComputationPending`), the activation stays
+   suspended in place with its live `TerminalInstance` and `EvaluationInvocationAccount`
+   intact while `orchestration` compiles the required dependency and resumes via
+   `install_provider` or `answer_query`.
+3. Every mutating transition (`advance`, `install_provider`, `answer_query`) sets
+   `self.state = ActivationState::Refused` before performing fallible work and
+   restores `Running` or `Returned` only on success, so any partial failure
+   permanently poisons the activation rather than letting later steps conceal an
+   incomplete provider installation or failed query.
+4. On normal return (`complete`), we extract the plain settings from borrowed
+   entry `0` (`settings::extract`), close the interpreter instance before
+   draining host selections and logs, validate the authored project role
+   (`project::declaration`), and return `ReturnedBuild` with its complete
+   request and demanded-source ledgers attached for coordinator source-join
+   settlement.
+*/
 
 pub(crate) mod completed_pure_build;
 pub(crate) mod preparation;
@@ -25,8 +50,8 @@ use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };
 use psi_compiler::ProducedTerminalProgram;
+use psi_work::WorkMeter;
 use std::sync::Arc;
-use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstance, TerminalInstantiation,
     TerminalProgram, TerminalStructuralInputs, TerminalStructuralValue,
@@ -37,13 +62,11 @@ use crate::host::requests::{IssuedBuildRequest, TerminalBuildRequestHost};
 
 pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdentity {
     evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
         storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
     }
 }
 
-/// Normal-return values and the complete request ledger. The coordinator's
-/// mandatory dependency join precedes normalized Build publication.
 pub struct ReturnedBuild {
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) declaration: Option<build_declarations::BuildDeclaration>,
@@ -66,29 +89,20 @@ impl ReturnedBuild {
     pub fn source_result(&mut self) -> BuildSourceResult<'_> {
         BuildSourceResult::executed(self)
     }
-    /// An authored role established by this activation's normal return. The
-    /// compiler-owned default preserves its admitted context and has no named
-    /// declaration. A name alone never settles dependencies or publishes Product.
+
     pub fn declaration(&self) -> Option<&build_declarations::BuildDeclaration> {
         self.declaration.as_ref()
     }
 
-    /// The complete issued roster, including requests observed in earlier steps.
-    /// Observing or ignoring a step cannot remove a dependency from final joining.
     pub fn requests(&self) -> &[IssuedBuildRequest] {
         &self.requests
     }
 
-    /// Exact dependencies used during this activation, for helper execution or
-    /// declaration queries. Catalog observations retain these demands without
-    /// claiming completion of unrelated Product requests.
     pub fn demanded_sources(&self) -> &[BuildDependencySelection] {
         &self.demanded_sources
     }
 }
 
-/// Host custody is retained by the interpreter's owned adapters. One host starts
-/// one activation; dropping a paused activation cannot start its effects again.
 pub struct TerminalBuildHost {
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<ProducedTerminalProgram>,
@@ -127,8 +141,6 @@ impl TerminalBuildHost {
         if !entry.scalar_parameters.is_empty() {
             return Err("Build activation has unexpected scalar parameters".into());
         }
-        // Identity is invocation-local: neither a second instance nor a same-typed
-        // guest constructor inherits this host's right to submit requests.
         let original = TerminalStructuralValue::minted(1, parameter.structural_type, Vec::new());
         let requests = TerminalBuildRequestHost::new(
             artifact,
@@ -283,12 +295,11 @@ impl TerminalBuildHost {
             }
         }
 
-        let fuel =
-            TerminalFuelMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
+        let work = WorkMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
             host: Arc::clone(self),
-            fuel,
+            work,
             state: ActivationState::Running,
             requests: Vec::new(),
             demanded_sources: Vec::new(),
@@ -303,12 +314,10 @@ enum ActivationState {
     Refused,
 }
 
-/// One interpreter instance, including its suspended continuation and shared
-/// account. The caller owns scheduling between advances; no callback hides it.
 pub struct TerminalBuildActivation {
     instance: TerminalInstance<'static, 'static>,
     host: Arc<TerminalBuildHost>,
-    fuel: TerminalFuelMeter,
+    work: WorkMeter,
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
@@ -323,17 +332,12 @@ pub struct TerminalBuildStep<'step> {
 }
 
 impl TerminalBuildActivation {
-    /// Invocation-local scalar observations, including work before a refusal.
-    /// The live Build account already owns their charges; consumers must not
-    /// debit these receipts again. Normal Build publication snapshots that account.
     pub fn helper_evaluation_accounting(
         &self,
     ) -> &build_time_evaluation::SourceCompletionAccounting {
         &self.helper_accounting
     }
 
-    /// Resume only the exact demand that paused this activation. A failed answer
-    /// poisons it rather than allowing later effects to conceal query failure.
     pub fn answer_query(
         &mut self,
         request: &crate::host::bindings::BuildProductQuery,
@@ -370,18 +374,14 @@ impl TerminalBuildActivation {
         Ok(())
     }
 
-    /// Complete immutable ledger issued so far, including earlier fuel slices.
     pub fn requests(&self) -> &[IssuedBuildRequest] {
         &self.requests
     }
 
-    /// The exact receiving code for independently checked provider admission.
     pub fn view(&self) -> terminal_codec::TerminalExecutionView<'_> {
         self.host.produced.view()
     }
 
-    /// Install every demanded slot before completing the retained readiness call.
-    /// Partial failure poisons this activation; it cannot resume with half a provider.
     pub fn install_provider(
         &mut self,
         selected: BuildDependencySelection,
@@ -448,19 +448,17 @@ impl TerminalBuildActivation {
         Ok(())
     }
 
-    pub fn advance(&mut self, additional_fuel: u64) -> Result<TerminalBuildStep<'_>, String> {
+    pub fn advance(&mut self, additional_work: u64) -> Result<TerminalBuildStep<'_>, String> {
         match self.state {
             ActivationState::Returned => return Err("Build activation has already returned".into()),
             ActivationState::Refused => return Err("Build activation has already failed".into()),
             ActivationState::Running => {}
         }
-        // Failure is sticky, including an account or host-drain refusal. A slice
-        // replenishes scheduling fuel, never the total invocation allowance.
         self.state = ActivationState::Refused;
-        self.fuel.replenish(additional_fuel).map_err(describe)?;
+        self.work.replenish(additional_work).map_err(describe)?;
         let status = self
             .instance
-            .invoke(&mut self.fuel)
+            .invoke(&mut self.work)
             .map_err(|error| error.to_string())?;
         let first_request = self.requests.len();
         self.requests.extend(self.host.requests.drain_requests()?);
@@ -494,9 +492,6 @@ impl TerminalBuildActivation {
         })
     }
 
-    /// Extract only a normal return. Consuming the activation closes its instance
-    /// before retiring the host selections and log. The complete request ledger
-    /// remains attached; this operation does not assert its dependencies joined.
     pub fn complete(mut self) -> Result<ReturnedBuild, String> {
         if !matches!(self.state, ActivationState::Returned) {
             return Err("Build completion requires its normal interpreter return".into());
@@ -509,9 +504,6 @@ impl TerminalBuildActivation {
         self.instance.close().map_err(describe)?;
         drop(self.instance);
         let declaration = if self.host.default_source {
-            // This is the exact compiler-owned ordinary default, never an
-            // authored entry missing its role. Supplied role/owner remain in
-            // package inputs; a loose root acquires its anonymous owner later.
             if !self.requests.is_empty() {
                 return Err("default Build unexpectedly issued project requests".into());
             }
@@ -537,8 +529,6 @@ impl TerminalBuildActivation {
         Ok(ReturnedBuild {
             identity: self.host.produced.view().custody_identity(),
             declaration,
-            // Default code inherits only the exact graph admitted before its
-            // execution. Completion cannot graft a graph onto an unbound root.
             source_join: self.host.default_sources.clone(),
             requests: self.requests,
             demanded_sources: self.demanded_sources,

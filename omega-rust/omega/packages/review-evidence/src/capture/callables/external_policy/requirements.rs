@@ -1,3 +1,8 @@
+// Satisfied requirement projection for an external executable-supply leaf across
+// trait conformances, top-level requirements, and closed boundary operators. For
+// fixed-token external operators, review admits only closed float intrinsic execution
+// (`IntrinsicRequirement::closed_float_execution`).
+
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::callables::conformances::callable_conformance;
@@ -101,9 +106,6 @@ pub(super) fn project(
             {
                 return Err(rejected("external operator application is not closed"));
             }
-            // Review asks only the float lane: a fixed-token integer
-            // comparison that selected dispatch closes is still rejected
-            // here. See `IntrinsicRequirement::closed_float_execution`.
             if operator.spelling.is_some()
                 && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
                     || IntrinsicRequirement::from_operator(compilation.checking_input, operator)

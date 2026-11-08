@@ -1,4 +1,14 @@
-//! Bounded capture of a materialized package-source tree.
+/*
+Bounded capture of a materialized package-source tree (`capture_local_source`,
+`capture_exact_materialized`, and `capture_local_source_from_open_root`).
+
+Because a retained root directory handle stays pinned to its original inode if
+the root path is renamed or replaced mid-capture, `capture_local_source_from_open_root`
+compares the canonical path's observation before and after traversal against the
+retained handle's opening metadata, and runs `verify_captured_tree` after
+`visit_directory` so mutations landing in already-closed subtrees reject before
+publication.
+*/
 
 mod traversal;
 mod traversal_observations;
@@ -43,8 +53,6 @@ pub(crate) fn capture_local_source(
     capture_local_source_from_open_root(root, root_directory, limits, policy)
 }
 
-/// Capture the tree below an already open no-follow root under the exact
-/// materialized policy, cloning the handle so the caller keeps its own.
 pub(crate) fn capture_exact_materialized(
     root: &Path,
     root_directory: &CapabilityDirectory,
@@ -66,10 +74,6 @@ pub(crate) fn capture_local_source_from_open_root(
 ) -> Result<CapturedLocalTree, SourceResolveError> {
     let mut source_entries = Vec::new();
     let mut captured_file_bytes = 0_u64;
-    // The retained root handle cannot see its own replacement: a renamed or
-    // remade root leaves the handle pinned to the old inode while the path
-    // moves on. Compare the canonical path's observation before and after the
-    // traversal so that swap rejects instead of publishing a stale capture.
     let opening_root = root_directory.dir_metadata().at(&root)?;
     let named_root = open_canonical_source_root(&root)?
         .dir_metadata()
@@ -89,9 +93,6 @@ pub(crate) fn capture_local_source_from_open_root(
         &mut source_entries,
         &mut tree_observations,
     )?;
-    // The per-directory close covers drift while its own visit ran; this
-    // sweep re-observes the whole recorded tree once more so a mutation that
-    // landed in an already-closed subtree still rejects at capture time.
     verify_captured_tree(&root_directory, &root, &tree_observations)?;
     let closing_root = open_canonical_source_root(&root)?
         .dir_metadata()

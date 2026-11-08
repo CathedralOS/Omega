@@ -581,7 +581,7 @@ pub(super) fn build_traced(
                     )
                         && validation::reference_result_custody::stored_carrier_ingress_is_complete(
                             program,
-                            facts,
+                            facts.view(),
                             owner.symbol,
                             state.symbol,
                             source_parameter.symbol,

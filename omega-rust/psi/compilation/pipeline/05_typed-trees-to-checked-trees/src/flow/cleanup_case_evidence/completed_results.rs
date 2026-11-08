@@ -242,8 +242,17 @@ impl CompletedResult<'_> {
         })
     }
 
-    pub(super) fn belongs_to(&self, program: &dyn CheckingInput, facts: &CheckFacts) -> bool {
-        std::ptr::eq(self.program, program) && std::ptr::eq(self.facts, facts)
+    pub(super) fn belongs_to(
+        &self,
+        program: &dyn CheckingInput,
+        facts: checked_trees::CheckFactsRef<'_>,
+    ) -> bool {
+        // Result proofs read these immutable plans. A borrowed view must name
+        // those same plans; the temporary view's own address has no identity.
+        std::ptr::eq(self.program, program)
+            && std::ptr::eq(&self.facts.semantic, facts.semantic)
+            && std::ptr::eq(&self.facts.flow.control, facts.flow.control)
+            && std::ptr::eq(&self.facts.flow.contexts, facts.flow.contexts)
     }
 
     pub(super) fn proves_case(

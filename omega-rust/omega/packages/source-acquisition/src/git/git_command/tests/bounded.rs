@@ -1,6 +1,10 @@
+// Unit tests for bounded stdout/stderr overflow rejection and cleanup-failure
+// error precedence.
+
 use super::{SourceResolveError, reconcile_git_command_result};
 #[cfg(unix)]
 use super::{run_command_bounded, shell_command};
+#[cfg(unix)]
 use std::time::Duration;
 
 #[cfg(unix)]

@@ -1,4 +1,5 @@
-//! Recover source for comparison through existing custody issuers only.
+// Recover baseline `PackageSourceCustody` for source-diff comparison through existing local or Git custody issuers.
+// Relative workspace dependencies share repository lineage with a recorded Git request and are recovered at that exact pin rather than inferring package identity from a name or decoding a lock path.
 
 use crate::declarations::BuildDeclarationKind;
 use crate::resolution::graph::{
@@ -48,9 +49,6 @@ pub(super) fn recover(
     } else {
         match expected.resolution() {
             ImmutableSourceResolution::Git { .. } => {
-                // A relative workspace dependency shares its repository lineage with
-                // a recorded Git request. Recover its accepted path at that exact pin;
-                // never infer package identity from the name or decode a lock path.
                 let (repository, revision) = subject
                     .dependency_requests()
                     .iter()

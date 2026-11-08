@@ -1,4 +1,4 @@
-//! Build-entry declaration rejection mapping for dependency projection.
+// Build-entry declaration rejection mapping for dependency projection.
 
 use super::super::error::DependencyProjectionError;
 use crate::declarations::BuildDeclarationError;

@@ -62,6 +62,156 @@ pub struct ContextualCleanupFacts {
 }
 
 impl ContextualCleanupFacts {
+    /// Append the rows another producer built from empty after these rows, as
+    /// if it had appended them here. Its handles into its own dispositions,
+    /// exclusions and segments move by the rows already here; handles into
+    /// flow ownership (a disposition's selection, exit and path) are left as
+    /// they are. Returns `false`, changing nothing, when any of these arenas
+    /// cannot be shifted exactly (see `shifted_rows::shiftable`).
+    pub fn append_shifted(&mut self, other: Self) -> bool {
+        use crate::checked_trees::shifted_rows::{append_rows, shift, shift_span, shiftable};
+        let Self {
+            dispositions,
+            storage_establishments,
+            selected_dispositions,
+            applications,
+            exclusions,
+            segments,
+            window_invocations,
+            entry_requirements,
+            state_index: _,
+            selected_roster: _,
+        } = other;
+        let (
+            Some(disposition_rows),
+            Some(_),
+            Some(_),
+            Some(_),
+            Some(exclusion_rows),
+            Some(segment_rows),
+            Some(_),
+            Some(_),
+        ) = (
+            shiftable(&self.dispositions, &dispositions),
+            shiftable(&self.storage_establishments, &storage_establishments),
+            shiftable(&self.selected_dispositions, &selected_dispositions),
+            shiftable(&self.applications, &applications),
+            shiftable(&self.exclusions, &exclusions),
+            shiftable(&self.segments, &segments),
+            shiftable(&self.window_invocations, &window_invocations),
+            shiftable(&self.entry_requirements.rows, &entry_requirements.rows),
+        )
+        else {
+            return false;
+        };
+        let place = |place: Place| Place {
+            root: place.root,
+            segments: shift_span(place.segments, segment_rows),
+        };
+        append_rows(&mut self.dispositions, dispositions, |row| {
+            let ContextualCleanupDisposition {
+                selection,
+                machine,
+                state,
+                source,
+                exit,
+                completion,
+                completion_constraints,
+                root,
+                disposed_type,
+                path,
+                exclusions,
+                definite_exclusions,
+                inactive_cases,
+                establishment_ordered,
+                zero_image,
+            } = row;
+            ContextualCleanupDisposition {
+                selection,
+                machine,
+                state,
+                source,
+                exit,
+                completion,
+                completion_constraints,
+                root,
+                disposed_type,
+                path,
+                exclusions: shift_span(exclusions, exclusion_rows),
+                definite_exclusions: shift_span(definite_exclusions, exclusion_rows),
+                inactive_cases: shift_span(inactive_cases, exclusion_rows),
+                establishment_ordered,
+                zero_image,
+            }
+        });
+        append_rows(
+            &mut self.storage_establishments,
+            storage_establishments,
+            |row| {
+                let ContextualStorageEstablishment {
+                    prior_value_transferred,
+                    machine,
+                    state,
+                    source,
+                    destination,
+                } = row;
+                ContextualStorageEstablishment {
+                    prior_value_transferred,
+                    machine,
+                    state,
+                    source,
+                    destination: place(destination),
+                }
+            },
+        );
+        append_rows(
+            &mut self.selected_dispositions,
+            selected_dispositions,
+            |row| shift(row, disposition_rows),
+        );
+        append_rows(&mut self.applications, applications, |row| {
+            let ContextualCleanupApplication { template, instance } = row;
+            ContextualCleanupApplication {
+                template: shift(template, disposition_rows),
+                instance: shift(instance, disposition_rows),
+            }
+        });
+        append_rows(&mut self.exclusions, exclusions, |row| {
+            let ContextualCleanupExcludedRegion {
+                root,
+                segments,
+                cause,
+            } = row;
+            ContextualCleanupExcludedRegion {
+                root,
+                segments: shift_span(segments, segment_rows),
+                cause,
+            }
+        });
+        append_rows(&mut self.segments, segments, |row| row);
+        append_rows(&mut self.window_invocations, window_invocations, |row| {
+            let StorageWindowInvocation {
+                machine,
+                state,
+                statement,
+                expression,
+                absent,
+                opened_statement,
+            } = row;
+            StorageWindowInvocation {
+                machine,
+                state,
+                statement,
+                expression,
+                absent: place(absent),
+                opened_statement,
+            }
+        });
+        let ContextualCleanupEntryRequirements { rows } = entry_requirements;
+        append_rows(&mut self.entry_requirements.rows, rows, |row| row);
+        true
+    }
+
     /// A receiving occurrence's exact pre-disposal vacancy. Repeated producer
     /// rows must agree; absence and mixed incoming evidence grant no vacancy.
     pub fn replaces_transferred_storage(

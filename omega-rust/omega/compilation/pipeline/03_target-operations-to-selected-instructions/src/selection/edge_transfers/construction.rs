@@ -122,7 +122,7 @@ pub(in crate::selection) fn prepare(
             );
             if let SelectedSuccessorRole::OperationContinuation { operation } = successor.role {
                 if successor.psi_edge.is_some()
-                    || !successor.fuel.is_empty()
+                    || !successor.work.is_empty()
                     || !successor.bindings.is_empty()
                     || !successor.structural_bindings.is_empty()
                     || successor.structural_case.is_some()
@@ -132,7 +132,7 @@ pub(in crate::selection) fn prepare(
                     return Err(invalid(function_index));
                 }
                 // Physical fallthrough conflicts need a jump, not an invented
-                // semantic edge or a second custody/fuel settlement.
+                // semantic edge or a second custody/work settlement.
                 let jump_id = SelectedInstructionId(
                     u32::try_from(next_instruction).map_err(|_| invalid(function_index))?,
                 );
@@ -166,7 +166,7 @@ pub(in crate::selection) fn prepare(
             let psi_edge = successor.psi_edge.ok_or_else(|| invalid(function_index))?;
             let mut continuation = successor.clone();
             continuation.role = SelectedSuccessorRole::EdgeTransferContinuation;
-            continuation.fuel.clear();
+            continuation.work.clear();
             let mut instructions = preparation;
             if continuation.structural_case.is_some() {
                 structural_case::snapshot(

@@ -11,7 +11,7 @@ fn sponsor(cells: u64) -> BuildEvaluationSponsor {
     BuildEvaluationSponsor::new_with_measurement(
         BuildEvaluationSponsorLimits::new(100, 8, 2, 2, cells, 100, 100, 100).unwrap(),
         EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         },
     )
@@ -37,7 +37,7 @@ fn payload_is_funded_before_reading_elements_and_refusal_preserves_inspection() 
     assert!(matches!(
         value.set_element(0, TerminalScalarValue::Boolean(true)),
         Err(TerminalInterpretError::Storage(
-            EvaluationAccountingError::AllowanceExhausted(EvaluationResource::LiveStorage)
+            EvaluationAccountingError::BudgetExhausted(EvaluationResource::LiveStorage)
         ))
     ));
     assert_eq!(value.elements().unwrap(), inspected.elements().unwrap());
@@ -262,7 +262,7 @@ fn resident_preflight_funds_detachment_without_publishing_contents() {
     assert!(matches!(
         value.prepare_resident_install(0, &same_resident),
         Err(TerminalInterpretError::Storage(
-            EvaluationAccountingError::AllowanceExhausted(EvaluationResource::LiveStorage)
+            EvaluationAccountingError::BudgetExhausted(EvaluationResource::LiveStorage)
         ))
     ));
     assert_eq!(value.cell(0), further_inspection.cell(0));

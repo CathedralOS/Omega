@@ -1,35 +1,19 @@
+// Closed structural identity of executable code supplied outside Omega, including foreign locators and evaluated import/syscall receipts.
+
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
 use target::ForeignLocatorCandidate;
 
-/// Closed structural identity of executable code supplied outside Omega.
-/// String fields are foreign ABI identifiers, not package-authored policy or
-/// capability classifications.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewExternalBinding {
-    /// Ordinary typed `ForeignBinding::DllImport` evaluation: the only import row.
-    /// The string-backed `Import { library, symbol }` row is retired, as is
-    /// the typed identity behind it; review never reinterprets two
-    /// independently authored strings as one atomic physical locator.
     NormalizedImport(PackageReviewEvaluatedImport),
-    /// Ordinary typed `ForeignBinding::Syscall` evaluation. This remains distinct
-    /// from the legacy integer syscall carrier and retains its exact producer,
-    /// target, evaluator, and materializer receipt.
     NormalizedSyscall(PackageReviewEvaluatedSyscall),
-    Syscall {
-        number: i64,
-    },
+    Syscall { number: i64 },
     CompilerIntrinsic,
-    VtableSlot {
-        index: i64,
-    },
-    VtableField {
-        field: String,
-    },
-    TableFunction {
-        field: String,
-    },
+    VtableSlot { index: i64 },
+    VtableField { field: String },
+    TableFunction { field: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -54,9 +38,6 @@ pub enum PackageReviewForeignLocator {
 }
 
 impl PackageReviewForeignLocator {
-    /// The review-record locator for one provider-plan candidate: a
-    /// byte-for-byte carry of the candidate's coordinates into the review
-    /// vocabulary.
     pub(crate) fn from_candidate(candidate: &ForeignLocatorCandidate) -> Self {
         match candidate {
             ForeignLocatorCandidate::PeByName { library, export } => Self::PeByName {
@@ -87,10 +68,8 @@ impl PackageReviewForeignLocator {
     }
 }
 
-/// The review record retains the provider's evaluated-usage carrier verbatim.
 pub(crate) type PackageReviewEvaluatedBindingUsage = effects::provider_plan::EvaluatedBindingUsage;
 
-/// Stable, source-handle-free review identity for one evaluated import.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PackageReviewEvaluatedImport {
     pub(crate) target: String,
@@ -109,7 +88,6 @@ pub(crate) struct PackageReviewEvaluatedImport {
     pub(crate) receipt_identity_digest: [u8; 32],
 }
 
-/// Stable, source-handle-free review identity for one evaluated syscall.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PackageReviewEvaluatedSyscall {
     pub(crate) target: String,

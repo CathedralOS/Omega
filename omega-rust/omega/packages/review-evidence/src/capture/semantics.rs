@@ -1,4 +1,6 @@
-//! Fail-closed translation from checked compiler semantics into portable review shapes.
+// Fail-closed translation from checked compiler semantics into portable review
+// shapes across conformances, declarations, facts, services, signatures, types,
+// and scalar/expression encoding.
 
 pub(super) mod conformances;
 pub(super) mod declarations;

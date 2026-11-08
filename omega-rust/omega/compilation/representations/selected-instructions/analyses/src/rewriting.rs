@@ -243,7 +243,7 @@ pub fn plan_function<'source, E>(
 }
 
 /// The four receipt identities every family seals the same way: source,
-/// transformed, optimization unit, and fuel schedule, followed by the
+/// transformed, optimization unit, and work schedule, followed by the
 /// family's own recorded fields.
 #[macro_export]
 macro_rules! receipt {
@@ -252,7 +252,7 @@ macro_rules! receipt {
             source_selected: $source.selected_identity(),
             transformed_selected: selected_instructions::selected_instruction_plan_identity(&$proposed),
             optimization_unit: $source.optimization_unit_identity(),
-            fuel_schedule: $source.fuel_schedule_identity(),
+            work_schedule: $source.work_schedule_identity(),
             $($field: $value,)*
         }
     };

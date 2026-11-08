@@ -1,8 +1,11 @@
-//! Freeze entry declaration facts before target Calling settlement.
-//!
-//! Captured contracts contain no Source context. Surface availability,
-//! provenance and the exact immutable accepted binding remain deferred until
-//! the same settlement points as before; retention grants no execution authority.
+// We freeze entry declaration facts before target Calling settlement so
+// captured contracts retain no Source context. Surface availability,
+// provenance, and the exact immutable accepted binding remain deferred until
+// settlement; retention grants no execution authority. We resolve the entry
+// schema only inside the slot's contract owner: source custody identifies a
+// bundled source unit and its leaf name selects a declaration inside that unit,
+// while package bindings retain the complete declaration path and never fall
+// back to the bundled contract.
 
 use super::SelectedProgramEntry;
 use super::program_entry_semantic_binding_role;
@@ -120,8 +123,6 @@ pub(super) fn prepare(
                     .unwrap_or_default()
             })
             .collect(),
-        // None is a missing result. Some("") must still reach physical plan
-        // construction and its original empty-identity refusal.
         result_type_identity: physical
             .result_type_identity
             .map(|identity| typed.type_identity_text(identity).unwrap_or_default()),
@@ -129,10 +130,6 @@ pub(super) fn prepare(
     }))
 }
 
-/// Resolve only inside the slot's contract owner. Source custody identifies a
-/// bundled source unit; its leaf name selects a declaration inside that unit,
-/// never a candidate in the whole program. Package bindings already retain the
-/// complete declaration path and must not fall back to the bundled contract.
 fn selected_entry_schema<'program>(
     typed: &'program TypedTrees,
     slot: target::ProgramEntrySlotDeclaration,
@@ -178,9 +175,6 @@ fn selected_entry_schema<'program>(
             }));
         }
     }
-    // An unlocked compile has no accepted binding, so a dependency's copy of
-    // the contract (std's, usually) is loaded but not selected. Name the
-    // review that supplies the binding instead of an empty candidate count.
     let package_copy_loaded = || {
         typed.symbols.source_files().any(|source_file| {
             source_file.dependency_scope == source::DependencyScope::Product
@@ -225,8 +219,6 @@ pub(super) struct TargetOwnedPhysicalContractSource {
     pub non_authoritative_package_source_report_fingerprint: u64,
 }
 
-/// Source-unit facts, not an accepted-binding verdict. The unchanged late
-/// binding check consumes these alongside the attached target service schema.
 pub(super) struct PreparedPhysicalContractSource {
     package: target::ProgramEntryPhysicalContractPackage,
     package_source_digest: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,

@@ -1,3 +1,8 @@
+// We verify transitive source custody and selection evidence across a
+// compilation scope. Retained in-memory captures already own the exact bytes
+// consumed by compilation, whereas persistent on-disk snapshots require
+// physical snapshot verification before their compiled review is accepted.
+
 use super::{CompileResolvedPackageReviewsError, PackageSourceVerificationPhase};
 use crate::declarations::PackageKey;
 use crate::resolution::PackageCompilationScope;
@@ -27,10 +32,6 @@ pub(super) fn verify_selected_source_custody(
         let custody = closure
             .custody(source_package)
             .expect("validated source closure retains every reachable custody");
-        // A retained capture owns the exact bytes consumed by compilation; its
-        // routing path need not be a sealed on-disk cache directory. Persistent
-        // snapshots still require physical verification. Publication separately
-        // compares live local sources with the reviewed immutable content.
         if custody.captured_source().is_none() {
             verify_package_source_snapshot(
                 custody.snapshot_root(),

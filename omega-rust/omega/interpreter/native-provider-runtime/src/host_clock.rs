@@ -1,12 +1,18 @@
-//! Read the executing host's OS clock without introducing a modeled epoch.
-//! The receiving runtime independently admits the target, selector and authority.
+/*
+We read the executing host's operating-system clock without introducing a
+modeled epoch. The receiving runtime independently admits the target, selector,
+and authority.
+
+On Unix, `clock_gettime` initializes the complete `timespec` output on success.
+On Windows, where POSIX clock IDs do not exist, the receiving Windows model
+requests only realtime (`0`) and monotonic (`1`), using a single process-wide
+`Instant` anchor so monotonic readings stay ordered.
+*/
 
 pub fn read_host_clock_nanoseconds(selector: u32) -> std::io::Result<u64> {
     #[cfg(unix)]
     {
         let mut reading = std::mem::MaybeUninit::<libc::timespec>::uninit();
-        // clock_gettime initializes the complete output on success. The
-        // selector is an OS word, and the output has its native ABI alignment.
         if unsafe { libc::clock_gettime(selector as libc::clockid_t, reading.as_mut_ptr()) } != 0 {
             return Err(std::io::Error::last_os_error());
         }
@@ -27,9 +33,6 @@ pub fn read_host_clock_nanoseconds(selector: u32) -> std::io::Result<u64> {
     }
     #[cfg(not(unix))]
     {
-        // Windows has no POSIX clock IDs. The receiving Windows model asks
-        // only for realtime (0) and its monotonic counter (1), whose epoch is
-        // unspecified: one process-wide anchor keeps readings ordered.
         static ANCHOR: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
         let elapsed = match selector {
             0 => std::time::SystemTime::now()

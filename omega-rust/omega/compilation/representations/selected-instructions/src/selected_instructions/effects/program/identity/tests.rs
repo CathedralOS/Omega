@@ -11,7 +11,7 @@ use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterUnitId, TargetRegisterEnvironmentIdentity,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 
 use crate::{
@@ -30,7 +30,7 @@ fn plan() -> PreAllocationMachineEffectPlan {
         identity: PreAllocationMachineEffectIdentity::from_bytes([0; 32]),
         selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
         optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
-        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
         target: NativeTarget::linux_x64(),
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
         register_constraints: RegisterConstraintCatalogIdentity::from_bytes([4; 32]),

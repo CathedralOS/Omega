@@ -4,8 +4,8 @@ use optimization_unit::{
     PsiOptimizationUnit, canonical_ownership_frontier_snapshot,
     recompute_psi_optimization_unit_identity,
 };
+use psi_work::WorkSchedule;
 use std::collections::BTreeSet;
-use terminal_fuel::TerminalFuelSchedule;
 
 pub(super) fn validate_identity_and_fact_indexes(
     unit: &PsiOptimizationUnit,
@@ -17,8 +17,8 @@ pub(super) fn validate_identity_and_fact_indexes(
             recomputed,
         });
     }
-    if unit.fuel_schedule != TerminalFuelSchedule::CURRENT.identity() {
-        return Err(OptimizationUnitValidationError::WrongFuelSchedule);
+    if unit.work_schedule != WorkSchedule::CURRENT.identity() {
+        return Err(OptimizationUnitValidationError::WrongWorkSchedule);
     }
     if unit
         .accepted_obligation_facts

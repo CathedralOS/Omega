@@ -396,7 +396,7 @@ fn replacement_byte(
 /// Whether the carrier provably satisfies `predicate` BEFORE the store, from an
 /// exact literal snapshot, an already-proved per-byte class, or a declared
 /// domain whose own predicate implies it.
-fn carrier_proves_predicate(
+pub(in crate::flow) fn carrier_proves_predicate(
     program: &dyn ::validation::CheckingInput,
     carrier_facts: &[Fact],
     predicate: validation::field_domains::ByteSequencePredicate,

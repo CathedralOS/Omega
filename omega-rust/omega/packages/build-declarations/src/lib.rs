@@ -1,13 +1,40 @@
-#![forbid(unsafe_code)]
+/*
+Shared validated Build declarations, evaluated project requests, and the
+toolchain-authored Build prelude source.
 
-//! Shared validated Build declarations, requests, and ordinary prelude source.
-//!
-//! Interpreted activations supply package and dependency authority. Syntax
-//! projection is confined to conservative source edits and diagnostic naming;
-//! it never binds a package to acquired bytes or recovers historical identity.
-//! `build_declaration` owns the records and validated parts; `dependencies`
-//! shares dependency vocabulary with editing tools. `prelude` supplies the
-//! compiler-authored Build API as ordinary source.
+We separate two ways the compiler inspects `build.omg`:
+1. Interpreted Build activations (`BuildRequest`, `BuildDependencySource`),
+   which execute inside the Psi evaluator and supply authoritative project role
+   and dependency requests once the build machine runs.
+2. Conservative syntax projection (`syntax_projection`, `dependencies`), which
+   reads direct `Build::<operation>(builder, ...)` statements from parsed syntax
+   trees without evaluating helpers, control flow, or imports.
+
+Why keep syntax projection alongside interpreted evaluation? Package-manager
+editing commands (`omega add`, `omega remove`) and early workspace/package
+discovery need to inspect or rewrite literal declarations and report targeted
+shape diagnostics before a full build graph exists. Syntax projection never
+grants acquisition, execution, or publication authority and never recovers
+identity from non-canonical call shapes.
+*/
+
+/*
+Module layout:
+- `build_declaration`: validated project roles (`Package`, `Application`,
+  `Workspace`), `ProjectName`, and `WorkspaceMemberPath`.
+- `build_request`: evaluated requests emitted by the `Build` host protocol.
+- `dependencies`: direct `Build::depend*` row grammar shared by acquisition and
+  source editing.
+- `direct_build_call`: the single canonical `Build::<op>(builder, ...)` call
+  shape check shared across role and dependency projectors.
+- `syntax_projection`: AST-level role and entry validation over `build.omg`.
+- `declaration_errors`: user-facing diagnostics for every syntax projection
+  refusal.
+- `prelude`: the toolchain-authored `Build` API source (`build_prelude_source`),
+  assembled with the shared target and optimization catalogs.
+*/
+
+#![forbid(unsafe_code)]
 
 mod build_declaration;
 mod build_request;
