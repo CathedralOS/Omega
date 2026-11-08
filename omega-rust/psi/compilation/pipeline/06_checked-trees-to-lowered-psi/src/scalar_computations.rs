@@ -2609,7 +2609,7 @@ pub(crate) mod computations {
 
         impl Expansion<'_> {
             #[allow(clippy::too_many_arguments)]
-            pub(crate) fn dispatch(
+            pub(super) fn dispatch(
                 &mut self,
                 identities: &mut terminal_psi::TerminalIdentityTableBuilder,
                 expression: typed_trees::expression::ExpressionHandle,
