@@ -28,7 +28,7 @@ fn checking_does_not_reopen_typed_preparation() {
     }
     assert!(source.contains("program: typed_trees::FrozenTypedTrees"));
     let specialization =
-        include_str!("../../04_typed-trees-to-typed-trees/src/monomorphization/mod.rs");
+        include_str!("../../04_typed-trees-to-typed-trees/src/monomorphization.rs");
     let preparation = include_str!("../../04_typed-trees-to-typed-trees/src/preparation.rs");
     for source in [specialization, preparation] {
         for removed in [
@@ -67,12 +67,11 @@ fn checking_does_not_reopen_typed_preparation() {
     // Exercise the whole ownership surface, not a hand-maintained roster of
     // files: adding a new query module cannot silently restore ambient state.
     let source_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let specialization_root =
-        source_root.join("../../04_typed-trees-to-typed-trees/src/monomorphization");
+    let stage04_root = source_root.join("../../04_typed-trees-to-typed-trees/src");
     let mut directories = vec![
         source_root.clone(),
         source_root.join("../../../validation/src"),
-        specialization_root.clone(),
+        stage04_root.clone(),
     ];
     while let Some(directory) = directories.pop() {
         for entry in std::fs::read_dir(directory).expect("checking source directory") {
@@ -85,7 +84,17 @@ fn checking_does_not_reopen_typed_preparation() {
                     .is_none_or(|name| name != "immutable_checking_input.rs")
             {
                 let source = std::fs::read_to_string(&path).expect("checking source text");
-                if path.starts_with(&specialization_root) {
+                if path.starts_with(&stage04_root)
+                    && matches!(
+                        path.file_name().and_then(|name| name.to_str()),
+                        Some(
+                            "monomorphization.rs"
+                                | "body_cloning_and_rewriting.rs"
+                                | "contextual_and_requirement_calls.rs"
+                                | "selection_and_reflection.rs"
+                        )
+                    )
+                {
                     for forbidden in [
                         "validate_closed_const_argument",
                         "type_satisfies_declared_property",

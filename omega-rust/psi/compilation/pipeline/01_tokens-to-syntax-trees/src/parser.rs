@@ -1,3 +1,9 @@
+/*
+Batch and per-source parsing entry points (`parse_sources`,
+`parse_source_pages_from`, `parse_source_units`, `parse`, and
+`parse_syntax_trees`) and the dedicated 256 MiB stack parser worker pool.
+*/
+
 pub use crate::diagnostics::parse_error;
 
 use crate::ParseError;
@@ -10,10 +16,6 @@ use source::{SourceId, SourcePosition};
 use syntax_trees::{ParsedRootItems, ParsedSource, ParsedSources, SyntaxTrees, item::Item};
 use tokens::{LexedSources, TokenStream};
 
-/// Parse an ordered token batch into the caller's syntax arena, retaining
-/// per-source roots, backing text and metadata. Consumed path buffers move into
-/// the result while text stays shared with syntax payloads. Failure leaves the already
-/// parsed prefix in that arena and reports the current source's exact location.
 pub fn parse_sources(
     mut lexed: LexedSources,
     syntax_trees: &mut SyntaxTrees,
@@ -35,7 +37,6 @@ pub fn parse_sources(
     })
 }
 
-/// One parsed source and the worker-owned syntax page containing its roots.
 pub struct ParsedSyntaxSource {
     source: ParsedSource,
     syntax: Handle<SyntaxTrees>,
@@ -51,7 +52,6 @@ impl ParsedSyntaxSource {
     }
 }
 
-/// Ordered source metadata over independently published parser pages.
 pub struct ParsedSyntaxPages {
     pages: SealedPagedArena<SyntaxTrees>,
     sources: Vec<ParsedSyntaxSource>,
@@ -66,9 +66,6 @@ impl ParsedSyntaxPages {
         self.pages.try_get(handle)
     }
 
-    /// Resolve any syntax handle through the page identity carried in its
-    /// generation coordinate. Every parser page stores its `SyntaxTrees` at
-    /// slot one.
     pub fn syntax_for<T>(&self, handle: Handle<T>) -> Option<&SyntaxTrees> {
         self.syntax(Handle::from_parts(1, handle.generation()))
     }
@@ -77,8 +74,6 @@ impl ParsedSyntaxPages {
         self.pages.page_count()
     }
 
-    /// Consume worker pages into their source-chunk order without copying any
-    /// syntax tree or its arena allocations.
     pub fn into_parts(self) -> (Vec<SyntaxTrees>, ParsedSources) {
         let trees = self.pages.into_pages().into_iter().flatten().collect();
         let mut sources = Arena::with_capacity(self.sources.len());
@@ -87,9 +82,6 @@ impl ParsedSyntaxPages {
     }
 }
 
-/// Parse one ordered lexical frontier into bounded worker-owned pages. Tasks
-/// receive contiguous source chunks, so Rayon collection restores authored
-/// source order without sorting by completion or allocation identity.
 pub fn parse_source_pages_from(
     mut lexed: LexedSources,
     first_page_identity: u32,
@@ -102,31 +94,18 @@ pub fn parse_source_pages_from(
     parse_source_pages_with_count(lexed_sources, desired_pages, first_page_identity)
 }
 
-/// Parse each source into its own published syntax unit. Generated-source
-/// extension custody uses this route because normalization must not synthesize
-/// across generated-unit boundaries.
 pub fn parse_source_units(mut lexed: LexedSources) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
     let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
     let desired_pages = lexed_sources.len().max(1);
     parse_source_pages_with_count(lexed_sources, desired_pages, 1)
 }
 
-/// Stack budget for the parallel parse workers. Expression and type parsing
-/// recurse on authored nesting depth, so page workers need the same budget
-/// the compile thread provisions (`COMPILE_STACK_SIZE` in the driver), not
-/// the host's default thread stack. The stage owns this pool so every
-/// caller — CLI, tests, and embedding drivers — gets the contract without
-/// configuring the process-wide Rayon pool.
 const PARSE_STACK_SIZE: usize = 256 * 1024 * 1024;
 
-/// Worker count of the dedicated parse pool without initializing Rayon's
-/// default global pool.
 pub fn parse_worker_count() -> usize {
     parse_thread_pool().current_num_threads()
 }
 
-/// Run source parsing under the grammar's required stack budget. The facade
-/// may combine lexical scratch and parsing in one independently owned task.
 pub fn with_parse_workers<Output: Send>(operation: impl FnOnce() -> Output + Send) -> Output {
     parse_thread_pool().install(operation)
 }
@@ -245,11 +224,6 @@ fn parse_recorded_source(
     })
 }
 
-/// Parses one source into the caller's arena and returns that source's root
-/// item handles and import bounds. Top-level `let`/`boundary let` declarations land on
-/// `SyntaxTreeRoots::mathematical_definitions` instead — they are not items —
-/// so they do not appear in the returned list. Existing roots retain their
-/// identities. On error, the arena retains the parsed prefix.
 pub fn parse(
     syntax_trees: &mut SyntaxTrees,
     source_id: SourceId,
@@ -280,12 +254,10 @@ pub fn parse(
     Ok(roots)
 }
 
-/// Creates a syntax arena for an anonymous source and parses its tokens.
 pub fn parse_syntax_trees(tokens: &TokenStream<'_>) -> Result<SyntaxTrees, ParseError> {
     parse_syntax_trees_with_id(SourceId::default(), tokens)
 }
 
-/// Creates a syntax arena for one identified source and parses its tokens.
 pub fn parse_syntax_trees_with_id(
     source_id: SourceId,
     tokens: &TokenStream<'_>,

@@ -22,7 +22,7 @@ conclusions into `CheckFacts`, never into the typed program.
 
 ## Specialization
 
-[Specialization](src/monomorphization/mod.rs) runs explicit fixed-point rounds:
+[Specialization](src/monomorphization.rs) runs explicit fixed-point rounds:
 discover call tuples, retain their exact bindings,
 materialize missing instances, then rewrite calls. Source operand formation
 does not run in those rounds. Complete array, record and borrow result types
@@ -31,7 +31,7 @@ borrowing a constructed value needs that value's type, not a declared-place
 approximation. Unchanged type vocabulary is reused across rounds and final
 preparation. This derivation establishes no loan, ownership or field predicate;
 immutable checking still owns those judgments.
-[Authored selections](src/preparation/selections.rs)
+[Authored selections](src/preparation.rs)
 retain each application's declaration, operands and lexical owner before
 folding; cloning copies and remaps that custody. Immutable checking owns
 [argument admission](../../checking/src/machine_calls/static_arguments.rs),
@@ -49,9 +49,9 @@ in checked specialization facts. Derivation neither infers effects nor hashes
 an early graph snapshot.
 Authored templates remain generic and unchanged. Application candidates borrow
 the round's immutable template metadata while owning their bindings.
-[Selection](src/monomorphization/selection.rs),
-[body cloning](src/monomorphization/body_cloning.rs),
-[body rewriting](src/monomorphization/body_rewriting.rs), and
+[Selection](src/selection_and_reflection.rs),
+[body cloning](src/body_cloning_and_rewriting.rs),
+[body rewriting](src/body_cloning_and_rewriting.rs), and
 [identity encoding](../../checking/src/machine_calls/contract_identities.rs) own those mechanisms.
 Cloned runtime calls resolve subjects in a state-owned traversal rather than
 rediscovering their enclosing statement trees for each call. The collected

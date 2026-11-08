@@ -1,73 +1,347 @@
+/*
+We attach type and signature meaning to symbol-resolved Omega trees
+(`lower_symbol_resolved_trees`), and extend retained typed bases across
+generated-source continuations (`lower_seeded_extension` and
+`lower_symbol_resolved_trees_to_seeded_base`).
+*/
+
+/*
+Our typing route runs through two shared cohort operations in `lowerer.rs`
+(`type_resolved_cohort` and `close_typed_cohort`). Before erasing resolved
+membership nodes, `equality_and_exhaustiveness.rs` validates bare case
+equality, synthesized `Equatable` conformances, and match exhaustiveness.
+`declarations.rs` then lowers every declaration family through
+`contracts_and_signatures.rs`, `type_reference.rs`, `expression_lowering.rs`,
+`statement_lowering.rs`, and `call_and_product_selections.rs`.
+*/
+
+/*
+Stage 03 (`symbol-resolved-trees-to-typed-trees`) consumes `SymbolResolvedTrees`
+from `syntax-trees-to-symbol-resolved-trees` (Stage 02) and produces
+`TypedTrees` for `typed-trees-to-typed-trees` (Stage 04).
+*/
+
 #![forbid(unsafe_code)]
 
-//! Attaches type and signature meaning to Psi symbol-resolved source trees.
-//!
-//! One entrance: [`lower_symbol_resolved_trees`], in `lowerer.rs`. Read that
-//! function to read this stage — the module order below is the order it runs
-//! them in. The `Lowerer` it builds there owns the growing typed trees and the
-//! exposure scope every module below borrows.
-//!
-//! 1. `expressions` first rejects the resolved shapes typing is about to
-//!    erase: `==` against bare payload-bearing case names, synthesized
-//!    `Equatable` rows over malformed types, and non-exhaustive case dispatch. Those checks
-//!    must run while membership is still a distinct node.
-//! 2. `declarations` then types each declaration form, in the order the
-//!    entrance walks the package: constants, data, domains, propositions,
-//!    mathematical definitions, machines, measures, operators, traits,
-//!    conformances, wire schemas. Each form re-enters `expressions` for its
-//!    bodies and statements.
-//! 3. `contracts` interns what those declarations promise — authored contract
-//!    invocations, `where` facts, and parameter domain membership.
-//! 4. `type_reference` owns every written type: type references, domain
-//!    aliases, generic origins, and constraint normalization.
-//!
-//! Two operations in `lowerer.rs` carry the whole stage and every route
-//! through it: `type_resolved_cohort` types the declaration suffix one
-//! `TypingCohort` names, and `close_typed_cohort` settles that cohort and
-//! publishes the identities later stages read. The fresh entrance and both
-//! continuation routes run those two operations; they differ only in the
-//! cohort and in the retained-base checks that admit it, so `lowerer.rs` is
-//! where a step added to typing is added once rather than at three call sites.
-//!
-//! `signatures` is not a step of its own. The entrance never calls it; it is
-//! the shared parameter, type-parameter and callable-interface vocabulary each
-//! declaration form binds through.
-//!
-//! `lowerer::seeded_continuation` is an orchestration seam rather than a step:
-//! it wraps this same entrance so a retained typed base can be extended
-//! append-only, and fails the transaction rather than mutating a base that has
-//! drifted.
-
-// The entrance and the shared lowering state it owns.
-mod lowerer;
-
-// The route, in the order `lower_symbol_resolved_trees` runs it.
-mod access_borrow_factory;
-mod contracts;
+mod call_and_product_selections;
+mod contracts_and_signatures;
 mod declarations;
-mod expressions;
+mod equality_and_exhaustiveness;
+mod expression_lowering;
+mod lowerer;
+mod statement_lowering;
 mod type_reference;
+
+pub(crate) use contracts_and_signatures::{contracts, signatures};
+
+pub(crate) mod expressions {
+    pub(crate) use crate::call_and_product_selections::{
+        build_selections, call_results, capture_product_operands, construction_destinations,
+        installed_interrupts, product_queries, product_selections, qualification_casts,
+    };
+    pub(crate) use crate::equality_and_exhaustiveness::{
+        equality, equatable, exhaustiveness, proposition,
+    };
+    pub(crate) use crate::expression_lowering::expression;
+    pub(crate) use crate::statement_lowering::statement;
+}
+
+pub(crate) mod access_borrow_factory {
+    use crate::tables::type_constraints;
+    use diagnostics::Diagnostic;
+    use symbol_resolved_trees as resolved;
+    use typed_trees as typed;
+
+    pub fn access_borrow_factory(
+        program: &resolved::SymbolResolvedTrees,
+        target_symbol: symbols::SymbolHandle,
+    ) -> Result<Option<typed::expression::AccessBorrowOperationRequest>, Diagnostic> {
+        let found = if target_symbol.is_valid()
+            && program.symbols.get(target_symbol).kind == symbols::SymbolKind::Machine
+        {
+            program.machines.by_symbol(target_symbol)
+        } else {
+            program.machines.iter().find(|machine| {
+                machine.symbol == target_symbol
+                    || program
+                        .machine_state_handles(machine.states)
+                        .iter()
+                        .any(|state| program.machine_state(*state).symbol == target_symbol)
+            })
+        };
+        let Some(machine) = found else {
+            return Ok(None);
+        };
+        access_borrow_factory_of(program, machine)
+    }
+
+    pub fn access_borrow_factory_of(
+        program: &resolved::SymbolResolvedTrees,
+        machine: &resolved::machine::Machine,
+    ) -> Result<Option<typed::expression::AccessBorrowOperationRequest>, Diagnostic> {
+        let (access, resident) = match machine.name.as_str().rsplit("::").next() {
+            Some("view") => (language_core::ReferenceAccess::Shared, false),
+            Some("view_mut") => (language_core::ReferenceAccess::Mutable, false),
+            Some("view_resident_mut") => (language_core::ReferenceAccess::Mutable, true),
+            _ => return Ok(None),
+        };
+        let sealed = |symbol| {
+            program
+                .symbols
+                .symbol_source_span(symbol)
+                .and_then(|span| program.symbols.source_file(span))
+                .is_some_and(|source| {
+                    source.origin == source::SourceOrigin::Toolchain
+                        && source.path.strip_prefix(&source.package_root).ok()
+                            == Some(std::path::Path::new("layout.omg"))
+                })
+        };
+        if !sealed(machine.symbol)
+            || !sealed(machine.attached_data_symbol)
+            || program.symbols.name(machine.attached_data_symbol) != "Access"
+        {
+            return Ok(None);
+        }
+        let malformed =
+            |reason: &str| Diagnostic::error(format!("sealed borrowed View prototype: {reason}"));
+        let [policy, schema] = program.machine_type_parameters(machine) else {
+            return Err(malformed("must declare exactly two type parameters"));
+        };
+        if !machine.is_public
+            || !matches!(policy.kind, resolved::data::TypeParameterKind::Type)
+            || !matches!(schema.kind, resolved::data::TypeParameterKind::Type)
+            || !machine.lifetime_parameters.is_empty()
+            || machine.body_is_present
+            || machine.spelling.is_some()
+            || machine.target.is_some()
+            || machine.authored_target.is_some()
+            || machine.suspends
+            || machine.blocks
+            || machine.has_structural_type_equations
+            || machine.termination_plan
+                != (language_semantics::MachineTerminationPlan {
+                    interface: language_semantics::TerminationInterface::Published(
+                        language_semantics::TerminationGuarantee::NoGuarantee,
+                    ),
+                    ..Default::default()
+                })
+            || machine.service_reach_is_installation_bound
+            || !program
+                .service_reach_rows
+                .services(machine.service_reach_row)
+                .is_empty()
+            || !machine.invokes.is_empty()
+            || !machine.satisfies.is_empty()
+            || !machine.conformance_bounds.is_empty()
+            || !machine.ranking_subjects.is_empty()
+            || machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
+        {
+            return Err(malformed(
+                "noncanonical type binders or declaration/effect clauses",
+            ));
+        }
+        let states = program.machine_state_handles(machine.states);
+        let [state] = states else {
+            return Err(malformed("must declare exactly one state"));
+        };
+        let state = program.machine_state(*state);
+        let [parameter] = program.state_parameters(state.parameters) else {
+            return Err(malformed("must declare exactly one source parameter"));
+        };
+        if parameter.is_const
+            || parameter.is_mutable != (access == language_core::ReferenceAccess::Mutable)
+            || parameter.relevance.is_erased()
+            || !machine.contracts.is_empty()
+            || !state.contracts.is_empty()
+        {
+            return Err(malformed(
+                "source parameter flags or contract clauses differ",
+            ));
+        }
+
+        let resolved::types::TypeReference::Reference(source) = &parameter.type_reference else {
+            return Err(malformed("source parameter must be a reference"));
+        };
+        if source.access != access || source.lifetime.is_some() {
+            return Err(malformed("source reference polarity or lifetime differs"));
+        }
+        let backing = if resident {
+            resident_backing(program, source.referee, policy.symbol, schema.symbol)
+            .ok_or_else(|| malformed("resident source must retain exact core Extent, Granted and Resident<P, T> declarations"))?
+        } else {
+            if !matches!(program.child_type_reference(source.referee), resolved::types::TypeReference::Named { symbol, .. } if *symbol == schema.symbol)
+            {
+                return Err(malformed(
+                    "source reference must name exactly the schema formal",
+                ));
+            }
+            typed::expression::AccessBorrowBacking::Ordinary
+        };
+        let Some(resolved::types::TypeReference::Reference(result)) = &state.return_type else {
+            return Err(malformed("result must be a reference"));
+        };
+        if result.access != access || result.lifetime.is_some() {
+            return Err(malformed("result reference polarity or lifetime differs"));
+        }
+        let resolved::types::TypeReference::Generic(view) =
+            program.child_type_reference(result.referee)
+        else {
+            return Err(malformed(
+                "result referent must retain the formal Access application",
+            ));
+        };
+        let [result_policy, result_schema] = program.child_type_references(view.arguments) else {
+            return Err(malformed(
+                "result Access application must have two arguments",
+            ));
+        };
+        if view.base_symbol != machine.attached_data_symbol
+            || !view.lifetime_arguments.is_empty()
+            || !matches!(result_policy, resolved::types::TypeReference::Named { symbol, .. } if *symbol == policy.symbol)
+            || !matches!(result_schema, resolved::types::TypeReference::Named { symbol, .. } if *symbol == schema.symbol)
+        {
+            return Err(malformed(
+                "result does not preserve exact policy/schema formal identities",
+            ));
+        }
+        Ok(Some(typed::expression::AccessBorrowOperationRequest {
+            factory: machine.symbol,
+            access,
+            backing,
+        }))
+    }
+
+    fn resident_backing(
+        program: &resolved::SymbolResolvedTrees,
+        source: arena::Handle<resolved::types::TypeReference>,
+        policy: symbols::SymbolHandle,
+        schema: symbols::SymbolHandle,
+    ) -> Option<typed::expression::AccessBorrowBacking> {
+        use resolved::types::{TypeConstraint, TypeReference};
+        let sealed_extent_declaration = |symbol| {
+            program
+                .symbols
+                .symbol_source_span(symbol)
+                .and_then(|span| program.symbols.source_file(span))
+                .is_some_and(|source| {
+                    source.origin == source::SourceOrigin::Toolchain
+                        && source.path.strip_prefix(&source.package_root).ok()
+                            == Some(std::path::Path::new("extent.omg"))
+                })
+        };
+        let TypeReference::Constrained(qualified) = program.child_type_reference(source) else {
+            return None;
+        };
+        let TypeReference::Named { symbol: extent, .. } =
+            program.child_type_reference(qualified.base_type)
+        else {
+            return None;
+        };
+        if !sealed_extent_declaration(*extent) || program.symbols.name(*extent) != "Extent" {
+            return None;
+        }
+        let domain = |name: &str| {
+            let mut definitions = program.domain_definitions.iter().filter(|definition| {
+            sealed_extent_declaration(definition.symbol)
+                && definition.name.as_str().rsplit("::").next() == Some(name)
+                && matches!(&definition.target_type, TypeReference::Named { symbol, .. } if symbol == extent)
+        });
+            let definition = definitions.next()?;
+            definitions.next().is_none().then_some(definition)
+        };
+        let granted = domain("Granted")?;
+        let resident = domain("Resident")?;
+        let constraints = type_constraints(program).span(qualified.constraints)?;
+        if constraints.len() != 2 {
+            return None;
+        }
+        let names = |name: &str, definition: &resolved::domain::DomainDefinition| {
+            let declared = definition.name.as_str();
+            name.strip_prefix("Extent::").unwrap_or(name)
+                == declared.strip_prefix("Extent::").unwrap_or(declared)
+        };
+        let mut has_granted = false;
+        let mut has_resident = false;
+        for constraint in constraints {
+            match constraint {
+                TypeConstraint::Named(name) if names(name.as_str(), granted) && !has_granted => {
+                    has_granted = true;
+                }
+                TypeConstraint::Domain(application)
+                    if names(application.name.as_str(), granted)
+                        && application.arguments.is_empty()
+                        && !has_granted =>
+                {
+                    has_granted = true;
+                }
+                TypeConstraint::Domain(application)
+                    if names(application.name.as_str(), resident) && !has_resident =>
+                {
+                    let [actual_policy, actual_schema] =
+                        program.child_type_references(application.arguments)
+                    else {
+                        return None;
+                    };
+                    if !matches!(actual_policy, TypeReference::Named { symbol, .. } if *symbol == policy)
+                        || !matches!(actual_schema, TypeReference::Named { symbol, .. } if *symbol == schema)
+                    {
+                        return None;
+                    }
+                    has_resident = true;
+                }
+                _ => return None,
+            }
+        }
+        (has_granted && has_resident).then_some(typed::expression::AccessBorrowBacking::Resident {
+            extent: *extent,
+            granted: granted.symbol,
+            resident: resident.symbol,
+        })
+    }
+}
+
+pub(crate) mod tables {
+    use arena::Arena;
+    use symbol_resolved_trees::SymbolResolvedTrees;
+    use symbol_resolved_trees::expression::ExpressionTable as ResolvedExpressions;
+    use symbol_resolved_trees::statement::StatementTable as ResolvedStatements;
+    use symbol_resolved_trees::types::{TypeConstraint, TypeReferenceTable};
+    use typed_trees::TypedTreeTables;
+    use typed_trees::expression::ExpressionTable;
+    use typed_trees::statement::StatementTable;
+
+    pub(crate) fn expression_table(tables: &TypedTreeTables) -> &ExpressionTable {
+        &tables.expression_table
+    }
+
+    pub(crate) fn expression_table_mut(tables: &mut TypedTreeTables) -> &mut ExpressionTable {
+        &mut tables.expression_table
+    }
+
+    pub(crate) fn statement_table_mut(tables: &mut TypedTreeTables) -> &mut StatementTable {
+        &mut tables.statement_table
+    }
+
+    pub(crate) fn resolved_expressions(source: &SymbolResolvedTrees) -> &ResolvedExpressions {
+        &source.tables.bodies.expressions
+    }
+
+    pub(crate) fn resolved_statements(source: &SymbolResolvedTrees) -> &ResolvedStatements {
+        &source.tables.bodies.statements
+    }
+
+    pub(crate) fn type_constraints(source: &SymbolResolvedTrees) -> &Arena<TypeConstraint> {
+        &source.tables.types.constraints
+    }
+
+    pub(crate) fn type_references(source: &SymbolResolvedTrees) -> &TypeReferenceTable {
+        &source.tables.types.references
+    }
+}
+
 pub use access_borrow_factory::{access_borrow_factory, access_borrow_factory_of};
-
-// Beneath `declarations`, not a step: the interface vocabulary every
-// declaration form binds through.
-mod signatures;
-
-// Beneath every step: the tables those steps name once instead of chaining to.
-mod tables;
-
-// The entrance.
 pub use lowerer::lower_symbol_resolved_trees;
-
-// The append-only continuation seam: orchestration that extends a retained
-// typed base instead of retyping the whole package.
 pub use lowerer::seeded_continuation::{
     SeededContinuationError, SeededTypingBase, lower_seeded_extension,
     lower_symbol_resolved_trees_to_seeded_base,
 };
-
-// The typing tests' front-end pipelines, one file shared with the `suite`
-// integration target; see its module documentation.
-
-// Lets the shared front-end module above spell this crate's typing entry point
-// the same way the integration target does.

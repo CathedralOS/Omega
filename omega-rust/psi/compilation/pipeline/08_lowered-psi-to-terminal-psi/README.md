@@ -1,6 +1,6 @@
 # Terminal Psi publication
 
-[publish_artifact.rs](src/publish_artifact.rs) seals the validated optimization
+[publish_artifact.rs](src/lib.rs) seals the validated optimization
 result into canonical semantics, optimization provenance, proof and optional
 debug products. It consumes the optimization result and transfers its semantic
 module into the artifact; only source-join records remain alongside it. Artifact
@@ -10,9 +10,9 @@ Publication does not consume checked source. The
 [Terminal product contract](../../../../../wiki/spec/terminal-psi/product.md)
 defines separate consumption and the distinction between semantics and receipts.
 
-[Entry receipts](src/entry_receipt.rs) establish checked-source correspondence
+[Entry receipts](src/lib.rs) establish checked-source correspondence
 for the optimized module's unique Unit entry and rejoin its published semantic
-identity. [Receiver eligibility](src/entry_receipt/receiver_eligibility.rs) derives
+identity. [Receiver eligibility](src/lib.rs) derives
 whether the exact source receiver can start zero-initialized without executable
 nominal cleanup. This is a separate source-aware judgment, not part of canonical
 sealing or a grant of native entry authority.
