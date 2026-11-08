@@ -426,8 +426,12 @@ impl StructuralJudge<'_> {
             // Preserve the existing ordinary computation/admission route,
             // including operands that become available only after resolution.
             // The caller previously performed this at the same query depth.
-            let left = self.resolve_at(left, depth);
-            let right = self.resolve_at(right, depth);
+            let resolved_left = self.resolve_at(left.clone(), depth);
+            let resolved_right = self.resolve_at(right.clone(), depth);
+            let left_changed = !resolved_left.same_resolution_payload(&left);
+            let right_changed = !resolved_right.same_resolution_payload(&right);
+            let mut left = resolved_left;
+            let mut right = resolved_right;
             if !self.identity_value_is_available(&left) {
                 return Err("the left Id operand is not an admitted stable value after resolution");
             }
@@ -445,6 +449,30 @@ impl StructuralJudge<'_> {
                 ),
                 StructuralJudgment::Proven
             ) {
+                return Ok([left, right]);
+            }
+            // Computation can reveal a new context. Give only changed
+            // resolvents the same guarded pass before decomposing them.
+            if left_changed {
+                left = self.rewrite_identity_context(left, depth, remaining, &mut substitutions)?;
+            }
+            if right_changed {
+                right =
+                    self.rewrite_identity_context(right, depth, remaining, &mut substitutions)?;
+            }
+            if (left_changed || right_changed)
+                && self.identity_value_is_available(&left)
+                && self.identity_value_is_available(&right)
+                && matches!(
+                    self.identity_representation_correspondence(
+                        left.clone(),
+                        right.clone(),
+                        depth + 1,
+                        remaining,
+                    ),
+                    StructuralJudgment::Proven
+                )
+            {
                 return Ok([left, right]);
             }
             Ok([
