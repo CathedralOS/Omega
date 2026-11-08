@@ -1265,6 +1265,12 @@ pub mod frozen_program {
             Arc<crate::proof_contracts::contract_entailment::shared_proof_walks::SharedProofWalks>,
         >,
     >,
+    pub(crate) building_shared_proof_walks: Mutex<
+        symbols::SymbolKeyMap<
+            crate::proof_contracts::contract_entailment::shared_proof_walks::BuildingWalk,
+            (),
+        >,
+    >,
     pub(crate) normal_return_intervals: Mutex<
         symbols::SymbolKeyMap<
             (

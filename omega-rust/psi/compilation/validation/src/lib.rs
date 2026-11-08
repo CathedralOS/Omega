@@ -1868,7 +1868,9 @@ pub use proof_contracts::arithmetic_domains::{
 pub use proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenotation as CapturedIntegerDenotation;
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
-pub use proof_contracts::contract_entailment::collection_bounds::CollectionBoundsObservations;
+pub use proof_contracts::contract_entailment::collection_bounds::{
+    CollectionBoundsDemands, CollectionBoundsObservations,
+};
 pub use proof_contracts::contract_entailment::exit_predicates::{
     NormalExitContract, normal_exit_proves,
 };

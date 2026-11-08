@@ -10078,13 +10078,31 @@ pub(crate) mod collection_bounds {
 
     pub(crate) type BoundsCoordinate = ((u32, u32), usize, (u32, u32));
 
+    /*
+        The frozen inputs for one machine's collection-bound proofs. The range
+        checker runs a machine twice: a provisional pass records each bound it
+        asks about in its own `CollectionBoundsDemands`, `resolve_deferred`
+        proves those demands in one batched prefix walk, and the second pass
+        reads the answers. The observations never change; the caller owns the
+        demand table and passes it by `&mut`, so no answer is hidden here.
+    */
     pub struct CollectionBoundsObservations<'program> {
         program: &'program dyn crate::CheckingInput,
         machine: &'program Machine,
         states: Vec<&'program State>,
-        acyclic: std::cell::Cell<Option<bool>>,
-        demands: std::cell::RefCell<BTreeMap<BoundsCoordinate, BoundsDemand>>,
-        resolved: std::cell::Cell<bool>,
+    }
+
+    /*
+        One machine's recorded bound demands, whether they have been resolved,
+        and the machine's acyclicity once some proof needed it. Before
+        resolution a demand is recorded unproven; afterwards a demand the
+        provisional pass never asked about is proved alone and remembered.
+    */
+    #[derive(Default)]
+    pub struct CollectionBoundsDemands {
+        acyclic: Option<bool>,
+        demands: BTreeMap<BoundsCoordinate, BoundsDemand>,
+        resolved: bool,
     }
 
     pub(crate) struct BoundsDemand {
@@ -10104,6 +10122,15 @@ pub(crate) mod collection_bounds {
         }
     }
 
+    impl CollectionBoundsDemands {
+        fn retain(&mut self, demands: Vec<BoundsDemand>) {
+            self.demands = demands
+                .into_iter()
+                .map(|demand| (demand.coordinate(), demand))
+                .collect();
+        }
+    }
+
     impl<'program> CollectionBoundsObservations<'program> {
         pub fn new(
             program: &'program dyn crate::CheckingInput,
@@ -10115,14 +10142,12 @@ pub(crate) mod collection_bounds {
                 program,
                 machine,
                 states,
-                acyclic: std::cell::Cell::new(None),
-                demands: std::cell::RefCell::new(BTreeMap::new()),
-                resolved: std::cell::Cell::new(false),
             }
         }
 
         pub fn proves(
             &self,
+            table: &mut CollectionBoundsDemands,
             state: &State,
             statement_index: usize,
             expression: ExpressionHandle,
@@ -10134,26 +10159,24 @@ pub(crate) mod collection_bounds {
                 proven: false,
             };
             let coordinate = demand.coordinate();
-            let mut demands = self.demands.borrow_mut();
-            if let Some(demand) = demands.get(&coordinate) {
+            if let Some(demand) = table.demands.get(&coordinate) {
                 return demand.proven;
             }
-            let proven = if self.resolved.get() {
-                drop(demands);
-                let proven = self.prove_one(state.symbol, statement_index, expression);
-                demands = self.demands.borrow_mut();
-                proven
-            } else {
-                false
-            };
+            let proven = table.resolved
+                && self.prove_one(
+                    &mut table.acyclic,
+                    state.symbol,
+                    statement_index,
+                    expression,
+                );
             demand.proven = proven;
-            demands.insert(coordinate, demand);
+            table.demands.insert(coordinate, demand);
             proven
         }
 
-        pub fn resolve_deferred(&self) -> bool {
-            self.resolved.set(true);
-            let mut demands = std::mem::take(&mut *self.demands.borrow_mut())
+        pub fn resolve_deferred(&self, table: &mut CollectionBoundsDemands) -> bool {
+            table.resolved = true;
+            let mut demands = std::mem::take(&mut table.demands)
                 .into_values()
                 .collect::<Vec<_>>();
             if demands.is_empty() {
@@ -10164,10 +10187,10 @@ pub(crate) mod collection_bounds {
                 .map(|demand| self.query(demand.state, demand.statement, demand.expression))
                 .collect::<Option<Vec<_>>>()
             else {
-                self.retain_demands(demands);
+                table.retain(demands);
                 return false;
             };
-            let recognized = if self.is_acyclic() {
+            let recognized = if self.is_acyclic(&mut table.acyclic) {
                 let mut visitors = queries
                     .iter_mut()
                     .map(|query| query as &mut dyn StructuralPrefixVisitor)
@@ -10245,20 +10268,17 @@ pub(crate) mod collection_bounds {
             }
             for demand in &mut demands {
                 if !demand.proven {
-                    demand.proven =
-                        self.prove_one(demand.state, demand.statement, demand.expression);
+                    demand.proven = self.prove_one(
+                        &mut table.acyclic,
+                        demand.state,
+                        demand.statement,
+                        demand.expression,
+                    );
                 }
             }
             let proven = demands.iter().any(|demand| demand.proven);
-            self.retain_demands(demands);
+            table.retain(demands);
             proven
-        }
-
-        fn retain_demands(&self, demands: Vec<BoundsDemand>) {
-            *self.demands.borrow_mut() = demands
-                .into_iter()
-                .map(|demand| (demand.coordinate(), demand))
-                .collect();
         }
 
         fn state(&self, symbol: symbols::SymbolHandle) -> Option<&'program State> {
@@ -10294,10 +10314,9 @@ pub(crate) mod collection_bounds {
             })
         }
 
-        fn is_acyclic(&self) -> bool {
-            self.acyclic.get().unwrap_or_else(|| {
-                let computed = self
-                    .program
+        fn is_acyclic(&self, acyclic: &mut Option<bool>) -> bool {
+            *acyclic.get_or_insert_with(|| {
+                self.program
                     .machine_states(self.machine)
                     .first()
                     .is_some_and(|entry| {
@@ -10306,14 +10325,13 @@ pub(crate) mod collection_bounds {
                             self.machine,
                             entry,
                         )
-                    });
-                self.acyclic.set(Some(computed));
-                computed
+                    })
             })
         }
 
         fn prove_one(
             &self,
+            acyclic: &mut Option<bool>,
             state: symbols::SymbolHandle,
             statement_index: usize,
             expression: ExpressionHandle,
@@ -10321,7 +10339,7 @@ pub(crate) mod collection_bounds {
             let Some(mut query) = self.query(state, statement_index, expression) else {
                 return false;
             };
-            let recognized = if self.is_acyclic() {
+            let recognized = if self.is_acyclic(acyclic) {
                 super::structural_prefix::observe_acyclic_invocation_prefix(
                     self.program,
                     self.machine,
@@ -37623,7 +37641,6 @@ pub(crate) mod shared_proof_walks {
     use super::structural_prefix::StructuralPrefixVisitor;
     use crate::CheckingInput;
     use crate::frozen_program::expression_table;
-    use std::cell::RefCell;
     use std::sync::Arc;
     use symbols::SymbolHandle;
     use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -37651,8 +37668,46 @@ pub(crate) mod shared_proof_walks {
         proven: Vec<ProvenSite>,
     }
 
-    thread_local! {
-        static BUILDING: RefCell<Vec<SymbolHandle>> = const { RefCell::new(Vec::new()) };
+    /*
+        A machine whose shared walk this thread is building. Building proves
+        each grouped requirement, and that proof can ask `proven` about the
+        same machine before the walk exists; that inner question answers "not
+        shared" so the requirement takes its ordinary proof instead of
+        recursing. The marker lives in the root context's memos beside the
+        finished walks, keyed by thread so a parallel checker building the
+        same machine never sees another thread's unfinished walk.
+    */
+    pub(crate) type BuildingWalk = (SymbolHandle, std::thread::ThreadId);
+
+    struct BuildingMark<'memos> {
+        memos: &'memos crate::frozen_program::CheckingMemos,
+        walk: BuildingWalk,
+    }
+
+    impl<'memos> BuildingMark<'memos> {
+        fn start(
+            memos: &'memos crate::frozen_program::CheckingMemos,
+            machine: SymbolHandle,
+        ) -> Option<Self> {
+            let walk = (machine, std::thread::current().id());
+            memos
+                .building_shared_proof_walks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(walk, ())
+                .is_none()
+                .then_some(Self { memos, walk })
+        }
+    }
+
+    impl Drop for BuildingMark<'_> {
+        fn drop(&mut self) {
+            self.memos
+                .building_shared_proof_walks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .remove(&self.walk);
+        }
     }
 
     pub(crate) fn proven(
@@ -37663,9 +37718,10 @@ pub(crate) mod shared_proof_walks {
         if shares_walk(program, walk).is_none() {
             return false;
         }
-        if program.checking_memos().is_none() {
+        let Some(own) = program.checking_memos() else {
             return false;
-        }
+        };
+        let building = program.shared_memos().unwrap_or(own);
         if !program
             .machine(machine.symbol)
             .is_some_and(|stored| std::ptr::eq(stored, machine))
@@ -37686,13 +37742,12 @@ pub(crate) mod shared_proof_walks {
         let shared = match existing {
             Some(shared) => shared,
             None => {
-                if BUILDING.with(|building| building.borrow().contains(&machine.symbol)) {
+                let Some(mark) = BuildingMark::start(building, machine.symbol) else {
                     return false;
-                }
-                BUILDING.with(|building| building.borrow_mut().push(machine.symbol));
+                };
                 let guard = crate::frozen_program::CutGuard::start(program);
                 let built = Arc::new(build(program, machine));
-                BUILDING.with(|building| building.borrow_mut().retain(|m| *m != machine.symbol));
+                drop(mark);
                 match guard.memos() {
                     Some(memos) => memos
                         .shared_proof_walks
@@ -66407,7 +66462,6 @@ pub(crate) mod structural_judgment {
         #[cfg(test)]
         mod completed_read_roster_tests {
             use super::*;
-            use std::cell::{Cell, RefCell};
 
             #[test]
             fn published_reads_are_a_snapshot_and_replay_in_order() {
@@ -66423,9 +66477,9 @@ pub(crate) mod structural_judgment {
                 let first = StructuralTerm::Variable("first external read".to_owned());
                 let second = StructuralTerm::Variable("second external read".to_owned());
                 let late = StructuralTerm::Variable("later collector read".to_owned());
-                let saved = RefCell::new(None);
+                let mut saved = None;
                 judge.completed_resolution(child.clone(), 0, |computing, term| {
-                    saved.replace(computing.resolution_observations.clone());
+                    saved = computing.resolution_observations.clone();
                     for application in [&first, &second] {
                         computing.observe_application_read(
                             application,
@@ -66437,7 +66491,6 @@ pub(crate) mod structural_judgment {
                     term
                 });
                 saved
-                    .borrow()
                     .as_ref()
                     .unwrap()
                     .reads
@@ -66484,11 +66537,11 @@ pub(crate) mod structural_judgment {
                     &[],
                     true,
                 );
-                let calls = Cell::new(0);
+                let mut calls = 0;
                 let term = StructuralTerm::Variable("unavailable read set".to_owned());
                 for _ in 0..2 {
                     judge.completed_resolution(term.clone(), 0, |computing, term| {
-                        calls.set(calls.get() + 1);
+                        calls += 1;
                         *computing
                             .resolution_observations
                             .as_ref()
@@ -66499,7 +66552,7 @@ pub(crate) mod structural_judgment {
                         term
                     });
                 }
-                assert_eq!(calls.get(), 2);
+                assert_eq!(calls, 2);
             }
         }
     }
