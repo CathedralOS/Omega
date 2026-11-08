@@ -5,8 +5,9 @@
 //! current while the store or incoming storage it was anchored at still
 //! reaches its place at the query version. Earlier copies and equations keep
 //! describing their captured values; a later read of replaced storage gets a
-//! new unknown observation. A judge no graph reaches treats every write as
-//! opaque and keeps only immutable scalars' private copies.
+//! new unknown observation. Without a graph, exact writes to private scalar
+//! locals retire those locals; other writes remain opaque and keep only
+//! immutable scalars' private copies.
 
 use super::StructuralJudge;
 use crate::CanonicalPlace;
@@ -517,10 +518,18 @@ impl StructuralJudge<'_> {
             return Some(());
         }
         self.storage_write_sequence += 1;
-        // A versioned judge asks the storage graph at each read. Without a
-        // version no history reaches this judge, so the write is opaque.
+        // A versioned judge asks the storage graph at each read. A complete
+        // write set of plain owned scalar locals is disjoint from every other
+        // root even without history; reference-backed or unknown writes are
+        // still opaque.
         if !self.graph_storage_mode() {
-            self.retire_unversioned_storage(state)?;
+            if let Some(roots) =
+                written.and_then(|paths| self.private_scalar_write_roots(state, paths))
+            {
+                self.retire_private_scalar_writes(&roots);
+            } else {
+                self.retire_unversioned_storage(state)?;
+            }
         }
         // Source premises name storage too: keep only those whose storage
         // still holds the observed contents.
@@ -539,6 +548,84 @@ impl StructuralJudge<'_> {
         });
         self.premise_facts = facts;
         Some(())
+    }
+
+    /// Written names are coordinates of this exact caller state, not aliases
+    /// selected from another declaration. Only a unique plain scalar local
+    /// supplies an independently owned root; all other shapes refuse here.
+    fn private_scalar_write_roots(
+        &self,
+        state: &State,
+        written: &[String],
+    ) -> Option<Vec<SymbolHandle>> {
+        self.frame_resolver()?;
+        if self.program.machine_holding_state(state.symbol)?.symbol != self.machine_symbol {
+            return None;
+        }
+        written
+            .iter()
+            .map(|path| {
+                let mut declarations = self
+                    .program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .filter_map(|statement| statement.as_local_data())
+                    .filter(|local| local.name.as_str() == path.as_str());
+                let local = declarations.next()?;
+                if !local.symbol.is_valid() || declarations.next().is_some() {
+                    return None;
+                }
+                let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = self
+                    .program
+                    .type_reference_table
+                    .type_reference(local.type_reference)
+                else {
+                    return None;
+                };
+                use symbols::BuiltinTypeAtom;
+                matches!(
+                    self.program.symbols.builtin_type_atom(*symbol),
+                    Some(
+                        BuiltinTypeAtom::Bool
+                            | BuiltinTypeAtom::Address
+                            | BuiltinTypeAtom::I8
+                            | BuiltinTypeAtom::I16
+                            | BuiltinTypeAtom::I32
+                            | BuiltinTypeAtom::I64
+                            | BuiltinTypeAtom::U8
+                            | BuiltinTypeAtom::U16
+                            | BuiltinTypeAtom::U32
+                            | BuiltinTypeAtom::U64
+                            | BuiltinTypeAtom::F32
+                            | BuiltinTypeAtom::F64
+                    )
+                )
+                .then_some(local.symbol)
+            })
+            .collect()
+    }
+
+    fn retire_private_scalar_writes(&mut self, roots: &[SymbolHandle]) {
+        std::sync::Arc::make_mut(&mut self.stored_values).retain_mut(|stored| {
+            if stored
+                .coordinate
+                .root
+                .as_symbol()
+                .is_some_and(|root| roots.contains(&root))
+            {
+                stored.current = None;
+                stored.selected_case = None;
+                stored.completed_read = None;
+            }
+            stored.entry.is_some() || stored.current.is_some()
+        });
+        let invalidated = std::sync::Arc::make_mut(&mut self.invalidated_storage);
+        for root in roots {
+            if !invalidated.contains(root) {
+                invalidated.push(*root);
+            }
+        }
     }
 
     /// An opaque write retires every live observation and binding reachable

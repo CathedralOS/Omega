@@ -70,7 +70,9 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     machine_result: TerminalMachineResult,
     claims: LoweredUnitClaims,
     content_entry_claims: Vec<terminal_psi::ContentEntryClaim>,
-    content_identity_reshuffles: Vec<terminal_psi::ContentIdentityReshuffle>,
+    /// Common rows across every emitted normal structural return. No row is
+    /// published before a return has supplied its checked correspondence.
+    content_identity_reshuffles: Option<Vec<terminal_psi::ContentIdentityReshuffle>>,
     loan_completions: Vec<terminal_psi::LoanCompletion>,
     block_entry_claims: Vec<terminal_psi::EntryClaim>,
     entry_reentered: bool,
@@ -382,15 +384,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             &entry.entry_claims,
             &claims.source_claims,
         )?;
-    let content_identity_reshuffles = crate::unit::attached_unit::claims::lower_result_identity(
-        checked,
-        plan.machine,
-        entry.state,
-        &entry.structural_parameters,
-        &parameters,
-        &machine_result,
-        &claims.source_claims,
-    )?;
     let entry_reentered = plan
         .states
         .iter()
@@ -730,7 +723,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         machine_result,
         claims,
         content_entry_claims,
-        content_identity_reshuffles,
+        content_identity_reshuffles: None,
         loan_completions: Vec::new(),
         block_entry_claims,
         entry_reentered,
@@ -798,6 +791,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         mut rank_edges,
         ..
     } = emission;
+    let content_identity_reshuffles = content_identity_reshuffles.unwrap_or_default();
     // A retained `requires` becomes the header's scalar block invariant:
     // every incoming Jump or Conditional edge discharges it before the block
     // runs. A plain entry publishes its clauses on the machine contract

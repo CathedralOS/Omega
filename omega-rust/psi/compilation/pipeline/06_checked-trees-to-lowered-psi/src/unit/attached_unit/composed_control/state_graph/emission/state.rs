@@ -1213,15 +1213,38 @@ impl StateGraphEmission<'_, '_> {
                         "structural return lost its checked content identity guarantee",
                     );
                 }
-                for identity in state_identities {
-                    if self.content_entry_claims.iter().any(|entry| {
-                        identity.claim == entry.claim
-                            && identity.input == entry.input
-                            && identity.projections == entry.projections
-                    }) && !self.content_identity_reshuffles.contains(&identity)
-                    {
-                        self.content_identity_reshuffles.push(identity);
-                    }
+                let invocation_identities = state_identities
+                    .into_iter()
+                    .filter(|identity| {
+                        self.content_entry_claims.iter().any(|entry| {
+                            identity.claim == entry.claim
+                                && identity.input == entry.input
+                                && identity.projections == entry.projections
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                if let Some(common) = &mut self.content_identity_reshuffles {
+                    let keys = invocation_identities
+                        .iter()
+                        .map(|identity| {
+                            (
+                                identity.claim,
+                                &identity.input,
+                                &identity.output,
+                                &identity.projections,
+                            )
+                        })
+                        .collect::<std::collections::BTreeSet<_>>();
+                    common.retain(|identity| {
+                        keys.contains(&(
+                            identity.claim,
+                            &identity.input,
+                            &identity.output,
+                            &identity.projections,
+                        ))
+                    });
+                } else {
+                    self.content_identity_reshuffles = Some(invocation_identities);
                 }
                 Terminator::ReturnStructural {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
