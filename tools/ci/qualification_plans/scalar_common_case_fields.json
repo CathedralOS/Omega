@@ -37,10 +37,9 @@
     "cache_key": "compiler-regression-Linux-X64-4cf43fe0b283cafbaa2080cbd0cb5018d03a05a890353ac5d6c14509413ee07b-9af3eb514e1665328bbdbbc875be077276c47869-prepared-v1-with-runner"
   },
   "fixtures": [
-    "pass/structs/case_field_type_store_shapes",
-    "pass/structs/runtime_composed_case_payload_reads_exit"
+    "pass/host/runtime_descriptor_nested_case_array_exit"
   ],
-  "source_only": false,
+  "source_only": true,
   "samples": [],
   "cli_fixtures": []
 }
