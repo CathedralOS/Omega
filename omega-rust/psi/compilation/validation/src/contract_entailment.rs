@@ -53867,9 +53867,13 @@ pub(crate) mod structural_judgment {
                 // Retained source operations are values of their recorded word
                 // type. Keep that type until the scalar operation's formation and
                 // arithmetic policy have been checked by the integer receiver.
-                if let Some(reference) =
-                    super::super::structural_terms::owned_observation_type(self.program, value)
-                    && let Some(primitive) = self.program.primitive_type_reference(reference)
+                if let StructuralTerm::ObservedValue {
+                    observed_type,
+                    descriptor: None,
+                    ..
+                } = value
+                    && crate::reference_shell(self.program, *observed_type).is_none()
+                    && let Some(primitive) = self.program.primitive_type_reference(*observed_type)
                     && primitive.is_fixed_integer()
                 {
                     return self.integer_value(value, primitive, observations, depth + 1);
