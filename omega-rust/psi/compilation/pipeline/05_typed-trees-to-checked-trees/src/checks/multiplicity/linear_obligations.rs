@@ -7,7 +7,9 @@ use super::consumed_owners::ConsumedOwners;
 use crate::checks::multiplicity::linear_validation::{
     event_statement_index, validate_linear_permission_events,
 };
-use crate::checks::multiplicity::permission_events::record_crash_frontier_lower_bounds;
+use crate::checks::multiplicity::permission_events::{
+    derive_crash_frontier_lower_bounds, record_crash_frontier_lower_bounds,
+};
 use crate::checks::multiplicity::projected_affine;
 use crate::published::places::place_at;
 use checked_trees::CheckFacts;
@@ -176,7 +178,10 @@ pub(crate) fn check_linear_obligations(
     // cleanup fixed point; recording them again here reproduced the same
     // events. Only the crash-frontier projection needs the incoming guard
     // index, which exists only now.
-    record_crash_frontier_lower_bounds(program, facts, incoming_guards);
+    // The checks below only read the facts; the crash frontiers are the one
+    // write, into the contract plans, made before the checks read them.
+    let frontiers = derive_crash_frontier_lower_bounds(program, facts, incoming_guards);
+    record_crash_frontier_lower_bounds(&mut facts.contract_plans, &frontiers);
     validate_linear_permission_events(program, facts)?;
     borrowed_windows::check_recorded_invocations(program, facts)
 }

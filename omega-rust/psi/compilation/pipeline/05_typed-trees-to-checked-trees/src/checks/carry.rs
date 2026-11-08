@@ -264,12 +264,11 @@ impl Default for CrossingAccumulator {
 /// preservation obligations without publishing a provider preemption mode.
 pub(super) fn check_suspension_carry(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut checked_trees::CheckFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    facts.carry.claim_policies = derive_claim_carry_policies(facts);
+    facts: &checked_trees::CheckFacts,
+) -> (SuspensionCarry, Result<(), Vec<Diagnostic>>) {
+    let claim_policies = derive_claim_carry_policies(facts);
     let activation_wide_carry =
         activation::build_machine_activation_carry_facts(program, &facts.semantic);
-    facts.carry.activation_wide_carry = activation_wide_carry;
     let mut diagnostics = Vec::new();
     let mut suspension_crossings = Vec::new();
     let mut suspension_loans = arena::Arena::new();
@@ -333,7 +332,7 @@ pub(super) fn check_suspension_carry(
             let claim_carry = ClaimCarryContext {
                 semantic: &facts.semantic,
                 ownership: &facts.flow.ownership,
-                claim_policies: &facts.carry.claim_policies,
+                claim_policies: &claim_policies,
                 state_symbol: state.symbol,
                 statement_index: call.statement_index,
                 call_ordinal: call.call_ordinal,
@@ -406,11 +405,44 @@ pub(super) fn check_suspension_carry(
         }
     }
 
-    facts.carry.suspension_crossings = suspension_crossings;
-    facts.carry.suspension_loans = suspension_loans;
-    facts.carry.suspension_value_loans = suspension_value_loans;
+    (
+        SuspensionCarry {
+            claim_policies,
+            activation_wide_carry,
+            suspension_crossings,
+            suspension_loans,
+            suspension_value_loans,
+        },
+        crate::checks::finish(diagnostics),
+    )
+}
 
-    crate::checks::finish(diagnostics)
+/// What `check_suspension_carry` derives, published into `CarryFacts` by the
+/// caller whether or not the check reported a diagnostic. The check itself
+/// only reads the facts.
+pub(super) struct SuspensionCarry {
+    claim_policies: Vec<checked_trees::ClaimCarryPolicyFact>,
+    activation_wide_carry: Vec<checked_trees::MachineActivationCarryFact>,
+    suspension_crossings: Vec<checked_trees::SuspensionCrossingCarryFact>,
+    suspension_loans: arena::Arena<checked_trees::SuspensionCrossingLoanFact>,
+    suspension_value_loans: arena::Arena<arena::Handle<checked_trees::SuspensionCrossingLoanFact>>,
+}
+
+impl SuspensionCarry {
+    pub(super) fn publish(self, carry: &mut checked_trees::CarryFacts) {
+        let Self {
+            claim_policies,
+            activation_wide_carry,
+            suspension_crossings,
+            suspension_loans,
+            suspension_value_loans,
+        } = self;
+        carry.claim_policies = claim_policies;
+        carry.activation_wide_carry = activation_wide_carry;
+        carry.suspension_crossings = suspension_crossings;
+        carry.suspension_loans = suspension_loans;
+        carry.suspension_value_loans = suspension_value_loans;
+    }
 }
 
 fn derive_claim_carry_policies(
