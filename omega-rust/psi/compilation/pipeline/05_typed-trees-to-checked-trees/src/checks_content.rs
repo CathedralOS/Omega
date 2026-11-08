@@ -51,6 +51,446 @@ mod body_conservation {
         ContentPlaceRoot, ContentPlaceVersion,
     };
 
+    mod terminal_demands {
+        /*
+        A terminal callee must prove the caller's exact returned-content demand.
+
+        Transport substitutes only unchanged, typed incoming values captured by the
+        actual invocation. The resulting equation is still proved from the callee's
+        own entry contract at each raw return; no caller fact or custody is imported.
+        */
+
+        use std::collections::{BTreeMap, HashSet};
+
+        use arena::Handle;
+        use checked_trees::{CheckFactsRef, FlowOperandFact, FlowStateOutgoingFact};
+        use language_semantics::content::{
+            ContentConservationEquation, ContentConservationPlan, ContentConservationTerm,
+            ContentPlaceRoot, conservation_report_fingerprint,
+        };
+        use symbols::SymbolHandle;
+        use typed_trees::expression::ExpressionHandle;
+        use typed_trees::machine::Machine;
+        use typed_trees::state::State;
+        use typed_trees::types::TypeReferenceHandle;
+        use validation::completed_storage::{StoredObservation, StoredOperand};
+
+        /// Shared across topology discovery and completed-value correspondence. An
+        /// expanding cycle declines transport rather than manufacturing a finite law.
+        const TRANSPORT_WORK: usize = 65_536;
+
+        pub(super) fn at_state(
+            program: &dyn validation::CheckingInput,
+            facts: CheckFactsRef<'_>,
+            source: &ContentConservationPlan,
+            machine: &Machine,
+            state: &State,
+        ) -> Vec<ContentConservationPlan> {
+            if source.owner == machine.symbol
+                || super::owned_return_sides(source.equation.left(), source.equation.right())
+                    .is_none()
+            {
+                return Vec::new();
+            }
+            let Some(owner) = program.machine_by_symbol(source.owner) else {
+                return Vec::new();
+            };
+            let Some(entry) = program.machine_states(owner).first() else {
+                return Vec::new();
+            };
+            let mut pending = Vec::new();
+            for initial in program.machine_states(owner) {
+                if (initial.symbol == source.callable || entry.symbol == source.callable)
+                    && let Some(plan) =
+                        super::plan_at_state(program, facts, initial, source.clone())
+                {
+                    pending.push(plan);
+                }
+            }
+            let mut remaining = TRANSPORT_WORK;
+            let mut visited = BTreeMap::<_, Vec<ContentConservationPlan>>::new();
+            let mut demands = Vec::new();
+            while let Some(plan) = pending.pop() {
+                if !spend(&mut remaining, 1) {
+                    break;
+                }
+                let Some((current_machine, current_state)) =
+                    validation::find_state(program, plan.callable)
+                else {
+                    continue;
+                };
+                let known = visited
+                    .entry((identity(current_state.symbol), plan.report_fingerprint))
+                    .or_default();
+                if !spend(&mut remaining, 1 + known.len()) {
+                    break;
+                }
+                // A report hash narrows this query-local comparison, never decides
+                // semantic identity or discards a distinct substitution on collision.
+                if known.contains(&plan) {
+                    continue;
+                }
+                known.push(plan.clone());
+                if plan.owner == machine.symbol && plan.callable == state.symbol {
+                    if plan != *source {
+                        demands.push(plan);
+                    }
+                    continue;
+                }
+                let Some(flow) = facts
+                    .flow
+                    .control
+                    .unique_state(current_machine.symbol, current_state.symbol)
+                else {
+                    continue;
+                };
+                for outgoing in facts.flow.control.outgoing.span_or_empty(flow.outgoing) {
+                    if !spend(&mut remaining, 1) {
+                        return demands;
+                    }
+                    if outgoing.cannot_return_normally {
+                        continue;
+                    }
+                    if outgoing.transition_target.is_valid() {
+                        let Some(statement) = program
+                            .statement_table
+                            .statement_at(current_state, outgoing.statement_index)
+                            .and_then(|statement| statement.as_transition())
+                        else {
+                            continue;
+                        };
+                        if statement.exit != typed_trees::statement::TransitionExit::Ordinary {
+                            continue;
+                        }
+                        for invocation in validation::completing_transition_invocations(
+                            program,
+                            outgoing.transition_target,
+                        ) {
+                            let transferred = transfer(
+                                program,
+                                facts,
+                                current_state,
+                                outgoing,
+                                invocation.target,
+                                invocation.expression,
+                                invocation.arguments,
+                                &plan,
+                                &mut remaining,
+                            );
+                            if let Ok(next) = transferred {
+                                pending.push(next);
+                            }
+                        }
+                    } else if let Some(alternatives) =
+                        validation::completed_storage::terminal_alternatives(
+                            facts.flow.control,
+                            outgoing.returned_value,
+                        )
+                    {
+                        for returned in alternatives {
+                            let capture = facts.flow.control.operands.get(returned);
+                            if let Some(invocation) =
+                                validation::completing_call_transfer(program, capture.expression)
+                            {
+                                let transferred = transfer(
+                                    program,
+                                    facts,
+                                    current_state,
+                                    outgoing,
+                                    invocation.target,
+                                    invocation.expression,
+                                    invocation.arguments,
+                                    &plan,
+                                    &mut remaining,
+                                );
+                                if let Ok(next) = transferred {
+                                    pending.push(next);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            demands
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn transfer(
+            program: &dyn validation::CheckingInput,
+            facts: CheckFactsRef<'_>,
+            state: &State,
+            outgoing: &FlowStateOutgoingFact,
+            target: SymbolHandle,
+            expression: ExpressionHandle,
+            arguments: &[ExpressionHandle],
+            plan: &ContentConservationPlan,
+            remaining: &mut usize,
+        ) -> Result<ContentConservationPlan, &'static str> {
+            if !spend(remaining, 1) {
+                return Err("terminal demand transport work exhausted");
+            }
+            let next_state = validation::call_target_state(program, target)
+                .ok_or("terminal demand has no concrete target state")?;
+            let next_machine = program
+                .machine_holding_state(next_state.symbol)
+                .ok_or("terminal demand target has no declaration owner")?;
+            if next_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || !same_type(program, state.return_type, next_state.return_type)
+            {
+                return Err(
+                    "terminal demand target is not a checked body with the same result carrier",
+                );
+            }
+            let flow = facts
+                .flow
+                .control
+                .unique_state(plan.owner, state.symbol)
+                .ok_or("terminal demand source has no unique state flow")?;
+            if !spend(remaining, flow.calls.len()) {
+                return Err("terminal demand call-roster work exhausted");
+            }
+            let mut calls = facts
+                .flow
+                .control
+                .calls
+                .span(flow.calls).ok_or("terminal demand call roster is unavailable")?
+                .iter()
+                .filter(|call| {
+                    call.statement_index == outgoing.statement_index
+                        && call.authored_target == target
+                        && call.authored_expression == expression
+                        && !call.authored_receiver.is_valid()
+                        && call.authored_source_custody_valid
+                        && facts
+                            .flow
+                            .control
+                            .call_arguments
+                            .span(call.authored_arguments)
+                            == Some(arguments)
+                        && facts
+                            .flow
+                            .control
+                            .operands
+                            .span(call.argument_operands())
+                            .is_some_and(|operands| {
+                                operands.iter().all(|operand| {
+                                    !outgoing.transition_target.is_valid()
+                                        || operand.evaluation
+                                            == checked_trees::FlowPermissionEvaluation::TransitionTarget(
+                                                outgoing.transition_target,
+                                            )
+                                })
+                            })
+                });
+            let call = calls.next().ok_or(
+                "terminal demand has no exact source call, argument roster and evaluation lane",
+            )?;
+            if calls.next().is_some() {
+                return Err("terminal demand source call is ambiguous");
+            }
+            let parameters = program.state_parameters(next_state);
+            if parameters.len() != call.argument_operands().len() {
+                return Err("terminal demand argument count does not match its target telescope");
+            }
+            let mut bindings = Vec::new();
+            for (parameter, operand) in parameters.iter().zip(call.argument_operands().handles()) {
+                if !spend(remaining, 1) {
+                    return Err("terminal demand argument transport work exhausted");
+                }
+                if parameter.is_mutable || parameter.is_const {
+                    continue;
+                }
+                if let Some(source) = incoming_parameter(
+                    program,
+                    facts,
+                    state,
+                    operand,
+                    parameter.type_reference,
+                    remaining,
+                ) {
+                    bindings.push((source, parameter));
+                }
+            }
+            let mut plan = plan.clone();
+            let mut left = plan.equation.left().clone();
+            let mut right = plan.equation.right().clone();
+            rebase(&mut left, parameters, &bindings)
+                .ok_or("terminal demand left side has no exact unchanged incoming binding")?;
+            rebase(&mut right, parameters, &bindings)
+                .ok_or("terminal demand right side has no exact unchanged incoming binding")?;
+            plan.owner = next_machine.symbol;
+            plan.callable = next_state.symbol;
+            plan.equation = ContentConservationEquation::new(left, right);
+            plan.report_fingerprint =
+                conservation_report_fingerprint(&plan.algebra, &plan.equation);
+            Ok(plan)
+        }
+
+        /// Every predecessor must be the same unchanged complete entry value. A local
+        /// read may follow its retained store, but never a declaration initializer.
+        fn incoming_parameter(
+            program: &dyn validation::CheckingInput,
+            facts: CheckFactsRef<'_>,
+            state: &State,
+            operand: Handle<FlowOperandFact>,
+            reference: TypeReferenceHandle,
+            remaining: &mut usize,
+        ) -> Option<SymbolHandle> {
+            // Inline storage preserves descriptors, not the contents they borrow.
+            // Without a complete empty loan frontier, the parent's entry content
+            // cannot become the child's entry snapshot through this value relation.
+            if !validation::borrow_contracts::borrow_carrying_owner_paths(program, reference)?
+                .is_empty()
+            {
+                return None;
+            }
+            let mut pending = vec![(operand, Vec::new(), false)];
+            let mut active = HashSet::new();
+            let mut completed = HashSet::new();
+            let mut incoming = None;
+            while let Some((operand, projection, leaving)) = pending.pop() {
+                if !spend(remaining, 1 + projection.len())
+                    || !facts.flow.control.operands.is_valid(operand)
+                {
+                    return None;
+                }
+                let key = (
+                    (operand.arena_index(), operand.generation()),
+                    projection.clone(),
+                );
+                if leaving {
+                    active.remove(&key);
+                    completed.insert(key);
+                    continue;
+                }
+                if completed.contains(&key) {
+                    continue;
+                }
+                if !active.insert(key.clone()) {
+                    return None;
+                }
+                let capture = facts.flow.control.operands.get(operand);
+                let actual_type = validation::project_type_reference_from_segments(
+                    program,
+                    capture.type_reference,
+                    &projection,
+                )?;
+                if capture.state_symbol != state.symbol
+                    || !same_type(program, actual_type, reference)
+                    || validation::reference_shell(program, actual_type).is_some()
+                {
+                    return None;
+                }
+                let source = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    capture.statement_index,
+                    capture.expression,
+                )
+                .map(|mut source| {
+                    source.segments.extend_from_slice(&projection);
+                    source
+                });
+                if let Some(source) = source
+                    && let Some(StoredOperand::Incoming(source)) =
+                        validation::completed_storage::sources_at_snapshot(
+                            program,
+                            facts.flow.control,
+                            capture.storage_snapshot,
+                            &source,
+                            StoredObservation::InlineContents,
+                        )
+                    && source.segments.is_empty()
+                    && let facts::PlaceRoot::Symbol(symbol) = source.root
+                    && let Some(parameter) = program.state_parameter_by_symbol(state, symbol)
+                    && !parameter.is_mutable
+                    && !parameter.is_const
+                    && same_type(program, parameter.type_reference, reference)
+                {
+                    if incoming.is_some_and(|previous| previous != symbol) {
+                        return None;
+                    }
+                    incoming = Some(symbol);
+                    active.remove(&key);
+                    completed.insert(key);
+                    continue;
+                }
+                let predecessors = crate::flow::completed_values::predecessors(
+                    program,
+                    facts,
+                    operand,
+                    &projection,
+                )?;
+                if predecessors.is_empty() {
+                    return None;
+                }
+                pending.push((operand, projection, true));
+                pending.extend(
+                    predecessors
+                        .into_iter()
+                        .map(|(operand, projection)| (operand, projection, false)),
+                );
+            }
+            incoming
+        }
+
+        fn rebase(
+            term: &mut ContentConservationTerm,
+            parameters: &[typed_trees::signature::StateParameter],
+            bindings: &[(SymbolHandle, &typed_trees::signature::StateParameter)],
+        ) -> Option<()> {
+            match term {
+                ContentConservationTerm::Separate(children) => {
+                    for child in children {
+                        rebase(child, parameters, bindings)?;
+                    }
+                }
+                ContentConservationTerm::Projection { subject, .. } => {
+                    if let ContentPlaceRoot::Parameter { symbol, .. } = subject.root {
+                        let mut targets = bindings
+                            .iter()
+                            .filter_map(|(source, target)| (*source == symbol).then_some(*target));
+                        let target = targets.next()?;
+                        if targets.any(|other| other.symbol != target.symbol) {
+                            return None;
+                        }
+                        let position = parameters
+                            .iter()
+                            .position(|parameter| parameter.symbol == target.symbol)?;
+                        subject.root = ContentPlaceRoot::Parameter {
+                            position: u32::try_from(position).ok()?,
+                            symbol: target.symbol,
+                            name: target.name.as_str().to_owned(),
+                        };
+                    }
+                }
+            }
+            Some(())
+        }
+
+        fn identity(symbol: SymbolHandle) -> (u32, u32) {
+            (symbol.arena_index(), symbol.generation())
+        }
+
+        fn same_type(
+            program: &dyn validation::CheckingInput,
+            left: TypeReferenceHandle,
+            right: TypeReferenceHandle,
+        ) -> bool {
+            left.is_valid()
+                && right.is_valid()
+                && program.normalized_type_identity(left) == program.normalized_type_identity(right)
+        }
+
+        fn spend(remaining: &mut usize, work: usize) -> bool {
+            let Some(next) = remaining.checked_sub(work) else {
+                return false;
+            };
+            *remaining = next;
+            true
+        }
+    }
+
     pub(crate) fn observe_body_completion(
         program: &dyn validation::CheckingInput,
         facts: &mut checked_trees::CheckFactsWalk<'_>,
@@ -69,13 +509,21 @@ mod body_conservation {
             return Vec::new();
         }
         let mut observed = Vec::new();
-        for (plan_index, plan) in state_conservation_plans(program, facts.view(), machine, state) {
+        // The immutable site preparation already transported terminal demands.
+        // Reuse those plans instead of rediscovering the call graph at every
+        // completed operand during the sequential custody walk.
+        let mut plans = Vec::new();
+        for candidate in candidates {
+            if !plans.iter().any(|(plan_index, plan)| {
+                *plan_index == candidate.plan_index && *plan == &candidate.plan
+            }) {
+                plans.push((candidate.plan_index, &candidate.plan));
+            }
+        }
+        for (plan_index, plan) in plans {
             if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
                 continue;
             }
-            let Some(plan) = plan_at_state(program, facts.view(), state, plan) else {
-                continue;
-            };
             let Some((inputs, outputs)) =
                 owned_return_sides(plan.equation.left(), plan.equation.right())
             else {
@@ -107,6 +555,7 @@ mod body_conservation {
                     }
                     let prepared = candidates.iter().find(|candidate| {
                         candidate.plan_index == plan_index
+                            && candidate.plan == *plan
                             && candidate.returned_at == returned_at
                             && candidate.completed_value == completed_value
                     });
@@ -118,7 +567,7 @@ mod body_conservation {
                                 machine,
                                 state,
                                 completed_value,
-                                &plan,
+                                plan,
                             )
                         },
                         |candidate| candidate.admitted,
@@ -205,6 +654,7 @@ mod body_conservation {
                         completed_value,
                         evaluation,
                         plan_index,
+                        body_plan_index: facts.qualifications.content.body_conservation_plans.len(),
                         inputs,
                         outputs,
                         available_inputs: Default::default(),
@@ -214,6 +664,11 @@ mod body_conservation {
                     let Ok(available) = available else {
                         continue;
                     };
+                    facts
+                        .qualifications
+                        .content
+                        .body_conservation_plans
+                        .push(plan.clone());
                     let conservation = facts
                         .qualifications
                         .content
@@ -238,6 +693,7 @@ mod body_conservation {
     #[derive(Debug, Clone)]
     pub(crate) struct ConservationCandidate {
         plan_index: usize,
+        plan: language_semantics::content::ContentConservationPlan,
         returned_at: arena::Handle<checked_trees::FlowStateOutgoingFact>,
         completed_value: arena::Handle<checked_trees::FlowOperandFact>,
         admitted: bool,
@@ -374,6 +830,7 @@ mod body_conservation {
                         position,
                         ConservationCandidate {
                             plan_index,
+                            plan: plan.clone(),
                             returned_at,
                             completed_value,
                             admitted,
@@ -450,7 +907,8 @@ mod body_conservation {
         sites
     }
 
-    /* The machine conservation plans owned by this state or its machine entry. */
+    /// Declared plans and exact terminal callers' demands are proof obligations,
+    /// never assumptions about the value a body returns.
     fn state_conservation_plans(
         program: &dyn validation::CheckingInput,
         facts: checked_trees::CheckFactsRef<'_>,
@@ -461,7 +919,7 @@ mod body_conservation {
             .machine_states(machine)
             .first()
             .map(|state| state.symbol);
-        facts
+        let mut plans = facts
             .qualifications
             .content
             .conservation_plans
@@ -473,7 +931,24 @@ mod body_conservation {
                     && (plan.callable == state.symbol || Some(plan.callable) == entry)
             })
             .map(|(position, plan)| (position, plan.clone()))
-            .collect()
+            .collect::<Vec<_>>();
+        for (plan_index, plan) in facts
+            .qualifications
+            .content
+            .conservation_plans
+            .iter()
+            .enumerate()
+            .filter(|(_, plan)| plan.owner_kind == ContentConservationOwnerKind::Machine)
+        {
+            for demanded in terminal_demands::at_state(program, facts, plan, machine, state) {
+                if !plans.iter().any(|(existing_index, existing)| {
+                    *existing_index == plan_index && *existing == demanded
+                }) {
+                    plans.push((plan_index, demanded));
+                }
+            }
+        }
+        plans
     }
 
     /*
@@ -781,7 +1256,7 @@ mod call_ancestry {
                     }
                     let transformation = content.claim_transformations.get(handle);
                     if matches!(transformation.source, TransformationSource::Call { .. }) {
-                        authenticate_call(facts, transformation, &mut traversal)?;
+                        authenticate_call(program, facts, transformation, &mut traversal)?;
                         checked.push(handle);
                     }
                 }
@@ -828,12 +1303,14 @@ mod call_ancestry {
     }
 
     fn authenticate_call(
+        program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         transformation: &ContentClaimTransformation,
         traversal: &mut OriginTraversal,
     ) -> Result<(), &'static str> {
         for output in transformation.outputs.handles() {
             call_parents(
+                program,
                 facts,
                 transformation,
                 facts.qualifications.content.body_claim_bindings.get(output),
@@ -844,6 +1321,7 @@ mod call_ancestry {
     }
 
     fn call_parents(
+        program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         transformation: &ContentClaimTransformation,
         output: &ClaimBinding,
@@ -883,29 +1361,8 @@ mod call_ancestry {
                     segments,
                 } => vec![(parameter_symbol, segments)],
                 FlowClaimOutcomeSource::Established { claim_identity, .. } => {
-                    let roots = qualified_roots(facts, claim_identity, output, traversal)?;
-                    let mut formals = Vec::new();
-                    for root in roots {
-                        let mut entries = ownership.permissions.iter().filter(|(_, event)| {
-                            event.claim_identity == root
-                                && event.source == PermissionEventSource::StateEntry
-                                && event.kind == PermissionEventKind::Establish
-                        });
-                        let (_, entry) = entries.next().ok_or(
-                            "equal content does not relate a freshly established callee root to an input",
-                        )?;
-                        if entries.next().is_some() {
-                            return Err("callee lineage has ambiguous entry custody");
-                        }
-                        let facts::PlaceRoot::Symbol(parameter) = entry.root else {
-                            return Err("callee lineage entry is not a formal");
-                        };
-                        formals.push((
-                            callable_entry_parameter(facts, entry, parameter)?,
-                            entry.segments,
-                        ));
-                    }
-                    formals
+                    let roots = qualified_roots(program, facts, claim_identity, output, traversal)?;
+                    entry_formals(facts, &roots)?
                 }
                 FlowClaimOutcomeSource::Unknown => return Err("callee result lineage is unknown"),
             };
@@ -971,7 +1428,227 @@ mod call_ancestry {
         Ok(first.entry_parameter)
     }
 
+    fn entry_formals(
+        facts: &CheckFacts,
+        roots: &[PermissionClaimIdentity],
+    ) -> Result<
+        Vec<(
+            symbols::SymbolHandle,
+            arena::HandleSpan<facts::PlaceSegment>,
+        )>,
+        &'static str,
+    > {
+        let mut formals = Vec::new();
+        for root in roots {
+            let mut entries = facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter(|(_, event)| {
+                    event.claim_identity == *root
+                        && event.source == PermissionEventSource::StateEntry
+                        && event.kind == PermissionEventKind::Establish
+                });
+            let (_, entry) = entries.next().ok_or(
+                "equal content does not relate a freshly established callee root to an input",
+            )?;
+            if entries.next().is_some() {
+                return Err("callee lineage has ambiguous entry custody");
+            }
+            let facts::PlaceRoot::Symbol(parameter) = entry.root else {
+                return Err("callee lineage entry is not a formal");
+            };
+            formals.push((
+                callable_entry_parameter(facts, entry, parameter)?,
+                entry.segments,
+            ));
+        }
+        Ok(formals)
+    }
+
+    /// A completed call keeps its own result identity. Follow that exact receipt
+    /// to the callee's checked roots, then substitute the arguments actually moved
+    /// by this invocation. Equal content alone never supplies a parent identity.
+    fn call_result_roots(
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        receipt: &checked_trees::FlowClaimJoinReceipt,
+        projection: &ClaimBinding,
+        traversal: &mut OriginTraversal,
+    ) -> Result<Vec<PermissionClaimIdentity>, &'static str> {
+        let control = &facts.flow.control;
+        let ownership = &facts.flow.ownership;
+        let flow = control
+            .unique_state(receipt.machine_symbol, receipt.state_symbol)
+            .ok_or("normal-result lineage has no unique caller flow")?;
+        let mut calls = control
+            .calls
+            .span_or_empty(flow.calls)
+            .iter()
+            .filter(|call| {
+                call.statement_index == receipt.statement_index
+                    && call.call_ordinal == receipt.call_ordinal
+                    && call.authored_expression == receipt.expression
+                    && validation::call_target_entry_symbol(program, call.target_symbol)
+                        == receipt.target_symbol
+                    && call.authored_source_custody_valid
+            });
+        let call = calls
+            .next()
+            .ok_or("normal-result lineage has no exact invocation")?;
+        if calls.next().is_some() {
+            return Err("normal-result lineage has ambiguous invocations");
+        }
+        let site = validation::find_call_site(
+            program,
+            receipt.machine_symbol,
+            receipt.state_symbol,
+            receipt.statement_index,
+            receipt.call_ordinal,
+        )
+        .ok_or("normal-result lineage lost its source invocation")?;
+        if !matches!(&site, validation::CallSite::Expression { expression, call: source }
+            if *expression == receipt.expression && !source.requirement_application.is_valid())
+            || site.static_machine_parameter().is_valid()
+            || site.static_requirement_dispatch().is_some()
+            || call.static_requirement_dispatch.is_some()
+            || validation::call_target_entry_symbol(program, site.target_symbol(program))
+                != receipt.target_symbol
+            || control.call_arguments.span(call.authored_arguments)
+                != Some(validation::call_site_argument_expressions(program, &site))
+        {
+            return Err("normal-result lineage cannot inspect a selected private contract");
+        }
+        let (declaration, _) =
+            validation::authored_call_parameters(program, receipt.machine_symbol, &site)?;
+        if program.machine_by_symbol(declaration).is_none() {
+            return Err("normal-result lineage has no direct source body");
+        }
+        let target = validation::call_target_state(program, call.target_symbol)
+            .ok_or("normal-result lineage has no concrete return target")?;
+        if program
+            .machine_holding_state(target.symbol)
+            .is_none_or(|machine| {
+                machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            })
+        {
+            return Err("normal-result lineage has no independently checked body");
+        }
+        let parameters = program.state_parameters(target);
+        if parameters.len() != call.argument_operands().len() {
+            return Err("normal-result lineage lost its exact argument telescope");
+        }
+        let caller = program
+            .machine_by_symbol(receipt.machine_symbol)
+            .ok_or("normal-result lineage lost its caller")?;
+        let state = program
+            .state_by_symbol(receipt.state_symbol)
+            .ok_or("normal-result lineage lost its caller state")?;
+        let evaluation = crate::flow::call_permission_evaluation(
+            program,
+            caller,
+            state,
+            receipt.statement_index,
+            receipt.call_ordinal,
+        );
+        if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
+            return Err("normal-result lineage has no exact evaluation");
+        }
+        let consumer = crate::checks::multiplicity::ClaimConsumption {
+            machine: receipt.machine_symbol,
+            state: receipt.state_symbol,
+            statement_index: receipt.statement_index,
+            evaluation,
+            source: PermissionEventSource::Call {
+                statement_index: receipt.statement_index,
+                call_ordinal: receipt.call_ordinal,
+                target_symbol: call.target_symbol,
+            },
+        };
+        let mut parents: Option<Vec<PermissionClaimIdentity>> = None;
+        for alternative in ownership
+            .claim_join_alternatives
+            .span_or_empty(receipt.alternatives)
+        {
+            traversal.visit()?;
+            let source = match alternative.source {
+                FlowClaimJoinAlternativeSource::Claim { source, .. } => source,
+                FlowClaimJoinAlternativeSource::Inactive
+                | FlowClaimJoinAlternativeSource::ExcludedInput { .. } => continue,
+            };
+            let formals = match source {
+                FlowClaimOutcomeSource::Input {
+                    parameter_symbol,
+                    segments,
+                } => {
+                    vec![(parameter_symbol, segments)]
+                }
+                FlowClaimOutcomeSource::Established { claim_identity, .. } => entry_formals(
+                    facts,
+                    &qualified_roots(program, facts, claim_identity, projection, traversal)?,
+                )?,
+                FlowClaimOutcomeSource::Unknown => return Err("callee result lineage is unknown"),
+            };
+            let mut candidate = Vec::new();
+            for (parameter, path) in formals {
+                traversal.visit()?;
+                let position =
+                    typed_trees::signature::state_parameter_position(parameters, parameter)
+                        .ok_or("callee lineage is not rooted in this invocation's formal")?;
+                let operand = call.argument_operands().handle_at(
+                    u32::try_from(position).map_err(|_| "callee argument position overflow")?,
+                );
+                let mut conditions = crate::flow::SelectionConditions::new();
+                let claims = crate::checks::multiplicity::consumed_operand_claims(
+                    program,
+                    facts.view(),
+                    consumer,
+                    operand,
+                    &mut conditions,
+                )?;
+                let mut coverage = conditions.never();
+                let mut actual_roots: Option<Vec<PermissionClaimIdentity>> = None;
+                for claim in claims
+                    .iter()
+                    .filter(|claim| claim.path == ownership.segments.span_or_empty(path))
+                {
+                    let crate::checks::multiplicity::ReturnedClaimSource::Live(identity) =
+                        claim.source
+                    else {
+                        return Err("callee lineage input is not live on every actual alternative");
+                    };
+                    let roots = qualified_roots(program, facts, identity, projection, traversal)?;
+                    if actual_roots
+                        .as_ref()
+                        .is_some_and(|prior| !same_roots(prior, &roots))
+                    {
+                        return Err("callee lineage actual alternatives have different parents");
+                    }
+                    actual_roots = Some(roots);
+                    coverage = conditions.any(coverage, claim.condition);
+                }
+                if !conditions.covers(control, coverage) {
+                    return Err("callee lineage input does not cover every actual alternative");
+                }
+                for root in actual_roots.ok_or("callee lineage actual input is absent")? {
+                    crate::shared::collections::push_unique(&mut candidate, root);
+                }
+            }
+            if candidate.is_empty()
+                || parents
+                    .as_ref()
+                    .is_some_and(|prior| !same_roots(prior, &candidate))
+            {
+                return Err("callee normal returns have incompatible input rosters");
+            }
+            parents = Some(candidate);
+        }
+        parents.ok_or("normal-result lineage has no live return alternative")
+    }
+
     fn qualified_roots(
+        program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         claim: PermissionClaimIdentity,
         projection: &ClaimBinding,
@@ -1019,6 +1696,7 @@ mod call_ancestry {
                 traversal.visit()?;
                 let parents = match transformation.source {
                     TransformationSource::Call { .. } => call_parents(
+                        program,
                         facts,
                         transformation,
                         &ClaimBinding {
@@ -1045,7 +1723,7 @@ mod call_ancestry {
                     let ancestors = if parent == claim {
                         vec![parent]
                     } else {
-                        qualified_roots(facts, parent, projection, traversal)?
+                        qualified_roots(program, facts, parent, projection, traversal)?
                     };
                     for ancestor in ancestors {
                         crate::shared::collections::push_unique(&mut candidate, ancestor);
@@ -1059,7 +1737,22 @@ mod call_ancestry {
                 }
                 roots = Some(candidate);
             }
-            Ok(roots.unwrap_or_else(|| vec![claim]))
+            if let Some(roots) = roots {
+                return Ok(roots);
+            }
+            let mut receipts = facts
+                .flow
+                .ownership
+                .claim_join_receipts
+                .iter()
+                .filter(|(_, receipt)| receipt.claim_identity == claim);
+            let Some((_, receipt)) = receipts.next() else {
+                return Ok(vec![claim]);
+            };
+            if receipts.next().is_some() {
+                return Err("callee lineage has ambiguous normal-result receipts");
+            }
+            call_result_roots(program, facts, receipt, projection, traversal)
         })();
         traversal.active.pop();
         if let Ok(roots) = &result {

@@ -35,13 +35,13 @@ machine Float::meaning64(value: f64) -> FloatMeaning;
 // private and keep their exact artifact contract; clients receive their
 // meaning through these checked library result guarantees.
 public machine F32::meaning(value: f32) -> FloatMeaning
-ensures result == Float::meaning32(value)
+ensures core::Identity<FloatMeaning>(result, Float::meaning32(value))
 {
     Float::meaning32(value)
 }
 
 public machine F64::meaning(value: f64) -> FloatMeaning
-ensures result == Float::meaning64(value)
+ensures core::Identity<FloatMeaning>(result, Float::meaning64(value))
 {
     Float::meaning64(value)
 }
@@ -300,66 +300,90 @@ public machine FloatSemantics::fused_multiply_add_toward_negative(
 // the token.
 public boundary machine + Float::add(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::add(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::add(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 
 public boundary machine + Float::add(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::add(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::add(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 
 public boundary machine - Float::subtract(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::subtract(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::subtract(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 
 public boundary machine - Float::subtract(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::subtract(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::subtract(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 
 public boundary machine * Float::multiply(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::multiply(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::multiply(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 
 public boundary machine * Float::multiply(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::multiply(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::multiply(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 
 public boundary machine / Float::divide(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::divide(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::divide(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 
 public boundary machine / Float::divide(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::divide(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::divide(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 
 public boundary machine == Float::equal(left: f32, right: f32) -> bool
@@ -451,135 +475,225 @@ ensures
 // ambient control-state parameter.
 public boundary operator F32::negate(value: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::negate(
-        FloatFormat::BINARY32,
-        Float::meaning32(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::negate(
+            FloatFormat::BINARY32,
+            Float::meaning32(value)
+        )
     );
 public boundary operator F64::negate(value: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::negate(
-        FloatFormat::BINARY64,
-        Float::meaning64(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::negate(
+            FloatFormat::BINARY64,
+            Float::meaning64(value)
+        )
     );
 public boundary operator F32::multiply_then_add(left: f32, right: f32, addend: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::multiply_then_add(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right),
-        Float::meaning32(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::multiply_then_add(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right),
+            Float::meaning32(addend)
+        )
     );
 public boundary operator F64::multiply_then_add(left: f64, right: f64, addend: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::multiply_then_add(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right),
-        Float::meaning64(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::multiply_then_add(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right),
+            Float::meaning64(addend)
+        )
     );
 public boundary operator F32::fused_multiply_add(left: f32, right: f32, addend: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::fused_multiply_add(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right),
-        Float::meaning32(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::fused_multiply_add(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right),
+            Float::meaning32(addend)
+        )
     );
 public boundary operator F64::fused_multiply_add(left: f64, right: f64, addend: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::fused_multiply_add(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right),
-        Float::meaning64(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::fused_multiply_add(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right),
+            Float::meaning64(addend)
+        )
     );
 public boundary operator F32::square_root(value: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::square_root(
-        FloatFormat::BINARY32,
-        Float::meaning32(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::square_root(
+            FloatFormat::BINARY32,
+            Float::meaning32(value)
+        )
     );
 public boundary operator F64::square_root(value: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::square_root(
-        FloatFormat::BINARY64,
-        Float::meaning64(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::square_root(
+            FloatFormat::BINARY64,
+            Float::meaning64(value)
+        )
     );
 public boundary operator F32::minimum(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::minimum(
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::minimum(
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::minimum(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::minimum(
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::minimum(
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 public boundary operator F32::maximum(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::maximum(
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::maximum(
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::maximum(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::maximum(
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::maximum(
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 
 // Destination-owned ordinary format conversions. These are total (including
 // infinities) and round nearest-even; same-format qualification remains `as`.
 public boundary operator F32::from_f64(value: f64) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::convert(
-        FloatFormat::BINARY32,
-        Float::meaning64(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::convert(
+            FloatFormat::BINARY32,
+            Float::meaning64(value)
+        )
     );
 public boundary operator F64::from_f32(value: f32) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::convert(
-        FloatFormat::BINARY64,
-        Float::meaning32(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::convert(
+            FloatFormat::BINARY64,
+            Float::meaning32(value)
+        )
     );
 
 // Integer-to-float conversion is total and rounds nearest-even. The source
 // spelling is part of the destination-owned requirement identity.
 public boundary operator F32::from_i8(value: i8) -> f32
-ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning32(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+);
 public boundary operator F32::from_i16(value: i16) -> f32
-ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning32(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+);
 public boundary operator F32::from_i32(value: i32) -> f32
-ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning32(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+);
 public boundary operator F32::from_i64(value: i64) -> f32
-ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning32(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+);
 public boundary operator F32::from_u8(value: u8) -> f32
-ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning32(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+);
 public boundary operator F32::from_u16(value: u16) -> f32
-ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning32(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+);
 public boundary operator F32::from_u32(value: u32) -> f32
-ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning32(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+);
 public boundary operator F32::from_u64(value: u64) -> f32
-ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning32(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+);
 
 public boundary operator F64::from_i8(value: i8) -> f64
-ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning64(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+);
 public boundary operator F64::from_i16(value: i16) -> f64
-ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning64(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+);
 public boundary operator F64::from_i32(value: i32) -> f64
-ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning64(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+);
 public boundary operator F64::from_i64(value: i64) -> f64
-ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning64(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+);
 public boundary operator F64::from_u8(value: u8) -> f64
-ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning64(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+);
 public boundary operator F64::from_u16(value: u16) -> f64
-ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning64(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+);
 public boundary operator F64::from_u32(value: u32) -> f64
-ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning64(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+);
 public boundary operator F64::from_u64(value: u64) -> f64
-ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
+ensures core::Identity<FloatMeaning>(
+    Float::meaning64(result),
+    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+);
 
 // Destination-owned float-to-integer conversion. Unqualified results require
 // proof that the finite toward-zero result fits; Trapping and Saturating are
@@ -847,15 +961,21 @@ ensures
 
 public boundary operator F32::classify(value: f32) -> FloatClass
 ensures
-    result == FloatSemantics::classify(
-        FloatFormat::BINARY32,
-        Float::meaning32(value)
+    core::Identity<FloatClass>(
+        result,
+        FloatSemantics::classify(
+            FloatFormat::BINARY32,
+            Float::meaning32(value)
+        )
     );
 public boundary operator F64::classify(value: f64) -> FloatClass
 ensures
-    result == FloatSemantics::classify(
-        FloatFormat::BINARY64,
-        Float::meaning64(value)
+    core::Identity<FloatClass>(
+        result,
+        FloatSemantics::classify(
+            FloatFormat::BINARY64,
+            Float::meaning64(value)
+        )
     );
 public boundary operator F32::is_finite(value: f32) -> bool
 ensures
@@ -902,211 +1022,301 @@ ensures
 
 public boundary operator F32::add_toward_zero(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::add_toward_zero(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::add_toward_zero(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::add_toward_zero(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::add_toward_zero(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::add_toward_zero(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 public boundary operator F32::add_toward_positive(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::add_toward_positive(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::add_toward_positive(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::add_toward_positive(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::add_toward_positive(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::add_toward_positive(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 public boundary operator F32::add_toward_negative(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::add_toward_negative(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::add_toward_negative(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::add_toward_negative(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::add_toward_negative(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::add_toward_negative(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 
 public boundary operator F32::subtract_toward_zero(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::subtract_toward_zero(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::subtract_toward_zero(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::subtract_toward_zero(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::subtract_toward_zero(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::subtract_toward_zero(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 public boundary operator F32::subtract_toward_positive(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::subtract_toward_positive(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::subtract_toward_positive(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::subtract_toward_positive(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::subtract_toward_positive(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::subtract_toward_positive(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 public boundary operator F32::subtract_toward_negative(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::subtract_toward_negative(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::subtract_toward_negative(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::subtract_toward_negative(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::subtract_toward_negative(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::subtract_toward_negative(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 
 public boundary operator F32::multiply_toward_zero(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::multiply_toward_zero(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::multiply_toward_zero(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::multiply_toward_zero(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::multiply_toward_zero(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::multiply_toward_zero(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 public boundary operator F32::multiply_toward_positive(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::multiply_toward_positive(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::multiply_toward_positive(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::multiply_toward_positive(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::multiply_toward_positive(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::multiply_toward_positive(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 public boundary operator F32::multiply_toward_negative(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::multiply_toward_negative(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::multiply_toward_negative(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::multiply_toward_negative(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::multiply_toward_negative(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::multiply_toward_negative(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 
 public boundary operator F32::divide_toward_zero(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::divide_toward_zero(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::divide_toward_zero(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::divide_toward_zero(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::divide_toward_zero(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::divide_toward_zero(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 public boundary operator F32::divide_toward_positive(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::divide_toward_positive(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::divide_toward_positive(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::divide_toward_positive(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::divide_toward_positive(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::divide_toward_positive(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 public boundary operator F32::divide_toward_negative(left: f32, right: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::divide_toward_negative(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::divide_toward_negative(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right)
+        )
     );
 public boundary operator F64::divide_toward_negative(left: f64, right: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::divide_toward_negative(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::divide_toward_negative(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right)
+        )
     );
 
 public boundary operator F32::square_root_toward_zero(value: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::square_root_toward_zero(
-        FloatFormat::BINARY32,
-        Float::meaning32(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::square_root_toward_zero(
+            FloatFormat::BINARY32,
+            Float::meaning32(value)
+        )
     );
 public boundary operator F64::square_root_toward_zero(value: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::square_root_toward_zero(
-        FloatFormat::BINARY64,
-        Float::meaning64(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::square_root_toward_zero(
+            FloatFormat::BINARY64,
+            Float::meaning64(value)
+        )
     );
 public boundary operator F32::square_root_toward_positive(value: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::square_root_toward_positive(
-        FloatFormat::BINARY32,
-        Float::meaning32(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::square_root_toward_positive(
+            FloatFormat::BINARY32,
+            Float::meaning32(value)
+        )
     );
 public boundary operator F64::square_root_toward_positive(value: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::square_root_toward_positive(
-        FloatFormat::BINARY64,
-        Float::meaning64(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::square_root_toward_positive(
+            FloatFormat::BINARY64,
+            Float::meaning64(value)
+        )
     );
 public boundary operator F32::square_root_toward_negative(value: f32) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::square_root_toward_negative(
-        FloatFormat::BINARY32,
-        Float::meaning32(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::square_root_toward_negative(
+            FloatFormat::BINARY32,
+            Float::meaning32(value)
+        )
     );
 public boundary operator F64::square_root_toward_negative(value: f64) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::square_root_toward_negative(
-        FloatFormat::BINARY64,
-        Float::meaning64(value)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::square_root_toward_negative(
+            FloatFormat::BINARY64,
+            Float::meaning64(value)
+        )
     );
 
 public boundary operator F32::fused_multiply_add_toward_zero(
@@ -1115,11 +1325,14 @@ public boundary operator F32::fused_multiply_add_toward_zero(
     addend: f32
 ) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::fused_multiply_add_toward_zero(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right),
-        Float::meaning32(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::fused_multiply_add_toward_zero(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right),
+            Float::meaning32(addend)
+        )
     );
 public boundary operator F64::fused_multiply_add_toward_zero(
     left: f64,
@@ -1127,11 +1340,14 @@ public boundary operator F64::fused_multiply_add_toward_zero(
     addend: f64
 ) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::fused_multiply_add_toward_zero(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right),
-        Float::meaning64(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::fused_multiply_add_toward_zero(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right),
+            Float::meaning64(addend)
+        )
     );
 public boundary operator F32::fused_multiply_add_toward_positive(
     left: f32,
@@ -1139,11 +1355,14 @@ public boundary operator F32::fused_multiply_add_toward_positive(
     addend: f32
 ) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::fused_multiply_add_toward_positive(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right),
-        Float::meaning32(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::fused_multiply_add_toward_positive(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right),
+            Float::meaning32(addend)
+        )
     );
 public boundary operator F64::fused_multiply_add_toward_positive(
     left: f64,
@@ -1151,11 +1370,14 @@ public boundary operator F64::fused_multiply_add_toward_positive(
     addend: f64
 ) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::fused_multiply_add_toward_positive(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right),
-        Float::meaning64(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::fused_multiply_add_toward_positive(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right),
+            Float::meaning64(addend)
+        )
     );
 public boundary operator F32::fused_multiply_add_toward_negative(
     left: f32,
@@ -1163,11 +1385,14 @@ public boundary operator F32::fused_multiply_add_toward_negative(
     addend: f32
 ) -> f32
 ensures
-    Float::meaning32(result) == FloatSemantics::fused_multiply_add_toward_negative(
-        FloatFormat::BINARY32,
-        Float::meaning32(left),
-        Float::meaning32(right),
-        Float::meaning32(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning32(result),
+        FloatSemantics::fused_multiply_add_toward_negative(
+            FloatFormat::BINARY32,
+            Float::meaning32(left),
+            Float::meaning32(right),
+            Float::meaning32(addend)
+        )
     );
 public boundary operator F64::fused_multiply_add_toward_negative(
     left: f64,
@@ -1175,9 +1400,12 @@ public boundary operator F64::fused_multiply_add_toward_negative(
     addend: f64
 ) -> f64
 ensures
-    Float::meaning64(result) == FloatSemantics::fused_multiply_add_toward_negative(
-        FloatFormat::BINARY64,
-        Float::meaning64(left),
-        Float::meaning64(right),
-        Float::meaning64(addend)
+    core::Identity<FloatMeaning>(
+        Float::meaning64(result),
+        FloatSemantics::fused_multiply_add_toward_negative(
+            FloatFormat::BINARY64,
+            Float::meaning64(left),
+            Float::meaning64(right),
+            Float::meaning64(addend)
+        )
     );

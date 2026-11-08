@@ -3047,6 +3047,30 @@ pub(crate) mod relation_plan {
                 }
             }
 
+            /// The public quotient input is the projection of a hypothetical raw
+            /// representative. Keep the exact selected quotient type in both keys;
+            /// this never identifies the two carriers or changes the raw P view.
+            pub(crate) fn quotient_projection(
+                &self,
+                program: &dyn crate::CheckingInput,
+                quotient: typed_trees::types::TypeReferenceHandle,
+            ) -> Self {
+                Self {
+                    symbol: self.symbol,
+                    rendered: format!(
+                        "({} as {})",
+                        self.rendered,
+                        program.type_reference_table.display_name(quotient)
+                    ),
+                    trace: format!(
+                        "{}:{:?}:{}",
+                        self.trace,
+                        SymbolHandle::invalid(),
+                        program.normalized_type_identity_text(quotient)
+                    ),
+                }
+            }
+
             pub(crate) fn boolean(symbol: SymbolHandle, value: bool) -> Self {
                 Self {
                     symbol,
@@ -6322,6 +6346,39 @@ pub(crate) mod relation_plan {
                     )
                 })
                 .collect::<Vec<_>>();
+            // Q is stated over public quotient values, whereas theorem parameters
+            // are raw representatives. Its substitution therefore uses each exact
+            // selected projection; P keeps its independent representative namespace.
+            let mut public_projections: Vec<
+                Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>,
+            > = Vec::new();
+            for premise in &expected_congruence.relation_premises {
+                let position = runtime
+                    .positions
+                    .get(premise.representative_position)
+                    .ok_or(RelationPlanError::DirectLiftRuntimeArityMismatch)?;
+                let super::runtime_correspondence::DirectLiftArgumentSource::PublicParameter(
+                    symbol,
+                ) = position.source
+                else {
+                    return Err(RelationPlanError::TransportSchemaPublicPremiseMismatch(0));
+                };
+                let quotient = premise.relation.quotient_type;
+                let index = symbol.arena_index() as usize;
+                if public_projections.len() <= index {
+                    public_projections.resize(index + 1, None);
+                }
+                if let Some((retained, previous)) = public_projections[index] {
+                    if retained != symbol
+                        || program.normalized_type_identity(previous)
+                            != program.normalized_type_identity(quotient)
+                    {
+                        return Err(RelationPlanError::TransportSchemaPublicPremiseMismatch(0));
+                    }
+                } else {
+                    public_projections[index] = Some((symbol, quotient));
+                }
+            }
             let mut public_premises = Vec::with_capacity(requires.len());
             let mut representative_conclusions = Vec::with_capacity(ensures.len());
             let side_values = [TheoremApplicationSide::Left, TheoremApplicationSide::Right]
@@ -6334,13 +6391,26 @@ pub(crate) mod relation_plan {
                     if runtime.positions.len() != application_schema.arguments.len() {
                         return Err(RelationPlanError::DirectLiftRuntimeArityMismatch);
                     }
-                    let values = proof_value_substitutions(runtime, |position| {
-                        format!(
-                            "$transport_parameter_{}",
-                            application_schema.arguments[position]
-                        )
-                    });
-                    Ok((application, values))
+                    let (mut public_values, representative_values) =
+                        proof_value_substitutions(runtime, |position| {
+                            format!(
+                                "$transport_parameter_{}",
+                                application_schema.arguments[position]
+                            )
+                        });
+                    for value in &mut public_values {
+                        if let Some(Some((symbol, quotient))) =
+                            public_projections.get(value.symbol.arena_index() as usize)
+                        {
+                            if *symbol != value.symbol {
+                                return Err(
+                                    RelationPlanError::TransportSchemaPublicPremiseMismatch(0),
+                                );
+                            }
+                            *value = value.quotient_projection(program, *quotient);
+                        }
+                    }
+                    Ok((application, (public_values, representative_values)))
                 })
                 .collect::<Result<Vec<_>, RelationPlanError>>()?;
 

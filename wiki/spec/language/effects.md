@@ -129,7 +129,16 @@ a published surface authors them; private checked bodies may omit them to
 request inference. An omitted `crashes` clause is inferred from the checked
 body, private or public, and defers to the selected implementation on a
 bodyless non-boundary requirement. `crashes none` promises no route and rejects
-a body or selection that has one. A public generic that admits a suspending or
+a body or selection that has one. An inferred public route that a body edit
+introduces therefore propagates to callers that imposed no constraint, and
+the published contract changes with it. Across packages the change arrives
+through the [dependency update](../packages/acceptance.md#ordinary-compilation)
+boundary, which has no crash-specific approval of its own. Crash policy is
+decided deliberately at two places: `crashes none` on the surface that
+commits to crash-freedom, where such an edit rejects, and
+[build-level behavior exclusions](../build/behavior_exclusions.md#two-independent-checks)
+where the requirement belongs to the whole executable, where any route in the
+selected closure rejects at admission. A public generic that admits a suspending or
 blocking callback declares the corresponding ceiling. Its published
 [dependency terms](#static-binder-contract-dependencies) separately record
 which static selections contribute each possibility.
@@ -348,6 +357,7 @@ target and the current consumer set contribute nothing.
 | `crashes` | per cause, union of fixed and binder routes, then path-fact disproof | infer | defer to the selection | fixed routes plus the selected published routes, disproved routes removed |
 | `terminates` | own progress AND binder promises | no guarantee | no promise | the guarantee once every binder premise is discharged by a selected published promise |
 | suspension carry | conditions over the suspension term | derived | derived | discharged where substitution removes the suspension |
+| result relations | proof-only relation per binder, composed along value flow | authored claim or none | the requirement's guarantee bounds it | the selected published relation under the authored claim |
 
 One rule produces that table. Omission derives the answer wherever the
 compiler can derive it safely. Suspension and blocking have call-site
@@ -371,14 +381,80 @@ Every term, bound and premise belongs to the enclosing generic machine's
 published contract and interface identity. Changing one is an interface change
 even when the authored header is unchanged, and dependents revalidate. An
 admitted closed application retains its guarantees across that change; a
-generic recipe and its published identity may change. Requires and ensures
-retain their own authored checks: no published term projects a callback's
-postcondition onto its wrapper.
+generic recipe and its published identity may change. Requires retain their
+own authored checks. A callback's result guarantee reaches its wrapper only
+through an authored claim; see [callback result relations](#callback-result-relations).
 
 The reach, operational and carry sections are rows of this table and retain
 their decision names. Crash routes compose in [guarded crashes](#guarded-crashes);
 termination premises in
 [published guarantees](termination.md#published-guarantees-and-private-witnesses).
+
+### Callback result relations
+
+Named decision: `callback-result-relations`, ratified 2026-11-08. This is the
+postcondition row of the table above.
+
+A static callback binder carries a proof-only result relation: the selected
+callback's published normal-return guarantee, bounded by the binder's
+requirement. A checked normal return of `F(x)` establishes that relation for
+the invocation's exact arguments and returned value, and for nothing else. The
+relation is evidence on the normal-return path only; it implies no progress,
+and a callback that may crash or diverge still supplies it where it does
+return. During generic checking the relation is opaque: the body may rely on
+the facts the requirement states and on the identity of the values the relation
+holds between, never on a property only some selection would publish.
+
+A wrapper publishes a callback's result relation only by authoring the claim.
+An `ensures` clause may apply a binder's result relation to exact subjects,
+alone or composed with ordinary propositions and mathematical definitions; the
+checker discharges the claim from the evidence above or rejects it. Composition
+follows value flow, not a union: a result returned unchanged keeps its
+relation; two calls chain through the intermediate value; a branch between
+callbacks yields a guarded alternative; a discarded result does not transfer
+its relation to an unrelated value, though the completed call still establishes
+that some related result existed. Ordinary call admission is unchanged:
+applying `F` to `F`'s own result needs the second invocation's preconditions
+established like any other call. Applying the relation states a proposition;
+it does not invoke the callable or compute its result.
+
+Applications substitute the selected callback's published relation. A
+specialized wrapper therefore inherits a stronger published guarantee from a
+stronger selection, and changing a callback's published contract changes the
+specialized wrapper contract under the ordinary dependency rules. Explicit
+mathematical relations shared by a requirement and its consumers remain
+available for independently designed specifications. The first scope is
+immutable arguments and normal returns; mutable arguments follow the existing
+storage-version and invalidation rules. No derived relation is exported without
+an authored claim.
+
+The projection is spelled `F::ensures(a1, ..., an, r)` on the static binder:
+the callback's parameters in declaration order, then the subject standing for
+its result. Any in-scope value may fill any position; `result` is the usual
+final subject in a forwarder's claim, not a required token. The application is
+an ordinary proof-only proposition and composes with other propositions and
+named mathematical definitions. The static-selection path `::` keeps the
+reference attached to the exact binder and its selected contract; it is not a
+field selection, a call, or a first-class value of the unapplied relation, and
+it does not introduce a `requires` projection.
+
+```omega
+public machine forward<machine F>(x: u64) -> u64
+requires machine F(value: u64) -> u64
+    ensures result >= value;
+ensures F::ensures(x, result)
+{
+    F(x)
+}
+```
+
+The requirement states the least an admitted `F` must guarantee. The wrapper
+promises that the selected `F`'s published relation holds between `x` and its
+own result, so a selection guaranteeing `result == value + 1` gives this
+application that guarantee. A two-call wrapper relates `x` to its result
+through the intermediate value using the ordinary
+[witness machinery](../proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction);
+there is no existential syntax.
 
 ### Static callback operational dependencies
 
@@ -466,10 +542,11 @@ envelope, without manufacturing continuation or blocking requirements solely
 from the template's wider acknowledgement.
 
 Crash routes and termination premises compose through the same substitution;
-see the [per-axis table](#static-binder-contract-dependencies). Preconditions,
-postconditions and resource composition retain their own authored checks.
-Forwarding a static callable requirement does not automatically forward a
-callback's logical guarantees to its wrapper's callers.
+see the [per-axis table](#static-binder-contract-dependencies). Preconditions
+and resource composition retain their own authored checks. Forwarding a static
+callable requirement does not automatically forward a callback's logical
+guarantees to its wrapper's callers; a wrapper publishes a callback's
+[result relation](#callback-result-relations) only by authoring the claim.
 
 Callable effect rows have no service subtraction, negation, masking, scoped
 allowance, or algebraic-effect handlers. Independent product exclusions do not

@@ -11,7 +11,10 @@ satisfies Content<Region, CountedQuantity<Units>>::project {
 }
 trait Transfer<T> {
     machine transfer(region: Region in Owned) -> Region in Owned
-    ensures Owned::content(old(&region)) == Owned::content(&result);
+    ensures core::Identity<CountedQuantity<Units>>(
+        Owned::content(old(&region)),
+        Owned::content(&result)
+    );
 }
 machine retain(region: Region in Owned) -> Region in Owned
 satisfies Transfer<Payload>::transfer

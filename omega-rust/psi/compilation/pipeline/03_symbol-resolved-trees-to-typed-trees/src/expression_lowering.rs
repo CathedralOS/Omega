@@ -5,6 +5,35 @@ native code layout requests.
 */
 
 pub(crate) mod expression {
+    /*
+    Entry points for typing one expression from a resolved expression table.
+
+    Each entry builds an `ExpressionTableLowerer` (in `table`) and lowers one
+    expression handle and its operands into the typed trees. They differ in
+    their inputs:
+
+    - `lower_expression_handle` reads the package's body expression table
+      through the `Lowerer` and carries its current equality scope, so `==`
+      can find an operand's data type. Declaration and statement lowering use
+      it.
+    - `lower_expression_handle_from_table` and
+      `lower_expression_handle_from_table_with_symbol_substitution` take any
+      expression table, with or without the resolved program; the second can
+      substitute one resolved binder with a typed expression. Type references and
+      constraints use them.
+    - `lower_expression_handle_from_table_in_fact_position` lowers a proof
+      fact with its proposition-placement diagnostics. Comparisons keep their
+      selected executable meaning in this context too.
+
+    `lower_static_machine_argument` lowers a static machine argument with its
+    type reference and nested application arguments; machine, trait and call
+    lowering use it, and so does `table`.
+
+    Children: `table` holds the expression-table lowerer; `domain_membership`,
+    `name_paths` and `operators` lower membership tests, name paths and binary
+    operators for it.
+    */
+
     use crate::lowerer::Lowerer;
     use crate::tables::resolved_expressions;
     use diagnostics::Diagnostic;
@@ -814,6 +843,8 @@ pub(crate) mod expression {
                 symbol_substitution:
                     Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
                 pub(crate) equality_scope: Option<&'scope EqualityScope>,
+                /// Tracks proposition-only placement diagnostics. Calls and value
+                /// children leave this context explicitly; comparison meaning is unchanged.
                 pub(crate) fact_position: bool,
                 lowered_expressions: Vec<(
                     resolved::expression::ExpressionHandle,
@@ -2201,7 +2232,7 @@ pub(crate) mod expression {
             program, self.target_trees, program.child_type_reference(application),
             self.source.authored_expression_exposure(source_expression).unwrap_or(
                 language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
-        )
+                    )
                 }
 
                 fn lower_membership_expression(
@@ -2831,7 +2862,7 @@ pub(crate) mod expression {
                     "authored synthesized equality call retains contradictory selection custody",
                 ));
             }
-        }
+                    }
                     self.target_trees
                         .retain_authored_declaration_selections(selections);
                     Ok(())
@@ -2842,9 +2873,6 @@ pub(crate) mod expression {
                     binary: &resolved::expression::TableBinaryExpression,
                 ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic>
                 {
-                    if self.fact_position {
-                        return Ok(None);
-                    }
                     let Some(program) = self.program else {
                         return Ok(None);
                     };
@@ -2917,7 +2945,7 @@ pub(crate) mod expression {
                         EqualitySelection::Selected(implementation) => implementation,
                         EqualitySelection::Missing => {
                             return Err(Diagnostic::error(format!(
-                                "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality",
+                                "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality, or use `core::Identity<{type_name}>(left, right)` for mathematical identity",
                                 suggested_equality_declaration(&type_name)
                             )));
                         }
@@ -2983,8 +3011,8 @@ pub(crate) mod expression {
             .target()
             .insert(typed::expression::ExpressionNode::Call(
                 typed::expression::TableCallExpression {
- authored_call_selection: None,
- authored_call_binding: None,
+             authored_call_selection: None,
+             authored_call_binding: None,
                     authored_machine_application: Default::default(),
                     requirement_application: Default::default(),
                     exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
@@ -3729,6 +3757,8 @@ pub(crate) mod expression {
         )
     }
 
+    /// Lower an expression in proof-fact position. Erased propositions retain
+    /// their placement checks; comparisons use the ordinary selection rules.
     pub(crate) fn lower_expression_handle_from_table_in_fact_position(
         program: &resolved::SymbolResolvedTrees,
         source: &resolved::expression::ExpressionTable,

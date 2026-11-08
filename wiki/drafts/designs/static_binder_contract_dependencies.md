@@ -46,11 +46,17 @@ acceptance are complete.
   edit that changes one is an interface change even with an unchanged header.
   Compatibility target: existing admitted closed applications keep their
   guarantees; generic recipes and their published identities may change.
-- Postconditions are later work. The same substitution can carry a checked
-  transformation of a selected callback's published normal-return relation,
-  derived from the body (`F(x)` yields `R(x, r)`; `F(F(x))` yields the
-  relational composition; a discarded result yields nothing). Source syntax to
-  name a requirement's relation is a separate owner question.
+- Result relations (ratified 2026-11-08). A static binder carries a proof-only
+  relation: the selected callback's published normal-return guarantee under the
+  requirement. A checked normal return establishes it for the exact arguments
+  and result. Generic checking treats it as opaque. Wrappers publish it only by
+  an authored `ensures` claim, which the checker discharges or rejects; no
+  derived relation is exported. Specialization substitutes the selected
+  published relation. First scope: immutable arguments and normal returns.
+  Spelling (ratified 2026-11-08): `F::ensures(a1, ..., an, r)`, parameters in
+  declaration order and the result subject last, an ordinary proof-only
+  proposition on the static binder. No unapplied value, partial application or
+  `F::requires` is implied.
 
 ## Current code
 
@@ -94,6 +100,11 @@ acceptance are complete.
 6. Retire the bare keyword in both parsers, sweep `tests/omega`, `samples`,
    `tests/psi/parser` and `tests/psi/resolver` to `reaches none`, and
    re-record the touched golden rows.
+7. Result relations: retain the opaque per-invocation relation fact through
+   generic checking, discharge authored claims from it with ordinary logical
+   evidence, substitute the selected published relation at specialization, and
+   publish the claim under the usual dependency identity. This extends the
+   dependency-term machinery; it is not a separate proof system.
 
 Milestone for step 1: a wrapper publishes an unresolved dependency; another
 module imports that contract and forwards a differently named binder; quiet and
@@ -119,8 +130,28 @@ a negative twin. Boundary cases:
 - A wrapper authoring `terminates` over a silent requirement is admissible with
   a non-terminating selection and receives no guarantee; with a promising
   selection it receives one.
-- Later, for postconditions: `F(F(x))` with a non-transitive relation, and a
-  wrapper that calls `F`, discards the result and returns a constant.
+
+Result-relation fixtures, immutable arguments:
+
+- Direct forwarding preserves the projected relation for the actual returned
+  value.
+- A selected callback with a stronger published guarantee than its requirement
+  specializes the wrapper's authored claim to that guarantee.
+- Two calls with a non-transitive relation compose through the intermediate
+  value instead of collapsing to one application. The fixture must show the
+  authored claim as real source, written with the existing witness machinery
+  or a named mathematical definition packaging it, since Omega has no
+  existential syntax; if that claim is unpleasant to write, the ergonomic gap
+  is in the mathematical surface and is reported as its own item.
+- Two calls where the intermediate may violate the second call's input
+  requirement reject unless the wrapper establishes closure.
+- A discarded callback result and an unrelated wrapper result: the relation
+  does not attach to the constant; the completed call's existential consequence
+  remains available.
+- Forwarding through another generic wrapper preserves the relation across
+  layers.
+- A callback that may crash or diverge: the relation is evidence on the
+  normal-return path only and implies no progress.
 
 Transformation pairs, stating what stays invariant: adding a transparent
 forwarding wrapper keeps the relevant guarantees; extracting a private helper

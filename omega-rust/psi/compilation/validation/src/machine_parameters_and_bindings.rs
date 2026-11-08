@@ -117,7 +117,7 @@ pub mod machine_parameters {
                 } else {
                     diagnostics.push(Diagnostic::error(format!(
             "{label} strengthens its nested nominal input authority; the promised callback does not carry the exact demanded requirement application"
-        )));
+                    )));
                 }
             }
         }
@@ -299,7 +299,7 @@ pub mod machine_parameters {
 
             diagnostics.push(Diagnostic::error(format!(
         "static machine argument `{selected_name}` does not name a callable machine entry or an in-scope machine parameter"
-    )));
+            )));
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -4463,9 +4463,12 @@ pub mod machine_parameters {
         for (handle, expression) in expression_table(program).iter_expressions() {
             if let ExpressionNode::Call(call) = expression {
                 if mathematical_expressions.contains(&handle)
+                    || (crate::mathematical_applications::is_identity_call(program, call)
+                        && program
+                            .prepared_mathematics()
+                            .is_some_and(|view| view.application(handle).is_some()))
                     || (erased_initializers.contains(&handle)
-                        && crate::mathematical_applications::selected_definition(program, call)
-                            .is_some()
+                        && crate::mathematical_applications::is_mathematical_call(program, call)
                         && program
                             .prepared_mathematics()
                             .is_some_and(|view| view.application(handle).is_some()))
@@ -6144,7 +6147,7 @@ pub mod static_arguments {
         StrictArithmeticImplicationJudgment::Unknown => diagnostics.push(Diagnostic::error(format!(
             "cannot prove declared requires facts for static application of requirement `{}::{}` under its complete applied telescope", owner.name, source.name,
         ))),
-    }
+            }
         }
     }
     pub(crate) use invocation_parameters::invocation_parameters;
@@ -6658,16 +6661,6 @@ pub mod static_arguments {
                     } else {
                         "<missing>".to_owned()
                     };
-                    let retained_headers = program
-                        .tables
-                        .machines
-                        .iter()
-                        .filter(|(_, machine)| machine.symbol == owner)
-                        .map(|(_, machine)| machine)
-                        .collect::<Vec<_>>();
-                    let retained_headers_agree = retained_headers
-                        .windows(2)
-                        .all(|headers| headers[0] == headers[1]);
                     let target = source_call.registration_operation(program);
                     let target = if target.is_valid() {
                         program.symbols.name(target)
@@ -6675,8 +6668,7 @@ pub mod static_arguments {
                         "<unresolved>"
                     };
                     let mut diagnostic = Diagnostic::error(format!(
-                        "structural static type argument has no retained caller type/lifetime context for `{target}`; lexical owner {owner_label}; retained machine headers: {}, identical: {retained_headers_agree}",
-                        retained_headers.len(),
+                        "structural static type argument has no retained caller type/lifetime context for `{target}`; lexical owner {owner_label}",
                     ));
                     if let StaticArgumentCall::Expression(handle, _) = source_call {
                         diagnostic = diagnostic

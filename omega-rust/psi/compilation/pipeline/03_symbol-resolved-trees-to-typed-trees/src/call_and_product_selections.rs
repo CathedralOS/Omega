@@ -1250,13 +1250,33 @@ pub(crate) mod construction_destinations {
                         }
                     }
                 }
-                ExpressionNode::Call(call) => collect_call_destinations(
-                    program,
-                    call.target_symbol,
-                    &call.machine_arguments,
-                    program.expression_table.expression_handles(call.arguments),
-                    &mut calls,
-                ),
+                ExpressionNode::Call(call) => {
+                    let arguments = program.expression_table.expression_handles(call.arguments);
+                    if let Some(required) =
+                        validation::mathematical_applications::argument_type_references(
+                            program, call,
+                        )
+                    {
+                        // Mathematical declarations own their value-slot types too.
+                        // The common landing walk still checks the constructor and
+                        // prepares each field under that complete receiving type.
+                        for (argument, reference) in arguments.iter().zip(required) {
+                            if let Some(reference) = reference
+                                && needs_destination(program, *argument)
+                            {
+                                destinations.push((*argument, reference, call.target_symbol));
+                            }
+                        }
+                    } else {
+                        collect_call_destinations(
+                            program,
+                            call.target_symbol,
+                            &call.machine_arguments,
+                            arguments,
+                            &mut calls,
+                        );
+                    }
+                }
                 _ => {}
             }
         }

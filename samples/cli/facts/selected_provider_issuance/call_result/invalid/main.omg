@@ -26,11 +26,17 @@ public boundary trait Writer {
     machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches
     ensures result in PendingWrite::Retained,
         result.pointer == buffer.pointer,
-        Owned::content(old(&buffer)) == Retained::content(&result);
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Owned::content(old(&buffer)),
+            Retained::content(&result)
+        );
     machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
     ensures result in Buffer::Owned,
         result.pointer == pending.pointer,
-        Retained::content(old(&pending)) == Owned::content(&result);
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Retained::content(old(&pending)),
+            Owned::content(&result)
+        );
 }
 // This is the actual native supply/custody leaf. The raw allocation result
 // has no Owned qualification; a null result never becomes a normal grant.
@@ -53,13 +59,19 @@ InitialSupplyProvider satisfies InitialSupply {
 WriterProvider satisfies Writer {
     machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches
     ensures result.pointer == buffer.pointer,
-        Owned::content(old(&buffer)) == Retained::content(&result) {
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Owned::content(old(&buffer)),
+            Retained::content(&result)
+        ) {
         let { pointer } = buffer;
         PendingWrite { pointer: pointer }
     }
     machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
     ensures result.pointer == pending.pointer,
-        Retained::content(old(&pending)) == Owned::content(&result) {
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Retained::content(old(&pending)),
+            Owned::content(&result)
+        ) {
         let { pointer } = pending;
         Buffer { pointer: pointer }
     }

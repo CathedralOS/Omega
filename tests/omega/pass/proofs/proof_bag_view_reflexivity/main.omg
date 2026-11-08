@@ -1,19 +1,14 @@
-// Ladder rung L6 (proof views): the Bag multiset view from the compile-time
-// proofs chapter carries a view equality from requires to ensures unchanged.
-// Lean analog: `Multiset.coe_eq_coe` transport / plain `exact h`.
-// `core::seq` ships `Bag` as the honest packaging form -- `BagView` carries
-// the slice itself, so `Bag(a) == Bag(b)` is the slice view's equality, not
-// an order-insensitive multiset fact; the sorted canonical representative
-// lands with the slice-extraction rungs. The calls select that declaration
-// and the identical atom carries.
+// Bag packages the borrowed slice descriptor in a BagView. The contract
+// receives those existing views and carries their descriptor identity from
+// requires to ensures; it does not replay a reference-bearing call.
 
 use omega::language::core::seq;
 
-machine bag_equality_carries(before: &[u64], items: &[u64])
+machine bag_equality_carries(before: BagView, items: BagView)
 requires
-    Bag(items) == Bag(before)
+    core::Identity<BagView>(items, before)
 ensures
-    Bag(items) == Bag(before)
+    core::Identity<BagView>(items, before)
 {
 }
 
@@ -23,8 +18,10 @@ machine state_constructor_reflexivity(value: u32, tail: Seq<u64>) {
     transition { _ -> conclude(17, tail) }
     machine conclude(value: u64, tail: Seq<u64>)
     requires
-        (Seq::Cons { head: value, tail: Seq::Cons { head: value, tail: tail } })
-        == (Seq::Cons { head: value, tail: Seq::Cons { head: value, tail: tail } })
+        core::Identity<Seq<u64>>(
+            Seq::Cons { head: value, tail: Seq::Cons { head: value, tail: tail } },
+            Seq::Cons { head: value, tail: Seq::Cons { head: value, tail: tail } }
+        )
     {}
 }
 

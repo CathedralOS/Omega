@@ -2939,7 +2939,7 @@ pub mod type_references {
             "indices require finite structural values with decidable equality and one canonical form"
                 .to_owned(),
         ),
-    }
+            }
         }
 
         fn validate_const_integer_carrier(
@@ -3540,7 +3540,7 @@ pub mod type_references {
                 let laws = crate::proof_contracts::contract_entailment::declared_index_algebra_laws(
                     program,
                     trait_definition,
-                    requirement.name.as_str(),
+                    requirement.symbol,
                 );
                 let identities =
                     crate::proof_contracts::contract_entailment::literal_index_identities(
@@ -3740,9 +3740,9 @@ pub mod type_references {
                 if let Ok(value) = name.as_str().parse::<i128>() {
                     if !integer_const_fits_type(program, expected, value) {
                         diagnostics.push(Diagnostic::error(format!(
-                    "{owner} supplies integer index `{value}` outside the declared `{}` type",
-                    const_index_type_label(program, expected)
-                )));
+                            "{owner} supplies integer index `{value}` outside the declared `{}` type",
+                            const_index_type_label(program, expected)
+                        )));
                     }
                     continue;
                 }
@@ -3894,7 +3894,7 @@ pub mod type_references {
             "{owner} uses unsupported open index expression `{}` in `{domain_name}`; only direct const binders combined with `+`, `-`, `*`, or `/` are in the proof-static algebra fragment",
             expression_table(program).display_name(expression)
         ))),
-    }
+            }
         }
 
         fn const_index_type_label(
@@ -3940,6 +3940,9 @@ pub mod type_references {
     }
     pub(crate) mod static_argument_scope {
         use super::StaticTypeArgumentOwner;
+        use crate::mathematical_applications::{
+            FixedCoreVocabulary, MathematicalBinderKind, mathematical_binder_kind,
+        };
         use std::borrow::Cow;
         use symbols::{SymbolHandle, SymbolKind};
         use typed_trees::{data::TypeParameter, name::Identifier};
@@ -3952,9 +3955,33 @@ pub mod type_references {
                 if let Some(machine) = program.machine_declaration_for_lexical_scope(owner) {
                     return Some(Self::Machine(machine));
                 }
+                if let Some((declaration, signature)) = program.trait_machine_signature(owner) {
+                    return Some(Self::TraitSignature {
+                        declaration,
+                        signature,
+                    });
+                }
+                if let Some((declaration, signature)) = program.machine_parameter_signature(owner) {
+                    return Some(Self::MachineSignature {
+                        declaration,
+                        signature,
+                    });
+                }
                 if let Some(data) = program.data_definition_by_symbol(owner) {
                     return Some(Self::Data(data));
                 }
+                if let Some(declaration) = program
+                    .mathematical_definitions()
+                    .iter()
+                    .find(|declaration| declaration.symbol == owner)
+                {
+                    return Some(Self::Mathematical {
+                        declaration,
+                        binders: program.data_type_parameters.span(declaration.binders)?,
+                    });
+                }
+                // Const symbols deliberately outlive value substitution and retain
+                // source provenance even when an executable projection omits the value.
                 (owner.is_valid() && program.symbols.get(owner).kind == SymbolKind::Const).then(
                     || Self::Constant {
                         symbol: owner,
@@ -3984,15 +4011,65 @@ pub mod type_references {
                         Cow::Borrowed(data.lifetime_parameters.as_slice()),
                         data.symbol,
                     ),
+                    Self::TraitSignature {
+                        declaration,
+                        signature,
+                    } => {
+                        let mut types = program.state_signature_type_parameters(signature).to_vec();
+                        let mut lifetimes = signature.lifetime_parameters.clone();
+                        append_scope(
+                            &mut types,
+                            &mut lifetimes,
+                            program.trait_type_parameters(declaration),
+                            &declaration.lifetime_parameters,
+                        );
+                        (Cow::Owned(types), Cow::Owned(lifetimes), signature.symbol)
+                    }
+                    Self::MachineSignature {
+                        declaration,
+                        signature,
+                    } => {
+                        let mut types = program.state_signature_type_parameters(signature).to_vec();
+                        let mut lifetimes = signature.lifetime_parameters.clone();
+                        let (outer_types, outer_lifetimes) = program
+                            .machine_type_reference_scope(declaration, |left, right| {
+                                left.name == right.name
+                            });
+                        append_scope(&mut types, &mut lifetimes, &outer_types, &outer_lifetimes);
+                        (Cow::Owned(types), Cow::Owned(lifetimes), signature.symbol)
+                    }
+                    Self::Mathematical {
+                        declaration,
+                        binders,
+                    } => {
+                        let mut types = binders.to_vec();
+                        let vocabulary = FixedCoreVocabulary::resolve(&program.symbols);
+                        for parameter in &mut types {
+                            if matches!(
+                                mathematical_binder_kind(program, parameter, &vocabulary),
+                                Some(MathematicalBinderKind::Type)
+                            ) {
+                                // The mathematical telescope retains A: Type<u>
+                                // as a term binder. This type-checking view must
+                                // retain its authenticated type-forming role.
+                                parameter.kind = typed_trees::data::TypeParameterKind::Type;
+                            }
+                        }
+                        let (outer_types, lifetimes) =
+                            enclosing_parameters(program, declaration.symbol);
+                        let mut lifetimes = lifetimes;
+                        append_scope(&mut types, &mut lifetimes, &outer_types, &[]);
+                        (Cow::Owned(types), Cow::Owned(lifetimes), declaration.symbol)
+                    }
                     Self::Constant { symbol, .. } => {
-                        let (types, lifetimes) = constant_parameters(program, symbol);
+                        let (types, lifetimes) = enclosing_parameters(program, symbol);
                         (Cow::Owned(types), Cow::Owned(lifetimes), symbol)
                     }
                 }
             }
         }
 
-        fn constant_parameters(
+        fn enclosing_parameters(
             program: &dyn crate::CheckingInput,
             constant: SymbolHandle,
         ) -> (Vec<TypeParameter>, Vec<Identifier>) {
@@ -4426,6 +4503,18 @@ pub mod type_references {
     pub enum StaticTypeArgumentOwner<'program> {
         Machine(&'program typed_trees::machine::Machine),
         Data(&'program typed_trees::data::DataDefinition),
+        TraitSignature {
+            declaration: &'program typed_trees::trait_definition::TraitDefinition,
+            signature: &'program typed_trees::signature::StateSignature,
+        },
+        MachineSignature {
+            declaration: &'program typed_trees::machine::Machine,
+            signature: &'program typed_trees::signature::StateSignature,
+        },
+        Mathematical {
+            declaration: &'program typed_trees::mathematical::MathematicalDefinition,
+            binders: &'program [TypeParameter],
+        },
         Constant {
             symbol: symbols::SymbolHandle,
             name: &'program str,
@@ -4688,6 +4777,26 @@ pub mod type_references {
                         }
                         StaticTypeArgumentOwner::Data(data) => {
                             write!(formatter, "data `{}`", data.name)?;
+                        }
+                        StaticTypeArgumentOwner::TraitSignature {
+                            declaration,
+                            signature,
+                        } => {
+                            write!(
+                                formatter,
+                                "trait `{}` requirement `{}`",
+                                declaration.name, signature.name
+                            )?;
+                        }
+                        StaticTypeArgumentOwner::MachineSignature { signature, .. } => {
+                            write!(
+                                formatter,
+                                "machine-parameter requirement `{}`",
+                                signature.name
+                            )?;
+                        }
+                        StaticTypeArgumentOwner::Mathematical { declaration, .. } => {
+                            write!(formatter, "mathematical declaration `{}`", declaration.name)?;
                         }
                         StaticTypeArgumentOwner::Constant { name, .. } => {
                             write!(formatter, "constant `{name}`")?;
@@ -5647,15 +5756,15 @@ pub mod wire {
                 value_symbol: symbols::SymbolHandle,
             ) -> Option<String> {
                 typed
-        .machines()
-        .iter()
-        .flat_map(|machine| {
+                    .machines()
+                    .iter()
+                    .flat_map(|machine| {
             typed
                 .machine_trait_conformances(machine)
                 .iter()
                 .map(move |conformance| (machine, conformance))
-        })
-        .filter(|(machine, conformance)| {
+                    })
+                    .filter(|(machine, conformance)| {
             let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
                 definition,
                 requirement,
@@ -5677,14 +5786,14 @@ pub mod wire {
                 .is_some_and(|value| {
                     typed.type_reference_table.type_symbol(*value) == value_symbol
                 })
-        })
-        .map(|(machine, _)| {
+                    })
+                    .map(|(machine, _)| {
             format!(
                 "codec publishes preserving decode: `{}` satisfies `PreservingDecode::decode_preserving` for the local schema's value type",
                 qualified_schema_path(typed, machine.symbol, machine.name.as_str())
             )
-        })
-        .next()
+                    })
+                    .next()
             }
 
             fn fact(required: bool, satisfied: bool, detail: String) -> WireFact {
@@ -5751,26 +5860,26 @@ pub mod wire {
                     );
                 }
                 [
-        ("local", demand.local_schema.as_str(), local),
-        ("peer", demand.peer_schema.as_str(), peer),
-    ]
-    .into_iter()
-    .filter_map(|(role, authored, selection)| match selection {
-        EraSelection::Resolved(_) => None,
-        EraSelection::Missing => {
+                    ("local", demand.local_schema.as_str(), local),
+                    ("peer", demand.peer_schema.as_str(), peer),
+                ]
+                .into_iter()
+                .filter_map(|(role, authored, selection)| match selection {
+                    EraSelection::Resolved(_) => None,
+                    EraSelection::Missing => {
             Some(format!("{role} schema `{authored}` is not published"))
-        }
-        EraSelection::Ambiguous(candidates) => Some(format!(
+                    }
+                    EraSelection::Ambiguous(candidates) => Some(format!(
             "{role} schema `{authored}` is ambiguous across published eras {}; qualify the era path in the demand",
             candidates
                 .iter()
                 .map(|candidate| format!("`{candidate}`"))
                 .collect::<Vec<_>>()
                 .join(", ")
-        )),
-    })
-    .collect::<Vec<_>>()
-    .join("; ")
+                    )),
+                })
+                .collect::<Vec<_>>()
+                .join("; ")
             }
 
             pub(crate) fn name_leaf(name: &str) -> &str {

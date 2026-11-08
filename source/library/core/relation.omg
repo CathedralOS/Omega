@@ -38,7 +38,7 @@ requires proposition Relation(left: C, right: C);
     requires
         Relation(left, right)
         Relation(right, left)
-    ensures left == right;
+    ensures core::Identity<C>(left, right);
 }
 
 public trait Equivalence<C, proposition Relation>:

@@ -18,7 +18,10 @@ machine partition(whole: Region in Owned, requested: u64) -> Parts
 requires requested <= whole.length
 ensures result.taken.length == requested,
     result.rest.length == whole.length - requested,
-    Owned::content(old(&whole)) == separate(Owned::content(&result.taken), Owned::content(&result.rest))
+    core::Identity<CountedQuantity<ByteUnit>>(
+        Owned::content(old(&whole)),
+        separate(Owned::content(&result.taken), Owned::content(&result.rest))
+    )
 {
     let { length } = whole;
     Parts { taken: Region { length: requested }, rest: Region { length: length } }

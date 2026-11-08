@@ -1265,6 +1265,12 @@ pub mod frozen_program {
             Arc<crate::proof_contracts::contract_entailment::shared_proof_walks::SharedProofWalks>,
         >,
     >,
+    pub(crate) building_shared_proof_walks: Mutex<
+        symbols::SymbolKeyMap<
+            crate::proof_contracts::contract_entailment::shared_proof_walks::BuildingWalk,
+            (),
+        >,
+    >,
     pub(crate) normal_return_intervals: Mutex<
         symbols::SymbolKeyMap<
             (
@@ -1311,6 +1317,11 @@ pub mod frozen_program {
             Option<typed_trees::types::TypeReferenceHandle>,
         >,
     >,
+    /// A parameter telescope's principal results depend on its owner,
+    /// formal roster and exact supplying application, including phantom
+    /// operands of nullary calls. Equal complete contexts share one dense id.
+    /// Proof intake rebuilds the same roster for every observed value; without
+    /// the id, a deep `||`/`&&` predicate retypes each subtree at every node.
     pub(crate) parameter_telescopes: Mutex<
         symbols::SymbolKeyMap<
             (
@@ -1319,6 +1330,7 @@ pub mod frozen_program {
                     symbols::SymbolHandle,
                     typed_trees::types::TypeReferenceHandle,
                 )>,
+                Option<typed_trees::trait_definition::RetainedTraitScope>,
             ),
             u32,
         >,
@@ -1424,7 +1436,7 @@ pub mod frozen_program {
         Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, bool>>,
     pub(crate) normal_completion_possible:
         Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<bool>>>,
-}
+    }
 
     impl CheckingMemos {
         fn matches_effect_plans(&self, plans: &PreparedEffectPlans) -> bool {
@@ -3635,9 +3647,9 @@ pub mod queries {
             }
             selected.ok_or_else(|| if inaccessible {
         format!("product {role} `{name}` is not a {declaration_kind} declaration visible from this build occurrence's package")
-    } else {
+            } else {
         format!("product {role} `{name}` names no {declaration_kind} declaration in this build occurrence's package")
-    })
+            })
         }
 
         pub fn describe_entry(

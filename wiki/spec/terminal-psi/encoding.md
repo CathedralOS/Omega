@@ -59,8 +59,9 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 252 even when every table
-is empty; older markers reject rather than selecting an optional dialect:
+order below. This layout uses semantic format marker 253 even when every table
+is empty, and retains the Id formation catalog below; older markers reject
+rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
 | --- | --- |
@@ -379,10 +380,10 @@ no new membership evidence. Copies and saved addresses retain the distinction;
 a join retains it only when every incoming path permits the fact to expire.
 Declared storage requirements, intrinsic field constraints, ownership and access
 policies remain independently enforced. These rows participate in canonical
-bytes and identities. Marker 252 combines these lifetimes with provider
-application roles, installed interrupt registrations, target layout inputs and
-separate source and destination relocation profile requirements. Both earlier
-251 layouts are incompatible and reject.
+bytes and identities. Marker 253 combines these lifetimes with provider
+application roles, Id formations, installed interrupt registrations, target
+layout inputs and separate source and destination relocation profile requirements.
+Both independently extended 252 layouts and earlier layouts reject.
 
 The closed `u8` spaces behind the scalar field forms:
 
@@ -891,7 +892,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 252 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 253 + `u16` vocabulary
 marker 133 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -913,6 +914,24 @@ ordinal, `u32` evidence source position, `u32` carrier identity-table index,
 counted canonical mathematical-certificate bytes, then counted `u32` assumption
 positions. A mathematical carrier row encodes a `u32` identity-table index and
 counted canonical carrier-key bytes.
+
+The Id formation catalog follows mathematical carriers. It encodes a counted
+row list followed by one counted mathematical certificate. Each row contains
+`u32` identity-table indices for the source owner and exact carrier, the `u32`
+declaration position in the shared certificate signature, a counted list of
+`(u32 start, u32 end)` source occurrence positions in capture order, then a
+counted list of subject-carrier identity-table indices. An empty roster has an
+empty certificate.
+
+The shared certificate checks a closed `TwoZero : Two` judgment under its
+complete signature. Each listed declaration is a transparent type-valued
+function over the retained subject telescope. Its body reduces to the actual
+kernel `Id` constructor after those lambdas. This checks formation; it proves
+neither endpoint equality nor a runtime value correspondence. Source-bound
+receiving additionally compares the shared signature and ordered application
+judgments with roots supplied independently by the checked-source authority.
+Owner labels and source positions alone supply no such authority. Same-compile
+lowering encodes the completed checked plan without repeating those decisions.
 
 The checked-machine declaration encodes the machine, state and semantic-declaration
 identity-table indices, counted parameter identity-table indices, callable and
@@ -962,50 +981,51 @@ Older markers are rejected before their payload is read.
 | 1 | identity catalog | counted UTF-8 identity strings |
 | 2 | indexed theorem roots | counted cited theorem root rows, above |
 | 3 | mathematical carriers | counted closed carrier keys, above |
-| 4 | scalar qualification catalog | the six counted catalog tables above |
-| 5 | quotient catalog | the canonical quotient catalog |
-| 6 | folded constant closure | optional primary target and counted selected-realization dependencies, below |
-| 7 | scalar applications | counted source-owned scalar application rows |
-| 8 | structural types | counted structural type declarations |
-| 9 | structural referent identities | counted identity-only pointer targets |
-| 10 | structural domains | counted structural domain declarations |
-| 11 | services | counted service declarations |
-| 12 | root service reach | counted concrete service ids, then counted installation reach dependencies |
-| 13 | access-view plans | counted checked joins of domain policy, layout and semantic-field correspondence |
-| 14 | access lifecycle plans | counted whole-value access demand rows, below |
-| 15 | access-view inputs | counted access-view input rows |
-| 16 | reborrow restored call uses | counted restored-use rows |
-| 17 | boundary machines | counted boundary machine declarations |
-| 18 | calling signatures | counted boundary-to-declaration ABI associations |
-| 19 | declaration ABIs | counted exact declaration applications and storage/telescopes, below |
-| 20 | calling policy requests | counted ordered explicit policy applications, below |
-| 21 | opaque representations | counted exact selected carrier applications, below |
-| 22 | unoptimized behavior | counted pre-optimization behavior rows |
-| 23 | external providers | counted external provider conformances |
-| 24 | provider candidates | counted provider candidate rows |
-| 25 | provider instance requirements | counted required provider-instance rows |
-| 26 | legacy dynamic dispatch | counted interfaces and implementation tables |
-| 27 | float-meaning projections | counted projection rows |
-| 28 | float-meaning equalities | counted equality rows |
-| 29 | proposition declarations | counted proposition declaration rows |
-| 30 | proposition applications | counted proposition application rows |
-| 31 | evidence terms | counted evidence term rows |
-| 32 | evidence contract lanes | counted evidence lane rows |
-| 33 | proof-output invocations | counted proof-output call rows |
-| 34 | proof recursive components | counted recursive component rows |
-| 35 | closed conformance applications | counted conformance application rows |
-| 36 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 37 | scalar block invariants | the counted invariant rows above |
-| 38 | operation crash contracts | counted operation crash contract rows |
-| 39 | machines | counted machine rows |
-| 40 | legacy target-machine families | counted family rows; removal pending |
-| 41 | target layout applications | counted complete checked policy alternatives |
-| 42 | native layout catalog | counted nominal records and complete native reports, below |
-| 43 | boundary application demands | counted exact requirement/application rows |
-| 44 | callback applications | counted checked registrar occurrences |
-| 45 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
-| 46 | boundary application candidates | counted checked bodies for closed applications |
-| 47 | task activation demands | counted task activation demand rows |
+| 4 | Id formations | counted rows and one shared mathematical certificate, above |
+| 5 | scalar qualification catalog | the six counted catalog tables above |
+| 6 | quotient catalog | the canonical quotient catalog |
+| 7 | folded constant closure | optional primary target and counted selected-realization dependencies, below |
+| 8 | scalar applications | counted source-owned scalar application rows |
+| 9 | structural types | counted structural type declarations |
+| 10 | structural referent identities | counted identity-only pointer targets |
+| 11 | structural domains | counted structural domain declarations |
+| 12 | services | counted service declarations |
+| 13 | root service reach | counted concrete service ids, then counted installation reach dependencies |
+| 14 | access-view plans | counted checked joins of domain policy, layout and semantic-field correspondence |
+| 15 | access lifecycle plans | counted whole-value access demand rows, below |
+| 16 | access-view inputs | counted access-view input rows |
+| 17 | reborrow restored call uses | counted restored-use rows |
+| 18 | boundary machines | counted boundary machine declarations |
+| 19 | calling signatures | counted boundary-to-declaration ABI associations |
+| 20 | declaration ABIs | counted exact declaration applications and storage/telescopes, below |
+| 21 | calling policy requests | counted ordered explicit policy applications, below |
+| 22 | opaque representations | counted exact selected carrier applications, below |
+| 23 | unoptimized behavior | counted pre-optimization behavior rows |
+| 24 | external providers | counted external provider conformances |
+| 25 | provider candidates | counted provider candidate rows |
+| 26 | provider instance requirements | counted required provider-instance rows |
+| 27 | legacy dynamic dispatch | counted interfaces and implementation tables |
+| 28 | float-meaning projections | counted projection rows |
+| 29 | float-meaning equalities | counted equality rows |
+| 30 | proposition declarations | counted proposition declaration rows |
+| 31 | proposition applications | counted proposition application rows |
+| 32 | evidence terms | counted evidence term rows |
+| 33 | evidence contract lanes | counted evidence lane rows |
+| 34 | proof-output invocations | counted proof-output call rows |
+| 35 | proof recursive components | counted recursive component rows |
+| 36 | closed conformance applications | counted conformance application rows |
+| 37 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 38 | scalar block invariants | the counted invariant rows above |
+| 39 | operation crash contracts | counted operation crash contract rows |
+| 40 | machines | counted machine rows |
+| 41 | legacy target-machine families | counted family rows; removal pending |
+| 42 | target layout applications | counted complete checked policy alternatives |
+| 43 | native layout catalog | counted nominal records and complete native reports, below |
+| 44 | boundary application demands | counted exact requirement/application rows |
+| 45 | callback applications | counted checked registrar occurrences |
+| 46 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
+| 47 | boundary application candidates | counted checked bodies for closed applications |
+| 48 | task activation demands | counted task activation demand rows |
 
 Marker 238 requires the explicit prerequisite/result role byte after the
 subject of every integer-range and predicate condition, together with complete
@@ -1237,10 +1257,10 @@ Several callback applications may share a registrar operation. Occurrence number
 are local to the producing compilation and remain stable under pruning; they
 are not source arena handles and alone authorize nothing.
 
-Marker 252 combines the installed-interrupt registration table with provider
+Marker 253 combines the installed-interrupt registration table and Id formations with provider
 declaration/receiving roles, input lifetimes, target layout inputs and separate
 source and destination relocation profile requirements. The table follows
-callback applications. Both earlier 251 layouts reject at the header.
+callback applications. Both independently extended 252 layouts and earlier layouts reject at the header.
 The registration table is counted even when empty. Each row encodes, in order:
 operation id, installer boundary id, control service id, registrar boundary id,
 registrar nominal identity, registrar-owner nominal identity, receiving and
@@ -1848,7 +1868,7 @@ Its schema owner introduces no runtime provider demand. Callable signatures
 retain their exact declaring schema owner; provider candidates retain their
 exact selecting declaration independently of display labels and callable bodies.
 
-Marker 252 retains the declaration application immediately before the receiving
+Marker 253 retains the declaration application immediately before the receiving
 application in both provider candidates and required provider instances. A
 required instance encodes requirement identity, candidate identity, declaration
 application, receiving application and counted receiving region identities.
@@ -2461,14 +2481,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (133). A receiver rejects an unknown magic or stale marker
+vocabulary marker (134). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 240 | yes |
+| semantic module | `PSITERM\0` | 253 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

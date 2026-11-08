@@ -9,7 +9,7 @@ trait ValueConversion<Source, Destination, Error> = TryFrom<Source, Destination,
 machine distinct_maps<
     Left satisfies ValueConversion<Pair, Pair, Failure>,
     Right satisfies ValueConversion<Pair, Pair, Failure>>(value: Pair)
-requires Left::try_from(value) == (Result::Ok { value: value })
-ensures Right::try_from(value) == (Result::Ok { value: value })
+requires core::Identity<Result<Pair, Failure>>(Left::try_from(value), Result::Ok { value: value })
+ensures core::Identity<Result<Pair, Failure>>(Right::try_from(value), Result::Ok { value: value })
 { }
 machine main() { }

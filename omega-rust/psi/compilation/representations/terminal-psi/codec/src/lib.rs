@@ -30,6 +30,10 @@ mod canonical_artifact;
 mod wire_fields;
 pub(crate) use canonical_artifact::execution_code;
 mod foundation_validation;
+mod identity_formations;
+pub use identity_formations::{
+    ExpectedIdentityFormation, ExpectedIdentityFormations, verify_identity_formations,
+};
 mod mathematical_proof_actual;
 pub(crate) use mathematical_proof_actual::indexed_theorem_roots;
 mod module_wire;
@@ -97,6 +101,7 @@ pub(crate) mod codec_error {
         AccessRamCorrespondence(String),
         AccessViewInput(terminal_semantics::AccessViewInputError),
         MalformedMathematicalCertificate(&'static str),
+        InvalidIdentityFormation(String),
         MalformedProposition(PropositionError),
         ObligationLedgerMismatch,
     }

@@ -27,12 +27,12 @@ use language_semantics::{PermissionClaimIdentity, SemanticDomainId};
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
-    ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
-    ContentProjectionScalar, ContentStructuralPlace, ContentTerm, EvidenceTermId, IeeeFloatFormat,
-    IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId,
-    Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType, StructuralCaseSubject,
-    StructuralPlaceKind, StructuralTypeId,
+    ContentConservation, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
+    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
+    ContentStructuralPlace, ContentTerm, EvidenceTermId, IeeeFloatFormat, IeeeFloatStructuralField,
+    IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId, Proposition, PropositionContext,
+    PropositionId, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralPlaceKind,
+    StructuralTypeId,
 };
 use terminal_psi::{
     BoundaryContentGuarantee, ClaimContentProjection, ContentConservationGuarantee,
@@ -64,15 +64,15 @@ pub(crate) mod content_conservation {
         CheckedContentScalarExpression, CheckedContentStructuralPlace, CheckedTrees,
         CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,
         CheckedUnitStructuralPathSegment, ClaimContentProjection, ClaimId, ContentAlgebra,
-        ContentAlgebraKind, ContentArithmeticOperator, ContentConservation,
-        ContentConservationGuarantee, ContentConservationOwnerKind, ContentConservationPlan,
-        ContentDomainId, ContentEntryClaim, ContentIdentityReshuffle, ContentIdentityReshuffleFact,
-        ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
-        ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-        LoweringError, PermissionClaimIdentity, PlaceId, Proposition, PropositionContext,
-        SemanticDomainId, StructuralContentProjection, StructuralParameterDeclaration,
-        StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
-        conservation_report_fingerprint, lookup_claim_id, unsupported,
+        ContentArithmeticOperator, ContentConservation, ContentConservationGuarantee,
+        ContentConservationOwnerKind, ContentConservationPlan, ContentDomainId, ContentEntryClaim,
+        ContentIdentityReshuffle, ContentIdentityReshuffleFact, ContentPlaceSegment,
+        ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
+        ContentProjectionScalar, ContentStructuralPlace, ContentTerm, LoweringError,
+        PermissionClaimIdentity, PlaceId, Proposition, PropositionContext, SemanticDomainId,
+        StructuralContentProjection, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+        StructuralPlaceKind, StructuralTypeDeclaration, conservation_report_fingerprint,
+        lookup_claim_id, unsupported,
     };
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,16 +91,7 @@ pub(crate) mod content_conservation {
     }
 
     fn content_algebra(identity: &CheckedContentAlgebraIdentity) -> ContentAlgebra {
-        match identity {
-            CheckedContentAlgebraIdentity::IntervalSet { coordinate_space } => ContentAlgebra {
-                kind: ContentAlgebraKind::IntervalSet,
-                parameter: coordinate_space.clone(),
-            },
-            CheckedContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
-                kind: ContentAlgebraKind::CountedQuantity,
-                parameter: unit.clone(),
-            },
-        }
+        identity.canonical_algebra()
     }
 
     fn content_field_identity(

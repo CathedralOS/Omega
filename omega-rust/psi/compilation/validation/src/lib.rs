@@ -108,11 +108,12 @@ pub(crate) mod proof_contracts {
         float_projection_bindings, float_projection_invocations, mathematical_applications,
     };
     pub use crate::proof_contracts_core::{
-        carrier_contents, contextual_identity, contract_argument_root, contract_results,
-        contract_structure, domain_weakening, expression_owners, immutable_integer_bounds,
-        instruction_effects, parameter_domains, parameter_expression_meaning, proof_embeddings,
-        proof_facts, proof_only_faces, properties, proposition_entailment, qualification_evidence,
-        relevance, scalar_boundary_guarantees, signature_ensures, slice_ranking,
+        carrier_contents, contract_argument_root, contract_results, contract_structure,
+        domain_weakening, expression_owners, immutable_integer_bounds, instruction_effects,
+        parameter_domains, parameter_expression_meaning, proof_embeddings, proof_facts,
+        proof_only_faces, properties, proposition_context, proposition_entailment,
+        qualification_evidence, relevance, scalar_boundary_guarantees, signature_ensures,
+        slice_ranking,
     };
     pub(crate) use crate::quotients;
 }
@@ -1683,10 +1684,8 @@ pub use proof_contracts::bound_expression_meaning::{
     has_exact_integer_domain_subject, match_result_unique_arm, sealed_float_comparison,
     sealed_float_comparison_declaration,
 };
-pub use proof_contracts::contextual_identity::{
-    contextual_identity_subject_type, contextual_proposition_children,
-};
 pub use proof_contracts::contract_entailment::declaration_projection_cases_hold;
+pub use proof_contracts::proposition_context::logical_proposition_children;
 pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
 pub use value_custody::intrinsic_boundaries::checked_shape_data_declaration;
 pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;
@@ -1739,7 +1738,10 @@ pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
     boundary_body_content_requirements, content_conservation_plans,
 };
-pub use crate::value_custody::content_projections::build_content_projection_plans;
+pub use crate::value_custody::content_projections::{
+    ContentAlgebraApplication, build_content_projection_plans, content_algebra_application,
+    content_algebra_for_type,
+};
 
 pub use crate::declarations::symbols::TopLevelSymbols;
 pub use crate::value_custody::cleanup::{
@@ -1836,7 +1838,7 @@ pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
-    scalar_observation_meaning,
+    parameter_expression_result_type_reference_in_scope, scalar_observation_meaning,
 };
 pub use value_custody::expression_types::{
     structural_match_cases_are_covered, structural_match_pattern_case,
@@ -1912,7 +1914,9 @@ pub use proof_contracts::arithmetic_domains::{
 pub use proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenotation as CapturedIntegerDenotation;
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
-pub use proof_contracts::contract_entailment::collection_bounds::CollectionBoundsObservations;
+pub use proof_contracts::contract_entailment::collection_bounds::{
+    CollectionBoundsDemands, CollectionBoundsObservations,
+};
 pub use proof_contracts::contract_entailment::exit_predicates::{
     NormalExitContract, normal_exit_proves,
 };
@@ -1961,7 +1965,9 @@ pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     scoped_integer_expression_formation,
 };
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
-pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;
+pub use proof_contracts::contract_entailment::statement_predicates::{
+    EntryPredicateObservations, StatementPredicateObservations,
+};
 pub use proof_contracts::contract_entailment::strict_arithmetic::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,

@@ -51,6 +51,8 @@ module translation;
 // reading them grants no access: an address is data, not authority.
 use omega::language::core::assembly;
 use omega::language::core::extent;
+use omega::language::core::content;
+use omega::language::core::nat;
 
 // One translation-activation fact an install receipt must establish,
 // spelled as authored contract data. The identity is inert: naming a fact
@@ -177,12 +179,14 @@ public boundary trait TranslationAuthority {
         source.length == destination.length
     ensures
         result in Mapping::Pending,
-        separate(
-            Granted::content(&result.source),
-            Granted::content(&result.destination))
-        == separate(
-            Granted::content(old(&source)),
-            Granted::content(old(&destination)));
+        core::Identity<IntervalSet<Nat>>(
+            separate(
+                Granted::content(&result.source),
+                Granted::content(&result.destination)),
+            separate(
+                Granted::content(old(&source)),
+                Granted::content(old(&destination)))
+        );
 
     // The provider receipt crossing: installed translations exist for the
     // exact pending mapping, and the carrier's authored install set is
@@ -191,12 +195,14 @@ public boundary trait TranslationAuthority {
     reaches
     ensures
         result in Mapping::Installed,
-        separate(
-            Granted::content(&result.source),
-            Granted::content(&result.destination))
-        == separate(
-            Granted::content(old(&pending.source)),
-            Granted::content(old(&pending.destination)));
+        core::Identity<IntervalSet<Nat>>(
+            separate(
+                Granted::content(&result.source),
+                Granted::content(&result.destination)),
+            separate(
+                Granted::content(old(&pending.source)),
+                Granted::content(old(&pending.destination)))
+        );
 
     // Stale translations are released by the provider before this returns;
     // the carrier's authored release set is what that receipt must
@@ -205,12 +211,14 @@ public boundary trait TranslationAuthority {
     machine unmap(active: Mapping in Installed) -> Unmapped
     reaches
     ensures
-        separate(
-            Granted::content(&result.destination),
-            Granted::content(&result.source))
-        == separate(
-            Granted::content(old(&active.source)),
-            Granted::content(old(&active.destination)));
+        core::Identity<IntervalSet<Nat>>(
+            separate(
+                Granted::content(&result.destination),
+                Granted::content(&result.source)),
+            separate(
+                Granted::content(old(&active.source)),
+                Granted::content(old(&active.destination)))
+        );
 
     // Structural validation over a shared source loan: the pending carrier
     // holds the loan, the destination's custody, and the caller-authored
@@ -227,8 +235,10 @@ public boundary trait TranslationAuthority {
         source.length == destination.length
     ensures
         result in BorrowedMapping::Pending,
-        Granted::content(&result.destination)
-        == Granted::content(old(&destination));
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(&result.destination),
+            Granted::content(old(&destination))
+        );
 
     // The borrowed route's receipt crossing: installed translations exist
     // for the exact pending borrowed mapping.
@@ -237,8 +247,10 @@ public boundary trait TranslationAuthority {
     reaches
     ensures
         result in BorrowedMapping::Installed,
-        Granted::content(&result.destination)
-        == Granted::content(old(&pending.destination));
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(&result.destination),
+            Granted::content(old(&pending.destination))
+        );
 
     // Releasing an installed borrowed mapping ends the source loan; the
     // shootdown debt remains the caller's to discharge.
@@ -246,8 +258,10 @@ public boundary trait TranslationAuthority {
         -> UnmappedBorrowed
     reaches
     ensures
-        Granted::content(&result.destination)
-        == Granted::content(old(&active.destination));
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(&result.destination),
+            Granted::content(old(&active.destination))
+        );
 }
 
 public boundary trait ShootdownDischarge {

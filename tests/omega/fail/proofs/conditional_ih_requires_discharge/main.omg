@@ -2,6 +2,7 @@
 // second requires fact is not established.  Its ensures must not become an
 // induction hypothesis capable of discharging add_le_add's second premise.
 use omega::language::core::nat_metric;
+use omega::language::core::nat;
 
 machine conditional_ih_requires_all(
     a: Nat,
@@ -12,10 +13,10 @@ machine conditional_ih_requires_all(
 ) -> Nat
 terminates by factor
 requires
-    (saturating_sub(a, b)) == Nat::Zero,
-    (saturating_sub(witness_left, witness_right)) == Nat::Zero
+    core::Identity<Nat>((saturating_sub(a, b)), Nat::Zero),
+    core::Identity<Nat>((saturating_sub(witness_left, witness_right)), Nat::Zero)
 ensures
-    (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+    core::Identity<Nat>((saturating_sub(mul(a, factor), mul(b, factor))), Nat::Zero)
 {
     transition factor {
         Nat::Zero -> cihr_zero(a, b)

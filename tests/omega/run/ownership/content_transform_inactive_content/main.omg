@@ -10,7 +10,10 @@ satisfies Content<Ticket, CountedQuantity<Units>>::project {
     CountedQuantity { magnitude: embed(value.quantity) as Nat }
 }
 machine identity_ticket(value: Ticket in Counted) -> Ticket in Counted
-ensures Counted::content(old(&value)) == Counted::content(&result) {
+ensures core::Identity<CountedQuantity<Units>>(
+    Counted::content(old(&value)),
+    Counted::content(&result)
+) {
     Ticket { quantity: value.quantity }
 }
 data Box<T> { value: T; }
@@ -26,7 +29,10 @@ satisfies Content<Envelope, CountedQuantity<Units>>::project {
 }
 machine renew_empty(whole: Envelope in Accounted) -> Envelope in Accounted
 requires whole in Envelope::Empty
-ensures Accounted::content(old(&whole)) == Accounted::content(&result) {
+ensures core::Identity<CountedQuantity<Units>>(
+    Accounted::content(old(&whole)),
+    Accounted::content(&result)
+) {
     Envelope::Empty { quantity: whole.quantity }
 }
 machine drop_envelope(value: &mut Envelope) {}

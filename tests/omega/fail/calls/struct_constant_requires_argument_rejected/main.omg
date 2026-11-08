@@ -1,8 +1,7 @@
-// A record constructor argument is termifiable when every field termifies:
-// `Point { x: 1, y: 0 }` under `p == Point::zero()` instantiates to
-// `Point { x: 1, y: 0 } == Point { x: 0, y: 0 }` — structurally false.
-// Constant machine applications (`Point::zero()`) normalize to the same
-// closed constructor shape before the equation is judged.
+// Forming a record's mathematical value requires every field to form.
+// The call below passes x=1 while take requires exact identity with the
+// zero-valued Point. Unfolding Point::zero exposes that differing field,
+// so the required identity must reject.
 use omega_language_std::console;
 data Point { x: u64; y: u64; }
 data Main { }
@@ -13,7 +12,7 @@ machine Point::zero() -> Point {
     }
 }
 machine Main::take(p: Point) -> u64
-    requires p == Point::zero()
+    requires core::Identity<Point>(p, Point::zero())
 {
     p.y
 }

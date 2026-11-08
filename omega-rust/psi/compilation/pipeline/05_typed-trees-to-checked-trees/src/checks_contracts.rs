@@ -6556,7 +6556,7 @@ pub(crate) mod call_values {
                 validation::completed_storage::owned_observation_projection(
                     program,
                     &facts.flow.control,
-                    operand.row(),
+                    operand.recorded_in(&facts.flow.control)?,
                     None,
                 )?
             else {

@@ -494,6 +494,9 @@ pub(crate) mod content {
         pub identity_reshuffles: Vec<ContentIdentityReshuffleFact>,
         pub partition_compositions: Vec<ContentPartitionCompositionFact>,
         pub body_conservations: arena::Arena<ContentBodyConservationFact>,
+        /// Exact equations in each completed body's parameter namespace. Source
+        /// authorization remains on the separate authored plan table above.
+        pub body_conservation_plans: Vec<ContentConservationPlan>,
         pub body_claim_bindings: arena::Arena<ContentBodyClaimBinding>,
         pub body_available_inputs: arena::Arena<ContentBodyAvailableInput>,
         pub body_transformations: arena::Arena<ContentBodyTransformation>,
@@ -580,7 +583,12 @@ pub(crate) mod content {
         pub returned_at: arena::Handle<crate::FlowStateOutgoingFact>,
         pub completed_value: arena::Handle<crate::FlowOperandFact>,
         pub evaluation: crate::FlowPermissionEvaluation,
+        /// Original authored demand and authorization in `conservation_plans`.
+        /// This source may belong to a terminal caller, so its parameter positions
+        /// are not the completed body's coordinates.
         pub plan_index: usize,
+        /// Exact proved equation and completion frame in `body_conservation_plans`.
+        pub body_plan_index: usize,
         pub inputs: HandleSpan<ContentBodyClaimBinding>,
         pub outputs: HandleSpan<ContentBodyClaimBinding>,
         pub available_inputs: HandleSpan<ContentBodyAvailableInput>,
@@ -693,6 +701,7 @@ pub(crate) mod content {
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct ContentWalkRows {
         pub body_conservations: arena::Arena<ContentBodyConservationFact>,
+        pub body_conservation_plans: Vec<ContentConservationPlan>,
         pub body_claim_bindings: arena::Arena<ContentBodyClaimBinding>,
         pub body_available_inputs: arena::Arena<ContentBodyAvailableInput>,
         pub body_transformations: arena::Arena<ContentBodyTransformation>,
@@ -720,6 +729,7 @@ pub(crate) mod content {
         pub fn take_walk_rows(&mut self) -> ContentWalkRows {
             ContentWalkRows {
                 body_conservations: std::mem::take(&mut self.body_conservations),
+                body_conservation_plans: std::mem::take(&mut self.body_conservation_plans),
                 body_claim_bindings: std::mem::take(&mut self.body_claim_bindings),
                 body_available_inputs: std::mem::take(&mut self.body_available_inputs),
                 body_transformations: std::mem::take(&mut self.body_transformations),
@@ -731,10 +741,16 @@ pub(crate) mod content {
             }
         }
 
+        /// Append rows produced by an independent state walk. Adjust their
+        /// body and boundary plan indexes, handles and spans for the destination
+        /// tables. Authored plan positions, ownership place segments and flow
+        /// handles stay unchanged. Return false without changing the destination
+        /// when an index cannot be shifted exactly.
         pub fn append_walk_rows(&mut self, rows: ContentWalkRows) -> bool {
             use crate::shifted_rows::{append_rows, shift, shift_span, shiftable};
             let ContentWalkRows {
                 body_conservations,
+                body_conservation_plans,
                 body_claim_bindings,
                 body_available_inputs,
                 body_transformations,
@@ -770,6 +786,16 @@ pub(crate) mod content {
                 return false;
             };
             let plan_rows = self.boundary_requirement_plans.len();
+            let body_plan_rows = self.body_conservation_plans.len();
+            if body_plan_rows
+                .checked_add(body_conservation_plans.len())
+                .is_none()
+                || body_conservations
+                    .iter()
+                    .any(|(_, row)| row.body_plan_index >= body_conservation_plans.len())
+            {
+                return false;
+            }
             append_rows(&mut self.body_conservations, body_conservations, |row| {
                 let ContentBodyConservationFact {
                     machine_symbol,
@@ -778,6 +804,7 @@ pub(crate) mod content {
                     completed_value,
                     evaluation,
                     plan_index,
+                    body_plan_index,
                     inputs,
                     outputs,
                     available_inputs,
@@ -789,11 +816,13 @@ pub(crate) mod content {
                     completed_value,
                     evaluation,
                     plan_index,
+                    body_plan_index: body_plan_index + body_plan_rows,
                     inputs: shift_span(inputs, binding_rows),
                     outputs: shift_span(outputs, binding_rows),
                     available_inputs: shift_span(available_inputs, input_rows),
                 }
             });
+            self.body_conservation_plans.extend(body_conservation_plans);
             append_rows(&mut self.body_claim_bindings, body_claim_bindings, |row| {
                 row
             });

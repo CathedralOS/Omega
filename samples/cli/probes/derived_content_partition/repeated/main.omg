@@ -3,6 +3,7 @@
 // Retain its sibling across the second call and dispose every resulting claim.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 
 data Region [linear] dropped by drop_region { start: u64; end: u64; }
 machine drop_region(region: &mut Region) {}
@@ -19,8 +20,11 @@ ensures
     result.left.end == cut,
     result.right.start == cut,
     result.right.end == whole.end,
-    Owned::content(old(&whole)) == separate(
-        Owned::content(&result.left), Owned::content(&result.right))
+    core::Identity<IntervalSet<Nat>>(
+        Owned::content(old(&whole)),
+        separate(
+            Owned::content(&result.left), Owned::content(&result.right))
+    )
 {
     let left: Region = Region { start: whole.start, end: cut };
     let right: Region = Region { start: cut, end: whole.end };

@@ -14,23 +14,38 @@ satisfies Content<Region, CountedQuantity<Units>>::project {
 }
 trait Transfer<T> {
     machine transfer(region: Region in Owned) -> Region in Owned
-    ensures Owned::content(old(&region)) == Owned::content(&result);
+    ensures core::Identity<CountedQuantity<Units>>(
+        Owned::content(old(&region)),
+        Owned::content(&result)
+    );
 }
 macos_arm64 machine retain(region: Region in Owned) -> Region in Owned
 satisfies Transfer<Payload>::transfer
-ensures Owned::content(old(&region)) == Owned::content(&result)
+ensures core::Identity<CountedQuantity<Units>>(
+    Owned::content(old(&region)),
+    Owned::content(&result)
+)
 { region }
 linux_x86_64 machine retain(region: Region in Owned) -> Region in Owned
 satisfies Transfer<Payload>::transfer
-ensures Owned::content(old(&region)) == Owned::content(&result)
+ensures core::Identity<CountedQuantity<Units>>(
+    Owned::content(old(&region)),
+    Owned::content(&result)
+)
 { region }
 linux_arm64 machine retain(region: Region in Owned) -> Region in Owned
 satisfies Transfer<Payload>::transfer
-ensures Owned::content(old(&region)) == Owned::content(&result)
+ensures core::Identity<CountedQuantity<Units>>(
+    Owned::content(old(&region)),
+    Owned::content(&result)
+)
 { region }
 windows_x86_64 machine retain(region: Region in Owned) -> Region in Owned
 satisfies Transfer<Payload>::transfer
-ensures Owned::content(old(&region)) == Owned::content(&result)
+ensures core::Identity<CountedQuantity<Units>>(
+    Owned::content(old(&region)),
+    Owned::content(&result)
+)
 { drop(region); Region { amount: 28 } }
 machine observe(region: Region in Owned) -> u64 {
     let observed: u64 = region.amount;

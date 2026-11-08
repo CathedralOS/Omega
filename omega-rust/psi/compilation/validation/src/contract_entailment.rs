@@ -5257,6 +5257,7 @@ pub(crate) mod arithmetic_judgment {
                 crate::value_custody::expression_types::declaration_expression_result_type_reference(
                     self.program,
                     self.source_owner,
+                    None,
                     &|place| {
                         crate::proof_contracts::proof_embeddings::expression_type_reference(
                             self.program,
@@ -5276,24 +5277,25 @@ pub(crate) mod arithmetic_judgment {
                 {
                     let operands =
                         [binary.left, binary.right].map(|operand| self.source_result_type(operand));
-                    if let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
-                && typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    self.program,
-                    self.source_owner,
-                    expression,
-                    spelling,
-                    &operands,
-                )
-                && let Some(reference) =
-                    crate::value_custody::expression_types::builtin_binary_result_type_reference(
-                        self.program,
-                        binary,
-                        operands,
-                        &mut |operand| self.source_result_type(operand),
-                    )
-            {
-                return Some(reference);
-            }
+                    if let Some(spelling) =
+                        typed_trees::operator::binary_operator_spelling(binary.operator)
+                        && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                            self.program,
+                            self.source_owner,
+                            expression,
+                            spelling,
+                            &operands,
+                        )
+                        && let Some(reference) =
+                            crate::value_custody::expression_types::builtin_binary_result_type_reference(
+                                self.program,
+                                binary,
+                                operands,
+                                &mut |operand| self.source_result_type(operand),
+                            )
+                    {
+                        return Some(reference);
+                    }
                 }
                 let reference = self.declared_source_result_type(expression)?;
                 Some(typed_trees::static_applications::project_type_operand(
@@ -5350,12 +5352,12 @@ pub(crate) mod arithmetic_judgment {
                     }))
                 } else {
                     let Some(spelling) =
-                crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
-                    binary.operator,
-                )
-            else {
-                return true;
-            };
+                        crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
+                            binary.operator,
+                        )
+                    else {
+                        return true;
+                    };
                     typed_trees::operator::has_builtin_spelled_expression_meaning(
                         self.program,
                         owner,
@@ -7244,9 +7246,7 @@ pub(crate) mod arithmetic_judgment {
                     _ => None,
                 },
                 ExpressionNode::Call(call) => {
-                    if crate::mathematical_applications::selected_definition(self.program, &call)
-                        .is_some()
-                    {
+                    if crate::mathematical_applications::is_mathematical_call(self.program, &call) {
                         return self.normalize_mathematical_application(expression);
                     }
                     if crate::proof_contracts::proof_embeddings::is_exact_embed_call(
@@ -7405,8 +7405,7 @@ pub(crate) mod arithmetic_judgment {
             expression_table(self.program)
                 .call_node(expression)
                 .is_some_and(|call| {
-                    crate::mathematical_applications::selected_definition(self.program, call)
-                        .is_some()
+                    crate::mathematical_applications::is_mathematical_call(self.program, call)
                 })
         }
 
@@ -8811,7 +8810,7 @@ pub(crate) mod call_requirements {
                     && runtime_predicate_fact(program, machine, state, binary.right)
             }
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
-                super::structural_terms::data_identity_operand_references(
+                super::structural_terms::builtin_identity_operand_references(
                     program,
                     machine.symbol,
                     program.state_parameters(state),
@@ -8863,7 +8862,7 @@ pub(crate) mod call_requirements {
             if matches!(
                 binary.operator,
                 BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) && (super::structural_terms::data_identity_operand_references(
+            ) && (super::structural_terms::builtin_identity_operand_references(
                 program, owner, parameters, expression,
             )
             .is_some()
@@ -9159,7 +9158,7 @@ pub(crate) mod citations {
     use crate::proof_contracts::contract_entailment::law_conformance::{
         diagnostic_shape_match, display_structural_term, term_mentions_variable,
     };
-    use crate::proof_contracts::contract_entailment::refuted_requires::collect_instantiated_conjuncts;
+    use crate::proof_contracts::contract_entailment::refuted_requires::collect_instantiated_predicates;
     use crate::proof_contracts::contract_entailment::structural_judgment::{
         CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm,
     };
@@ -9198,25 +9197,24 @@ pub(crate) mod citations {
 
     #[derive(Clone, Default)]
     pub(crate) struct CitationFacts {
-        pub(crate) equations: Vec<(StructuralTerm, StructuralTerm)>,
+        pub(crate) predicates: Vec<StructuralTerm>,
         cases: Vec<CaseGuarantee>,
     }
 
     #[derive(Clone, Copy, Default)]
     pub(crate) struct CitationFrontier {
-        equations: usize,
+        predicates: usize,
         cases: usize,
     }
 
     impl CitationFacts {
         pub(crate) fn same_resolution_payload(&self, other: &Self) -> bool {
-            self.equations.len() == other.equations.len()
-                && self.equations.iter().zip(&other.equations).all(
-                    |((left, right), (other_left, other_right))| {
-                        left.same_resolution_payload(other_left)
-                            && right.same_resolution_payload(other_right)
-                    },
-                )
+            self.predicates.len() == other.predicates.len()
+                && self
+                    .predicates
+                    .iter()
+                    .zip(&other.predicates)
+                    .all(|(left, right)| left.same_resolution_payload(right))
                 && self.cases.len() == other.cases.len()
                 && self
                     .cases
@@ -9231,21 +9229,21 @@ pub(crate) mod citations {
             frontier: &mut CitationFrontier,
         ) -> bool {
             let changed =
-                frontier.equations != self.equations.len() || frontier.cases != self.cases.len();
-            for (left, right) in &self.equations[frontier.equations..] {
-                judge.intake_equation(left.clone(), right.clone(), 0);
+                frontier.predicates != self.predicates.len() || frontier.cases != self.cases.len();
+            for predicate in &self.predicates[frontier.predicates..] {
+                judge.intake_observed_predicate(predicate.clone(), 0);
             }
             for guarantee in &self.cases[frontier.cases..] {
                 judge.intake_case_guarantee(guarantee);
             }
-            frontier.equations = self.equations.len();
+            frontier.predicates = self.predicates.len();
             frontier.cases = self.cases.len();
             changed
         }
 
         pub(crate) fn intake(&self, judge: &mut StructuralJudge<'_>) {
-            for (left, right) in &self.equations {
-                judge.intake_equation(left.clone(), right.clone(), 0);
+            for predicate in &self.predicates {
+                judge.intake_observed_predicate(predicate.clone(), 0);
             }
             for guarantee in &self.cases {
                 judge.intake_case_guarantee(guarantee);
@@ -9253,7 +9251,7 @@ pub(crate) mod citations {
         }
 
         pub(crate) fn extend(&mut self, other: Self) {
-            self.equations.extend(other.equations);
+            self.predicates.extend(other.predicates);
             self.cases.extend(other.cases);
         }
     }
@@ -9357,6 +9355,11 @@ pub(crate) mod citations {
         })
     }
 
+    /// Whether `instantiate_citation` inspects the site-specific hypotheses,
+    /// equations, prior citations, or induction hypotheses in `judge` (as opposed
+    /// to only `judge.has_runtime_body_values()`). A requires-free citation whose
+    /// ensures contain no case observations produces the exact same instantiated
+    /// predicates from `judge` directly without constructing a temporary `site_judge`.
     pub(crate) fn citation_needs_site_judge(
         program: &dyn crate::CheckingInput,
         target: &CitationTarget,
@@ -9431,17 +9434,32 @@ pub(crate) mod citations {
             || matches!(owner, SelectedCallContract::Concrete(callee, _) if crate::mathematical_applications::is_indexed_logical_machine(program, callee))
     }
 
-    pub(crate) fn collect_citation_equations(
+    /// Statement-call CITATIONS (ch10 "Citing Proofs"; the settled proof-citation
+    /// rule, 2026-07-18): `add_zero_right(b);` inside a proof body delivers
+    /// the callee's proven ensures to this site, instantiated at the call's
+    /// argument terms -- the predicates these return feed the structural judge's
+    /// hypotheses exactly like requires facts. Fact injection is the explicit
+    /// default; no global rules, no pattern matching, nothing applies silently.
+    ///
+    /// Soundness: the callee's ensures is machine-checked in this same
+    /// validation batch (a false lemma raises its own error, so no compiling
+    /// program cites an unproven fact), and lemma-citing-lemma cycles are
+    /// machine CALL cycles -- banned by the call-graph rule, so mutual
+    /// false-certification is structurally impossible.
+    ///
+    /// A requires-bearing lemma contributes facts only after its premises are
+    /// established at this statement, independently of its own conclusions.
+    pub(crate) fn collect_citation_predicates(
         program: &dyn crate::CheckingInput,
         classification: &typed_trees::proof_only::ProofOnlyClassification,
         machine: &Machine,
         diagnostics: &mut Vec<Diagnostic>,
         judge: Option<&StructuralJudge>,
-    ) -> Vec<(StructuralTerm, StructuralTerm)> {
-        let mut equations = Vec::new();
+    ) -> Vec<StructuralTerm> {
+        let mut predicates = Vec::new();
         let mut site_judge = judge.cloned();
         let Some(entry) = program.machine_states(machine).first() else {
-            return equations;
+            return predicates;
         };
         let mut environment: Vec<(String, StructuralTerm)> = program
             .state_parameters(entry)
@@ -9523,12 +9541,12 @@ pub(crate) mod citations {
             if let Some(judge) = &mut site_judge {
                 established.intake(judge);
             }
-            equations.extend(established.equations);
+            predicates.extend(established.predicates);
         }
         if super::struct_trace() {
-            eprintln!("CITE machine={} equations={equations:?}", machine.name);
+            eprintln!("CITE machine={} predicates={predicates:?}", machine.name);
         }
-        equations
+        predicates
     }
 
     pub(crate) fn suggest_missing_citation(
@@ -9645,8 +9663,8 @@ pub(crate) mod citations {
         }
         for (first, second) in [(goal_left, goal_right), (goal_right, goal_left)] {
             let mut bindings: Vec<(String, StructuralTerm)> = Vec::new();
-            if diagnostic_shape_match(&lemma_left, first, parameters, &mut bindings)
-                && diagnostic_shape_match(&lemma_right, second, parameters, &mut bindings)
+            if diagnostic_shape_match(program, &lemma_left, first, parameters, &mut bindings)
+                && diagnostic_shape_match(program, &lemma_right, second, parameters, &mut bindings)
             {
                 let arguments: Vec<String> = parameters
                     .iter()
@@ -9841,15 +9859,18 @@ pub(crate) mod citations {
             },
         ));
         for fact in &ensures_facts {
-            collect_instantiated_conjuncts(
+            collect_instantiated_predicates(
                 program,
                 scope,
                 parameters,
                 *fact,
                 &map,
-                &mut established.equations,
+                &mut established.predicates,
             );
         }
+        // Mathematical results keep the same selected application identity for
+        // predicates and tags. A saved local's environment contains that value,
+        // not its storage binder. Runtime occurrences took the separate lane above.
         if !target.has_static_selection
             && let Some(judge) = judge
         {
@@ -9880,44 +9901,36 @@ pub(crate) mod citations {
                     StructuralJudgment::Proven
                 );
         }
-        let Some(binary) = program.expression_table.binary_node(fact) else {
+        // Logical And has fixed meaning. Keep each case leaf with its exact
+        // observation judgment; the scalar/value reader cannot reinterpret it.
+        if let Some(binary) = program.expression_table.binary_node(fact)
+            && binary.operator == BinaryOperator::And
+        {
+            return instantiated_fact_established(
+                program,
+                judge,
+                scope,
+                parameters,
+                binary.left,
+                map,
+            ) && instantiated_fact_established(
+                program,
+                judge,
+                scope,
+                parameters,
+                binary.right,
+                map,
+            );
+        }
+        let Some(predicate) = super::structural_terms::structural_predicate_for_parameters(
+            program, scope, parameters, fact,
+        ) else {
             return false;
         };
-        match binary.operator {
-            BinaryOperator::And => {
-                crate::has_builtin_parameter_bound_expression_meaning(
-                    program, scope, parameters, fact,
-                ) && instantiated_fact_established(
-                    program,
-                    judge,
-                    scope,
-                    parameters,
-                    binary.left,
-                    map,
-                ) && instantiated_fact_established(
-                    program,
-                    judge,
-                    scope,
-                    parameters,
-                    binary.right,
-                    map,
-                )
-            }
-            BinaryOperator::Equal => {
-                let Some((left, right)) = super::structural_terms::identity_equality_terms(
-                    program, scope, parameters, fact,
-                ) else {
-                    return false;
-                };
-                let left = StructuralJudge::substitute_term(&left, map);
-                let right = StructuralJudge::substitute_term(&right, map);
-                matches!(
-                    judge.judge_equation(judge.resolve(left), judge.resolve(right), 0),
-                    StructuralJudgment::Proven
-                )
-            }
-            _ => false,
-        }
+        matches!(
+            judge.judge_observed_predicate(StructuralJudge::substitute_term(&predicate, map), 0),
+            StructuralJudgment::Proven
+        )
     }
 }
 pub(crate) mod collection_bounds {
@@ -10065,13 +10078,31 @@ pub(crate) mod collection_bounds {
 
     pub(crate) type BoundsCoordinate = ((u32, u32), usize, (u32, u32));
 
+    /*
+        The frozen inputs for one machine's collection-bound proofs. The range
+        checker runs a machine twice: a provisional pass records each bound it
+        asks about in its own `CollectionBoundsDemands`, `resolve_deferred`
+        proves those demands in one batched prefix walk, and the second pass
+        reads the answers. The observations never change; the caller owns the
+        demand table and passes it by `&mut`, so no answer is hidden here.
+    */
     pub struct CollectionBoundsObservations<'program> {
         program: &'program dyn crate::CheckingInput,
         machine: &'program Machine,
         states: Vec<&'program State>,
-        acyclic: std::cell::Cell<Option<bool>>,
-        demands: std::cell::RefCell<BTreeMap<BoundsCoordinate, BoundsDemand>>,
-        resolved: std::cell::Cell<bool>,
+    }
+
+    /*
+        One machine's recorded bound demands, whether they have been resolved,
+        and the machine's acyclicity once some proof needed it. Before
+        resolution a demand is recorded unproven; afterwards a demand the
+        provisional pass never asked about is proved alone and remembered.
+    */
+    #[derive(Default)]
+    pub struct CollectionBoundsDemands {
+        acyclic: Option<bool>,
+        demands: BTreeMap<BoundsCoordinate, BoundsDemand>,
+        resolved: bool,
     }
 
     pub(crate) struct BoundsDemand {
@@ -10091,6 +10122,15 @@ pub(crate) mod collection_bounds {
         }
     }
 
+    impl CollectionBoundsDemands {
+        fn retain(&mut self, demands: Vec<BoundsDemand>) {
+            self.demands = demands
+                .into_iter()
+                .map(|demand| (demand.coordinate(), demand))
+                .collect();
+        }
+    }
+
     impl<'program> CollectionBoundsObservations<'program> {
         pub fn new(
             program: &'program dyn crate::CheckingInput,
@@ -10102,14 +10142,12 @@ pub(crate) mod collection_bounds {
                 program,
                 machine,
                 states,
-                acyclic: std::cell::Cell::new(None),
-                demands: std::cell::RefCell::new(BTreeMap::new()),
-                resolved: std::cell::Cell::new(false),
             }
         }
 
         pub fn proves(
             &self,
+            table: &mut CollectionBoundsDemands,
             state: &State,
             statement_index: usize,
             expression: ExpressionHandle,
@@ -10121,26 +10159,24 @@ pub(crate) mod collection_bounds {
                 proven: false,
             };
             let coordinate = demand.coordinate();
-            let mut demands = self.demands.borrow_mut();
-            if let Some(demand) = demands.get(&coordinate) {
+            if let Some(demand) = table.demands.get(&coordinate) {
                 return demand.proven;
             }
-            let proven = if self.resolved.get() {
-                drop(demands);
-                let proven = self.prove_one(state.symbol, statement_index, expression);
-                demands = self.demands.borrow_mut();
-                proven
-            } else {
-                false
-            };
+            let proven = table.resolved
+                && self.prove_one(
+                    &mut table.acyclic,
+                    state.symbol,
+                    statement_index,
+                    expression,
+                );
             demand.proven = proven;
-            demands.insert(coordinate, demand);
+            table.demands.insert(coordinate, demand);
             proven
         }
 
-        pub fn resolve_deferred(&self) -> bool {
-            self.resolved.set(true);
-            let mut demands = std::mem::take(&mut *self.demands.borrow_mut())
+        pub fn resolve_deferred(&self, table: &mut CollectionBoundsDemands) -> bool {
+            table.resolved = true;
+            let mut demands = std::mem::take(&mut table.demands)
                 .into_values()
                 .collect::<Vec<_>>();
             if demands.is_empty() {
@@ -10151,10 +10187,10 @@ pub(crate) mod collection_bounds {
                 .map(|demand| self.query(demand.state, demand.statement, demand.expression))
                 .collect::<Option<Vec<_>>>()
             else {
-                self.retain_demands(demands);
+                table.retain(demands);
                 return false;
             };
-            let recognized = if self.is_acyclic() {
+            let recognized = if self.is_acyclic(&mut table.acyclic) {
                 let mut visitors = queries
                     .iter_mut()
                     .map(|query| query as &mut dyn StructuralPrefixVisitor)
@@ -10232,20 +10268,17 @@ pub(crate) mod collection_bounds {
             }
             for demand in &mut demands {
                 if !demand.proven {
-                    demand.proven =
-                        self.prove_one(demand.state, demand.statement, demand.expression);
+                    demand.proven = self.prove_one(
+                        &mut table.acyclic,
+                        demand.state,
+                        demand.statement,
+                        demand.expression,
+                    );
                 }
             }
             let proven = demands.iter().any(|demand| demand.proven);
-            self.retain_demands(demands);
+            table.retain(demands);
             proven
-        }
-
-        fn retain_demands(&self, demands: Vec<BoundsDemand>) {
-            *self.demands.borrow_mut() = demands
-                .into_iter()
-                .map(|demand| (demand.coordinate(), demand))
-                .collect();
         }
 
         fn state(&self, symbol: symbols::SymbolHandle) -> Option<&'program State> {
@@ -10281,10 +10314,9 @@ pub(crate) mod collection_bounds {
             })
         }
 
-        fn is_acyclic(&self) -> bool {
-            self.acyclic.get().unwrap_or_else(|| {
-                let computed = self
-                    .program
+        fn is_acyclic(&self, acyclic: &mut Option<bool>) -> bool {
+            *acyclic.get_or_insert_with(|| {
+                self.program
                     .machine_states(self.machine)
                     .first()
                     .is_some_and(|entry| {
@@ -10293,14 +10325,13 @@ pub(crate) mod collection_bounds {
                             self.machine,
                             entry,
                         )
-                    });
-                self.acyclic.set(Some(computed));
-                computed
+                    })
             })
         }
 
         fn prove_one(
             &self,
+            acyclic: &mut Option<bool>,
             state: symbols::SymbolHandle,
             statement_index: usize,
             expression: ExpressionHandle,
@@ -10308,7 +10339,7 @@ pub(crate) mod collection_bounds {
             let Some(mut query) = self.query(state, statement_index, expression) else {
                 return false;
             };
-            let recognized = if self.is_acyclic() {
+            let recognized = if self.is_acyclic(acyclic) {
                 super::structural_prefix::observe_acyclic_invocation_prefix(
                     self.program,
                     self.machine,
@@ -12752,6 +12783,173 @@ pub(crate) mod statement_predicates {
     use typed_trees::types::PrimitiveType;
     use typed_trees::{machine::Machine, state::State};
 
+    /// Formed declaration predicates at the invocation entry, without body facts
+    /// or private caller observations. A crash condition is a question here; it
+    /// never becomes one of the entry hypotheses used to answer itself.
+    pub struct EntryPredicateObservations<'program> {
+        program: &'program dyn crate::CheckingInput,
+        machine: &'program Machine,
+        judge: std::cell::OnceCell<super::structural_judgment::StructuralJudge<'program>>,
+    }
+
+    impl<'program> EntryPredicateObservations<'program> {
+        pub fn new(
+            program: &'program dyn crate::CheckingInput,
+            machine: &'program Machine,
+        ) -> Self {
+            Self {
+                program,
+                machine,
+                judge: std::cell::OnceCell::new(),
+            }
+        }
+
+        fn judge(&self) -> &super::structural_judgment::StructuralJudge<'program> {
+            self.judge.get_or_init(|| {
+                let entry = self.program.machine_states(self.machine).first();
+                let requires = self
+                    .program
+                    .machine_contracts(self.machine)
+                    .iter()
+                    .chain(
+                        entry
+                            .into_iter()
+                            .flat_map(|state| self.program.state_contracts(state)),
+                    )
+                    .filter(|contract| {
+                        contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                    })
+                    .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
+                    .filter_map(|fact| fact.as_expression().copied())
+                    .collect::<Vec<_>>();
+                super::structural_judgment::StructuralJudge::from_runtime_requires(
+                    self.program,
+                    self.machine,
+                    &requires,
+                )
+            })
+        }
+
+        /// Read formed Id propositions at this invocation's declared entry.
+        /// This classifies a premise; it neither proves it nor installs a goal.
+        pub fn has_formed_identity_predicate(
+            &self,
+            expression: ExpressionHandle,
+            mut scalar_leaf: impl FnMut(ExpressionHandle) -> bool,
+        ) -> bool {
+            use super::structural_judgment::StructuralTerm;
+            use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+            use typed_trees::signature::SignatureContractKind;
+
+            let Some(entry) = self.program.machine_states(self.machine).first() else {
+                return false;
+            };
+            let owned = self
+                .program
+                .machine_contracts(self.machine)
+                .iter()
+                .chain(self.program.state_contracts(entry))
+                .filter(|contract| {
+                    matches!(
+                        contract.kind,
+                        SignatureContractKind::Requires | SignatureContractKind::Crashes { .. }
+                    )
+                })
+                .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
+                .any(|fact| fact.as_expression() == Some(&expression));
+            if !owned {
+                return false;
+            }
+            let judge = self.judge();
+            let mut pending = vec![(expression, 0usize)];
+            let mut remaining = 4096usize;
+            let mut has_identity = false;
+            while let Some((expression, depth)) = pending.pop() {
+                let Some(next) = remaining.checked_sub(1) else {
+                    return false;
+                };
+                remaining = next;
+                if depth >= 64
+                    || !self
+                        .program
+                        .expression_table
+                        .expression_is_valid(expression)
+                {
+                    return false;
+                }
+                match self.program.expression_table.expression(expression) {
+                    ExpressionNode::Binary(binary)
+                        if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+                    {
+                        pending.push((binary.right, depth + 1));
+                        pending.push((binary.left, depth + 1));
+                    }
+                    ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                        pending.push((unary.operand, depth + 1));
+                    }
+                    _ => {
+                        if scalar_leaf(expression) {
+                            continue;
+                        }
+                        let Some(predicate) = judge.predicate_term_in_scope(
+                            (self.machine, entry, entry.return_type),
+                            expression,
+                            &[],
+                            0,
+                        ) else {
+                            return false;
+                        };
+                        let StructuralTerm::Identity {
+                            carrier,
+                            left,
+                            right,
+                        } = predicate.semantic_value()
+                        else {
+                            return false;
+                        };
+                        if !carrier.is_valid()
+                            || !judge.identity_value_is_available(left)
+                            || !judge.identity_value_is_available(right)
+                        {
+                            return false;
+                        }
+                        has_identity = true;
+                    }
+                }
+            }
+            has_identity
+        }
+
+        pub fn proves_crash_condition(&self, expression: ExpressionHandle) -> bool {
+            let Some(entry) = self.program.machine_states(self.machine).first() else {
+                return false;
+            };
+            let owned = self
+                .program
+                .machine_contracts(self.machine)
+                .iter()
+                .filter(|contract| {
+                    matches!(
+                        contract.kind,
+                        typed_trees::signature::SignatureContractKind::Crashes { .. }
+                    )
+                })
+                .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
+                .any(|fact| fact.as_expression() == Some(&expression));
+            owned
+                && matches!(
+                    self.judge().judge_predicate_in_scope(
+                        (self.machine, entry, entry.return_type),
+                        expression,
+                        &[],
+                        0
+                    ),
+                    StructuralJudgment::Proven
+                )
+        }
+    }
+
+    /// Ordinary Boolean questions over the current values of a checked prefix.
     pub struct StatementPredicateObservations<'program> {
         program: &'program dyn crate::CheckingInput,
         machine: &'program Machine,
@@ -14030,9 +14228,11 @@ pub(crate) mod content_conservation {
         if plan.owner != machine.symbol || plan.callable != state.symbol {
             return None;
         }
-        let result = super::completed_observations::fold_completed_values(
+        // A callable law is established under its declared entry contract.
+        // Stronger facts at this program's private callers may prove one actual
+        // invocation, but cannot publish the law for arbitrary later callers.
+        let mut observation = super::completed_observations::CompletedObservation::new(
             program,
-            machine,
             state,
             statement_index,
             expression,
@@ -14041,8 +14241,16 @@ pub(crate) mod content_conservation {
             conservation_fold_succeeds,
             conservation_fold(program, plan, projections),
         );
-        let result = result?;
-        (result.complete && result.state.0).then_some(result.state.1)
+        let recognized = super::structural_prefix::observe_runtime_state_prefix(
+            program,
+            machine,
+            state,
+            &mut observation,
+        )
+        .is_some();
+        observation
+            .shared_success(recognized)
+            .map(|(_, proofs)| proofs)
     }
 
     pub fn completed_value_has_content_conservation_candidate(
@@ -15283,16 +15491,21 @@ pub(crate) mod contract_refinement {
         ) {
             return false;
         }
-        let Some(binary) = program.expression_table.binary_node(expression) else {
+        let subjects = if let Ok(identity) =
+            crate::mathematical_applications::identity_application_at(program, expression)
+        {
+            identity.subjects
+        } else if let Some(binary) = program.expression_table.binary_node(expression)
+            && binary.operator == BinaryOperator::Equal
+        {
+            [binary.left, binary.right]
+        } else {
             return false;
         };
-        if binary.operator != BinaryOperator::Equal {
-            return false;
-        }
         matches!(
             (
-                structural_term(program, None, None, binary.left, None),
-                structural_term(program, None, None, binary.right, None),
+                structural_term(program, None, None, subjects[0], None),
+                structural_term(program, None, None, subjects[1], None),
             ),
             (Some(_), Some(_))
         )
@@ -16277,10 +16490,29 @@ pub(crate) mod inductive_judgment {
     }
 }
 pub(crate) mod law_conformance {
+    /*
+
+    This file checks law conformance of one machine.
+    `operator_contracts.rs` snapshots and checks operator contracts,
+    `law_guarantees.rs` matches machine law guarantees,
+    `proposition_laws.rs` checks proposition law conformance,
+    `inherited_requirements.rs` instantiates inherited requirement
+    propositions and `slot_bindings.rs` binds carrier slots and shapes
+    diagnostics.
+    */
+
     pub(crate) mod declaration_correspondence {
-        use crate::proof_contracts::contract_structure::{
-            callable_binders, correspondence_fact, generic_binders,
-        };
+        /*
+        Exact guarantees keep their declaration roles before algebraic normalization.
+
+        Applied requirement clauses and provider clauses share the canonical contract
+        identity owner. Positional symbols bind the complete invocation telescope;
+        selected operator meaning is checked in each declaration's own parameter scope.
+        This establishes no new equation and imports no private strengthening. Original
+        clause handles remain the receipt authority after applied payload substitution.
+        */
+
+        use crate::proof_contracts::contract_structure::{callable_binders, generic_binders};
         use symbols::SymbolHandle;
         use typed_trees::domain::ProofFact;
         use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -16288,14 +16520,20 @@ pub(crate) mod law_conformance {
         use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
         use typed_trees::state::State;
         use typed_trees::trait_definition::AppliedTraitScope;
+        use typed_trees::type_identity::TypeIdentityRequest;
+        use typed_trees::types::TypeReferenceHandle;
+
+        use super::equality_conjuncts::{
+            EqualityConjunct, SourceCorrespondence, equality_conjunct,
+        };
 
         pub(crate) struct DeclarationCorrespondence<'program> {
             requirement: &'program StateSignature,
+            requirement_parameters: &'program [StateParameter],
             requirement_binders: Vec<(SymbolHandle, String)>,
-            provider: SymbolHandle,
-            provider_parameters: &'program [StateParameter],
             provider_binders: Vec<(SymbolHandle, String)>,
             applied_clauses: Vec<(ExpressionHandle, ExpressionHandle)>,
+            source_correspondence: SourceCorrespondence,
         }
 
         impl<'program> DeclarationCorrespondence<'program> {
@@ -16344,70 +16582,122 @@ pub(crate) mod law_conformance {
                         let applied = program
                             .applied_signature_contract_fact(declared, requirement, handle)
                             .and_then(ProofFact::as_expression)?;
-                        pair_conjuncts(program, *original, *applied, &mut applied_clauses)?;
+                        pair_conjuncts(
+                            program,
+                            (
+                                declared.symbol,
+                                program.state_signature_parameters(declared),
+                            ),
+                            (requirement.symbol, requirement_parameters),
+                            *original,
+                            *applied,
+                            &mut applied_clauses,
+                        )?;
                     }
                 }
                 Some(Self {
                     requirement,
+                    requirement_parameters,
                     requirement_binders: callable_binders(
                         &generic_binders(program.state_signature_type_parameters(requirement)),
                         requirement_parameters,
                     ),
-                    provider: machine.symbol,
-                    provider_parameters,
                     provider_binders: callable_binders(
                         &generic_binders(&invocation_parameters),
                         provider_parameters,
                     ),
                     applied_clauses,
+                    source_correspondence: SourceCorrespondence::default(),
                 })
             }
 
             pub(crate) fn matching_guarantee(
+                &mut self,
+                program: &dyn crate::CheckingInput,
+                original: ExpressionHandle,
+                proven: &[(EqualityConjunct<'_>, ExpressionHandle)],
+            ) -> Option<ExpressionHandle> {
+                let required = self.required_conjunct(program, original)?;
+                proven.iter().find_map(|(clause, source)| {
+                    self.matching_conjuncts(program, required, *clause)
+                        .then_some(*source)
+                })
+            }
+
+            pub(crate) fn required_scope(&self) -> (SymbolHandle, &'program [StateParameter]) {
+                (self.requirement.symbol, self.requirement_parameters)
+            }
+
+            pub(crate) fn required_conjunct(
                 &self,
                 program: &dyn crate::CheckingInput,
                 original: ExpressionHandle,
-                proven: &[(ExpressionHandle, ExpressionHandle)],
-            ) -> Option<ExpressionHandle> {
+            ) -> Option<EqualityConjunct<'program>> {
                 let (_, applied) = self
                     .applied_clauses
                     .iter()
-                    .find(|(clause, _)| *clause == original)?;
-                if !crate::has_builtin_parameter_bound_expression_meaning(
+                    .find(|(source, _)| *source == original)?;
+                equality_conjunct(
                     program,
                     self.requirement.symbol,
-                    program.state_signature_parameters(self.requirement),
+                    self.requirement_parameters,
                     *applied,
-                ) {
-                    return None;
-                }
-                let required = correspondence_fact(
-                    program,
-                    &ProofFact::Expression(*applied),
-                    &self.requirement_binders,
-                )?;
-                proven.iter().find_map(|(clause, source)| {
-                    if !crate::has_builtin_parameter_bound_expression_meaning(
-                        program,
-                        self.provider,
-                        self.provider_parameters,
-                        *clause,
-                    ) {
-                        return None;
-                    }
-                    (correspondence_fact(
-                        program,
-                        &ProofFact::Expression(*clause),
-                        &self.provider_binders,
-                    )
-                    .is_some_and(|provided| provided == required))
-                    .then_some(*source)
+                )
+            }
+
+            pub(crate) fn identity_carriers_match(
+                &self,
+                program: &dyn crate::CheckingInput,
+                required: TypeReferenceHandle,
+                provided: TypeReferenceHandle,
+            ) -> bool {
+                program.type_identity(TypeIdentityRequest {
+                    binders: &self.requirement_binders,
+                    ..TypeIdentityRequest::ordinary(required)
+                }) == program.type_identity(TypeIdentityRequest {
+                    binders: &self.provider_binders,
+                    ..TypeIdentityRequest::ordinary(provided)
                 })
+            }
+
+            pub(crate) fn matching_subject_payloads(
+                &mut self,
+                program: &dyn crate::CheckingInput,
+                required: ExpressionHandle,
+                provided_scope: (SymbolHandle, &[StateParameter]),
+                provided: ExpressionHandle,
+            ) -> bool {
+                self.source_correspondence.matching_operation_payloads(
+                    program,
+                    self.required_scope(),
+                    required,
+                    &self.requirement_binders,
+                    provided_scope,
+                    provided,
+                    &self.provider_binders,
+                )
+            }
+
+            pub(crate) fn matching_conjuncts(
+                &mut self,
+                program: &dyn crate::CheckingInput,
+                required: EqualityConjunct<'_>,
+                provided: EqualityConjunct<'_>,
+            ) -> bool {
+                self.source_correspondence.matching_conjuncts(
+                    program,
+                    required,
+                    &self.requirement_binders,
+                    provided,
+                    &self.provider_binders,
+                )
             }
         }
 
         fn pair_conjuncts(
             program: &dyn crate::CheckingInput,
+            original_scope: (SymbolHandle, &[StateParameter]),
+            applied_scope: (SymbolHandle, &[StateParameter]),
             original: ExpressionHandle,
             applied: ExpressionHandle,
             clauses: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
@@ -16419,17 +16709,830 @@ pub(crate) mod law_conformance {
                 (Some(source), Some(selected)) if source.operator == selected.operator => {
                     match source.operator {
                         BinaryOperator::And => {
-                            pair_conjuncts(program, source.left, selected.left, clauses)?;
-                            pair_conjuncts(program, source.right, selected.right, clauses)?;
+                            pair_conjuncts(
+                                program,
+                                original_scope,
+                                applied_scope,
+                                source.left,
+                                selected.left,
+                                clauses,
+                            )?;
+                            pair_conjuncts(
+                                program,
+                                original_scope,
+                                applied_scope,
+                                source.right,
+                                selected.right,
+                                clauses,
+                            )?;
                         }
                         BinaryOperator::Equal => clauses.push((original, applied)),
                         _ => {}
                     }
                     Some(())
                 }
-                (None, None) => Some(()),
+                (None, None) => {
+                    if equality_conjunct(program, original_scope.0, original_scope.1, original)
+                        .is_some()
+                        && equality_conjunct(program, applied_scope.0, applied_scope.1, applied)
+                            .is_some()
+                    {
+                        clauses.push((original, applied));
+                    }
+                    Some(())
+                }
                 _ => None,
             }
+        }
+    }
+    mod equality_conjuncts {
+        /*
+        Read complete equality statements in their declaring parameter telescope.
+
+        A sealed Id and a selected Boolean comparison remain distinct relations.
+        Only the existing same-carrier builtin scalar bridge can make the latter
+        available as identity. These views describe obligations, never their proof.
+        */
+
+        use symbols::SymbolHandle;
+        use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+        use typed_trees::signature::StateParameter;
+        use typed_trees::type_identity::{TypeIdentityRequest, normalized_expression_identity};
+
+        use crate::mathematical_applications::{IdentityApplication, identity_application_at};
+
+        #[derive(Clone, Copy)]
+        pub(crate) struct EqualityConjunct<'scope> {
+            owner: SymbolHandle,
+            parameters: &'scope [StateParameter],
+            expression: ExpressionHandle,
+            meaning: EqualityMeaning,
+        }
+
+        #[derive(Clone, Copy)]
+        enum EqualityMeaning {
+            Identity(IdentityApplication),
+            TypeEquality,
+            BooleanPredicate,
+        }
+
+        impl<'scope> EqualityConjunct<'scope> {
+            pub(crate) fn expression(self) -> ExpressionHandle {
+                self.expression
+            }
+
+            fn scope(self) -> (SymbolHandle, &'scope [StateParameter]) {
+                (self.owner, self.parameters)
+            }
+
+            pub(crate) fn identity(self) -> Option<IdentityApplication> {
+                let EqualityMeaning::Identity(identity) = self.meaning else {
+                    return None;
+                };
+                Some(identity)
+            }
+        }
+
+        pub(crate) fn equality_conjunct<'scope>(
+            program: &dyn crate::CheckingInput,
+            owner: SymbolHandle,
+            parameters: &'scope [StateParameter],
+            expression: ExpressionHandle,
+        ) -> Option<EqualityConjunct<'scope>> {
+            if super::super::structural_terms::is_case_observation(program, expression) {
+                return None;
+            }
+            let meaning = if let Ok(identity) = identity_application_at(program, expression) {
+                EqualityMeaning::Identity(identity)
+            } else if let Some(binary) = program.expression_table.binary_node(expression) {
+                if binary.operator != BinaryOperator::Equal {
+                    return None;
+                }
+                if program.static_type_predicate_operands(expression).is_some() {
+                    EqualityMeaning::TypeEquality
+                } else {
+                    super::super::structural_terms::builtin_identity_operand_references(
+                        program, owner, parameters, expression,
+                    )
+                    .map_or(EqualityMeaning::BooleanPredicate, |references| {
+                        EqualityMeaning::Identity(IdentityApplication {
+                            carrier: references[0],
+                            subjects: [binary.left, binary.right],
+                        })
+                    })
+                }
+            } else {
+                // Preparation binds selected comparisons to ordinary calls. Their
+                // declared Bool result retains the complete predicate: a namespace,
+                // value receiver, arguments and static/evidence selections keep their
+                // original roles. No comparison spelling or argument layout is needed,
+                // and no Boolean call supplies value identity.
+                program.expression_table.call_node(expression)?;
+                let reference = crate::parameter_expression_result_type_reference(
+                    program, owner, parameters, expression,
+                )?;
+                if program.primitive_type_reference(reference)
+                    != Some(typed_trees::types::PrimitiveType::Bool)
+                {
+                    return None;
+                }
+                EqualityMeaning::BooleanPredicate
+            };
+            Some(EqualityConjunct {
+                owner,
+                parameters,
+                expression,
+                meaning,
+            })
+        }
+
+        /// One declaration reuses graph scratch across all its clause candidates.
+        /// Epochs make a tiny law visit cost proportional to its reached expressions,
+        /// rather than clearing the unrelated expression-arena prefix per comparison.
+        #[derive(Default)]
+        pub(crate) struct SourceCorrespondence {
+            visits: Vec<SourceVisit>,
+            epoch: u32,
+        }
+
+        #[derive(Clone, Copy, Default)]
+        struct SourceVisit {
+            epoch: u32,
+            state: u8,
+            expanded_work: usize,
+        }
+
+        const MAX_SOURCE_MATCH_WORK: usize = 4096;
+
+        impl SourceCorrespondence {
+            /// Match statements under complete positional binders. Identity may reverse
+            /// endpoints; a selected comparison remains that exact Boolean expression.
+            /// The canonical declaration identity retains calls, carriers and static
+            /// operands, and supplies no proof that distinct expressions are equivalent.
+            pub(crate) fn matching_conjuncts(
+                &mut self,
+                program: &dyn crate::CheckingInput,
+                required: EqualityConjunct<'_>,
+                required_binders: &[(SymbolHandle, String)],
+                provided: EqualityConjunct<'_>,
+                provided_binders: &[(SymbolHandle, String)],
+            ) -> bool {
+                match (required.meaning, provided.meaning) {
+                    (
+                        EqualityMeaning::Identity(required_identity),
+                        EqualityMeaning::Identity(provided_identity),
+                    ) => {
+                        let carrier = |reference, binders| {
+                            program.type_identity(TypeIdentityRequest {
+                                binders,
+                                ..TypeIdentityRequest::ordinary(reference)
+                            })
+                        };
+                        if carrier(required_identity.carrier, required_binders)
+                            != carrier(provided_identity.carrier, provided_binders)
+                        {
+                            return false;
+                        }
+                        (self.matching_values(
+                            program,
+                            required.scope(),
+                            required_identity.subjects[0],
+                            required_binders,
+                            provided.scope(),
+                            provided_identity.subjects[0],
+                            provided_binders,
+                        ) && self.matching_values(
+                            program,
+                            required.scope(),
+                            required_identity.subjects[1],
+                            required_binders,
+                            provided.scope(),
+                            provided_identity.subjects[1],
+                            provided_binders,
+                        )) || (self.matching_values(
+                            program,
+                            required.scope(),
+                            required_identity.subjects[0],
+                            required_binders,
+                            provided.scope(),
+                            provided_identity.subjects[1],
+                            provided_binders,
+                        ) && self.matching_values(
+                            program,
+                            required.scope(),
+                            required_identity.subjects[1],
+                            required_binders,
+                            provided.scope(),
+                            provided_identity.subjects[0],
+                            provided_binders,
+                        ))
+                    }
+                    (EqualityMeaning::TypeEquality, EqualityMeaning::TypeEquality)
+                    | (EqualityMeaning::BooleanPredicate, EqualityMeaning::BooleanPredicate) => {
+                        self.matching_values(
+                            program,
+                            required.scope(),
+                            required.expression,
+                            required_binders,
+                            provided.scope(),
+                            provided.expression,
+                            provided_binders,
+                        )
+                    }
+                    _ => false,
+                }
+            }
+
+            /// Source structure has a canonical key only after every infix operation
+            /// retains builtin meaning in this declaration. Selected calls retain their
+            /// resolved target and full static application in the shared key. A raw
+            /// selected infix instead uses its checked structural application below.
+            fn canonical_source_value(
+                &mut self,
+                program: &dyn crate::CheckingInput,
+                statement: (SymbolHandle, &[StateParameter]),
+                expression: ExpressionHandle,
+                binders: &[(SymbolHandle, String)],
+            ) -> Option<String> {
+                if self.epoch == u32::MAX {
+                    self.visits.fill(SourceVisit::default());
+                    self.epoch = 0;
+                }
+                self.epoch += 1;
+                let mut pending = vec![(expression, false)];
+                let mut remaining_graph_work = MAX_SOURCE_MATCH_WORK;
+                while let Some((expression, completed)) = pending.pop() {
+                    remaining_graph_work = remaining_graph_work.checked_sub(1)?;
+                    if !expression.is_valid() {
+                        continue; // An absent receiver is a structural call edge.
+                    }
+                    if !program.expression_table.expression_is_valid(expression) {
+                        return None;
+                    }
+                    let position = expression.arena_index() as usize;
+                    if self.visits.len() <= position {
+                        self.visits.resize(position + 1, SourceVisit::default());
+                    }
+                    if completed {
+                        let mut expanded_work = 1usize;
+                        crate::queries::expression_traversal::children(
+                            program,
+                            program.expression_table.expression(expression),
+                            |child| {
+                                if child.is_valid() {
+                                    expanded_work = expanded_work.saturating_add(
+                                        self.visits[child.arena_index() as usize].expanded_work,
+                                    );
+                                }
+                            },
+                        );
+                        if expanded_work > MAX_SOURCE_MATCH_WORK {
+                            return None;
+                        }
+                        self.visits[position] = SourceVisit {
+                            epoch: self.epoch,
+                            state: 2,
+                            expanded_work,
+                        };
+                        continue;
+                    }
+                    let visit = &mut self.visits[position];
+                    match (visit.epoch == self.epoch, visit.state) {
+                        (true, 1) => return None,
+                        (true, 2) => continue,
+                        _ => {
+                            *visit = SourceVisit {
+                                epoch: self.epoch,
+                                state: 1,
+                                expanded_work: 0,
+                            }
+                        }
+                    }
+                    pending.push((expression, true));
+                    let node = program.expression_table.expression(expression);
+                    if let Some(binary) = program.expression_table.binary_node(expression)
+                        && program.static_type_predicate_operands(expression).is_none()
+                        && let Some(spelling) =
+                            crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
+                                binary.operator,
+                            )
+                    {
+                        let operands = [binary.left, binary.right].map(|operand| {
+                            crate::parameter_expression_result_type_reference(
+                                program,
+                                statement.0,
+                                statement.1,
+                                operand,
+                            )
+                        });
+                        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                            program,
+                            statement.0,
+                            expression,
+                            spelling,
+                            &operands,
+                        ) {
+                            return None;
+                        }
+                    }
+                    crate::queries::expression_traversal::children(program, node, |child| {
+                        pending.push((child, false))
+                    });
+                }
+                if !crate::proof_contracts::contract_results::expression_has_source_builtin_index_meaning(
+                    program, expression,
+                ) {
+                    return None;
+                }
+                normalized_expression_identity(program.typed_program(), expression, binders)
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub(crate) fn matching_values(
+                &mut self,
+                program: &dyn crate::CheckingInput,
+                required: (SymbolHandle, &[StateParameter]),
+                required_expression: ExpressionHandle,
+                required_binders: &[(SymbolHandle, String)],
+                provided: (SymbolHandle, &[StateParameter]),
+                provided_expression: ExpressionHandle,
+                provided_binders: &[(SymbolHandle, String)],
+            ) -> bool {
+                let required_key = self.canonical_source_value(
+                    program,
+                    required,
+                    required_expression,
+                    required_binders,
+                );
+                let provided_key = self.canonical_source_value(
+                    program,
+                    provided,
+                    provided_expression,
+                    provided_binders,
+                );
+                if !self.matching_operation_payloads(
+                    program,
+                    required,
+                    required_expression,
+                    required_binders,
+                    provided,
+                    provided_expression,
+                    provided_binders,
+                ) {
+                    return false;
+                }
+                if let (Some(required), Some(provided)) = (required_key, provided_key) {
+                    return required == provided;
+                }
+                let term = |statement: (SymbolHandle, &[StateParameter]), expression| {
+                    super::super::structural_term(
+                        program,
+                        None,
+                        Some((statement.0, statement.1)),
+                        expression,
+                        None,
+                    )
+                };
+                let (Some(required_term), Some(provided_term)) = (
+                    term(required, required_expression),
+                    term(provided, provided_expression),
+                ) else {
+                    return false;
+                };
+                let (Some(required_roles), Some(provided_roles)) = (
+                    parameter_roles(required.1, required_binders),
+                    parameter_roles(provided.1, provided_binders),
+                ) else {
+                    return false;
+                };
+                if required_roles.len() != provided_roles.len() {
+                    return false;
+                }
+                let mut bindings = Vec::with_capacity(required_roles.len());
+                for ((required_key, required_parameter), (provided_key, provided_parameter)) in
+                    required_roles.into_iter().zip(provided_roles)
+                {
+                    if required_key != provided_key {
+                        return false;
+                    }
+                    bindings.push((
+                        required_parameter.name.as_str().to_owned(),
+                        super::super::StructuralTerm::Variable(
+                            provided_parameter.name.as_str().to_owned(),
+                        ),
+                    ));
+                }
+                let variables = required
+                    .1
+                    .iter()
+                    .map(|parameter| parameter.name.as_str().to_owned())
+                    .collect::<Vec<_>>();
+                super::slot_bindings::diagnostic_shape_match(
+                    program,
+                    &required_term,
+                    &provided_term,
+                    &variables,
+                    &mut bindings,
+                )
+            }
+            /// The shared index key intentionally omits some operation payloads. Check
+            /// those before either key correspondence or selected structural fallback.
+            /// This walks source value positions, preserving each call's source owner;
+            /// declaration namespaces are classified by the existing callable query.
+            #[allow(clippy::too_many_arguments)]
+            pub(crate) fn matching_operation_payloads(
+                &mut self,
+                program: &dyn crate::CheckingInput,
+                required_scope: (SymbolHandle, &[StateParameter]),
+                required: ExpressionHandle,
+                required_binders: &[(SymbolHandle, String)],
+                provided_scope: (SymbolHandle, &[StateParameter]),
+                provided: ExpressionHandle,
+                provided_binders: &[(SymbolHandle, String)],
+            ) -> bool {
+                use typed_trees::expression::ExpressionNode;
+                let type_matches = |left, right| {
+                    if !program.type_reference_table.contains_type_reference(left)
+                        || !program.type_reference_table.contains_type_reference(right)
+                    {
+                        return !left.is_valid() && !right.is_valid();
+                    }
+                    program.type_identity(TypeIdentityRequest {
+                        binders: required_binders,
+                        ..TypeIdentityRequest::ordinary(left)
+                    }) == program.type_identity(TypeIdentityRequest {
+                        binders: provided_binders,
+                        ..TypeIdentityRequest::ordinary(right)
+                    })
+                };
+                let mut pending = vec![(required, provided, 0usize)];
+                let mut required_children = Vec::new();
+                let mut provided_children = Vec::new();
+                let mut remaining_work = MAX_SOURCE_MATCH_WORK;
+                while let Some((required, provided, depth)) = pending.pop() {
+                    let Some(remaining) = remaining_work.checked_sub(1) else {
+                        return false;
+                    };
+                    remaining_work = remaining;
+                    if !required.is_valid() && !provided.is_valid() {
+                        continue;
+                    }
+                    if depth >= 128
+                        || !program.expression_table.expression_is_valid(required)
+                        || !program.expression_table.expression_is_valid(provided)
+                    {
+                        return false;
+                    }
+                    let left = program.expression_table.expression(required);
+                    let right = program.expression_table.expression(provided);
+                    let call_value_difference = matches!(
+                        (left, right),
+                        (ExpressionNode::Call(_), _) | (_, ExpressionNode::Call(_))
+                    ) && !matches!(
+                        (left, right),
+                        (
+                            ExpressionNode::Call(_),
+                            ExpressionNode::Call(_) | ExpressionNode::Binary(_)
+                        ) | (ExpressionNode::Binary(_), ExpressionNode::Call(_))
+                    );
+                    if call_value_difference {
+                        if !neutral_operation_payloads(program, required, &mut remaining_work)
+                            || !neutral_operation_payloads(program, provided, &mut remaining_work)
+                        {
+                            return false;
+                        }
+                        // This grants no equation. Only the subsequent checked
+                        // closed-value normalization can compare these different forms.
+                        continue;
+                    }
+                    match (left, right) {
+                        (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
+                            // Proof labels are not resolved value binders in this
+                            // view. Their spelling cannot identify relevant evidence.
+                            if !left.evidence_arguments.is_empty()
+                                || !right.evidence_arguments.is_empty()
+                                || left.static_machine_parameter != right.static_machine_parameter
+                                || !selected_dispatches_match(
+                                    program,
+                                    required_scope.0,
+                                    left,
+                                    provided_scope.0,
+                                    right,
+                                )
+                                || !type_matches(
+                                    left.requirement_application,
+                                    right.requirement_application,
+                                )
+                                || !type_matches(
+                                    left.exact_coercion_target,
+                                    right.exact_coercion_target,
+                                )
+                                || left.quotient_operation != right.quotient_operation
+                                || left.private_layout_operation != right.private_layout_operation
+                                || !installed_interrupt_payloads_match(
+                                    left.installed_interrupt_operation.as_ref(),
+                                    right.installed_interrupt_operation.as_ref(),
+                                )
+                                || left.layout_query != right.layout_query
+                                || left.native_code_layout != right.native_code_layout
+                                || left.build_selection.is_valid()
+                                || right.build_selection.is_valid()
+                                || left.operational_acknowledgement.acknowledges_suspend
+                                    != right.operational_acknowledgement.acknowledges_suspend
+                                || left.operational_acknowledgement.acknowledges_block
+                                    != right.operational_acknowledgement.acknowledges_block
+                            {
+                                return false;
+                            }
+                        }
+                        (ExpressionNode::Call(call), ExpressionNode::Binary(_))
+                        | (ExpressionNode::Binary(_), ExpressionNode::Call(call)) => {
+                            if !neutral_call_payload(call) {
+                                return false;
+                            }
+                        }
+                        (ExpressionNode::Cast(left), ExpressionNode::Cast(right)) => {
+                            let table = &program.expression_table;
+                            let types = &program.type_reference_table;
+                            let left_arguments =
+                                types.type_reference_handles(left.semantic_domain_arguments);
+                            let right_arguments =
+                                types.type_reference_handles(right.semantic_domain_arguments);
+                            if !type_matches(left.target_type, right.target_type)
+                                || !type_matches(left.result_type, right.result_type)
+                                || table.name_path_members(left.target_label)
+                                    != table.name_path_members(right.target_label)
+                                || left.domain != right.domain
+                                || table.name_path_members(left.semantic_domain)
+                                    != table.name_path_members(right.semantic_domain)
+                                || left.semantic_domain_symbol != right.semantic_domain_symbol
+                                || left.semantic_domain_id != right.semantic_domain_id
+                                || left.form != right.form
+                                || left_arguments.len() != right_arguments.len()
+                                || !left_arguments
+                                    .iter()
+                                    .zip(right_arguments)
+                                    .all(|(left, right)| type_matches(*left, *right))
+                            {
+                                return false;
+                            }
+                        }
+                        (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
+                            if left.member_symbol != right.member_symbol
+                                || left.case_variant != right.case_variant
+                            {
+                                return false;
+                            }
+                        }
+                        (
+                            ExpressionNode::StructLiteral(left),
+                            ExpressionNode::StructLiteral(right),
+                        ) => {
+                            let fields = |literal: &typed_trees::expression::TableStructLiteral| {
+                                program.expression_table.struct_fields(literal.fields)
+                            };
+                            if left.type_symbol != right.type_symbol
+                                || left.case_symbol != right.case_symbol
+                                || fields(left).len() != fields(right).len()
+                                || !fields(left)
+                                    .iter()
+                                    .zip(fields(right))
+                                    .all(|(left, right)| left.field_symbol == right.field_symbol)
+                            {
+                                return false;
+                            }
+                        }
+                        (ExpressionNode::Match(_), _)
+                        | (_, ExpressionNode::Match(_))
+                        | (ExpressionNode::Cast(_), _)
+                        | (_, ExpressionNode::Cast(_))
+                        | (ExpressionNode::Member(_), _)
+                        | (_, ExpressionNode::Member(_))
+                        | (ExpressionNode::StructLiteral(_), _)
+                        | (_, ExpressionNode::StructLiteral(_))
+                        | (ExpressionNode::Call(_), _)
+                        | (_, ExpressionNode::Call(_)) => return false,
+                        _ => {}
+                    }
+                    let children =
+                        |node: &ExpressionNode, owner, out: &mut Vec<ExpressionHandle>| {
+                            if let ExpressionNode::Call(call) = node {
+                                if call.receiver.is_valid()
+                                    && !super::super::structural_terms::static_call_receiver(
+                                        program, owner, call,
+                                    )
+                                {
+                                    out.push(call.receiver);
+                                }
+                                out.extend_from_slice(
+                                    program.expression_table.expression_handles(call.arguments),
+                                );
+                            } else {
+                                crate::queries::expression_traversal::children(
+                                    program,
+                                    node,
+                                    |child| out.push(child),
+                                );
+                            }
+                        };
+                    required_children.clear();
+                    provided_children.clear();
+                    children(left, required_scope.0, &mut required_children);
+                    children(right, provided_scope.0, &mut provided_children);
+                    if required_children.len() != provided_children.len() {
+                        return false;
+                    }
+                    pending.extend(
+                        required_children
+                            .iter()
+                            .zip(&provided_children)
+                            .map(|(left, right)| (*left, *right, depth + 1)),
+                    );
+                }
+                true
+            }
+        }
+
+        /// Copied clauses keep separate occurrence records for the same selected map.
+        /// Rejoin each record under its own owner before comparing the selected public
+        /// contract. The storage coordinate stays distinct and supplies no equality.
+        fn selected_dispatches_match(
+            program: &dyn crate::CheckingInput,
+            required_owner: SymbolHandle,
+            required: &typed_trees::expression::TableCallExpression,
+            provided_owner: SymbolHandle,
+            provided: &typed_trees::expression::TableCallExpression,
+        ) -> bool {
+            if required.static_requirement_dispatch == provided.static_requirement_dispatch {
+                return true;
+            }
+            let (Some(required_dispatch), Some(provided_dispatch)) = (
+                required.static_requirement_dispatch.as_ref(),
+                provided.static_requirement_dispatch.as_ref(),
+            ) else {
+                return false;
+            };
+            // Project only the occurrence coordinate locally. Derived equality still
+            // checks every other field, including evidence, commitment and public row.
+            let mut selected_contract = required_dispatch.clone();
+            selected_contract.selection_application = provided_dispatch.selection_application;
+            if selected_contract != *provided_dispatch {
+                return false;
+            }
+            crate::machine_calls::calls::closed_requirement_dispatch_is_valid(
+                program,
+                required_owner,
+                required.target_symbol,
+                required_dispatch,
+            ) && crate::machine_calls::calls::closed_requirement_dispatch_is_valid(
+                program,
+                provided_owner,
+                provided.target_symbol,
+                provided_dispatch,
+            )
+        }
+
+        fn neutral_call_payload(call: &typed_trees::expression::TableCallExpression) -> bool {
+            call.evidence_arguments.is_empty()
+                && !call.static_machine_parameter.is_valid()
+                && call.static_requirement_dispatch.is_none()
+                && !call.requirement_application.is_valid()
+                && !call.exact_coercion_target.is_valid()
+                && call.quotient_operation.is_none()
+                && call.private_layout_operation.is_none()
+                && call.installed_interrupt_operation.is_none()
+                && call.layout_query.is_none()
+                && call.native_code_layout.is_none()
+                && !call.build_selection.is_valid()
+                && !call.operational_acknowledgement.acknowledges_suspend
+                && !call.operational_acknowledgement.acknowledges_block
+        }
+
+        fn installed_interrupt_payloads_match(
+            left: Option<&typed_trees::expression::InstalledInterruptOperationRequest>,
+            right: Option<&typed_trees::expression::InstalledInterruptOperationRequest>,
+        ) -> bool {
+            match (left, right) {
+                (None, None) => true,
+                (Some(left), Some(right)) => {
+                    let same = super::super::structural_judgment::same_static_selection_payload;
+                    left == right
+                        && same(
+                            std::slice::from_ref(&left.registrar),
+                            std::slice::from_ref(&right.registrar),
+                        )
+                        && same(
+                            std::slice::from_ref(&left.timer_slot),
+                            std::slice::from_ref(&right.timer_slot),
+                        )
+                }
+                _ => false,
+            }
+        }
+
+        /// Closed-value normalization already owns value correspondence across source
+        /// forms. Before using it, refuse operations whose omitted metadata would need
+        /// a paired source judgment. Constructor identities/fields remain in the typed
+        /// structural terms compared by that existing normalization.
+        fn neutral_operation_payloads(
+            program: &dyn crate::CheckingInput,
+            expression: ExpressionHandle,
+            remaining_work: &mut usize,
+        ) -> bool {
+            use typed_trees::expression::ExpressionNode;
+            let mut pending = vec![(expression, 0usize)];
+            while let Some((expression, depth)) = pending.pop() {
+                let Some(remaining) = remaining_work.checked_sub(1) else {
+                    return false;
+                };
+                *remaining_work = remaining;
+                if !expression.is_valid() {
+                    continue;
+                }
+                if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+                    return false;
+                }
+                let node = program.expression_table.expression(expression);
+                match node {
+                    ExpressionNode::Call(call) if !neutral_call_payload(call) => return false,
+                    ExpressionNode::Cast(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Match(_) => {
+                        return false;
+                    }
+                    _ => {}
+                }
+                crate::queries::expression_traversal::children(program, node, |child| {
+                    pending.push((child, depth + 1))
+                });
+            }
+            true
+        }
+
+        /// Join the retained symbol roster to positional roles once. Sorting is
+        /// bounded by this callable's telescope; repeated or missing symbols/roles
+        /// cannot turn an incomplete scope into a correspondence.
+        fn parameter_roles<'parameters, 'binders>(
+            parameters: &'parameters [StateParameter],
+            binders: &'binders [(SymbolHandle, String)],
+        ) -> Option<Vec<(&'binders str, &'parameters StateParameter)>> {
+            let mut by_symbol = binders
+                .iter()
+                .map(|(symbol, key)| (*symbol, key.as_str()))
+                .collect::<Vec<_>>();
+            by_symbol
+                .sort_unstable_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
+            if by_symbol.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return None;
+            }
+            let mut roles = parameters
+                .iter()
+                .map(|parameter| {
+                    if !parameter.symbol.is_valid() {
+                        return None;
+                    }
+                    let position = by_symbol
+                        .binary_search_by_key(
+                            &(
+                                parameter.symbol.arena_index(),
+                                parameter.symbol.generation(),
+                            ),
+                            |(symbol, _)| (symbol.arena_index(), symbol.generation()),
+                        )
+                        .ok()?;
+                    Some((by_symbol[position].1, parameter))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            roles.sort_unstable_by_key(|(key, _)| *key);
+            (!roles.windows(2).any(|pair| pair[0].0 == pair[1].0)).then_some(roles)
+        }
+
+        /// Collect supported leaves in source order. The result says whether the
+        /// entire conjunction was supported; unsupported siblings never acquire a
+        /// matching-law receipt merely because another leaf was an identity.
+        pub(crate) fn collect_equality_conjuncts<'scope>(
+            program: &dyn crate::CheckingInput,
+            owner: SymbolHandle,
+            parameters: &'scope [StateParameter],
+            expression: ExpressionHandle,
+            out: &mut Vec<EqualityConjunct<'scope>>,
+        ) -> bool {
+            let mut pending = vec![expression];
+            let mut complete = true;
+            while let Some(expression) = pending.pop() {
+                if let Some(binary) = program.expression_table.binary_node(expression)
+                    && binary.operator == BinaryOperator::And
+                {
+                    pending.extend([binary.right, binary.left]);
+                } else if let Some(conjunct) =
+                    equality_conjunct(program, owner, parameters, expression)
+                {
+                    out.push(conjunct);
+                } else {
+                    complete = false;
+                }
+            }
+            complete
         }
     }
     pub(crate) mod inherited_requirements {
@@ -16575,9 +17678,12 @@ pub(crate) mod law_conformance {
         }
     }
     pub(crate) mod law_guarantees {
+        /*
+        Matched machine law guarantees.
+        */
+
+        use super::collect_equality_conjuncts;
         use crate::proof_contracts::contract_entailment::law_conformance::check_law_conformance;
-        use crate::proof_contracts::contract_entailment::law_conformance::operator_contracts::is_equality_conjunction;
-        use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::collect_equality_conjuncts;
         use crate::proof_contracts::contract_entailment::{
             ExpressionHandle, SignatureContractKind, SymbolHandle,
         };
@@ -16648,17 +17754,22 @@ pub(crate) mod law_conformance {
                         let Some(expression) = fact.as_expression() else {
                             continue;
                         };
-                        if !is_equality_conjunction(program, *expression) {
+                        let mut conjuncts = Vec::new();
+                        if !collect_equality_conjuncts(
+                            program,
+                            requirement.symbol,
+                            program.state_signature_parameters(requirement),
+                            *expression,
+                            &mut conjuncts,
+                        ) {
                             continue;
                         }
-                        let mut conjuncts = Vec::new();
-                        collect_equality_conjuncts(program, *expression, &mut conjuncts);
                         let Some(source_expressions) = conjuncts
                             .iter()
                             .map(|conjunct| {
-                                matches
-                                    .iter()
-                                    .find_map(|(law, source)| (law == conjunct).then_some(*source))
+                                matches.iter().find_map(|(law, source)| {
+                                    (*law == conjunct.expression()).then_some(*source)
+                                })
                             })
                             .collect::<Option<Vec<_>>>()
                         else {
@@ -16679,12 +17790,31 @@ pub(crate) mod law_conformance {
         }
     }
     pub(crate) mod operator_contracts {
-        use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::collect_equality_conjuncts;
-        use crate::proof_contracts::contract_entailment::{
-            BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
-            SignatureContractKind, SymbolHandle,
-        };
+        /*
+        Operator contract snapshots, conformance and crash contract refinement.
+        */
 
+        use super::equality_conjuncts::{
+            EqualityConjunct, SourceCorrespondence, collect_equality_conjuncts,
+        };
+        use crate::proof_contracts::contract_entailment::{
+            Diagnostic, ExpressionHandle, ExpressionNode, Machine, SignatureContractKind,
+        };
+        use crate::proof_contracts::contract_structure::{callable_binders, generic_binders};
+
+        /// A checked Omega body satisfying an ordinary or boundary operator is a
+        /// software provider, not an accepted leaf. Its own machine contract is proved
+        /// by the ordinary entailment pass above; this gate then checks that the proved
+        /// contract covers the selected operator contract.
+        ///
+        /// The first checked-software rung deliberately admits the contract language
+        /// that is already load-bearing for boundary operators: typed identity, type equations, declared Boolean calls,
+        /// and exact `&&` conjunctions. Provider `requires` may only repeat requirement
+        /// premises (asking less is valid); every required operator `ensures` conjunct
+        /// must appear in the provider's proved ensures. Operator parameters are
+        /// substituted positionally onto provider parameters, and the reserved
+        /// `result` binder maps only to itself, so renaming is harmless while swapping
+        /// two parameter roles is not.
         pub(crate) fn check_operator_contract_conformance(
             program: &dyn crate::CheckingInput,
             machine: &Machine,
@@ -16696,72 +17826,27 @@ pub(crate) mod law_conformance {
             };
             let operator_identity =
                 typed_trees::operator::boundary_operator_requirement_identity(program, operator);
-            let mut requirement_requires = Vec::new();
-            let mut requirement_ensures = Vec::new();
-            let mut provider_requires = Vec::new();
-            let mut provider_ensures = Vec::new();
-            let mut unsupported_requirement = false;
-            let mut unsupported_provider_requires = false;
-
-            let collect = |contracts: &[typed_trees::signature::SignatureContract],
-                           requires: &mut Vec<ExpressionHandle>,
-                           ensures: &mut Vec<ExpressionHandle>,
-                           unsupported_requires: &mut bool,
-                           unsupported_ensures: &mut bool| {
-                for contract in contracts {
-                    let destination = match &contract.kind {
-                        SignatureContractKind::Requires => &mut *requires,
-                        SignatureContractKind::Ensures => &mut *ensures,
-                        SignatureContractKind::EnsuresForResultCase { .. }
-                        | SignatureContractKind::Crashes { .. } => continue,
-                    };
-                    for fact in program.proof_facts.span_or_empty(contract.facts) {
-                        let Some(expression) = fact.as_expression() else {
-                            match &contract.kind {
-                                SignatureContractKind::Requires => *unsupported_requires = true,
-                                SignatureContractKind::Ensures => *unsupported_ensures = true,
-                                SignatureContractKind::EnsuresForResultCase { .. }
-                                | SignatureContractKind::Crashes { .. } => {}
-                            }
-                            continue;
-                        };
-                        if !is_equality_conjunction(program, *expression) {
-                            match &contract.kind {
-                                SignatureContractKind::Requires => *unsupported_requires = true,
-                                SignatureContractKind::Ensures => *unsupported_ensures = true,
-                                SignatureContractKind::EnsuresForResultCase { .. }
-                                | SignatureContractKind::Crashes { .. } => {}
-                            }
-                        }
-                        collect_equality_conjuncts(program, *expression, destination);
-                    }
-                }
-            };
-            let mut _unsupported_requirement_requires = false;
-            collect(
+            let requirement = collect_contracts(
+                program,
+                operator.symbol,
+                program.operator_parameters(operator),
                 program.operator_contracts(operator),
-                &mut requirement_requires,
-                &mut requirement_ensures,
-                &mut _unsupported_requirement_requires,
-                &mut unsupported_requirement,
             );
-            let mut _unsupported_provider_ensures = false;
-            collect(
+            let provider = collect_contracts(
+                program,
+                machine.symbol,
+                program.state_parameters(entry_state),
                 program.machine_contracts(machine),
-                &mut provider_requires,
-                &mut provider_ensures,
-                &mut unsupported_provider_requires,
-                &mut _unsupported_provider_ensures,
             );
 
-            if unsupported_requirement {
+            if requirement.unsupported_ensures {
                 diagnostics.push(Diagnostic::error(format!(
             "checked machine `{}` satisfies operator `{operator_identity}`, whose ensures contract is outside checked operator-contract entailment's equality/`&&` rung",
             machine.name,
         )));
                 return;
             }
-            if unsupported_provider_requires {
+            if provider.unsupported_requires {
                 diagnostics.push(Diagnostic::error(format!(
             "checked operator provider `{}` adds a non-equality requires fact while satisfying `{operator_identity}`; checked providers may not ask more than the operator requirement",
             machine.name,
@@ -16769,72 +17854,59 @@ pub(crate) mod law_conformance {
                 return;
             }
 
-            let mut name_map: Vec<(SymbolHandle, String, SymbolHandle, String)> = program
-                .operator_parameters(operator)
-                .iter()
-                .zip(program.state_parameters(entry_state))
-                .map(|(requirement, provider)| {
-                    (
-                        requirement.symbol,
-                        requirement.name.as_str().to_owned(),
-                        provider.symbol,
-                        provider.name.as_str().to_owned(),
-                    )
-                })
-                .collect();
-            name_map.push((
-                SymbolHandle::invalid(),
-                RESULT_BINDER.to_owned(),
-                SymbolHandle::invalid(),
-                RESULT_BINDER.to_owned(),
-            ));
-
-            let matches = |requirement_fact: ExpressionHandle, provider_fact: ExpressionHandle| {
-                let Some(requirement) = program.expression_table.binary_node(requirement_fact)
-                else {
-                    return false;
-                };
-                let Some(provider) = program.expression_table.binary_node(provider_fact) else {
-                    return false;
-                };
-                [
-                    (provider.left, provider.right),
-                    (provider.right, provider.left),
-                ]
-                .into_iter()
-                .any(|(left, right)| {
-                    operator_contract_expressions_match(program, requirement.left, left, &name_map)
-                        && operator_contract_expressions_match(
-                            program,
-                            requirement.right,
-                            right,
-                            &name_map,
-                        )
-                })
+            let required_binders = callable_binders(
+                &generic_binders(program.operator_type_parameters(operator)),
+                program.operator_parameters(operator),
+            );
+            let provided_binders = callable_binders(
+                &generic_binders(program.machine_type_parameters(machine)),
+                program.state_parameters(entry_state),
+            );
+            let mut source_correspondence = SourceCorrespondence::default();
+            let mut matches = |requirement_fact, provider_fact| {
+                source_correspondence.matching_conjuncts(
+                    program,
+                    requirement_fact,
+                    &required_binders,
+                    provider_fact,
+                    &provided_binders,
+                )
             };
 
-            for provider_requires_fact in &provider_requires {
-                if !requirement_requires
+            let located = |diagnostic: Diagnostic| {
+                if let Some(span) = program
+                    .symbols
+                    .symbol_provenance_source_span(machine.symbol)
+                {
+                    diagnostic.with_source_span(span)
+                } else {
+                    diagnostic
+                }
+            };
+            for provider_requires_fact in &provider.requires {
+                if !requirement
+                    .requires
                     .iter()
                     .any(|required| matches(*required, *provider_requires_fact))
                 {
-                    diagnostics.push(Diagnostic::error(format!(
-                "checked operator provider `{}` requires `{}`, which operator requirement `{operator_identity}` does not require",
-                machine.name,
-                program.expression_table.display_name(*provider_requires_fact),
-            )));
+                    diagnostics.push(located(Diagnostic::error(format!(
+                        "checked operator provider `{}` requires `{}`, which operator requirement `{operator_identity}` does not require",
+                        machine.name,
+                        program.expression_table.display_name(provider_requires_fact.expression()),
+                    ))));
                 }
             }
-            for requirement_ensures_fact in &requirement_ensures {
-                if !provider_ensures
+            for requirement_ensures_fact in &requirement.ensures {
+                if !provider
+                    .ensures
                     .iter()
                     .any(|provided| matches(*requirement_ensures_fact, *provided))
                 {
-                    diagnostics.push(Diagnostic::error(format!(
-                "checked operator provider `{}` proves no ensures matching operator requirement `{operator_identity}` contract `{}`",
-                machine.name,
-                program.expression_table.display_name(*requirement_ensures_fact),
-            )));
+                    diagnostics.push(located(Diagnostic::error(format!(
+                        "checked operator provider `{}` proves no ensures matching operator requirement `{operator_identity}` contract `{}`",
+                        machine.name,
+                        program.expression_table.display_name(requirement_ensures_fact.expression()),
+                    ))));
                 }
             }
             check_operator_crash_contract_refinement(
@@ -16842,7 +17914,8 @@ pub(crate) mod law_conformance {
                 machine,
                 operator,
                 &operator_identity,
-                &name_map,
+                (&required_binders, &provided_binders),
+                &mut source_correspondence,
                 diagnostics,
             );
         }
@@ -16852,7 +17925,11 @@ pub(crate) mod law_conformance {
             machine: &Machine,
             operator: &typed_trees::operator::OperatorDefinition,
             operator_identity: &str,
-            name_map: &[(SymbolHandle, String, SymbolHandle, String)],
+            binders: (
+                &[(symbols::SymbolHandle, String)],
+                &[(symbols::SymbolHandle, String)],
+            ),
+            source_correspondence: &mut SourceCorrespondence,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
             let requirement_contracts = program.operator_contracts(operator);
@@ -16875,8 +17952,18 @@ pub(crate) mod law_conformance {
                         || (!provider.unconditional
                             && provider.routes.iter().all(|provided| {
                                 requirement.routes.iter().any(|required| {
-                                    operator_contract_expressions_match(
-                                        program, *required, *provided, name_map,
+                                    let Some(entry) = program.machine_states(machine).first()
+                                    else {
+                                        return false;
+                                    };
+                                    source_correspondence.matching_values(
+                                        program,
+                                        (operator.symbol, program.operator_parameters(operator)),
+                                        *required,
+                                        binders.0,
+                                        (machine.symbol, program.state_parameters(entry)),
+                                        *provided,
+                                        binders.1,
                                     )
                                 })
                             }))
@@ -16936,222 +18023,59 @@ pub(crate) mod law_conformance {
             })
         }
 
-        fn operator_contract_expressions_match(
-            program: &dyn crate::CheckingInput,
-            requirement: ExpressionHandle,
-            provider: ExpressionHandle,
-            name_map: &[(SymbolHandle, String, SymbolHandle, String)],
-        ) -> bool {
-            if !requirement.is_valid() || !provider.is_valid() {
-                return requirement.is_valid() == provider.is_valid();
-            }
-            let table = &program.expression_table;
-            match (table.expression(requirement), table.expression(provider)) {
-                (ExpressionNode::Name(required), ExpressionNode::Name(provided)) => {
-                    let required_members = table.name_path_members(required.members);
-                    let provided_members = table.name_path_members(provided.members);
-                    if let [required_name] = required_members
-                        && let Some((_, _, provided_symbol, provided_name)) =
-                            name_map
-                                .iter()
-                                .find(|(candidate_symbol, candidate_name, _, _)| {
-                                    (required.symbol.is_valid()
-                                        && candidate_symbol.is_valid()
-                                        && required.symbol == *candidate_symbol)
-                                        || candidate_name == required_name.as_str()
-                                })
-                    {
-                        return matches!(provided_members, [actual]
-                    if (provided_symbol.is_valid()
-                        && provided.symbol.is_valid()
-                        && provided.symbol == *provided_symbol)
-                        || actual.as_str() == provided_name);
-                    }
-                    table.expressions_structurally_equal(requirement, provider)
-                }
-                (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
-                (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
-                (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
-                (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
-                (ExpressionNode::Borrow(left), ExpressionNode::Borrow(right)) => {
-                    left.access == right.access
-                        && operator_contract_expressions_match(
-                            program,
-                            left.target,
-                            right.target,
-                            name_map,
-                        )
-                }
-                (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
-                    left.operator == right.operator
-                        && operator_contract_expressions_match(
-                            program,
-                            left.operand,
-                            right.operand,
-                            name_map,
-                        )
-                }
-                (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
-                    left.operator == right.operator
-                        && operator_contract_expressions_match(
-                            program, left.left, right.left, name_map,
-                        )
-                        && operator_contract_expressions_match(
-                            program,
-                            left.right,
-                            right.right,
-                            name_map,
-                        )
-                }
-                (ExpressionNode::Indexed(left), ExpressionNode::Indexed(right)) => {
-                    operator_contract_expressions_match(
-                        program,
-                        left.collection,
-                        right.collection,
-                        name_map,
-                    ) && operator_contract_expressions_match(
-                        program,
-                        left.index,
-                        right.index,
-                        name_map,
-                    )
-                }
-                (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
-                    left.member.as_str() == right.member.as_str()
-                        && left.case_variant == right.case_variant
-                        && operator_contract_expressions_match(
-                            program,
-                            left.receiver,
-                            right.receiver,
-                            name_map,
-                        )
-                }
-                (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
-                    let target_matches =
-                        if left.target_symbol.is_valid() && right.target_symbol.is_valid() {
-                            left.target_symbol == right.target_symbol
-                        } else {
-                            left.target.as_str() == right.target.as_str()
-                        };
-                    let left_arguments = table.expression_handles(left.arguments);
-                    let right_arguments = table.expression_handles(right.arguments);
-                    target_matches
-                        && left.machine_arguments == right.machine_arguments
-                        && left.operational_acknowledgement == right.operational_acknowledgement
-                        && operator_contract_expressions_match(
-                            program,
-                            left.receiver,
-                            right.receiver,
-                            name_map,
-                        )
-                        && left_arguments.len() == right_arguments.len()
-                        && left_arguments
-                            .iter()
-                            .zip(right_arguments)
-                            .all(|(left, right)| {
-                                operator_contract_expressions_match(
-                                    program, *left, *right, name_map,
-                                )
-                            })
-                }
-                (ExpressionNode::ArrayLiteral(left), ExpressionNode::ArrayLiteral(right)) => {
-                    let left = table.expression_handles(*left);
-                    let right = table.expression_handles(*right);
-                    left.len() == right.len()
-                        && left.iter().zip(right).all(|(left, right)| {
-                            operator_contract_expressions_match(program, *left, *right, name_map)
-                        })
-                }
-                (ExpressionNode::Range(left), ExpressionNode::Range(right)) => {
-                    left.end_inclusive == right.end_inclusive
-                        && operator_contract_expressions_match(
-                            program,
-                            left.start,
-                            right.start,
-                            name_map,
-                        )
-                        && operator_contract_expressions_match(
-                            program, left.end, right.end, name_map,
-                        )
-                }
-                (ExpressionNode::StructLiteral(left), ExpressionNode::StructLiteral(right)) => {
-                    let left_fields = table.struct_fields(left.fields);
-                    let right_fields = table.struct_fields(right.fields);
-                    left.type_name.as_str() == right.type_name.as_str()
-                        && left.case_name.as_ref().map(|name| name.as_str())
-                            == right.case_name.as_ref().map(|name| name.as_str())
-                        && left_fields.len() == right_fields.len()
-                        && left_fields.iter().zip(right_fields).all(|(left, right)| {
-                            left.name.as_str() == right.name.as_str()
-                                && operator_contract_expressions_match(
-                                    program,
-                                    left.value,
-                                    right.value,
-                                    name_map,
-                                )
-                        })
-                }
-                (ExpressionNode::Cast(left), ExpressionNode::Cast(right)) => {
-                    left.target_type == right.target_type
-                        && table.name_path_members(left.target_label)
-                            == table.name_path_members(right.target_label)
-                        && left.domain == right.domain
-                        && table.name_path_members(left.semantic_domain)
-                            == table.name_path_members(right.semantic_domain)
-                        && left.semantic_domain_arguments == right.semantic_domain_arguments
-                        && left.semantic_domain_symbol == right.semantic_domain_symbol
-                        && left.semantic_domain_id == right.semantic_domain_id
-                        && left.form == right.form
-                        && operator_contract_expressions_match(
-                            program,
-                            left.value,
-                            right.value,
-                            name_map,
-                        )
-                }
-                (ExpressionNode::Atomic(left), ExpressionNode::Atomic(right)) => {
-                    left.ordering == right.ordering
-                        && operator_contract_expressions_match(
-                            program,
-                            left.value,
-                            right.value,
-                            name_map,
-                        )
-                        && operator_contract_expressions_match(
-                            program,
-                            left.result,
-                            right.result,
-                            name_map,
-                        )
-                }
-                (ExpressionNode::ZeroValue(left), ExpressionNode::ZeroValue(right)) => {
-                    left == right
-                }
-                _ => false,
-            }
+        struct ContractConjuncts<'scope> {
+            requires: Vec<EqualityConjunct<'scope>>,
+            ensures: Vec<EqualityConjunct<'scope>>,
+            unsupported_requires: bool,
+            unsupported_ensures: bool,
         }
 
-        pub(crate) fn is_equality_conjunction(
+        fn collect_contracts<'scope>(
             program: &dyn crate::CheckingInput,
-            expression: ExpressionHandle,
-        ) -> bool {
-            let Some(binary) = program.expression_table.binary_node(expression) else {
-                return false;
+            owner: symbols::SymbolHandle,
+            parameters: &'scope [typed_trees::signature::StateParameter],
+            contracts: &[typed_trees::signature::SignatureContract],
+        ) -> ContractConjuncts<'scope> {
+            let mut result = ContractConjuncts {
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                unsupported_requires: false,
+                unsupported_ensures: false,
             };
-            match binary.operator {
-                BinaryOperator::Equal => true,
-                BinaryOperator::And => {
-                    is_equality_conjunction(program, binary.left)
-                        && is_equality_conjunction(program, binary.right)
+            for contract in contracts {
+                let (destination, unsupported) = match contract.kind {
+                    SignatureContractKind::Requires => {
+                        (&mut result.requires, &mut result.unsupported_requires)
+                    }
+                    SignatureContractKind::Ensures => {
+                        (&mut result.ensures, &mut result.unsupported_ensures)
+                    }
+                    SignatureContractKind::EnsuresForResultCase { .. }
+                    | SignatureContractKind::Crashes { .. } => continue,
+                };
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let Some(expression) = fact.as_expression() else {
+                        *unsupported = true;
+                        continue;
+                    };
+                    if !collect_equality_conjuncts(
+                        program,
+                        owner,
+                        parameters,
+                        *expression,
+                        destination,
+                    ) {
+                        *unsupported = true;
+                    }
                 }
-                _ => false,
             }
+            result
         }
     }
     pub(crate) mod proposition_laws {
         use crate::frozen_program::expression_table;
         use crate::proof_contracts::contract_entailment::{
-            BinaryOperator, Diagnostic, ExpressionHandle, Machine, StateSignature, StructuralTerm,
+            Diagnostic, ExpressionHandle, Machine, StateSignature, StructuralTerm,
         };
         use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
@@ -17446,146 +18370,248 @@ pub(crate) mod law_conformance {
             }
             true
         }
-
-        pub(crate) fn collect_equality_conjuncts(
-            program: &dyn crate::CheckingInput,
-            expression: ExpressionHandle,
-            out: &mut Vec<ExpressionHandle>,
-        ) {
-            if super::super::structural_terms::is_case_observation(program, expression) {
-                return;
-            }
-            let Some(binary) = expression_table(program).binary_node(expression) else {
-                return;
-            };
-            match binary.operator {
-                BinaryOperator::And => {
-                    collect_equality_conjuncts(program, binary.left, out);
-                    collect_equality_conjuncts(program, binary.right, out);
-                }
-                BinaryOperator::Equal => out.push(expression),
-                _ => {}
-            }
-        }
     }
     pub(crate) mod slot_bindings {
         use crate::proof_contracts::contract_entailment::{
             Diagnostic, StructuralTerm, TraitDefinition,
         };
 
+        /// Exact declaration slots of one trait application. A same-spelled callable
+        /// outside this roster remains a different operation.
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        pub(crate) struct TraitOperationSlot {
+            pub(crate) requirement: symbols::SymbolHandle,
+            application: typed_trees::type_identity::NormalizedTypeIdentity,
+        }
+
+        pub(crate) struct TraitOperationSlots {
+            declaring_scopes: Vec<(
+                symbols::SymbolHandle,
+                Option<typed_trees::type_identity::NormalizedTypeIdentity>,
+            )>,
+        }
+
+        impl TraitOperationSlots {
+            pub(crate) fn new<'program>(
+                program: &'program dyn crate::CheckingInput,
+                declaration: &'program TraitDefinition,
+                application: Option<&typed_trees::trait_definition::AppliedTraitScope<'program>>,
+            ) -> Self {
+                let abstract_scope =
+                    typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaration);
+                let application = application.unwrap_or(&abstract_scope);
+                let mut declaring_scopes = Vec::new();
+                application.visit(program.typed_program(), &mut |scope| {
+                    declaring_scopes.push((
+                        scope.declaration.symbol,
+                        scope.application_identity(program.typed_program()),
+                    ));
+                });
+                Self { declaring_scopes }
+            }
+
+            pub(crate) fn resolve<'input>(
+                &self,
+                program: &'input dyn crate::CheckingInput,
+                target: symbols::SymbolHandle,
+            ) -> Option<(
+                TraitOperationSlot,
+                &'input typed_trees::signature::StateSignature,
+            )> {
+                let (owner, template, application) =
+                    if let Some(closed) = program.closed_requirement_application(target) {
+                        self.declaring_scopes.iter().find(|(owner, identity)| {
+                            *owner == closed.declaring_trait
+                                && *identity == Some(closed.trait_application_identity)
+                        })?;
+                        (
+                            closed.declaring_trait,
+                            closed.template,
+                            closed.trait_application_identity,
+                        )
+                    } else {
+                        if !target.is_valid() {
+                            return None;
+                        }
+                        let owner = program.symbols.get(target).parent;
+                        let mut scopes = self
+                            .declaring_scopes
+                            .iter()
+                            .filter(|(candidate, _)| *candidate == owner);
+                        let application = scopes.next()?.1?;
+                        if scopes.any(|(_, identity)| *identity != Some(application)) {
+                            return None;
+                        }
+                        (owner, target, application)
+                    };
+                let declaration = program.trait_definition_by_symbol(owner)?;
+                let requirement =
+                    program.trait_machine_signature_by_symbol(declaration, template)?;
+                Some((
+                    TraitOperationSlot {
+                        requirement: requirement.symbol,
+                        application,
+                    },
+                    requirement,
+                ))
+            }
+
+            pub(crate) fn covers_term(
+                &self,
+                program: &dyn crate::CheckingInput,
+                term: &StructuralTerm,
+            ) -> bool {
+                let term = term.semantic_value();
+                if let StructuralTerm::Application {
+                    target, machine, ..
+                } = term
+                    && !self
+                        .resolve(program, *target)
+                        .is_some_and(|(_, slot)| slot.name.as_str() == machine)
+                {
+                    return false;
+                }
+                !term.any_child(|child| !self.covers_term(program, child))
+            }
+        }
+
+        /// Select an existing row under the same source family preference everywhere.
+        /// A family label narrows candidates; only the selected row supplies identity.
+        pub(crate) fn select_slot_candidate<'row, T>(
+            candidates: &'row [T],
+            preferred_alias: Option<&str>,
+            alias: impl Fn(&T) -> Option<&str>,
+        ) -> Option<&'row T> {
+            let mut preferred = candidates
+                .iter()
+                .filter(|candidate| alias(candidate) == preferred_alias);
+            if let Some(first) = preferred.next()
+                && preferred.next().is_none()
+            {
+                return Some(first);
+            }
+            let mut unaliased = candidates
+                .iter()
+                .filter(|candidate| alias(candidate).is_none());
+            match (unaliased.next(), unaliased.next(), candidates) {
+                (Some(single), None, _) => Some(single),
+                (None, _, [single]) => Some(single),
+                _ => None,
+            }
+        }
+
+        /// The CARRIER's op-slot bindings: for each used requirement of the trait, the
+        /// machine conforming to it whose carrier type matches. Alias preference
+        /// (plural algebras): a binding sharing the checking conformance's alias
+        /// wins; otherwise unaliased bindings win; a remaining tie is ambiguous and
+        /// reported.
         pub(crate) fn carrier_slot_bindings(
             program: &dyn crate::CheckingInput,
-            trait_definition: &TraitDefinition,
+            slots: &TraitOperationSlots,
             carrier: typed_trees::types::TypeReferenceHandle,
             prefer_alias: Option<&str>,
-            required_slots: &[String],
+            required_slots: &[TraitOperationSlot],
             diagnostics: &mut Vec<Diagnostic>,
-        ) -> Vec<(String, (String, symbols::SymbolHandle))> {
-            let mut bindings: Vec<(String, (String, symbols::SymbolHandle))> = Vec::new();
+        ) -> Vec<(TraitOperationSlot, (String, symbols::SymbolHandle))> {
+            let mut bindings = Vec::new();
 
-            for requirement in program.trait_machine_signatures(trait_definition) {
-                if !required_slots
-                    .iter()
-                    .any(|name| name == requirement.name.as_str())
-                {
+            for (trait_symbol, application_identity) in &slots.declaring_scopes {
+                let Some(trait_definition) = program.trait_definition_by_symbol(*trait_symbol)
+                else {
                     continue;
-                }
-                let mut candidates: Vec<((String, symbols::SymbolHandle), Option<String>)> =
-                    Vec::new();
-                for candidate in program.machines() {
-                    for conformance in program.machine_trait_conformances(candidate) {
-                        if conformance.symbol != trait_definition.symbol {
-                            continue;
-                        }
-                        let bound_requirement = conformance
-                            .requirement
-                            .as_ref()
-                            .map(|name| name.as_str().to_owned())
-                            .or_else(|| {
-                                candidate
-                                    .attached_data
-                                    .is_none()
-                                    .then(|| candidate.name.as_str().to_owned())
-                            });
-                        if bound_requirement.as_deref() != Some(requirement.name.as_str()) {
-                            continue;
-                        }
-                        let Some(candidate_entry) = program.machine_states(candidate).first()
-                        else {
-                            continue;
-                        };
-                        let candidate_carrier = program
-                            .state_parameters(candidate_entry)
-                            .first()
-                            .map(|parameter| parameter.type_reference)
-                            .unwrap_or(candidate_entry.return_type);
-                        if !crate::value_custody::type_references::type_references_match(
-                            program,
-                            candidate_carrier,
-                            carrier,
-                        ) {
-                            continue;
-                        }
-                        candidates.push((
-                            (candidate.name.as_str().to_owned(), candidate_entry.symbol),
-                            conformance
-                                .alias
-                                .as_ref()
-                                .map(|alias| alias.as_str().to_owned()),
-                        ));
-                    }
-                }
-
-                if candidates.is_empty() {
-                    continue;
-                }
-                let chosen = if let Some(preferred) = candidates
-                    .iter()
-                    .filter(|(_, alias)| alias.as_deref() == prefer_alias)
-                    .collect::<Vec<_>>()
-                    .split_first()
-                    .filter(|(_, rest)| rest.is_empty())
-                    .map(|(first, _)| (*first).clone())
-                {
-                    Some(preferred)
-                } else {
-                    let unaliased: Vec<_> = candidates
-                        .iter()
-                        .filter(|(_, alias)| alias.is_none())
-                        .collect();
-                    match unaliased.as_slice() {
-                        [single] => Some((*single).clone()),
-                        [] if candidates.len() == 1 => Some(candidates[0].clone()),
-                        _ => None,
-                    }
                 };
-                match chosen {
-                    Some((machine_name, _)) => {
-                        bindings.push((requirement.name.as_str().to_owned(), machine_name));
+                for requirement in program.trait_machine_signatures(trait_definition) {
+                    let Some(application) = *application_identity else {
+                        continue;
+                    };
+                    let slot = TraitOperationSlot {
+                        requirement: requirement.symbol,
+                        application,
+                    };
+                    if !required_slots.contains(&slot) {
+                        continue;
                     }
-                    None => {
-                        diagnostics.push(Diagnostic::error(format!(
-                    "trait `{}` requirement `{}` has AMBIGUOUS satisfiers for this carrier -- \
-                     name the family with `as <Alias>` on each conformance so the law check \
-                     (and the judge) can pick one",
-                    trait_definition.name, requirement.name,
-                )));
+                    // (slot machine name, alias) candidates for this carrier.
+                    let mut candidates: Vec<((String, symbols::SymbolHandle), Option<String>)> =
+                        Vec::new();
+                    for candidate in program.machines() {
+                        for conformance in program.machine_trait_conformances(candidate) {
+                            if conformance.symbol != trait_definition.symbol
+                                || conformance.requirement_symbol != requirement.symbol
+                            {
+                                continue;
+                            }
+                            let selected_application =
+                                typed_trees::trait_definition::AppliedTraitScope::from_machine_conformance(
+                                    program.typed_program(),
+                                    candidate,
+                                    conformance,
+                                )
+                                .and_then(|scope| scope.application_identity(program.typed_program()));
+                            if selected_application.is_none()
+                                || selected_application != *application_identity
+                            {
+                                continue;
+                            }
+                            let Some(candidate_entry) = program.machine_states(candidate).first()
+                            else {
+                                continue;
+                            };
+                            let candidate_carrier = program
+                                .state_parameters(candidate_entry)
+                                .first()
+                                .map(|parameter| parameter.type_reference)
+                                .unwrap_or(candidate_entry.return_type);
+                            if !crate::value_custody::type_references::type_references_match(
+                                program,
+                                candidate_carrier,
+                                carrier,
+                            ) {
+                                continue;
+                            }
+                            candidates.push((
+                                (candidate.name.as_str().to_owned(), candidate_entry.symbol),
+                                conformance
+                                    .alias
+                                    .as_ref()
+                                    .map(|alias| alias.as_str().to_owned()),
+                            ));
+                        }
+                    }
+
+                    if candidates.is_empty() {
+                        continue; // an unbound slot only matters if a law mentions it
+                    }
+                    let chosen = select_slot_candidate(&candidates, prefer_alias, |(_, alias)| {
+                        alias.as_deref()
+                    });
+                    match chosen {
+                        Some((machine_name, _)) => {
+                            bindings.push((slot, machine_name.clone()));
+                        }
+                        None => {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "trait `{}` requirement `{}` has AMBIGUOUS satisfiers for this carrier -- \
+                             name the family with `as <Alias>` on each conformance so the law check \
+                             (and the judge) can pick one",
+                                trait_definition.name, requirement.name,
+                            )));
+                        }
                     }
                 }
             }
-
             bindings
         }
 
         pub(crate) fn rewrite_slot_applications(
             program: &dyn crate::CheckingInput,
             term: &StructuralTerm,
-            slot_names: &[String],
-            slot_bindings: &[(String, (String, symbols::SymbolHandle))],
-            missing: &mut Vec<String>,
+            slots: &TraitOperationSlots,
+            slot_bindings: &[(TraitOperationSlot, (String, symbols::SymbolHandle))],
+            missing: &mut Vec<TraitOperationSlot>,
         ) -> StructuralTerm {
             let rewrite = |value: StructuralTerm| {
-                rewrite_slot_applications(program, &value, slot_names, slot_bindings, missing)
+                rewrite_slot_applications(program, &value, slots, slot_bindings, missing)
             };
             match term {
                 StructuralTerm::Application {
@@ -17601,29 +18627,30 @@ pub(crate) mod law_conformance {
                             rewrite_slot_applications(
                                 program,
                                 argument,
-                                slot_names,
+                                slots,
                                 slot_bindings,
                                 missing,
                             )
                         })
                         .collect();
                     let mut result_type = *result_type;
-                    let (machine, target) = if slot_names.iter().any(|slot| slot == machine) {
+                    let (machine, target) = if let Some((slot, _)) = slots.resolve(program, *target)
+                    {
                         match slot_bindings
                             .iter()
-                            .find(|(slot, _)| slot == machine)
+                            .find(|(requirement, _)| *requirement == slot)
                             .map(|(_, bound)| bound.clone())
                         {
                             Some(bound) => {
                                 let Some(entry) = program.state_by_symbol(bound.1) else {
-                                    missing.push(machine.clone());
+                                    missing.push(slot);
                                     return term.clone();
                                 };
                                 result_type = entry.return_type;
                                 bound
                             }
                             None => {
-                                missing.push(machine.clone());
+                                missing.push(slot);
                                 (machine.clone(), *target)
                             }
                         }
@@ -17649,6 +18676,7 @@ pub(crate) mod law_conformance {
         }
 
         pub(crate) fn diagnostic_shape_match(
+            program: &dyn crate::CheckingInput,
             pattern: &StructuralTerm,
             term: &StructuralTerm,
             variables: &[String],
@@ -17672,7 +18700,13 @@ pub(crate) mod law_conformance {
                     },
                 ) => {
                     path == actual_path
-                        && diagnostic_shape_match(subject, actual_subject, variables, bindings)
+                        && diagnostic_shape_match(
+                            program,
+                            subject,
+                            actual_subject,
+                            variables,
+                            bindings,
+                        )
                 }
                 (
                     StructuralTerm::CollectionMeasure {
@@ -17686,6 +18720,7 @@ pub(crate) mod law_conformance {
                 ) => {
                     measure == actual_measure
                         && diagnostic_shape_match(
+                            program,
                             collection,
                             actual_collection,
                             variables,
@@ -17709,26 +18744,42 @@ pub(crate) mod law_conformance {
                             .zip(fields_t)
                             .all(|((name, value), (name_t, value_t))| {
                                 name == name_t
-                                    && diagnostic_shape_match(value, value_t, variables, bindings)
+                                    && diagnostic_shape_match(
+                                        program, value, value_t, variables, bindings,
+                                    )
                             })
                 }
                 (
                     StructuralTerm::Application {
-                        machine, arguments, ..
+                        target,
+                        selections,
+                        result_type,
+                        arguments,
+                        ..
                     },
                     StructuralTerm::Application {
-                        machine: machine_t,
+                        target: target_t,
+                        selections: selections_t,
+                        result_type: result_type_t,
                         arguments: arguments_t,
                         ..
                     },
                 ) => {
-                    machine == machine_t
+                    target.is_valid()
+                        && target == target_t
+                        && selections == selections_t
+                        && result_type.is_valid()
+                        && result_type_t.is_valid()
+                        && program.normalized_type_identity(*result_type)
+                            == program.normalized_type_identity(*result_type_t)
                         && arguments.len() == arguments_t.len()
                         && arguments
                             .iter()
                             .zip(arguments_t)
                             .all(|(argument, argument_t)| {
-                                diagnostic_shape_match(argument, argument_t, variables, bindings)
+                                diagnostic_shape_match(
+                                    program, argument, argument_t, variables, bindings,
+                                )
                             })
                 }
                 (StructuralTerm::Opaque(_), StructuralTerm::Opaque(_)) => false,
@@ -17736,6 +18787,7 @@ pub(crate) mod law_conformance {
                 (
                     StructuralTerm::CallProjection {
                         target,
+                        selections,
                         machine,
                         result_type,
                         field,
@@ -17744,6 +18796,7 @@ pub(crate) mod law_conformance {
                     },
                     StructuralTerm::CallProjection {
                         target: target_t,
+                        selections: selections_t,
                         machine: machine_t,
                         result_type: result_type_t,
                         field: field_t,
@@ -17751,7 +18804,9 @@ pub(crate) mod law_conformance {
                         ..
                     },
                 ) => {
-                    target == target_t
+                    target.is_valid()
+                        && target == target_t
+                        && selections == selections_t
                         && machine == machine_t
                         && result_type == result_type_t
                         && field == field_t
@@ -17760,7 +18815,9 @@ pub(crate) mod law_conformance {
                             .iter()
                             .zip(arguments_t)
                             .all(|(argument, argument_t)| {
-                                diagnostic_shape_match(argument, argument_t, variables, bindings)
+                                diagnostic_shape_match(
+                                    program, argument, argument_t, variables, bindings,
+                                )
                             })
                 }
                 _ => false,
@@ -17871,20 +18928,34 @@ pub(crate) mod law_conformance {
                 StructuralTerm::Projection { subject, path } => {
                     format!("{}.{path}", display_structural_term(subject))
                 }
+                StructuralTerm::Identity {
+                    carrier,
+                    left,
+                    right,
+                } => format!(
+                    "identity:{carrier:?}({},{})",
+                    display_structural_term(left),
+                    display_structural_term(right)
+                ),
+                StructuralTerm::ContentValue { algebra, value } => {
+                    format!("canonical:{algebra:?}({})", display_structural_term(value))
+                }
                 StructuralTerm::Opaque(display) => display.clone(),
             }
         }
     }
 
+    pub(crate) use equality_conjuncts::collect_equality_conjuncts;
     pub use inherited_requirements::{
         InheritedRequirementApplication, inherited_requirement_proposition_application,
         inherited_requirement_proposition_label, inherited_satisfier_parameters,
     };
     pub use law_guarantees::{MatchedLawGuarantee, matched_machine_law_guarantees};
     pub(crate) use operator_contracts::check_operator_contract_conformance;
-    pub(crate) use proposition_laws::{collect_equality_conjuncts, indexed_law_binder_arguments};
+    pub(crate) use proposition_laws::indexed_law_binder_arguments;
     pub(crate) use slot_bindings::{
-        diagnostic_shape_match, display_structural_term, term_mentions_variable,
+        TraitOperationSlots, diagnostic_shape_match, display_structural_term,
+        select_slot_candidate, term_mentions_variable,
     };
 
     use super::{
@@ -17908,7 +18979,10 @@ pub(crate) mod law_conformance {
         matches: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
     ) {
         let trait_definition = application.declaration;
-        let mut law_conjuncts: Vec<ExpressionHandle> = Vec::new();
+        // Declared identity and comparison statements, with conjunctions split.
+        // `result`-mentioning conjuncts are functional specs, not laws -- they
+        // stay outside this check, exactly like the suggestion path.
+        let mut law_conjuncts = Vec::new();
         let mut proposition_laws = Vec::new();
         for fact in crate::proof_contracts::proof_facts::ensures_facts(
             program,
@@ -17916,7 +18990,13 @@ pub(crate) mod law_conformance {
         ) {
             match fact {
                 ProofFact::Expression(expression) => {
-                    collect_equality_conjuncts(program, *expression, &mut law_conjuncts);
+                    collect_equality_conjuncts(
+                        program,
+                        requirement.symbol,
+                        program.state_signature_parameters(requirement),
+                        *expression,
+                        &mut law_conjuncts,
+                    );
                 }
                 ProofFact::Proposition(application) => proposition_laws.push(application),
                 ProofFact::Membership(_) => {}
@@ -17973,20 +19053,25 @@ pub(crate) mod law_conformance {
             .map(|parameter| parameter.type_reference)
             .unwrap_or(entry_state.return_type);
 
-        let slot_names: Vec<String> = program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .map(|signature| signature.name.as_str().to_owned())
-            .collect();
+        // The trait's op-slot names, and the carrier's bound machine for each.
+        let slots = TraitOperationSlots::new(program, trait_definition, Some(application));
 
-        let mut proven_conjuncts: Vec<(ExpressionHandle, ExpressionHandle)> = Vec::new();
+        // The satisfier's own PROVEN ensures conjuncts (machine-checked by this
+        // engine before this point -- compiling means proven).
+        let mut proven_conjuncts = Vec::new();
         for fact in crate::proof_contracts::proof_facts::ensures_facts(
             program,
             program.machine_contracts(machine),
         ) {
             if let Some(expression) = fact.as_expression() {
                 let mut conjuncts = Vec::new();
-                collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                collect_equality_conjuncts(
+                    program,
+                    machine.symbol,
+                    program.state_parameters(entry_state),
+                    *expression,
+                    &mut conjuncts,
+                );
                 proven_conjuncts.extend(
                     conjuncts
                         .into_iter()
@@ -17995,7 +19080,10 @@ pub(crate) mod law_conformance {
             }
         }
 
-        let correspondence = declaration_correspondence::DeclarationCorrespondence::new(
+        // Exact declaration correspondence needs no operation-slot rewriting.
+        // Other laws still use the existing selected-slot and closed-constant
+        // normalization below; these are distinct semantic judgments.
+        let mut correspondence = declaration_correspondence::DeclarationCorrespondence::new(
             program,
             machine,
             entry_state,
@@ -18011,62 +19099,105 @@ pub(crate) mod law_conformance {
             .collect::<Vec<_>>();
 
         for law_conjunct in &law_conjuncts {
+            let law_expression = law_conjunct.expression();
             if crate::proof_contracts::contract_results::expression_uses_reserved_result(
                 program,
-                *law_conjunct,
+                law_expression,
             ) {
                 continue;
             }
-            if let Some(source) = correspondence.as_ref().and_then(|correspondence| {
-                correspondence.matching_guarantee(program, *law_conjunct, &proven_conjuncts)
+            if let Some(source) = correspondence.as_mut().and_then(|correspondence| {
+                correspondence.matching_guarantee(program, law_expression, &proven_conjuncts)
             }) {
-                matches.push((*law_conjunct, source));
+                matches.push((law_expression, source));
                 continue;
             }
-            let Some(binary) = program.expression_table.binary_node(*law_conjunct) else {
+            let required = correspondence
+                .as_ref()
+                .and_then(|correspondence| {
+                    correspondence.required_conjunct(program, law_expression)
+                })
+                .unwrap_or(*law_conjunct);
+            let Some(identity) = required.identity() else {
+                // A selected comparison law still needs the same selected Boolean
+                // guarantee. It supplies no identity substitution or algebra license.
+                let matched = proven_conjuncts.iter().find_map(|(proven, source)| {
+                    correspondence
+                        .as_mut()
+                        .is_some_and(|correspondence| {
+                            correspondence.matching_conjuncts(program, required, *proven)
+                        })
+                        .then_some(*source)
+                });
+                if let Some(source) = matched {
+                    matches.push((law_expression, source));
+                } else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` proves no guarantee for the selected comparison law `{}::{}`",
+                        machine.name, trait_definition.name, requirement.name,
+                    )));
+                }
                 continue;
             };
-            let requirement_scope = Some((
-                requirement.symbol,
-                program.state_signature_parameters(requirement),
+            // Contract fields and builtin measures belong to their declaration's
+            // exact parameter telescope. Without that scope a projection becomes
+            // opaque display text, which cannot establish public correspondence.
+            // This reads declarations only; the provider still proves its own
+            // ensures independently before the matched law can be consumed.
+            let requirement_scope = Some(correspondence.as_ref().map_or(
+                (
+                    requirement.symbol,
+                    program.state_signature_parameters(requirement),
+                ),
+                |correspondence| correspondence.required_scope(),
             ));
             let (Some(law_left), Some(law_right)) = (
-                structural_term(program, None, requirement_scope, binary.left, None),
-                structural_term(program, None, requirement_scope, binary.right, None),
+                structural_term(program, None, requirement_scope, identity.subjects[0], None),
+                structural_term(program, None, requirement_scope, identity.subjects[1], None),
             ) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` cannot match identity law `{}::{}` under its exact parameter telescope",
+                    machine.name, trait_definition.name, requirement.name,
+                )));
                 continue;
             };
             let mut required_slots = Vec::new();
-            rewrite_slot_applications(program, &law_left, &slot_names, &[], &mut required_slots);
-            rewrite_slot_applications(program, &law_right, &slot_names, &[], &mut required_slots);
+            rewrite_slot_applications(program, &law_left, &slots, &[], &mut required_slots);
+            rewrite_slot_applications(program, &law_right, &slots, &[], &mut required_slots);
             let slot_bindings = carrier_slot_bindings(
                 program,
-                trait_definition,
+                &slots,
                 carrier,
                 conformance_alias,
                 &required_slots,
                 diagnostics,
             );
 
-            let mut missing_slots: Vec<String> = Vec::new();
+            // Resolve the law's op-slot applications to the carrier's machines.
+            let mut missing_slots = Vec::new();
             let law_left = rewrite_slot_applications(
                 program,
                 &law_left,
-                &slot_names,
+                &slots,
                 &slot_bindings,
                 &mut missing_slots,
             );
             let law_right = rewrite_slot_applications(
                 program,
                 &law_right,
-                &slot_names,
+                &slots,
                 &slot_bindings,
                 &mut missing_slots,
             );
             let law_left = unfold_constant_applications(program, law_left);
             let law_right = unfold_constant_applications(program, law_right);
             if !missing_slots.is_empty() {
-                missing_slots.sort();
+                missing_slots.sort_unstable_by_key(|symbol| {
+                    (
+                        symbol.requirement.arena_index(),
+                        symbol.requirement.generation(),
+                    )
+                });
                 missing_slots.dedup();
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` satisfies `{}::{}`, whose law mentions `{}` -- but no machine \
@@ -18075,48 +19206,101 @@ pub(crate) mod law_conformance {
                     machine.name,
                     trait_definition.name,
                     requirement.name,
-                    missing_slots.join("`, `"),
+                    missing_slots
+                        .iter()
+                        .map(|symbol| program.symbols.display_path(symbol.requirement, "::"))
+                        .collect::<Vec<_>>()
+                        .join("`, `"),
                 )));
                 continue;
             }
 
             let matched = proven_conjuncts.iter().find_map(|(proven, source)| {
                 if crate::proof_contracts::contract_results::expression_uses_reserved_result(
-                    program, *proven,
+                    program,
+                    proven.expression(),
                 ) {
                     return None;
                 }
-                let proven_binary = program.expression_table.binary_node(*proven)?;
+                let proven_identity = proven.identity()?;
+                let same_carrier = correspondence.as_ref().is_some_and(|correspondence| {
+                    correspondence.identity_carriers_match(
+                        program,
+                        identity.carrier,
+                        proven_identity.carrier,
+                    )
+                });
+                if !same_carrier {
+                    return None;
+                }
                 let provider_scope = Some((machine.symbol, program.state_parameters(entry_state)));
                 let (Some(proven_left), Some(proven_right)) = (
-                    structural_term(program, None, provider_scope, proven_binary.left, None),
-                    structural_term(program, None, provider_scope, proven_binary.right, None),
+                    structural_term(
+                        program,
+                        None,
+                        provider_scope,
+                        proven_identity.subjects[0],
+                        None,
+                    ),
+                    structural_term(
+                        program,
+                        None,
+                        provider_scope,
+                        proven_identity.subjects[1],
+                        None,
+                    ),
                 ) else {
                     return None;
                 };
                 let proven_left = unfold_constant_applications(program, proven_left);
                 let proven_right = unfold_constant_applications(program, proven_right);
-                [(&proven_left, &proven_right), (&proven_right, &proven_left)]
-                    .into_iter()
-                    .any(|(first, second)| {
-                        let mut bindings = positional_bindings.clone();
-                        diagnostic_shape_match(
-                            &law_left,
-                            first,
-                            &requirement_parameters,
-                            &mut bindings,
-                        ) && diagnostic_shape_match(
-                            &law_right,
-                            second,
-                            &requirement_parameters,
-                            &mut bindings,
-                        ) && bindings_are_forall_general(&bindings, &satisfier_parameters)
-                    })
-                    .then_some(*source)
+                [
+                    (&proven_left, &proven_right, proven_identity.subjects),
+                    (
+                        &proven_right,
+                        &proven_left,
+                        [proven_identity.subjects[1], proven_identity.subjects[0]],
+                    ),
+                ]
+                .into_iter()
+                .any(|(first, second, subjects)| {
+                    if !correspondence.as_mut().is_some_and(|correspondence| {
+                        correspondence.matching_subject_payloads(
+                            program,
+                            identity.subjects[0],
+                            (machine.symbol, program.state_parameters(entry_state)),
+                            subjects[0],
+                        ) && correspondence.matching_subject_payloads(
+                            program,
+                            identity.subjects[1],
+                            (machine.symbol, program.state_parameters(entry_state)),
+                            subjects[1],
+                        )
+                    }) {
+                        return false;
+                    }
+                    // Post-state guarantees belong to fixed invocation roles.
+                    // A permutation of mutable formals proves a different clause.
+                    let mut bindings = positional_bindings.clone();
+                    diagnostic_shape_match(
+                        program,
+                        &law_left,
+                        first,
+                        &requirement_parameters,
+                        &mut bindings,
+                    ) && diagnostic_shape_match(
+                        program,
+                        &law_right,
+                        second,
+                        &requirement_parameters,
+                        &mut bindings,
+                    ) && bindings_are_forall_general(&bindings, &satisfier_parameters)
+                })
+                .then_some(*source)
             });
 
             if let Some(source) = matched {
-                matches.push((*law_conjunct, source));
+                matches.push((law_expression, source));
             } else {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` satisfies `{}::{}` but proves no ensures matching the declared \
@@ -19393,7 +20577,9 @@ pub(crate) mod observed_projections {
                 subject: Box::new(value),
                 path: field_name.to_owned(),
             }),
-            StructuralTerm::CollectionMeasure { .. }
+            StructuralTerm::Identity { .. }
+            | StructuralTerm::ContentValue { .. }
+            | StructuralTerm::CollectionMeasure { .. }
             | StructuralTerm::RepeatedArray { .. }
             | StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
@@ -21741,7 +22927,7 @@ pub(crate) mod proof_edges {
     };
     use super::structural_terms::{selected_application_machine, structural_term};
     use symbols::SymbolHandle;
-    use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+    use typed_trees::expression::ExpressionHandle;
     use typed_trees::machine::Machine;
     use typed_trees::statement::StatementNode;
     use typed_trees::types::TypeReferenceNode;
@@ -21915,7 +23101,14 @@ pub(crate) mod proof_edges {
                 fields: Vec::new(),
             };
             self.proven &= matches!(
-                judge.judge_equation(judge.resolve(left), judge.resolve(right), 0),
+                judge.judge_observed_predicate(
+                    StructuralTerm::Identity {
+                        carrier: program.normalized_type_identity(self.carrier),
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    },
+                    0,
+                ),
                 StructuralJudgment::Proven
             );
         }
@@ -21991,16 +23184,19 @@ pub(crate) mod proof_edges {
                         continue;
                     };
                     conjuncts.clear();
-                    collect_equality_conjuncts(program, *expression, &mut conjuncts);
-                    for expression in &conjuncts {
-                        let Some(equality) = program.expression_table.binary_node(*expression)
-                        else {
+                    let entry = program.machine_states(owner).first()?;
+                    collect_equality_conjuncts(
+                        program,
+                        owner.symbol,
+                        program.state_parameters(entry),
+                        *expression,
+                        &mut conjuncts,
+                    );
+                    for conjunct in &conjuncts {
+                        let Some(identity) = conjunct.identity() else {
                             continue;
                         };
-                        if equality.operator != BinaryOperator::Equal {
-                            continue;
-                        }
-                        for operand in [equality.left, equality.right] {
+                        for operand in identity.subjects {
                             let Some(call) = program.expression_table.call_node(operand) else {
                                 continue;
                             };
@@ -22520,27 +23716,32 @@ pub(crate) mod quotient_congruence {
         program: &dyn crate::CheckingInput,
         fact: ExpressionHandle,
     ) -> Option<(&DataDefinition, ExpressionHandle, ExpressionHandle)> {
-        let binary = program.expression_table.binary_node(fact)?;
-        if binary.operator != BinaryOperator::Equal {
-            return None;
-        }
+        let identity =
+            crate::mathematical_applications::identity_application_at(program, fact).ok()?;
+        let [left_subject, right_subject] = identity.subjects;
         let (ExpressionNode::Cast(left), ExpressionNode::Cast(right)) = (
-            program.expression_table.expression(binary.left),
-            program.expression_table.expression(binary.right),
+            program.expression_table.expression(left_subject),
+            program.expression_table.expression(right_subject),
         ) else {
             return None;
         };
-        if left.form.is_recast() || right.form.is_recast() {
+        if left.form.is_recast()
+            || right.form.is_recast()
+            || ![left.target_type, right.target_type]
+                .into_iter()
+                .all(|reference| {
+                    crate::value_custody::type_references::type_references_match(
+                        program,
+                        reference,
+                        identity.carrier,
+                    )
+                })
+        {
             return None;
         }
-        let left_name = program.named_type_reference(left.target_type)?;
-        let right_name = program.named_type_reference(right.target_type)?;
-        if left_name.as_str() != right_name.as_str() {
-            return None;
-        }
-        let quotient = program.data_definitions().iter().find(|definition| {
-            definition.name.as_str() == left_name.as_str() && definition.quotient.is_some()
-        })?;
+        let quotient =
+            crate::value_custody::places::data_definition_for_type(program, identity.carrier)?;
+        quotient.quotient.as_ref()?;
         Some((quotient, left.value, right.value))
     }
 
@@ -33003,6 +34204,33 @@ pub(crate) mod refuted_requires {
         literal_replay: bool,
         judgments: &mut OperandJudgments,
     ) -> StructuralJudgment {
+        if let typed_trees::expression::ExpressionNode::Unary(unary) =
+            expression_table(program).expression(fact)
+            && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
+        {
+            let inner = remembered_instantiated_fact_judgment(
+                program,
+                judge,
+                callee_owner,
+                callee_parameters,
+                unary.operand,
+                map,
+                machine_map,
+                type_map,
+                caller_scope,
+                literal_replay,
+                judgments,
+            );
+            return if judge.hypotheses_contradictory {
+                StructuralJudgment::Proven
+            } else {
+                match inner {
+                    StructuralJudgment::Proven => StructuralJudgment::Refuted,
+                    StructuralJudgment::Refuted => StructuralJudgment::Proven,
+                    StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+                }
+            };
+        }
         if program.static_type_predicate_operands(fact).is_some() {
             return super::structural_terms::static_type_predicate_term(program, fact, type_map)
                 .map_or(StructuralJudgment::Unknown, |predicate| {
@@ -33012,7 +34240,7 @@ pub(crate) mod refuted_requires {
         if expression_table(program)
             .call_node(fact)
             .is_some_and(|call| {
-                crate::mathematical_applications::selected_definition(program, call).is_some()
+                crate::mathematical_applications::is_mathematical_call(program, call)
             })
         {
             return judge.instantiated_mathematical_predicate(
@@ -33426,56 +34654,42 @@ pub(crate) mod refuted_requires {
         StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(extent as u64))
     }
 
-    pub(crate) fn collect_instantiated_conjuncts(
+    /// Read every formed, non-case conjunct of an established contract, then
+    /// substitute the exact citation arguments without changing predicate kind.
+    pub(crate) fn collect_instantiated_predicates(
         program: &dyn crate::CheckingInput,
         scope: SymbolHandle,
         parameters: &[typed_trees::signature::StateParameter],
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
-        equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
+        predicates: &mut Vec<StructuralTerm>,
     ) {
         if super::structural_terms::is_case_observation(program, fact) {
             return;
         }
-        let Some(binary) = expression_table(program).binary_node(fact) else {
-            return;
-        };
-        match binary.operator {
-            BinaryOperator::And => {
-                if !crate::has_builtin_parameter_bound_expression_meaning(
-                    program, scope, parameters, fact,
-                ) {
-                    return;
-                }
-                collect_instantiated_conjuncts(
-                    program,
-                    scope,
-                    parameters,
-                    binary.left,
-                    map,
-                    equations,
-                );
-                collect_instantiated_conjuncts(
-                    program,
-                    scope,
-                    parameters,
-                    binary.right,
-                    map,
-                    equations,
-                );
-            }
-            BinaryOperator::Equal => {
-                let Some((left, right)) = super::structural_terms::identity_equality_terms(
-                    program, scope, parameters, fact,
-                ) else {
-                    return;
-                };
-                equations.push((
-                    StructuralJudge::substitute_term(&left, map),
-                    StructuralJudge::substitute_term(&right, map),
-                ));
-            }
-            _ => {}
+        if let Some(binary) = expression_table(program).binary_node(fact)
+            && binary.operator == BinaryOperator::And
+        {
+            collect_instantiated_predicates(
+                program,
+                scope,
+                parameters,
+                binary.left,
+                map,
+                predicates,
+            );
+            collect_instantiated_predicates(
+                program,
+                scope,
+                parameters,
+                binary.right,
+                map,
+                predicates,
+            );
+        } else if let Some(predicate) = super::structural_terms::structural_predicate_for_parameters(
+            program, scope, parameters, fact,
+        ) {
+            predicates.push(StructuralJudge::substitute_term(&predicate, map));
         }
     }
 
@@ -34617,9 +35831,9 @@ pub(crate) mod scoped_arithmetic {
                     &owner,
                 ),
             )
-        {
+                    {
             return None;
-        }
+                    }
                     let result = ScopedArithmeticValue::Atom {
                         identity: format!(
                             "\0scoped-length:{}:{:?}:{:?}",
@@ -34643,9 +35857,9 @@ pub(crate) mod scoped_arithmetic {
             || !self
                 .independent(owner, &mut Vec::new(), &mut Vec::new())
                 .unwrap_or(false)
-        {
+                    {
             return Some(result);
-        }
+                    }
                     self.depth += 1;
                     let transported = (|| {
                         let mut actuals = Vec::new();
@@ -34834,7 +36048,7 @@ pub(crate) mod scoped_arithmetic {
                 }
                 let result_owner = result_declaration_owner(&owner);
                 let reference =
-        crate::proof_contracts::contract_entailment::specification_calls::owner_return_type(&owner);
+                    crate::proof_contracts::contract_entailment::specification_calls::owner_return_type(&owner);
                 if crate::reference_shell(program, reference).is_some()
                     || program.primitive_type_reference(reference).is_some()
                 {
@@ -36331,7 +37545,7 @@ pub(crate) mod scoped_arithmetic {
 pub(crate) mod self_induction {
     use crate::proof_contracts::contract_entailment::RESULT_BINDER;
     use crate::proof_contracts::contract_entailment::citations::instantiated_fact_established;
-    use crate::proof_contracts::contract_entailment::refuted_requires::collect_instantiated_conjuncts;
+    use crate::proof_contracts::contract_entailment::refuted_requires::collect_instantiated_predicates;
     use crate::proof_contracts::contract_entailment::structural_judgment::{
         StructuralJudge, StructuralTerm,
     };
@@ -36399,19 +37613,20 @@ pub(crate) mod self_induction {
             if !requirements_established {
                 continue;
             }
+            judge.retain_induction_value(machine, application);
             map.push((RESULT_BINDER.to_owned(), application.clone()));
             for fact in &ensures {
-                let mut equations = Vec::new();
-                collect_instantiated_conjuncts(
+                let mut predicates = Vec::new();
+                collect_instantiated_predicates(
                     program,
                     machine.symbol,
                     program.state_parameters(entry),
                     *fact,
                     &map,
-                    &mut equations,
+                    &mut predicates,
                 );
-                for (left, right) in equations {
-                    judge.intake_equation(left, right, 0);
+                for predicate in predicates {
+                    judge.intake_observed_predicate(predicate, 0);
                 }
             }
         }
@@ -36426,7 +37641,6 @@ pub(crate) mod shared_proof_walks {
     use super::structural_prefix::StructuralPrefixVisitor;
     use crate::CheckingInput;
     use crate::frozen_program::expression_table;
-    use std::cell::RefCell;
     use std::sync::Arc;
     use symbols::SymbolHandle;
     use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -36454,8 +37668,46 @@ pub(crate) mod shared_proof_walks {
         proven: Vec<ProvenSite>,
     }
 
-    thread_local! {
-        static BUILDING: RefCell<Vec<SymbolHandle>> = const { RefCell::new(Vec::new()) };
+    /*
+        A machine whose shared walk this thread is building. Building proves
+        each grouped requirement, and that proof can ask `proven` about the
+        same machine before the walk exists; that inner question answers "not
+        shared" so the requirement takes its ordinary proof instead of
+        recursing. The marker lives in the root context's memos beside the
+        finished walks, keyed by thread so a parallel checker building the
+        same machine never sees another thread's unfinished walk.
+    */
+    pub(crate) type BuildingWalk = (SymbolHandle, std::thread::ThreadId);
+
+    struct BuildingMark<'memos> {
+        memos: &'memos crate::frozen_program::CheckingMemos,
+        walk: BuildingWalk,
+    }
+
+    impl<'memos> BuildingMark<'memos> {
+        fn start(
+            memos: &'memos crate::frozen_program::CheckingMemos,
+            machine: SymbolHandle,
+        ) -> Option<Self> {
+            let walk = (machine, std::thread::current().id());
+            memos
+                .building_shared_proof_walks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(walk, ())
+                .is_none()
+                .then_some(Self { memos, walk })
+        }
+    }
+
+    impl Drop for BuildingMark<'_> {
+        fn drop(&mut self) {
+            self.memos
+                .building_shared_proof_walks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .remove(&self.walk);
+        }
     }
 
     pub(crate) fn proven(
@@ -36466,9 +37718,10 @@ pub(crate) mod shared_proof_walks {
         if shares_walk(program, walk).is_none() {
             return false;
         }
-        if program.checking_memos().is_none() {
+        let Some(own) = program.checking_memos() else {
             return false;
-        }
+        };
+        let building = program.shared_memos().unwrap_or(own);
         if !program
             .machine(machine.symbol)
             .is_some_and(|stored| std::ptr::eq(stored, machine))
@@ -36489,13 +37742,12 @@ pub(crate) mod shared_proof_walks {
         let shared = match existing {
             Some(shared) => shared,
             None => {
-                if BUILDING.with(|building| building.borrow().contains(&machine.symbol)) {
+                let Some(mark) = BuildingMark::start(building, machine.symbol) else {
                     return false;
-                }
-                BUILDING.with(|building| building.borrow_mut().push(machine.symbol));
+                };
                 let guard = crate::frozen_program::CutGuard::start(program);
                 let built = Arc::new(build(program, machine));
-                BUILDING.with(|building| building.borrow_mut().retain(|m| *m != machine.symbol));
+                drop(mark);
                 match guard.memos() {
                     Some(memos) => memos
                         .shared_proof_walks
@@ -38563,7 +39815,6 @@ pub(crate) mod specification_calls {
             program,
             SpecificationCaller::Declaration(owner_symbol, parameters),
             root,
-            false,
             prior_facts,
             owner,
             diagnostics,
@@ -38671,7 +39922,6 @@ pub(crate) mod specification_calls {
                 program,
                 SpecificationCaller::Declaration(owner_symbol, parameters),
                 root,
-                matches!(fact, ProofFact::Expression(_)),
                 prior_facts,
                 owner,
                 diagnostics,
@@ -38700,7 +39950,6 @@ pub(crate) mod specification_calls {
                 program,
                 SpecificationCaller::Machine(machine, state),
                 root,
-                matches!(fact, ProofFact::Expression(_)),
                 prior_facts,
                 owner,
                 diagnostics,
@@ -38751,7 +40000,6 @@ pub(crate) mod specification_calls {
             program,
             SpecificationCaller::Machine(machine, Some(state)),
             expression,
-            false,
             &hypotheses,
             &owner,
             diagnostics,
@@ -39114,7 +40362,6 @@ pub(crate) mod specification_calls {
         program: &dyn crate::CheckingInput,
         caller: SpecificationCaller<'_>,
         expression: ExpressionHandle,
-        proposition_context: bool,
         prior_facts: &[ExpressionHandle],
         owner: &str,
         diagnostics: &mut Vec<Diagnostic>,
@@ -39126,7 +40373,6 @@ pub(crate) mod specification_calls {
             program,
             caller,
             expression,
-            proposition_context,
             SpecificationPremises {
                 asserted: prior_facts,
                 denied: &[],
@@ -39145,7 +40391,6 @@ pub(crate) mod specification_calls {
         program: &dyn crate::CheckingInput,
         caller: SpecificationCaller<'_>,
         expression: ExpressionHandle,
-        proposition_context: bool,
         prior_facts: SpecificationPremises<'_>,
         owner: &str,
         diagnostics: &mut Vec<Diagnostic>,
@@ -39176,7 +40421,6 @@ pub(crate) mod specification_calls {
                 program,
                 caller,
                 binary.left,
-                proposition_context,
                 prior_facts,
                 owner,
                 diagnostics,
@@ -39209,7 +40453,6 @@ pub(crate) mod specification_calls {
                 program,
                 caller,
                 binary.right,
-                proposition_context,
                 SpecificationPremises {
                     asserted: &asserted,
                     denied: &denied,
@@ -39237,7 +40480,6 @@ pub(crate) mod specification_calls {
                 program,
                 caller,
                 dispatch.subject,
-                false,
                 prior_facts,
                 owner,
                 diagnostics,
@@ -39274,7 +40516,6 @@ pub(crate) mod specification_calls {
                         program,
                         caller,
                         condition,
-                        predicate,
                         SpecificationPremises {
                             asserted: &asserted,
                             denied: &denied,
@@ -39299,7 +40540,6 @@ pub(crate) mod specification_calls {
                     program,
                     caller,
                     arm.value,
-                    proposition_context,
                     SpecificationPremises {
                         asserted: &asserted,
                         denied: &denied,
@@ -39316,13 +40556,11 @@ pub(crate) mod specification_calls {
                 }
             }
         } else {
-            let proposition_children = crate::contextual_proposition_children(program, expression);
             children(program, node, |child| {
                 validate_specification_expression_in_scope(
                     program,
                     caller,
                     child,
-                    proposition_context && proposition_children.contains(&Some(child)),
                     prior_facts,
                     owner,
                     diagnostics,
@@ -39385,7 +40623,11 @@ pub(crate) mod specification_calls {
         }
         let (contract_owner, arguments, call, application_bindings) = match node {
             ExpressionNode::Call(call) => {
-                if crate::mathematical_applications::selected_definition(program, call).is_some() {
+                if crate::mathematical_applications::is_mathematical_call(program, call) {
+                    // Mathematical definitions own checked dependent applications,
+                    // not machine contract telescopes. Their source producer checks
+                    // the application; the walk above still forms every argument.
+                    // An authored generic registration does not change that owner.
                     return;
                 }
                 let selected = match caller {
@@ -39424,40 +40666,6 @@ pub(crate) mod specification_calls {
                 return;
             }
             ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) => {
-                if proposition_context
-                    && !super::structural_terms::is_case_observation(program, expression)
-                    && let ExpressionNode::Binary(binary) = node
-                    && matches!(
-                        binary.operator,
-                        BinaryOperator::Equal | BinaryOperator::NotEqual
-                    )
-                {
-                    let operands = [binary.left, binary.right];
-                    let references =
-                        operands.map(|operand| caller.expression_type(program, operand));
-                    let identities = std::array::from_fn::<_, 2, _>(|position| {
-                        crate::contextual_identity_subject_type(
-                            program,
-                            references[position]?,
-                            matches!(
-                                expression_table(program).expression(operands[position]),
-                                ExpressionNode::Name(_) | ExpressionNode::Borrow(_)
-                            ),
-                        )
-                    });
-                    if identities.iter().any(Option::is_some) {
-                        if identities[0].is_some() && identities[0] == identities[1] {
-                            return;
-                        }
-                        if let [Some(left), Some(right)] = references {
-                            diagnostics.push(Diagnostic::error(format!(
-                            "{owner} data identity requires the same complete operand type, found `{}` and `{}`",
-                            program.display_type_reference(left), program.display_type_reference(right),
-                        )).with_source_span(expression_table(program).source_span(expression)));
-                            return;
-                        }
-                    }
-                }
                 let (spelling, arguments) = match node {
                     ExpressionNode::Binary(binary) => {
                         let Some(spelling) =
@@ -40404,6 +41612,38 @@ pub(crate) mod specification_calls {
                     .is_some())
     }
 
+    /// Value substitution does not project a proposition's stored type identity.
+    /// Keep that route closed until its exact source carrier needs no type or
+    /// region substitution; formation and application admission remain separate.
+    fn identity_carrier_is_closed(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        carrier: typed_trees::type_identity::TypeIdentityId,
+    ) -> bool {
+        let Ok(identity) =
+            crate::mathematical_applications::identity_application_at(program, expression)
+        else {
+            return false;
+        };
+        if carrier != program.normalized_type_identity(identity.carrier)
+            || !typed_trees::domain::index_argument_is_closed(program, identity.carrier)
+        {
+            return false;
+        }
+        #[derive(Clone, Copy)]
+        struct ClosedCarrier;
+        impl crate::queries::type_regions::TypeRegionScope for ClosedCarrier {}
+        crate::queries::type_regions::type_reference_regions_match(
+            program,
+            identity.carrier,
+            identity.carrier,
+            ClosedCarrier,
+            ClosedCarrier,
+            &mut (),
+            &mut |_, _, _, _, _, _| false,
+        )
+    }
+
     fn structurally_substitutable_fact(
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
@@ -40415,11 +41655,13 @@ pub(crate) mod specification_calls {
         }
         let Some(binary) = expression_table(program).binary_node(expression) else {
             return matches!(expression_table(program).expression(expression), ExpressionNode::Call(_))
-            && term(expression).is_some_and(|term| {
-                matches!(&term, StructuralTerm::Application { result_type, .. }
-                    if program.primitive_type_reference(*result_type) == Some(typed_trees::types::PrimitiveType::Bool))
-                    && term_has_complete_substitution(program, &term)
-            });
+                && term(expression).is_some_and(|term| {
+                    (matches!(&term, StructuralTerm::Identity { carrier, .. }
+                        if identity_carrier_is_closed(program, expression, *carrier))
+                        || matches!(&term, StructuralTerm::Application { result_type, .. }
+                            if program.primitive_type_reference(*result_type) == Some(typed_trees::types::PrimitiveType::Bool)))
+                        && term_has_complete_substitution(program, &term)
+                });
         };
         if super::structural_terms::is_case_observation(program, expression) {
             return term(binary.left)
@@ -40464,6 +41706,18 @@ pub(crate) mod specification_calls {
                         .is_some_and(|primitive| primitive.is_fixed_integer()),
                     _ => false,
                 }),
+            StructuralTerm::ContentValue { value, .. } => {
+                term_has_complete_substitution(program, value)
+            }
+            StructuralTerm::Identity {
+                carrier,
+                left,
+                right,
+            } => {
+                carrier.is_valid()
+                    && term_has_complete_substitution(program, left)
+                    && term_has_complete_substitution(program, right)
+            }
             StructuralTerm::CapturedValue { .. }
             | StructuralTerm::BoundProjection { .. }
             | StructuralTerm::MathematicalBinary { .. }
@@ -42070,7 +43324,13 @@ pub(crate) mod structural_case_arms {
         pub(crate) parameter_names: Vec<String>,
         pub(crate) case_hypotheses: Vec<(String, StructuralTerm)>,
         pub(crate) case_equations: Vec<(StructuralTerm, StructuralTerm)>,
-        pub(crate) citations: Vec<(StructuralTerm, StructuralTerm)>,
+        /// PER-ARM CITATIONS: established predicates injected by citation
+        /// statements in the arm's SUB-STATE, instantiated under the arm
+        /// environment -- the only route to cite a lemma AT A CASE PAYLOAD
+        /// (comm's step case cites add_succ_law at `prev`, which machine-level
+        /// statements cannot see). Empty for direct value arms.
+        pub(crate) citations: Vec<StructuralTerm>,
+        /// Selected callable guarantees captured on this normal path only.
         pub(crate) normal_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
         pub(crate) value: StructuralTerm,
         pub(crate) value_source:
@@ -42640,7 +43900,7 @@ pub(crate) mod structural_case_arms {
                             }
                             let current_state = (
                                 active_paths[idx].judge.integer_premise_revision(),
-                                active_paths[idx].established_guarantees.equations.len(),
+                                active_paths[idx].established_guarantees.predicates.len(),
                             );
                             if active_paths[idx].checked_contradiction_state != Some(current_state)
                             {
@@ -43047,7 +44307,7 @@ pub(crate) mod structural_case_arms {
                         }
                         let current_contra_state = (
                             path.judge.integer_premise_revision(),
-                            path.established_guarantees.equations.len(),
+                            path.established_guarantees.predicates.len(),
                         );
                         if path.checked_contradiction_state == Some(current_contra_state) {
                             super::structural_prefix::visit_non_contradictory_arm(
@@ -44748,7 +46008,10 @@ pub(crate) mod structural_case_arms {
                     true,
                 );
                 established.intake(&mut arm_judge);
-                citations.extend(established.equations);
+                citations.extend(established.predicates);
+                // An earlier citation may establish a recursive application's
+                // requires, making its conditional IH available to later
+                // citations in the same authored statement order.
                 if machine_has_requires {
                     intake_available_self_induction_hypotheses(
                         program,
@@ -44893,6 +46156,19 @@ pub(crate) mod structural_case_arms {
     ) -> Option<StructuralTerm> {
         let (definition, variant) =
             super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)?;
+        let subject = program.expression_table.binary_node(guard)?.left;
+        let reference = crate::expression_result_type_reference(program, machine, state, subject)?;
+        let reference =
+            crate::value_custody::field_domains::readable_type_reference(program, reference)?;
+        let identity = super::structural_judgment::ConstructorIdentity::at_reference(
+            program,
+            reference,
+            definition,
+            Some(variant),
+        )?;
+        let variant =
+            program.data_constructor_case(reference, definition.symbol, variant.symbol)?;
+        let definition = program.data_constructor_definition(reference, definition.symbol)?;
         let data = definition.name.as_str().to_owned();
         let case = variant.name.as_str().to_owned();
         let variant_fields: Vec<String> = program
@@ -44921,11 +46197,6 @@ pub(crate) mod structural_case_arms {
             })
             .collect();
         fields.sort_by(|(left, _), (right, _)| left.cmp(right));
-        let identity = super::structural_judgment::ConstructorIdentity::nominal(
-            program,
-            definition,
-            Some(variant),
-        )?;
         Some(StructuralTerm::Constructor {
             identity,
             data,
@@ -44951,6 +46222,328 @@ pub(crate) mod structural_judgment {
     use typed_trees::types::PrimitiveType;
     use typed_trees::types::TypeReferenceHandle;
 
+    mod algebraic_identity {
+        /*
+        Checked algebra licenses permit reassociation and established-hypothesis
+        exchange. Callers supply the hypotheses of the relation they are proving:
+        scalar equations and core Id remain separate. Atomic comparison retains
+        complete resolution payloads, including IEEE bits, reference observations,
+        selected applications and opaque canonical content values.
+        */
+
+        use super::licenses::{SemiringLicense, term_uses_application};
+        use super::{StructuralJudge, StructuralTerm};
+
+        /// An algebra atom keeps all value and observation metadata. Debug provides
+        /// deterministic grouping only; equality always checks the complete payload.
+        #[derive(Clone)]
+        struct AlgebraAtom(StructuralTerm);
+
+        impl PartialEq for AlgebraAtom {
+            fn eq(&self, other: &Self) -> bool {
+                self.0.same_resolution_payload(&other.0)
+            }
+        }
+
+        impl Eq for AlgebraAtom {}
+
+        impl std::fmt::Debug for AlgebraAtom {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Debug::fmt(&self.0, formatter)
+            }
+        }
+
+        impl StructuralJudge<'_> {
+            /// Scalar comparison premises do not include arbitrary data Id rows.
+            pub(crate) fn ring_rearranged_equal(
+                &self,
+                left: &StructuralTerm,
+                right: &StructuralTerm,
+            ) -> bool {
+                self.licensed_algebra_equal(
+                    left,
+                    right,
+                    self.rewrites.iter().map(|(left, right)| (left, right)),
+                )
+            }
+
+            /// The rearrange tier's comparison: for each ring license whose op
+            /// appears in the equation, flatten both sides into addend multisets
+            /// (nested applications of the licensed op associate away; everything
+            /// else is a structural atom) and compare. At least two
+            /// addends must appear -- a single atom has nothing to rearrange.
+            pub(crate) fn licensed_algebra_equal<'a>(
+                &self,
+                left: &StructuralTerm,
+                right: &StructuralTerm,
+                hypotheses: impl Iterator<Item = (&'a StructuralTerm, &'a StructuralTerm)> + Clone,
+            ) -> bool {
+                for license in &self.ring_licenses {
+                    let op = &license.add_machine;
+                    if !term_uses_application(left, op) && !term_uses_application(right, op) {
+                        continue;
+                    }
+                    let mut left_addends = additive_addends(self.program, left, op);
+                    let mut right_addends = additive_addends(self.program, right, op);
+                    if left_addends.len() < 2 {
+                        continue;
+                    }
+                    left_addends.sort_by_key(|term| format!("{term:?}"));
+                    right_addends.sort_by_key(|term| format!("{term:?}"));
+                    if left_addends.len() == right_addends.len() && left_addends == right_addends {
+                        return true;
+                    }
+                    // HYPOTHESIS EXCHANGE (bounded, depth 2): a requires / citation /
+                    // IH equation whose sides flatten over this SAME licensed op
+                    // licenses swapping that sub-multiset of addends -- sum(left) ==
+                    // sum(left - from + to) because sum(from) == sum(to) is the
+                    // hypothesis and the op's comm+assoc closure is exactly what the
+                    // license's conformance proved. This is what makes QUOTIENT
+                    // lemmas provable: congruence needs ONE exchange (a.pos + a2.neg
+                    // exchanges inside a.pos + b.pos + a2.neg + b.neg), transitivity
+                    // needs TWO (h1 then h2 inside the cancellation citation's
+                    // requires). Whole-term matches were already rewritten during
+                    // resolve; this reaches the sub-multisets the rewriter cannot
+                    // see. Frontier-capped BFS -- over-refusal past the cap, never
+                    // unsound.
+                    let mut rewrite_addends: Vec<(Vec<AlgebraAtom>, Vec<AlgebraAtom>)> = Vec::new();
+                    for (pattern, replacement) in hypotheses.clone() {
+                        for (from, to) in [(pattern, replacement), (replacement, pattern)] {
+                            let mut from_addends = additive_addends(self.program, from, op);
+                            let to_addends = additive_addends(self.program, to, op);
+                            from_addends.sort_by_key(|term| format!("{term:?}"));
+                            rewrite_addends.push((from_addends, to_addends));
+                        }
+                    }
+                    let mut frontier: Vec<Vec<AlgebraAtom>> = vec![left_addends.clone()];
+                    for _depth in 0..2 {
+                        let mut next: Vec<Vec<AlgebraAtom>> = Vec::new();
+                        for current in &frontier {
+                            for (from_addends, to_addends) in &rewrite_addends {
+                                let Some(mut candidate) =
+                                    sorted_multiset_subtract(current, from_addends)
+                                else {
+                                    continue;
+                                };
+                                candidate.extend(to_addends.iter().cloned());
+                                candidate.sort_by_key(|term| format!("{term:?}"));
+                                if candidate == right_addends {
+                                    return true;
+                                }
+                                if next.len() < 64 {
+                                    next.push(candidate);
+                                }
+                            }
+                        }
+                        frontier = next;
+                        if frontier.is_empty() {
+                            break;
+                        }
+                    }
+                }
+                // Tier-2 FULL POLYNOMIAL: under a paired license, both sides
+                // normalize by distributing the licensed mul through the licensed
+                // add into a multiset of monomials (each a sorted factor multiset).
+                // The distributivity law is CONFORMED (machine-checked), so the
+                // normal form is exactly what the carrier proved.
+                for license in &self.semiring_licenses {
+                    if !term_uses_application(left, &license.mul_machine)
+                        && !term_uses_application(right, &license.mul_machine)
+                    {
+                        continue;
+                    }
+                    let (Some(mut left_poly), Some(mut right_poly)) = (
+                        polynomial_normal_form(self.program, left, license),
+                        polynomial_normal_form(self.program, right, license),
+                    ) else {
+                        continue;
+                    };
+                    left_poly.sort_by_key(|term| format!("{term:?}"));
+                    right_poly.sort_by_key(|term| format!("{term:?}"));
+                    if left_poly == right_poly {
+                        return true;
+                    }
+                    // SCALED-HYPOTHESIS EXCHANGE (tier-2 twin of the addend
+                    // exchange): a hypothesis equation polynomial-normalizes to a
+                    // monomial-multiset pair (hl, hr), and multiplying BOTH sides by
+                    // any monomial factor m keeps it an equation (the semiring's
+                    // conformed distributivity is exactly that license), so hl*m
+                    // exchanges for hr*m inside the goal's monomials. Factors are
+                    // drawn from the goal's own atoms (plus unscaled) -- this is
+                    // what proves mul-CONGRUENCE over a quotient: the cross-sum
+                    // hypothesis scaled by b.pos and by b.neg equalizes the product
+                    // components in two exchanges. Depth-2 frontier-capped BFS.
+                    let mut atoms: Vec<AlgebraAtom> = left_poly
+                        .iter()
+                        .chain(right_poly.iter())
+                        .flatten()
+                        .cloned()
+                        .collect();
+                    atoms.sort_by_key(|term| format!("{term:?}"));
+                    atoms.dedup();
+                    let mut scales: Vec<Vec<AlgebraAtom>> = vec![Vec::new()];
+                    scales.extend(atoms.into_iter().map(|atom| vec![atom]));
+                    let mut hypothesis_polys: Vec<(Vec<Vec<AlgebraAtom>>, Vec<Vec<AlgebraAtom>>)> =
+                        Vec::new();
+                    for (pattern, replacement) in hypotheses.clone() {
+                        if let (Some(mut hl), Some(mut hr)) = (
+                            polynomial_normal_form(self.program, pattern, license),
+                            polynomial_normal_form(self.program, replacement, license),
+                        ) {
+                            hl.sort_by_key(|term| format!("{term:?}"));
+                            hr.sort_by_key(|term| format!("{term:?}"));
+                            hypothesis_polys.push((hl, hr));
+                        }
+                    }
+                    let scaled = |poly: &[Vec<AlgebraAtom>],
+                                  scale: &[AlgebraAtom]|
+                     -> Vec<Vec<AlgebraAtom>> {
+                        poly.iter()
+                            .map(|monomial| {
+                                let mut product = monomial.clone();
+                                product.extend(scale.iter().cloned());
+                                product.sort_by_key(|term| format!("{term:?}"));
+                                product
+                            })
+                            .collect()
+                    };
+                    let mut frontier: Vec<Vec<Vec<AlgebraAtom>>> = vec![left_poly.clone()];
+                    for _depth in 0..2 {
+                        let mut next: Vec<Vec<Vec<AlgebraAtom>>> = Vec::new();
+                        for current in &frontier {
+                            for (hypothesis_left, hypothesis_right) in &hypothesis_polys {
+                                for (from, to) in [
+                                    (hypothesis_left, hypothesis_right),
+                                    (hypothesis_right, hypothesis_left),
+                                ] {
+                                    for scale in &scales {
+                                        let from_scaled = scaled(from, scale);
+                                        let Some(mut candidate) =
+                                            sorted_multiset_subtract(current, &from_scaled)
+                                        else {
+                                            continue;
+                                        };
+                                        candidate.extend(scaled(to, scale));
+                                        candidate.sort_by_key(|term| format!("{term:?}"));
+                                        if candidate == right_poly {
+                                            return true;
+                                        }
+                                        if next.len() < 64 {
+                                            next.push(candidate);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        frontier = next;
+                        if frontier.is_empty() {
+                            break;
+                        }
+                    }
+                }
+                false
+            }
+        }
+
+        /// Peel owned admission shells only to inspect a licensed application. A
+        /// reference remains its observed descriptor and content stays an opaque atom.
+        fn owned_application<'a>(
+            program: &dyn crate::CheckingInput,
+            mut term: &'a StructuralTerm,
+        ) -> Option<(symbols::SymbolHandle, &'a [StructuralTerm])> {
+            while let StructuralTerm::ObservedValue {
+                observed_type,
+                value,
+                ..
+            } = term
+            {
+                if crate::reference_shell(program, *observed_type).is_some() {
+                    return None;
+                }
+                term = value;
+            }
+            let StructuralTerm::Application {
+                target,
+                selections,
+                arguments,
+                ..
+            } = term
+            else {
+                return None;
+            };
+            (selections.is_empty() && arguments.len() == 2)
+                .then_some((*target, arguments.as_slice()))
+        }
+
+        fn additive_addends(
+            program: &dyn crate::CheckingInput,
+            term: &StructuralTerm,
+            op: &symbols::SymbolHandle,
+        ) -> Vec<AlgebraAtom> {
+            fn append(
+                program: &dyn crate::CheckingInput,
+                term: &StructuralTerm,
+                op: &symbols::SymbolHandle,
+                out: &mut Vec<AlgebraAtom>,
+            ) {
+                if let Some((target, arguments)) = owned_application(program, term)
+                    && target == *op
+                {
+                    append(program, &arguments[0], op, out);
+                    append(program, &arguments[1], op, out);
+                } else {
+                    out.push(AlgebraAtom(term.clone()));
+                }
+            }
+            let mut out = Vec::new();
+            append(program, term, op, &mut out);
+            out
+        }
+
+        fn polynomial_normal_form(
+            program: &dyn crate::CheckingInput,
+            term: &StructuralTerm,
+            license: &SemiringLicense,
+        ) -> Option<Vec<Vec<AlgebraAtom>>> {
+            const MONOMIAL_CAP: usize = 64;
+            if let Some((target, arguments)) = owned_application(program, term) {
+                if target == license.add_machine {
+                    let mut left = polynomial_normal_form(program, &arguments[0], license)?;
+                    let right = polynomial_normal_form(program, &arguments[1], license)?;
+                    left.extend(right);
+                    return (left.len() <= MONOMIAL_CAP).then_some(left);
+                }
+                if target == license.mul_machine {
+                    let left = polynomial_normal_form(program, &arguments[0], license)?;
+                    let right = polynomial_normal_form(program, &arguments[1], license)?;
+                    let mut product = Vec::new();
+                    for left_monomial in &left {
+                        for right_monomial in &right {
+                            let mut monomial = left_monomial.clone();
+                            monomial.extend(right_monomial.iter().cloned());
+                            monomial.sort_by_key(|term| format!("{term:?}"));
+                            product.push(monomial);
+                        }
+                    }
+                    return (product.len() <= MONOMIAL_CAP).then_some(product);
+                }
+            }
+            Some(vec![vec![AlgebraAtom(term.clone())]])
+        }
+
+        /// Subtract exact atoms/monomials; a missing member leaves the goal unknown.
+        fn sorted_multiset_subtract<T: Clone + PartialEq>(
+            left: &[T],
+            from: &[T],
+        ) -> Option<Vec<T>> {
+            let mut remaining = left.to_vec();
+            for item in from {
+                let index = remaining.iter().position(|candidate| candidate == item)?;
+                remaining.remove(index);
+            }
+            Some(remaining)
+        }
+    }
     pub(crate) mod cases {
         use super::{
             CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm, term_contains,
@@ -45421,6 +47014,25 @@ pub(crate) mod structural_judgment {
                 self.activate_conditional_guarantees();
             }
 
+            /// Read a case value already carried by an owned or checked shared inline
+            /// observation. No resolution or case-hypothesis search happens here.
+            pub(crate) fn observed_case_value<'value>(
+                &self,
+                subject: &'value StructuralTerm,
+            ) -> Option<&'value StructuralTerm> {
+                if matches!(subject, StructuralTerm::ObservedValue { .. }) {
+                    if structural_terms::owned_observation_type(self.program, subject).is_none()
+                        && structural_terms::shared_inline_observation_type(self.program, subject)
+                            .is_none()
+                    {
+                        return None;
+                    }
+                    Some(subject.semantic_value())
+                } else {
+                    Some(subject)
+                }
+            }
+
             pub(crate) fn judge_case(
                 &self,
                 subject: StructuralTerm,
@@ -45430,18 +47042,10 @@ pub(crate) mod structural_judgment {
                 let Some(subject) = self.resolve_case_subject(subject, 0) else {
                     return StructuralJudgment::Unknown;
                 };
-                let subject = if matches!(&subject, StructuralTerm::ObservedValue { .. }) {
-                    if structural_terms::owned_observation_type(self.program, &subject).is_none()
-                        && structural_terms::shared_inline_observation_type(self.program, &subject)
-                            .is_none()
-                    {
-                        return StructuralJudgment::Unknown;
-                    }
-                    subject.into_semantic_value()
-                } else {
-                    subject
+                let Some(subject) = self.observed_case_value(&subject) else {
+                    return StructuralJudgment::Unknown;
                 };
-                if let StructuralTerm::Constructor { identity, .. } = &subject {
+                if let StructuralTerm::Constructor { identity, .. } = subject {
                     return match identity.matches_case(self.program, data_symbol, case_symbol) {
                         Some(true) => StructuralJudgment::Proven,
                         Some(false) => StructuralJudgment::Refuted,
@@ -45464,7 +47068,7 @@ pub(crate) mod structural_judgment {
                 for fact in self.case_facts.iter() {
                     if fact.data == data_symbol
                         && self.resolve_case_subject(fact.subject.clone(), 0).as_ref()
-                            == Some(&subject)
+                            == Some(subject)
                     {
                         if fact.holds {
                             return if fact.case == case_symbol {
@@ -45630,7 +47234,9 @@ pub(crate) mod structural_judgment {
                                 }),
                         )
                     }
-                    StructuralTerm::CallProjection { .. }
+                    StructuralTerm::Identity { .. }
+                    | StructuralTerm::ContentValue { .. }
+                    | StructuralTerm::CallProjection { .. }
                     | StructuralTerm::Opaque(_)
                     | StructuralTerm::ScalarBinary { .. }
                     | StructuralTerm::MathematicalBinary { .. }
@@ -46083,6 +47689,31 @@ pub(crate) mod structural_judgment {
                     }
             }
 
+            /// A constructor can be formed through distinct checked type references.
+            /// Its value still names the same complete carrier and exact declared case;
+            /// the receiver must interpret each reference's field schema separately.
+            pub(crate) fn same_constructor(self, other: Self) -> bool {
+                self == other
+                    && match (self, other) {
+                        (
+                            Self::Nominal {
+                                declaration: left,
+                                case: left_case,
+                                ..
+                            },
+                            Self::Nominal {
+                                declaration: right,
+                                case: right_case,
+                                ..
+                            },
+                        ) => left == right && left_case == right_case,
+                        (Self::Boolean(_), Self::Boolean(_)) => true,
+                        _ => false,
+                    }
+            }
+
+            /// Classifiers can name an authored template case. Rejoin that exact case
+            /// through the receiving application; spelling never selects its owner.
             pub(crate) fn matches_case(
                 self,
                 program: &dyn crate::CheckingInput,
@@ -46189,7 +47820,24 @@ pub(crate) mod structural_judgment {
     }
     pub(crate) use constructor_identity::ConstructorIdentity;
     pub(crate) mod data_identity {
+        /*
+        A forwarded data value keeps its identity even when it contains references.
+        Follow already completed values and their checked projections; comparing
+        their fields as scalar contents would require different observations.
+        */
+
+        use super::identity_normalization::IdentityNormalization;
         use super::{ExpressionHandle, StructuralJudge, StructuralJudgment, StructuralTerm};
+
+        // One finite allowance covers normalization and search through established
+        // identity views. Depth, admission and fail-closed checks remain independent.
+        const IDENTITY_QUERY_WORK_LIMIT: usize = 8192;
+
+        #[derive(Clone, Copy)]
+        enum IdentityCorrespondence {
+            Representation,
+            Established,
+        }
 
         impl StructuralJudge<'_> {
             pub(crate) fn declaration_data_identity_terms(
@@ -46197,12 +47845,13 @@ pub(crate) mod structural_judgment {
                 expression: ExpressionHandle,
             ) -> Option<[StructuralTerm; 2]> {
                 let (owner, parameters) = self.declaration_scope()?;
-                let references = super::super::structural_terms::data_identity_operand_references(
-                    self.program,
-                    owner,
-                    parameters,
-                    expression,
-                )?;
+                let references =
+                    super::super::structural_terms::builtin_identity_operand_references(
+                        self.program,
+                        owner,
+                        parameters,
+                        expression,
+                    )?;
                 let binary = self.program.expression_table.binary_node(expression)?;
                 let [Some(left), Some(right)] =
                     [binary.left, binary.right].map(|operand| self.declaration_term(operand))
@@ -46234,6 +47883,12 @@ pub(crate) mod structural_judgment {
                 if self.case_facts_only {
                     return;
                 }
+                if let Some(StructuralTerm::Identity { left, right, .. }) =
+                    self.declaration_term(fact)
+                {
+                    self.intake_identity(*left, *right);
+                    return;
+                }
                 let Some(binary) = self.program.expression_table.binary_node(fact) else {
                     return;
                 };
@@ -46245,13 +47900,15 @@ pub(crate) mod structural_judgment {
                 } else if binary.operator == super::BinaryOperator::Equal
                     && let Some([left, right]) = self.declaration_data_identity_terms(fact)
                 {
-                    std::sync::Arc::make_mut(&mut self.captured_result_equations).push(
-                        super::normal_returns::CapturedResultEquation::data_identity((left, right)),
-                    );
+                    self.intake_identity(left, right);
                 }
             }
 
+            /// The arm owns these checked value identities at its completed path.
+            /// Replay the tagged equations intact; scalar replay deliberately omits
+            /// them because it cannot compare reference contents or IEEE fields.
             pub(crate) fn retain_data_identities_from(&mut self, completed: &Self) {
+                self.retain_induction_values_from(completed);
                 for equation in completed
                     .captured_result_equations
                     .iter()
@@ -46262,10 +47919,640 @@ pub(crate) mod structural_judgment {
                             && known.left.same_resolution_payload(&equation.left)
                             && known.right.same_resolution_payload(&equation.right)
                     }) {
-                        std::sync::Arc::make_mut(&mut self.captured_result_equations)
-                            .push(equation.clone());
+                        self.intake_identity(equation.left.clone(), equation.right.clone());
                     }
                 }
+            }
+
+            /// Id uses value representation congruence. Executable numeric equality,
+            /// including IEEE signed-zero equality, supplies no rule in this reader.
+            pub(crate) fn judge_explicit_identity(
+                &self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+                depth: usize,
+            ) -> StructuralJudgment {
+                let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
+                self.judge_identity_with_budget(left, right, depth, &mut remaining)
+            }
+
+            fn judge_identity_with_budget(
+                &self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+            ) -> StructuralJudgment {
+                if depth >= 32 || self.case_facts_only || *remaining == 0 {
+                    return StructuralJudgment::Unknown;
+                }
+                *remaining -= 1;
+                let direct = self.judge_data_identity(left.clone(), right.clone(), depth + 1);
+                if !matches!(direct, StructuralJudgment::Unknown) {
+                    return direct;
+                }
+                let [left, right] =
+                    match self.normalize_identity_values([left, right], depth + 1, remaining) {
+                        Ok(IdentityNormalization::Proven) => return StructuralJudgment::Proven,
+                        Ok(IdentityNormalization::Values(values)) => values,
+                        Err(_) => return StructuralJudgment::Unknown,
+                    };
+                let direct = self.exact_identity_congruence(
+                    left.clone(),
+                    right.clone(),
+                    depth + 1,
+                    remaining,
+                );
+                if !matches!(direct, StructuralJudgment::Unknown) {
+                    return direct;
+                }
+                // Established Id endpoints may differ only in independently checked
+                // constructor provenance inside a selected call. Resolver payload keys
+                // deliberately retain that provenance; the typed Id query rejoins it.
+                let mut left_allowance = 64;
+                let mut right_allowance = 64;
+                let left = self.data_identity_forms(left, depth + 1, &mut left_allowance);
+                let right = self.data_identity_forms(right, depth + 1, &mut right_allowance);
+                if self.typed_identity_path(&left, &right, depth, remaining) {
+                    StructuralJudgment::Proven
+                } else {
+                    StructuralJudgment::Unknown
+                }
+            }
+
+            pub(crate) fn identity_edges(
+                &self,
+            ) -> impl Iterator<Item = (&StructuralTerm, &StructuralTerm)> + Clone {
+                self.captured_result_equations
+                    .iter()
+                    .filter(|equation| equation.is_data_identity())
+                    .map(|equation| (&equation.left, &equation.right))
+                    .chain(
+                        self.rewrites
+                            .value_identities()
+                            .map(|(left, right)| (left, right)),
+                    )
+            }
+
+            /// Join an available value to an established endpoint before traversing
+            /// its Id edge. Only existing endpoints enter this frontier; congruence
+            /// checks their own types, selected applications and constructor schemas.
+            /// The active question never becomes an assumption or a resolver rewrite.
+            fn typed_identity_path(
+                &self,
+                left: &[StructuralTerm],
+                right: &[StructuralTerm],
+                depth: usize,
+                remaining: &mut usize,
+            ) -> bool {
+                if depth >= 32 || *remaining == 0 {
+                    return false;
+                }
+                let right = right
+                    .iter()
+                    .filter(|value| self.identity_value_is_available(value))
+                    .collect::<Vec<_>>();
+                if right.is_empty() {
+                    return false;
+                }
+                let left = left
+                    .iter()
+                    .filter(|value| self.identity_value_is_available(value))
+                    .collect::<Vec<_>>();
+                // Preserve the direct typed-pair query before spending its remaining
+                // allowance on transitive endpoint search. An unrelated early edge
+                // must not hide correspondence between later initial forms.
+                for left in &left {
+                    for right in &right {
+                        if *remaining == 0 {
+                            return false;
+                        }
+                        *remaining -= 1;
+                        if matches!(
+                            self.exact_identity_congruence(
+                                (*left).clone(),
+                                (*right).clone(),
+                                depth + 1,
+                                remaining
+                            ),
+                            StructuralJudgment::Proven
+                        ) {
+                            return true;
+                        }
+                    }
+                }
+                let mut pending = left
+                    .into_iter()
+                    .rev()
+                    .map(|value| (value, false))
+                    .collect::<Vec<_>>();
+                let mut visited: Vec<&StructuralTerm> = Vec::new();
+                // Borrow the bounded roster once. Eligibility is stable in this
+                // immutable query context and is evaluated at most once per edge.
+                let mut edges = self
+                    .identity_edges()
+                    .take(*remaining)
+                    .map(|(left, right)| (left, right, None))
+                    .collect::<Vec<_>>();
+                while let Some((value, check_goal)) = pending.pop() {
+                    if *remaining == 0 || visited.len() >= 64 {
+                        return false;
+                    }
+                    if visited
+                        .iter()
+                        .any(|known| known.same_resolution_payload(value))
+                    {
+                        continue;
+                    }
+                    *remaining -= 1;
+                    visited.push(value);
+                    if !self.identity_value_is_available(value) {
+                        continue;
+                    }
+                    if check_goal {
+                        for right in &right {
+                            if *remaining == 0 {
+                                return false;
+                            }
+                            *remaining -= 1;
+                            if matches!(
+                                self.exact_identity_congruence(
+                                    value.clone(),
+                                    (*right).clone(),
+                                    depth + 1,
+                                    remaining
+                                ),
+                                StructuralJudgment::Proven
+                            ) {
+                                return true;
+                            }
+                        }
+                    }
+                    for (left, right, admitted) in &mut edges {
+                        if *remaining == 0 {
+                            return false;
+                        }
+                        *remaining -= 1;
+                        if !*admitted.get_or_insert_with(|| {
+                            self.identity_value_is_available(left)
+                                && self.identity_value_is_available(right)
+                        }) {
+                            continue;
+                        }
+                        for (from, to) in [(*left, *right), (*right, *left)] {
+                            if *remaining == 0 {
+                                return false;
+                            }
+                            *remaining -= 1;
+                            if matches!(
+                                self.exact_identity_congruence(
+                                    value.clone(),
+                                    from.clone(),
+                                    depth + 1,
+                                    remaining
+                                ),
+                                StructuralJudgment::Proven
+                            ) && pending.len() < 64
+                                && !visited
+                                    .iter()
+                                    .copied()
+                                    .chain(pending.iter().map(|(value, _)| *value))
+                                    .any(|known| known.same_resolution_payload(to))
+                            {
+                                pending.push((to, true));
+                            }
+                        }
+                    }
+                }
+                false
+            }
+
+            fn exact_identity_congruence(
+                &self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+            ) -> StructuralJudgment {
+                self.identity_correspondence(
+                    left,
+                    right,
+                    depth,
+                    remaining,
+                    IdentityCorrespondence::Established,
+                )
+            }
+
+            /// Rewrite lookup compares checked representations without consulting
+            /// hypotheses, algebra or the transitive query it is preparing.
+            pub(crate) fn identity_representation_correspondence(
+                &self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+            ) -> StructuralJudgment {
+                self.identity_correspondence(
+                    left,
+                    right,
+                    depth,
+                    remaining,
+                    IdentityCorrespondence::Representation,
+                )
+            }
+
+            fn identity_child_correspondence(
+                &self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+                correspondence: IdentityCorrespondence,
+            ) -> StructuralJudgment {
+                match correspondence {
+                    IdentityCorrespondence::Representation => {
+                        self.identity_correspondence(left, right, depth, remaining, correspondence)
+                    }
+                    IdentityCorrespondence::Established => {
+                        self.judge_identity_with_budget(left, right, depth, remaining)
+                    }
+                }
+            }
+
+            fn identity_correspondence(
+                &self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+                correspondence: IdentityCorrespondence,
+            ) -> StructuralJudgment {
+                if depth >= 64 || *remaining == 0 {
+                    return StructuralJudgment::Unknown;
+                }
+                *remaining -= 1;
+                // This entry is also used recursively for raw call actuals. Canonical
+                // content stays one value before any structural field correspondence.
+                let left = self.identity_content_observation(&left).unwrap_or(left);
+                let right = self.identity_content_observation(&right).unwrap_or(right);
+                if left.same_resolution_payload(&right) {
+                    return StructuralJudgment::Proven;
+                }
+                let source_type = |value: &StructuralTerm| match value {
+                    StructuralTerm::ObservedValue { observed_type, .. } => Some(*observed_type),
+                    StructuralTerm::IntegerEmbedding { reference, .. } => Some(*reference),
+                    StructuralTerm::Application { result_type, .. }
+                    | StructuralTerm::CapturedValue { result_type, .. } => Some(*result_type),
+                    StructuralTerm::IndexedValue { element_type, .. } => Some(*element_type),
+                    _ => None,
+                };
+                if let (Some(left), Some(right)) = (source_type(&left), source_type(&right))
+                    && (!left.is_valid()
+                        || !right.is_valid()
+                        || !crate::value_custody::type_references::type_references_match(
+                            self.program,
+                            left,
+                            right,
+                        ))
+                {
+                    return StructuralJudgment::Unknown;
+                }
+                // A reference's identity is its descriptor. Owned observation shells
+                // retain admission but do not change the value they already observed.
+                let unwrap = |term: StructuralTerm| match term {
+                    StructuralTerm::ObservedValue {
+                        observed_type,
+                        value,
+                        descriptor,
+                    } => {
+                        if crate::reference_shell(self.program, observed_type).is_some() {
+                            descriptor.map(|descriptor| *descriptor)
+                        } else {
+                            Some(*value)
+                        }
+                    }
+                    StructuralTerm::IntegerEmbedding { value, .. } => Some(*value),
+                    other => Some(other),
+                };
+                let (Some(left), Some(right)) = (unwrap(left), unwrap(right)) else {
+                    return StructuralJudgment::Unknown;
+                };
+                if left.same_resolution_payload(&right) {
+                    return StructuralJudgment::Proven;
+                }
+                if matches!(
+                    left,
+                    StructuralTerm::ObservedValue { .. } | StructuralTerm::IntegerEmbedding { .. }
+                ) || matches!(
+                    right,
+                    StructuralTerm::ObservedValue { .. } | StructuralTerm::IntegerEmbedding { .. }
+                ) {
+                    return self.identity_correspondence(
+                        left,
+                        right,
+                        depth + 1,
+                        remaining,
+                        correspondence,
+                    );
+                }
+                match (&left, &right) {
+                    (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) => {
+                        if left == right {
+                            StructuralJudgment::Proven
+                        } else {
+                            StructuralJudgment::Refuted
+                        }
+                    }
+                    (StructuralTerm::Float(left), StructuralTerm::Float(right)) => {
+                        use numerics::literals::FloatFormat;
+                        let format = match (left.landing(), right.landing()) {
+                            (Some(left), Some(right)) if left == right => left,
+                            _ => return StructuralJudgment::Unknown,
+                        };
+                        let bits = |value: &numerics::literals::FloatLiteral| match value
+                            .presented_bits()
+                        {
+                            Some((actual, bits)) => (actual == format).then_some(bits),
+                            None => Some(match format {
+                                FloatFormat::F32 => u64::from(value.f32_bits()),
+                                FloatFormat::F64 => value.value_f64().to_bits(),
+                            }),
+                        };
+                        match (bits(left), bits(right)) {
+                            (Some(left), Some(right)) if left == right => {
+                                StructuralJudgment::Proven
+                            }
+                            (Some(_), Some(_)) => StructuralJudgment::Refuted,
+                            _ => StructuralJudgment::Unknown,
+                        }
+                    }
+                    (
+                        StructuralTerm::Constructor {
+                            identity: left_identity,
+                            fields: left_fields,
+                            ..
+                        },
+                        StructuralTerm::Constructor {
+                            identity: right_identity,
+                            fields: right_fields,
+                            ..
+                        },
+                    ) => {
+                        let Some(fields) = self.identity_constructor_field_pairs(
+                            *left_identity,
+                            left_fields,
+                            *right_identity,
+                            right_fields,
+                        ) else {
+                            return StructuralJudgment::Unknown;
+                        };
+                        let mut verdict = StructuralJudgment::Proven;
+                        for (left, right) in fields {
+                            match self.identity_child_correspondence(
+                                left,
+                                right,
+                                depth + 1,
+                                remaining,
+                                correspondence,
+                            ) {
+                                StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
+                                StructuralJudgment::Unknown => {
+                                    verdict = StructuralJudgment::Unknown
+                                }
+                                StructuralJudgment::Proven => {}
+                            }
+                        }
+                        verdict
+                    }
+                    (
+                        StructuralTerm::Application {
+                            result_type: left_type,
+                            target: left_target,
+                            selections: left_selections,
+                            machine: left_machine,
+                            arguments: left_arguments,
+                        },
+                        StructuralTerm::Application {
+                            result_type: right_type,
+                            target: right_target,
+                            selections: right_selections,
+                            machine: right_machine,
+                            arguments: right_arguments,
+                        },
+                    ) if left_target == right_target
+                        && left_machine == right_machine
+                        && super::term_identity::same_static_selection_payload(
+                            left_selections,
+                            right_selections,
+                        )
+                        && left_type.is_valid()
+                        && right_type.is_valid()
+                        && crate::value_custody::type_references::type_references_match(
+                            self.program,
+                            *left_type,
+                            *right_type,
+                        )
+                        && left_arguments.len() == right_arguments.len()
+                        && self.identity_application_arity(*left_target)
+                            == Some(left_arguments.len()) =>
+                    {
+                        // A licensed whole-value equality can permute operands that
+                        // are not positionally identical. Try that proof before a
+                        // child search spends the shared allowance on those pairs.
+                        if matches!(correspondence, IdentityCorrespondence::Established)
+                            && self.identity_algebra_equal(&left, &right)
+                        {
+                            return StructuralJudgment::Proven;
+                        }
+                        let mut verdict = StructuralJudgment::Proven;
+                        for (left, right) in left_arguments.iter().zip(right_arguments) {
+                            if !matches!(
+                                self.identity_child_correspondence(
+                                    left.clone(),
+                                    right.clone(),
+                                    depth + 1,
+                                    remaining,
+                                    correspondence
+                                ),
+                                StructuralJudgment::Proven
+                            ) {
+                                if matches!(correspondence, IdentityCorrespondence::Representation)
+                                {
+                                    return StructuralJudgment::Unknown;
+                                }
+                                verdict = StructuralJudgment::Unknown;
+                            }
+                        }
+                        verdict
+                    }
+                    _ => {
+                        if matches!(correspondence, IdentityCorrespondence::Representation) {
+                            return StructuralJudgment::Unknown;
+                        }
+                        if self.exact_record_eta(&left, &right, depth + 1, remaining)
+                            || self.exact_record_eta(&right, &left, depth + 1, remaining)
+                            || self.identity_algebra_equal(&left, &right)
+                        {
+                            StructuralJudgment::Proven
+                        } else {
+                            StructuralJudgment::Unknown
+                        }
+                    }
+                }
+            }
+
+            fn identity_application_arity(&self, target: symbols::SymbolHandle) -> Option<usize> {
+                if let Some(operator) = self.program.operator_definition_by_symbol(target) {
+                    return Some(self.program.operator_parameters(operator).len());
+                }
+                if let Some(signature) =
+                    crate::machine_calls::denotational_calls::abstract_value_call_signature(
+                        self.program,
+                        target,
+                    )
+                {
+                    return Some(self.program.state_signature_parameters(signature).len());
+                }
+                let machine = super::super::structural_terms::selected_application_machine(
+                    self.program,
+                    target,
+                )?;
+                Some(
+                    self.program
+                        .state_parameters(self.program.machine_states(machine).first()?)
+                        .len(),
+                )
+            }
+
+            fn identity_algebra_equal(
+                &self,
+                left: &StructuralTerm,
+                right: &StructuralTerm,
+            ) -> bool {
+                self.licensed_algebra_equal(
+                    left,
+                    right,
+                    self.captured_result_equations
+                        .iter()
+                        .filter(|equation| equation.is_data_identity())
+                        .map(|equation| (&equation.left, &equation.right)),
+                )
+            }
+
+            /// Rebuilding every declared field from the same observed record preserves
+            /// that record, including IEEE fields. Opaque field spellings grant nothing.
+            fn exact_record_eta(
+                &self,
+                constructor: &StructuralTerm,
+                value: &StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+            ) -> bool {
+                if depth >= 64 {
+                    return false;
+                }
+                let StructuralTerm::Constructor {
+                    identity,
+                    fields,
+                    case,
+                    ..
+                } = constructor
+                else {
+                    return false;
+                };
+                if !case.is_empty() {
+                    return false;
+                }
+                let Some(declaration) = identity
+                    .declaration()
+                    .and_then(|symbol| self.program.data_definition_by_symbol(symbol))
+                else {
+                    return false;
+                };
+                let reference =
+                    super::super::structural_terms::owned_observation_type(self.program, value)
+                        .or_else(|| {
+                            super::super::structural_terms::shared_inline_observation_type(
+                                self.program,
+                                value,
+                            )
+                        });
+                let declaration = if let Some(reference) = reference {
+                    let Some(observed) = super::ConstructorIdentity::at_reference(
+                        self.program,
+                        reference,
+                        declaration,
+                        None,
+                    ) else {
+                        return false;
+                    };
+                    if !identity.same_carrier(observed) {
+                        return false;
+                    }
+                    let Some(selected) = self
+                        .program
+                        .data_constructor_definition(reference, declaration.symbol)
+                    else {
+                        return false;
+                    };
+                    selected
+                } else {
+                    declaration
+                };
+                let members = self.program.data_members(declaration);
+                if members
+                    .iter()
+                    .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+                {
+                    return false;
+                }
+                let declared = self.program.data_member_fields(members).collect::<Vec<_>>();
+                if declared.is_empty() || declared.len() != fields.len() {
+                    return false;
+                }
+                let actual_by_name = fields
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value))
+                    .collect::<std::collections::HashMap<_, _>>();
+                if actual_by_name.len() != fields.len() {
+                    return false;
+                }
+                declared.iter().all(|field| {
+                    let Some(actual) = actual_by_name.get(field.name.as_str()) else {
+                        return false;
+                    };
+                    let expected = if let Some(reference) = reference {
+                        super::super::observed_projections::project_observed_value_in_scope(
+                            self.program,
+                            self,
+                            reference,
+                            value.clone(),
+                            &[facts::PlaceSegment::Field {
+                                symbol: field.symbol,
+                            }],
+                        )
+                    } else {
+                        super::super::observed_projections::project_field(
+                            value.clone(),
+                            field.name.as_str(),
+                        )
+                    };
+                    let Some(expected) = expected else {
+                        return false;
+                    };
+                    let expected = self.resolve_at(expected, depth + 1);
+                    self.identity_value_is_available(actual)
+                        && self.identity_value_is_available(&expected)
+                        && matches!(
+                            self.judge_identity_with_budget(
+                                (*actual).clone(),
+                                expected,
+                                depth + 1,
+                                remaining
+                            ),
+                            StructuralJudgment::Proven
+                        )
+                })
             }
 
             pub(crate) fn judge_data_identity(
@@ -46278,8 +48565,8 @@ pub(crate) mod structural_judgment {
                     return StructuralJudgment::Unknown;
                 }
                 if left.same_resolution_payload(&right)
-                    && self.data_identity_is_observed(&left)
-                    && self.data_identity_is_observed(&right)
+                    && self.identity_value_is_available(&left)
+                    && self.identity_value_is_available(&right)
                 {
                     return StructuralJudgment::Proven;
                 }
@@ -46288,9 +48575,9 @@ pub(crate) mod structural_judgment {
                 let left = self.data_identity_forms(left, depth + 1, &mut left_remaining);
                 let right = self.data_identity_forms(right, depth + 1, &mut right_remaining);
                 if left.iter().any(|left| {
-                    self.data_identity_is_observed(left)
+                    self.identity_value_is_available(left)
                         && right.iter().any(|right| {
-                            self.data_identity_is_observed(right)
+                            self.identity_value_is_available(right)
                                 && left.same_resolution_payload(right)
                         })
                 }) {
@@ -46309,7 +48596,18 @@ pub(crate) mod structural_judgment {
                 if depth >= 32 || *remaining == 0 {
                     return vec![value];
                 }
-                let mut pending = vec![(value, Vec::<String>::new())];
+                // Carry the remaining fields with each saved subject. Restarting a
+                // recursive walk at every field revisits the same parent projections
+                // and can exhaust the allowance before reaching their public identity.
+                let copied_source = self.completed_value_identity(value.clone());
+                let mut pending = Vec::new();
+                if !copied_source.same_resolution_payload(&value) {
+                    // Keep the capture itself as well as its exact copied source.
+                    // This also substitutes saved inputs inside selected applications
+                    // without unfolding a body or adding a scalar equality rule.
+                    pending.push((copied_source, Vec::<String>::new()));
+                }
+                pending.push((value, Vec::<String>::new()));
                 let mut visited: Vec<(StructuralTerm, Vec<String>)> = Vec::new();
                 let mut forms: Vec<StructuralTerm> = Vec::new();
                 while let Some((value, fields)) = pending.pop() {
@@ -46359,16 +48657,16 @@ pub(crate) mod structural_judgment {
                             follow(left.clone());
                         }
                     }
-                    for equation in self
-                        .captured_result_equations
-                        .iter()
-                        .filter(|equation| equation.is_data_identity())
-                    {
-                        if equation.left.same_resolution_payload(&value) {
-                            follow(equation.right.clone());
+                    // Id elimination retains the original typed pair and separately
+                    // admits owned value substitutions after its observation checks.
+                    // Consume both produced views here: a raw projection can reach a
+                    // cited reverse endpoint without discarding either side's payload.
+                    for (left, right) in self.identity_edges() {
+                        if left.same_resolution_payload(&value) {
+                            follow(right.clone());
                         }
-                        if equation.right.same_resolution_payload(&value) {
-                            follow(equation.left.clone());
+                        if right.same_resolution_payload(&value) {
+                            follow(left.clone());
                         }
                     }
                     for completed in self.completed_nominal_values.iter() {
@@ -46447,7 +48745,7 @@ pub(crate) mod structural_judgment {
                 })
             }
 
-            fn data_identity_is_observed(&self, value: &StructuralTerm) -> bool {
+            pub(crate) fn data_identity_is_observed(&self, value: &StructuralTerm) -> bool {
                 match value {
                     StructuralTerm::ObservedValue {
                         observed_type,
@@ -46468,6 +48766,10 @@ pub(crate) mod structural_judgment {
                     | StructuralTerm::CapturedValue { .. }
                     | StructuralTerm::Integer(_)
                     | StructuralTerm::Float(_) => true,
+                    StructuralTerm::IntegerEmbedding { value, .. }
+                    | StructuralTerm::ContentValue { value, .. } => {
+                        self.data_identity_is_observed(value)
+                    }
                     StructuralTerm::Projection { subject, .. } => {
                         self.data_identity_is_observed(subject)
                     }
@@ -48400,6 +50702,39 @@ pub(crate) mod structural_judgment {
         use std::sync::Arc;
 
         impl StructuralJudge<'_> {
+            /// The path owner has established this complete, formed predicate. Keep
+            /// Id elimination separate from Boolean truth: IEEE comparison truth
+            /// cannot donate identity, and forming an Id supplies no proof of it.
+            pub(crate) fn intake_observed_predicate(
+                &mut self,
+                predicate: StructuralTerm,
+                depth: usize,
+            ) {
+                if self.case_facts_only || depth >= 32 {
+                    return;
+                }
+                match predicate.into_semantic_value() {
+                    StructuralTerm::Identity { left, right, .. } => {
+                        self.intake_identity(*left, *right)
+                    }
+                    StructuralTerm::MathematicalBinary {
+                        operator: BinaryOperator::And,
+                        left,
+                        right,
+                    } if left.is_checked_predicate() && right.is_checked_predicate() => {
+                        self.intake_observed_predicate(*left, depth + 1);
+                        self.intake_observed_predicate(*right, depth + 1);
+                    }
+                    predicate => {
+                        self.intake_equation(predicate, value_predicates::boolean_term(true), depth)
+                    }
+                }
+            }
+
+            /// One structural equation: constructor pairs DECOMPOSE (injectivity --
+            /// `Succ(a) == Succ(b)` yields `a == b`), distinct cases of one data
+            /// make the hypotheses contradictory (disjointness), and a variable side
+            /// becomes a directed substitution (first binding wins).
             pub(crate) fn intake_equation(
                 &mut self,
                 left: StructuralTerm,
@@ -48703,6 +51038,341 @@ pub(crate) mod structural_judgment {
                         depth,
                     );
                 }
+            }
+        }
+    }
+    mod identity_elimination {
+        /*
+        An established Id permits substitution of its exact values and constructor
+        fields. This operation consumes formed propositions; it does not establish
+        a call's preconditions, termination, or permission to observe its arguments.
+        Reference fields retain descriptor identity and never become content reads.
+        */
+
+        use super::{ConstructorIdentity, StructuralJudge, StructuralTerm, term_contains};
+        use std::sync::Arc;
+
+        impl StructuralJudge<'_> {
+            /// A specification application denotes a stable value only under the same
+            /// exact selected public contract/body gate that admitted its source term.
+            /// This is distinct from observing the result of an executed call.
+            pub(crate) fn identity_value_is_available(&self, value: &StructuralTerm) -> bool {
+                match value {
+                    StructuralTerm::Variable(_)
+                    | StructuralTerm::BoundValue(_)
+                    | StructuralTerm::BoundProjection { .. }
+                    | StructuralTerm::CapturedValue { .. }
+                    | StructuralTerm::Integer(_)
+                    | StructuralTerm::Float(_) => true,
+                    StructuralTerm::Application {
+                        result_type,
+                        target,
+                        selections,
+                        arguments,
+                        ..
+                    } => result_type.is_valid()
+                        && self
+                            .program
+                            .operator_definition_by_symbol(*target)
+                            .is_none_or(|operator| {
+                                self.program.operator_parameters(operator).len() == arguments.len()
+                                    && crate::value_custody::type_references::type_references_match(
+                                        self.program,
+                                        *result_type,
+                                        operator.return_type,
+                                    )
+                            })
+                        && arguments
+                            .iter()
+                            .all(|value| self.identity_value_is_available(value))
+                        && (crate::machine_calls::denotational_calls::abstract_value_call_signature(
+                            self.program,
+                            *target,
+                        )
+                        .is_some()
+                            || self.has_induction_value(value)
+                            || super::specification_application_candidate(
+                                self.program,
+                                self.machine_symbol,
+                                *target,
+                                selections,
+                                self.frame_resolver(),
+                            )
+                            .is_ok()),
+                    StructuralTerm::ObservedValue {
+                        observed_type,
+                        value,
+                        descriptor,
+                    } => {
+                        if crate::reference_shell(self.program, *observed_type).is_some() {
+                            descriptor
+                                .as_ref()
+                                .is_some_and(|value| self.identity_value_is_available(value))
+                        } else {
+                            self.identity_value_is_available(value)
+                        }
+                    }
+                    StructuralTerm::IntegerEmbedding { value, .. }
+                    | StructuralTerm::ContentValue { value, .. }
+                    | StructuralTerm::Projection { subject: value, .. } => {
+                        self.identity_value_is_available(value)
+                    }
+                    StructuralTerm::Constructor { fields, .. } => fields
+                        .iter()
+                        .all(|(_, value)| self.identity_value_is_available(value)),
+                    StructuralTerm::RepeatedArray { length, element } => {
+                        *length == 0
+                            || element
+                                .as_ref()
+                                .is_some_and(|value| self.identity_value_is_available(value))
+                    }
+                    _ => false,
+                }
+            }
+
+            pub(crate) fn intake_identity(&mut self, left: StructuralTerm, right: StructuralTerm) {
+                if self.case_facts_only
+                    || !self.identity_value_is_available(&left)
+                    || !self.identity_value_is_available(&right)
+                {
+                    return;
+                }
+                // Normalize before installing this premise. Its desired consequence
+                // cannot supply an operand's missing formation or call admission.
+                let normalized = [left.clone(), right.clone()].map(|value| self.resolve(value));
+                if !left.same_resolution_payload(&normalized[0])
+                    || !right.same_resolution_payload(&normalized[1])
+                {
+                    self.retain_identity_pair(left, right);
+                }
+                self.eliminate_identity(normalized[0].clone(), normalized[1].clone(), 0);
+                self.activate_conditional_guarantees();
+            }
+
+            fn retain_identity_pair(&mut self, left: StructuralTerm, right: StructuralTerm) {
+                Arc::make_mut(&mut self.captured_result_equations).push(
+                    super::normal_returns::CapturedResultEquation::data_identity((left, right)),
+                );
+            }
+
+            fn eliminate_identity(
+                &mut self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+                depth: usize,
+            ) {
+                if depth >= 32 {
+                    return;
+                }
+                self.retain_identity_pair(left.clone(), right.clone());
+                let owned_subject = |mut value: StructuralTerm| {
+                    let mut owned = matches!(
+                        value,
+                        StructuralTerm::Constructor { .. }
+                            | StructuralTerm::IntegerEmbedding { .. }
+                    );
+                    loop {
+                        match value {
+                            StructuralTerm::ObservedValue {
+                                observed_type,
+                                value: inner,
+                                ..
+                            } => {
+                                if !observed_type.is_valid()
+                                    || crate::reference_shell(self.program, observed_type).is_some()
+                                {
+                                    return None;
+                                }
+                                owned = true;
+                                value = *inner;
+                            }
+                            StructuralTerm::IntegerEmbedding {
+                                reference,
+                                value: inner,
+                            } if crate::reference_shell(self.program, reference).is_none() => {
+                                owned = true;
+                                value = *inner;
+                            }
+                            _ => return Some((value, owned)),
+                        }
+                    }
+                };
+                let (Some((left, left_owned)), Some((right, right_owned))) =
+                    (owned_subject(left), owned_subject(right))
+                else {
+                    return;
+                };
+                if left.same_resolution_payload(&right) {
+                    return;
+                }
+                if let (
+                    StructuralTerm::Constructor {
+                        identity: left_identity,
+                        fields: left_fields,
+                        ..
+                    },
+                    StructuralTerm::Constructor {
+                        identity: right_identity,
+                        fields: right_fields,
+                        ..
+                    },
+                ) = (&left, &right)
+                {
+                    if !left_identity.same_carrier(*right_identity) {
+                        return;
+                    }
+                    if left_identity != right_identity {
+                        self.hypotheses_contradictory = true;
+                        return;
+                    }
+                    let Some(fields) = self.identity_constructor_field_pairs(
+                        *left_identity,
+                        left_fields,
+                        *right_identity,
+                        right_fields,
+                    ) else {
+                        return;
+                    };
+                    for (left, right) in fields {
+                        self.eliminate_identity(left, right, depth + 1);
+                    }
+                    return;
+                }
+                // Only the owned value substitution crosses into the ordinary value
+                // resolver. No Boolean comparison is interpreted or asserted here;
+                // IEEE fields keep their bits and reference fields stop above.
+                if !left_owned && !right_owned {
+                    return;
+                }
+                match (&left, &right) {
+                    (StructuralTerm::Variable(name), _) if !term_contains(&right, &left) => {
+                        Arc::make_mut(&mut self.substitutions).push((name.clone(), right));
+                    }
+                    (_, StructuralTerm::Variable(name)) if !term_contains(&left, &right) => {
+                        Arc::make_mut(&mut self.substitutions).push((name.clone(), left));
+                    }
+                    (
+                        StructuralTerm::Application { .. }
+                        | StructuralTerm::CapturedValue { .. }
+                        | StructuralTerm::BoundValue(_)
+                        | StructuralTerm::Projection { .. }
+                        | StructuralTerm::BoundProjection { .. },
+                        _,
+                    ) if !term_contains(&right, &left) => {
+                        Arc::make_mut(&mut self.rewrites).push_value_identity((left, right));
+                    }
+                    (
+                        _,
+                        StructuralTerm::Application { .. }
+                        | StructuralTerm::CapturedValue { .. }
+                        | StructuralTerm::BoundValue(_)
+                        | StructuralTerm::Projection { .. }
+                        | StructuralTerm::BoundProjection { .. },
+                    ) if !term_contains(&left, &right) => {
+                        Arc::make_mut(&mut self.rewrites).push_value_identity((right, left));
+                    }
+                    _ => {}
+                }
+            }
+
+            /// Rejoin both checked construction contexts before comparing fields. A
+            /// reference handle identifies the producing context, not a new value, but
+            /// neither side may borrow the other's substituted field types or policy.
+            pub(crate) fn identity_constructor_field_pairs(
+                &self,
+                left: ConstructorIdentity,
+                left_fields: &[(String, StructuralTerm)],
+                right: ConstructorIdentity,
+                right_fields: &[(String, StructuralTerm)],
+            ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+                if !left.same_constructor(right) || left_fields.len() != right_fields.len() {
+                    return None;
+                }
+                let left_declared = self.identity_constructor_fields(left)?;
+                let right_declared = self.identity_constructor_fields(right)?;
+                if left_declared.len() != left_fields.len()
+                    || right_declared.len() != right_fields.len()
+                {
+                    return None;
+                }
+                let mut right_by_name = right_fields
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value))
+                    .collect::<std::collections::HashMap<_, _>>();
+                if right_by_name.len() != right_fields.len() {
+                    return None;
+                }
+                let mut pairs = Vec::with_capacity(left_fields.len());
+                for (name, left) in left_fields {
+                    let right = right_by_name.remove(name.as_str())?;
+                    let left_reference = *left_declared.get(name.as_str())?;
+                    let right_reference = *right_declared.get(name.as_str())?;
+                    if !left_reference.is_valid()
+                        || !right_reference.is_valid()
+                        || !crate::value_custody::type_references::type_references_match(
+                            self.program,
+                            left_reference,
+                            right_reference,
+                        )
+                    {
+                        return None;
+                    }
+                    let observe = |reference, value| {
+                        super::super::structural_terms::owned_projection_observation(
+                            self.program,
+                            reference,
+                            value,
+                        )
+                    };
+                    pairs.push((
+                        observe(left_reference, left.clone()),
+                        observe(right_reference, right.clone()),
+                    ));
+                }
+                Some(pairs)
+            }
+
+            fn identity_constructor_fields(
+                &self,
+                identity: ConstructorIdentity,
+            ) -> Option<std::collections::HashMap<String, typed_trees::types::TypeReferenceHandle>>
+            {
+                let ConstructorIdentity::Nominal {
+                    reference,
+                    declaration,
+                    case,
+                    ..
+                } = identity
+                else {
+                    return Some(std::collections::HashMap::new());
+                };
+                let declaration = if reference.is_valid() {
+                    self.program
+                        .data_constructor_definition(reference, declaration)?
+                } else {
+                    self.program.data_definition_by_symbol(declaration)?
+                };
+                let members = self.program.data_members(declaration);
+                let variant = match case {
+                    Some(symbol) => Some(members.iter().find_map(|member| match member {
+                        typed_trees::data::DataMember::Variant(variant)
+                            if variant.symbol == symbol =>
+                        {
+                            Some(variant)
+                        }
+                        _ => None,
+                    })?),
+                    None => None,
+                };
+                let fields = self
+                    .program
+                    .data_construction_fields(members, variant.map(|variant| variant.symbol));
+                Some(
+                    fields
+                        .into_iter()
+                        .map(|field| (field.name.as_str().to_owned(), field.type_reference))
+                        .collect(),
+                )
             }
         }
     }
@@ -49244,6 +51914,7 @@ pub(crate) mod structural_judgment {
             rewrites: InputOwner<'static>,
             captured_results: InputOwner<'static>,
             normal_results: InputOwner<'static>,
+            induction_values: InputOwner<'static>,
             substitutions: InputOwner<'static>,
             require_closed_computation: bool,
         }
@@ -49254,6 +51925,7 @@ pub(crate) mod structural_judgment {
                     && self.rewrites == other.rewrites
                     && self.captured_results == other.captured_results
                     && self.normal_results == other.normal_results
+                    && self.induction_values == other.induction_values
                     && self.substitutions == other.substitutions
                     && self.require_closed_computation == other.require_closed_computation
             }
@@ -49858,6 +52530,16 @@ pub(crate) mod structural_judgment {
                 predicate: StructuralTerm,
                 depth: usize,
             ) -> StructuralJudgment {
+                if let StructuralTerm::Identity { left, right, .. } = predicate.semantic_value() {
+                    return self.judge_explicit_identity(
+                        left.as_ref().clone(),
+                        right.as_ref().clone(),
+                        depth,
+                    );
+                }
+                // A reduced mathematical conjunction can contain integer or IEEE
+                // leaves. Compose their independent judgments instead of sending the
+                // entire proposition to integer projection.
                 if let StructuralTerm::MathematicalBinary {
                     operator,
                     left,
@@ -50276,7 +52958,7 @@ pub(crate) mod structural_judgment {
             }
 
             pub(crate) fn has_no_rewrites(&self) -> bool {
-                self.rewrites.iter().next().is_none()
+                self.rewrites.is_empty()
             }
 
             pub(crate) fn prove_observed_predicates(
@@ -50643,6 +53325,7 @@ pub(crate) mod structural_judgment {
                     rewrites: InputOwner::new(&self.rewrites),
                     captured_results: InputOwner::new(&self.captured_result_equations),
                     normal_results: InputOwner::new(&self.normal_results),
+                    induction_values: InputOwner::new(&self.induction_values),
                     substitutions: InputOwner::new(&self.substitutions),
                     require_closed_computation: self.require_closed_computation,
                 };
@@ -51318,6 +54001,1250 @@ pub(crate) mod structural_judgment {
     pub(crate) use integer_predicates::{
         CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank,
     };
+    mod identity_normalization {
+        /*
+        Reduce admitted value contexts through established Id substitutions before
+        ordinary definitional resolution. Compose their checked endpoint views once
+        per question; this table contains no scalar equations or active goals.
+        */
+
+        use std::{collections::HashMap, ops::Range};
+
+        use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
+
+        mod contextual {
+            /*
+            Apply shallow established Id substitutions before unfolding compound values.
+            Each unchanged context is traversed once, with a retry only after a change.
+            */
+
+            use std::collections::VecDeque;
+
+            use super::super::super::structural_terms;
+            use super::{
+                IdentitySubstitutions, StructuralJudge, StructuralJudgment, StructuralTerm,
+                spend_component_work,
+            };
+
+            struct ContextStep {
+                changed: Option<StructuralTerm>,
+                descend: bool,
+            }
+
+            impl StructuralJudge<'_> {
+                pub(super) fn rewrite_identity_context(
+                    &self,
+                    mut value: StructuralTerm,
+                    depth: usize,
+                    remaining: &mut usize,
+                    substitutions: &mut IdentitySubstitutions<'_>,
+                ) -> Result<StructuralTerm, &'static str> {
+                    if substitutions.rows.is_empty() {
+                        return Ok(value);
+                    }
+                    loop {
+                        let Some((path, next)) =
+                            self.identity_context_change(&value, depth, remaining, substitutions)?
+                        else {
+                            return Ok(value);
+                        };
+                        let next =
+                            Self::replace_identity_context(value.clone(), &path, next, remaining)?;
+                        if next.same_resolution_payload(&value) {
+                            return Ok(value);
+                        }
+                        // A rewrite changes this context, not its structural nesting.
+                        // Every retry still spends the same finite query allowance.
+                        value = next;
+                    }
+                }
+
+                fn identity_context_change(
+                    &self,
+                    value: &StructuralTerm,
+                    depth: usize,
+                    remaining: &mut usize,
+                    substitutions: &mut IdentitySubstitutions<'_>,
+                ) -> Result<Option<(Vec<usize>, StructuralTerm)>, &'static str> {
+                    let step =
+                        self.identity_context_step(value, depth, remaining, substitutions)?;
+                    if let Some(next) = step.changed {
+                        return Ok(Some((Vec::new(), next)));
+                    }
+                    let mut pending = VecDeque::new();
+                    if step.descend {
+                        pending.push_back((value, Vec::new(), depth));
+                    }
+                    // Queue parents rather than every unvisited child. A wide value does
+                    // not allocate a queue beyond the nodes actually admitted for descent.
+                    while let Some((parent, path, parent_depth)) = pending.pop_front() {
+                        let mut index = 0;
+                        while let Some(child) = Self::identity_context_child(parent, index) {
+                            let step = self.identity_context_step(
+                                child,
+                                parent_depth + 1,
+                                remaining,
+                                substitutions,
+                            )?;
+                            if step.changed.is_some() || step.descend {
+                                let mut child_path = path.clone();
+                                child_path.push(index);
+                                if let Some(next) = step.changed {
+                                    return Ok(Some((child_path, next)));
+                                }
+                                pending.push_back((child, child_path, parent_depth + 1));
+                            }
+                            index += 1;
+                        }
+                    }
+                    Ok(None)
+                }
+
+                fn identity_context_step(
+                    &self,
+                    value: &StructuralTerm,
+                    depth: usize,
+                    remaining: &mut usize,
+                    substitutions: &mut IdentitySubstitutions<'_>,
+                ) -> Result<ContextStep, &'static str> {
+                    if depth >= 32 {
+                        return Err("the contextual Id substitution exceeds the query depth bound");
+                    }
+                    spend_component_work(remaining)?;
+                    if let Some(observed) = self.identity_content_observation(value) {
+                        let changed = !observed.same_resolution_payload(value);
+                        return Ok(ContextStep {
+                            changed: changed.then_some(observed),
+                            descend: false,
+                        });
+                    }
+                    let owned =
+                        structural_terms::owned_observation_type(self.program, value).is_some();
+                    if (matches!(
+                        value,
+                        StructuralTerm::Application { .. } | StructuralTerm::Constructor { .. }
+                    ) || owned)
+                        && self.identity_value_is_available(value)
+                        && let Some(component) =
+                            substitutions.replacement(self, value, depth, remaining)?
+                    {
+                        let target = substitutions.normalized[component]
+                            .as_ref()
+                            .unwrap_or(substitutions.rows[component].values[1]);
+                        // Preserve an equivalent owned view rather than alternating it
+                        // with the raw endpoint retained by the evidence producer.
+                        if !matches!(
+                            self.identity_representation_correspondence(
+                                value.clone(),
+                                target.clone(),
+                                depth + 1,
+                                remaining,
+                            ),
+                            StructuralJudgment::Proven
+                        ) {
+                            return Ok(ContextStep {
+                                changed: Some(target.clone()),
+                                descend: false,
+                            });
+                        }
+                    }
+                    let prepared = match value {
+                        StructuralTerm::Application { .. } => {
+                            return Ok(ContextStep {
+                                changed: None,
+                                descend: true,
+                            });
+                        }
+                        StructuralTerm::Constructor {
+                            identity,
+                            data,
+                            case,
+                            fields,
+                        } => {
+                            if identity.boolean().is_some() {
+                                if !fields.is_empty() {
+                                    return Err(
+                                        "a Boolean constructor has unexpected value fields",
+                                    );
+                                }
+                                return Ok(ContextStep {
+                                    changed: None,
+                                    descend: false,
+                                });
+                            }
+                            let observed = self
+                                .identity_constructor_field_pairs(
+                                    *identity, fields, *identity, fields,
+                                )
+                                .ok_or(
+                                    "the owned constructor has no complete checked field schema",
+                                )?;
+                            StructuralTerm::Constructor {
+                                identity: *identity,
+                                data: data.clone(),
+                                case: case.clone(),
+                                fields: fields
+                                    .iter()
+                                    .zip(observed)
+                                    .map(|((name, _), (value, _))| (name.clone(), value))
+                                    .collect(),
+                            }
+                        }
+                        StructuralTerm::ObservedValue { .. } if owned => {
+                            return Ok(ContextStep {
+                                changed: None,
+                                descend: true,
+                            });
+                        }
+                        // Captures, reference descriptors and canonical content remain
+                        // leaves under their existing observation and custody owners.
+                        _ => {
+                            return Ok(ContextStep {
+                                changed: None,
+                                descend: false,
+                            });
+                        }
+                    };
+                    let changed = !prepared.same_resolution_payload(value);
+                    Ok(ContextStep {
+                        changed: changed.then_some(prepared),
+                        descend: !changed,
+                    })
+                }
+
+                fn identity_context_child(
+                    value: &StructuralTerm,
+                    index: usize,
+                ) -> Option<&StructuralTerm> {
+                    match value {
+                        StructuralTerm::Application { arguments, .. } => arguments.get(index),
+                        StructuralTerm::Constructor { fields, .. } => {
+                            fields.get(index).map(|(_, value)| value)
+                        }
+                        StructuralTerm::ObservedValue { value, .. } if index == 0 => Some(value),
+                        _ => None,
+                    }
+                }
+
+                fn replace_identity_context(
+                    value: StructuralTerm,
+                    path: &[usize],
+                    replacement: StructuralTerm,
+                    remaining: &mut usize,
+                ) -> Result<StructuralTerm, &'static str> {
+                    let Some((&selected, rest)) = path.split_first() else {
+                        return Ok(replacement);
+                    };
+                    spend_component_work(remaining)?;
+                    let mut replacement = Some(replacement);
+                    let mut index = 0;
+                    let result = Self::map_identity_context_children(value, |child| {
+                        let current = index;
+                        index += 1;
+                        if current != selected {
+                            return Ok(None);
+                        }
+                        let next = replacement
+                            .take()
+                            .ok_or("the contextual Id path repeats a selected child")?;
+                        Self::replace_identity_context(child.clone(), rest, next, remaining)
+                            .map(Some)
+                    })?;
+                    if replacement.is_some() {
+                        return Err("the contextual Id path no longer names its observed child");
+                    }
+                    Ok(result)
+                }
+
+                fn map_identity_context_children(
+                    value: StructuralTerm,
+                    mut map: impl FnMut(&StructuralTerm) -> Result<Option<StructuralTerm>, &'static str>,
+                ) -> Result<StructuralTerm, &'static str> {
+                    let mut error = None;
+                    let mut map = |child: StructuralTerm| {
+                        if error.is_some() {
+                            return child;
+                        }
+                        match map(&child) {
+                            Ok(Some(next)) => next,
+                            Ok(None) => child,
+                            Err(reason) => {
+                                error = Some(reason);
+                                child
+                            }
+                        }
+                    };
+                    let value = match value {
+                        StructuralTerm::ObservedValue {
+                            observed_type,
+                            value,
+                            descriptor,
+                        } => StructuralTerm::ObservedValue {
+                            observed_type,
+                            value: Box::new(map(*value)),
+                            descriptor,
+                        },
+                        other => other.map_children(map),
+                    };
+                    match error {
+                        Some(reason) => Err(reason),
+                        None => Ok(value),
+                    }
+                }
+            }
+        }
+
+        pub(crate) enum IdentityNormalization {
+            Proven,
+            Values([StructuralTerm; 2]),
+        }
+
+        #[derive(Clone, Copy)]
+        enum RepresentationHead {
+            Application {
+                target: symbols::SymbolHandle,
+                arguments: usize,
+            },
+            Constructor,
+            Other,
+        }
+
+        impl RepresentationHead {
+            fn may_correspond(self, other: Self) -> bool {
+                match (self, other) {
+                    (
+                        Self::Application {
+                            target: left,
+                            arguments: left_count,
+                        },
+                        Self::Application {
+                            target: right,
+                            arguments: right_count,
+                        },
+                    ) => left == right && left_count == right_count,
+                    (Self::Application { .. }, Self::Constructor)
+                    | (Self::Constructor, Self::Application { .. }) => false,
+                    // Unknown and opaque heads retain the complete checked matcher.
+                    _ => true,
+                }
+            }
+        }
+
+        struct IdentitySubstitution<'value> {
+            values: [&'value StructuralTerm; 2],
+            heads: [RepresentationHead; 2],
+        }
+
+        /// Rows retain original order in each conservative head roster. Unknown
+        /// endpoints remain eligible for every head; the full matcher still decides.
+        #[derive(Default)]
+        struct RepresentationCandidates {
+            applications: HashMap<(symbols::SymbolHandle, usize), Vec<usize>>,
+            constructors: Vec<usize>,
+            unknown: Vec<usize>,
+        }
+
+        impl RepresentationCandidates {
+            fn retain(&mut self, row: usize, head: RepresentationHead) {
+                let rows = match head {
+                    RepresentationHead::Application { target, arguments } => {
+                        self.applications.entry((target, arguments)).or_default()
+                    }
+                    RepresentationHead::Constructor => &mut self.constructors,
+                    RepresentationHead::Other => &mut self.unknown,
+                };
+                if rows.last() != Some(&row) {
+                    rows.push(row);
+                }
+            }
+
+            fn rows_for_head(&self, head: RepresentationHead) -> &[usize] {
+                match head {
+                    RepresentationHead::Application { target, arguments } => self
+                        .applications
+                        .get(&(target, arguments))
+                        .map_or(&[], Vec::as_slice),
+                    RepresentationHead::Constructor => &self.constructors,
+                    RepresentationHead::Other => &self.unknown,
+                }
+            }
+        }
+
+        /// A cursor borrows no component state, so reaching a row can publish its
+        /// completed component while the immutable candidate roster remains in use.
+        struct CandidateRows {
+            all: Option<Range<usize>>,
+            heads: [RepresentationHead; 2],
+            positions: [usize; 3],
+        }
+
+        impl CandidateRows {
+            fn new(heads: [RepresentationHead; 2], count: usize) -> Self {
+                let all = heads
+                    .iter()
+                    .any(|head| matches!(head, RepresentationHead::Other))
+                    .then_some(0..count);
+                Self {
+                    all,
+                    heads,
+                    positions: [0; 3],
+                }
+            }
+
+            fn next(&mut self, candidates: &RepresentationCandidates) -> Option<usize> {
+                if let Some(all) = &mut self.all {
+                    return all.next();
+                }
+                let lists = [
+                    candidates.rows_for_head(self.heads[0]),
+                    candidates.rows_for_head(self.heads[1]),
+                    candidates.unknown.as_slice(),
+                ];
+                let next = lists
+                    .iter()
+                    .zip(self.positions)
+                    .filter_map(|(rows, position)| rows.get(position))
+                    .copied()
+                    .min()?;
+                for (rows, position) in lists.into_iter().zip(&mut self.positions) {
+                    if rows.get(*position) == Some(&next) {
+                        *position += 1;
+                    }
+                }
+                Some(next)
+            }
+        }
+
+        struct IdentitySubstitutions<'value> {
+            rows: Vec<IdentitySubstitution<'value>>,
+            candidates: RepresentationCandidates,
+            representatives: Vec<usize>,
+            component_ready: Vec<bool>,
+            query_depth: usize,
+            active: Vec<bool>,
+            normalized: Vec<Option<StructuralTerm>>,
+        }
+
+        impl<'value> IdentitySubstitutions<'value> {
+            fn prepare(
+                judge: &StructuralJudge<'_>,
+                rows: impl Iterator<Item = (&'value StructuralTerm, &'value StructuralTerm)>,
+                depth: usize,
+                remaining: &mut usize,
+            ) -> Result<Self, &'static str> {
+                let mut admitted = Vec::new();
+                let mut candidates = RepresentationCandidates::default();
+                for (left, right) in rows {
+                    spend_component_work(remaining)?;
+                    if judge.identity_value_is_available(left)
+                        && judge.identity_value_is_available(right)
+                    {
+                        let heads = [
+                            judge.identity_representation_head(left, remaining)?,
+                            judge.identity_representation_head(right, remaining)?,
+                        ];
+                        for head in heads {
+                            candidates.retain(admitted.len(), head);
+                        }
+                        admitted.push(IdentitySubstitution {
+                            values: [left, right],
+                            heads,
+                        });
+                    }
+                }
+                let count = admitted.len();
+                Ok(Self {
+                    rows: admitted,
+                    candidates,
+                    representatives: (0..count).collect(),
+                    component_ready: vec![false; count],
+                    query_depth: depth,
+                    active: vec![false; count],
+                    normalized: vec![None; count],
+                })
+            }
+
+            /// An operand must reach an actual endpoint before its component costs
+            /// any join/ranking work. Complete only that connected component, retaining
+            /// the same smallest existing RHS and original-row-order tie break.
+            fn prepare_component(
+                &mut self,
+                seed: usize,
+                judge: &StructuralJudge<'_>,
+                remaining: &mut usize,
+            ) -> Result<usize, &'static str> {
+                if self.component_ready[seed] {
+                    return Ok(self.representatives[seed]);
+                }
+                let mut members = vec![seed];
+                let mut included = vec![false; self.rows.len()];
+                included[seed] = true;
+                let mut cursor = 0;
+                while cursor < members.len() {
+                    let row = members[cursor];
+                    cursor += 1;
+                    let mut candidates = CandidateRows::new(self.rows[row].heads, self.rows.len());
+                    while let Some(candidate) = candidates.next(&self.candidates) {
+                        if included[candidate] {
+                            continue;
+                        }
+                        let other = &self.rows[candidate];
+                        let [left, right] = self.rows[row].values;
+                        let [left_head, right_head] = self.rows[row].heads;
+                        let [other_left, other_right] = other.values;
+                        let [other_left_head, other_right_head] = other.heads;
+                        // Conclusions often share a small established value even
+                        // when their source expressions have different structure.
+                        // Check that common RHS before decomposing the sources.
+                        for ((left, left_head), (right, right_head)) in [
+                            ((right, right_head), (other_right, other_right_head)),
+                            ((left, left_head), (other_left, other_left_head)),
+                            ((left, left_head), (other_right, other_right_head)),
+                            ((right, right_head), (other_left, other_left_head)),
+                        ] {
+                            spend_component_work(remaining)?;
+                            if !left_head.may_correspond(right_head) {
+                                continue;
+                            }
+                            let verdict = judge.identity_representation_correspondence(
+                                left.clone(),
+                                right.clone(),
+                                self.query_depth + 1,
+                                remaining,
+                            );
+                            if matches!(verdict, StructuralJudgment::Proven) {
+                                included[candidate] = true;
+                                members.push(candidate);
+                                break;
+                            }
+                            if *remaining == 0 {
+                                return Err(
+                                    "the reached Id component exhausted the shared query allowance",
+                                );
+                            }
+                        }
+                    }
+                }
+                if members
+                    .iter()
+                    .any(|&row| self.active[self.representatives[row]])
+                {
+                    return Err("the reached Id component revisits a suspended representative");
+                }
+                let mut best = None;
+                for &row in &members {
+                    let cost = judge.identity_normalization_cost(
+                        self.rows[row].values[1],
+                        self.query_depth,
+                        remaining,
+                    )?;
+                    let candidate = (cost, row);
+                    if best.is_none_or(|known| candidate < known) {
+                        best = Some(candidate);
+                    }
+                }
+                // The seed is always a member, so there is an existing RHS to retain.
+                let (_, representative) = best.ok_or("the reached Id component has no target")?;
+                for row in members {
+                    self.representatives[row] = representative;
+                    self.component_ready[row] = true;
+                }
+                Ok(representative)
+            }
+
+            fn replacement(
+                &mut self,
+                judge: &StructuralJudge<'_>,
+                value: &StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+            ) -> Result<Option<usize>, &'static str> {
+                let value_head = judge.identity_representation_head(value, remaining)?;
+                let mut candidates = CandidateRows::new([value_head; 2], self.rows.len());
+                while let Some(index) = candidates.next(&self.candidates) {
+                    spend_component_work(remaining)?;
+                    let component = self.representatives[index];
+                    if self.component_ready[index] {
+                        let target = self.normalized[component]
+                            .as_ref()
+                            .unwrap_or(self.rows[component].values[1]);
+                        if self.active[component] || value.same_resolution_payload(target) {
+                            continue;
+                        }
+                    }
+                    for (endpoint, endpoint_head) in self.rows[index]
+                        .values
+                        .into_iter()
+                        .zip(self.rows[index].heads)
+                    {
+                        // Different selected call heads cannot correspond in this
+                        // non-solving mode. Keep the full matcher for every candidate.
+                        if !value_head.may_correspond(endpoint_head) {
+                            continue;
+                        }
+                        let verdict = judge.identity_representation_correspondence(
+                            value.clone(),
+                            endpoint.clone(),
+                            depth + 1,
+                            remaining,
+                        );
+                        if matches!(verdict, StructuralJudgment::Proven) {
+                            let component = self.prepare_component(index, judge, remaining)?;
+                            let target = self.normalized[component]
+                                .as_ref()
+                                .unwrap_or(self.rows[component].values[1]);
+                            if !self.active[component] && !value.same_resolution_payload(target) {
+                                return Ok(Some(component));
+                            }
+                            break;
+                        }
+                        if *remaining == 0 {
+                            return Err(
+                                "the Id component lookup exhausted the shared query allowance",
+                            );
+                        }
+                    }
+                }
+                Ok(None)
+            }
+        }
+
+        fn spend_component_work(remaining: &mut usize) -> Result<(), &'static str> {
+            if *remaining == 0 {
+                return Err("the Id component work exhausted the shared query allowance");
+            }
+            *remaining -= 1;
+            Ok(())
+        }
+
+        impl StructuralJudge<'_> {
+            /// Prepare only a conservative candidate key. Owned observations and
+            /// reference descriptors follow the same existing boundary as the full
+            /// representation matcher; canonical content stays opaque.
+            fn identity_representation_head(
+                &self,
+                mut value: &StructuralTerm,
+                remaining: &mut usize,
+            ) -> Result<RepresentationHead, &'static str> {
+                for _ in 0..32 {
+                    spend_component_work(remaining)?;
+                    if self.identity_content_type(value).is_some() {
+                        return Ok(RepresentationHead::Other);
+                    }
+                    match value {
+                        StructuralTerm::Application {
+                            target, arguments, ..
+                        } => {
+                            return Ok(RepresentationHead::Application {
+                                target: *target,
+                                arguments: arguments.len(),
+                            });
+                        }
+                        StructuralTerm::Constructor { .. } => {
+                            return Ok(RepresentationHead::Constructor);
+                        }
+                        StructuralTerm::ObservedValue {
+                            observed_type,
+                            value: inner,
+                            descriptor,
+                        } => {
+                            if !observed_type.is_valid() {
+                                return Ok(RepresentationHead::Other);
+                            }
+                            if crate::reference_shell(self.program, *observed_type).is_some() {
+                                let Some(descriptor) = descriptor else {
+                                    return Ok(RepresentationHead::Other);
+                                };
+                                value = descriptor;
+                            } else if super::super::structural_terms::owned_observation_type(
+                                self.program,
+                                value,
+                            )
+                            .is_some()
+                            {
+                                value = inner;
+                            } else {
+                                return Ok(RepresentationHead::Other);
+                            }
+                        }
+                        StructuralTerm::IntegerEmbedding {
+                            reference,
+                            value: inner,
+                        } if reference.is_valid() => value = inner,
+                        _ => return Ok(RepresentationHead::Other),
+                    }
+                }
+                // A bounded classifier may decline to classify; it never refuses the
+                // full representation match on the strength of a partial observation.
+                Ok(RepresentationHead::Other)
+            }
+
+            pub(crate) fn normalize_identity_values(
+                &self,
+                values: [StructuralTerm; 2],
+                depth: usize,
+                remaining: &mut usize,
+            ) -> Result<IdentityNormalization, &'static str> {
+                // Keep the original formed question and its established endpoint
+                // views until contextual substitution has had its chance. Definition
+                // resolution can otherwise expand the compact value on both sides.
+                if self.identity_value_is_available(&values[0])
+                    && self.identity_value_is_available(&values[1])
+                    && matches!(
+                        self.identity_representation_correspondence(
+                            values[0].clone(),
+                            values[1].clone(),
+                            depth,
+                            remaining,
+                        ),
+                        StructuralJudgment::Proven
+                    )
+                {
+                    return Ok(IdentityNormalization::Proven);
+                }
+                let result = (|| {
+                    let mut substitutions = IdentitySubstitutions::prepare(
+                        self,
+                        self.identity_edges(),
+                        depth,
+                        remaining,
+                    )?;
+                    let [left, right] = values;
+                    let left =
+                        self.rewrite_identity_context(left, depth, remaining, &mut substitutions)?;
+                    let right =
+                        self.rewrite_identity_context(right, depth, remaining, &mut substitutions)?;
+                    if self.identity_value_is_available(&left)
+                        && self.identity_value_is_available(&right)
+                        && matches!(
+                            self.identity_representation_correspondence(
+                                left.clone(),
+                                right.clone(),
+                                depth + 1,
+                                remaining
+                            ),
+                            StructuralJudgment::Proven
+                        )
+                    {
+                        return Ok(IdentityNormalization::Proven);
+                    }
+                    // Preserve the existing ordinary computation/admission route,
+                    // including operands that become available only after resolution.
+                    // The caller previously performed this at the same query depth.
+                    let resolved_left = self.resolve_at(left.clone(), depth);
+                    let resolved_right = self.resolve_at(right.clone(), depth);
+                    let left_changed = !resolved_left.same_resolution_payload(&left);
+                    let right_changed = !resolved_right.same_resolution_payload(&right);
+                    let mut left = resolved_left;
+                    let mut right = resolved_right;
+                    if !self.identity_value_is_available(&left) {
+                        return Err(
+                            "the left Id operand is not an admitted stable value after resolution",
+                        );
+                    }
+                    if !self.identity_value_is_available(&right) {
+                        return Err(
+                            "the right Id operand is not an admitted stable value after resolution",
+                        );
+                    }
+                    if matches!(
+                        self.identity_representation_correspondence(
+                            left.clone(),
+                            right.clone(),
+                            depth,
+                            remaining,
+                        ),
+                        StructuralJudgment::Proven
+                    ) {
+                        return Ok(IdentityNormalization::Proven);
+                    }
+                    // Computation can reveal a new context. Give only changed
+                    // resolvents the same guarded pass before decomposing them.
+                    if left_changed {
+                        left = self.rewrite_identity_context(
+                            left,
+                            depth,
+                            remaining,
+                            &mut substitutions,
+                        )?;
+                    }
+                    if right_changed {
+                        right = self.rewrite_identity_context(
+                            right,
+                            depth,
+                            remaining,
+                            &mut substitutions,
+                        )?;
+                    }
+                    if (left_changed || right_changed)
+                        && self.identity_value_is_available(&left)
+                        && self.identity_value_is_available(&right)
+                        && matches!(
+                            self.identity_representation_correspondence(
+                                left.clone(),
+                                right.clone(),
+                                depth + 1,
+                                remaining,
+                            ),
+                            StructuralJudgment::Proven
+                        )
+                    {
+                        return Ok(IdentityNormalization::Proven);
+                    }
+                    Ok(IdentityNormalization::Values([
+                        self.resolve_identity_context(left, depth, remaining, &mut substitutions)?,
+                        self.resolve_identity_context(right, depth, remaining, &mut substitutions)?,
+                    ]))
+                })();
+                if let Err(reason) = result.as_ref()
+                    && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                {
+                    eprintln!(
+                        "identity-normalization owner={:?}: {reason}",
+                        self.machine_symbol
+                    );
+                }
+                result
+            }
+
+            fn identity_content_type(
+                &self,
+                value: &StructuralTerm,
+            ) -> Option<typed_trees::types::TypeReferenceHandle> {
+                let own_type = match value {
+                    StructuralTerm::Application { result_type, .. }
+                    | StructuralTerm::ObservedValue {
+                        observed_type: result_type,
+                        ..
+                    } => *result_type,
+                    StructuralTerm::Constructor {
+                        identity: super::ConstructorIdentity::Nominal { reference, .. },
+                        ..
+                    } => *reference,
+                    _ => return None,
+                };
+                (own_type.is_valid()
+                    && crate::content_algebra_for_type(self.program, own_type).is_some())
+                .then_some(own_type)
+            }
+
+            /// Raw value producers do not universally add their content observation.
+            /// Both normalization and recursive correspondence preserve this boundary
+            /// from the value's own recorded type, without a formal or goal type.
+            pub(crate) fn identity_content_observation(
+                &self,
+                value: &StructuralTerm,
+            ) -> Option<StructuralTerm> {
+                let reference = self.identity_content_type(value)?;
+                Some(
+                    super::super::structural_terms::owned_projection_observation(
+                        self.program,
+                        reference,
+                        value.clone(),
+                    ),
+                )
+            }
+
+            fn identity_normalization_cost(
+                &self,
+                value: &StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+            ) -> Result<usize, &'static str> {
+                if depth >= 32 {
+                    return Err("the Id component target exceeds the query depth bound");
+                }
+                spend_component_work(remaining)?;
+                if self.identity_content_type(value).is_some() {
+                    return Ok(1);
+                }
+                let mut cost = 1;
+                match value {
+                    StructuralTerm::Application { arguments, .. } => {
+                        for argument in arguments {
+                            cost +=
+                                self.identity_normalization_cost(argument, depth + 1, remaining)?;
+                        }
+                    }
+                    StructuralTerm::Constructor { fields, .. } => {
+                        for (_, value) in fields {
+                            cost +=
+                                self.identity_normalization_cost(value, depth + 1, remaining)?;
+                        }
+                    }
+                    StructuralTerm::ObservedValue { value: inner, .. }
+                        if super::super::structural_terms::owned_observation_type(
+                            self.program,
+                            value,
+                        )
+                        .is_some() =>
+                    {
+                        cost += self.identity_normalization_cost(inner, depth + 1, remaining)?;
+                    }
+                    _ => {}
+                }
+                Ok(cost)
+            }
+
+            fn normalize_identity_context(
+                &self,
+                value: StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+                substitutions: &mut IdentitySubstitutions<'_>,
+            ) -> Result<StructuralTerm, &'static str> {
+                let value =
+                    self.rewrite_identity_context(value, depth, remaining, substitutions)?;
+                self.resolve_identity_context(value, depth, remaining, substitutions)
+            }
+
+            fn resolve_identity_context(
+                &self,
+                value: StructuralTerm,
+                depth: usize,
+                remaining: &mut usize,
+                substitutions: &mut IdentitySubstitutions<'_>,
+            ) -> Result<StructuralTerm, &'static str> {
+                if depth >= 32 {
+                    return Err("the Id value context exceeds the query depth bound");
+                }
+                if *remaining == 0 {
+                    return Err("the Id value context exhausted the shared query allowance");
+                }
+                *remaining -= 1;
+                // Ordinary call producers can retain raw actuals. Recover only this
+                // value's own recorded type before entering its structural children;
+                // canonical content formers are not records of observable endpoints.
+                if let Some(observed) = self.identity_content_observation(&value) {
+                    return Ok(observed);
+                }
+                // An established whole value can replace this application without
+                // decomposing a subtree its proof has already accounted for. Matching
+                // remains representation-only and does not solve a child question.
+                let original_application = if matches!(&value, StructuralTerm::Application { .. })
+                    && self.identity_value_is_available(&value)
+                {
+                    if let Some(component) =
+                        substitutions.replacement(self, &value, depth, remaining)?
+                    {
+                        return self.normalize_identity_representative(
+                            component,
+                            depth,
+                            remaining,
+                            substitutions,
+                        );
+                    }
+                    Some(value.clone())
+                } else {
+                    None
+                };
+                let owned_observation =
+                    super::super::structural_terms::owned_observation_type(self.program, &value)
+                        .is_some();
+                let value = match value {
+                    StructuralTerm::Application {
+                        result_type,
+                        target,
+                        selections,
+                        machine,
+                        arguments,
+                    } => {
+                        let arguments = arguments
+                            .into_iter()
+                            .map(|value| {
+                                self.resolve_identity_context(
+                                    value,
+                                    depth + 1,
+                                    remaining,
+                                    substitutions,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        StructuralTerm::Application {
+                            result_type,
+                            target,
+                            selections,
+                            machine,
+                            arguments,
+                        }
+                    }
+                    StructuralTerm::Constructor {
+                        identity,
+                        data,
+                        case,
+                        fields,
+                    } => {
+                        if identity.boolean().is_some() {
+                            if !fields.is_empty() {
+                                return Err("a Boolean constructor has unexpected value fields");
+                            }
+                            return Ok(StructuralTerm::Constructor {
+                                identity,
+                                data,
+                                case,
+                                fields,
+                            });
+                        }
+                        // Each field keeps its own checked schema; reference and
+                        // canonical-content values remain whole leaves below.
+                        let observed = self
+                            .identity_constructor_field_pairs(identity, &fields, identity, &fields)
+                            .ok_or("the owned constructor has no complete checked field schema")?;
+                        let fields = fields
+                            .into_iter()
+                            // The schema owner returns observations in left-field
+                            // order. Rebuild from those typed values, preserving its
+                            // reference descriptors and opaque content boundaries.
+                            .zip(observed)
+                            .map(|((name, _), (value, _))| {
+                                self.resolve_identity_context(
+                                    value,
+                                    depth + 1,
+                                    remaining,
+                                    substitutions,
+                                )
+                                .map(|value| (name, value))
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        StructuralTerm::Constructor {
+                            identity,
+                            data,
+                            case,
+                            fields,
+                        }
+                    }
+                    StructuralTerm::ObservedValue {
+                        observed_type,
+                        value,
+                        descriptor,
+                    } if owned_observation => StructuralTerm::ObservedValue {
+                        observed_type,
+                        value: Box::new(self.resolve_identity_context(
+                            *value,
+                            depth + 1,
+                            remaining,
+                            substitutions,
+                        )?),
+                        descriptor,
+                    },
+                    // These values have independent descriptor, capture or algebra
+                    // custody. Normalization never opens them to rewrite contents.
+                    other => return Ok(other),
+                };
+                let resolved = self.resolve_at(value.clone(), depth + 1);
+                if !self.identity_value_is_available(&resolved) {
+                    return Err("the normalized Id context is not an admitted stable value");
+                }
+                // Reduction can expose new value children after the original children
+                // were normalized. Revisit only a changed resolvent, through the same
+                // own-type boundary and shared finite query allowance.
+                if !resolved.same_resolution_payload(&value) {
+                    return self.normalize_identity_context(
+                        resolved,
+                        depth + 1,
+                        remaining,
+                        substitutions,
+                    );
+                }
+                let value = resolved;
+                if original_application
+                    .as_ref()
+                    .is_some_and(|original| original.same_resolution_payload(&value))
+                {
+                    return Ok(value);
+                }
+                if let Some(component) =
+                    substitutions.replacement(self, &value, depth, remaining)?
+                {
+                    return self.normalize_identity_representative(
+                        component,
+                        depth,
+                        remaining,
+                        substitutions,
+                    );
+                }
+                Ok(value)
+            }
+
+            fn normalize_identity_representative(
+                &self,
+                component: usize,
+                depth: usize,
+                remaining: &mut usize,
+                substitutions: &mut IdentitySubstitutions<'_>,
+            ) -> Result<StructuralTerm, &'static str> {
+                if let Some(value) = &substitutions.normalized[component] {
+                    return Ok(value.clone());
+                }
+                // A representative may itself compute further. Normalize it once
+                // with its component suspended, then retain that result for both
+                // operands. Revisit cannot send it back through the same edge.
+                substitutions.active[component] = true;
+                let target = substitutions.rows[component].values[1].clone();
+                let result =
+                    self.normalize_identity_context(target, depth + 1, remaining, substitutions);
+                substitutions.active[component] = false;
+                if let Ok(value) = &result {
+                    substitutions.normalized[component] = Some(value.clone());
+                }
+                result
+            }
+        }
+    }
+    mod induction_values {
+        /*
+        Recursive proof results remain available when using the induction hypothesis.
+        Register only the exact recursive call after its entry requirements and
+        decrease have been checked; ordinary circular specification imports stay refused.
+        */
+
+        use super::{StructuralJudge, StructuralTerm};
+        use std::sync::Arc;
+        use typed_trees::machine::Machine;
+
+        impl StructuralJudge<'_> {
+            pub(crate) fn retain_induction_value(
+                &mut self,
+                machine: &Machine,
+                value: &StructuralTerm,
+            ) {
+                if self.has_induction_value(value) {
+                    return;
+                }
+                let resolved = match self.prepare_induction_value(machine, value) {
+                    Ok(resolved) => resolved,
+                    Err(reason) => {
+                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                            eprintln!("induction-value owner={:?}: {reason}", self.machine_symbol);
+                        }
+                        return;
+                    }
+                };
+                // The original application enters the IH before any conclusion is
+                // installed. Save its resolved result reference and operand observations
+                // too: later result judgment resolves them without authorizing a new call.
+                let values = Arc::make_mut(&mut self.induction_values);
+                values.push(value.clone());
+                if !resolved.same_resolution_payload(value)
+                    && !values
+                        .iter()
+                        .any(|known| known.same_resolution_payload(&resolved))
+                {
+                    values.push(resolved);
+                }
+            }
+
+            fn prepare_induction_value(
+                &self,
+                machine: &Machine,
+                value: &StructuralTerm,
+            ) -> Result<StructuralTerm, &'static str> {
+                let StructuralTerm::Application {
+                    result_type,
+                    target,
+                    selections,
+                    machine: spelling,
+                    arguments,
+                } = value
+                else {
+                    return Err("the induction result is not an exact application");
+                };
+                let entry = self
+                    .program
+                    .machine_states(machine)
+                    .first()
+                    .ok_or("the induction owner has no entry state")?;
+                if *target != entry.symbol
+                    || arguments.len() != self.program.state_parameters(entry).len()
+                {
+                    return Err(
+                        "the induction application does not preserve its entry state and argument count",
+                    );
+                }
+                if !result_type.is_valid()
+                    || !crate::value_custody::type_references::type_references_match(
+                        self.program,
+                        *result_type,
+                        entry.return_type,
+                    )
+                {
+                    return Err(
+                        "the induction result does not preserve its declared result type and access policy",
+                    );
+                }
+                if !arguments
+                    .iter()
+                    .all(|value| self.identity_value_is_available(value))
+                {
+                    return Err("an induction argument has no admitted stable value observation");
+                }
+                let plans = crate::machine_calls::calls::operand_call_plans(
+                    self.program,
+                    self.frame_resolver(),
+                );
+                crate::machine_calls::denotational_calls::checked_value_call_candidate(
+                    self.program,
+                    machine,
+                    entry,
+                    &plans.0,
+                    &plans.1,
+                )?;
+                Ok(StructuralTerm::Application {
+                    result_type: super::super::specification_calls::canonical_result_reference(
+                        self.program,
+                        *result_type,
+                    ),
+                    target: *target,
+                    selections: selections.clone(),
+                    machine: spelling.clone(),
+                    arguments: arguments
+                        .iter()
+                        .map(|value| self.resolve(value.clone()))
+                        .collect(),
+                })
+            }
+
+            pub(crate) fn has_induction_value(&self, value: &StructuralTerm) -> bool {
+                self.induction_values
+                    .iter()
+                    .any(|known| known.same_resolution_payload(value))
+            }
+
+            pub(crate) fn retain_induction_values_from(&mut self, completed: &Self) {
+                for value in completed.induction_values.iter() {
+                    if !self.has_induction_value(value) {
+                        Arc::make_mut(&mut self.induction_values).push(value.clone());
+                    }
+                }
+            }
+        }
+
+        pub(crate) fn common_induction_values(
+            outcomes: &[&StructuralJudge<'_>],
+        ) -> Arc<Vec<StructuralTerm>> {
+            let Some(first) = outcomes.first() else {
+                return Arc::new(Vec::new());
+            };
+            if outcomes
+                .iter()
+                .all(|other| Arc::ptr_eq(&first.induction_values, &other.induction_values))
+            {
+                return Arc::clone(&first.induction_values);
+            }
+            Arc::new(
+                first
+                    .induction_values
+                    .iter()
+                    .filter(|value| {
+                        outcomes
+                            .iter()
+                            .all(|other| other.has_induction_value(value))
+                    })
+                    .cloned()
+                    .collect(),
+            )
+        }
+    }
     pub(crate) mod invocation_entry {
         use super::{StructuralJudge, StructuralTerm, TypeReferenceHandle};
         use crate::machine_calls::calls::InvocationEntrySubject;
@@ -51359,6 +55286,7 @@ pub(crate) mod structural_judgment {
                     return None;
                 }
                 self.returned_value_source = None;
+                self.induction_values = std::sync::Arc::new(Vec::new());
                 if !self.requires_value_preservation() {
                     return Some((
                         parameters
@@ -51424,6 +55352,7 @@ pub(crate) mod structural_judgment {
                 returned: &StructuralTerm,
                 completion_version: Option<super::storage_effects::StorageVersion>,
             ) -> Option<Self> {
+                self.induction_values = std::sync::Arc::clone(&caller.induction_values);
                 if !self.requires_value_preservation() {
                     self.returned_value_source = caller.returned_value_source.clone();
                     return Some(self);
@@ -51452,17 +55381,306 @@ pub(crate) mod structural_judgment {
         }
     }
     pub(crate) mod licenses {
+        /*
+        Algebra-license machinery for the structural judge: REARRANGE-mode ring
+        and semiring licenses, their law-shape detectors, and the polynomial
+        normal form those licenses power. The judge keeps only the types it
+        stores; all candidate computation and shape checking lives here.
+        */
         use super::super::{
-            BinaryOperator, Machine, SymbolHandle, TraitDefinition, structural_term_pair,
+            BinaryOperator, Machine, SymbolHandle, TraitDefinition, structural_term,
         };
         use super::StructuralTerm;
-        use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
-        use std::collections::HashMap;
+        use crate::proof_contracts::contract_entailment::law_conformance::{
+            TraitOperationSlots, collect_equality_conjuncts,
+        };
         use typed_trees::expression::StaticMachineArgument;
-        use typed_trees::machine::TraitConformance;
         use typed_trees::types::PrimitiveType;
         use typed_trees::types::TypeReferenceHandle;
 
+        mod conformances {
+            /*
+            Checked trait applications and selected operation entries for algebra laws.
+            Storage reads exact requirement slots; joining laws preserves the entire
+            application and the actual selected operations, never a family label alone.
+            */
+
+            use super::{SymbolHandle, TypeReferenceHandle, entry_carrier};
+            use crate::proof_contracts::contract_entailment::law_conformance::select_slot_candidate;
+
+            /// Each requirement symbol owns one carrier group. The source declaration is
+            /// validated before its dense slot is read, and the retained full handle and
+            /// trait prevent a reused generation from selecting another declaration.
+            #[derive(Default)]
+            pub(crate) struct SlotCarriers {
+                requirements: Vec<Option<SlotCarrierGroup>>,
+            }
+
+            pub(crate) struct SlotCarrierRow {
+                pub(crate) carrier: TypeReferenceHandle,
+                entry: SymbolHandle,
+                application: typed_trees::type_identity::NormalizedTypeIdentity,
+                alias: Option<String>,
+                declaring_applications: Vec<(
+                    SymbolHandle,
+                    typed_trees::type_identity::NormalizedTypeIdentity,
+                )>,
+            }
+
+            impl SlotCarrierRow {
+                fn from_scope<'program>(
+                    program: &'program dyn crate::CheckingInput,
+                    scope: &typed_trees::trait_definition::AppliedTraitScope<'program>,
+                    carrier: TypeReferenceHandle,
+                    entry: SymbolHandle,
+                ) -> Option<Self> {
+                    let application = scope.application_identity(program.typed_program())?;
+                    let mut declaring_applications = Vec::new();
+                    scope.visit(program.typed_program(), &mut |scope| {
+                        if let Some(identity) = scope.application_identity(program.typed_program())
+                        {
+                            declaring_applications.push((scope.declaration.symbol, identity));
+                        }
+                    });
+                    Some(Self {
+                        carrier,
+                        entry,
+                        application,
+                        alias: None,
+                        declaring_applications,
+                    })
+                }
+
+                fn operation_application(
+                    &self,
+                    program: &dyn crate::CheckingInput,
+                    operation: SymbolHandle,
+                ) -> Option<(
+                    SymbolHandle,
+                    SymbolHandle,
+                    typed_trees::type_identity::NormalizedTypeIdentity,
+                )> {
+                    let (owner, template) = program
+                        .closed_requirement_application(operation)
+                        .map_or_else(
+                            || (program.symbols.get(operation).parent, operation),
+                            |closed| (closed.declaring_trait, closed.template),
+                        );
+                    let mut applications = self
+                        .declaring_applications
+                        .iter()
+                        .filter(|(candidate, _)| *candidate == owner);
+                    let application = applications.next()?.1;
+                    // The source law already selected its declaring scope. A produced
+                    // row transports that scope as a whole; an ambiguous inherited tuple
+                    // cannot be recovered from a bare declaration symbol.
+                    if applications.any(|(_, other)| *other != application) {
+                        return None;
+                    }
+                    Some((owner, template, application))
+                }
+            }
+
+            struct SlotCarrierGroup {
+                requirement: SymbolHandle,
+                declaring_trait: SymbolHandle,
+                rows: Vec<SlotCarrierRow>,
+            }
+
+            impl SlotCarriers {
+                fn insert(
+                    &mut self,
+                    program: &dyn crate::CheckingInput,
+                    declaring_trait: SymbolHandle,
+                    requirement: SymbolHandle,
+                    row: SlotCarrierRow,
+                ) {
+                    if !requirement.is_valid() {
+                        return;
+                    }
+                    program.symbols.get(requirement);
+                    let Some(declaration) = program.trait_definition_by_symbol(declaring_trait)
+                    else {
+                        return;
+                    };
+                    if program
+                        .trait_machine_signature_by_symbol(declaration, requirement)
+                        .is_none()
+                    {
+                        return;
+                    }
+                    let position = requirement.arena_index() as usize;
+                    if self.requirements.len() <= position {
+                        self.requirements.resize_with(position + 1, || None);
+                    }
+                    let group =
+                        self.requirements[position].get_or_insert_with(|| SlotCarrierGroup {
+                            requirement,
+                            declaring_trait,
+                            rows: Vec::new(),
+                        });
+                    if group.requirement == requirement && group.declaring_trait == declaring_trait
+                    {
+                        group.rows.push(row);
+                    }
+                }
+
+                pub(crate) fn get(
+                    &self,
+                    program: &dyn crate::CheckingInput,
+                    declaring_trait: SymbolHandle,
+                    requirement: SymbolHandle,
+                ) -> Option<&[SlotCarrierRow]> {
+                    if !requirement.is_valid() {
+                        return None;
+                    }
+                    program.symbols.get(requirement);
+                    let group = self
+                        .requirements
+                        .get(requirement.arena_index() as usize)?
+                        .as_ref()?;
+                    (group.requirement == requirement && group.declaring_trait == declaring_trait)
+                        .then_some(group.rows.as_slice())
+                }
+            }
+
+            /// The (trait symbol, requirement symbol) -> conforming (carrier, entry
+            /// symbol) index: conformances are fixed for the build, so both the per-law
+            /// slot membership test and each candidate scan read this instead of
+            /// re-walking every machine and conformance per license.
+            pub(crate) fn conformance_slot_carriers_uncached(
+                program: &dyn crate::CheckingInput,
+            ) -> SlotCarriers {
+                let mut slot_carriers = SlotCarriers::default();
+                for candidate in program.machines() {
+                    for conformance in program.machine_trait_conformances(candidate) {
+                        if !conformance.requirement_symbol.is_valid() {
+                            continue;
+                        }
+                        let Some((candidate_entry, carrier)) = entry_carrier(program, candidate)
+                        else {
+                            continue;
+                        };
+                        let Some(scope) =
+                            typed_trees::trait_definition::AppliedTraitScope::from_machine_conformance(
+                                program.typed_program(),
+                                candidate,
+                                conformance,
+                            )
+                        else {
+                            continue;
+                        };
+                        let Some(mut row) = SlotCarrierRow::from_scope(
+                            program,
+                            &scope,
+                            carrier,
+                            candidate_entry.symbol,
+                        ) else {
+                            continue;
+                        };
+                        row.alias = conformance
+                            .alias
+                            .as_ref()
+                            .map(|alias| alias.as_str().to_owned());
+                        slot_carriers.insert(
+                            program,
+                            conformance.symbol,
+                            conformance.requirement_symbol,
+                            row,
+                        );
+                    }
+                }
+                slot_carriers
+            }
+
+            pub(crate) fn selected_operation(
+                slot_carriers: &SlotCarriers,
+                program: &dyn crate::CheckingInput,
+                law: &SlotCarrierRow,
+                operation: SymbolHandle,
+            ) -> Option<SymbolHandle> {
+                let (owner, template, application) =
+                    law.operation_application(program, operation)?;
+                slot_satisfier(
+                    slot_carriers,
+                    program,
+                    owner,
+                    template,
+                    law.carrier,
+                    application,
+                    law.alias.as_deref(),
+                )
+            }
+
+            /// Both the application and the operation selected by each law must agree.
+            /// Equal family labels cannot substitute for equality of selected entries.
+            pub(crate) fn law_has_operations(
+                slot_carriers: &SlotCarriers,
+                program: &dyn crate::CheckingInput,
+                trait_symbol: SymbolHandle,
+                requirement: SymbolHandle,
+                anchor: &SlotCarrierRow,
+                operations: &[(SymbolHandle, SymbolHandle)],
+            ) -> bool {
+                slot_carriers
+                    .get(program, trait_symbol, requirement)
+                    .is_some_and(|rows| {
+                        rows.iter().any(|row| {
+                            row.application == anchor.application
+                                && crate::value_custody::type_references::type_references_match(
+                                    program,
+                                    row.carrier,
+                                    anchor.carrier,
+                                )
+                                && operations.iter().all(|(operation, entry)| {
+                                    selected_operation(slot_carriers, program, row, *operation)
+                                        == Some(*entry)
+                                })
+                        })
+                    })
+            }
+
+            /// A law or operation row belongs to one complete conformance application.
+            /// Sharing only its first carrier cannot import another tuple's evidence.
+            fn slot_satisfier(
+                slot_carriers: &SlotCarriers,
+                program: &dyn crate::CheckingInput,
+                trait_symbol: SymbolHandle,
+                requirement: SymbolHandle,
+                carrier: TypeReferenceHandle,
+                application: typed_trees::type_identity::NormalizedTypeIdentity,
+                preferred_alias: Option<&str>,
+            ) -> Option<SymbolHandle> {
+                let rows = slot_carriers
+                    .get(program, trait_symbol, requirement)?
+                    .iter()
+                    .filter(|row| {
+                        row.application == application
+                            && crate::value_custody::type_references::type_references_match(
+                                program,
+                                row.carrier,
+                                carrier,
+                            )
+                    })
+                    .collect::<Vec<_>>();
+                select_slot_candidate(&rows, preferred_alias, |row| row.alias.as_deref())
+                    .map(|row| row.entry)
+            }
+        }
+        use conformances::{
+            SlotCarriers, conformance_slot_carriers_uncached, law_has_operations,
+            selected_operation,
+        };
+
+        /// REARRANGE-MODE license (settle 2026-07-18, rung C): a carrier EARNS ring
+        /// canonicalization over an op through EXPLICIT conformance, never
+        /// scope-sniffing. A license exists for op machine `add_machine` when some
+        /// trait declares an op slot with BOTH a commutativity law and an
+        /// associativity law over it (detected by SHAPE, not by name -- `R(x, y) ==
+        /// R(y, x)` and `R(R(x, y), z) == R(x, R(y, z))` with distinct requirement
+        /// params), the op slot is conformed by `add_machine`, and BOTH law slots
+        /// have satisfiers for the same carrier (whose proofs rung B already
+        /// machine-checked against the declared laws).
         #[derive(Clone, Debug)]
         pub(crate) struct RingLicense {
             pub(crate) add_machine: SymbolHandle,
@@ -51475,44 +55693,62 @@ pub(crate) mod structural_judgment {
             pub distributivity: Vec<String>,
         }
 
-        fn for_each_ensures_equality(
+        /// The trait-level half of the algebra license: `requirement`'s commutativity
+        /// (`R(x, y) == R(y, x)`) and associativity (`R(R(x, y), z) == R(x, R(y, z))`)
+        /// law slots, detected by shape in the trait's own signatures. A consuming
+        /// machine's `Binder: Subject satisfies Trait` conformance bound supplies the
+        /// checked evidence for these slots through the ordinary generic-conformance
+        /// machinery.
+        /// Each `ensures`-contract equality conjunct across a state signature's
+        /// contract roster, resolved to its structural-term pair.
+        fn for_each_ensures_identity(
             program: &dyn crate::CheckingInput,
             signature: &typed_trees::signature::StateSignature,
+            slots: &TraitOperationSlots,
             mut arm: impl FnMut(StructuralTerm, StructuralTerm),
         ) {
+            // An unconditional rewrite has no premises to discharge. Reading a
+            // conditional law's statement cannot make it an unconditional license.
+            if program
+                .state_signature_contracts(signature)
+                .iter()
+                .any(|contract| {
+                    contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                })
+            {
+                return;
+            }
+            let parameters = program.state_signature_parameters(signature);
             for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
                 program,
                 program.state_signature_contracts(signature),
             ) {
                 let mut conjuncts = Vec::new();
-                collect_equality_conjuncts(program, expression, &mut conjuncts);
+                collect_equality_conjuncts(
+                    program,
+                    signature.symbol,
+                    parameters,
+                    expression,
+                    &mut conjuncts,
+                );
                 for conjunct in conjuncts {
-                    let Some(binary) = program.expression_table.binary_node(conjunct) else {
+                    let Some(identity) = conjunct.identity() else {
                         continue;
                     };
-                    let operands = [binary.left, binary.right].map(|operand| {
-                        crate::parameter_expression_result_type_reference(
+                    let [Some(left), Some(right)] = identity.subjects.map(|subject| {
+                        structural_term(
                             program,
-                            signature.symbol,
-                            program.state_signature_parameters(signature),
-                            operand,
+                            None,
+                            Some((signature.symbol, parameters)),
+                            subject,
+                            None,
                         )
-                    });
-                    if operands.iter().any(Option::is_none)
-                        || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                            program,
-                            signature.symbol,
-                            conjunct,
-                            language_core::OperatorSpelling::Equal,
-                            &operands,
-                        )
-                    {
+                    }) else {
                         continue;
+                    };
+                    if slots.covers_term(program, &left) && slots.covers_term(program, &right) {
+                        arm(left, right);
                     }
-                    let Some((left, right)) = structural_term_pair(program, binary) else {
-                        continue;
-                    };
-                    arm(left, right);
                 }
             }
         }
@@ -51520,41 +55756,36 @@ pub(crate) mod structural_judgment {
         pub(crate) fn declared_index_algebra_laws(
             program: &dyn crate::CheckingInput,
             trait_definition: &TraitDefinition,
-            requirement: &str,
+            requirement: SymbolHandle,
         ) -> DeclaredIndexAlgebraLaws {
             let mut laws = DeclaredIndexAlgebraLaws::default();
+            let slots = TraitOperationSlots::new(program, trait_definition, None);
             for law in program.trait_machine_signatures(trait_definition) {
-                if program
-                    .state_signature_contracts(law)
-                    .iter()
-                    .any(|contract| {
-                        contract.kind == typed_trees::signature::SignatureContractKind::Requires
-                    })
-                {
-                    continue;
-                }
                 let parameters = program
                     .state_signature_parameters(law)
                     .iter()
                     .map(|parameter| parameter.name.as_str().to_owned())
                     .collect::<Vec<_>>();
-                for_each_ensures_equality(program, law, |left, right| {
-                    if commutativity_shape(&left, &right, &parameters).as_deref()
-                        == Some(requirement)
-                    {
+                for_each_ensures_identity(program, law, &slots, |left, right| {
+                    if commutativity_shape(&left, &right, &parameters) == Some(requirement) {
                         laws.commutativity.push(law.name.as_str().to_owned());
                     }
-                    if associativity_shape(&left, &right, &parameters).as_deref()
-                        == Some(requirement)
-                    {
+                    if associativity_shape(&left, &right, &parameters) == Some(requirement) {
                         laws.associativity.push(law.name.as_str().to_owned());
                     }
                     if let Some((multiplication, addition)) =
                         distributivity_shape(&left, &right, &parameters)
                         && multiplication == requirement
-                        && !laws.distributivity.contains(&addition)
+                        && let Some(addition) = program
+                            .trait_machine_signatures(trait_definition)
+                            .iter()
+                            .find(|slot| slot.symbol == addition)
+                        && !laws
+                            .distributivity
+                            .iter()
+                            .any(|name| name == addition.name.as_str())
                     {
-                        laws.distributivity.push(addition);
+                        laws.distributivity.push(addition.name.as_str().to_owned());
                     }
                 });
             }
@@ -51609,6 +55840,7 @@ pub(crate) mod structural_judgment {
                 let Some(declaration) = trees.trait_definition_by_symbol(*trait_symbol) else {
                     continue;
                 };
+                let slots = TraitOperationSlots::new(program, declaration, None);
                 for law in trees.trait_machine_signatures(declaration) {
                     if trees.state_signature_contracts(law).iter().any(|contract| {
                         contract.kind == typed_trees::signature::SignatureContractKind::Requires
@@ -51625,47 +55857,40 @@ pub(crate) mod structural_judgment {
                         trees.state_signature_contracts(law),
                     ) {
                         let mut conjuncts = Vec::new();
-                        collect_equality_conjuncts(program, expression, &mut conjuncts);
+                        collect_equality_conjuncts(
+                            program,
+                            law.symbol,
+                            trees.state_signature_parameters(law),
+                            expression,
+                            &mut conjuncts,
+                        );
                         for conjunct in conjuncts {
-                            let Some(binary) = program.expression_table.binary_node(conjunct)
-                            else {
+                            let Some(identity) = conjunct.identity() else {
                                 continue;
                             };
-                            let mut operand_types = [binary.left, binary.right].map(|operand| {
-                                crate::parameter_expression_result_type_reference(
+                            let [Some(left), Some(right)] = identity.subjects.map(|subject| {
+                                structural_term(
                                     program,
-                                    law.symbol,
-                                    trees.state_signature_parameters(law),
-                                    operand,
+                                    None,
+                                    Some((law.symbol, trees.state_signature_parameters(law))),
+                                    subject,
+                                    None,
                                 )
-                            });
-                            let Some((left, right)) =
-                                super::super::structural_term_pair(program, binary)
-                            else {
+                            }) else {
                                 continue;
                             };
-                            if !consistent_operation_selections(&left, &right) {
-                                continue;
-                            }
-                            if let Some((_, _, orientation)) =
-                                literal_connection_shape(&left, &right)
-                            {
-                                let (call_index, integer_index) = match orientation {
-                                    ConnectionOrientation::CallThenLiteral => (0, 1),
-                                    ConnectionOrientation::LiteralThenCall => (1, 0),
-                                };
-                                if operand_types[integer_index].is_none() {
-                                    operand_types[integer_index] = operand_types[call_index];
-                                }
-                            }
-                            if operand_types.iter().any(Option::is_none)
-                                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                                    program,
-                                    law.symbol,
-                                    conjunct,
-                                    language_core::OperatorSpelling::Equal,
-                                    &operand_types,
-                                )
+                            if !slots.covers_term(program, &left)
+                                || !slots.covers_term(program, &right)
+                                || !consistent_operation_selections(&left, &right)
+                                || trees.scoped_type_identity(
+                                    typed_trees::type_identity::TypeIdentityRequest {
+                                        substitutions,
+                                        ..typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                                            identity.carrier,
+                                        )
+                                    },
+                                    scope_starts,
+                                ) != operand_identity
                             {
                                 continue;
                             }
@@ -51679,10 +55904,10 @@ pub(crate) mod structural_judgment {
                             {
                                 let (call, integer) = match orientation {
                                     ConnectionOrientation::CallThenLiteral => {
-                                        (binary.left, binary.right)
+                                        (identity.subjects[0], identity.subjects[1])
                                     }
                                     ConnectionOrientation::LiteralThenCall => {
-                                        (binary.right, binary.left)
+                                        (identity.subjects[1], identity.subjects[0])
                                     }
                                 };
                                 let carries = |expression| {
@@ -51939,79 +56164,6 @@ pub(crate) mod structural_judgment {
             }
         }
 
-        pub(crate) fn polynomial_normal_form(
-            term: &StructuralTerm,
-            license: &SemiringLicense,
-        ) -> Option<Vec<Vec<StructuralTerm>>> {
-            const MONOMIAL_CAP: usize = 64;
-            if let StructuralTerm::Application {
-                result_type: _,
-                target,
-                selections,
-                machine: _,
-                arguments,
-            } = term
-                && arguments.len() == 2
-            {
-                if *target == license.add_machine && selections.is_empty() {
-                    let mut left = polynomial_normal_form(&arguments[0], license)?;
-                    let right = polynomial_normal_form(&arguments[1], license)?;
-                    left.extend(right);
-                    return (left.len() <= MONOMIAL_CAP).then_some(left);
-                }
-                if *target == license.mul_machine && selections.is_empty() {
-                    let left = polynomial_normal_form(&arguments[0], license)?;
-                    let right = polynomial_normal_form(&arguments[1], license)?;
-                    let mut product = Vec::new();
-                    for left_monomial in &left {
-                        for right_monomial in &right {
-                            let mut monomial = left_monomial.clone();
-                            monomial.extend(right_monomial.iter().cloned());
-                            monomial.sort_by_key(|term| format!("{term:?}"));
-                            product.push(monomial);
-                        }
-                    }
-                    return (product.len() <= MONOMIAL_CAP).then_some(product);
-                }
-            }
-            Some(vec![vec![term.clone()]])
-        }
-
-        pub(crate) fn sorted_multiset_subtract<T: Clone + PartialEq>(
-            left: &[T],
-            from: &[T],
-        ) -> Option<Vec<T>> {
-            let mut remaining = left.to_vec();
-            for item in from {
-                let index = remaining.iter().position(|candidate| candidate == item)?;
-                remaining.remove(index);
-            }
-            Some(remaining)
-        }
-
-        pub(crate) fn additive_addends(
-            term: &StructuralTerm,
-            op: &SymbolHandle,
-            out: &mut Vec<StructuralTerm>,
-        ) {
-            if let StructuralTerm::Application {
-                result_type: _,
-                target,
-                selections,
-                machine: _,
-                arguments,
-            } = term
-                && target == op
-                && selections.is_empty()
-                && arguments.len() == 2
-            {
-                additive_addends(&arguments[0], op, out);
-                additive_addends(&arguments[1], op, out);
-                return;
-            }
-            out.push(term.clone());
-        }
-
         pub(crate) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) -> bool {
             let term = term.semantic_value();
             matches!(term, StructuralTerm::Application { target, selections, .. }
@@ -52019,39 +56171,31 @@ pub(crate) mod structural_judgment {
                 || term.any_child(|child| term_uses_application(child, op))
         }
 
-        fn conformance_slot_carriers_uncached(
-            program: &dyn crate::CheckingInput,
-        ) -> HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>> {
-            let mut slot_carriers = HashMap::new();
-            for candidate in program.machines() {
-                for conformance in program.machine_trait_conformances(candidate) {
-                    let Some(requirement_name) = bound_requirement_name(conformance, candidate)
-                    else {
-                        continue;
-                    };
-                    let Some((candidate_entry, carrier)) = entry_carrier(program, candidate) else {
-                        continue;
-                    };
-                    slot_carriers
-                        .entry((conformance.symbol, requirement_name))
-                        .or_insert_with(Vec::new)
-                        .push((carrier, candidate_entry.symbol));
-                }
-            }
-            slot_carriers
-        }
-
+        /// Compute the program's REARRANGE licenses (settle 2026-07-18): for every
+        /// trait, find op slots carrying BOTH a commutativity law and an
+        /// associativity law (matched by SHAPE over the trait's own requirement
+        /// names), then license each conforming op machine whose carrier also has
+        /// satisfiers for both law slots. Conformance is the license -- rung B
+        /// machine-checked those satisfiers against the declared laws, so the
+        /// closure the canonicalizer assumes is exactly what the carrier proved.
+        ///
+        /// NO CIRCULAR LICENSING: a machine that itself binds a comm/assoc LAW slot
+        /// of a trait gets NO licenses from that trait -- the axiom base always
+        /// proves ring-free. This kills self-licensing (add_comm rearranging its own
+        /// goal into triviality) AND multi-machine cycles (two comm satisfiers each
+        /// licensed by the other's conformance, none carrying a real proof).
+        /// A ring license before any judged machine's circularity break.
         pub(crate) struct RingCandidate {
             trait_symbol: SymbolHandle,
-            comm_law: String,
-            assoc_law: String,
+            comm_law: SymbolHandle,
+            assoc_law: SymbolHandle,
             add_machine: SymbolHandle,
             carrier: TypeReferenceHandle,
         }
 
         pub(crate) struct SemiringCandidate {
             trait_symbol: SymbolHandle,
-            law_slots: [String; 5],
+            law_slots: [SymbolHandle; 5],
             license: SemiringLicense,
             carrier: TypeReferenceHandle,
         }
@@ -52127,12 +56271,12 @@ pub(crate) mod structural_judgment {
             program: &'program dyn crate::CheckingInput,
             judged_machine: &'program Machine,
             trait_symbol: SymbolHandle,
-        ) -> impl Iterator<Item = String> + 'program {
+        ) -> impl Iterator<Item = SymbolHandle> + 'program {
             program
                 .machine_trait_conformances(judged_machine)
                 .iter()
                 .filter(move |conformance| conformance.symbol == trait_symbol)
-                .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
+                .map(|conformance| conformance.requirement_symbol)
         }
 
         fn entry_carrier<'program>(
@@ -52162,38 +56306,35 @@ pub(crate) mod structural_judgment {
             program: &dyn crate::CheckingInput,
         ) -> Vec<(
             &TraitDefinition,
-            Vec<(String, String)>,
-            Vec<(String, String)>,
-            Vec<(String, String, String)>,
+            Vec<(SymbolHandle, SymbolHandle)>,
+            Vec<(SymbolHandle, SymbolHandle)>,
+            Vec<(SymbolHandle, SymbolHandle, SymbolHandle)>,
         )> {
             program
                 .traits()
                 .iter()
                 .map(|trait_definition| {
-                    let mut comm_laws: Vec<(String, String)> = Vec::new();
-                    let mut assoc_laws: Vec<(String, String)> = Vec::new();
-                    let mut dist_laws: Vec<(String, String, String)> = Vec::new();
+                    let slots = TraitOperationSlots::new(program, trait_definition, None);
+                    let mut comm_laws: Vec<(SymbolHandle, SymbolHandle)> = Vec::new();
+                    let mut assoc_laws: Vec<(SymbolHandle, SymbolHandle)> = Vec::new();
+                    let mut dist_laws: Vec<(SymbolHandle, SymbolHandle, SymbolHandle)> = Vec::new();
                     for requirement in program.trait_machine_signatures(trait_definition) {
                         let parameters: Vec<String> = program
                             .state_signature_parameters(requirement)
                             .iter()
                             .map(|parameter| parameter.name.as_str().to_owned())
                             .collect();
-                        for_each_ensures_equality(program, requirement, |left, right| {
+                        for_each_ensures_identity(program, requirement, &slots, |left, right| {
                             if let Some(op) = commutativity_shape(&left, &right, &parameters) {
-                                comm_laws.push((op, requirement.name.as_str().to_owned()));
+                                comm_laws.push((op, requirement.symbol));
                             }
                             if let Some(op) = associativity_shape(&left, &right, &parameters) {
-                                assoc_laws.push((op, requirement.name.as_str().to_owned()));
+                                assoc_laws.push((op, requirement.symbol));
                             }
                             if let Some((mul_op, add_op)) =
                                 distributivity_shape(&left, &right, &parameters)
                             {
-                                dist_laws.push((
-                                    mul_op,
-                                    add_op,
-                                    requirement.name.as_str().to_owned(),
-                                ));
+                                dist_laws.push((mul_op, add_op, requirement.symbol));
                             }
                         });
                     }
@@ -52203,110 +56344,66 @@ pub(crate) mod structural_judgment {
         }
 
         fn ring_license_candidates(
-            slot_carriers: &HashMap<
-                (SymbolHandle, String),
-                Vec<(TypeReferenceHandle, SymbolHandle)>,
-            >,
+            slot_carriers: &SlotCarriers,
             program: &dyn crate::CheckingInput,
         ) -> Vec<RingCandidate> {
             let mut candidates = Vec::new();
-
-            for (trait_definition, comm_laws, assoc_laws, _dist_laws) in
-                algebraic_law_slots(program)
-            {
-                for (op_slot, comm_law) in &comm_laws {
-                    let Some((_, assoc_law)) = assoc_laws.iter().find(|(op, _)| op == op_slot)
+            for (trait_definition, comm_laws, assoc_laws, _) in algebraic_law_slots(program) {
+                for (operation, comm_law) in &comm_laws {
+                    let Some((_, assoc_law)) =
+                        assoc_laws.iter().find(|(target, _)| target == operation)
                     else {
                         continue;
                     };
-                    let Some(rows) = slot_carriers.get(&(trait_definition.symbol, op_slot.clone()))
+                    let Some(rows) = slot_carriers.get(program, trait_definition.symbol, *comm_law)
                     else {
                         continue;
                     };
-                    for (carrier, add_machine) in rows {
-                        if slot_satisfier(
+                    for row in rows {
+                        let Some(add_machine) =
+                            selected_operation(slot_carriers, program, row, *operation)
+                        else {
+                            continue;
+                        };
+                        if !law_has_operations(
                             slot_carriers,
                             program,
                             trait_definition.symbol,
-                            comm_law,
-                            *carrier,
-                        )
-                        .is_some()
-                            && slot_satisfier(
-                                slot_carriers,
-                                program,
-                                trait_definition.symbol,
-                                assoc_law,
-                                *carrier,
-                            )
-                            .is_some()
-                        {
-                            candidates.push(RingCandidate {
-                                trait_symbol: trait_definition.symbol,
-                                comm_law: comm_law.clone(),
-                                assoc_law: assoc_law.clone(),
-                                add_machine: *add_machine,
-                                carrier: *carrier,
-                            });
+                            *assoc_law,
+                            row,
+                            &[(*operation, add_machine)],
+                        ) {
+                            continue;
                         }
+                        candidates.push(RingCandidate {
+                            trait_symbol: trait_definition.symbol,
+                            comm_law: *comm_law,
+                            assoc_law: *assoc_law,
+                            add_machine,
+                            carrier: row.carrier,
+                        });
                     }
                 }
             }
-
             candidates
         }
 
-        fn bound_requirement_name(
-            conformance: &TraitConformance,
-            machine: &Machine,
-        ) -> Option<String> {
-            conformance
-                .requirement
-                .as_ref()
-                .map(|name| name.as_str().to_owned())
-                .or_else(|| {
-                    machine
-                        .attached_data
-                        .is_none()
-                        .then(|| machine.name.as_str().to_owned())
-                })
-        }
-
-        fn slot_satisfier(
-            slot_carriers: &HashMap<
-                (SymbolHandle, String),
-                Vec<(TypeReferenceHandle, SymbolHandle)>,
-            >,
-            program: &dyn crate::CheckingInput,
-            trait_symbol: SymbolHandle,
-            requirement_name: &str,
-            carrier: TypeReferenceHandle,
-        ) -> Option<SymbolHandle> {
-            slot_carriers
-                .get(&(trait_symbol, requirement_name.to_owned()))
-                .and_then(|rows| {
-                    rows.iter().find_map(|(candidate_carrier, entry_symbol)| {
-                        crate::value_custody::type_references::type_references_match(
-                            program,
-                            *candidate_carrier,
-                            carrier,
-                        )
-                        .then_some(*entry_symbol)
-                    })
-                })
-        }
-
+        /// `R(x, y) == R(y, x)` with `x`/`y` DISTINCT requirement parameters -> the
+        /// op slot `R` is declared commutative by this law.
+        /// Tier-2: recognize `mul(a, add(b, c)) == add(mul(a, b), mul(a, c))` up
+        /// to parameter naming -- returns (mul_op, add_op).
         fn distributivity_shape(
             left: &StructuralTerm,
             right: &StructuralTerm,
             parameters: &[String],
-        ) -> Option<(String, String)> {
+        ) -> Option<(SymbolHandle, SymbolHandle)> {
             if !consistent_operation_selections(left, right) {
                 return None;
             }
 
             let StructuralTerm::Application {
                 machine: mul_op,
+                target: mul_target,
                 arguments: mul_args,
                 ..
             } = left
@@ -52317,6 +56414,7 @@ pub(crate) mod structural_judgment {
                 StructuralTerm::Variable(a),
                 StructuralTerm::Application {
                     machine: add_op,
+                    target: add_target,
                     arguments: add_args,
                     ..
                 },
@@ -52375,69 +56473,79 @@ pub(crate) mod structural_judgment {
             else {
                 return None;
             };
-            (la == a && lb == b && ra == a && rc == c).then(|| (mul_op.clone(), add_op.clone()))
+            (la == a && lb == b && ra == a && rc == c).then_some((*mul_target, *add_target))
         }
 
         fn semiring_license_candidates(
-            slot_carriers: &HashMap<
-                (SymbolHandle, String),
-                Vec<(TypeReferenceHandle, SymbolHandle)>,
-            >,
+            slot_carriers: &SlotCarriers,
             program: &dyn crate::CheckingInput,
         ) -> Vec<SemiringCandidate> {
             let mut candidates = Vec::new();
             for (trait_definition, comm_laws, assoc_laws, dist_laws) in algebraic_law_slots(program)
             {
-                for (mul_op, add_op, dist_law) in &dist_laws {
-                    let Some((_, add_comm)) = comm_laws.iter().find(|(op, _)| op == add_op) else {
-                        continue;
-                    };
-                    let Some((_, add_assoc)) = assoc_laws.iter().find(|(op, _)| op == add_op)
+                for (multiply, add, distribute) in &dist_laws {
+                    let Some((_, add_comm)) = comm_laws.iter().find(|(target, _)| target == add)
                     else {
                         continue;
                     };
-                    let Some((_, mul_comm)) = comm_laws.iter().find(|(op, _)| op == mul_op) else {
-                        continue;
-                    };
-                    let Some((_, mul_assoc)) = assoc_laws.iter().find(|(op, _)| op == mul_op)
+                    let Some((_, add_assoc)) = assoc_laws.iter().find(|(target, _)| target == add)
                     else {
                         continue;
                     };
-                    let law_slots = [add_comm, add_assoc, mul_comm, mul_assoc, dist_law];
-                    let Some(rows) = slot_carriers.get(&(trait_definition.symbol, add_op.clone()))
+                    let Some((_, mul_comm)) =
+                        comm_laws.iter().find(|(target, _)| target == multiply)
                     else {
                         continue;
                     };
-                    for (carrier, add_machine) in rows {
-                        if !law_slots.iter().all(|law| {
-                            slot_satisfier(
+                    let Some((_, mul_assoc)) =
+                        assoc_laws.iter().find(|(target, _)| target == multiply)
+                    else {
+                        continue;
+                    };
+                    let law_slots = [*add_comm, *add_assoc, *mul_comm, *mul_assoc, *distribute];
+                    let Some(rows) =
+                        slot_carriers.get(program, trait_definition.symbol, *distribute)
+                    else {
+                        continue;
+                    };
+                    for row in rows {
+                        let Some(add_machine) =
+                            selected_operation(slot_carriers, program, row, *add)
+                        else {
+                            continue;
+                        };
+                        let Some(mul_machine) =
+                            selected_operation(slot_carriers, program, row, *multiply)
+                        else {
+                            continue;
+                        };
+                        let laws = [
+                            (*add_comm, *add, add_machine),
+                            (*add_assoc, *add, add_machine),
+                            (*mul_comm, *multiply, mul_machine),
+                            (*mul_assoc, *multiply, mul_machine),
+                        ];
+                        if !laws.iter().all(|(law, operation, selected)| {
+                            law_has_operations(
                                 slot_carriers,
                                 program,
                                 trait_definition.symbol,
-                                law,
-                                *carrier,
+                                *law,
+                                row,
+                                &[(*operation, *selected)],
                             )
-                            .is_some()
                         }) {
                             continue;
                         }
-                        if let Some(mul_machine) = slot_satisfier(
-                            slot_carriers,
-                            program,
-                            trait_definition.symbol,
-                            mul_op,
-                            *carrier,
-                        ) {
-                            candidates.push(SemiringCandidate {
-                                trait_symbol: trait_definition.symbol,
-                                law_slots: law_slots.map(|law| law.clone()),
-                                license: SemiringLicense {
-                                    add_machine: *add_machine,
-                                    mul_machine,
-                                },
-                                carrier: *carrier,
-                            });
-                        }
+                        candidates.push(SemiringCandidate {
+                            trait_symbol: trait_definition.symbol,
+                            law_slots,
+                            license: SemiringLicense {
+                                add_machine,
+                                mul_machine,
+                            },
+                            carrier: row.carrier,
+                        });
                     }
                 }
             }
@@ -52448,13 +56556,14 @@ pub(crate) mod structural_judgment {
             left: &StructuralTerm,
             right: &StructuralTerm,
             parameters: &[String],
-        ) -> Option<String> {
+        ) -> Option<SymbolHandle> {
             if !consistent_operation_selections(left, right) {
                 return None;
             }
 
             let StructuralTerm::Application {
                 machine: op_l,
+                target: op_target,
                 arguments: args_l,
                 ..
             } = left
@@ -52482,14 +56591,14 @@ pub(crate) mod structural_judgment {
             };
             let is_parameter = |name: &String| parameters.iter().any(|parameter| parameter == name);
             (x != y && rx == y && ry == x && is_parameter(x) && is_parameter(y))
-                .then(|| op_l.clone())
+                .then_some(*op_target)
         }
 
         fn associativity_shape(
             left: &StructuralTerm,
             right: &StructuralTerm,
             parameters: &[String],
-        ) -> Option<String> {
+        ) -> Option<SymbolHandle> {
             if !consistent_operation_selections(left, right) {
                 return None;
             }
@@ -52497,6 +56606,7 @@ pub(crate) mod structural_judgment {
             for (first, second) in [(left, right), (right, left)] {
                 let StructuralTerm::Application {
                     machine: op_outer,
+                    target: op_target,
                     arguments: outer_args,
                     ..
                 } = first
@@ -52566,7 +56676,7 @@ pub(crate) mod structural_judgment {
                     && is_parameter(y)
                     && is_parameter(z)
                 {
-                    return Some(op_outer.clone());
+                    return Some(*op_target);
                 }
             }
             None
@@ -53007,7 +57117,9 @@ pub(crate) mod structural_judgment {
                     StaticMachineArgument,
                 )],
             ) -> StructuralJudgment {
-                if !self.runtime_body_values || self.case_facts_only {
+                // Proof contexts and runtime prefixes both supply instantiated actuals.
+                // Tag preservation alone cannot establish a value predicate.
+                if self.case_facts_only {
                     return StructuralJudgment::Unknown;
                 }
                 let predicate = super::super::structural_terms::mathematical_application_term(
@@ -53643,21 +57755,21 @@ pub(crate) mod structural_judgment {
                         })
                         .collect::<Vec<_>>();
                     let static_bindings =
-            super::super::super::specification_calls::call_contract_scalar_substitution(
-                program,
-                scope.0.symbol,
-                owner,
-                site,
-                |subject| {
-                    self.completed_scalar_subject(
-                        subject,
-                        site,
-                        completed_arguments,
-                        scope.0,
-                        scope.1,
-                    )
-                },
-            )?;
+                        super::super::super::specification_calls::call_contract_scalar_substitution(
+                            program,
+                            scope.0.symbol,
+                            owner,
+                            site,
+                            |subject| {
+                                self.completed_scalar_subject(
+                                    subject,
+                                    site,
+                                    completed_arguments,
+                                    scope.0,
+                                    scope.1,
+                                )
+                            },
+                        )?;
                     for (parameter, value) in static_bindings {
                         if !entry_bindings
                             .iter()
@@ -53793,12 +57905,13 @@ pub(crate) mod structural_judgment {
                             .iter()
                             .find(|(symbol, _)| *symbol == subject.entry.parameter)
                         {
-                            observed = super::super::super::structural_terms::reference_argument_observation(
-                    program,
-                    parameter.type_reference,
-                    descriptor,
-                    Some(observed),
-                )?;
+                            observed =
+                                super::super::super::structural_terms::reference_argument_observation(
+                                    program,
+                                    parameter.type_reference,
+                                    descriptor,
+                                    Some(observed),
+                                )?;
                         }
                         if let Some((_, current)) = bindings
                             .iter_mut()
@@ -53834,10 +57947,21 @@ pub(crate) mod structural_judgment {
                     &mut self,
                     equations: Vec<CapturedResultEquation>,
                 ) {
-                    for equation in equations {
+                    for mut equation in equations {
+                        if !equation.is_completed_call_identity() {
+                            // Declared guarantees name the values actually passed. Copies
+                            // of one unchanged input share its saved source; they must not
+                            // become unrelated arguments in successive law citations.
+                            // Call-identity rows retain their exact executed occurrence.
+                            equation.left = self.completed_value_identity(equation.left);
+                            equation.right = self.completed_value_identity(equation.right);
+                        }
                         if equation.is_data_identity() {
-                            std::sync::Arc::make_mut(&mut self.captured_result_equations)
-                                .push(equation);
+                            // The same typed Id operation consumes entry propositions,
+                            // completed guarantees and established conditional results.
+                            // It substitutes owned values without scalar comparison rules
+                            // and stops at a reference's exact descriptor.
+                            self.intake_identity(equation.left, equation.right);
                             continue;
                         }
                         let completed_identity = equation.is_completed_call_identity();
@@ -54152,7 +58276,7 @@ pub(crate) mod structural_judgment {
                 program,
                 presentation.type_reference,
             )
-        {
+                    {
             let plans = crate::operand_call_plans(program, self.frame_resolver());
             let normal_identity =
                 crate::machine_calls::denotational_calls::normal_return_call_candidate(
@@ -54208,7 +58332,7 @@ pub(crate) mod structural_judgment {
                     ));
                 }
             }
-        }
+                    }
                     Arc::make_mut(&mut self.normal_content_guarantees).extend(guarantees.content);
                     let selected_signature = match owner {
                         SelectedCallContract::Signature(signature)
@@ -54435,12 +58559,12 @@ pub(crate) mod structural_judgment {
             scope.0.symbol,
             &owner,
             crate::CallSite::Expression { expression, call },
-        ).or_else(|| {
+                    ).or_else(|| {
             if super::super::super::struct_trace() {
                 eprintln!("STRUCT normal-capture refused expression={expression:?} target={} owner={:?} stage=parameter-scope", call.target, owner_symbol(&owner));
             }
             None
-        })?;
+                    })?;
                     let parameters = parameter_scope.as_ref();
                     if super::super::super::struct_trace() {
                         eprintln!(
@@ -54985,9 +59109,13 @@ pub(crate) mod structural_judgment {
                     self.completed_value_identity_at(
                         captured.clone(),
                         0,
-                        self.captured_result_equations.iter().filter(|equation| {
-                            !equation.is_completed_call_identity() && !equation.is_data_identity()
-                        }),
+                        self.captured_result_equations
+                            .iter()
+                            .filter(|equation| {
+                                !equation.is_completed_call_identity()
+                                    && !equation.is_data_identity()
+                            })
+                            .map(|equation| (&equation.left, &equation.right)),
                     )
                 }
             }
@@ -55504,7 +59632,7 @@ pub(crate) mod structural_judgment {
                     let program = self.program;
                     let scalar = crate::value_custody::expression_types::readable_observation_type_reference(
             program, declared,
-        )?;
+                    )?;
                     let mut observed = self.capture_unknown_value(expression, scope)?;
                     if let StructuralTerm::CapturedValue {
                         result_type,
@@ -57282,7 +61410,7 @@ pub(crate) mod structural_judgment {
                 receiving: TypeReferenceHandle,
             ) -> Option<Vec<TypeReferenceHandle>> {
                 match node {
-        ExpressionNode::Call(call) => {
+                    ExpressionNode::Call(call) => {
             let mut owner = selected_call_contract(program, caller.symbol, call)?;
             if let SelectedCallContract::Signature(signature) = owner
                 && program
@@ -57315,8 +61443,8 @@ pub(crate) mod structural_judgment {
             let mut references = vec![TypeReferenceHandle::invalid(); 1 + leading];
             references.extend(parameters.iter().map(|parameter| parameter.type_reference));
             Some(references)
-        }
-        ExpressionNode::ArrayLiteral(elements) => {
+                    }
+                    ExpressionNode::ArrayLiteral(elements) => {
             let element = crate::value_custody::places::collection_element_type_reference(
                 program, receiving,
             )?;
@@ -57326,8 +61454,8 @@ pub(crate) mod structural_judgment {
                     .expression_handles(*elements)
                     .len()
             ])
-        }
-        ExpressionNode::StructLiteral(literal) => Some(
+                    }
+                    ExpressionNode::StructLiteral(literal) => Some(
             expression_table(program)
                 .struct_fields(literal.fields)
                 .iter()
@@ -57341,9 +61469,9 @@ pub(crate) mod structural_judgment {
                     .unwrap_or_else(TypeReferenceHandle::invalid)
                 })
                 .collect(),
-        ),
-        _ => None,
-    }
+                    ),
+                    _ => None,
+                }
             }
 
             pub(crate) fn prefix_receiving_types(
@@ -57760,14 +61888,14 @@ pub(crate) mod structural_judgment {
         }
         pub(crate) mod placement_results {
             use super::call_preparation::PreparedNormalCall;
-use super::{CapturedResultEquation, StructuralJudge, StructuralTerm, owner_symbol};
-use crate::proof_contracts::contract_entailment::structural_judgment::conditional_guarantees::{
-    ConditionalGuarantees, ObservedCondition,
-};
-use typed_trees::data::DataMember;
-use typed_trees::typed_trees::{
-    AccessContentShape, AccessExecutionDeclaration, AccessLifecycleOperation,
-};
+            use super::{CapturedResultEquation, StructuralJudge, StructuralTerm, owner_symbol};
+            use crate::proof_contracts::contract_entailment::structural_judgment::conditional_guarantees::{
+                ConditionalGuarantees, ObservedCondition,
+            };
+            use typed_trees::data::DataMember;
+            use typed_trees::typed_trees::{
+                AccessContentShape, AccessExecutionDeclaration, AccessLifecycleOperation,
+            };
 
             impl StructuralJudge<'_> {
                 pub(crate) fn completed_placement_geometry(
@@ -58282,8 +62410,13 @@ use typed_trees::typed_trees::{
                 }
             }
 
+            /// Resolve captured value identities without folding arithmetic or using
+            /// caller hypotheses. Discovery needs the producing operand structure;
+            /// ring equality cannot replace its intermediate formation obligations.
             pub(crate) fn completed_value_identity(&self, value: StructuralTerm) -> StructuralTerm {
-                if self.captured_result_equations.is_empty() {
+                if self.captured_result_equations.is_empty()
+                    && self.completed_nominal_values.is_empty()
+                {
                     return value;
                 }
                 self.completed_value_identity_at(
@@ -58291,21 +62424,47 @@ use typed_trees::typed_trees::{
                     0,
                     self.captured_result_equations
                         .iter()
-                        .filter(|equation| !equation.is_data_identity()),
+                        .filter(|equation| !equation.is_data_identity())
+                        .map(|equation| (&equation.left, &equation.right))
+                        // A completed owned read already records the exact value it
+                        // copied. Later operands must retain that identity even when
+                        // the value came from an opaque call. Storage admission and
+                        // intervening writes remain with the read's producer.
+                        .chain(
+                            self.completed_nominal_values
+                                .iter()
+                                .map(|read| (&read.value, &read.observed_value)),
+                        ),
                 )
             }
 
+            /// Resolve the ordered equations and completed reads without rebuilding
+            /// their rosters. Only a later capture can resolve to an earlier value.
             fn completed_value_identity_at<'equations>(
                 &self,
                 value: StructuralTerm,
                 depth: usize,
-                equations: impl Iterator<Item = &'equations CapturedResultEquation> + Clone,
+                equations: impl Iterator<
+                    Item = (&'equations StructuralTerm, &'equations StructuralTerm),
+                > + Clone,
             ) -> StructuralTerm {
                 if depth >= 64 {
                     return value;
                 }
-                let value = match value {
-                    StructuralTerm::Projection { subject, path } => {
+                let owned =
+                    super::super::structural_terms::owned_observation_type(self.program, &value);
+                let value = match (value, owned) {
+                    (StructuralTerm::ObservedValue { value, .. }, Some(reference)) => {
+                        // Following a saved copy must not add another observation of
+                        // the same owned carrier. Reuse its idempotent constructor
+                        // after resolving the saved contents.
+                        super::super::structural_terms::owned_projection_observation(
+                            self.program,
+                            reference,
+                            self.completed_value_identity_at(*value, depth + 1, equations.clone()),
+                        )
+                    }
+                    (StructuralTerm::Projection { subject, path }, _) => {
                         let subject = self.completed_value_identity_at(
                             *subject,
                             depth + 1,
@@ -58325,7 +62484,7 @@ use typed_trees::typed_trees::{
                                 path,
                             })
                     }
-                    other => other.map_children(|child| {
+                    (other, _) => other.map_children(|child| {
                         self.completed_value_identity_at(child, depth + 1, equations.clone())
                     }),
                 };
@@ -58337,8 +62496,10 @@ use typed_trees::typed_trees::{
                 ) {
                     return value;
                 }
-                for equation in equations.clone() {
-                    let (left, right) = (&equation.left, &equation.right);
+                for (left, right) in equations.clone() {
+                    // Orient captured results toward earlier source observations:
+                    // normalize a later captured call result toward an earlier
+                    // observation or input parameter, avoiding circular flips.
                     let (pattern, replacement) = match (
                         Self::term_max_captured_occurrence(left),
                         Self::term_max_captured_occurrence(right),
@@ -60636,7 +64797,7 @@ use typed_trees::typed_trees::{
             caller: SymbolHandle,
             call: &typed_trees::expression::TableCallExpression,
         ) -> bool {
-            if crate::mathematical_applications::selected_definition(program, call).is_some() {
+            if crate::mathematical_applications::is_mathematical_call(program, call) {
                 return true;
             }
             if let Some(signature) =
@@ -60660,7 +64821,7 @@ use typed_trees::typed_trees::{
                 && crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(program, operator)
         }
         _ => false,
-    }
+            }
         }
 
         fn program_expression_is_live(
@@ -60728,7 +64889,7 @@ use typed_trees::typed_trees::{
             }
         }
 
-        const OWNER_COUNT: usize = 19;
+        const OWNER_COUNT: usize = 20;
 
         #[derive(Clone, Copy, PartialEq)]
         pub(crate) struct Modes {
@@ -60894,6 +65055,7 @@ use typed_trees::typed_trees::{
                     returned_field_owners,
                     body_invocations,
                     runtime_induction,
+                    induction_values,
                     active_application: _,
                     resolution_observations: _,
                     normal_memberships,
@@ -60939,6 +65101,7 @@ use typed_trees::typed_trees::{
                         returned_field_owners,
                         body_invocations,
                         runtime_induction,
+                        induction_values,
                         normal_memberships,
                         normal_content_guarantees,
                         invalidated_storage,
@@ -61612,6 +65775,7 @@ use typed_trees::typed_trees::{
                     address(&*self.returned_field_owners),
                     address(&*self.body_invocations),
                     address(&*self.runtime_induction),
+                    address(&*self.induction_values),
                     address(&*self.normal_memberships),
                     address(&*self.normal_content_guarantees),
                     address(&*self.invalidated_storage),
@@ -61659,6 +65823,7 @@ use typed_trees::typed_trees::{
                     && Arc::ptr_eq(&self.returned_field_owners, &other.returned_field_owners)
                     && Arc::ptr_eq(&self.body_invocations, &other.body_invocations)
                     && Arc::ptr_eq(&self.runtime_induction, &other.runtime_induction)
+                    && Arc::ptr_eq(&self.induction_values, &other.induction_values)
                     && Arc::ptr_eq(&self.normal_memberships, &other.normal_memberships)
                     && Arc::ptr_eq(
                         &self.normal_content_guarantees,
@@ -62643,7 +66808,6 @@ use typed_trees::typed_trees::{
         #[cfg(test)]
         mod completed_read_roster_tests {
             use super::*;
-            use std::cell::{Cell, RefCell};
 
             #[test]
             fn published_reads_are_a_snapshot_and_replay_in_order() {
@@ -62659,9 +66823,9 @@ use typed_trees::typed_trees::{
                 let first = StructuralTerm::Variable("first external read".to_owned());
                 let second = StructuralTerm::Variable("second external read".to_owned());
                 let late = StructuralTerm::Variable("later collector read".to_owned());
-                let saved = RefCell::new(None);
+                let mut saved = None;
                 judge.completed_resolution(child.clone(), 0, |computing, term| {
-                    saved.replace(computing.resolution_observations.clone());
+                    saved = computing.resolution_observations.clone();
                     for application in [&first, &second] {
                         computing.observe_application_read(
                             application,
@@ -62673,7 +66837,6 @@ use typed_trees::typed_trees::{
                     term
                 });
                 saved
-                    .borrow()
                     .as_ref()
                     .unwrap()
                     .reads
@@ -62720,11 +66883,11 @@ use typed_trees::typed_trees::{
                     &[],
                     true,
                 );
-                let calls = Cell::new(0);
+                let mut calls = 0;
                 let term = StructuralTerm::Variable("unavailable read set".to_owned());
                 for _ in 0..2 {
                     judge.completed_resolution(term.clone(), 0, |computing, term| {
-                        calls.set(calls.get() + 1);
+                        calls += 1;
                         *computing
                             .resolution_observations
                             .as_ref()
@@ -62735,7 +66898,7 @@ use typed_trees::typed_trees::{
                         term
                     });
                 }
-                assert_eq!(calls.get(), 2);
+                assert_eq!(calls, 2);
             }
         }
     }
@@ -63029,20 +67192,41 @@ use typed_trees::typed_trees::{
             value: &StructuralTerm,
         ) -> bool {
             let input = |name: &str| {
-                parameters.iter().find(|parameter| {
-                    parameter.name.as_str() == name
-                        && !parameter.is_mutable
-                        && judge.frame_resolver().is_some_and(|frames| {
-                            frames.proof_value_is_caller_isolated(parameter.type_reference)
-                        })
-                })
+                parameters
+                    .iter()
+                    .find(|parameter| parameter.name.as_str() == name && !parameter.is_mutable)
+            };
+            let closed_scalar = |reference| {
+                crate::unrestricted_builtin_primitive(judge.program, reference).is_some_and(
+                    |primitive| primitive.is_fixed_integer() || primitive == PrimitiveType::Bool,
+                )
             };
             match value {
+                StructuralTerm::ObservedValue {
+                    observed_type,
+                    descriptor: None,
+                    value,
+                } => {
+                    // A completed owned field keeps its scalar type and policy.
+                    // Validate that closed shell without stripping it from the
+                    // exported equation or admitting the enclosing aggregate.
+                    closed_scalar(*observed_type)
+                        && super::super::structural_terms::scalar_operand_is_observed(
+                            judge.program,
+                            *observed_type,
+                            value,
+                        )
+                        && declaration_input_value(judge, parameters, value)
+                }
                 StructuralTerm::Integer(_) => true,
                 StructuralTerm::Constructor {
                     identity, fields, ..
                 } => identity.boolean().is_some() && fields.is_empty(),
-                StructuralTerm::Variable(name) => input(name).is_some(),
+                StructuralTerm::Variable(name) => input(name).is_some_and(|parameter| {
+                    judge.frame_resolver().is_some_and(|frames| {
+                        frames.proof_value_is_caller_isolated(parameter.type_reference)
+                    })
+                }),
                 StructuralTerm::Projection { subject, path } => {
                     let StructuralTerm::Variable(name) = subject.as_ref() else {
                         return false;
@@ -63050,6 +67234,9 @@ use typed_trees::typed_trees::{
                     let Some(parameter) = input(name) else {
                         return false;
                     };
+                    // An immutable input's owned scalar field keeps its captured value
+                    // even when the enclosing carrier is linear. The equation carries
+                    // that scalar only; it supplies no whole-value denotation or claim.
                     term_field_paths(
                         judge.program,
                         parameter.type_reference,
@@ -63058,8 +67245,17 @@ use typed_trees::typed_trees::{
                     )
                     .iter()
                     .any(|path| {
-                        owned_projection_type(judge.program, parameter.type_reference, path)
-                            .is_some()
+                        let Some(reference) =
+                            owned_projection_type(judge.program, parameter.type_reference, path)
+                        else {
+                            return false;
+                        };
+                        closed_scalar(reference)
+                            && super::super::structural_terms::scalar_operand_is_observed(
+                                judge.program,
+                                reference,
+                                value,
+                            )
                     })
                 }
                 StructuralTerm::ScalarBinary {
@@ -63075,11 +67271,13 @@ use typed_trees::typed_trees::{
                         .into_iter()
                         .zip(references)
                         .all(|(operand, reference)| {
-                            super::super::structural_terms::scalar_operand_is_observed(
-                                judge.program,
-                                *reference,
-                                operand,
-                            ) && declaration_input_value(judge, parameters, operand)
+                            closed_scalar(*reference)
+                                && super::super::structural_terms::scalar_operand_is_observed(
+                                    judge.program,
+                                    *reference,
+                                    operand,
+                                )
+                                && declaration_input_value(judge, parameters, operand)
                         })
                 }
                 _ => false,
@@ -64261,12 +68459,12 @@ use typed_trees::typed_trees::{
                                 && crate::reference_shell(program, reference).is_none()
                             {
                                 crate::value_custody::places::declared_carriers_match_under_application(
-                        program,
-                        observed,
-                        reference,
-                        type_bindings,
-                    )
-                    .then_some(observed)?
+                                    program,
+                                    observed,
+                                    reference,
+                                    type_bindings,
+                                )
+                                .then_some(observed)?
                             } else {
                                 reference
                             };
@@ -64312,8 +68510,7 @@ use typed_trees::typed_trees::{
                             )
                         }
                         ExpressionNode::Call(call) => {
-                            if crate::mathematical_applications::selected_definition(program, call)
-                                .is_some()
+                            if crate::mathematical_applications::is_mathematical_call(program, call)
                             {
                                 return structural_terms::mathematical_application_term(
                                     program,
@@ -65137,16 +69334,21 @@ use typed_trees::typed_trees::{
                                     }
                                     ExpressionNode::Call(call) => {
                                         if let Some(realization) =
-                                    super::super::structural_terms::realized_requirement_state(call)
-                                {
-                                    pending_states.push(realization);
-                                } else {
-                                    let callee = selected_call_contract(program, caller, call)?;
-                                    if matches!(callee, SelectedCallContract::DynamicSlot { .. }) {
-                                        return None;
-                                    }
-                                    pending_states.push(owner_symbol(&callee));
-                                }
+                                            super::super::structural_terms::realized_requirement_state(
+                                                call,
+                                            )
+                                        {
+                                            pending_states.push(realization);
+                                        } else {
+                                            let callee = selected_call_contract(program, caller, call)?;
+                                            if matches!(
+                                                callee,
+                                                SelectedCallContract::DynamicSlot { .. }
+                                            ) {
+                                                return None;
+                                            }
+                                            pending_states.push(owner_symbol(&callee));
+                                        }
                                     }
                                     _ => return None,
                                 }
@@ -65451,7 +69653,7 @@ use typed_trees::typed_trees::{
                 return judge.instantiated_case_judgment(callable, parameters, expression, &map);
             }
             if let Some(references) =
-                super::super::structural_terms::data_identity_operand_references(
+                super::super::structural_terms::builtin_identity_operand_references(
                     program, callable, parameters, expression,
                 )
             {
@@ -65672,10 +69874,13 @@ use typed_trees::typed_trees::{
                     return;
                 }
             }
-            let data_identity_references = binary
+            // The compared expression and parameter declarations stay unchanged while
+            // operands are bound below. Keep these metadata results local, and check
+            // identity equality only when its original guard needs it.
+            let builtin_identity_references = binary
                 .filter(|binary| binary.operator == BinaryOperator::Equal)
                 .and_then(|_| {
-                    super::super::structural_terms::data_identity_operand_references(
+                    super::super::structural_terms::builtin_identity_operand_references(
                         program, scope, parameters, expression,
                     )
                 });
@@ -65689,7 +69894,7 @@ use typed_trees::typed_trees::{
             };
             if let Some(binary) = binary
                 && binary.operator == BinaryOperator::Equal
-                && (data_identity_references.is_some() || has_identity_equality())
+                && (builtin_identity_references.is_some() || has_identity_equality())
                 && let (Some(left), Some(right)) = (
                     judge.bound_contract_term(
                         binary.left,
@@ -65718,7 +69923,7 @@ use typed_trees::typed_trees::{
                         program, scope, parameters, operand,
                     )
                 });
-                if let Some(references) = data_identity_references.or_else(|| {
+                if let Some(references) = builtin_identity_references.or_else(|| {
                     crate::value_custody::expression_types::builtin_scalar_operand_references(
                         program, binary, references, None,
                     )
@@ -65751,6 +69956,14 @@ use typed_trees::typed_trees::{
             ) else {
                 return;
             };
+            if let StructuralTerm::Identity { left, right, .. } = &predicate {
+                if judge.identity_value_is_available(left)
+                    && judge.identity_value_is_available(right)
+                {
+                    data_identities.push((left.as_ref().clone(), right.as_ref().clone()));
+                }
+                return;
+            }
             let boolean = crate::parameter_expression_result_type_reference(
                 program, scope, parameters, expression,
             )
@@ -65762,6 +69975,19 @@ use typed_trees::typed_trees::{
         }
     }
     pub(crate) mod storage_effects {
+        /*
+        Writes retire live storage observations, not completed value identities.
+
+        The normal-return path owns effect order. A judge with a storage version
+        reads validity from the program's one storage graph: a stored value stays
+        current while the store or incoming storage it was anchored at still
+        reaches its place at the query version. Earlier copies and equations keep
+        describing their captured values; a later read of replaced storage gets a
+        new unknown observation. Without a graph, exact writes to private scalar
+        locals retire those locals; other writes remain opaque and keep only
+        immutable scalars' private copies.
+        */
+
         use super::StructuralJudge;
         use crate::CanonicalPlace;
         use facts::PlaceSegment;
@@ -67374,7 +71600,7 @@ use typed_trees::typed_trees::{
                 .iter()
                 .any(|anchor| matches!(anchor, StorageAnchor::After(cut) if preserved(*cut))),
             Some(reaching) => reached(&reaching),
-        }
+                    }
                 }
             }
 
@@ -67816,8 +72042,8 @@ use typed_trees::typed_trees::{
                 }
             }
             Some(())
-        })()
-        .is_some()
+                    })()
+                    .is_some()
                 }
 
                 pub(crate) fn install_post_call_storage(
@@ -69102,13 +73328,13 @@ use typed_trees::typed_trees::{
                     let mut backing = None;
                     if crate::reference_shell(self.program, reference).is_some() {
                         let Some(observed) =
-                    crate::value_custody::expression_types::readable_observation_type_reference(
-                        self.program,
-                        reference,
-                    )
-                else {
-                    continue;
-                };
+                            crate::value_custody::expression_types::readable_observation_type_reference(
+                                self.program,
+                                reference,
+                            )
+                        else {
+                            continue;
+                        };
                         if self.program.closed_data_definition(observed).is_none()
                             || !self
                                 .frame_resolver()
@@ -69184,8 +73410,18 @@ use typed_trees::typed_trees::{
                     return Some(());
                 }
                 self.storage_write_sequence += 1;
+                // A versioned judge asks the storage graph at each read. A complete
+                // write set of plain owned scalar locals is disjoint from every other
+                // root even without history; reference-backed or unknown writes are
+                // still opaque.
                 if !self.graph_storage_mode() {
-                    self.retire_unversioned_storage(state)?;
+                    if let Some(roots) =
+                        written.and_then(|paths| self.private_scalar_write_roots(state, paths))
+                    {
+                        self.retire_private_scalar_writes(&roots);
+                    } else {
+                        self.retire_unversioned_storage(state)?;
+                    }
                 }
                 let program = self.program;
                 let mut facts = std::mem::take(&mut self.premise_facts);
@@ -69204,6 +73440,46 @@ use typed_trees::typed_trees::{
                 Some(())
             }
 
+            /// Written names are coordinates of this exact caller state, not aliases
+            /// selected from another declaration. Only a unique plain scalar local
+            /// supplies an independently owned root; all other shapes refuse here.
+            fn private_scalar_write_roots(
+                &self,
+                state: &State,
+                written: &[String],
+            ) -> Option<Vec<SymbolHandle>> {
+                let frames = self.frame_resolver()?;
+                written
+                    .iter()
+                    .map(|path| frames.private_scalar_local(self.machine_symbol, state, path))
+                    .collect()
+            }
+
+            fn retire_private_scalar_writes(&mut self, roots: &[SymbolHandle]) {
+                std::sync::Arc::make_mut(&mut self.stored_values).retain_mut(|stored| {
+                    if stored
+                        .coordinate
+                        .root
+                        .as_symbol()
+                        .is_some_and(|root| roots.contains(&root))
+                    {
+                        stored.current = None;
+                        stored.selected_case = None;
+                        stored.completed_read = None;
+                    }
+                    stored.entry.is_some() || stored.current.is_some()
+                });
+                let invalidated = std::sync::Arc::make_mut(&mut self.invalidated_storage);
+                for root in roots {
+                    if !invalidated.contains(root) {
+                        invalidated.push(*root);
+                    }
+                }
+            }
+
+            /// An opaque write retires every live observation and binding reachable
+            /// from this invocation, except an immutable scalar's private copy.
+            /// Detached values captured before the write keep their identities.
             fn retire_unversioned_storage(&mut self, state: &State) -> Option<()> {
                 self.frame_resolver()?;
                 let program = self.program;
@@ -71917,7 +76193,7 @@ use typed_trees::typed_trees::{
             program, operator, operation,
         )?;
         (source == primitive).then_some((operator, contract))
-    });
+            });
             let operator = operator_for_float_catalog_contract(candidates)?;
             operator_application(program, operator, value)
         }
@@ -71930,7 +76206,7 @@ use typed_trees::typed_trees::{
         let (row, contract) = crate::proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(program, operator)?;
         matches!(row.kernel(), FloatSemanticKernel::SinglePredicate(FloatSemanticPredicate::NaN))
             .then_some((operator, contract))
-    });
+            });
             let operator = operator_for_float_catalog_contract(candidates)?;
             operator_application(program, operator, meaning)
         }
@@ -71997,10 +76273,7 @@ use typed_trees::typed_trees::{
     pub(crate) use licenses::{
         EntryMachines, LicenseCandidates, declared_index_algebra_laws, literal_index_identities,
     };
-    use licenses::{
-        RingLicense, SemiringLicense, additive_addends, fold_scalar_binary, polynomial_normal_form,
-        sorted_multiset_subtract, term_uses_application,
-    };
+    use licenses::{RingLicense, SemiringLicense, fold_scalar_binary};
 
     #[derive(Debug, Clone, Copy)]
     pub(crate) enum StructuralJudgment {
@@ -72020,6 +76293,20 @@ use typed_trees::typed_trees::{
             program, owner, target, selections,
         ) {
             return Err("the selected application depends on the active declaration");
+        }
+        if let Some(operator) = program.operator_definition_by_symbol(target) {
+            if !selections.is_empty() {
+                return Err("a closed catalog operation has no static selection telescope");
+            }
+            // The exact sealed catalog already supplies this operation's total
+            // value meaning. A bodyless signature or an admitted runtime boundary
+            // alone cannot close this leaf, and a failed selection cannot fall
+            // through to a different checked machine.
+            return crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(
+                program, operator,
+            )
+            .then_some(())
+            .ok_or("the selected operator has no exact closed value denotation");
         }
         let machine = super::structural_terms::selected_application_machine(program, target)
             .ok_or("the application has no exact selected entry")?;
@@ -72513,6 +76800,19 @@ use typed_trees::typed_trees::{
 
     #[derive(Clone)]
     pub(crate) enum StructuralTerm {
+        /// A formed core Id proposition. Its carrier is not an executable
+        /// equality selection, and no truth follows from constructing this node.
+        Identity {
+            carrier: typed_trees::type_identity::TypeIdentityId,
+            left: Box<StructuralTerm>,
+            right: Box<StructuralTerm>,
+        },
+        /// A value of the closed canonical content algebra. The source literal
+        /// former's fields are not projections of this mathematical value.
+        ContentValue {
+            algebra: language_semantics::content::ContentAlgebraIdentity,
+            value: Box<StructuralTerm>,
+        },
         Variable(String),
         ObservedValue {
             observed_type: TypeReferenceHandle,
@@ -72552,6 +76852,10 @@ use typed_trees::typed_trees::{
             right: Box<StructuralTerm>,
         },
         Float(numerics::literals::FloatLiteral),
+        /// Data name, case name, and complete common/payload fields (sorted by
+        /// field name; empty for a fieldless value like `Nat::Zero`). Payload-carrying
+        /// terms retain their exact complete carrier and selected case. Explicit
+        /// Id can compare them without selecting executable equality.
         Constructor {
             identity: ConstructorIdentity,
             data: String,
@@ -72604,9 +76908,16 @@ use typed_trees::typed_trees::{
         use std::hash::{DefaultHasher, Hash, Hasher};
         use typed_trees::expression::BinaryOperator;
 
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        enum RewriteMeaning {
+            ScalarEquation,
+            ValueIdentity,
+        }
+
         #[derive(Clone, Debug, Default)]
         pub(crate) struct RewriteTable {
             entries: Vec<(StructuralTerm, StructuralTerm)>,
+            meanings: Vec<RewriteMeaning>,
             index: HashMap<(u8, u64), Vec<u32>>,
             potential_integer_premise_indices: Vec<u32>,
             deferred_collection_measures: Vec<(u32, u32)>,
@@ -72703,13 +77014,37 @@ use typed_trees::typed_trees::{
                         }
                     }
                 }
-                let key = rewrite_key(&entry.0);
-                self.index.entry(key).or_default().push(index);
+                self.register(entry, RewriteMeaning::ScalarEquation);
+            }
+
+            /// Id substitutes the exact observed value, including its descriptors,
+            /// selected-map metadata and IEEE landing. It is not a scalar comparison
+            /// premise and must never enter that premise reader by semantic equality.
+            pub(crate) fn push_value_identity(&mut self, entry: (StructuralTerm, StructuralTerm)) {
+                self.integer_premise_revision += 1;
+                self.register(entry, RewriteMeaning::ValueIdentity);
+            }
+
+            fn register(
+                &mut self,
+                entry: (StructuralTerm, StructuralTerm),
+                meaning: RewriteMeaning,
+            ) {
+                let index = self.entries.len() as u32;
+                self.index
+                    .entry(rewrite_key(&entry.0))
+                    .or_default()
+                    .push(index);
                 self.entries.push(entry);
+                self.meanings.push(meaning);
             }
 
             pub(crate) fn has_potential_integer_premises(&self) -> bool {
                 !self.potential_integer_premise_indices.is_empty()
+            }
+
+            pub(crate) fn is_empty(&self) -> bool {
+                self.entries.is_empty()
             }
 
             pub(crate) fn potential_integer_premises_len(&self) -> usize {
@@ -72757,15 +77092,39 @@ use typed_trees::typed_trees::{
                 let indices = self.index.get(&rewrite_key(term))?;
                 for &index in indices {
                     let entry = &self.entries[index as usize];
-                    if entry.0 == *term {
+                    let matches = match self.meanings[index as usize] {
+                        RewriteMeaning::ScalarEquation => entry.0 == *term,
+                        RewriteMeaning::ValueIdentity => entry.0.same_resolution_payload(term),
+                    };
+                    if matches {
                         return Some(entry);
                     }
                 }
                 None
             }
 
-            pub(crate) fn iter(&self) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> {
-                self.entries.iter()
+            pub(crate) fn iter(
+                &self,
+            ) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> + Clone {
+                self.entries
+                    .iter()
+                    .zip(&self.meanings)
+                    .filter_map(|(entry, meaning)| {
+                        (*meaning == RewriteMeaning::ScalarEquation).then_some(entry)
+                    })
+            }
+
+            /// Already admitted owned Id substitutions remain identity relations in
+            /// either direction. Scalar premises stay in their separate iterator.
+            pub(crate) fn value_identities(
+                &self,
+            ) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> + Clone {
+                self.entries
+                    .iter()
+                    .zip(&self.meanings)
+                    .filter_map(|(entry, meaning)| {
+                        (*meaning == RewriteMeaning::ValueIdentity).then_some(entry)
+                    })
             }
 
             pub(crate) fn entries(&self) -> &[(StructuralTerm, StructuralTerm)] {
@@ -72822,6 +77181,17 @@ use typed_trees::typed_trees::{
                 key.rotate_left(8) ^ u64::from(kind)
             };
             match term.semantic_value() {
+                StructuralTerm::ContentValue { value, .. } => (22, nested(value)),
+                StructuralTerm::Identity {
+                    carrier,
+                    left,
+                    right,
+                } => (
+                    21,
+                    hash_key(carrier)
+                        ^ nested(left).rotate_left(21)
+                        ^ nested(right).rotate_left(42),
+                ),
                 StructuralTerm::Variable(name) => (1, string_key(name)),
                 StructuralTerm::BoundValue(symbol) => (2, handle_key(*symbol)),
                 StructuralTerm::CapturedValue {
@@ -72948,7 +77318,9 @@ use typed_trees::typed_trees::{
         fn term_may_produce_mathematical_value(term: &StructuralTerm) -> bool {
             !matches!(
                 term.semantic_value(),
-                StructuralTerm::Float(_)
+                StructuralTerm::Identity { .. }
+                    | StructuralTerm::ContentValue { .. }
+                    | StructuralTerm::Float(_)
                     | StructuralTerm::ScalarRepresentation { .. }
                     | StructuralTerm::Opaque(_)
                     | StructuralTerm::ScalarBinary { .. }
@@ -73116,6 +77488,7 @@ use typed_trees::typed_trees::{
                             ..
                         }
                         | Self::Projection { subject, .. }
+                        | Self::ContentValue { value: subject, .. }
                         | Self::IntegerEmbedding { value: subject, .. }
                         | Self::ScalarRepresentation { value: subject, .. } => {
                             StructuralChildren::Fixed {
@@ -73123,7 +77496,8 @@ use typed_trees::typed_trees::{
                                 second: None,
                             }
                         }
-                        Self::ScalarBinary { left, right, .. }
+                        Self::Identity { left, right, .. }
+                        | Self::ScalarBinary { left, right, .. }
                         | Self::MathematicalBinary { left, right, .. } => {
                             StructuralChildren::Fixed {
                                 first: Some(left.as_ref()),
@@ -73198,6 +77572,33 @@ use typed_trees::typed_trees::{
                 };
                 let retain_metadata = matches!(self, Self::ResolutionInput);
                 match left {
+                    StructuralTerm::ContentValue { algebra, value } => {
+                        let StructuralTerm::ContentValue {
+                            algebra: other_algebra,
+                            value: other_value,
+                        } = other
+                        else {
+                            return false;
+                        };
+                        algebra == other_algebra && self.matches(value, other_value)
+                    }
+                    StructuralTerm::Identity {
+                        carrier,
+                        left,
+                        right,
+                    } => {
+                        let StructuralTerm::Identity {
+                            carrier: other_carrier,
+                            left: other_left,
+                            right: other_right,
+                        } = other
+                        else {
+                            return false;
+                        };
+                        carrier == other_carrier
+                            && self.matches(left, other_left)
+                            && self.matches(right, other_right)
+                    }
                     StructuralTerm::ObservedValue {
                         observed_type,
                         value,
@@ -73505,6 +77906,21 @@ use typed_trees::typed_trees::{
             fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
                     Self::ObservedValue { value, .. } => std::fmt::Debug::fmt(value, formatter),
+                    Self::ContentValue { algebra, value } => formatter
+                        .debug_struct("ContentValue")
+                        .field("algebra", algebra)
+                        .field("value", value)
+                        .finish(),
+                    Self::Identity {
+                        carrier,
+                        left,
+                        right,
+                    } => formatter
+                        .debug_struct("Identity")
+                        .field("carrier", carrier)
+                        .field("left", left)
+                        .field("right", right)
+                        .finish(),
                     Self::RepeatedArray { length, element } => formatter
                         .debug_struct("RepeatedArray")
                         .field("length", length)
@@ -73852,7 +78268,9 @@ use typed_trees::typed_trees::{
         }
 
         pub(crate) fn is_checked_predicate(&self) -> bool {
-            if value_predicates::boolean_value(self.semantic_value()).is_some() {
+            if matches!(self.semantic_value(), Self::Identity { .. })
+                || value_predicates::boolean_value(self.semantic_value()).is_some()
+            {
                 return true;
             }
             if let Self::MathematicalBinary {
@@ -73928,6 +78346,19 @@ use typed_trees::typed_trees::{
 
         pub(crate) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
             match self {
+                StructuralTerm::ContentValue { algebra, value } => StructuralTerm::ContentValue {
+                    algebra,
+                    value: Box::new(map(*value)),
+                },
+                StructuralTerm::Identity {
+                    carrier,
+                    left,
+                    right,
+                } => StructuralTerm::Identity {
+                    carrier,
+                    left: Box::new(map(*left)),
+                    right: Box::new(map(*right)),
+                },
                 StructuralTerm::RepeatedArray { length, element } => {
                     StructuralTerm::RepeatedArray {
                         length,
@@ -74101,6 +78532,8 @@ use typed_trees::typed_trees::{
         returned_field_owners: Arc<Vec<SymbolHandle>>,
         body_invocations: Arc<Vec<SymbolHandle>>,
         runtime_induction: Arc<runtime_induction::RuntimeInduction>,
+        // Exact value applications licensed by conditional induction on this path.
+        induction_values: Arc<Vec<StructuralTerm>>,
         active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
         resolution_observations: Option<Arc<resolution_queries::ResolutionObservations<'program>>>,
         normal_memberships: Arc<Vec<MembershipGuarantee>>,
@@ -74170,6 +78603,7 @@ use typed_trees::typed_trees::{
                 returned_field_owners: Arc::clone(&self.returned_field_owners),
                 body_invocations: Arc::clone(&self.body_invocations),
                 runtime_induction: Arc::clone(&self.runtime_induction),
+                induction_values: Arc::clone(&self.induction_values),
                 active_application: self.active_application.clone(),
                 resolution_observations: self.resolution_observations.clone(),
                 normal_memberships: Arc::clone(&self.normal_memberships),
@@ -74219,6 +78653,7 @@ use typed_trees::typed_trees::{
                 && self.storage_write_sequence == base.storage_write_sequence
                 && self.invalidated_storage.len() == base.invalidated_storage.len()
                 && self.captured_result_equations.len() == base.captured_result_equations.len()
+                && Arc::ptr_eq(&self.induction_values, &base.induction_values)
                 && Arc::ptr_eq(&self.conditional_guarantees, &base.conditional_guarantees)
                 && self.returned_field_owners.len() == base.returned_field_owners.len()
                 && self.normal_memberships.len() == base.normal_memberships.len()
@@ -74236,8 +78671,12 @@ use typed_trees::typed_trees::{
                 && self.case_facts.len() == base.case_facts.len()
         }
 
+        /// True when `self` has added no non-boolean rewrites, non-boolean
+        /// substitutions, or integer ordering/equality guarantees since `base`.
         pub(crate) fn has_no_new_non_boolean_facts_since(&self, base: &Self) -> bool {
-            if !Arc::ptr_eq(&self.conditional_guarantees, &base.conditional_guarantees) {
+            if !Arc::ptr_eq(&self.conditional_guarantees, &base.conditional_guarantees)
+                || !Arc::ptr_eq(&self.induction_values, &base.induction_values)
+            {
                 return false;
             }
             let is_bool = |term: &StructuralTerm| term.boolean_value().is_some();
@@ -74321,6 +78760,7 @@ use typed_trees::typed_trees::{
             let Some(&first) = outcomes.first() else {
                 return rejoined;
             };
+            rejoined.induction_values = induction_values::common_induction_values(outcomes);
             rejoined.capture_sequence = outcomes
                 .iter()
                 .map(|judge| judge.capture_sequence)
@@ -74608,6 +79048,7 @@ use typed_trees::typed_trees::{
 
         pub(crate) fn restrict_to_case_facts(&mut self) {
             self.case_facts_only = true;
+            self.induction_values = Arc::new(Vec::new());
             self.substitutions = Arc::new(Vec::new());
             self.rewrites = Arc::new(rewrite_table::RewriteTable::default());
             self.disequalities = Arc::new(Vec::new());
@@ -74668,6 +79109,7 @@ use typed_trees::typed_trees::{
                 returned_field_owners: Arc::new(Vec::new()),
                 body_invocations: Arc::new(Vec::new()),
                 runtime_induction: Arc::new(runtime_induction::RuntimeInduction::default()),
+                induction_values: Arc::new(Vec::new()),
                 active_application: None,
                 resolution_observations: None,
                 normal_memberships: Arc::new(Vec::new()),
@@ -74952,7 +79394,7 @@ use typed_trees::typed_trees::{
                 return;
             }
             if holds {
-                self.intake(self.program, fact);
+                self.intake_proposition(self.program, fact);
             }
             if self
                 .declaration_expression_type(fact)
@@ -75100,7 +79542,7 @@ use typed_trees::typed_trees::{
                 .flatten()
                 .map(|(captured, _, _)| captured);
                 match term {
-                    StructuralTerm::CapturedValue { .. } => {
+                    StructuralTerm::CapturedValue { .. } | StructuralTerm::BoundValue(_) => {
                         let Some((_, replacement)) = self.rewrites.find(&term) else {
                             return term;
                         };
@@ -75493,6 +79935,9 @@ use typed_trees::typed_trees::{
                     .struct_fields(literal.fields)
                     .iter()
                     .find(|candidate| candidate.field_symbol == field)?;
+                // Nested calls still belong to the callee declaration. Their own
+                // result query uses this frame; the field type supplies only the
+                // retained landing for anonymous arithmetic.
                 self.callee_term(
                     projected.value,
                     &environment,
@@ -75500,7 +79945,7 @@ use typed_trees::typed_trees::{
                         machine_bindings: &static_environment,
                         body_parameters: &[],
                     },
-                    None,
+                    Some((machine, state, projected_field.type_reference)),
                     depth + 1,
                 )
             };
@@ -75776,6 +80221,7 @@ use typed_trees::typed_trees::{
                                     .resolve_at(environment[position].1.clone(), depth + 1);
                                 &local_subject
                             };
+                            let subject_term = specification.observed_case_value(subject_term)?;
                             let StructuralTerm::Constructor { identity, .. } = subject_term else {
                                 return None;
                             };
@@ -76177,7 +80623,7 @@ use typed_trees::typed_trees::{
             if expression_table(program)
                 .call_node(expression)
                 .is_some_and(|call| {
-                    crate::mathematical_applications::selected_definition(program, call).is_some()
+                    crate::mathematical_applications::is_mathematical_call(program, call)
                 })
             {
                 return super::structural_terms::mathematical_application_term(
@@ -76593,7 +81039,9 @@ use typed_trees::typed_trees::{
                             StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
                                 StructuralTerm::Opaque(format!("{root}.{suffix}"))
                             }
-                            StructuralTerm::Integer(_)
+                            StructuralTerm::Identity { .. }
+                            | StructuralTerm::ContentValue { .. }
+                            | StructuralTerm::Integer(_)
                             | StructuralTerm::RepeatedArray { .. }
                             | StructuralTerm::Float(_)
                             | StructuralTerm::ScalarRepresentation { .. }
@@ -76655,6 +81103,22 @@ use typed_trees::typed_trees::{
             if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
                 return StructuralJudgment::Unknown;
             }
+            if let ExpressionNode::Unary(unary) = expression_table(program).expression(fact)
+                && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
+            {
+                // Negation composes the operand's proposition judgment. In
+                // particular, a formed Identity is not a scalar Boolean value.
+                let inner = self.judge_proposition(program, unary.operand);
+                return if self.hypotheses_contradictory {
+                    StructuralJudgment::Proven
+                } else {
+                    match inner {
+                        StructuralJudgment::Proven => StructuralJudgment::Refuted,
+                        StructuralJudgment::Refuted => StructuralJudgment::Proven,
+                        StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+                    }
+                };
+            }
             if program.static_type_predicate_operands(fact).is_some() {
                 return self
                     .declaration_term(fact)
@@ -76672,7 +81136,7 @@ use typed_trees::typed_trees::{
             if expression_table(program)
                 .call_node(fact)
                 .is_some_and(|call| {
-                    crate::mathematical_applications::selected_definition(program, call).is_some()
+                    crate::mathematical_applications::is_mathematical_call(program, call)
                 })
             {
                 if !self.entry_storage_observations_preserved(fact) {
@@ -76728,12 +81192,15 @@ use typed_trees::typed_trees::{
                 BinaryOperator::Equal | BinaryOperator::NotEqual => {
                     let data_identity =
                         self.declaration_scope().is_some_and(|(owner, parameters)| {
-                            super::structural_terms::data_identity_operand_references(
+                            super::structural_terms::builtin_identity_operand_references(
                                 program, owner, parameters, fact,
                             )
                             .is_some()
                         });
                     if data_identity {
+                        // The authenticated owned primitive comparison has the
+                        // same equality law as its value identity. This does not
+                        // grant an aggregate or authored comparison an Id bridge.
                         let Some([left, right]) = self.declaration_data_identity_terms(fact) else {
                             return StructuralJudgment::Unknown;
                         };
@@ -77056,152 +81523,6 @@ use typed_trees::typed_trees::{
                         }
                 })
             })
-        }
-
-        fn ring_rearranged_equal(&self, left: &StructuralTerm, right: &StructuralTerm) -> bool {
-            for license in &self.ring_licenses {
-                let op = &license.add_machine;
-                if !term_uses_application(left, op) && !term_uses_application(right, op) {
-                    continue;
-                }
-                let mut left_addends = Vec::new();
-                additive_addends(left, op, &mut left_addends);
-                let mut right_addends = Vec::new();
-                additive_addends(right, op, &mut right_addends);
-                if left_addends.len() < 2 {
-                    continue;
-                }
-                left_addends.sort_by_key(|term| format!("{term:?}"));
-                right_addends.sort_by_key(|term| format!("{term:?}"));
-                if left_addends.len() == right_addends.len() && left_addends == right_addends {
-                    return true;
-                }
-                let mut rewrite_addends: Vec<(Vec<StructuralTerm>, Vec<StructuralTerm>)> =
-                    Vec::new();
-                for (pattern, replacement) in self.rewrites.iter() {
-                    for (from, to) in [(pattern, replacement), (replacement, pattern)] {
-                        let mut from_addends = Vec::new();
-                        additive_addends(from, op, &mut from_addends);
-                        let mut to_addends = Vec::new();
-                        additive_addends(to, op, &mut to_addends);
-                        from_addends.sort_by_key(|term| format!("{term:?}"));
-                        rewrite_addends.push((from_addends, to_addends));
-                    }
-                }
-                let mut frontier: Vec<Vec<StructuralTerm>> = vec![left_addends.clone()];
-                for _depth in 0..2 {
-                    let mut next: Vec<Vec<StructuralTerm>> = Vec::new();
-                    for current in &frontier {
-                        for (from_addends, to_addends) in &rewrite_addends {
-                            let Some(mut candidate) =
-                                sorted_multiset_subtract(current, from_addends)
-                            else {
-                                continue;
-                            };
-                            candidate.extend(to_addends.iter().cloned());
-                            candidate.sort_by_key(|term| format!("{term:?}"));
-                            if candidate == right_addends {
-                                return true;
-                            }
-                            if next.len() < 64 {
-                                next.push(candidate);
-                            }
-                        }
-                    }
-                    frontier = next;
-                    if frontier.is_empty() {
-                        break;
-                    }
-                }
-            }
-            for license in &self.semiring_licenses {
-                if !term_uses_application(left, &license.mul_machine)
-                    && !term_uses_application(right, &license.mul_machine)
-                {
-                    continue;
-                }
-                let (Some(mut left_poly), Some(mut right_poly)) = (
-                    polynomial_normal_form(left, license),
-                    polynomial_normal_form(right, license),
-                ) else {
-                    continue;
-                };
-                left_poly.sort_by_key(|term| format!("{term:?}"));
-                right_poly.sort_by_key(|term| format!("{term:?}"));
-                if left_poly == right_poly {
-                    return true;
-                }
-                let mut atoms: Vec<StructuralTerm> = left_poly
-                    .iter()
-                    .chain(right_poly.iter())
-                    .flatten()
-                    .cloned()
-                    .collect();
-                atoms.sort_by_key(|term| format!("{term:?}"));
-                atoms.dedup();
-                let mut scales: Vec<Vec<StructuralTerm>> = vec![Vec::new()];
-                scales.extend(atoms.into_iter().map(|atom| vec![atom]));
-                let mut hypothesis_polys: Vec<(
-                    Vec<Vec<StructuralTerm>>,
-                    Vec<Vec<StructuralTerm>>,
-                )> = Vec::new();
-                for (pattern, replacement) in self.rewrites.iter() {
-                    if let (Some(mut hl), Some(mut hr)) = (
-                        polynomial_normal_form(pattern, license),
-                        polynomial_normal_form(replacement, license),
-                    ) {
-                        hl.sort_by_key(|term| format!("{term:?}"));
-                        hr.sort_by_key(|term| format!("{term:?}"));
-                        hypothesis_polys.push((hl, hr));
-                    }
-                }
-                let scaled = |poly: &[Vec<StructuralTerm>],
-                              scale: &[StructuralTerm]|
-                 -> Vec<Vec<StructuralTerm>> {
-                    poly.iter()
-                        .map(|monomial| {
-                            let mut product = monomial.clone();
-                            product.extend(scale.iter().cloned());
-                            product.sort_by_key(|term| format!("{term:?}"));
-                            product
-                        })
-                        .collect()
-                };
-                let mut frontier: Vec<Vec<Vec<StructuralTerm>>> = vec![left_poly.clone()];
-                for _depth in 0..2 {
-                    let mut next: Vec<Vec<Vec<StructuralTerm>>> = Vec::new();
-                    for current in &frontier {
-                        for (hypothesis_left, hypothesis_right) in &hypothesis_polys {
-                            for (from, to) in [
-                                (hypothesis_left, hypothesis_right),
-                                (hypothesis_right, hypothesis_left),
-                            ] {
-                                for scale in &scales {
-                                    let from_scaled = scaled(from, scale);
-                                    let Some(mut candidate) =
-                                        sorted_multiset_subtract(current, &from_scaled)
-                                    else {
-                                        continue;
-                                    };
-                                    candidate.extend(scaled(to, scale));
-                                    candidate.sort_by_key(|term| format!("{term:?}"));
-                                    if candidate == right_poly {
-                                        return true;
-                                    }
-                                    if next.len() < 64 {
-                                        next.push(candidate);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    frontier = next;
-                    if frontier.is_empty() {
-                        break;
-                    }
-                }
-            }
-            false
         }
     }
 }
@@ -80035,7 +84356,7 @@ pub(crate) mod structural_terms {
         expression,
         operation,
         operand_types,
-    )?;
+            )?;
             Some(operation)
         }
 
@@ -80116,7 +84437,10 @@ pub(crate) mod structural_terms {
     }
     pub(crate) mod mathematical {
         use super::StructuralTerm;
-        use crate::mathematical_applications::{PreparedConstantMeaning, PreparedMathematicalView};
+        use crate::mathematical_applications::{
+            PreparedApplication, PreparedConstantMeaning, PreparedMathematicalView,
+            PreparedSourceBinding, PreparedSourceBindingKind,
+        };
         use numerics::literals::FloatLiteral;
         use proof_admission::{Term, TermHandle};
         use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -80145,18 +84469,27 @@ pub(crate) mod structural_terms {
                             reference: capture.source_type,
                             value: Box::new(value),
                         }
+                    } else if crate::reference_shell(program, capture.source_type).is_none()
+                        && crate::value_custody::places::data_definition_for_type(
+                            program,
+                            capture.source_type,
+                        )
+                        .is_some()
+                    {
+                        super::owned_projection_observation(program, capture.source_type, value)
                     } else {
                         value
                     };
                     Some(Some(value))
                 })
                 .collect::<Option<Vec<_>>>()?;
-            read_term(program, view, application.term, &captures, 0)
+            read_term(program, view, application, application.term, &captures, 0)
         }
 
         fn read_term(
             program: &dyn crate::CheckingInput,
             view: PreparedMathematicalView<'_>,
+            application: &PreparedApplication,
             term: TermHandle,
             captures: &[Option<StructuralTerm>],
             depth: usize,
@@ -80164,7 +84497,23 @@ pub(crate) mod structural_terms {
             if depth >= 128 {
                 return None;
             }
-            let read = |term| read_term(program, view, term, captures, depth + 1);
+            let read = |term| read_term(program, view, application, term, captures, depth + 1);
+            let source_captures = view
+                .applications
+                .captures
+                .span_or_empty(application.captures)
+                .len();
+            let inserted_binders =
+                u32::try_from(captures.len().checked_sub(source_captures)?).ok()?;
+            if let Some((carrier, [left, right])) =
+                view.identity_value(application, term, inserted_binders)
+            {
+                return Some(StructuralTerm::Identity {
+                    carrier: carrier.type_identity,
+                    left: Box::new(read(left)?),
+                    right: Box::new(read(right)?),
+                });
+            }
             match view.arena.get(term) {
                 Term::TwoZero | Term::TwoOne => {
                     Some(boolean(matches!(view.arena.get(term), Term::TwoOne)))
@@ -80224,14 +84573,28 @@ pub(crate) mod structural_terms {
                         }
                         return Some(binary(
                             BinaryOperator::Or,
-                            read_term(program, view, zero_branch, &extended, depth + 1)?,
-                            read_term(program, view, one_branch, &extended, depth + 1)?,
+                            read_term(
+                                program,
+                                view,
+                                application,
+                                zero_branch,
+                                &extended,
+                                depth + 1,
+                            )?,
+                            read_term(
+                                program,
+                                view,
+                                application,
+                                one_branch,
+                                &extended,
+                                depth + 1,
+                            )?,
                         ));
                     }
                     Some(binary(
                         BinaryOperator::And,
                         read(domain)?,
-                        read_term(program, view, codomain, &extended, depth + 1)?,
+                        read_term(program, view, application, codomain, &extended, depth + 1)?,
                     ))
                 }
                 _ => {
@@ -80297,10 +84660,161 @@ pub(crate) mod structural_terms {
                                 StructuralTerm::boolean(false),
                             ))
                         }
+                        (
+                            PreparedConstantMeaning::SourceOperation {
+                                expression,
+                                owner,
+                                source_type,
+                                bindings,
+                            },
+                            arguments,
+                        ) => {
+                            match source_operation_term(
+                                program,
+                                *expression,
+                                *owner,
+                                *source_type,
+                                bindings,
+                                arguments,
+                                read,
+                            ) {
+                                Ok(value) => Some(value),
+                                Err(reason) => {
+                                    if super::super::struct_trace() {
+                                        eprintln!(
+                                            "source value {:?} under {:?} cannot be read: {reason}",
+                                            expression, owner
+                                        );
+                                    }
+                                    None
+                                }
+                            }
+                        }
+                        // Opaque and source-selected operations have no builtin
+                        // arithmetic law merely because their kernel result is Int.
                         _ => None,
                     }
                 }
             }
+        }
+
+        /// Rejoin only the producer-recorded occurrence, under its own lexical scope.
+        /// The checked spine supplies the actual dependency values; observing the
+        /// occurrence must never recover the producer's unsubstituted formal instead.
+        fn source_operation_term(
+            program: &dyn crate::CheckingInput,
+            expression: ExpressionHandle,
+            owner: symbols::SymbolHandle,
+            source_type: typed_trees::types::TypeReferenceHandle,
+            bindings: &[PreparedSourceBinding],
+            arguments: &[TermHandle],
+            read: impl Fn(TermHandle) -> Option<StructuralTerm>,
+        ) -> Result<StructuralTerm, String> {
+            if bindings.len() != arguments.len() {
+                return Err(format!(
+                    "dependency arity {} differs from checked argument arity {}",
+                    bindings.len(),
+                    arguments.len()
+                ));
+            }
+            if !program.expression_table.expression_is_valid(expression) || !owner.is_valid() {
+                return Err(
+                    "the retained source occurrence or lexical owner is unavailable".to_owned(),
+                );
+            }
+            let mut values = Vec::with_capacity(bindings.len());
+            for (position, (binding, argument)) in bindings.iter().zip(arguments).enumerate() {
+                if binding.kind == PreparedSourceBindingKind::Type {
+                    return Err(format!(
+                        "type dependency {position} has no ordinary source type substitution"
+                    ));
+                }
+                let value = read(*argument).ok_or_else(|| {
+                    format!("value dependency {position} has no readable actual value")
+                })?;
+                values.push(value);
+            }
+            let scope = crate::machine_calls::calls::machine_state_by_symbol(program, owner)
+                .or_else(|| {
+                    let machine = program.machine_by_symbol(owner)?;
+                    Some((machine, program.machine_states(machine).first()?))
+                });
+            let mut parameters = if let Some(definition) = program
+                .mathematical_definitions()
+                .iter()
+                .find(|definition| definition.symbol == owner)
+            {
+                crate::mathematical_applications::ordinary_parameters(program, definition)
+            } else if let Some((_, state)) = scope {
+                program.state_parameters(state).to_vec()
+            } else {
+                return Err("the retained lexical owner has no declaration telescope".to_owned());
+            };
+            // Copied contract roots can use fresh formals. Their exact source types
+            // come from the producer's own dependency census, not from the Id goal.
+            for binding in bindings {
+                if binding.symbol.is_valid() && binding.source_type.is_valid() {
+                    if let Some(parameter) = parameters
+                        .iter_mut()
+                        .find(|parameter| parameter.symbol == binding.symbol)
+                    {
+                        parameter.type_reference = binding.source_type;
+                    } else {
+                        parameters.push(typed_trees::signature::StateParameter {
+                            symbol: binding.symbol,
+                            name: program.symbols.name(binding.symbol).into(),
+                            type_reference: binding.source_type,
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
+            let ambiguous_symbol = std::cell::Cell::new(false);
+            let substitute = |candidate| {
+                if let Some((_, value)) = bindings
+                    .iter()
+                    .zip(&values)
+                    .find(|(binding, _)| binding.expressions.contains(&candidate))
+                {
+                    return Some(value.clone());
+                }
+                let typed_trees::expression::ExpressionNode::Name(path) =
+                    program.expression_table.expression(candidate)
+                else {
+                    return None;
+                };
+                if !path.symbol.is_valid() {
+                    return None;
+                }
+                let mut candidates = bindings
+                    .iter()
+                    .zip(&values)
+                    .filter(|(binding, _)| binding.symbol == path.symbol);
+                let (_, value) = candidates.next()?;
+                if candidates.next().is_some() {
+                    // None alone would permit the observer to recover a raw formal.
+                    // Preserve this refusal across that callback boundary instead.
+                    ambiguous_symbol.set(true);
+                    return None;
+                }
+                Some(value.clone())
+            };
+            let value = super::structural_term(
+                program,
+                scope.map(|(machine, state)| (machine, state, source_type)),
+                Some((owner, &parameters)),
+                expression,
+                Some(&substitute),
+            );
+            if ambiguous_symbol.get() {
+                return Err("a source symbol has multiple actual dependency bindings without an exact occurrence association".to_owned());
+            }
+            let value = value.ok_or_else(|| "the retained occurrence has no complete selected structural value after dependency substitution".to_owned())?;
+            Ok(if source_type.is_valid() {
+                super::owned_projection_observation(program, source_type, value)
+            } else {
+                value
+            })
         }
 
         fn binary(
@@ -81219,8 +85733,6 @@ pub(crate) mod structural_terms {
         use typed_trees::signature::StateParameter;
         use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-        use super::StructuralTerm;
-
         pub(crate) fn has_identity_equality_meaning(
             program: &dyn crate::CheckingInput,
             scope: SymbolHandle,
@@ -81240,14 +85752,9 @@ pub(crate) mod structural_terms {
                     program, scope, parameters, operand,
                 )
             });
-            if !super::is_case_observation(program, expression)
-                && let Some(references) =
-                    data_identity_references_for_types(program, [binary.left, binary.right], types)
-            {
-                return references.into_iter().all(|reference| {
-                    identity_carrier(program, reference, &mut Vec::new(), 0, true)
-                });
-            }
+            // Select with complete declaration types before interpreting a builtin
+            // scalar read. A reference overload still sees its descriptor type;
+            // readable scalar contents do not authorize aggregate descriptor identity.
             if !typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program, scope, expression, spelling, &types,
             ) {
@@ -81263,189 +85770,62 @@ pub(crate) mod structural_terms {
             types.iter().all(|reference| {
                 let reference = *reference;
                 if let Some((primitive, _)) =
-                    crate::value_custody::expression_types::scalar_observation_meaning(
-                        program, reference,
-                    )
+                    crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
                 {
                     !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
                 } else {
-                    identity_carrier(program, reference, &mut Vec::new(), 0, false)
+                    matches!(program.type_reference_table.type_reference(reference),
+                        TypeReferenceNode::Named { symbol, .. } if matches!(program.symbols.builtin_type_atom(*symbol),
+                            Some(symbols::BuiltinTypeAtom::Int | symbols::BuiltinTypeAtom::UInt)))
                 }
             })
         }
 
-        pub(crate) fn data_identity_operand_references(
+        /// Complete builtin scalar carriers whose selected comparison can imply Id.
+        /// This supplies neither operand observations nor comparison truth.
+        pub(crate) fn builtin_identity_operand_references(
             program: &dyn crate::CheckingInput,
             scope: SymbolHandle,
             parameters: &[StateParameter],
             expression: ExpressionHandle,
         ) -> Option<[TypeReferenceHandle; 2]> {
             let binary = program.expression_table.binary_node(expression)?;
-            if !matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) || super::is_case_observation(program, expression)
-            {
-                return None;
-            }
-            let operands = [binary.left, binary.right];
-            let references = operands.map(|operand| {
+            let spelling = match binary.operator {
+                BinaryOperator::Equal => language_core::OperatorSpelling::Equal,
+                BinaryOperator::NotEqual => language_core::OperatorSpelling::NotEqual,
+                _ => return None,
+            };
+            let types = [binary.left, binary.right].map(|operand| {
                 crate::parameter_expression_result_type_reference(
                     program, scope, parameters, operand,
                 )
             });
-            data_identity_references_for_types(program, operands, references)
-        }
-
-        fn data_identity_references_for_types(
-            program: &dyn crate::CheckingInput,
-            operands: [ExpressionHandle; 2],
-            references: [Option<TypeReferenceHandle>; 2],
-        ) -> Option<[TypeReferenceHandle; 2]> {
-            let [Some(left), Some(right)] = references else {
-                return None;
-            };
-            let identities =
-                [(operands[0], left), (operands[1], right)].map(|(operand, reference)| {
-                    crate::contextual_identity_subject_type(
-                        program,
-                        reference,
-                        matches!(
-                            program.expression_table.expression(operand),
-                            typed_trees::expression::ExpressionNode::Name(_)
-                                | typed_trees::expression::ExpressionNode::Borrow(_)
-                        ),
-                    )
-                });
-            (identities[0].is_some_and(|identity| identity.is_valid())
-                && identities[0] == identities[1])
-                .then_some([left, right])
-        }
-
-        fn identity_carrier(
-            program: &dyn crate::CheckingInput,
-            reference: TypeReferenceHandle,
-            active: &mut Vec<TypeReferenceHandle>,
-            depth: usize,
-            symbolic_data: bool,
-        ) -> bool {
-            if !reference.is_valid() || depth >= 64 {
-                return false;
-            }
-            if let Some(primitive) = program.primitive_type_reference(reference) {
-                return !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64);
-            }
-            match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Constrained { base_type, .. } => {
-                    identity_carrier(program, *base_type, active, depth + 1, symbolic_data)
-                }
-                TypeReferenceNode::FixedArray { element_type, .. } => {
-                    identity_carrier(program, *element_type, active, depth + 1, symbolic_data)
-                }
-                TypeReferenceNode::Named { symbol, .. }
-                    if matches!(
-                        program.symbols.builtin_type_atom(*symbol),
-                        Some(symbols::BuiltinTypeAtom::Int | symbols::BuiltinTypeAtom::UInt)
-                    ) =>
-                {
-                    true
-                }
-                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
-                    if active.contains(&reference) {
-                        return true;
-                    }
-                    if symbolic_data {
-                        if let TypeReferenceNode::Named { symbol, .. } =
-                            program.type_reference_table.type_reference(reference)
-                            && program.data_type_parameter_by_symbol(*symbol).is_some_and(
-                                |parameter| {
-                                    matches!(
-                                        parameter.kind,
-                                        typed_trees::data::TypeParameterKind::Type
-                                    )
-                                },
-                            )
-                        {
-                            return true;
-                        }
-                        if let TypeReferenceNode::Generic {
-                            base_symbol,
-                            arguments,
-                            ..
-                        } = program.type_reference_table.type_reference(reference)
-                        {
-                            let Some(definition) =
-                                program.unique_data_definition_by_symbol(*base_symbol)
-                            else {
-                                return false;
-                            };
-                            if !program
-                                .data_type_parameters(definition)
-                                .iter()
-                                .zip(
-                                    program
-                                        .type_reference_table
-                                        .type_reference_handles(*arguments),
-                                )
-                                .filter(|(parameter, _)| {
-                                    matches!(
-                                        parameter.kind,
-                                        typed_trees::data::TypeParameterKind::Type
-                                    )
-                                })
-                                .all(|(_, argument)| {
-                                    identity_carrier(program, *argument, active, depth + 1, true)
-                                })
-                            {
-                                return false;
-                            }
-                        }
-                    }
-                    let Some(data) =
-                        crate::value_custody::places::data_definition_for_type(program, reference)
-                    else {
-                        return false;
-                    };
-                    active.push(reference);
-                    let identity =
-                        program
-                            .data_member_fields(program.data_members(data))
-                            .all(|field| {
-                                identity_carrier(
-                                    program,
-                                    field.type_reference,
-                                    active,
-                                    depth + 1,
-                                    symbolic_data,
-                                )
-                            });
-                    active.pop();
-                    identity
-                }
-                TypeReferenceNode::Unit => true,
-                TypeReferenceNode::Reference { .. }
-                | TypeReferenceNode::Slice { .. }
-                | TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. } => false,
-            }
-        }
-
-        pub(crate) fn identity_equality_terms(
-            program: &dyn crate::CheckingInput,
-            scope: SymbolHandle,
-            parameters: &[StateParameter],
-            fact: ExpressionHandle,
-        ) -> Option<(StructuralTerm, StructuralTerm)> {
-            if super::is_case_observation(program, fact) {
+            if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program, scope, expression, spelling, &types,
+            ) {
                 return None;
             }
-            let binary = program.expression_table.binary_node(fact)?;
-            if binary.operator != BinaryOperator::Equal
-                || !has_identity_equality_meaning(program, scope, parameters, fact)
+            let references =
+                crate::value_custody::expression_types::builtin_scalar_operand_references(
+                    program, binary, types, None,
+                )?;
+            // Only specified, same-carrier owned primitive comparisons imply Id.
+            // Aggregate/custom comparisons require separate checked bridge evidence;
+            // reading equal referent contents never identifies their descriptors.
+            if references.iter().any(|reference| {
+                crate::reference_shell(program, *reference).is_some()
+                    || !program
+                        .primitive_type_reference(*reference)
+                        .is_some_and(|primitive| {
+                            primitive.is_fixed_integer()
+                                || matches!(primitive, PrimitiveType::Bool | PrimitiveType::Addr)
+                        })
+            }) || program.normalized_type_identity(references[0])
+                != program.normalized_type_identity(references[1])
             {
                 return None;
             }
-            super::structural_term_pair_for_parameters(program, scope, parameters, binary)
+            Some(references)
         }
     }
     pub use entry_reads::{
@@ -81569,7 +85949,17 @@ pub(crate) mod structural_terms {
             declared: TypeReferenceHandle,
             value: StructuralTerm,
         ) -> StructuralTerm {
-            if shared_inline_observation_type(program, &value)
+            if let Some(algebra) = crate::content_algebra_for_type(program, declared) {
+                if matches!(&value, StructuralTerm::ContentValue { algebra: actual, .. } if actual == &algebra)
+                {
+                    value
+                } else {
+                    StructuralTerm::ContentValue {
+                        algebra,
+                        value: Box::new(value),
+                    }
+                }
+            } else if shared_inline_observation_type(program, &value)
                 .is_some_and(|observed| crate::declared_carriers_match(program, declared, observed))
             {
                 value
@@ -81754,7 +86144,9 @@ pub(crate) mod structural_terms {
                             })
                         })
                 }
-                StructuralTerm::Opaque(_)
+                StructuralTerm::Identity { .. }
+                | StructuralTerm::ContentValue { .. }
+                | StructuralTerm::Opaque(_)
                 | StructuralTerm::RepeatedArray { .. }
                 | StructuralTerm::IntegerEmbedding { .. }
                 | StructuralTerm::MathematicalBinary { .. } => false,
@@ -82057,9 +86449,7 @@ pub(crate) mod structural_terms {
         case_guard_classifier, case_value_term, constructor_literal_term, is_case_observation,
         zero_constructor_operands, zero_value_structural_term,
     };
-    pub(crate) use equality::{
-        data_identity_operand_references, has_identity_equality_meaning, identity_equality_terms,
-    };
+    pub(crate) use equality::{builtin_identity_operand_references, has_identity_equality_meaning};
     pub(crate) use scalar_operands::{
         completed_owned_carrier, scalar_operand_is_observed, scalar_operand_meaning,
         term_is_unobserved_descriptor,
@@ -82366,6 +86756,19 @@ pub(crate) mod structural_terms {
                 operator.display_name(),
                 term_spelling(program, right)
             ),
+            StructuralTerm::Identity {
+                carrier,
+                left,
+                right,
+            } => format!(
+                "core::Identity<{}>({}, {})",
+                program.type_identity_text(*carrier).unwrap_or_default(),
+                term_spelling(program, left),
+                term_spelling(program, right)
+            ),
+            StructuralTerm::ContentValue { algebra, value } => {
+                format!("canonical {algebra:?}({})", term_spelling(program, value))
+            }
             StructuralTerm::Opaque(display) => display.clone(),
         }
     }
@@ -82449,6 +86852,30 @@ pub(crate) mod structural_terms {
         .then_some((left, right))
     }
 
+    /// Read a formed declaration predicate without erasing its relation. Core Id
+    /// retains its carrier/subjects; a selected Boolean call retains the complete
+    /// application. An unsupported value or display-only term proves nothing.
+    pub(crate) fn structural_predicate_for_parameters(
+        program: &dyn crate::CheckingInput,
+        scope: symbols::SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        expression: ExpressionHandle,
+    ) -> Option<StructuralTerm> {
+        structural_term(program, None, Some((scope, parameters)), expression, None).filter(
+            |predicate| {
+                predicate.is_checked_predicate()
+                    || (!matches!(predicate.semantic_value(), StructuralTerm::Opaque(_))
+                        && crate::parameter_expression_result_type_reference(
+                            program, scope, parameters, expression,
+                        )
+                        .and_then(|reference| program.primitive_type_reference(reference))
+                            == Some(typed_trees::types::PrimitiveType::Bool))
+            },
+        )
+    }
+
+    /// Bind both sides in the declaration's own telescope before substituting
+    /// actual values. Applications retain the selected result carrier and policy.
     pub(crate) fn structural_term_pair_for_parameters(
         program: &dyn crate::CheckingInput,
         owner: symbols::SymbolHandle,
@@ -82735,7 +87162,7 @@ pub(crate) mod structural_terms {
             }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::Call(call) => {
-                if crate::mathematical_applications::selected_definition(program, call).is_some() {
+                if crate::mathematical_applications::is_mathematical_call(program, call) {
                     return mathematical_application_term(program, expression, |capture| {
                         structural_term(program, scope, frame, capture, bindings)
                     });
@@ -83022,25 +87449,41 @@ pub(crate) mod structural_terms {
     }
 }
 pub(crate) mod transparent_applications {
+    /*
+    Entailment of transparent proposition applications.
+
+    A transparent proposition is its body: unfolding an application binds the
+    declaration's parameters to the actual argument terms and yields one
+    checked predicate per conjunct, following `= other(..)` definitions to
+    their own bodies. The same unfolding serves both directions -- a `requires`
+    application installs its predicates as hypotheses, an `ensures` application
+    must prove every one -- so a defined premise means exactly what the
+    defined goal means.
+    */
+
     use crate::frozen_program::expression_table;
     use crate::proof_contracts::contract_entailment::structural_judgment::{
         StructuralJudge, StructuralJudgment, StructuralTerm,
     };
-    use crate::proof_contracts::contract_entailment::structural_terms::{
-        structural_call_machine_name, structural_term,
-    };
+    use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
     use typed_trees::domain::ProofFact;
     use typed_trees::expression::{BinaryOperator, ExpressionHandle};
     use typed_trees::machine::Machine;
     use typed_trees::proposition::PropositionBody;
     use typed_trees::signature::SignatureContractKind;
 
+    /// The checked predicates one transparent application denotes, one per
+    /// conjunct of its unfolded body. `None` when the application is not
+    /// transparent. A `None` conjunct lies outside the structural language: a
+    /// hypothesis drops it (only weakening), a goal cannot be proven. A literal
+    /// `true` conjunct contributes no obligation. Explicit Id retains its carrier
+    /// and subjects; a Boolean comparison retains its selected operation.
     pub(crate) fn transparent_application_conjuncts(
         program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &typed_trees::state::State,
         application: &typed_trees::proposition::PropositionApplication,
-    ) -> Option<Vec<Option<(StructuralTerm, StructuralTerm)>>> {
+    ) -> Option<Vec<Option<StructuralTerm>>> {
         let declaration = program.proposition_definition_by_symbol(application.proposition)?;
         if !matches!(declaration.body, PropositionBody::Transparent { .. }) {
             return None;
@@ -83076,7 +87519,7 @@ pub(crate) mod transparent_applications {
         proposition: symbols::SymbolHandle,
         environment: &[(String, StructuralTerm)],
         visiting: &mut Vec<symbols::SymbolHandle>,
-        conjuncts: &mut Vec<Option<(StructuralTerm, StructuralTerm)>>,
+        conjuncts: &mut Vec<Option<StructuralTerm>>,
     ) {
         let Some(declaration) = program.proposition_definition_by_symbol(proposition) else {
             conjuncts.push(None);
@@ -83153,7 +87596,7 @@ pub(crate) mod transparent_applications {
         parameters: &[typed_trees::signature::StateParameter],
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
-        conjuncts: &mut Vec<Option<(StructuralTerm, StructuralTerm)>>,
+        conjuncts: &mut Vec<Option<StructuralTerm>>,
     ) {
         if let Some(binary) = expression_table(program).binary_node(expression)
             && binary.operator == BinaryOperator::And
@@ -83176,19 +87619,17 @@ pub(crate) mod transparent_applications {
             );
             return;
         }
+        // `true` is the unit of conjunction: it owes a goal nothing and grants a
+        // premise nothing. A total relation (`= true`) therefore unfolds to no
+        // obligations rather than one unreadable conjunct.
         if expression_table(program).boolean_node(expression) == Some(&true) {
             return;
         }
         conjuncts.push(
-            super::structural_terms::identity_equality_terms(
+            super::structural_terms::structural_predicate_for_parameters(
                 program, scope, parameters, expression,
             )
-            .map(|(left, right)| {
-                (
-                    StructuralJudge::substitute_term(&left, environment),
-                    StructuralJudge::substitute_term(&right, environment),
-                )
-            }),
+            .map(|predicate| StructuralJudge::substitute_term(&predicate, environment)),
         );
     }
 
@@ -83205,13 +87646,12 @@ pub(crate) mod transparent_applications {
             .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
             .filter_map(ProofFact::as_proposition)
         {
-            for (left, right) in
-                transparent_application_conjuncts(program, machine, state, application)
-                    .into_iter()
-                    .flatten()
-                    .flatten()
+            for predicate in transparent_application_conjuncts(program, machine, state, application)
+                .into_iter()
+                .flatten()
+                .flatten()
             {
-                judge.intake_equation(left, right, 0);
+                judge.intake_observed_predicate(predicate, 0);
             }
         }
     }
@@ -83222,6 +87662,15 @@ pub(crate) mod transparent_applications {
         pub trait_arguments: &'edge [typed_trees::types::TypeReferenceHandle],
     }
 
+    /// Prove one transparent proposition application through the same
+    /// structural entailment engine used for ordinary Boolean contracts. Named
+    /// propositions remain the public fact identity; transparency is only the
+    /// proof-side expansion. Every conjunct of the unfolded body must be an
+    /// checked predicate the hypotheses prove; a primitive or witness-bearing
+    /// proposition is never transparent. A requirement-authored `goal` first
+    /// moves through its `inherited` edge: the selected family replaces the
+    /// proposition parameter and the requirement's parameters rename
+    /// positionally onto the satisfier's.
     pub fn transparent_proposition_application_entailed(
         program: &dyn crate::CheckingInput,
         machine: &Machine,
@@ -83317,10 +87766,10 @@ pub(crate) mod transparent_applications {
         program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &typed_trees::state::State,
-        conjuncts: Option<Vec<Option<(StructuralTerm, StructuralTerm)>>>,
+        conjuncts: Option<Vec<Option<StructuralTerm>>>,
         renames: &[(String, StructuralTerm)],
     ) -> bool {
-        let Some(equations) =
+        let Some(predicates) =
             conjuncts.and_then(|conjuncts| conjuncts.into_iter().collect::<Option<Vec<_>>>())
         else {
             return false;
@@ -83343,11 +87792,10 @@ pub(crate) mod transparent_applications {
             intake_transparent_requires(program, machine, state, contracts, &mut judge);
         }
         judge.hypotheses_contradictory
-            || equations.into_iter().all(|(left, right)| {
-                let left = StructuralJudge::substitute_term(&left, renames);
-                let right = StructuralJudge::substitute_term(&right, renames);
+            || predicates.into_iter().all(|predicate| {
+                let predicate = StructuralJudge::substitute_term(&predicate, renames);
                 matches!(
-                    judge.judge_equation(judge.resolve(left), judge.resolve(right), 0),
+                    judge.judge_observed_predicate(predicate, 0),
                     StructuralJudgment::Proven
                 )
             })
@@ -83359,103 +87807,16 @@ pub(crate) mod transparent_applications {
         caller_state: &typed_trees::state::State,
         expression: ExpressionHandle,
     ) -> Option<StructuralTerm> {
-        let Some(call) = expression_table(program).call_node(expression) else {
-            return structural_term(
-                program,
-                Some((caller_machine, caller_state, Default::default())),
-                None,
-                expression,
-                None,
-            );
-        };
-        if call.receiver.is_valid()
-            || !call.evidence_arguments.is_empty()
-            || call.static_requirement_dispatch.is_some()
-        {
-            return structural_term(
-                program,
-                Some((caller_machine, caller_state, Default::default())),
-                None,
-                expression,
-                None,
-            );
-        }
-        let state = crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
+        // Keep the whole typed application. Identity correspondence can consume
+        // its exact call/argument identity; synthetic field projections would lose
+        // that admitted value before the predicate receives it.
+        structural_term(
             program,
-            call.target_symbol,
-        )?;
-        let Some(data_symbol) =
-            crate::value_custody::type_shapes::head_data_symbol(program, state.return_type)
-        else {
-            return structural_term(
-                program,
-                Some((caller_machine, caller_state, Default::default())),
-                None,
-                expression,
-                None,
-            );
-        };
-        let data =
-            crate::declarations::data_queries::data_definition_by_symbol(program, data_symbol)?;
-        if program
-            .data_members(data)
-            .iter()
-            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
-        {
-            return structural_term(
-                program,
-                Some((caller_machine, caller_state, Default::default())),
-                None,
-                expression,
-                None,
-            );
-        }
-        let arguments = expression_table(program)
-            .expression_handles(call.arguments)
-            .iter()
-            .map(|argument| {
-                structural_term(
-                    program,
-                    Some((caller_machine, caller_state, Default::default())),
-                    None,
-                    *argument,
-                    None,
-                )
-            })
-            .collect::<Option<Vec<_>>>()?;
-        let machine =
-            structural_call_machine_name(call.target.as_str(), &call.machine_arguments, &[]);
-        let mut fields = program
-            .data_members(data)
-            .iter()
-            .filter_map(|member| {
-                let field = member.as_field()?;
-                Some((
-                    field.name.as_str().to_owned(),
-                    StructuralTerm::CallProjection {
-                        target: call.target_symbol,
-                        selections: call.machine_arguments.to_vec(),
-                        machine: machine.clone(),
-                        result_type: state.return_type,
-                        field: field.symbol,
-                        field_name: field.name.as_str().to_owned(),
-                        arguments: arguments.clone(),
-                    },
-                ))
-            })
-            .collect::<Vec<_>>();
-        fields.sort_by(|left, right| left.0.cmp(&right.0));
-        Some(StructuralTerm::Constructor {
-            identity: super::structural_judgment::ConstructorIdentity::at_reference(
-                program,
-                state.return_type,
-                data,
-                None,
-            )?,
-            data: data.name.as_str().to_owned(),
-            case: String::new(),
-            fields,
-        })
+            Some((caller_machine, caller_state, Default::default())),
+            None,
+            expression,
+            None,
+        )
     }
 }
 
@@ -83515,7 +87876,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::trait_definition::TraitDefinition;
 
 use crate::proof_contracts::contract_entailment::citations::{
-    collect_citation_equations, instantiated_fact_established, suggest_missing_citation,
+    collect_citation_predicates, instantiated_fact_established, suggest_missing_citation,
 };
 use crate::proof_contracts::contract_entailment::fact_mentions::{
     fact_mentions_proof_only_data, fact_mentions_zero_value,
@@ -83528,8 +87889,7 @@ use inductive_judgment::inductive_transition_entailment;
 use quotient_congruence::{quotient_equality_from_requires, quotient_equality_names};
 use structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use structural_terms::{
-    structural_call_machine_name, structural_term, structural_term_pair, term_contains,
-    unfold_constant_applications,
+    structural_call_machine_name, structural_term, term_contains, unfold_constant_applications,
 };
 
 pub(crate) fn struct_trace() -> bool {
@@ -83622,9 +87982,17 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             &mut structural,
         );
     }
-    let citation_equations = {
+    // CITATIONS (ch10 "Citing Proofs"; the settled proof-citation rule):
+    // each statement call to a free proof machine carries the callee's
+    // proven ensures to this proof, instantiated at the call's argument
+    // terms -- fact injection, the explicit default. Nothing is global:
+    // the call IS the use declaration.
+    // Citations discharge their callee's requires against facts available at
+    // that exact statement. Earlier citations feed later ones, preserving the
+    // authored proof order without making any lemma global or implicit.
+    let citation_predicates = {
         let judge_for_discharge = &structural;
-        collect_citation_equations(
+        collect_citation_predicates(
             program,
             &proof_only,
             machine,
@@ -83632,8 +88000,8 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             Some(judge_for_discharge),
         )
     };
-    for (left, right) in citation_equations {
-        structural.intake_equation(left, right, 0);
+    for predicate in citation_predicates {
+        structural.intake_observed_predicate(predicate, 0);
     }
     let structural = structural;
     let case_result = if ensures
@@ -83654,30 +88022,32 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     } else {
         None
     };
-    let ensures_terms: Vec<Option<(StructuralTerm, StructuralTerm)>> = ensures
-        .iter()
-        .map(|fact| {
-            let binary = expression_table(program).binary_node(*fact)?;
-            let entry = program.machine_states(machine).first()?;
-            let parameters = program.state_parameters(entry);
-            if binary.operator != BinaryOperator::Equal
-                || !structural_terms::has_identity_equality_meaning(
-                    program,
-                    machine.symbol,
-                    parameters,
-                    *fact,
-                )
-            {
-                return None;
-            }
-            structural_terms::structural_term_pair_for_parameters(
+    // STRUCTURAL INDUCTION (the L7 protocol's structural twin): a bodied
+    // machine whose single state is a chain of case arms over one matched
+    // parameter judges the ensures PER ARM -- the arm's case hypothesis
+    // substitutes the subject with a constructor over FRESH payload
+    // variables, `result` binds to the arm's value term, and every
+    // self-application in that term assumes the machine's own ensures for
+    // its arguments (the inductive hypothesis; sound because
+    // validate_proof_machine_recursion refuses non-descending self-calls in
+    // this same diagnostics batch, so an unsound assumption never certifies
+    // a program that compiles). Case arms of inhabited proof data are
+    // reachable, so a ground refutation on any arm refutes the claim.
+    // Preserve the relation of every IH conjunct. Its use below still owes
+    // the exact self-call's established preconditions and checked descent.
+    let mut ensures_terms = Vec::new();
+    if let Some(entry) = program.machine_states(machine).first() {
+        for fact in &ensures {
+            refuted_requires::collect_instantiated_predicates(
                 program,
                 machine.symbol,
-                parameters,
-                binary,
-            )
-        })
-        .collect();
+                program.state_parameters(entry),
+                *fact,
+                &[],
+                &mut ensures_terms,
+            );
+        }
+    }
     let case_arms: Option<Vec<StructuralCaseArm>> = recognize_structural_case_arms(
         program,
         machine,
@@ -83853,7 +88223,12 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                     continue;
                 }
             }
-            for (left, right) in arm.citations.iter().chain(&arm.normal_guarantees) {
+            // Per-arm citations (N3 rung 2): the arm's sub-state facts,
+            // already instantiated under this arm's environment.
+            for predicate in &arm.citations {
+                bound.intake_observed_predicate(predicate.clone(), 0);
+            }
+            for (left, right) in &arm.normal_guarantees {
                 bound.intake_equation(left.clone(), right.clone(), 0);
             }
             bound.retain_data_identities_from(&arm.normal_judge);
@@ -83897,14 +88272,11 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 {
                     continue;
                 }
+                bound.retain_induction_value(machine, application);
                 map.push((RESULT_BINDER.to_owned(), application.clone()));
-                for conjunct in &ensures_terms {
-                    let Some((left, right)) = conjunct else {
-                        continue;
-                    };
-                    bound.intake_equation(
-                        StructuralJudge::substitute_term(left, &map),
-                        StructuralJudge::substitute_term(right, &map),
+                for predicate in &ensures_terms {
+                    bound.intake_observed_predicate(
+                        StructuralJudge::substitute_term(predicate, &map),
                         0,
                     );
                 }

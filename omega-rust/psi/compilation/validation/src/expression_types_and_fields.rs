@@ -96,6 +96,7 @@ pub mod expression_types {
                     None => super::declaration_expression_result_type_reference(
                         program,
                         machine.symbol,
+                        None,
                         &|expression| {
                             crate::value_custody::places::declared_place_type(
                                 program, machine, state, expression,
@@ -129,11 +130,11 @@ pub mod expression_types {
                 && PrimitiveType::from_name(target.as_str()).is_none()
             {
                 diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` casts with `as {target}`, but `{target}` is not a scalar \
+                    "machine `{}` state `{}` casts with `as {target}`, but `{target}` is not a scalar \
              type; non-scalar `as` only erases qualifications from the same data carrier",
-            machine.name.as_str(),
-            state.map(|state| state.name.as_str()).unwrap_or(""),
-        )));
+                    machine.name.as_str(),
+                    state.map(|state| state.name.as_str()).unwrap_or(""),
+                )));
             }
             match target_name.and_then(|target| PrimitiveType::from_name(target.as_str())) {
                 Some(PrimitiveType::Bool) => {
@@ -244,12 +245,12 @@ pub mod expression_types {
                 return false;
             }
             diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` casts {} to `bool`, but `as` has no number-to-bool conversion \
+                "machine `{}` state `{}` casts {} to `bool`, but `as` has no number-to-bool conversion \
          (a `bool` is {{0, 1}}; write an explicit comparison like `n != 0`)",
-        machine.name.as_str(),
-        state.map(|state| state.name.as_str()).unwrap_or(""),
-        class.unwrap().describe(),
-    )));
+                machine.name.as_str(),
+                state.map(|state| state.name.as_str()).unwrap_or(""),
+                class.unwrap().describe(),
+            )));
             true
         }
 
@@ -263,11 +264,11 @@ pub mod expression_types {
         ) -> bool {
             let mut reject = |reason: String| {
                 diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` {reason} to `{target_name}`, but `as` converts between \
+                    "machine `{}` state `{}` {reason} to `{target_name}`, but `as` converts between \
              scalar types only",
-            machine.name.as_str(),
-            state.map(|state| state.name.as_str()).unwrap_or(""),
-        )));
+                    machine.name.as_str(),
+                    state.map(|state| state.name.as_str()).unwrap_or(""),
+                )));
                 true
             };
             if value_class(program, Some(machine), state, source) == Some(ValueClass::Text) {
@@ -507,7 +508,7 @@ pub mod expression_types {
             diagnostics.push(Diagnostic::error(format!(
         "builtin `{}` cannot combine `{}` and `{}`; a landed float retains its format, so changing format requires an explicit conversion",
         spelling.symbol(), left.name(), right.name(),
-    )).with_source_span(program.expression_table.source_span(expression)));
+            )).with_source_span(program.expression_table.source_span(expression)));
         }
 
         pub(crate) fn validate_float_expression_formats(
@@ -754,7 +755,7 @@ pub mod expression_types {
                 machine.name, state.name, data.name,
             ))
             .with_source_span(source_span),
-        );
+                    );
                     return None;
                 }
                 let Some(case) = structural_match_pattern_case_for_subject(
@@ -787,7 +788,7 @@ pub mod expression_types {
                 program.statement_table.statements(state.statement_nodes).iter().filter_map(|statement| statement.as_local_data()).map(|local| (&local.name, local.symbol, local.type_reference, local.initial_value)).collect::<Vec<_>>(),
             ))
             .with_source_span(source_span),
-        );
+                    );
                     return None;
                 };
                 let MatchPattern::Destructure(pattern) = pattern else {
@@ -950,7 +951,7 @@ pub mod expression_types {
                 "match structural pattern must mention every declared field or explicitly use `..`",
             )
             .with_source_span(source_span),
-        );
+                    );
                 }
                 if pattern.guard.is_valid() {
                     let guard_type =
@@ -1725,7 +1726,7 @@ pub mod expression_types {
          and modulo operators are defined for integers only",
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
-    )));
+            )));
             true
         }
 
@@ -1850,7 +1851,7 @@ pub mod expression_types {
          concatenation (`+`), `==`, and `!=`",
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
-    )));
+            )));
             true
         }
 
@@ -1871,7 +1872,7 @@ pub mod expression_types {
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
         class.unwrap().describe(),
-    )));
+            )));
             true
         }
 
@@ -1893,7 +1894,7 @@ pub mod expression_types {
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
         class.map_or("a non-integer value", ValueClass::describe),
-    )));
+            )));
             true
         }
 
@@ -2041,7 +2042,7 @@ pub mod expression_types {
          machine or select its declared trait meaning",
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
-    )));
+            )));
             true
         }
 
@@ -2748,7 +2749,7 @@ pub mod expression_types {
         "{slot_context} expects the `{expected}` data type but got `{got}` in the `{slot_noun}` \
          position; these are incompatible data types (a place is accepted structurally, but its \
          declared type must match)",
-    )));
+            )));
             true
         }
     }
@@ -4617,11 +4618,31 @@ pub mod expression_types {
             parameters: &[typed_trees::signature::StateParameter],
             expression: ExpressionHandle,
         ) -> Option<TypeReferenceHandle> {
+            parameter_expression_result_type_reference_in_scope(
+                program,
+                owner_symbol,
+                parameters,
+                None,
+                expression,
+            )
+        }
+
+        /// A copied callable retains its supplying application as well as its fresh
+        /// formal roster. This selects principal results of siblings, including
+        /// nullary operations; no destination or operand-count inference supplies it.
+        pub fn parameter_expression_result_type_reference_in_scope(
+            program: &dyn crate::CheckingInput,
+            owner_symbol: symbols::SymbolHandle,
+            parameters: &[typed_trees::signature::StateParameter],
+            trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
+            expression: ExpressionHandle,
+        ) -> Option<TypeReferenceHandle> {
             if !owner_symbol.is_valid() {
                 return result_type(
                     program,
                     ExpressionOwner::Declaration {
                         owner_symbol,
+                        trait_scope,
                         place_type: &|_| None,
                     },
                     expression,
@@ -4636,7 +4657,11 @@ pub mod expression_types {
                         .collect::<Vec<_>>();
                     let mut telescopes = memos.parameter_telescopes.lock().ok()?;
                     let next = u32::try_from(telescopes.len()).ok()?;
-                    Some(*telescopes.entry((owner_symbol, roster)).or_insert(next))
+                    Some(
+                        *telescopes
+                            .entry((owner_symbol, roster, trait_scope))
+                            .or_insert(next),
+                    )
                 });
             let Some(telescope) = telescope else {
                 let place_type = |expression| {
@@ -4646,6 +4671,7 @@ pub mod expression_types {
                     program,
                     ExpressionOwner::Declaration {
                         owner_symbol,
+                        trait_scope,
                         place_type: &place_type,
                     },
                     expression,
@@ -4657,6 +4683,7 @@ pub mod expression_types {
                 ExpressionOwner::Telescope {
                     owner_symbol,
                     parameters,
+                    trait_scope,
                     telescope,
                 },
                 expression,
@@ -4732,6 +4759,7 @@ pub mod expression_types {
         pub(crate) fn declaration_expression_result_type_reference(
             program: &dyn crate::CheckingInput,
             owner_symbol: symbols::SymbolHandle,
+            trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
             place_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
             expression: ExpressionHandle,
         ) -> Option<TypeReferenceHandle> {
@@ -4742,6 +4770,7 @@ pub mod expression_types {
                 program,
                 ExpressionOwner::Declaration {
                     owner_symbol,
+                    trait_scope,
                     place_type,
                 },
                 expression,
@@ -4771,11 +4800,13 @@ pub mod expression_types {
             Domain(&'program typed_trees::domain::DomainDefinition),
             Declaration {
                 owner_symbol: symbols::SymbolHandle,
+                trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
                 place_type: &'program dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
             },
             Telescope {
                 owner_symbol: symbols::SymbolHandle,
                 parameters: &'program [typed_trees::signature::StateParameter],
+                trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
                 telescope: u32,
             },
         }
@@ -4868,27 +4899,27 @@ pub mod expression_types {
                         .map(|arm| result_type(program, owner, arm.value, active))
                         .collect::<Vec<_>>();
                     join_result_type_references(
-                program,
-                &references,
-                &arms
-                    .iter()
-                    .zip(&references)
-                    .map(|(arm, reference)| {
-                        reference.is_none()
-                            && crate::value_custody::literals::has_anonymous_numeric_results(
-                                program, arm.value,
-                            )
+                        program,
+                        &references,
+                        &arms
+                            .iter()
+                            .zip(&references)
+                            .map(|(arm, reference)| {
+                                reference.is_none()
+                                    && crate::value_custody::literals::has_anonymous_numeric_results(
+                                        program, arm.value,
+                                    )
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .or_else(|| {
+                        let values = arms
+                            .iter()
+                            .zip(&references)
+                            .map(|(arm, reference)| reference.map(|reference| (arm.value, reference)))
+                            .collect::<Option<Vec<_>>>()?;
+                        program.common_static_type_reference(&values)
                     })
-                    .collect::<Vec<_>>(),
-            )
-            .or_else(|| {
-                let values = arms
-                    .iter()
-                    .zip(&references)
-                    .map(|(arm, reference)| reference.map(|reference| (arm.value, reference)))
-                    .collect::<Option<Vec<_>>>()?;
-                program.common_static_type_reference(&values)
-            })
                 }
                 ExpressionNode::Call(call) => (|| {
                     if crate::compiler_operations::storage_address_operand(program, call).is_some()
@@ -4941,14 +4972,29 @@ pub mod expression_types {
                                     )
                                 })
                             });
-                    let scoped_requirement_result = program
-                        .requirement_call_signature(owner.symbol(), call)
+                    // Inside an abstract trait contract, a sibling requirement's
+                    // generic result already belongs to this exact telescope. Runtime
+                    // callers cannot borrow that raw result: they need its applied
+                    // signature. Keep this owner distinction instead of making the
+                    // context-free call query guess a generic instantiation.
+                    let trait_scope = match owner {
+                        ExpressionOwner::Declaration { trait_scope, .. }
+                        | ExpressionOwner::Telescope { trait_scope, .. } => trait_scope,
+                        _ => None,
+                    };
+                    let scoped_requirement = match trait_scope {
+                        Some(scope) => {
+                            program.requirement_call_signature_in_scope(owner.symbol(), call, scope)
+                        }
+                        None => program.requirement_call_signature(owner.symbol(), call),
+                    };
+                    let scoped_requirement_result = scoped_requirement
                         .filter(|signature| signature.return_type.is_valid())
                         .map(|signature| signature.return_type)
                         .or_else(|| match owner {
                             ExpressionOwner::Declaration { owner_symbol, .. }
                             | ExpressionOwner::Telescope { owner_symbol, .. }
-                                if call.target_symbol.is_valid() =>
+                                if trait_scope.is_none() && call.target_symbol.is_valid() =>
                             {
                                 let parent = program.symbols.get(owner_symbol).parent;
                                 (program.symbols.get(call.target_symbol).parent == parent)
@@ -5266,17 +5312,17 @@ pub mod expression_types {
                         }
                         ExpressionOwner::Domain(domain) => {
                             match expression_table(program).expression(expression) {
-                    ExpressionNode::Name(_)
-                        if typed_trees::domain::domain_subject_reference(
-                            program, domain, expression,
-                        ) =>
-                    {
-                        Some(domain.target_type)
-                    }
-                    _ => crate::proof_contracts::proof_embeddings::expression_type_reference(
-                        program, expression,
-                    ),
-                }
+                            ExpressionNode::Name(_)
+                                if typed_trees::domain::domain_subject_reference(
+                                    program, domain, expression,
+                                ) =>
+                            {
+                                Some(domain.target_type)
+                            }
+                            _ => crate::proof_contracts::proof_embeddings::expression_type_reference(
+                                program, expression,
+                            ),
+                        }
                         }
                     }
                 }
@@ -5542,9 +5588,9 @@ pub mod expression_types {
             binary,
             operands[0],
         )
-    {
+            {
         return builtin_type_reference(program, BuiltinTypeAtom::Bool);
-    }
+            }
             let spelling = match binary.operator {
                 Add => Some(OperatorSpelling::Add),
                 Subtract => Some(OperatorSpelling::Subtract),
@@ -5714,10 +5760,12 @@ pub mod expression_types {
             let mathematical = std::array::from_fn::<_, 2, _>(|position| {
                 let expression = [binary.left, binary.right][position];
                 operands[position].is_some_and(|reference| {
-            matches!(program.type_reference_table.type_reference(reference),
+                    matches!(program.type_reference_table.type_reference(reference),
                 TypeReferenceNode::Named { symbol, .. }
                     if program.symbols.builtin_type_symbol(symbols::BuiltinType::Int) == Some(*symbol))
-        }) || crate::proof_contracts::contract_entailment::proof_integer_expression(program, expression)
+                }) || crate::proof_contracts::contract_entailment::proof_integer_expression(
+                    program, expression,
+                )
             });
             if mathematical.into_iter().any(|value| value)
                 && [binary.left, binary.right]
@@ -5883,12 +5931,12 @@ pub mod expression_types {
                                     binary.right
                                 };
                                 if operands[position].is_some()
-                            || !crate::value_custody::literals::has_anonymous_numeric_results(
-                                program, expression,
-                            )
-                        {
-                            return None;
-                        }
+                                    || !crate::value_custody::literals::has_anonymous_numeric_results(
+                                        program, expression,
+                                    )
+                                {
+                                    return None;
+                                }
                                 carriers[position] =
                                     Some(typed_trees::operator::integer_peer_operand_carrier(
                                         binary.operator,
@@ -6500,6 +6548,7 @@ pub mod expression_types {
     pub use result_type::{
         arithmetic_result_type_reference, expression_result_type_reference,
         join_result_type_references, parameter_expression_result_type_reference,
+        parameter_expression_result_type_reference_in_scope,
     };
 
     pub(crate) use crate::value_custody::places::declared_reference_access;

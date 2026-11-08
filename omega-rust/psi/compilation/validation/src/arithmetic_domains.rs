@@ -24672,6 +24672,7 @@ pub(crate) mod total_specification {
         crate::value_custody::expression_types::declaration_expression_result_type_reference(
             program,
             bindings.owner_symbol,
+            None,
             &|expression| abstract_specification_place_type(program, bindings, expression),
             expression,
         )
@@ -25789,7 +25790,7 @@ pub(crate) mod value_environment {
     pub(crate) integer_operations: Vec<crate::CapturedIntegerOperation>,
     pub(crate) scalar_associations:
         Vec<crate::proof_contracts::contract_entailment::numeric_observations::CapturedScalarAssociation>,
-}
+    }
 
     #[derive(Debug, Default, Clone, PartialEq)]
     pub(crate) struct IeeeConditionalFacts {

@@ -345,6 +345,12 @@ pub(crate) mod call_results {
     }
 }
 pub(crate) mod identity_context {
+    /*
+    Source relations and mathematical inputs supply constructor type arguments.
+    Retain the exact peer or declared receiving type under the same telescope.
+    These are inference proposals, never domain, ownership or identity evidence.
+    */
+
     use super::ValueTypeOwner;
     use std::collections::HashMap;
     use typed_trees::{
@@ -354,8 +360,14 @@ pub(crate) mod identity_context {
         types::{TypeReferenceHandle, TypeReferenceNode},
     };
 
+    #[derive(Clone, Copy)]
+    pub(crate) enum ConstructorContext {
+        Peer(ExpressionHandle),
+        Declared(TypeReferenceHandle),
+    }
+
     pub(crate) type ConstructorPeers =
-        HashMap<(ValueTypeOwner, ExpressionHandle), Vec<ExpressionHandle>>;
+        HashMap<(ValueTypeOwner, ExpressionHandle), Vec<ConstructorContext>>;
 
     pub(crate) fn append(
         program: &dyn validation::CheckingInput,
@@ -374,10 +386,33 @@ pub(crate) mod identity_context {
             }
             visited.push(expression);
             pending.extend(
-                validation::contextual_proposition_children(program, expression)
+                validation::logical_proposition_children(program, expression)
                     .into_iter()
                     .flatten(),
             );
+            if let Some(call) = program.expression_table.call_node(expression)
+                && let Some(types) =
+                    validation::mathematical_applications::argument_type_references(program, call)
+            {
+                for (subject, reference) in program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .zip(types)
+                {
+                    if let Some(reference) = reference
+                        && program
+                            .expression_table
+                            .struct_literal_node(*subject)
+                            .is_some()
+                    {
+                        peers
+                            .entry((owner, *subject))
+                            .or_default()
+                            .push(ConstructorContext::Declared(reference));
+                    }
+                }
+            }
             let Some(binary) = program.expression_table.binary_node(expression) else {
                 continue;
             };
@@ -393,7 +428,10 @@ pub(crate) mod identity_context {
                     .struct_literal_node(constructor)
                     .is_some()
                 {
-                    peers.entry((owner, constructor)).or_default().push(peer);
+                    peers
+                        .entry((owner, constructor))
+                        .or_default()
+                        .push(ConstructorContext::Peer(peer));
                 }
             }
         }
@@ -411,7 +449,10 @@ pub(crate) mod identity_context {
             .into_iter()
             .flatten()
             .filter_map(|peer| {
-                let reference = scope.result_type(program, *peer)?;
+                let reference = match peer {
+                    ConstructorContext::Peer(peer) => scope.result_type(program, *peer)?,
+                    ConstructorContext::Declared(reference) => *reference,
+                };
                 application_arguments(program, reference, declaration)
             })
             .collect()
@@ -469,6 +510,7 @@ pub(crate) enum ValueTypeOwner {
     Declaration {
         callable: symbols::SymbolHandle,
         parameters: arena::HandleSpan<typed_trees::signature::StateParameter>,
+        trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
     },
 }
 
@@ -504,6 +546,7 @@ impl ValueTypeOwner {
             Self::Declaration {
                 callable,
                 parameters,
+                ..
             } => validation::parameter_source_type_application(
                 program,
                 callable,
@@ -536,10 +579,12 @@ impl ValueTypeOwner {
             Self::Declaration {
                 callable,
                 parameters,
-            } => validation::parameter_expression_result_type_reference(
+                trait_scope,
+            } => validation::parameter_expression_result_type_reference_in_scope(
                 program,
                 callable,
                 program.state_parameters.span_or_empty(parameters),
+                trait_scope,
                 expression,
             ),
         }
@@ -593,7 +638,11 @@ fn occurrences(
         }
     }
     let mut declarations = Vec::<(ValueTypeOwner, Vec<ExpressionHandle>)>::new();
-    for (callable, _, parameters, contract) in validation::callable_contract_scopes(program) {
+    let mut declaration_positions = symbols::SymbolKeyMap::<ValueTypeOwner, usize>::default();
+    for (callable, _, parameters, trait_scope, contract) in
+        validation::callable_contract_scopes(program)
+    {
+        // Entry contracts already use their actual executable state above.
         if program.machine_by_symbol(callable).is_some_and(|machine| {
             program
                 .machine_states(machine)
@@ -605,14 +654,13 @@ fn occurrences(
         let owner = ValueTypeOwner::Declaration {
             callable,
             parameters,
+            trait_scope,
         };
-        let position = declarations
-            .iter()
-            .position(|(candidate, _)| *candidate == owner)
-            .unwrap_or_else(|| {
-                declarations.push((owner, Vec::new()));
-                declarations.len() - 1
-            });
+        let position = *declaration_positions.entry(owner).or_insert_with(|| {
+            let position = declarations.len();
+            declarations.push((owner, Vec::new()));
+            position
+        });
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             identity_context::append(&contract_input, owner, fact, &mut peers);
             validation::append_fact_expression_roots(program, fact, &mut declarations[position].1);

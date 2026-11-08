@@ -3,6 +3,7 @@
 // Numeric interval partition only: this local carrier grants no storage rights.
 use omega::language::core::content;
 use omega::language::core::drop;
+use omega::language::core::nat;
 data Region [linear] dropped by drop_region { base: addr; length: u64; }
 machine drop_region(region: &mut Region) {}
 domain Region::Owned;
@@ -20,8 +21,11 @@ ensures embed(result) == embed(base) + embed(count)
 data Pieces { left: Region in Owned; right: Region in Owned; }
 machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
 requires embed(whole.base) + embed(whole.length) <= embed(ceiling)
-ensures Owned::content(old(&whole)) == separate(
-    Owned::content(&result.right), Owned::content(&result.left))
+ensures core::Identity<IntervalSet<Nat>>(
+    Owned::content(old(&whole)),
+    separate(
+        Owned::content(&result.right), Owned::content(&result.left))
+)
 {
     let left: Region in Owned = Region { base: whole.base, length: length };
     let right: Region in Owned = Region { base: boundary(whole.base, length, ceiling), length: whole.length - length };

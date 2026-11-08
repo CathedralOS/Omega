@@ -782,16 +782,22 @@ pub enum FixedCoreDeclaration {
     Strict,
     /* `core::Squash` — the witness-hiding proposition squash. */
     Squash,
+    /// `core::Identity<T>(left, right)` — proof-relevant kernel identity.
+    Identity,
 }
 
 impl FixedCoreDeclaration {
-    pub const COUNT: usize = 4;
+    pub const COUNT: usize = 5;
 
-    /*
-        The fixed vocabulary in root-child order: every member's
-        [`ordinal`](Self::ordinal) is its index here.
-    */
-    pub const ALL: [Self; Self::COUNT] = [Self::Level, Self::Type, Self::Strict, Self::Squash];
+    /// The fixed vocabulary in root-child order: every member's
+    /// [`ordinal`](Self::ordinal) is its index here.
+    pub const ALL: [Self; Self::COUNT] = [
+        Self::Level,
+        Self::Type,
+        Self::Strict,
+        Self::Squash,
+        Self::Identity,
+    ];
 
     /*
         The compiler-known name this declaration owns. The `core::` prefix
@@ -805,6 +811,7 @@ impl FixedCoreDeclaration {
             Self::Type => "core::Type",
             Self::Strict => "core::Strict",
             Self::Squash => "core::Squash",
+            Self::Identity => "core::Identity",
         }
     }
 

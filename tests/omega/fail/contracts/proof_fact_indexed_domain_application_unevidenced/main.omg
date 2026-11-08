@@ -18,6 +18,7 @@
 // `tests/omega/fail/contracts/proof_fact_indexed_domain_application_mismatch`.
 use omega::language::core::extent;
 use omega::language::core::content;
+use omega::language::core::nat;
 
 public data Slot [copy] {
     value: u32;
@@ -35,14 +36,17 @@ public boundary trait ResidentStorage {
     reaches
     ensures
         result in Granted,
-        Granted::content(old(&storage)) == Granted::content(&result);
+        core::Identity<IntervalSet<Nat>>(Granted::content(old(&storage)), Granted::content(&result));
 
     machine view(storage: &Extent in Granted & Resident<SlotPlacement, Slot>) -> Slot reaches;
 
     machine retire_view(storage: Extent in Granted & Resident<SlotPlacement, Slot>) -> Retired
     reaches
     ensures
-        Granted::content(old(&storage)) == Granted::content(&result.storage);
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(old(&storage)),
+            Granted::content(&result.storage)
+        );
 }
 
 machine exercise_placed(vacant: Extent in Granted & Vacant) -> Extent

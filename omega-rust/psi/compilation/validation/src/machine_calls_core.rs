@@ -1003,7 +1003,7 @@ pub mod compiler_operations {
         argument,
         occurrence,
         kind,
-    ).ok_or("Build declaration operand does not resolve to one visible product declaration of the required kind")?;
+            ).ok_or("Build declaration operand does not resolve to one visible product declaration of the required kind")?;
             if matches!(
                 operation,
                 BuildOperation::ServiceExclusion | BuildOperation::ServiceAudit
@@ -1072,7 +1072,7 @@ pub mod compiler_operations {
             typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
                 if *access == language_semantics::ReferenceAccess::Mutable
                     && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
-    })
+            })
         }
 
         pub fn build_operation(
@@ -4533,7 +4533,12 @@ pub mod denotational_calls {
                 if program.is_deferred_contract_invocation(expression) {
                     continue;
                 }
-                if crate::mathematical_applications::selected_definition(program, call).is_some() {
+                if crate::mathematical_applications::is_mathematical_call(program, call) {
+                    // Checked mathematical signature formation owns the dependent
+                    // application. It has no operational closure to classify.
+                    // The producer has already checked this source application at
+                    // its instantiated generic telescope. Repeating an uninstantiated
+                    // carrier check here would lose that exact declaration custody.
                     continue;
                 }
                 let (machine, state) = match selected_call_contract(program, caller, call) {
@@ -4577,9 +4582,9 @@ pub mod denotational_calls {
                             }
                             if !super::signature_value_content_is_observable(program, signature) {
                                 diagnostics.push(Diagnostic::error(format!(
-                            "specification call `{}` carries forbidden denotational content",
-                            signature.name,
-                        )));
+                                    "specification call `{}` carries forbidden denotational content",
+                                    signature.name,
+                                )));
                             }
                             continue;
                         }
@@ -4678,12 +4683,31 @@ pub mod denotational_calls {
     pub(crate) use specification::validate_specification_calls;
     pub use specification::{SpecificationCallRequest, admit_specification_calls};
 
+    /// A static callable or implementation requirement's exact public contract
+    /// can close a value-only leaf.
+    /// This consumes the declared promise; it never inspects a selected private
+    /// implementation or supplies an unresolved caller with stronger guarantees.
     pub(crate) fn abstract_value_call_signature(
         program: &dyn crate::CheckingInput,
         target: SymbolHandle,
     ) -> Option<&typed_trees::signature::StateSignature> {
-        let contract = program.retained_static_machine_contract(target)?;
-        let signature = contract.signature();
+        let signature = if let Some(contract) = program.retained_static_machine_contract(target) {
+            contract.signature()
+        } else {
+            if !target.is_valid() {
+                return None;
+            }
+            let binder = program.symbols.get(target).parent;
+            if !binder.is_valid()
+                || program.symbols.get(binder).kind != symbols::SymbolKind::ConformanceParameter
+            {
+                return None;
+            }
+            // Keep the exact invoked child as the value identity. Its declaring
+            // evidence bound supplies the applied public signature, including
+            // explicit refinements; a selected private body supplies no promise.
+            crate::selected_requirement_signature(program, target)?.1
+        };
         if !signature_has_closed_value_contract(program, signature) {
             return None;
         }
@@ -9342,15 +9366,15 @@ pub mod terminal_transitions {
                                     && operator.spelling.is_none()
                                     && program.operator_path_members(operator.name) == members
                             }))
-                            && !targets.contains(&target)
+                            && !targets.iter().any(|(previous, _)| *previous == target)
                         {
-                            targets.push(target);
+                            targets.push((target, machine.symbol));
                         }
                     }
                 }
             }
         }
-        for target in targets {
+        for (target, lexical_owner) in targets {
             let TransitionTargetNode::Named {
                 path,
                 arguments,
@@ -9399,12 +9423,26 @@ pub mod terminal_transitions {
                 .to_vec();
             let arguments = program.expression_table.insert_expression_handles(operands);
             let target_symbol = crate::call_target_entry_symbol(program, path.symbol);
+            let declaration = crate::find_machine_head(program, path.symbol)
+                .or_else(|| crate::find_state(program, path.symbol))
+                .map_or(path.symbol, |(machine, _)| machine.symbol);
+            let machine_arguments = captured_arguments(path.symbol);
+            let application = program.expression_table.retain_static_machine_application(
+                path.symbol,
+                leaf.clone(),
+                &machine_arguments,
+            );
+            let retained = program
+                .expression_table
+                .static_machine_application_mut(application);
+            retained.lexical_owner = lexical_owner;
+            retained.binding_declaration = declaration;
             let call = program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
                     authored_call_selection,
                     authored_call_binding: None,
-                    authored_machine_application: Default::default(),
+                    authored_machine_application: application,
                     requirement_application: Default::default(),
                     exact_coercion_target: Default::default(),
                     receiver,
@@ -9412,7 +9450,7 @@ pub mod terminal_transitions {
                     static_machine_parameter,
                     target: leaf,
                     static_requirement_dispatch: None,
-                    machine_arguments: captured_arguments(path.symbol).into_boxed_slice(),
+                    machine_arguments: machine_arguments.into_boxed_slice(),
                     quotient_operation: None,
                     private_layout_operation: None,
                     installed_interrupt_operation: None,
