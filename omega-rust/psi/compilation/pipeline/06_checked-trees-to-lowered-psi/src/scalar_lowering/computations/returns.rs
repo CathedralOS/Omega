@@ -176,7 +176,7 @@ impl Expansion<'_> {
             copied_payloads,
             self.structural_types,
         )?;
-        let mut finish = |target| -> Result<usize, LoweringError> {
+        let mut finish = |target: usize| -> Result<usize, LoweringError> {
             let target_state = target
                 .checked_sub(self.base)
                 .and_then(|index| self.states.get(index))
