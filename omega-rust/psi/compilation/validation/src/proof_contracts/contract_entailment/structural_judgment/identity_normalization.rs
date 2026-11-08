@@ -21,10 +21,32 @@ impl<'value> IdentitySubstitutions<'value> {
         let mut admitted = Vec::new();
         let mut costs = Vec::new();
         for (left, right) in rows {
-            spend(remaining)?;
+            spend(remaining).inspect_err(|reason| {
+                judge.trace_le_case(
+                    "component-preparation",
+                    &[],
+                    format_args!(
+                        "stage=row depth={depth} rows={} remaining={remaining} reason={reason}",
+                        admitted.len()
+                    ),
+                );
+            })?;
             if judge.identity_value_is_available(left) && judge.identity_value_is_available(right) {
                 admitted.push((left, right));
-                costs.push(judge.identity_normalization_cost(right, depth, remaining)?);
+                costs.push(
+                    judge
+                        .identity_normalization_cost(right, depth, remaining)
+                        .inspect_err(|reason| {
+                            judge.trace_le_case(
+                                "component-target-cost",
+                                &[("target", right)],
+                                format_args!(
+                                    "depth={depth} rows={} remaining={remaining} reason={reason}",
+                                    admitted.len()
+                                ),
+                            );
+                        })?,
+                );
             }
         }
         let mut representatives = (0..admitted.len()).collect::<Vec<_>>();
@@ -47,7 +69,13 @@ impl<'value> IdentitySubstitutions<'value> {
                     (right, prior_left),
                     (right, prior_right),
                 ] {
-                    spend(remaining)?;
+                    spend(remaining).inspect_err(|reason| {
+                        judge.trace_le_case(
+                            "component-preparation",
+                            &[("left", left), ("right", right)],
+                            format_args!("stage=join depth={depth} row={row} prior={prior} rows={} remaining={remaining} reason={reason}", admitted.len()),
+                        );
+                    })?;
                     if matches!(
                         judge.identity_representation_correspondence(
                             left.clone(),
@@ -96,7 +124,13 @@ impl<'value> IdentitySubstitutions<'value> {
         remaining: &mut usize,
     ) -> Result<Option<usize>, &'static str> {
         for (index, (left, right)) in self.rows.iter().enumerate() {
-            spend(remaining)?;
+            spend(remaining).inspect_err(|reason| {
+                judge.trace_le_case(
+                    "component-lookup",
+                    &[("value", value)],
+                    format_args!("stage=row depth={depth} row={index} rows={} remaining={remaining} reason={reason}", self.rows.len()),
+                );
+            })?;
             let component = self.representatives[index];
             let target = self.normalized[component]
                 .as_ref()
@@ -117,6 +151,14 @@ impl<'value> IdentitySubstitutions<'value> {
                     return Ok(Some(component));
                 }
                 if *remaining == 0 {
+                    judge.trace_le_case(
+                        "component-lookup",
+                        &[("value", value), ("endpoint", endpoint)],
+                        format_args!(
+                            "stage=match depth={depth} row={index} rows={} remaining={remaining}",
+                            self.rows.len()
+                        ),
+                    );
                     return Err("the Id component lookup exhausted the shared query allowance");
                 }
             }
@@ -390,6 +432,15 @@ impl StructuralJudge<'_> {
         substitutions.active[component] = true;
         let target = substitutions.rows[component].1.clone();
         let result = self.normalize_identity_context(target, depth + 1, remaining, substitutions);
+        if let Err(reason) = &result {
+            self.trace_le_case(
+                "representative-normalization",
+                &[("target", substitutions.rows[component].1)],
+                format_args!(
+                    "depth={depth} component={component} remaining={remaining} reason={reason}"
+                ),
+            );
+        }
         substitutions.active[component] = false;
         if let Ok(value) = &result {
             substitutions.normalized[component] = Some(value.clone());
