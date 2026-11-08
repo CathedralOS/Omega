@@ -1,5 +1,9 @@
-//! The settlement identities of builtin and admitted-provider boundary
-//! traits.
+/*
+We compute the canonical SHA-256 parent identities for hosted builtin
+settlements, admitted provider normalized foreign calls, in-place provider
+settlements, installed provider internal calls, and target-family internal
+calls.
+*/
 
 use crate::NativeSelectedProviderPlanDigest;
 pub(crate) use crate::OptimizedBoundaryOccurrence;
@@ -17,12 +21,6 @@ use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
 use target_operations::ProviderExecutionBinding;
 
-/// Strong identity for one hosted builtin settlement. The derivation binds
-/// the builtin's catalog row — `identity_tags` name its closed execution and
-/// realization pair — plus the custody shapes the settlement record actually
-/// retained: the scalar argument when present, and the structural result when
-/// the builtin declares one. A further hosted builtin needs only a fresh tag
-/// pair and its bound custody, not a new identity function.
 pub(crate) fn hosted_builtin_settlement_identity(
     occurrence: &OptimizedBoundaryOccurrence,
     requirement_identity: &str,
@@ -32,8 +30,6 @@ pub(crate) fn hosted_builtin_settlement_identity(
     scalar_argument: Option<&CompilerBuiltinScalarArgument>,
     result: &CompilerBuiltinResult,
 ) -> Result<[u8; 32], &'static str> {
-    // Structural-result custody has its own domain; scalar-only and unit-result
-    // custody share the original builtin domain.
     let mut digest = DomainDigestEncoder::new(match result {
         CompilerBuiltinResult::Unit => {
             b"omega.d41-boundary-trait-settlement.sha256.v1\0".as_slice()
@@ -46,7 +42,7 @@ pub(crate) fn hosted_builtin_settlement_identity(
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.byte(1); // HostedV1 compiler-builtin catalog.
+    digest.byte(1);
     digest.raw(&identity_tags);
     if let Some(scalar_argument) = scalar_argument {
         hash_builtin_scalar_argument(&mut digest, scalar_argument)?;
@@ -66,7 +62,7 @@ fn hash_builtin_scalar_argument(
     match scalar_argument {
         CompilerBuiltinScalarArgument::Immediate(scalar_argument) => {
             digest.raw(&scalar_argument.source_value.get().to_le_bytes());
-            digest.byte(1); // exact signed i32 scalar schema
+            digest.byte(1);
             let semantic_vocabulary::IntegerValue::Signed(value) = scalar_argument.immediate else {
                 return Err("hosted builtin settlement argument requires a signed i32 immediate");
             };
@@ -86,14 +82,6 @@ fn hash_builtin_scalar_argument(
     Ok(())
 }
 
-/// Strong identity for one exact normalized foreign call. Besides the
-/// observed execution, locator, evaluated boundary-plan commitment, and
-/// same-stack custody, the identity binds the call's expected structural
-/// custody: every authored structural argument row (place, access, path) and
-/// every declared structural formal row (position, place, self-ness, type,
-/// multiplicity, access, qualifications). The observed plan commitment alone
-/// cannot carry those semantic coordinates — no field can be substituted
-/// underneath this parent identity.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     occurrence: &OptimizedBoundaryOccurrence,
@@ -111,7 +99,7 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.byte(2); // AdmittedProvider::NormalizedForeignCall.
+    digest.byte(2);
     hash_provider_execution_binding(&mut digest, execution);
     match mechanism {
         target_operations::NormalizedForeignCallMechanism::Table {
@@ -170,11 +158,6 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     digest.finish()
 }
 
-/// Strong identity for one exact installed provider settlement realized in
-/// place. The hash binds the complete retained settlement row — execution,
-/// realization, scalar/structural/byte-sequence argument custody, completion
-/// claim sources, receipts, provider custody, result placement, and source
-/// coordinates — plus the joined privileged port effect when one exists.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn admitted_provider_settlement_identity(
     occurrence: &OptimizedBoundaryOccurrence,
@@ -190,7 +173,7 @@ pub(crate) fn admitted_provider_settlement_identity(
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.byte(3); // AdmittedProviderSettlement role.
+    digest.byte(3);
     hash_provider_execution_binding(&mut digest, execution);
     hash_boundary_settlement_record(&mut digest, settlement)?;
     match port_effect {
@@ -203,9 +186,6 @@ pub(crate) fn admitted_provider_settlement_identity(
     Ok(digest.finish())
 }
 
-/// Bind the five provider report coordinates carried by one admitted-provider
-/// execution, in canonical little-endian order. Every admitted-provider
-/// settlement role opens with this step before its role-specific custody.
 fn hash_provider_execution_binding(
     digest: &mut DomainDigestEncoder,
     execution: ProviderExecutionBinding,
@@ -221,13 +201,6 @@ fn hash_provider_execution_binding(
     }
 }
 
-/// Strong identity for one installed provider boundary call realized as a
-/// resolved internal call into its selected checked-machine candidate. The
-/// hash binds the boundary coordinate, the exact choosing declaration, the
-/// provider label and candidate identity, and complete call-stack custody —
-/// owner, callee machine, call-field offset, and the frame or caller-live
-/// bytes its record family carries — so no coordinate can be substituted
-/// underneath this parent identity.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn installed_provider_internal_call_identity(
     occurrence: &OptimizedBoundaryOccurrence,
@@ -246,7 +219,7 @@ pub(crate) fn installed_provider_internal_call_identity(
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.byte(4); // InstalledProviderInternalCall role.
+    digest.byte(4);
     digest.raw(&boundary.get().to_le_bytes());
     hash_bytes(&mut digest, provider_declaration.as_bytes());
     hash_bytes(&mut digest, provider_identity.as_bytes());
@@ -259,7 +232,6 @@ pub(crate) fn installed_provider_internal_call_identity(
     digest.finish()
 }
 
-/// Encode physical call-stack custody independently from its selection authority.
 pub(super) fn hash_internal_call_custody(
     digest: &mut DomainDigestEncoder,
     call: &BoundaryInternalCallCustody,
@@ -310,8 +282,6 @@ pub(super) fn hash_internal_call_custody(
     digest.raw(&caller_live_bytes.to_le_bytes());
 }
 
-/// Bind family selection to the authentic portable head and the same emitted
-/// internal-call custody used by provider calls, without a provider plan.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn target_family_internal_call_identity(
     terminal: terminal_psi::TerminalPsiIdentity,

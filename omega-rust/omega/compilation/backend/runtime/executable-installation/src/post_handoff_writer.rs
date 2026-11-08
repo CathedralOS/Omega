@@ -1,8 +1,16 @@
-//! Validate and execute post-handoff writers against one exact installed realization.
-//!
-//! Destination custody, once-resolved context, write results, and consumer replay
-//! belong to this protocol. Successful output remains unpublished; it does not
-//! grant hardware-table validity or executable installation authority.
+/*
+We validate and populate post-handoff writer contexts against an exact
+installed realization (`InstalledCode`) and verify prepared destination
+mappings (`PreparedPostHandoffWriterDestination`,
+`ValidatedPreparedPostHandoffWriterDestination`).
+
+We resolve every symbolic entry target through the admitted entry set into an
+opaque, non-clonable `ResolvedPostHandoffEntryWriterContext` whose word zero is
+the destination base and whose remaining words are the dense source slots.
+Numeric addresses are never exposed to callers, and a populated or written
+destination remains unpublished until its hardware-table or installation owner
+admits it.
+*/
 
 use crate::authority_digests::{
     ArtifactId, DestinationPreparationReceiptId, InstalledCodeId,
@@ -17,10 +25,6 @@ use post_handoff_writer_plan::{
 };
 
 impl InstalledCode {
-    /// Produce the exact source words for one lowered invocation against this
-    /// installed realization: every source slot resolves through the same
-    /// admission, and the resolved roster is replayed against the invocation's
-    /// retained pre-resolved values and fit evidence before a word is packed.
     fn resolve_post_handoff_entry_writer_source_values(
         &self,
         invocation: &PostHandoffWriterInvocationPlan,
@@ -47,10 +51,6 @@ impl InstalledCode {
         Ok(source_values)
     }
 
-    /// Resolve one written target to its exact installed address. A target
-    /// outside the admitted entry set and an admitted entry whose
-    /// placement-relative address cannot be computed refuse with distinct
-    /// reasons; one slot resolves exactly one lookup.
     fn resolve_admitted_entry_target(
         &self,
         target: RelocationTarget,
@@ -79,9 +79,6 @@ impl InstalledCode {
             })
     }
 
-    /// Resolve every distinct source exactly once into an opaque packed
-    /// provider context. No numeric code or destination address is returned to
-    /// the caller; only the sealed carrier may be passed to checked execution.
     pub fn populate_post_handoff_entry_writer_context(
         &self,
         plan: &PostHandoffWriterPlan,
@@ -116,10 +113,6 @@ impl InstalledCode {
     }
 }
 
-/// Opaque provider-private words for one checked post-handoff entry writer.
-/// Word zero is the exact destination base and the remaining words are the
-/// dense, first-occurrence-ordered source slots. The numeric words have no
-/// public accessor and this carrier is deliberately non-clonable.
 #[derive(PartialEq, Eq)]
 pub struct ResolvedPostHandoffEntryWriterContext {
     installed_code: InstalledCodeId,
@@ -127,17 +120,14 @@ pub struct ResolvedPostHandoffEntryWriterContext {
     destination_site: PlacementSite,
     destination_len: usize,
     invocation: PostHandoffWriterInvocationPlan,
-    packed_words: Vec<u64>,
+    packed_words: Vec<u64>, // Word 0 is the destination base; remaining words are dense source slots.
     non_authoritative_fingerprint: NonAuthoritativeWriterContextFingerprint64,
 }
 
-/// Provider receipt establishing the runtime properties needed before a
-/// generated writer may reach one activated mapping. The exact mapping
-/// evidence is sealed in `mapping`; compact receipt identity is report-only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DestinationPreparationReceipt {
     identity: DestinationPreparationReceiptId,
-    mapping: MappingReceiptContext,
+    mapping: MappingReceiptContext, // Sealed exact mapping evidence; compact receipt identity is report-only.
     required_write_rights: ExtentRights,
     pinned: bool,
     unpublished: bool,
@@ -165,33 +155,22 @@ impl DestinationPreparationReceipt {
     }
 }
 
-/// Linear provider-side destination ready for one post-handoff writer.
-///
-/// `MappedExtent` establishes an activated translation and exact custody;
-/// `receipt` establishes pinning and non-publication for that same mapping;
-/// `required_write_rights` names the target/provider-defined write authority.
-/// The byte slice is the provider's concrete mutable view and cannot outlive
-/// this carrier. No source-language write-only view is implied.
 #[derive(Debug)]
 pub struct PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
-    // Held for linear custody until the COMPONENT-SUBSTRATE route consumes them.
     #[expect(
         dead_code,
         reason = "custody carrier per the struct doc; TASKS.md COMPONENT-SUBSTRATE wires its reader"
     )]
-    mapping: MappedExtent<'mapping>,
+    mapping: MappedExtent<'mapping>, // Retains linear activated mapping custody until COMPONENT-SUBSTRATE consumes it.
     #[expect(
         dead_code,
         reason = "custody carrier per the struct doc; TASKS.md COMPONENT-SUBSTRATE wires its reader"
     )]
-    receipt: DestinationPreparationReceipt,
+    receipt: DestinationPreparationReceipt, // Retains pinning and non-publication receipt custody.
     site: PlacementSite,
     bytes: &'bytes mut [u8],
 }
 
-/// A prepared destination whose activated mapping, provider receipt, write
-/// rights, pinning, unpublished state, placement, and byte geometry have been
-/// replayed before symbolic-source resolution.
 #[derive(Debug)]
 #[must_use = "validated prepared destination retains mapping and byte custody"]
 pub struct ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes> {
@@ -365,9 +344,6 @@ impl ResolvedPostHandoffEntryWriterContext {
         self.invocation.fragment().report_fingerprint()
     }
 
-    /// Report whether this opaque, once-resolved context is the invocation
-    /// sibling of one exact reusable fragment plan. Numeric packed words remain
-    /// inaccessible.
     pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
         self.invocation == *invocation
     }

@@ -1,36 +1,44 @@
 #![forbid(unsafe_code)]
 
-//! Closed, target-neutral semantic tables for terminal Psi.
-//!
-//! This crate owns declarative operation-row identity, local denotations, and
-//! pure replay of scalar ordering and descriptor lifetimes over supplied graphs.
-//! Representation owners reconstruct those graphs and authenticate their inputs;
-//! the shared solvers do not decide evidence availability, proof reduction,
-//! provider realization, or authority from source spellings.
-//!
-//! `semantic_rows.rs` is the root: the row every terminal operation kind
-//! resolves to. `scalars/scalar_leaf_schema.rs` describes a goal-free scalar
-//! leaf and `scalars/scalar_leaf_semantics.rs` interprets one;
-//! `scalars/scalar_representation_view.rs` owns the closed carrier pairs and
-//! bit meaning of a scalar re-view. The other modules group by subject: `access/`,
-//! `bytes/`, `calls/`, `descriptors/`, `references/`, `scalars/`, `storage/`
-//! and `structural/`; `control_graph`, `substitution`, `quotients`,
-//! `content_transformations` and `domain_preservation` stand alone.
+/*
+We define the target-neutral semantic judgments, operational analyses, and structural/scalar
+invariants over `TerminalModule` (`terminal-semantics`), including control-flow graph queries,
+owned and borrowed storage tracking, reference and placed-loan lifetimes, descriptor contents
+replay, scalar and byte-sequence evaluation rules, content transformations, quotient opacity, and
+contract substitution.
+*/
 
-pub use calls::closed_conformances;
-pub use calls::closed_reach;
-pub use storage::activation_storage;
-pub use storage::borrowed_storage;
-pub use storage::calling_storage::{
-    ForeignRecordStorage, callback_storage_has_slots, calling_abi_extent_dependencies,
-    foreign_opaque_carrier, foreign_record_storage, foreign_storage_extent_dependencies,
-};
-pub use storage::run_custody::{EmptyRunReleaseContract, empty_run_release_contract};
-pub use storage::storage_dependencies::{
-    inline_storage_extent_dependencies, storage_operand_dependencies,
-};
-pub use storage::structural_locals::validate_vacant_structural_local;
+/*
+Why factor shared semantic judgments into `terminal-semantics` between the pure `terminal-psi` data
+schema and the independent `terminal-verification` / `terminal-interpreter` / `Omega 00` consumers?
+Both the receiving verifier and the native/interpreter realization stages must compute identical
+facts about storage custody, descriptor origins, scalar leaf meanings, and call transfers without
+duplicating subtle graph analyses or allowing producer-side assumptions to leak across the artifact
+boundary.
+*/
+
+/*
+Consumed by `terminal-verification` to reconstruct and check module obligations from decoded
+`PSITERM\0` artifacts, by `terminal-interpreter` to execute Terminal Psi programs under the same
+operational rules, and by `00_terminal-psi-to-abstract-operations` (`Omega 00`), `layout`,
+`program-entry-plan`, `native-artifact`, and `image-emission` to lower verified Terminal Psi
+modules to native code.
+*/
+
+pub mod access;
+pub mod bytes;
+pub mod calls;
+pub mod content_transformations;
+pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
+mod descriptor_replay;
+pub mod descriptors;
+pub mod references;
+pub mod scalars;
+pub mod storage;
+pub mod structural;
+pub mod substitution;
+
 pub use access::access_lifecycles::{
     AccessResultContract, access_result_contract, access_view_reference_slot,
     validate_access_lifecycle_plans, validate_access_view_content,
@@ -46,25 +54,37 @@ pub use access::access_view_plans::{
 pub use access::accessor_scalar_boundaries::{
     AccessorScalarBoundaryDemand, access_region_projection, accessor_scalar_boundary_demand,
 };
+pub use calls::closed_conformances;
+pub use calls::closed_reach;
 pub use descriptors::descriptor_results;
 pub(crate) use optimization::digest_encoder;
 pub use references::resident_references::{
     resident_reference_plan, validate_resident_owner_fields,
 };
+pub use storage::activation_storage;
+pub use storage::borrowed_storage;
+pub use storage::calling_storage::{
+    ForeignRecordStorage, callback_storage_has_slots, calling_abi_extent_dependencies,
+    foreign_opaque_carrier, foreign_record_storage, foreign_storage_extent_dependencies,
+};
+pub use storage::run_custody::{EmptyRunReleaseContract, empty_run_release_contract};
+pub use storage::storage_dependencies::{
+    inline_storage_extent_dependencies, storage_operand_dependencies,
+};
+pub use storage::structural_locals::validate_vacant_structural_local;
 pub use structural::nominal_cleanup;
 pub use structural::owned_structure;
-mod access;
-mod bytes;
-mod calls;
-pub mod content_transformations;
-mod descriptors;
-mod domain_preservation;
-mod exactly_one;
-mod references;
-pub use scalars::scalar_demand;
-mod scalars;
-mod storage;
-mod structural;
+pub(crate) mod exactly_one {
+
+    pub(crate) fn exactly_one<Row>(
+        rows: impl Iterator<Item = Row>,
+        keep: impl Fn(&Row) -> bool,
+    ) -> Option<Row> {
+        let mut matching = rows.filter(|row| keep(row));
+        let row = matching.next()?;
+        matching.next().is_none().then_some(row)
+    }
+}
 pub use calls::invocation_inputs::validate_empty_erased_invocation_inputs;
 pub use descriptors::membership_presentations::{
     present_structural_membership_contract, present_structural_memberships,
@@ -101,14 +121,408 @@ pub use references::reference_storage_geometry::{
     reference_scalar_storage, reference_storage_dependencies, reference_storage_layout,
     reference_storage_projection, reference_storage_region, reference_storage_size,
 };
+pub use scalars::scalar_demand;
 pub use scalars::scalar_ordering;
 pub use structural::inline_carriers::{
     InlineCarrierError, inline_carrier_declaration, inline_field_presentation,
     validate_inline_carriers,
 };
-mod semantic_rows;
+pub(crate) mod semantic_rows {
+
+    use crate::scalars::scalar_leaf_schema::goal_free_scalar_leaf;
+    use crate::{
+        GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation,
+        ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
+        ScalarLeafResultShape,
+    };
+    use semantic_vocabulary::{IntegerType, PropositionError, ScalarType, ValueId};
+    use terminal_psi::OperationKind;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum OperationSemanticCustody {
+        LeafDenotation,
+        CallComposition,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct OperationSemanticRow {
+        pub(crate) tag: OperationSemanticTag,
+        pub(crate) identity: &'static str,
+        pub(crate) custody: OperationSemanticCustody,
+        pub(crate) goal_free_scalar_leaf: Option<GoalFreeScalarLeafSchema>,
+    }
+
+    impl OperationSemanticRow {
+        pub const fn tag(self) -> OperationSemanticTag {
+            self.tag
+        }
+
+        pub const fn name(self) -> &'static str {
+            self.tag.name()
+        }
+
+        pub const fn identity(self) -> &'static str {
+            self.identity
+        }
+
+        pub const fn custody(self) -> OperationSemanticCustody {
+            self.custody
+        }
+
+        pub const fn goal_free_scalar_leaf(self) -> Option<GoalFreeScalarLeafSchema> {
+            self.goal_free_scalar_leaf
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum OperationSemanticError {
+        MissingRow(OperationSemanticTag),
+        DuplicateRow(OperationSemanticTag),
+        MissingScalarResult(OperationSemanticTag),
+        UnknownValue(ValueId),
+        ResultShapeMismatch(OperationSemanticTag),
+        OperandShapeMismatch(OperationSemanticTag),
+        DenotationShapeMismatch(OperationSemanticTag),
+        MissingProofBearingScalarRow(OperationSemanticTag),
+        DuplicateProofBearingScalarRow(OperationSemanticTag),
+        UnexpectedProofBearingScalarRow(OperationSemanticTag),
+        ProofBearingScalarSchemaMismatch(OperationSemanticTag),
+        MissingStructuralEffectRow(OperationSemanticTag),
+        DuplicateStructuralEffectRow(OperationSemanticTag),
+        UnexpectedStructuralEffectRow(OperationSemanticTag),
+        StructuralEffectSchemaMismatch(OperationSemanticTag),
+        StructuralEffectResultShapeMismatch(OperationSemanticTag),
+        StructuralEffectActionShapeMismatch(OperationSemanticTag),
+        MissingCallCompositionRow(OperationSemanticTag),
+        DuplicateCallCompositionRow(OperationSemanticTag),
+        UnexpectedCallCompositionRow(OperationSemanticTag),
+        CallCompositionSchemaMismatch(OperationSemanticTag),
+        NonzeroDivisorRequiresFixedInteger(IntegerType),
+        NonzeroDivisorTypeMismatch {
+            declared: IntegerType,
+            actual: ScalarType,
+        },
+        ExactDivisionRequiresFixedInteger(IntegerType),
+        ExactDivisionOperandTypeMismatch {
+            declared: IntegerType,
+            left: ScalarType,
+            right: ScalarType,
+        },
+        ExactShiftCountRequiresFixedValueInteger(IntegerType),
+        ExactShiftCountRequiresFixedCountInteger(IntegerType),
+        ExactShiftCountTypeMismatch {
+            declared: IntegerType,
+            actual: ScalarType,
+        },
+        ExactShiftLeftValueTypeMismatch {
+            declared: IntegerType,
+            actual: ScalarType,
+        },
+        ExactShiftLeftRequiresValueOrLiteralOperand,
+        ExactShiftLeftRequiresValueOrLiteralCount,
+        ExactArithmeticRequiresFixedInteger(IntegerType),
+        ExactArithmeticExpressionTypeMismatch {
+            declared: IntegerType,
+            actual: ScalarType,
+        },
+        ExactArithmeticExpressionShapeMismatch,
+        ExactArithmeticOperandTypeMismatch {
+            declared: IntegerType,
+            left: ScalarType,
+            right: ScalarType,
+        },
+        ExactArithmeticRequiresValueOrLiteralOperand,
+        ExactCastUnsupportedCarriers {
+            source: IntegerType,
+            target: IntegerType,
+        },
+        ExactCastOperandTypeMismatch {
+            declared: IntegerType,
+            actual: ScalarType,
+        },
+        ExactCastRequiresValueOrLiteralOperand,
+        InvalidProposition(PropositionError),
+    }
+
+    macro_rules! operation_semantic_rows {
+        ($( $variant:ident => ($identity:literal, $custody:ident, $schema:expr) ),+ $(,)?) => {
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+            pub enum OperationSemanticTag {
+                $( $variant ),+
+            }
+
+            impl OperationSemanticTag {
+                pub const ALL: [Self; operation_semantic_rows!(@count $( $variant )+)] = [
+                    $( Self::$variant ),+
+                ];
+
+                pub const fn name(self) -> &'static str {
+                    match self {
+                        $( Self::$variant => stringify!($variant) ),+
+                    }
+                }
+
+                pub const fn for_operation(operation: &OperationKind) -> Self {
+                    match operation {
+                        $( OperationKind::$variant { .. } => Self::$variant ),+
+                    }
+                }
+            }
+
+            impl OperationSemanticRow {
+                pub const ALL: [Self; operation_semantic_rows!(@count $( $variant )+)] = [
+                    $( Self {
+                        tag: OperationSemanticTag::$variant,
+                        identity: $identity,
+                        custody: OperationSemanticCustody::$custody,
+                        goal_free_scalar_leaf: $schema,
+                    } ),+
+                ];
+            }
+        };
+        (@count $( $variant:ident )+) => {
+            <[()]>::len(&[$(operation_semantic_rows!(@unit $variant)),+])
+        };
+        (@unit $variant:ident) => { () };
+    }
+
+    use ScalarLeafDenotation as Denotation;
+    use ScalarLeafOperandShape as Operands;
+    use ScalarLeafResultShape as ResultShape;
+
+    operation_semantic_rows! {
+        ReadScalarApplication => ("schema:operation:read-scalar-application", LeafDenotation, None),
+        EstablishActivationClaim => ("schema:operation:establish-activation-claim", LeafDenotation, None),
+        ReleaseActivationClaim => ("schema:operation:release-activation-claim", LeafDenotation, None),
+        SplitActivationClaim => ("schema:operation:split-activation-claim", LeafDenotation, None),
+        MergeActivationClaim => ("schema:operation:merge-activation-claim", LeafDenotation, None),
+        StorageAddress => ("schema:operation:storage-address", LeafDenotation, None),
+        EstablishAccessReference => ("schema:operation:establish-placed-reference", LeafDenotation, None),
+        EstablishReference => ("schema:operation:establish-reference", LeafDenotation, None),
+        ReleaseReference => ("schema:operation:release-reference", LeafDenotation, None),
+        EstablishPrimitiveLocal => ("schema:operation:establish-primitive-local", LeafDenotation, None),
+        PrimitiveScalarRead => ("schema:operation:primitive-scalar-read", LeafDenotation, None),
+        StructuralCaseMembership => ("schema:operation:structural-case-membership", LeafDenotation, None),
+        StructuralLeafCopy => ("schema:operation:structural-leaf-copy", LeafDenotation, None),
+        MoveStructuralValue => ("schema:operation:move-structural-value", LeafDenotation, None),
+        TransformContent => ("schema:operation:transform-content", LeafDenotation, None),
+        StructuralCaseLeafCopy => ("schema:operation:structural-case-leaf-copy", LeafDenotation, None),
+        WriteOnlyPrimitiveStore => ("schema:operation:write-only-primitive-store", LeafDenotation, None),
+        StructuralScalarFieldStore => ("schema:operation:structural-scalar-field-store", LeafDenotation, None),
+        MoveStructuralField => ("schema:operation:move-structural-field", LeafDenotation, None),
+        StoreStructuralField => ("schema:operation:store-structural-field", LeafDenotation, None),
+        StructuralByteSequenceFieldStore => ("schema:operation:structural-byte-sequence-field-store", LeafDenotation, None),
+        StructuralByteSequenceFieldLength => ("schema:operation:structural-byte-sequence-field-length", LeafDenotation, None),
+        StructuralByteSequenceFieldByteStore => ("schema:operation:structural-byte-sequence-field-byte-store", LeafDenotation, None),
+        StructuralByteSequenceFieldRead => ("schema:operation:structural-byte-sequence-field-read", LeafDenotation, None),
+        StructuralByteViewFieldStore => ("schema:operation:structural-byte-view-field-store", LeafDenotation, None),
+        EstablishScalarCase => ("schema:operation:establish-scalar-case", LeafDenotation, None),
+        EstablishStructuralCase => ("schema:operation:establish-structural-case", LeafDenotation, None),
+        EstablishStructuralArray => ("schema:operation:establish-structural-array", LeafDenotation, None),
+        EstablishScalarArray => ("schema:operation:establish-scalar-array", LeafDenotation, None),
+        EstablishZeroedStructural => ("schema:operation:establish-zeroed-structural", LeafDenotation, None),
+        EstablishStructuralLocal => ("schema:operation:establish-structural-local", LeafDenotation, None),
+        EstablishByteSequenceConcatenation => ("schema:operation:establish-byte-sequence-concatenation", LeafDenotation, None),
+        EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
+        ByteSequenceLength => ("schema:operation:byte-sequence-length", LeafDenotation, None),
+        ByteSequenceStore => ("schema:operation:byte-sequence-store", LeafDenotation, None),
+        ByteSequenceWrite => ("schema:operation:byte-sequence-write", LeafDenotation, None),
+        ByteSequenceRead => ("schema:operation:byte-sequence-read", LeafDenotation, None),
+        ByteSequenceSubslice => ("schema:operation:byte-sequence-subslice", LeafDenotation, None),
+        ByteSequencePredicate => ("schema:operation:byte-sequence-predicate", LeafDenotation, None),
+        ByteSequenceEqual => ("schema:operation:byte-sequence-equal", LeafDenotation, None),
+        EstablishElementView => ("schema:operation:establish-element-view", LeafDenotation, None),
+        EstablishMutableElementView => ("schema:operation:establish-mutable-element-view", LeafDenotation, None),
+        ElementViewLength => ("schema:operation:element-view-length", LeafDenotation, None),
+        ElementViewRead => ("schema:operation:element-view-read", LeafDenotation, None),
+        ElementViewWrite => ("schema:operation:element-view-write", LeafDenotation, None),
+        ElementViewSubslice => ("schema:operation:element-view-subslice", LeafDenotation, None),
+        EstablishTrivialAffineLocal => ("schema:operation:establish-trivial-affine-local", LeafDenotation, None),
+        EstablishRecord => ("schema:operation:establish-record", LeafDenotation, None),
+        EstablishNativeCodeLayout => ("schema:operation:establish-native-code-layout", LeafDenotation, None),
+        Call => ("algebra:call:call", CallComposition, None),
+        CallUnit => ("algebra:call:call-unit", CallComposition, None),
+        CallStructuralScalar => ("algebra:call:call-structural-scalar", CallComposition, None),
+        CallStructural => ("algebra:call:call-structural", CallComposition, None),
+        CallStructuralWithScalarArguments => ("algebra:call:call-structural-with-scalar-arguments", CallComposition, None),
+        BoundaryCall => ("algebra:call:boundary-call", CallComposition, None),
+        SelectImplementation => ("schema:operation:select-implementation", LeafDenotation, None),
+        CallDynamic => ("algebra:call:call-dynamic", CallComposition, None),
+        PortWrite => ("schema:operation:port-write", LeafDenotation, None),
+        RegisterAccess => ("schema:operation:register-access", LeafDenotation, None),
+        IntegerConstant => ("schema:operation:integer-constant", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::IntegerLiteral, Denotation::IntegerConstant)),
+        BooleanConstant => ("schema:operation:boolean-constant", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::Boolean, Operands::BooleanLiteral, Denotation::BooleanConstant)),
+        IeeeFloatConstant => ("schema:operation:ieee-float-constant", LeafDenotation, None),
+        IeeeFloatCompare => ("schema:operation:ieee-float-compare", LeafDenotation, None),
+        ScalarRepresentationView => ("schema:operation:scalar-representation-view", LeafDenotation, None),
+        NearestIeeeFloatFusedMultiplyAdd => ("schema:operation:nearest-ieee-float-fused-multiply-add", LeafDenotation, None),
+        BooleanStructuralField => ("schema:operation:boolean-structural-field", LeafDenotation, None),
+        ScalarStructuralField => ("schema:operation:scalar-structural-field", LeafDenotation, None),
+        BooleanNot => ("schema:operation:boolean-not", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::Boolean, Operands::UnaryBoolean, Denotation::BooleanNot)),
+        BooleanEqual => ("schema:operation:boolean-equal", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::Boolean, Operands::BinaryBoolean, Denotation::BooleanEqual)),
+        IntegerEqual => ("schema:operation:integer-equal", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::Boolean, Operands::BinaryInteger, Denotation::IntegerEqual)),
+        IntegerLessThan => ("schema:operation:integer-less-than", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::Boolean, Operands::BinaryInteger, Denotation::IntegerLessThan)),
+        IntegerLessOrEqual => ("schema:operation:integer-less-or-equal", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::Boolean, Operands::BinaryInteger, Denotation::IntegerLessOrEqual)),
+        IntegerBitwiseNot => ("schema:operation:integer-bitwise-not", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::UnaryInteger, Denotation::IntegerBitwiseNot)),
+        IntegerWiden => ("schema:operation:integer-widen", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::WideningInteger, Denotation::IntegerWiden)),
+        IntegerExactCast => ("schema:operation:integer-exact-cast", LeafDenotation, None),
+        IntegerBitwiseAnd => ("schema:operation:integer-bitwise-and", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::IntegerBitwiseAnd)),
+        IntegerBitwiseOr => ("schema:operation:integer-bitwise-or", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::IntegerBitwiseOr)),
+        IntegerBitwiseXor => ("schema:operation:integer-bitwise-xor", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::IntegerBitwiseXor)),
+        WrappingIntegerShiftLeft => ("schema:operation:wrapping-integer-shift-left", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::IntegerShift, Denotation::WrappingIntegerShiftLeft)),
+        WrappingIntegerShiftRight => ("schema:operation:wrapping-integer-shift-right", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::IntegerShift, Denotation::WrappingIntegerShiftRight)),
+        ExactIntegerShiftLeft => ("schema:operation:exact-integer-shift-left", LeafDenotation, None),
+        ExactIntegerShiftRight => ("schema:operation:exact-integer-shift-right", LeafDenotation, None),
+        ExactIntegerAdd => ("schema:operation:exact-integer-add", LeafDenotation, None),
+        ExactIntegerSubtract => ("schema:operation:exact-integer-subtract", LeafDenotation, None),
+        ExactIntegerMultiply => ("schema:operation:exact-integer-multiply", LeafDenotation, None),
+        ExactIntegerDivide => ("schema:operation:exact-integer-divide", LeafDenotation, None),
+        ExactIntegerRemainder => ("schema:operation:exact-integer-remainder", LeafDenotation, None),
+        WrappingIntegerDivide => ("schema:operation:wrapping-integer-divide", LeafDenotation, None),
+        WrappingIntegerRemainder => ("schema:operation:wrapping-integer-remainder", LeafDenotation, None),
+        SaturatingIntegerDivide => ("schema:operation:saturating-integer-divide", LeafDenotation, None),
+        SaturatingIntegerRemainder => ("schema:operation:saturating-integer-remainder", LeafDenotation, None),
+        WrappingIntegerAdd => ("schema:operation:wrapping-integer-add", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::WrappingIntegerAdd)),
+        SaturatingIntegerAdd => ("schema:operation:saturating-integer-add", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::SaturatingIntegerAdd)),
+        WrappingIntegerSubtract => ("schema:operation:wrapping-integer-subtract", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::WrappingIntegerSubtract)),
+        SaturatingIntegerSubtract => ("schema:operation:saturating-integer-subtract", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::SaturatingIntegerSubtract)),
+        WrappingIntegerMultiply => ("schema:operation:wrapping-integer-multiply", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::WrappingIntegerMultiply)),
+        SaturatingIntegerMultiply => ("schema:operation:saturating-integer-multiply", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::SaturatingIntegerMultiply)),
+        TrappingInteger => ("schema:operation:trapping-integer", LeafDenotation, None),
+        FloatResultPolicy => ("schema:operation:float-result-policy", LeafDenotation, None),
+        AtomicAccess => ("schema:operation:atomic-access", LeafDenotation, None),
+        AtomicFence => ("schema:operation:atomic-fence", LeafDenotation, None),
+        ActivateTaskRegister => ("schema:operation:activate-task-register", LeafDenotation, None),
+        ReloadSegmentDescriptors => ("schema:operation:reload-segment-descriptors", LeafDenotation, None),
+        ReadSegmentSelector => ("schema:operation:read-segment-selector", LeafDenotation, None),
+        ReadTaskRegister => ("schema:operation:read-task-register", LeafDenotation, None),
+        GlobalDescriptorTable => ("schema:operation:global-descriptor-table", LeafDenotation, None),
+    }
+
+    pub fn exact_operation_semantic_row_in(
+        tag: OperationSemanticTag,
+        rows: &[OperationSemanticRow],
+    ) -> Result<&OperationSemanticRow, OperationSemanticError> {
+        exactly_one_row_for_tag(
+            rows,
+            tag,
+            |row| row.tag,
+            OperationSemanticError::MissingRow,
+            OperationSemanticError::DuplicateRow,
+        )
+    }
+
+    pub fn operation_semantic_row(
+        operation: &OperationKind,
+    ) -> Result<&'static OperationSemanticRow, OperationSemanticError> {
+        exact_operation_semantic_row_in(
+            OperationSemanticTag::for_operation(operation),
+            &OperationSemanticRow::ALL,
+        )
+    }
+
+    pub fn is_unconditionally_total_scalar(operation: &OperationKind) -> bool {
+        matches!(operation, OperationKind::IeeeFloatConstant { .. })
+            || operation_semantic_row(operation).is_ok_and(|row| {
+                row.goal_free_scalar_leaf().is_some_and(|schema| {
+                    schema.goal() == ScalarLeafGoalShape::None
+                        && schema.crash() == ScalarLeafCrashPolicy::Never
+                        && schema.frontier() == ScalarLeafFrontierPolicy::PreserveLocal
+                })
+            })
+    }
+
+    pub(crate) fn exactly_one_row_for_tag<R>(
+        rows: &[R],
+        tag: OperationSemanticTag,
+        row_tag: impl Fn(&R) -> OperationSemanticTag,
+        missing: impl FnOnce(OperationSemanticTag) -> OperationSemanticError,
+        duplicate: impl FnOnce(OperationSemanticTag) -> OperationSemanticError,
+    ) -> Result<&R, OperationSemanticError> {
+        let mut matches = rows.iter().filter(|row| row_tag(row) == tag);
+        let row = matches.next().ok_or_else(|| missing(tag))?;
+        if matches.next().is_some() {
+            return Err(duplicate(tag));
+        }
+        Ok(row)
+    }
+
+    macro_rules! operation_semantic_cohort {
+        (
+            rows: $row:ty,
+            tags: $tags:ident,
+            is_tag: $is_tag:ident,
+            exact_row: $exact_row:ident,
+            reject_unexpected: $reject_unexpected:ident,
+            missing: $missing:ident,
+            duplicate: $duplicate:ident,
+            unexpected: $unexpected:ident,
+            $( $tag:ident ),+ $(,)?
+        ) => {
+            const $tags: [OperationSemanticTag;
+                $crate::semantic_rows::operation_semantic_cohort!(@count $( $tag )+)] = [
+                $( OperationSemanticTag::$tag ),+
+            ];
+
+            const fn $is_tag(tag: OperationSemanticTag) -> bool {
+                matches!(tag, $( OperationSemanticTag::$tag )|+)
+            }
+
+            pub fn $exact_row(
+                tag: OperationSemanticTag,
+                rows: &[$row],
+            ) -> Result<Option<&$row>, OperationSemanticError> {
+                if !$is_tag(tag) {
+                    return Ok(None);
+                }
+                $crate::semantic_rows::exactly_one_row_for_tag(
+                    rows,
+                    tag,
+                    |row| row.tag,
+                    OperationSemanticError::$missing,
+                    OperationSemanticError::$duplicate,
+                )
+                .map(Some)
+            }
+
+            fn $reject_unexpected(rows: &[$row]) -> Result<(), OperationSemanticError> {
+                for row in rows {
+                    if !$is_tag(row.tag) {
+                        return Err(OperationSemanticError::$unexpected(row.tag));
+                    }
+                }
+                Ok(())
+            }
+        };
+        (@count $( $variant:ident )+) => {
+            <[()]>::len(&[ $( $crate::semantic_rows::operation_semantic_cohort!(@unit $variant) ),+ ])
+        };
+        (@unit $variant:ident) => { () };
+    }
+
+    pub(crate) use operation_semantic_cohort;
+}
 pub use structural::structural_store::{discardable_store_value, structural_store_value_admitted};
-pub mod substitution;
 
 pub use access::access_view_referent::{
     AccessViewInputError, AccessViewReferentError, access_view_input_parameter,
@@ -274,7 +688,6 @@ pub use structural::structural_effect::{
 
 pub use scalars::scalar_observations::structural_read_scalar_type;
 
-pub mod quotients;
 pub use access::access_ram_origins::{
     AccessRamFormation, AccessRamOrigin, AccessRamOriginAnalysis,
 };

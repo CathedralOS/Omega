@@ -1,4 +1,10 @@
-//! Non-installable dynamic-ELF artifact construction and replay.
+/*
+We construct, seal, and replay the non-installable Dynamic-ELF native artifact
+(`DynamicElfNativeArtifact`). We keep `DynamicElfNativeArtifactIdentity`
+domain-separated from `NativeArtifactIdentity` and replay boundary settlements
+and foreign calls from the retained object after validating the requested
+dynamic ELF image.
+*/
 
 use super::identity::derive_native_artifact_identity;
 use super::{
@@ -12,9 +18,6 @@ use sha2::{Digest, Sha256};
 const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
     b"omega.dynamic-elf-native-artifact.sha256.v1\0";
 
-/// Collision-resistant identity of one non-installable dynamic-ELF native
-/// candidate.  This identity is domain-separated from [`crate::NativeArtifactIdentity`]
-/// so equal output bytes cannot collapse the two authority classes.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DynamicElfNativeArtifactIdentity([u8; 32]);
 
@@ -39,41 +42,21 @@ impl std::fmt::Display for DynamicElfNativeArtifactIdentity {
     }
 }
 
-/// Complete source-free native custody after an import-bearing Linux object
-/// has selected the dynamic-ELF writer.
-///
-/// This is intentionally not [`crate::NativeArtifact`].  Existing component,
-/// installation, and publication APIs accept only that direct-image type and
-/// therefore cannot treat dynamic byte custody as loader or execution
-/// authority.
 #[derive(Debug)]
 #[must_use = "dynamic ELF native custody is non-installable and must be replayed"]
 pub struct DynamicElfNativeArtifact {
     parts: DynamicElfNativeArtifactParts,
-    /// The exact subject that stopped the scoped derivation when
-    /// `parts.physical_evidence` is absent. Derived here, never retained as a
-    /// claim: `NativeArtifactParts` deliberately has no slot for it.
     physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
     identity: DynamicElfNativeArtifactIdentity,
 }
 
-/// Reconstructible parts of one non-installable dynamic-ELF native candidate:
-/// the shared native publication row, carrying this product's image request.
 pub type DynamicElfNativeArtifactParts =
     NativeArtifactParts<image_emission::RequestedDynamicElfImage>;
 
-/// Fresh dynamic writer inputs.  Physical evidence is rederived from the
-/// canonical Terminal/object/final-image join rather than accepted from the
-/// caller.
 pub(crate) type DynamicElfNativeArtifactEmissionParts =
     super::NativeArtifactEmissionParts<image_emission::RequestedDynamicElfImage>;
 
 impl DynamicElfNativeArtifact {
-    /// Complete fresh source-free dynamic emission by deriving every physical
-    /// child that is supported by the exact Terminal/object/final-image join.
-    /// The artifact is sealed over the parts this compile just produced; it is
-    /// not replayed. [`Self::from_replayed_parts`] and [`Self::validate`]
-    /// replay it for retained-artifact readers.
     pub(crate) fn from_emitted_parts(
         parts: DynamicElfNativeArtifactEmissionParts,
     ) -> Result<Self, &'static str> {
@@ -82,9 +65,6 @@ impl DynamicElfNativeArtifact {
         Ok(Self::seal(parts, physical_evidence_gap))
     }
 
-    /// The physical children of the requested dynamic image, over the exact
-    /// Terminal/object/final-image join this compile just produced. The
-    /// admitted image inside the writer request is this format's digest source.
     fn derivation_of(
         parts: &DynamicElfNativeArtifactEmissionParts,
     ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
@@ -103,9 +83,6 @@ impl DynamicElfNativeArtifact {
         )
     }
 
-    /// Reconstruct a retained candidate while independently replaying every
-    /// source-free field.  No installation or publication authority is
-    /// produced by successful replay.
     pub fn from_replayed_parts(parts: DynamicElfNativeArtifactParts) -> Result<Self, &'static str> {
         let final_image_symbol_digest =
             *image::final_image_symbol_digest(parts.image.emission().admitted().image()).as_bytes();
@@ -116,8 +93,6 @@ impl DynamicElfNativeArtifact {
         Ok(artifact)
     }
 
-    /// Assemble the artifact and its identity over `parts` and the derived
-    /// evidence gap.
     fn seal(
         parts: DynamicElfNativeArtifactParts,
         physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
@@ -252,11 +227,6 @@ impl DynamicElfNativeArtifact {
         self.parts.physical_evidence.as_ref()
     }
 
-    /// The exact subject that stopped this candidate's scoped D32 derivation
-    /// when [`Self::physical_evidence`] is absent. `None` means the evidence
-    /// is complete or the scope admits no derivation at all; a `Some` value
-    /// names the first occurrence or retained record the derivation could
-    /// not bind to a physical child.
     pub const fn physical_evidence_gap(&self) -> Option<&NativePhysicalEvidenceGap> {
         self.physical_evidence_gap.as_ref()
     }

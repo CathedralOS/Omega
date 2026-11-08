@@ -1,37 +1,136 @@
 #![forbid(unsafe_code)]
 
-//! Canonical Terminal-Psi encoding.
-//!
-//! [`sections::semantic_module`] owns canonical module encoding and identity;
-//! other `sections/` owners retain independently identified wire products.
-//! [`canonical_artifact`] binds those bytes into the handoff envelope.
+/*
+We implement the canonical binary wire codec (`PSITERM\0`), cryptographic domain fingerprinting
+(`SemanticFingerprint`, `TerminalPsiIdentity`), and receiving structural-foundation validation for
+`TerminalModule` and its companion artifact sections (`CanonicalTerminalArtifact`,
+`TerminalArtifactManifest`, `TerminalDebugMap`, `OptimizationExecutionReceipt`, and
+`TerminalTraceV1`).
+*/
 
-pub(crate) use optimization::codec_bytes;
+/*
+Why enforce a single canonical byte encoding and run structural-foundation validation inside the
+decoder rather than trusting deserialized tables? In Omega's separate-compilation and
+proof-carrying architecture, a `SemanticFingerprint` must uniquely identify the exact semantic
+program across hosts, caches, and package boundaries. Re-encoding every decoded module and
+rejecting any byte stream that deviates from canonical table order, violates structural-foundation
+closure, or carries trailing bytes guarantees that two artifacts have the same fingerprint if and
+only if their canonical wire bytes are identical.
+*/
 
+/*
+Consumed by `08_lowered-psi-to-terminal-psi` to publish canonical Terminal Psi artifacts and
+compute module fingerprints, by `terminal-verification` and `00_terminal-psi-to-abstract-operations`
+to admit foreign or cached artifacts across trust boundaries, and by `omega` build orchestration
+and package review tools to inspect manifests, traces, and proof certificates.
+*/
+
+mod block_wire;
 mod canonical_artifact;
-mod execution_code;
-pub use execution_code::{
-    InvocationTerminalCode, RetainedTerminalCode, TerminalExecutionIdentity, TerminalExecutionView,
-    TerminalProgramProduct, TerminalPublication,
-};
-mod codec_error;
+mod wire_fields;
+pub(crate) use canonical_artifact::execution_code;
+mod foundation_validation;
 mod identity_formations;
-mod indexed_theorem_roots;
 pub use identity_formations::{
     ExpectedIdentityFormation, ExpectedIdentityFormations, verify_identity_formations,
 };
 mod mathematical_proof_actual;
+pub(crate) use mathematical_proof_actual::indexed_theorem_roots;
+mod module_wire;
+mod sections;
+mod semantic_module;
+mod structural_wire;
+mod term_wire;
+pub(crate) use semantic_module::*;
+
+pub(crate) use optimization::codec_bytes;
+
+pub use execution_code::{
+    InvocationTerminalCode, RetainedTerminalCode, TerminalExecutionIdentity, TerminalExecutionView,
+    TerminalProgramProduct, TerminalPublication,
+};
+pub(crate) mod codec_error {
+
+    use semantic_vocabulary::PropositionError;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum CodecError {
+        InvalidMagic,
+        UnsupportedFormatMarker(u16),
+        UnsupportedVocabularyMarker(u16),
+        UnexpectedEnd,
+        TrailingBytes(usize),
+        InvalidBoolean(u8),
+        InvalidTag(&'static str, u8),
+        ZeroIdentity(&'static str),
+        CollectionTooLong(&'static str),
+        NonCanonicalOrder(&'static str),
+        NonCanonicalEncoding,
+        NestedConjunction,
+        NestedDisjunction,
+        PropositionNestingTooDeep,
+        ScalarTermNestingTooDeep,
+        ContentTermNestingTooDeep,
+        StringTooLong(&'static str),
+        InvalidUtf8(&'static str),
+        MalformedStructuralFoundation(&'static str),
+        MalformedRanking(&'static str),
+        MalformedScalarReturnFoundation {
+            machine: String,
+            domain: String,
+            edge: semantic_vocabulary::EdgeId,
+            source: semantic_vocabulary::ValueId,
+            result: semantic_vocabulary::ValueId,
+            reason: String,
+        },
+        MalformedOperationFoundation {
+            machine: String,
+            state: String,
+            block: semantic_vocabulary::BlockId,
+            operation: semantic_vocabulary::OperationId,
+            reason: &'static str,
+        },
+        MalformedStructuralOperation {
+            machine: String,
+            operation: semantic_vocabulary::OperationId,
+            reason: String,
+        },
+        AccessPlan(String),
+        NativeLayout(String),
+        AccessViewPlan(terminal_semantics::AccessViewPlanError),
+        AccessRamCorrespondence(String),
+        AccessViewInput(terminal_semantics::AccessViewInputError),
+        MalformedMathematicalCertificate(&'static str),
+        InvalidIdentityFormation(String),
+        MalformedProposition(PropositionError),
+        ObligationLedgerMismatch,
+    }
+
+    impl std::fmt::Display for CodecError {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(formatter, "{self:?}")
+        }
+    }
+
+    impl std::error::Error for CodecError {}
+
+    pub(crate) fn malformed<T>(message: &'static str) -> Result<T, CodecError> {
+        Err(CodecError::MalformedStructuralFoundation(message))
+    }
+}
 pub use indexed_theorem_roots::verify_indexed_theorem_roots;
 pub use mathematical_proof_actual::{
     MathematicalProofActualError, mathematical_carrier_key, verify_mathematical_proof_actual,
     verify_module_mathematical_actuals,
 };
-mod cursor;
+pub(crate) mod cursor {
+
+    pub(crate) use optimization::cursor::Cursor;
+}
 pub(crate) use optimization::digest_encoder;
 pub use sections::semantic_module::provider_candidate_wire::{
     decode_provider_candidate_record, encode_provider_candidate_record,
 };
-mod sections;
 
 pub use canonical_artifact::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactEnvelopeError,

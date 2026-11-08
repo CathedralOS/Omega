@@ -1,3 +1,10 @@
+/*
+We test parameter and aggregate placement across Microsoft x64, System V AMD64,
+AAPCS64, and Linux syscall conventions, covering shadow space, zero-sized
+parameter erasure, indirect results and caller-owned copies, independent
+integer/float register banks, and register-exhaustion stack spillover.
+*/
+
 use super::{call_signature, integer_signature};
 use crate::plans::{
     CallingPolicy, EntryControl, IndirectPointerLocation, MachineRegister, ValueLocation,

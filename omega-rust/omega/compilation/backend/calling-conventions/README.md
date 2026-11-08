@@ -3,9 +3,9 @@
 The [public calling-plan contract](../../../../../wiki/spec/build/calling_plans.md)
 owns source semantics. This crate owns normalized `CallPlan`, `StatePlan`,
 `BoundaryEntryPlan`, physical shape/placement vocabulary, built-in evaluators,
-and validation. See [plans.rs](src/plans/mod.rs) and the exported vocabulary in
+and validation. See [plans.rs](src/plans.rs) and the exported vocabulary in
 [lib.rs](src/lib.rs). Callback parameter and destination identities live in
-[callback_materializations.rs](src/callback_materializations/mod.rs).
+[callback_materializations.rs](src/callback_materializations.rs).
 
 ## Source-policy boundary
 

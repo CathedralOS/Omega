@@ -1,3 +1,11 @@
+/*
+We test System V AMD64 aggregate and reference placement rules, including
+MEMORY-class hidden result pointers (`rdi`), two-eightbyte SSE and mixed
+integer/SSE register pairs, whole-aggregate rollback on bank exhaustion,
+borrowed reference pointer transport without caller copies, and placement
+interval validation.
+*/
+
 use super::call_signature;
 use crate::plans::{
     CallingPolicy, IndirectPointerLocation, MachineRegister, SystemVEightbyteClass, ValueLocation,

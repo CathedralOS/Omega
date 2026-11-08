@@ -1,7 +1,13 @@
-//! Compiler-private x86-64 installation and arrival token layout.
-//!
-//! These offsets describe admitted storage; matching bytes alone never grants
-//! root identity, backing permission, or authority to receive an interrupt.
+/*
+We define the compiler-private x86-64 static-interrupt token offsets (`root`,
+`acknowledgement`, `permit`) and the hardware arrival entry plan
+(`InstalledInterruptEntryPlan`, `InstalledInterruptFrame`,
+`InstalledInterruptProtocol`).
+
+These offsets and frame sizes describe admitted storage geometry; matching
+bytes alone never grants root identity, IST backing permission, or interrupt
+delivery authority.
+*/
 
 pub const WORD_BYTES: u32 = 8;
 pub const ALIGNMENT: u32 = 8;
@@ -33,19 +39,13 @@ pub mod permit {
     pub const BYTES: u32 = 24;
 }
 
-/// Hardware frame shape at an explicitly admitted interrupt entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstalledInterruptFrame {
     NoErrorCode,
     ErrorCode,
-    /// A nonreturning handler never inspects or resumes this CPU frame.
-    /// Reserve the larger six-word shape without claiming whether an error
-    /// word exists for this vector on the selected CPU.
-    OpaqueFatal,
+    OpaqueFatal, // Nonreturning handler reserves the 6-word shape without inspecting or resuming the CPU frame.
 }
 
-/// How an arrival obtains its semantic argument. Fatal context borrowing does
-/// not construct an acknowledgement or grant permission to complete one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstalledInterruptProtocol {
     Acknowledgement,
@@ -56,16 +56,11 @@ pub enum InstalledInterruptProtocol {
     },
 }
 
-/// Geometry retained with the installed arrival adapter. Acknowledgement entries
-/// use an aligned, exclusively leased IST top. Fatal entries can use that class
-/// of backing or the interrupted stack and never inspect or return the CPU frame.
-/// The root-slot distance always refers to the designated timer's IST top,
-/// including when a fatal entry recovers that root from another stack.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InstalledInterruptEntryPlan {
     pub frame: InstalledInterruptFrame,
     pub protocol: InstalledInterruptProtocol,
-    pub root_slot_from_top: u32,
+    pub root_slot_from_top: u32, // Distance to the designated timer's IST top.
     pub return_frame_bytes: u32,
     pub saved_register_bytes: u32,
 }

@@ -1,14 +1,17 @@
-//! The float-result-policy cases both instruction sets must publish, and the
-//! refusals both streams owe. Decoding and executing a stream stays in each
-//! instruction set's own test module: a normalised step vocabulary costs more
-//! than the second copy it would remove.
+/*
+We compute the reference IEEE 754 binary32 and binary64 result payloads and
+trap decisions (`expected`, `forms`, and `cases`) for `FloatResultSaturating`
+and `FloatResultTrapping` selected forms across finite, signed-zero, subnormal,
+infinite, quiet-NaN, and signaling-NaN inputs. Both `isa-aarch64` and
+`isa-x86_64` replay their emitted float-result-policy instruction sequences
+against this oracle so neither target can diverge on NaN rejection, subnormal
+preservation, or signed-zero normalization.
+*/
 
 use selected_instructions::FloatResultPolicyForm;
 
-/// The smallest subnormal payload, used as an operand and as a raw payload.
 const MINIMUM: u64 = 1;
 
-/// The payload a form publishes for one case, or `None` when it must trap.
 pub fn expected(form: FloatResultPolicyForm, [left, right, raw]: [u64; 3]) -> Option<u64> {
     let wide = !form.is_binary32();
     if form.can_trap() {
@@ -24,9 +27,6 @@ pub fn expected(form: FloatResultPolicyForm, [left, right, raw]: [u64; 3]) -> Op
     })
 }
 
-/// The payloads that carry one case: `raw`, preceded by the selector's
-/// eligibility Boolean for a saturating form. Unrelated upper bits are set, so
-/// a predicate that reads one of them changes the published payload.
 pub fn inputs(form: FloatResultPolicyForm, [left, right, raw]: [u64; 3]) -> Vec<u64> {
     let wide = !form.is_binary32();
     if form.can_trap() {
@@ -36,7 +36,6 @@ pub fn inputs(form: FloatResultPolicyForm, [left, right, raw]: [u64; 3]) -> Vec<
         u64::from(number(wide, left).is_finite() && number(wide, right).is_finite()),
         raw,
     ];
-    // Boolean custody defines its low byte independently of the format.
     inputs[0] |= 0xa5a5_5a5a_dead_be00;
     if !wide {
         for input in &mut inputs {
@@ -46,9 +45,6 @@ pub fn inputs(form: FloatResultPolicyForm, [left, right, raw]: [u64; 3]) -> Vec<
     inputs
 }
 
-/// Every `[left, right, raw]` case a form must publish for, in the form's own
-/// format: signed and unsigned overflow, infinities, zero divisors, NaN
-/// payloads on either operand, and every interesting raw payload.
 pub fn cases(wide: bool) -> Vec<[u64; 3]> {
     let bits = |number: f64| payload(wide, number);
     let nan_payloads = if wide {
@@ -81,7 +77,6 @@ pub fn cases(wide: bool) -> Vec<[u64; 3]> {
     cases
 }
 
-/// Require the form to emit exactly `expected` and to validate that stream.
 pub fn exact_stream(
     form: FloatResultPolicyForm,
     registers: &[u8],
@@ -97,9 +92,6 @@ pub fn exact_stream(
     );
 }
 
-/// Require every form's stream to refuse each single-bit corruption, a
-/// truncated last byte, an appended byte, every other form's claim on the same
-/// registers, a swapped output register and a shorter operand list.
 pub fn rejects_corrupted_and_substituted_streams(
     roster: impl Fn(FloatResultPolicyForm) -> Vec<u8>,
     encode: impl Fn(FloatResultPolicyForm, &[u8]) -> Vec<u8>,

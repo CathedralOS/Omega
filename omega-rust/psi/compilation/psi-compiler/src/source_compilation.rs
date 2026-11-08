@@ -363,11 +363,13 @@ impl SourceContinuation {
     pub fn rejoin_product_provider_selection(
         &mut self,
         selection: &build_time_evaluation::provider_declarations::RetainedProviderSelection,
+        candidates: &mut symbols::SourceSpanCandidates,
     ) -> Result<build_time_evaluation::provider_declarations::ProviderSelection, Diagnostic> {
         selection.rejoin(
             Arc::make_mut(&mut self.input).typing.typed_mut(),
             source::DependencyScope::Product,
             &[],
+            candidates,
         )
     }
 

@@ -1,13 +1,9 @@
-//! The ad-hoc CodeDirectory: a SHA-256 per ISA page of the finished file, which
-//! is why it can only be built last.
-//!
-//! One [`CodeSignatureLayout`] derives every offset of the blob, its length
-//! included. The file plan needs that length before the finished bytes exist -
-//! `LC_CODE_SIGNATURE` and the `__LINKEDIT` extent are written earlier - and the
-//! writer fills the same offsets from the same code limit afterwards, so the
-//! recorded extent and the emitted blob cannot drift apart. The finished
-//! container's `__LINKEDIT` extent is checked against the actual file length by
-//! `loader_mapping::validate_macho_container_mapping`.
+/*
+We compute and parse the ad-hoc Mach-O `CS_MAGIC_EMBEDDED_SIGNATURE` superblob
+(`CodeDirectory`, requirements blob, and entitlements blob) over the finished
+container prefix, hashing each ISA page (16 KiB on AArch64, 4 KiB on x86-64)
+with SHA-256 and binding the caller-supplied signing identifier.
+*/
 
 use sha2::{Digest, Sha256};
 
@@ -15,16 +11,10 @@ use crate::file_layout::bytes::{write_be_u32, write_be_u64};
 use crate::file_layout::layout::align_to;
 use crate::isa::MachoIsa;
 
-/// The CodeDirectory prefix, summed from the fields it stands for: nine 32-bit
-/// header words, the four hash/version bytes, four 32-bit spare, scatter and
-/// team words, and the four 64-bit code-limit and code-segment words.
 const CODE_DIRECTORY_HEADER_SIZE: usize = 9 * 4 + 4 + 4 * 4 + 4 * 8;
 
-/// The slots an ad-hoc signature fills with the requirements and (empty)
-/// entitlements hashes; `nSpecialSlots` is their count.
 const SPECIAL_SLOT_COUNT: usize = 2;
 
-/// Every offset of one ad-hoc signature blob for an exact code limit.
 struct CodeSignatureLayout {
     page_count: usize,
     page_size: usize,
@@ -39,7 +29,6 @@ struct CodeSignatureLayout {
 }
 
 impl CodeSignatureLayout {
-    /// `code_limit` is the number of file bytes the signature covers.
     fn for_code_limit(code_limit: usize, identifier: &str, isa: MachoIsa) -> Self {
         let page_size = usize::try_from(isa.page_size()).expect("Mach-O page size");
         let page_count = code_limit.div_ceil(page_size);
@@ -63,25 +52,15 @@ impl CodeSignatureLayout {
         }
     }
 
-    /// The blob padded to its sixteen-byte alignment: the recorded extent and
-    /// the emitted byte count.
     fn blob_length(&self) -> usize {
         align_to(self.super_blob_length, 16)
     }
 }
 
-/// The blob length for the exact `identifier` bound into the CodeDirectory.
-/// The identifier length participates in offset arithmetic, so the caller must
-/// supply the same value that `macho_ad_hoc_code_signature_for_container` later
-/// writes; a late substitution would corrupt `LC_CODE_SIGNATURE`'s recorded
-/// extent.
 pub(super) fn code_signature_size(code_limit: usize, identifier: &str, isa: MachoIsa) -> usize {
     CodeSignatureLayout::for_code_limit(code_limit, identifier, isa).blob_length()
 }
 
-/// `identifier` is the already-validated signing identity (the authored
-/// application identifier, or the executable-leaf fallback). It is written
-/// verbatim after the CodeDirectory header.
 pub(super) fn macho_ad_hoc_code_signature_for_container(
     code_bytes: &[u8],
     executable_segment_limit: usize,
@@ -138,8 +117,6 @@ pub(super) fn macho_ad_hoc_code_signature_for_container(
         u64::try_from(executable_segment_limit).expect("CodeDirectory exec segment limit overflow"),
     );
     write_be_u64(&mut bytes, u64::from(main_binary));
-    // The header's field widths are what `CODE_DIRECTORY_HEADER_SIZE` sums, so
-    // the identifier must land exactly where the layout says.
     debug_assert_eq!(bytes.len(), code_directory_start + layout.identifier_offset);
 
     bytes.extend(identifier.as_bytes());
@@ -178,14 +155,6 @@ fn empty_entitlements_blob() -> &'static [u8; 8] {
     b"\xfa\xde\x0b\x01\0\0\0\x08"
 }
 
-/// Read the CodeDirectory identifier spelled inside one emitted executable.
-///
-/// This is the only public read of the signed container's authored identity:
-/// package publication replays it against the retained build identifier and
-/// the `CFBundleIdentifier` it wrote, so a substituted executable cannot pass
-/// with matching producer assertions alone. `LC_CODE_SIGNATURE` fields are
-/// little-endian like every load command; the superblob it points at is the
-/// one big-endian structure in the file. Malformed input returns `None`.
 pub fn code_signature_identifier(bytes: &[u8]) -> Option<String> {
     fn little(bytes: &[u8], offset: usize) -> Option<u32> {
         crate::codec_bytes::u32_at(bytes, offset)
@@ -233,10 +202,6 @@ mod tests {
     use super::{code_signature_size, macho_ad_hoc_code_signature_for_container};
     use crate::isa::MachoIsa;
 
-    /// The extent `LC_CODE_SIGNATURE` records and the emitted blob are one
-    /// derivation: the plan asks this layout for the length at the signature
-    /// offset and the writer fills the same offsets for the bytes it hashed.
-    /// Page count, identifier length and ISA enter both through one function.
     #[test]
     fn recorded_signature_extent_is_the_emitted_blob_length() {
         for isa in [MachoIsa::Aarch64, MachoIsa::X86_64] {

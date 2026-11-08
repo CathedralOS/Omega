@@ -1,59 +1,71 @@
+/*
+We join each target's physical register model, instruction constraint catalog,
+and conservative reservation policy into a single validated allocator
+environment (`ValidatedTargetRegisterEnvironment`). Rather than exposing a
+separate decoded-environment replay path, we construct and validate the target
+environment directly from ISA declarations (`baseline_target_register_environment`),
+caching one validated instance per target process-wide while returning owned
+copies to callers. We also derive the exact ABI preservation conventions and
+preservation storage catalogs implied by the validated environment.
+*/
+
+/*
+Register allocation and frame realization require an authoritative, closed join
+between a target's physical register vocabulary, its instruction operand/clobber
+constraints, its platform reservation overlays, and its selected instruction ABI
+keys. By validating that join once at target setup and sealing the resulting
+identity, we prevent cross-architecture mismatches, inapplicable platform
+overlays (such as Darwin AArch64 reservations on ELF), or missing constraint
+keys from reaching the allocator.
+*/
+
+/*
+`catalog` selects the target's physical register model, constraint catalog,
+baseline reservation profile, and ISA-owned selected constraint-key roster.
+We validate the combined environment here alongside the ABI preservation
+selection helpers (`selected_abi_preservation` and
+`selected_preservation_storage_catalog`). These structures provide allocator and
+frame-planning input without granting physical-home, machine-emission, or
+publication authority.
+*/
+
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: executable entrance. Backend-owned register environment setup.
-//!
-//! Joins exact ISA/ABI declarations and reservation policy into an independently
-//! validated allocator environment. This is shared target setup, not a program
-//! transformation or a successor in the representation pipeline.
-//!
-//! `baseline_target_register_environment` is the setup entry. There is no
-//! decoded-environment replay API: allocation consumes the constructed model.
-//! `catalog` selects the target's physical register model, constraint catalog
-//! and baseline reservation profile and resolves the target's selected
-//! constraint-key roster from its ISA owner; `validation` joins them into the
-//! `ValidatedTargetRegisterEnvironment` declared here; `abi_preservation`
-//! selects the ABI preservation facts the validated environment implies.
-
-mod abi_preservation;
 mod catalog;
-mod validation;
-
-pub use abi_preservation::{
-    FrameAbiPreservationConvention, selected_abi_preservation,
-    selected_preservation_storage_catalog,
-};
 #[cfg(test)]
 mod tests;
 
-use register_model::validate_physical_register_model;
-use target::NativeTarget;
+pub use register_model::FrameAbiPreservationConvention;
 
 use catalog::{
-    conservative_baseline_reservation_profile, target_constraint_catalog,
+    conservative_baseline_reservation_profile, selected_constraint_keys, target_constraint_catalog,
     target_physical_register_model,
 };
-use isa_aarch64::{Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view};
-use isa_x86_64::{X86_64RegisterConstraintCatalogValidationError, x86_64_fixed_register_view};
-use register_model::RegisterViewId;
+use isa_aarch64::{
+    Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
+    validate_aarch64_register_constraint_catalog,
+};
+use isa_x86_64::{
+    X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
+    x86_64_fixed_register_view, x86_64_preservation_convention_for_target,
+};
 use register_model::{
-    RegisterConstraintKey, RegisterInstructionConstraint, RegisterModelValidationError,
-    RegisterReservationProfileValidationError, TargetRegisterEnvironmentConstraintKeys,
-    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
+    PreservationConvention, RegisterConstraintCatalog, RegisterConstraintKey,
+    RegisterInstructionConstraint, RegisterModelValidationError, RegisterReservationProfile,
+    RegisterReservationProfileValidationError, RegisterViewId,
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedPhysicalRegisterModel, ValidatedPreservationStorageCatalog,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
+    target_register_environment_identity, validate_physical_register_model,
+    validate_register_reservation_profile,
 };
 use selected_instructions::SelectedConstraintKeys;
-use target::Architecture;
+use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::MachineRegister;
-use validation::validate_target_register_environment_join;
 
-/// Construct the target-owned allocator environment from its ISA declarations.
-/// Decoded or cached register models have no separate replay entrance here.
 pub fn baseline_target_register_environment(
     target: NativeTarget,
 ) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
-    // The baseline is built from the target's constant declarations alone, so
-    // one build and validation per target serves every later request in the
-    // process; each caller still receives its own copy.
     static BUILT: std::sync::Mutex<
         Vec<(
             NativeTarget,
@@ -85,11 +97,57 @@ fn build_baseline_target_register_environment(
     validate_target_register_environment_join(target, validated, constraints, reservations)
 }
 
-/// Clean-lane custody of the exact target, independently validated physical
-/// register model, and target-semantic instruction constraint catalog.
-///
-/// This is allocator input, not allocator output. It grants no physical-home,
-/// machine-emission, or publication authority.
+pub(crate) fn validate_target_register_environment_join(
+    target: NativeTarget,
+    physical: ValidatedPhysicalRegisterModel,
+    constraints: RegisterConstraintCatalog,
+    reservations: RegisterReservationProfile,
+) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
+    if target.architecture != physical.model().architecture {
+        return Err(
+            TargetRegisterEnvironmentValidationError::TargetArchitectureMismatch {
+                target: target.architecture,
+                model: physical.model().architecture,
+            },
+        );
+    }
+    let constraints = match target.architecture {
+        Architecture::X86_64 => validate_x86_64_register_constraint_catalog(constraints, &physical)
+            .map_err(TargetRegisterEnvironmentValidationError::X86_64)?,
+        Architecture::Aarch64 => {
+            validate_aarch64_register_constraint_catalog(constraints, &physical)
+                .map_err(TargetRegisterEnvironmentValidationError::Aarch64)?
+        }
+    };
+    let selected_keys = selected_constraint_keys(target)
+        .ok_or(TargetRegisterEnvironmentValidationError::UnsupportedSelectedInstructionAbi)?;
+    if reservations
+        .active_overlays
+        .iter()
+        .any(|name| name == "darwin.aarch64.platform")
+        && target.object_format != ObjectFormat::MachO
+    {
+        return Err(TargetRegisterEnvironmentValidationError::InapplicableReservationOverlay);
+    }
+    let reservations = validate_register_reservation_profile(reservations, target, &physical)
+        .map_err(TargetRegisterEnvironmentValidationError::Reservations)?;
+    let identity = target_register_environment_identity(
+        target,
+        &physical,
+        &constraints,
+        &reservations,
+        &selected_keys.rows,
+    );
+    Ok(ValidatedTargetRegisterEnvironment::new(
+        target,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        identity,
+    ))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedTargetRegisterEnvironment {
     target: NativeTarget,
@@ -123,9 +181,6 @@ impl ValidatedTargetRegisterEnvironment {
         self.target
     }
 
-    /// Whether an exact scalar pointer access can retain its displacement in
-    /// the native load/store. Otherwise selection must form an address first;
-    /// this does not change the access's semantic place or byte extent.
     pub const fn admits_pointer_displacement(&self, byte_offset: u32, byte_size: u32) -> bool {
         if !matches!(byte_size, 1 | 2 | 4 | 8) {
             return false;
@@ -158,13 +213,6 @@ impl ValidatedTargetRegisterEnvironment {
         self.constraints.constraint(key)
     }
 
-    /// Target-selected scalar-call constraint. This is validated environment
-    /// data only; it does not claim that the selected CFG can lower a general
-    /// scalar call yet.
-    ///
-    /// Nothing but the call-clobber tests reads it while general selected call
-    /// lowering is unimplemented, so it stays a catalog witness rather than a
-    /// production accessor.
     #[cfg(test)]
     pub(crate) fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
         self.constraint(self::catalog::scalar_call_constraint_key(self.target)?)
@@ -183,7 +231,6 @@ impl ValidatedTargetRegisterEnvironment {
     }
 }
 
-/// Resolve an ABI register through its ISA-owned physical vocabulary.
 pub fn fixed_register_view(
     physical: &ValidatedPhysicalRegisterModel,
     register: MachineRegister,
@@ -191,6 +238,64 @@ pub fn fixed_register_view(
     match physical.model().architecture {
         Architecture::X86_64 => x86_64_fixed_register_view(physical, register),
         Architecture::Aarch64 => aarch64_fixed_register_view(physical, register),
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SelectedAbiPreservation<'model> {
+    pub kind: FrameAbiPreservationConvention,
+    pub convention: &'model PreservationConvention,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AbiPreservationSelectionError {
+    UnsupportedTargetConvention,
+}
+
+pub fn selected_abi_preservation(
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<SelectedAbiPreservation<'_>, AbiPreservationSelectionError> {
+    let target = environment.target();
+    let (kind, convention) = match (target.architecture, target.object_format) {
+        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => (
+            FrameAbiPreservationConvention::SystemVAMD64,
+            x86_64_preservation_convention_for_target(environment.physical(), target),
+        ),
+        (Architecture::X86_64, ObjectFormat::Coff) => (
+            FrameAbiPreservationConvention::MicrosoftX64,
+            x86_64_preservation_convention_for_target(environment.physical(), target),
+        ),
+        (Architecture::Aarch64, ObjectFormat::Elf) => (
+            FrameAbiPreservationConvention::Aapcs64,
+            isa_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
+        ),
+        (Architecture::Aarch64, ObjectFormat::MachO) => (
+            FrameAbiPreservationConvention::DarwinAapcs64,
+            isa_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
+        ),
+        _ => {
+            return Err(AbiPreservationSelectionError::UnsupportedTargetConvention);
+        }
+    };
+    convention
+        .map(|convention| SelectedAbiPreservation { kind, convention })
+        .ok_or(AbiPreservationSelectionError::UnsupportedTargetConvention)
+}
+
+pub fn selected_preservation_storage_catalog(
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<ValidatedPreservationStorageCatalog, AbiPreservationSelectionError> {
+    match environment.target().architecture {
+        Architecture::X86_64 => isa_x86_64::x86_64_preservation_storage_catalog(
+            environment.physical(),
+            environment.target(),
+        )
+        .map_err(|_| AbiPreservationSelectionError::UnsupportedTargetConvention),
+        Architecture::Aarch64 => isa_aarch64::aarch64_preservation_storage_catalog(
+            environment.physical(),
+            environment.target(),
+        )
+        .map_err(|_| AbiPreservationSelectionError::UnsupportedTargetConvention),
     }
 }
 
@@ -216,9 +321,6 @@ impl std::fmt::Display for TargetRegisterEnvironmentValidationError {
 
 impl std::error::Error for TargetRegisterEnvironmentValidationError {}
 
-// The unit tests allocate heavily across nextest's parallel processes;
-// mimalloc avoids the system allocator's zone locks and free lists.
-// Test-only: the product keeps the system allocator.
 #[cfg(test)]
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;

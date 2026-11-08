@@ -1,4 +1,7 @@
-//! Capture-free substitution for retained proposition, scalar, and content terms.
+/*
+Capture-avoiding term, proposition, and contract substitution across scalar values, structural
+places, and callable boundaries.
+*/
 
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
@@ -387,8 +390,6 @@ fn substitute_content_term_places(
     }
 }
 
-/// The position of `left = right` in the roster under either operand order.
-/// `Equal` is symmetric, so the twin form is the same rostered fact.
 pub fn roster_equation_position(
     axioms: &[Proposition],
     left: &ScalarTerm,
@@ -400,11 +401,6 @@ pub fn roster_equation_position(
     })
 }
 
-/// Whether the roster already carries this fact. For `Equal(Value, Value)`
-/// the symmetric twin also counts: the denotation checker's definition graph
-/// is directed, so a roster storing both orders of one equation reads as a
-/// cyclic pair and fails conversion outright, while semantically they are one
-/// fact. The direction already written always wins.
 pub fn roster_has_fact(axioms: &[Proposition], proposition: &Proposition) -> bool {
     match proposition {
         Proposition::Equal(left, right)
@@ -417,24 +413,17 @@ pub fn roster_has_fact(axioms: &[Proposition], proposition: &Proposition) -> boo
     }
 }
 
-/// Push `proposition` unless the roster already carries it under
-/// [`roster_has_fact`].
 pub fn push_unique_fact(axioms: &mut Vec<Proposition>, proposition: Proposition) {
     if !roster_has_fact(axioms, &proposition) {
         axioms.push(proposition);
     }
 }
 
-/// Read access to a proposition roster — either a materialized `Vec` or a
-/// [`SharedRoster`] sharing its spine. Positions number the roster in
-/// iteration order, so citation indexes mean the same thing under either
-/// representation.
 pub trait AxiomRoster {
     fn roster_len(&self) -> usize;
     fn roster_fact(&self, index: usize) -> &Proposition;
 }
 
-/// Append access to a proposition roster.
 pub trait AxiomRosterMut: AxiomRoster {
     fn push_fact(&mut self, proposition: Proposition);
 }
@@ -465,19 +454,6 @@ impl AxiomRosterMut for Vec<Proposition> {
     }
 }
 
-/// One edge's proposition roster: the predecessor's facts shared by
-/// reference plus this edge's own appended tail.
-///
-/// Every terminator successor starts from the same established roster — a
-/// conditional's two arms and a case's arms each hold the parent's facts
-/// plus their own bound pushes. Materializing that per edge deep-clones
-/// every `Proposition` for every successor; keeping the established facts
-/// behind an `Rc` and appending edge facts in a private tail shares the
-/// spine at O(1) per arm. Roster order is the shared facts then the tail —
-/// the same order a materialized `Vec` gives — so positions and first-match
-/// semantics are unchanged. The view lives only inside reconstruction:
-/// joins and exit rosters materialize to `Vec<Proposition>` at their
-/// boundaries, so exported obligation types are untouched.
 #[derive(Clone)]
 pub struct SharedRoster {
     shared: std::rc::Rc<Vec<Proposition>>,
@@ -485,8 +461,6 @@ pub struct SharedRoster {
 }
 
 impl SharedRoster {
-    /// Wrap a materialized roster as the shared spine later edge views
-    /// reference.
     pub fn whole(axioms: Vec<Proposition>) -> Self {
         Self {
             shared: std::rc::Rc::new(axioms),
@@ -494,7 +468,6 @@ impl SharedRoster {
         }
     }
 
-    /// An empty-tailed edge view over this roster's shared spine.
     pub fn successor(&self) -> Self {
         Self {
             shared: self.shared.clone(),
@@ -502,27 +475,22 @@ impl SharedRoster {
         }
     }
 
-    /// The roster's fact count.
     pub fn len(&self) -> usize {
         self.shared.len() + self.tail.len()
     }
 
-    /// Whether the roster holds no facts.
     pub fn is_empty(&self) -> bool {
         self.shared.is_empty() && self.tail.is_empty()
     }
 
-    /// Iterate shared facts then tail facts — roster order.
     pub fn iter(&self) -> impl Iterator<Item = &Proposition> {
         self.shared.iter().chain(self.tail.iter())
     }
 
-    /// Materialize the whole roster — the join and export boundary shape.
     pub fn to_vec(&self) -> Vec<Proposition> {
         self.iter().cloned().collect()
     }
 
-    /// Append one fact to this edge's private tail.
     pub fn push(&mut self, proposition: Proposition) {
         self.tail.push(proposition);
     }
@@ -546,27 +514,11 @@ impl AxiomRosterMut for SharedRoster {
     }
 }
 
-/// Fingerprint-bucketed view of a proposition roster for repeated membership
-/// and position queries.
-///
-/// Reconstruction edges each consult a roster hundreds of times — every edge
-/// parameter binding, rewritten established fact, and discrete fact emission
-/// asks whether the roster already carries the fact or where it sits — so a
-/// call that fingerprints the roster once turns each of those roster scans
-/// into a bucket lookup. `Equal` propositions index under an operand-order
-/// fingerprint so one bucket answers both the exact match and the
-/// symmetric-twin match [`roster_equation_position`] applies; every bucket
-/// candidate is still resolved with full proposition equality, and bucket
-/// positions stay in roster order so first-match semantics are unchanged.
-/// The index owns no roster borrow: callers fingerprint the roster once and
-/// record each later push, so reads and pushes interleave freely.
 pub struct FactIndex {
     positions: HashMap<u64, Vec<usize>>,
 }
 
 impl FactIndex {
-    /// Fingerprint `axioms` once. Index construction is the same single
-    /// roster pass one linear membership scan costs.
     pub fn new(axioms: &(impl AxiomRoster + ?Sized)) -> Self {
         let mut positions = HashMap::<u64, Vec<usize>>::new();
         for position in 0..axioms.roster_len() {
@@ -578,9 +530,6 @@ impl FactIndex {
         Self { positions }
     }
 
-    /// The position of `left = right` in the roster under either operand
-    /// order, with the same first-match semantics as
-    /// [`roster_equation_position`].
     pub fn equation_position(
         &self,
         axioms: &(impl AxiomRoster + ?Sized),
@@ -597,7 +546,6 @@ impl FactIndex {
             })
     }
 
-    /// The first roster position holding `proposition` exactly.
     pub fn position_of(
         &self,
         axioms: &(impl AxiomRoster + ?Sized),
@@ -610,7 +558,6 @@ impl FactIndex {
             .find(|&position| axioms.roster_fact(position) == proposition)
     }
 
-    /// [`roster_has_fact`] answered through the index.
     pub fn has_fact(
         &self,
         axioms: &(impl AxiomRoster + ?Sized),
@@ -627,8 +574,6 @@ impl FactIndex {
         }
     }
 
-    /// Register `axioms[position] = proposition` after a push so later
-    /// queries see it.
     pub fn record(&mut self, position: usize, proposition: &Proposition) {
         self.positions
             .entry(index_key(proposition))
@@ -636,7 +581,6 @@ impl FactIndex {
             .push(position);
     }
 
-    /// [`push_unique_fact`] answered through the index.
     pub fn push_unique(&mut self, axioms: &mut impl AxiomRosterMut, proposition: Proposition) {
         if !self.has_fact(axioms, &proposition) {
             self.record(axioms.roster_len(), &proposition);
@@ -645,9 +589,6 @@ impl FactIndex {
     }
 }
 
-/// Bucket key for a rostered proposition. `Equal` rows share one
-/// operand-order bucket so a symmetric-twin lookup reads one bucket;
-/// other propositions bucket on their own fingerprint.
 fn index_key(proposition: &Proposition) -> u64 {
     match proposition {
         Proposition::Equal(left, right) => equation_key(left, right),
@@ -655,8 +596,6 @@ fn index_key(proposition: &Proposition) -> u64 {
     }
 }
 
-/// Operand-order-free bucket key for `left = right`: the same equation under
-/// either written order lands in one bucket.
 fn equation_key(left: &ScalarTerm, right: &ScalarTerm) -> u64 {
     let mut hasher = FactHasher::default();
     left.hash(&mut hasher);
@@ -667,8 +606,6 @@ fn equation_key(left: &ScalarTerm, right: &ScalarTerm) -> u64 {
     0x9e37_79b9_7f4a_7c15_u64 ^ (left ^ right)
 }
 
-/// Fast, non-authoritative bucketing for exact proposition deduplication.
-/// Collisions are always resolved with full proposition equality.
 fn fact_cache_fingerprint(proposition: &Proposition) -> u64 {
     let mut hasher = FactHasher::default();
     proposition.hash(&mut hasher);
@@ -719,7 +656,7 @@ impl Hasher for FactHasher {
     }
 }
 
-pub(super) fn substitute_scalar_term_values(
+pub(crate) fn substitute_scalar_term_values(
     term: &ScalarTerm,
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> ScalarTerm {
@@ -954,11 +891,6 @@ pub(super) fn substitute_scalar_term_values(
     }
 }
 
-/// Replace formal value identities inside published crash routes with the
-/// invocation's actual scalar terms. This is the one substitution the
-/// verifier reconstructs at boundary calls and operation-level contracts;
-/// producers reuse it so an emitted continuation roster cannot drift from
-/// what verification will recompute.
 pub fn substitute_crash_routes(
     routes: &[CrashRouteBucket],
     substitutions: &BTreeMap<ValueId, ScalarTerm>,

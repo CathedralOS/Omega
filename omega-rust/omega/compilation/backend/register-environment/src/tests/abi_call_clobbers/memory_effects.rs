@@ -1,3 +1,10 @@
+/*
+We verify pointer-displacement admission limits and machine-effect catalog
+declarations for every selected scalar, indexed, and bulk memory access rule
+across all supported targets, ensuring exact memory footprint, address-register
+custody, and trap behavior while rejecting per-fact corruptions.
+*/
+
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     baseline_target_register_environment, binds_catalog_provenance, declaration_mut,
@@ -38,10 +45,6 @@ fn scalar_pointer_displacements_follow_the_selected_isa_limits() {
     }
 }
 
-/// Every selected memory rule key with the semantic family the effect
-/// catalog must declare for it. The sweep is keyed off the validated
-/// environment's selection, never off the effect producer's own roster; the
-/// single packed-load key carries one declaration per packed width.
 fn selected_memory_rules(
     environment: &crate::ValidatedTargetRegisterEnvironment,
 ) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
@@ -75,9 +78,6 @@ fn selected_memory_rules(
     .collect()
 }
 
-/// Exact-width accessor transfers (policy-governed and MMIO access) read or
-/// write through a plain pointer too, one declaration per width on the
-/// selected access-read or access-write row.
 fn accessor_scalar_rules(
     environment: &crate::ValidatedTargetRegisterEnvironment,
 ) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
@@ -95,8 +95,6 @@ fn accessor_scalar_rules(
         .collect()
 }
 
-/// Control-state envelopes access private frame storage too, but are ordering
-/// barriers with implicit architectural registers rather than ordinary loads.
 fn floating_control_rules(
     environment: &crate::ValidatedTargetRegisterEnvironment,
 ) -> [(RegisterConstraintKey, MachineSemanticKind); 2] {
@@ -111,6 +109,22 @@ fn floating_control_rules(
             MachineSemanticKind::RestoreFloatingControl,
         ),
     ]
+}
+
+fn descriptor_table_rules(
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
+    environment
+        .selected_keys()
+        .global_descriptor_table
+        .into_iter()
+        .flat_map(|key| {
+            [
+                (key, MachineSemanticKind::GlobalDescriptorTableLoad),
+                (key, MachineSemanticKind::GlobalDescriptorTableStore),
+            ]
+        })
+        .collect()
 }
 
 #[test]
@@ -139,8 +153,6 @@ fn floating_control_storage_binds_exact_architectural_state_on_every_target() {
             } else {
                 Vec::new()
             };
-            // x9 carries the FPCR; a save past the direct `sp` reach also
-            // forms its slot address in IP0.
             let clobbers = if case.target.architecture == Architecture::Aarch64 {
                 let mut units = model.view_named("x9").unwrap().units.clone();
                 if !restore {
@@ -198,10 +210,6 @@ fn floating_control_storage_binds_exact_architectural_state_on_every_target() {
     }
 }
 
-/// The declared memory contract one selected memory semantic must carry on
-/// every target/ABI pair: the constraint row's operand access pattern, its
-/// early-clobber scratch positions, the encoded external custody, the
-/// declaration-level footprint, and the trap surface.
 struct MemoryContract {
     accesses: &'static [RegisterOperandAccess],
     early_clobbers: &'static [u16],
@@ -209,7 +217,6 @@ struct MemoryContract {
     writes: &'static [u16],
     memory: MachineMemoryEffect,
     faulting: bool,
-    /// The constraint row implicitly uses the ABI stack-pointer view.
     uses_stack_pointer: bool,
 }
 
@@ -311,9 +318,6 @@ fn memory_contract(semantic: MachineSemanticKind) -> MemoryContract {
     }
 }
 
-/// Whether the row's declared clobber set is exactly the architecture flags
-/// view: multi-instruction transport declares it on both ISAs, while packed
-/// transport and absolute frame-address masking need it on x86-64.
 fn row_clobbers_flags(semantic: MachineSemanticKind, architecture: Architecture) -> bool {
     match semantic {
         MachineSemanticKind::CopyBytes | MachineSemanticKind::ZeroBytes => true,
@@ -338,8 +342,6 @@ const fn packed_load_width(semantic: MachineSemanticKind) -> u16 {
     }
 }
 
-/// The encoded memory footprint each selected memory semantic must declare;
-/// `stack_pointer` is the pair's declared ABI stack-pointer view.
 fn expected_encoded_memory(
     semantic: MachineSemanticKind,
     stack_pointer: RegisterViewId,
@@ -385,8 +387,6 @@ fn expected_encoded_memory(
     }
 }
 
-/// The declared size knowledge for one selected memory semantic on each ISA:
-/// the x86-64 encoder-resolved envelopes and exact AArch64 encodings.
 fn expected_size(
     semantic: MachineSemanticKind,
     architecture: Architecture,
@@ -420,8 +420,6 @@ fn expected_size(
                 MachineSizeKnowledge::ExactBytes((2 * packed_load_width(semantic) - 1) * 4)
             }
             StorePacked => resolved(24, 56),
-            // Page steps past 16 MiB reach every `u32` displacement: 257
-            // shifted steps and one remainder, or the store itself.
             AddressOffset => resolved(4, 1_032),
             FrameAddress => resolved(4, 2_068),
             Store64 => resolved(8, 2_072),
@@ -433,9 +431,6 @@ fn expected_size(
     }
 }
 
-/// Every selected memory rule on every declared target/ABI pair is bound to
-/// the ordinary memory mechanism, trap surface, and register custody that
-/// pair's ABI declares.
 #[test]
 fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
     for case in scalar_abi_cases() {
@@ -449,10 +444,6 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
             case.convention
         );
 
-        // Plain storage footprints belong exactly to ordinary memory rules,
-        // the accessor transfers, and the separately checked control
-        // envelopes above. Hosted I/O has its own memory shapes; no other
-        // declaration may claim this storage.
         let declared = declared_pairs(&catalog, |declaration| {
             matches!(
                 declaration.memory,
@@ -474,6 +465,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 })
                 .chain(accessor_scalar_rules(&environment))
                 .chain(floating_control_rules(&environment))
+                .chain(descriptor_table_rules(&environment))
                 .collect::<BTreeSet<_>>(),
             "{}",
             case.convention
@@ -483,9 +475,6 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
 
         let stack_pointer = stack_pointer_view(model, case);
         let flags = flags_view(model, case);
-        // Every memory operand travels in the class the ABI declares for its
-        // integer arguments, and frame custody reads the ABI-fixed stack
-        // pointer.
         let integer_class = model.view_named(case.arguments[0]).unwrap().class;
         assert!(
             stack_pointer
@@ -514,9 +503,6 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 "{key:?}"
             );
 
-            // ABI operand structure: dense operand numbers with the declared
-            // access pattern; memory operands stay allocatable in the ABI's
-            // integer class and are never pinned to a named ABI view.
             assert_eq!(row.operands.len(), contract.accesses.len(), "{key:?}");
             for (position, operand) in row.operands.iter().enumerate() {
                 assert_eq!(operand.operand as usize, position, "{key:?}");
@@ -531,9 +517,6 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 assert_eq!(operand.class, integer_class, "{key:?}");
             }
 
-            // Implicit custody is limited to the ABI-fixed stack pointer and,
-            // for multi-instruction transport, the volatile flags view; no
-            // memory rule may clobber state the convention preserves or fixes.
             assert_eq!(
                 row.implicit_uses,
                 if contract.uses_stack_pointer {
@@ -569,8 +552,6 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 "{key:?} clobbers must stay inside the caller-saved set"
             );
 
-            // One canonical alternative replays the exact ABI memory
-            // mechanism for this target.
             let alternative = sole_alternative(declaration, *semantic, *key);
             assert_eq!(
                 alternative.size,
@@ -580,8 +561,6 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
             let encoded = &alternative.encoded;
             assert_eq!(encoded.external_operand_reads, contract.reads, "{key:?}");
             assert_eq!(encoded.external_operand_writes, contract.writes, "{key:?}");
-            // Encoded implicit state refines exactly to the constraint row's
-            // declared custody for every selected memory rule.
             assert_eq!(encoded.implicit_unit_uses, row.implicit_uses, "{key:?}");
             assert_eq!(encoded.implicit_unit_defs, row.implicit_defs, "{key:?}");
             assert_eq!(encoded.implicit_unit_clobbers, row.clobbers, "{key:?}");
@@ -613,10 +592,6 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
     }
 }
 
-/// Every selected memory rule replays its encoded footprint: understating or
-/// reshaping the declared memory effect, forging stack or control effects, or
-/// dropping encoded custody must reject for every rule on every declared
-/// target/ABI pair.
 #[test]
 fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
     for case in scalar_abi_cases() {
@@ -640,9 +615,6 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 };
             }
 
-            // The declared footprint cannot be silently replaced: a real
-            // access encoded as none (or none encoded as a pointer write)
-            // fails structural admission.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).memory =
                 if contract.memory == MachineMemoryEffect::NoneV1 {
@@ -655,8 +627,6 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 "{key:?} memory-footprint substitution must reject"
             );
 
-            // A drifted footprint of the same shape still names the wrong
-            // operand or byte count for the declared semantic.
             let drifted = match expected_encoded_memory(semantic, stack_pointer) {
                 MachineEncodedMemoryEffect::ReadPointerV1 {
                     pointer_operand,
@@ -704,10 +674,6 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 reject_encoded!(corrupted, "{key:?} drifted footprint must reject");
             }
 
-            // Trap drift is rejected at the layer that owns it: understating
-            // a faulting access fails structural admission, while overstating
-            // a pure rule survives the fallthrough shape and needs canonical
-            // ISA replay.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).trap = if contract.faulting {
                 MachineEncodedTrapBehavior::NeverV1
@@ -727,15 +693,11 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 "{key:?} encoded trap drift must reject"
             );
 
-            // A memory rule encoded as a conditional branch fails the
-            // control/barrier join.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).control =
                 MachineEncodedControlEffect::ConditionalRelativeBranchV1;
             reject_encoded!(corrupted, "{key:?} branch-encoded memory rule must reject");
 
-            // A stack lifecycle cannot be forged onto a memory rule: no
-            // admitted shape joins a byte pop with these semantics.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).stack =
                 MachineEncodedStackEffect::PopBytesV1 {
@@ -744,8 +706,6 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 };
             reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
-            // Dropping encoded stack-pointer custody understates the row's
-            // contracted uses and fails structural admission.
             if contract.uses_stack_pointer {
                 let mut corrupted = catalog.clone();
                 let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
@@ -757,9 +717,6 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 reject_encoded!(corrupted, "{key:?} lost stack-pointer use must reject");
             }
 
-            // Dropping an encoded clobber understates the interference the
-            // row declares; the encoded list restates it exactly and fails
-            // structural admission.
             if !row.clobbers.is_empty() {
                 let mut corrupted = catalog.clone();
                 encoded_mut(&mut corrupted, key, semantic, 0)
@@ -768,17 +725,12 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 reject_encoded!(corrupted, "{key:?} lost encoded clobber must reject");
             }
 
-            // A forged implicit definition outside the row's empty def set
-            // fails structural admission before canonical replay runs.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_defs
                 .push(foreign_unit);
             reject_encoded!(corrupted, "{key:?} forged implicit def must reject");
 
-            // Dropping encoded operand custody understates the constraint
-            // row's contracted definitions and fails structural admission on
-            // every memory rule.
             if let Some(&dropped) = contract.writes.last() {
                 let mut corrupted = catalog.clone();
                 let writes =
@@ -787,9 +739,6 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 reject_encoded!(corrupted, "{key:?} lost operand write must reject");
             }
 
-            // Dropping an encoded operand read understates the contracted
-            // input surface the same way: the pure address and frame-store
-            // rows no longer admit the smaller set either.
             if let Some(&dropped) = contract.reads.last() {
                 let mut corrupted = catalog.clone();
                 let reads =
@@ -798,8 +747,6 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 reject_encoded!(corrupted, "{key:?} lost operand read must reject");
             }
 
-            // A size-knowledge drift keeps a structurally valid bound, so
-            // only canonical ISA replay may reject it.
             let mut corrupted = catalog.clone();
             declaration_mut(&mut corrupted, key, semantic).alternatives[0].size =
                 MachineSizeKnowledge::ExactBytes(997);

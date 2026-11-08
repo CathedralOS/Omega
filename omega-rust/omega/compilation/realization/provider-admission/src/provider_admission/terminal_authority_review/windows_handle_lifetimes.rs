@@ -186,11 +186,6 @@ impl HandleLifetimes {
         Ok(changed)
     }
 
-    #[cfg(test)]
-    pub(super) fn has_live_handles(&self) -> bool {
-        self.handles.values().any(|handle| handle.release.is_none())
-    }
-
     pub(super) fn next_instance(&self) -> Result<HandleInstance, HandleLifetimeFailure> {
         let next = match self.handles.last_key_value() {
             Some((instance, _)) => {

@@ -39,7 +39,7 @@ conditional constant propagation, copy propagation, global value numbering,
 and dead pure scalar elimination. Proof-check elision, state specialization,
 representation specialization, and loop-invariant scalar motion have empty
 arms in that dispatch; they execute in the post-Terminal
-[rule catalog](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/rules/catalog.rs).
+[rule catalog](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/rules.rs).
 The execution record retains the exact selection, including members that run
 no rule in this stage. This stage runs no separate per-selection before/after
 verifier: the corpus observes each pass's rewrite, following
@@ -69,7 +69,7 @@ and the operation is pure, or it matches a cataloged exact scalar identity
 remainder by one); any other checked operation keeps its check. The
 execution record survives canonical Terminal encoding and independent decoding.
 
-The [post-Terminal abstract phase](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs)
+The [post-Terminal abstract phase](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs)
 joins verified input construction, bounded execution, and independent projection
 publication. Its result exposes the current abstract program and replay evidence,
 not the executing session or analysis cache. Legacy `Psi` names still occur in
@@ -144,7 +144,7 @@ sibling rule merely because it was implemented first.
 
 The bounded countdown machinery illustrates a private restriction, not a
 language limit. Its
-[ranked-cycle validation](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/mod.rs)
+[ranked-cycle validation](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/ranked_cycles_validation.rs)
 reconstructs component/ranking evidence. Only authenticated guard-zero and
 decrement-one relocation to the canonical preheader suffix may normalize the
 otherwise frozen component; provenance and work settlements remain unchanged.

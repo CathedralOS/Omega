@@ -80,8 +80,10 @@ impl RetainedProviderSelection {
         program: &mut TypedTrees,
         scope: source::DependencyScope,
         previous: &[ProviderSelection],
+        candidates: &mut symbols::SourceSpanCandidates,
     ) -> Result<ProviderSelection, diagnostics::Diagnostic> {
         let identity = |program: &mut TypedTrees,
+                        candidates: &mut symbols::SourceSpanCandidates,
                         anchor: &RetainedDeclaration,
                         expected: &str,
                         retained: Option<&RetainedProviderApplication>,
@@ -89,19 +91,13 @@ impl RetainedProviderSelection {
             let symbol = anchor
                 .rejoin(
                     &program.symbols,
-                    program
-                        .symbols
-                        .symbols()
-                        .nodes()
-                        .iter()
-                        .map(|(symbol, _)| symbol)
+                    // Only symbols at the anchor's exact span can match; the
+                    // guarded span lookup returns them in table order.
+                    candidates
+                        .at_span(&program.symbols, anchor.span())
+                        .into_iter()
                         .filter(|symbol| {
-                            if program.symbols.get(*symbol).kind != anchor.kind()
-                                || program
-                                    .symbols
-                                    .symbol_source_span(*symbol)
-                                    .is_none_or(|span| span.span != anchor.span())
-                            {
+                            if program.symbols.get(*symbol).kind != anchor.kind() {
                                 return false;
                             }
                             program
@@ -126,6 +122,7 @@ impl RetainedProviderSelection {
         };
         let subject = identity(
             program,
+            candidates,
             &self.subject,
             &self.subject_identity,
             self.subject_application.as_ref(),
@@ -133,6 +130,7 @@ impl RetainedProviderSelection {
         )?;
         let provider = identity(
             program,
+            candidates,
             &self.provider,
             &self.provider_identity,
             self.provider_application.as_ref(),

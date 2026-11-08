@@ -1,28 +1,47 @@
+/*
+We define the read-only projections of admitted installation evidence consumed
+below Omega orchestration (`ProviderExecutionEvidence`,
+`ProviderInstallationEvidence`, `ObjectEvidence`, `StackDemandEvidence`, and
+`InstalledInterruptStackRequirement`).
+
+We expose traits and immutable value carriers here without public authority
+constructors: orchestration owns the sealed values that implement these traits,
+while instruction selection, machine emission, and image emission inspect only
+the exact identities and byte demands needed to preserve those decisions.
+*/
+
+/*
+Why keep installation evidence in a tiny dependency-light crate separate from
+`executable-installation` and lowering? If instruction selection or object
+emission imported the full installation state machine or provider-selection
+arenas, every backend lowerer would couple to source-derived planning and
+mutable installation registries. By projecting admitted provider calls, object
+text offsets, and interrupt stack requirements into plain `terminal_psi` and
+`semantic_vocabulary` coordinates, we keep the backend's lower layers closed
+against authority escalation while still re-deriving stack and fault premises
+at final object publication.
+*/
+
+/*
+Start in this file for the core evidence traits and interrupt-stack demand
+records (`InstalledInterruptStackRequirement`, `InstalledArrivalStackDemand`,
+`InstalledBodyFaultPremises`). `installation_environment.rs` holds the
+caller-supplied bootstrap and x86 interrupt-delivery platform assumptions
+(`InstallationEnvironmentAssumption`).
+*/
+
 #![forbid(unsafe_code)]
 
-//! Read-only projections of admitted installation evidence consumed below
-//! Omega orchestration.
-//!
-//! These traits carry no constructors and grant no authority. Orchestration
-//! owns the sealed values that implement them; lowering and image emission can
-//! inspect only the exact identities required to preserve those decisions.
-
-mod bootstrap_environment;
 mod installation_environment;
-pub use bootstrap_environment::{BootstrapAssumptionInterval, BootstrapEnvironmentAssumption};
 pub use installation_environment::{
-    InstallationEnvironmentAssumption, InterruptDeliveryInterval, X86InterruptDeliveryAssumption,
-    X86InterruptDeliveryProfile,
+    BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
+    InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
 
 use std::collections::BTreeSet;
 
-/// Collision-resistant commitment to one exact installed executable
-/// occurrence. The executable-installation owner derives the bytes from its
-/// private artifact, placement, final-byte, and provider evidence; lower
-/// lifecycle representations only retain and compare the commitment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct InstalledArtifactOccurrenceDigest([u8; 32]);
+pub struct InstalledArtifactOccurrenceDigest([u8; 32]); // Collision-resistant SHA-256 commitment to one exact installed executable occurrence.
 
 impl InstalledArtifactOccurrenceDigest {
     pub const fn from_sha256(digest: [u8; 32]) -> Self {
@@ -34,12 +53,7 @@ impl InstalledArtifactOccurrenceDigest {
     }
 }
 
-/// Exact admitted provider-execution identity projected into terminal
-/// lowering and installation records.
 pub trait ProviderExecutionEvidence: std::fmt::Debug {
-    /// Canonical terminal requirement identity selected by this admitted
-    /// execution. Lowering compares this value with the exact bodyless
-    /// boundary declaration before it projects the numeric execution record.
     fn requirement_identity(&self) -> &str;
     fn provider_plan_report_identity(&self) -> u64;
     fn provider_execution_report_identity(&self) -> u64;
@@ -48,9 +62,6 @@ pub trait ProviderExecutionEvidence: std::fmt::Debug {
     fn boundary_contract_report_fingerprint(&self) -> u64;
 }
 
-/// Exact caller-local claim source retained by one admitted installed-provider
-/// call. This mirrors terminal abstract custody without making the
-/// installation evidence crate depend on an Omega lowering representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledProviderCompletionClaimSource {
     pub claim: semantic_vocabulary::ClaimId,
@@ -58,8 +69,6 @@ pub struct InstalledProviderCompletionClaimSource {
     pub content: Option<terminal_psi::ContentEntryClaim>,
 }
 
-/// Read-only projection of one boundary occurrence admitted as a call to an
-/// exact checked provider machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledAssumedBindingEvidence {
     pub required: semantic_vocabulary::BoundaryMachineId,
@@ -70,8 +79,6 @@ pub struct InstalledAssumedBindingEvidence {
 }
 
 impl InstalledAssumedBindingEvidence {
-    /// Correspondence only. Root authorization and compatibility are admitted
-    /// before projection; retaining this value cannot create either authority.
     pub fn matches(
         &self,
         required: semantic_vocabulary::BoundaryMachineId,
@@ -90,25 +97,18 @@ pub struct InstalledProviderCallEvidence {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub provider: terminal_psi::ProviderCandidateConformance,
     pub assumption: Option<InstalledAssumedBindingEvidence>,
-    /// Exact caller-local result established by successful provider completion.
-    pub result: terminal_psi::OperationResult,
-    /// Ordered scalar values supplied by the exact admitted call occurrence.
-    pub scalar_arguments: Vec<semantic_vocabulary::ValueId>,
+    pub result: terminal_psi::OperationResult, // Exact caller-local result established by successful provider completion.
+    pub scalar_arguments: Vec<semantic_vocabulary::ValueId>, // Ordered scalar values supplied by the admitted call occurrence.
     pub structural_arguments: Vec<terminal_psi::StructuralArgument>,
     pub completion_claim_sources: Vec<InstalledProviderCompletionClaimSource>,
     pub completion_receipts: Vec<terminal_psi::CompletionReceipt>,
 }
 
-/// Dependency-light view of an opaque provider installation admitted against
-/// one exact terminal-Psi artifact. Returning owned projections exposes no
-/// mutable installation map or construction authority.
 pub trait ProviderInstallationEvidence: std::fmt::Debug {
     fn psi(&self) -> terminal_psi::TerminalPsiIdentity;
     fn installed_provider_calls(&self) -> Vec<InstalledProviderCallEvidence>;
 }
 
-/// Relocation-free terminal object facts required to bind installed entry and
-/// fixed-work evidence.
 pub trait ObjectEvidence {
     fn psi(&self) -> terminal_psi::TerminalPsiIdentity;
     fn target(&self) -> target::NativeTarget;
@@ -119,7 +119,6 @@ pub trait ObjectEvidence {
     fn function_text_offset(&self, machine: semantic_vocabulary::MachineId) -> Option<usize>;
 }
 
-/// Emitter-derived stack closure for one terminal entry.
 pub trait StackDemandEvidence {
     fn psi(&self) -> terminal_psi::TerminalPsiIdentity;
     fn architecture(&self) -> target::Architecture;
@@ -127,28 +126,14 @@ pub trait StackDemandEvidence {
     fn ceiling_bytes(&self) -> u64;
     fn stack_alignment(&self) -> u32;
     fn contributing_machines(&self) -> &BTreeSet<semantic_vocabulary::MachineId>;
-    /// Non-authoritative compact report coordinates for every admitted opaque
-    /// same-stack leaf contributing to this exact closure.
     fn admitted_stack_contribution_report_identities(&self) -> BTreeSet<u64>;
-    /// Strong commitments to the complete admitted opaque same-stack claims.
-    /// These remain distinct from the compact report coordinates above.
     fn admitted_stack_contribution_commitments(&self) -> BTreeSet<[u8; 32]>;
 }
 
-/// Stack capacity requested by one installed entry's physical implementation.
-/// These numbers are conditional inputs to instruction selection, not admitted
-/// resource authority. Final object publication must derive them again from
-/// the exact retained private body and arrival bridge before accepting the
-/// guard that uses them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledInterruptStackRequirement {
-    /// Conditional composition for this exact installation. The runtime guards
-    /// check dedicated backing; physical entry publication supplies root backing.
-    pub arrival: Option<InstalledArrivalStackDemand>,
-    /// Conditional body result, never a grant of valid RAM or stack capacity.
-    /// Final composition re-derives it from the exact private body, and the
-    /// installation must independently establish the listed entry premises.
-    pub fault_exclusion: Option<InstalledBodyFaultPremises>,
+    pub arrival: Option<InstalledArrivalStackDemand>, // Conditional composition for this installation; runtime guards check dedicated backing.
+    pub fault_exclusion: Option<InstalledBodyFaultPremises>, // Conditional body result re-derived at final composition from the private body.
     pub psi: terminal_psi::TerminalPsiIdentity,
     pub target: target::NativeTarget,
     pub operation: semantic_vocabulary::OperationId,
@@ -178,32 +163,19 @@ impl InstalledInterruptStackRequirement {
     }
 }
 
-/// This exact emitted body has no remaining synchronous fault source when its
-/// admitted CPL0 entry, code/CPU support, checked borrowed memory and sufficient
-/// mapped stack hold. It does not exclude physical faults, NMI or machine checks.
-/// The full installation still owes those memory and stack premises.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledBodyFaultPremises {
     pub physical_program_identity: [u8; 32],
 }
 
-/// Demand from every admitted finite arrival history. These fields grant no
-/// backing. Final composition re-derives them from exact entries and bodies;
-/// every composed cohort requires the named physical entry's owned stack,
-/// including Work's ordinary live frames when its added reserve is zero.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledArrivalStackDemand {
     pub physical_entry: InstalledPhysicalStackRoot,
     pub root_reserve_bytes: u64,
     pub domain_bytes: u64,
-    /// Exact placement identities of simultaneously live dedicated entries.
-    /// Sorted, unique and reciprocal; semantic classes never name hardware ISTs.
-    pub simultaneous_placements: Vec<usize>,
+    pub simultaneous_placements: Vec<usize>, // Sorted, unique, reciprocal placement indices of simultaneously live dedicated entries.
 }
 
-/// The two declaration identities already joined by ProgramEntry settlement.
-/// The semantic entry receives application arguments; the selected adapter
-/// receives firmware's ABI and executes on the image-owned stack.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InstalledPhysicalStackRoot {
     pub semantic_entry: semantic_vocabulary::MachineId,

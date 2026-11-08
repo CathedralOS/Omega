@@ -7,10 +7,10 @@ in the vocabulary reference while that part is consolidated.
 
 [lib.rs](src/lib.rs) exposes the public API. Start with the operation's owner:
 
-- [semantic_module.rs](src/sections/semantic_module.rs) sequences canonical
+- [semantic_module.rs](src/semantic_module.rs) sequences canonical
   ordering, representation checks, encoding, decoding, and semantic identity.
-  Its `*_wire` children own individual payloads; `module_foundation_validation`
-  checks representation shape and `wire` owns byte cursors.
+  Its `*_wire` siblings own individual payloads; [foundation_validation.rs](src/foundation_validation.rs)
+  checks representation shape and [wire_fields.rs](src/wire_fields.rs) owns byte cursors.
 - [canonical_artifact.rs](src/canonical_artifact.rs) binds semantic,
   optimization, and optional debug bytes into the handoff envelope.
   Producer construction takes ownership of the module; external ingress
@@ -36,17 +36,17 @@ execution-only work to preparation and retains exact reusable results. Shared
 input and aggregate work limits must cover these paths; per-query search caps
 alone do not bound total loading cost to a host-granted budget.
 
-The other `sections/` owners encode manifest, debug, optimization and
+The other [sections.rs](src/sections.rs) owners encode manifest, debug, optimization and
 observation-profile data.
-[codec_error.rs](src/codec_error.rs) owns the shared encoding error vocabulary.
+[lib.rs](src/lib.rs) owns the shared encoding error vocabulary.
 Do not infer one section's identity from another section's current version.
 
-Current markers live with their owners: semantic format in [semantic_module.rs](src/sections/semantic_module.rs),
-vocabulary in [VocabularyMarker](../src/terminal_module/identity/vocabulary.rs),
+Current markers live with their owners: semantic format in [semantic_module.rs](src/semantic_module.rs),
+vocabulary in [VocabularyMarker](../src/identity.rs),
 [canonical_artifact.rs](src/canonical_artifact.rs), and manifest in
-[artifact_manifest.rs](src/sections/artifact_manifest.rs). The image-emission owner
+[sections.rs](src/sections.rs). The image-emission owner
 maintains the separate [installation format](../../../../../omega/compilation/backend/images/image-emission/src/installation_record.rs).
-The [module wire decoder](src/sections/semantic_module/module_wire.rs) owns
+The [module wire decoder](src/module_wire.rs) owns
 incompatible-marker rejection. Source-lowering tests check semantic
 round trips without duplicating a transient wire-version number.
 
@@ -78,7 +78,7 @@ judgments are reused only under the host's producer-trust authorization.
 
 ## Observation-profile implementation
 
-[profile.rs](../src/terminal_module/observation/profile.rs) defines the retained
+[observation.rs](../src/observation.rs) defines the retained
 profile for
 [TerminalTraceV1](../../../../../../wiki/spec/terminal-psi/observations.md). Acceptance
 validates the module, derives its complete identity and site roster independently,

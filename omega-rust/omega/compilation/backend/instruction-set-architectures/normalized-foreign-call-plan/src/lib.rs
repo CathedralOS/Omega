@@ -1,17 +1,33 @@
 #![forbid(unsafe_code)]
 
-//! The unresolved normalized-foreign-call template both instruction sets build.
-//!
-//! A selected normalized-foreign call is admitted the same way on every
-//! target: the instruction kind carries the `{boundary, ordinal}` roster row,
-//! the retained record must agree with it and name a symbolic import, the
-//! roster row's operand columns must be the evaluated ones, and that row's
-//! declaration must admit exactly one alternative whose encoded effects are
-//! the ones under test. What differs between instruction sets is only the
-//! terminal call encoding, each callback destination's byte count, and the
-//! fixup vocabulary naming its relocations; those stay with the instruction
-//! set. The admission, the fixup record, and the validated template record are
-//! stated here once so a second instruction set cannot admit differently.
+/*
+We own the shared admission check (`admit`), unresolved relocation fixup carrier
+(`Fixup`), and validated template record (`Template`) for `NormalizedForeignCall`
+selected instructions across x86-64 and AArch64. When a backend encodes or
+validates an unresolved normalized foreign call, we verify that the target is
+supported, the physical register model identity is canonical, the instruction
+kind's `{boundary, ordinal}` matches the retained record and names a symbolic
+import, the evaluated register operand views and accesses match the roster row,
+and the single admitted alternative carries the exact declared machine effects.
+*/
+
+/*
+We centralize normalized-foreign-call template admission and carriers here so
+that x86-64 and AArch64 cannot diverge in how they authenticate foreign-call
+records, operand views, or effect footprints before emitting architecture-
+specific call sequences and callback materialization groups. Only the terminal
+call bytes, callback destination encodings, and relocation fixup kinds remain
+with the individual instruction-set crates.
+*/
+
+/*
+`isa-aarch64` and `isa-x86_64` instantiate `Fixup` and `Template` with their
+architecture-specific fixup kind, state, and callback destination types, and
+call `admit` from their `selected_form_encoding` foreign-call encoders and
+validators. Under the `test-support` feature, `fixture` supplies the shared
+normalized-foreign-call test records, callback rosters, and end-to-end template
+validation sweeps used by both ISA crates.
+*/
 
 use register_model::{
     PhysicalRegisterModelIdentity, RegisterInstructionConstraint, RegisterOperandAccess,
@@ -24,8 +40,6 @@ use selected_instructions::{
 use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
 
-/// The selected record both instruction sets' template tests admit: physical
-/// call inputs with the target's own facts as arguments.
 #[cfg(feature = "test-support")]
 pub mod fixture;
 
@@ -52,28 +66,19 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-/// Unresolved import-field fixup for one normalized foreign call.
-///
-/// `{boundary, ordinal}` names the selected roster row owning the evaluated
-/// locator; `callbacks` carries every private-callback materialization in the
-/// call's roster order. The kind, state, and callback records belong to the
-/// instruction set: each names the relocations its architecture needs and the
-/// offsets they occupy inside their materialization group.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fixup<Kind, State, Callback> {
-    pub kind: Kind,
-    pub state: State,
-    pub boundary: BoundaryMachineId,
-    pub ordinal: u32,
-    pub opcode_byte_offset: u16,
-    pub patch_byte_offset: u16,
-    pub reference_byte_offset: u16,
-    pub patch_byte_width: u8,
-    pub callbacks: Vec<Callback>,
+    pub kind: Kind, // Architecture-specific relocation kind for the terminal import call.
+    pub state: State, // Architecture-specific fixup state for the unresolved import field.
+    pub boundary: BoundaryMachineId, // Boundary machine owning the foreign call declaration.
+    pub ordinal: u32, // Roster ordinal of the selected foreign call within the boundary.
+    pub opcode_byte_offset: u16, // Byte offset of the terminal call instruction within the template.
+    pub patch_byte_offset: u16,  // Byte offset of the relocation patch field within the template.
+    pub reference_byte_offset: u16, // Byte offset used as the relocation reference origin.
+    pub patch_byte_width: u8,    // Width in bytes of the relocation patch field.
+    pub callbacks: Vec<Callback>, // Private callback address materializations in roster order.
 }
 
-/// Exact selected inputs and canonical bytes for one unresolved normalized
-/// foreign call, bound to the instruction set's own fixup record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Template<Fixup> {
     kind: SelectedInstructionKind,
@@ -85,8 +90,6 @@ pub struct Template<Fixup> {
 }
 
 impl<Fixup> Template<Fixup> {
-    /// Bind admitted inputs to the bytes and fixup an instruction set emitted
-    /// for them, after that instruction set re-derived both from the record.
     pub fn new(
         kind: SelectedInstructionKind,
         alternative: MachineAlternativeKey,
@@ -130,17 +133,6 @@ impl<Fixup> Template<Fixup> {
     }
 }
 
-/// Admit a selected normalized-foreign call against its own retained record.
-///
-/// The four hooks are the whole per-instruction-set surface the program needs:
-/// whether the target is one this instruction set encodes, the canonical
-/// physical register model identity it admits, the roster constraint the record
-/// evaluates to, and the effect declaration that constraint carries. Everything
-/// they are checked against is target-independent, so both instruction sets run
-/// one admission instead of two nearly-equal ones.
-///
-/// Returns the `{boundary, ordinal}` row the record was admitted against, which
-/// is what the caller's fixup names.
 pub fn admit(
     target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,

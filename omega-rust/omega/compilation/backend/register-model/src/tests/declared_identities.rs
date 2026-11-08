@@ -1,8 +1,14 @@
+/*
+We verify that our physical-model, constraint-catalog, and target-environment
+identities are deterministic and change whenever any declared field, target
+axis, or selected instruction key mutates.
+*/
+
 use super::{
     CatalogMutation, ModelMutation, instruction_key, miniature_catalog, miniature_model,
     validated_miniature_model,
 };
-use crate::register_model::identities;
+use crate::identities;
 use crate::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
     RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId, RegisterUnitKind,
@@ -244,8 +250,6 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         target_register_environment_identity(target, &physical, &constraints, &reservations, &keys,)
     );
 
-    // One owner for "the environment identity with a named selection changed":
-    // each case below names only the fields it overrides.
     let identity_with = |mutate: &dyn Fn(&mut TargetRegisterEnvironmentConstraintKeys)| {
         let mut changed = keys.clone();
         mutate(&mut changed);
@@ -258,8 +262,6 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         )
     };
 
-    // Both optional positions and their exact key payloads contribute, not
-    // merely the presence of some floating policy capability.
     let policy_identities: Vec<_> = [None, Some(instruction_key(65)), Some(instruction_key(66))]
         .into_iter()
         .flat_map(|trapping| {
@@ -287,7 +289,6 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         );
     }
 
-    // Choosing a different descriptor or atomic instruction must change the environment.
     for descriptor in [false, true] {
         let identities =
             [None, Some(instruction_key(810)), Some(instruction_key(906))].map(|key| {

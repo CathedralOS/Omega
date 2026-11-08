@@ -1,5 +1,9 @@
-//! The evidence an emitter hands forward: text and function validation, entry
-//! bindings, and the image output kinds that carry them.
+/*
+We define the emitter output carriers (`ExecutableImageOutput`,
+`EmittedImageOutput`, `ImageOutputKind`) and the strong SHA-256 validation
+evidence records that bind compiler-encoded text, relocated text, function
+region inventories, and entry footprints into a replayable chain.
+*/
 
 use crate::final_image::byte_report_fingerprint;
 
@@ -10,15 +14,9 @@ image_digest!(CompilerFunctionValidationDigest);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableImageOutput {
     pub bytes: Vec<u8>,
-    /// Exact target virtual placement used while applying final relocations.
     pub final_image_layout: crate::FinalImageLayout,
-    /// Exact relocated `.text` bytes before container padding/signing.
     pub final_text_bytes: Vec<u8>,
-    /// Exact relocated initialized-data bytes before container padding/signing.
     pub final_data_bytes: Vec<u8>,
-    /// Exact writer-owned import-data bytes outside `.data` — the PE `.rdata`
-    /// import table whose IAT slots the thunks load through. Empty when the
-    /// target emits none.
     pub final_import_data_bytes: Vec<u8>,
     pub file_name: String,
     pub format: String,
@@ -29,12 +27,7 @@ pub struct ExecutableImageOutput {
     pub imports: usize,
     pub relocations: usize,
     pub executable_regions: crate::PlacedExecutableRegionInventory,
-    /// Access initialized-data custody: compiler data plus any writer-owned
-    /// binding slots. The complete final data must classify or be refused.
     pub data_regions: crate::PlacedDataRegionInventory,
-    /// Access custody over `final_import_data_bytes` — the bound pointer
-    /// slots a closed thunk form decodes to. The canonical empty inventory
-    /// when the target emits no import-data extent.
     pub import_data_regions: crate::PlacedDataRegionInventory,
 }
 
@@ -44,11 +37,7 @@ pub struct EmittedImageOutput {
     pub final_image_layout: crate::FinalImageLayout,
     pub final_text_bytes: Vec<u8>,
     pub final_data_bytes: Vec<u8>,
-    /// Exact writer-owned import-data bytes outside `.data`, as on
-    /// [`ExecutableImageOutput`]. Empty when the target emits none.
     pub final_import_data_bytes: Vec<u8>,
-    /// Compact reporting coordinate. Exact callback-placement rows are replayed
-    /// before image emission; this value does not recreate that authority.
     pub callback_placement_identity_report_fingerprint: u64,
     pub file_name: String,
     pub format: String,
@@ -63,8 +52,6 @@ pub struct EmittedImageOutput {
     pub final_image_relocations: usize,
     pub executable_regions: crate::PlacedExecutableRegionInventory,
     pub data_regions: crate::PlacedDataRegionInventory,
-    /// Access custody over `final_import_data_bytes`, as on
-    /// [`ExecutableImageOutput`].
     pub import_data_regions: crate::PlacedDataRegionInventory,
     pub compiler_text_validation: Option<CompilerTextValidationEvidence>,
     pub compiler_function_validation: Option<CompilerFunctionValidationEvidence>,
@@ -73,8 +60,6 @@ pub struct EmittedImageOutput {
 }
 
 impl EmittedImageOutput {
-    /// Prove that this output's exact final initialized data differs from its
-    /// encoded input only at checked absolute data relocation slots.
     pub fn validate_final_initialized_data_relocation_envelope(
         &self,
         encoded_data_bytes: &[u8],
@@ -88,10 +73,6 @@ impl EmittedImageOutput {
     }
 }
 
-/// Exact final-region custody for the object entry's compiler-private
-/// function identity. This row is derived only after the complete function to
-/// region join succeeds and is consumed when boundary footprint evidence is
-/// attached.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompilerEntryRegionBindingEvidence {
     pub function_identity: function_identity::MachineFunctionIdentity,
@@ -102,81 +83,44 @@ pub struct CompilerEntryRegionBindingEvidence {
     pub address: u64,
     pub byte_count: usize,
     pub byte_digest: crate::PlacedExecutableRegionBytesDigest,
-    /// Compact report compatibility only.
     pub byte_report_fingerprint: u64,
     pub inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
-    /// Compact report compatibility only.
     pub inventory_report_fingerprint: u64,
-    /// Compact report coordinate beside this row's exact structural binding and
-    /// collision-resistant evidence digest.
     pub final_region_binding_report_fingerprint: u64,
     pub evidence_digest: CompilerEntryRegionBindingDigest,
-    /// Compact report compatibility only.
     pub evidence_report_fingerprint: u64,
 }
 
-/// Receipt for the sole authorized inventory mutation performed after final
-/// region validation: attaching the checked boundary footprint to the exact
-/// compiler entry row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompilerEntryFootprintBindingEvidence {
     pub entry_region_evidence_digest: CompilerEntryRegionBindingDigest,
-    /// Compact report compatibility only.
     pub entry_region_evidence_report_fingerprint: u64,
-    /// Compact report coordinate; `entry_region_evidence_digest` retains the
-    /// exact final-region binding authority.
     pub final_region_binding_report_fingerprint: u64,
     pub prior_inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
-    /// Compact report compatibility only.
     pub prior_inventory_report_fingerprint: u64,
     pub footprint_digest: crate::StateFootprintEvidenceDigest,
-    /// Compact report compatibility only.
     pub footprint_report_fingerprint: u64,
     pub resulting_inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
-    /// Compact report compatibility only.
     pub resulting_inventory_report_fingerprint: u64,
     pub evidence_digest: CompilerEntryFootprintBindingDigest,
-    /// Compact report compatibility only.
     pub evidence_report_fingerprint: u64,
 }
 
-/// Reporting summary for current compiler functions and their selected spans after
-/// exact final-byte validation. The counters and compact coordinates describe
-/// the completed validation but do not recreate it. Exact final text, placed
-/// regions, entry-region custody, and state footprints remain in their own
-/// structural carriers and domain-separated commitments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompilerFunctionValidationEvidence {
     pub function_count: usize,
-    /// Number of selected instruction spans, not individual ISA instructions.
-    /// Inserted frame protocol bytes are accounted separately below.
     pub instruction_count: usize,
-    /// Selected instruction spans whose emitted byte sequence is empty.
     pub zero_width_instruction_count: usize,
     pub frame_prologue_byte_count: usize,
-    /// Total inserted epilogue bytes across all retained return sites.
     pub frame_epilogue_byte_count: usize,
-    /// First eight bytes of the retained strong manifest identity, little-endian.
     pub fragment_manifest_report_fingerprint: u64,
-    /// First eight bytes of the retained strong frame-application identity, little-endian.
     pub frame_application_report_fingerprint: u64,
-    /// Present only when exact boundary/entry footprint evidence exists.
-    /// Common direct physical replay alone does not establish this coordinate.
     pub boundary_contract_report_fingerprint: Option<u64>,
-    /// Compact report coordinate for validated final-region binding. The direct
-    /// common path uses the executable inventory's compact fingerprint; an
-    /// entry-footprint binding retains its exact join separately.
     pub final_region_binding_report_fingerprint: u64,
-    /// Independently derived compiler-text validation's derivation report coordinate.
     pub final_text_validation_report_fingerprint: u64,
 }
 
 impl CompilerFunctionValidationEvidence {
-    /// Collision-resistant commitment to the complete normalized reporting
-    /// summary. This preserves custody of the summary as a whole; it does not
-    /// promote any imported compact coordinate into underlying authority.
-    /// Publication and replay also retain the exact text and region-inventory
-    /// commitments described above.
     pub fn evidence_digest(self) -> CompilerFunctionValidationDigest {
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
             b"omega.compiler-function-validation.sha256.v2\0",
@@ -207,8 +151,6 @@ impl CompilerFunctionValidationEvidence {
         CompilerFunctionValidationDigest::from_digest(digest.finish())
     }
 
-    /// Compact reporting coordinate only. This is not evidence, admission,
-    /// publication, or replay authority; use [`Self::evidence_digest`].
     pub fn evidence_report_fingerprint(self) -> u64 {
         byte_report_fingerprint(self.evidence_digest().as_bytes())
     }
@@ -221,34 +163,15 @@ image_digest!(CompilerTextDerivationDigest);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompilerTextValidationEvidence {
-    /// Collision-resistant commitment to the exact compiler text before
-    /// relocation. The compact fingerprint below remains report compatibility
-    /// only.
     pub encoded_text_digest: EncodedCompilerTextDigest,
-    /// Collision-resistant commitment to the exact compiler-owned prefix of
-    /// final text.
     pub final_compiler_text_digest: FinalCompilerTextDigest,
-    /// Collision-resistant commitment to the canonical ordered relocation
-    /// envelope.
     pub relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest,
-    /// Domain-separated commitment joining all strong text commitments and
-    /// the remaining imported report fields.
     pub derivation_digest: CompilerTextDerivationDigest,
-    /// Legacy compact report fingerprint. It is not an authority key; use
-    /// `encoded_text_digest` or exact byte replay.
     pub encoded_text_report_fingerprint: u64,
-    /// Legacy compact report fingerprint. It is not an authority key; use
-    /// `final_compiler_text_digest` or exact byte replay.
     pub final_compiler_text_report_fingerprint: u64,
-    /// Legacy compact report fingerprint. It is not an authority key; use the
-    /// strong relocation-envelope digest.
     pub relocation_envelope_report_fingerprint: u64,
-    /// Checked-assembly instructions whose fixed encoding or normalized
-    /// privilege-bearing envelope was validated at retained final boundaries.
     pub checked_instruction_validation_report_fingerprint: u64,
     pub checked_instruction_footprint_report_fingerprint: u64,
-    /// Legacy compact report fingerprint retained for current report
-    /// compatibility. `derivation_digest` is the collision-resistant join.
     pub derivation_report_fingerprint: u64,
     pub text_relocation_count: usize,
     pub checked_instruction_validation_count: usize,

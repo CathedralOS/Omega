@@ -1,7 +1,7 @@
-//! Source-independent analysis of a Terminal machine's control graph:
-//! successors, cyclic components, dominators, feedback edges, and the
-//! topology identities of control cycles. Producers, the optimizer, work
-//! certification and the verifier all read the same derivation.
+/*
+Control-flow graph reachability, predecessor/successor indices, dominance, and edge-order queries
+over `TerminalMachine` blocks.
+*/
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -29,12 +29,6 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
         .collect()
 }
 
-/// One control edge that forwards the predecessor's operands positionally into
-/// a target block's parameter roster.
-///
-/// Case edges forward structural arguments but produce scalar payloads rather
-/// than forwarding scalar values. Their absent scalar roster makes that
-/// distinction explicit; it cannot be read as an empty scalar telescope.
 #[derive(Debug, Clone, Copy)]
 pub struct ForwardedBinding<'block> {
     pub target: BlockId,
@@ -42,12 +36,6 @@ pub struct ForwardedBinding<'block> {
     pub structural_arguments: &'block [StructuralArgument],
 }
 
-/// The parameters this block's terminator forwards, with the exact operands
-/// each successor binds. Reading a block's arrival operands is one query: the
-/// terminator is classified here rather than re-matched by every consumer.
-///
-/// Predecessor searches call this for every block of a machine on every query,
-/// so the roster is borrowed from the terminator rather than allocated.
 pub fn forwarded_bindings(block: &Block) -> impl Iterator<Item = ForwardedBinding<'_>> {
     let (forwarded, cases) = match &block.terminator {
         Terminator::Jump {
@@ -93,15 +81,11 @@ pub fn forwarded_bindings(block: &Block) -> impl Iterator<Item = ForwardedBindin
         }))
 }
 
-/// Whether this block reaches `target` by a structural-case edge. The edge
-/// declares payload fields instead of forwarding the target's parameters.
 pub fn reaches_by_case(block: &Block, target: BlockId) -> bool {
     matches!(&block.terminator, Terminator::StructuralCase { cases, .. }
         if cases.iter().any(|successor| successor.target == target))
 }
 
-/// Failure to establish an exact, closed module control graph is not evidence
-/// that an invocation cannot return.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompletionGraphError {
     UnknownMachine(MachineId),
@@ -112,13 +96,6 @@ pub enum CompletionGraphError {
     },
 }
 
-/// Reconstruct potential normal completion from actual module control, never
-/// from a caller's marker or the callee's crash ceiling. A closed cycle has no
-/// normal exit, but supplies no termination, disposal or abandonment authority.
-/// Ordinary prefix calls remain conservatively returning; an explicit
-/// no-normal invocation transfers this query to its exact callee entry.
-/// Borrowed control views share one absence-of-normal-completion algorithm.
-/// Each adapter authenticates its current graph before exposing an entry.
 pub trait NormalCompletionGraph {
     type Error;
     fn entry(&mut self, machine: MachineId) -> Result<BlockId, Self::Error>;
@@ -129,7 +106,6 @@ pub trait NormalCompletionGraph {
     ) -> Result<NormalCompletionDisposition, Self::Error>;
 }
 
-/// Analysis scratch describing one existing control point, not an executable IR.
 pub enum NormalCompletionDisposition {
     Return,
     Stop,
@@ -242,9 +218,6 @@ pub fn normal_completion_possible(
     )
 }
 
-/// Iterative DFS returning blocks in first-finished order — the shared
-/// pending-stack walk behind `cyclic_components` and `reverse_postorder`.
-/// `successor(block, position)` projects the block's edge table.
 pub fn finished_order(
     entry: BlockId,
     successor: impl Fn(BlockId, usize) -> Option<BlockId>,
@@ -266,8 +239,6 @@ pub fn finished_order(
     finished
 }
 
-/// Complete cyclic components in canonical member order. Targets and entry
-/// must have passed ordinary graph validation before this private query.
 pub fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
     let outgoing = successors(machine);
     let finished = finished_order(machine.entry, |block, position| {
@@ -310,8 +281,6 @@ pub fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
     components
 }
 
-/// Canonical topology for consumers that need cyclic members without proof or
-/// progress authority.
 pub fn control_cycle_members(
     machine: &TerminalMachine,
 ) -> Result<Vec<Vec<BlockId>>, ControlGraphError> {
@@ -348,9 +317,6 @@ pub fn validate_control_graph(machine: &TerminalMachine) -> Result<(), ControlGr
     Ok(())
 }
 
-/// Reachable blocks in reverse postorder: every dominator precedes each block
-/// it dominates, so a scan in this order meets every definition before its
-/// dominated uses.
 pub fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
     let outgoing = successors(machine);
     reverse_postorder_from_successors(machine.entry, &outgoing)
@@ -367,9 +333,6 @@ fn reverse_postorder_from_successors(
     finished
 }
 
-/// One interval per block replaces the expanded set of all its ancestors.
-/// Block identities are sparse; only the private reverse-postorder positions
-/// index contiguous working storage.
 pub struct DominatorTree {
     positions: BTreeMap<BlockId, usize>,
     nodes: Vec<DominatorNode>,
@@ -395,7 +358,6 @@ impl DominatorTree {
             && use_block.traversal_start < definition.traversal_end
     }
 
-    /// Number of dominators including the block itself; the entry has depth 1.
     pub fn depth(&self, block: BlockId) -> Option<usize> {
         self.positions
             .get(&block)
@@ -403,9 +365,6 @@ impl DominatorTree {
     }
 }
 
-/// A cyclic block definition is available only when it dominates the use in
-/// the full graph, not merely a traversal with backedges removed. Entry,
-/// targets, unique identities and reachability must already be validated.
 pub fn dominators(machine: &TerminalMachine) -> DominatorTree {
     let outgoing = successors(machine);
     let ordered = reverse_postorder_from_successors(machine.entry, &outgoing);
@@ -421,9 +380,6 @@ pub fn dominators(machine: &TerminalMachine) -> DominatorTree {
         }
     }
 
-    // Reverse-postorder fixed point. Known parent links always move toward
-    // smaller positions, so intersecting two chains terminates even while
-    // cyclic and irreducible predecessors still refine the provisional tree.
     let mut immediate = vec![usize::MAX; ordered.len()];
     immediate[0] = 0;
     loop {
@@ -440,8 +396,6 @@ pub fn dominators(machine: &TerminalMachine) -> DominatorTree {
                     intersect_dominator_chains(common, predecessor, &immediate)
                 };
             }
-            // The DFS tree supplies an earlier predecessor for every
-            // reachable non-entry block, including on the first sweep.
             debug_assert!(common < position);
             if immediate[position] != common {
                 immediate[position] = common;
@@ -493,9 +447,6 @@ fn intersect_dominator_chains(mut first: usize, mut second: usize, immediate: &[
     first
 }
 
-/// Topology identity has no producer-supplied component key. Rank bindings
-/// separately enter the question commitment, so changing a witness invalidates
-/// its comparison evidence even when the component topology is unchanged.
 pub fn control_cycle_identity(
     machine: &TerminalMachine,
     component: &TerminalNaturalCycle,

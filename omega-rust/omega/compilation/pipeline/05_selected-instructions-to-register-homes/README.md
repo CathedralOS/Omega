@@ -11,7 +11,7 @@ identifies the compiler sequence.
 
 ## Current facts and evidence
 
-[RetainedAllocation](src/output/retained.rs) owns the current program and the
+[RetainedAllocation](src/output.rs) owns the current program and the
 facts the route produced for it. Construction projects one staged result,
 checks the exercised recovery against the declared allocation-recovery
 selection, and drops the staged producer; later stages read the current facts
@@ -55,7 +55,7 @@ raw-plan range validator still performs fresh liveness replay on every call.
 
 ## Home assignment and recovery
 
-[Home assignment](src/assignment/home_assignment/mod.rs) independently validates
+[Home assignment](src/home_assignment.rs) independently validates
 the transition-free, spill-free constraint solution. Tied values share a domain
 formed by intersecting legal views. Interference uses storage/write conflicts;
 early-clobber conflicts are directional. The deterministic producer selects the
@@ -94,7 +94,7 @@ target anchor of an edge-copy block.
 Fixed-use recovery separates factual intervals, incompatible fixed-use splits,
 and segment homes from the decision to insert a copy. Different fixed views
 may alias; a split requirement alone prescribes no physical movement. The
-[recovery entrance](src/assignment/recovery.rs) consumes exact selected policy
+[recovery entrance](src/assignment.rs) consumes exact selected policy
 and validated prerequisites. A changed selected graph requires fresh liveness,
 ranges, and legality before its homes are accepted. Unsupported ties,
 early-clobber cases, use/definition patterns, or graph shapes reject at the
@@ -117,7 +117,7 @@ independently validated homes. A rejected call-crossing spill proposal that
 exposes such a conflict falls back to the bounded proposal before refinement.
 
 Without an optional recovery selection, genuine `NoCompatibleHome` pressure
-can enter [runtime spill recovery](src/assignment/runtime_spill/mod.rs). A
+can enter [runtime spill recovery](src/assignment.rs). A
 declared fixed-view selection reaches the same recovery through two more
 arms: the segment-home front-end is probed on the borrowed legality before
 the sequence commits, so a capacity decline — `SegmentPressure` from
@@ -171,13 +171,13 @@ identities and realized selected storage, not final frame authority.
 These private eight-byte slots preserve full GPR payloads. They do not widen
 source referent reads, change scalar signedness, or normalize floating bits.
 
-The [assignment group](src/assignment/mod.rs) holds the stages that route
+The [assignment group](src/assignment.rs) holds the stages that route
 sequences. Runtime-spill recovery selects and rewrites physical victims
 directly; there is no separate logical spill plan or stack-slot coloring.
 
 ## Preservation and frame handoff
 
-[Preservation discovery](src/preservation/mod.rs) intersects selected writes
+[Preservation discovery](src/preservation.rs) intersects selected writes
 through their assigned views' exact `write_units`, including implicit definitions
 and clobbers, with the target ABI's complete callee-saved roster. It retains
 ordered witnesses and explicit empty function rows. Independent replay uses

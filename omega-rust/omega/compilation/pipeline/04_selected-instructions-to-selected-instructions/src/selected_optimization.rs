@@ -1,6 +1,106 @@
-//! Optimizer module role: executable entrance. Selected CFG to selected CFG.
+/*
+We admit selected-instruction optimization compositions, stage liveness,
+live-range, and frameless-leaf allocation legality prerequisites, dispatch the
+active catalog slice (`SelectedLowering` or `PreAllocation`), and package the
+resulting current program and proof into `SelectedInstructionOptimizationOutput`.
+*/
 
-pub(crate) mod optimization_output;
+pub(crate) mod optimization_output {
+    use crate::{
+        OptimizedAllocationLegalityCustodyError, OptimizedLiteralFoldCustodyError,
+        OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
+        OptimizedPreAllocationCustodyError, OwnedSelectedProgram, StagedOptimizedLiveRanges,
+        StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
+        validate_pre_allocation_optimization_custody,
+        validate_selected_lowering_optimization_custody,
+    };
+    use selected_instruction_analyses::AllocationRecoveryRuleCatalogError;
+
+    #[derive(Debug)]
+    pub enum SelectedInstructionOptimizationEvidence {
+        Identity(StagedOptimizedLiveRanges),
+        LiteralFolds(StagedSelectedLoweringOptimizationRun),
+        PreAllocation(StagedPreAllocationOptimizationRun),
+    }
+
+    #[derive(Debug)]
+    pub struct SelectedInstructionOptimizationOutput {
+        current: OwnedSelectedProgram,
+        evidence: SelectedInstructionOptimizationEvidence,
+    }
+
+    impl SelectedInstructionOptimizationOutput {
+        pub(crate) fn from_evidence(
+            evidence: SelectedInstructionOptimizationEvidence,
+        ) -> Result<Self, SelectedInstructionOptimizationError> {
+            let current = evidence.replay()?;
+            Ok(Self { current, evidence })
+        }
+
+        pub fn program(&self) -> &OwnedSelectedProgram {
+            &self.current
+        }
+
+        pub fn into_selected_output(
+            self,
+        ) -> selected_instruction_analyses::SelectedOptimizationOutput {
+            use selected_instruction_analyses::SelectedOptimizationOutput as Output;
+            match self.evidence {
+                SelectedInstructionOptimizationEvidence::Identity(ranges) => {
+                    Output::Identity(ranges)
+                }
+                SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
+                    Output::SelectedLowering(run.into_completed())
+                }
+                SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
+                    Output::PreAllocation(run.into_completed())
+                }
+            }
+        }
+    }
+
+    impl SelectedInstructionOptimizationEvidence {
+        fn replay(&self) -> Result<OwnedSelectedProgram, SelectedInstructionOptimizationError> {
+            match self {
+                Self::Identity(ranges) => {
+                    if super::executed_slice_phases()
+                        .any(|phase| !ranges.selections().for_phase(phase).is_empty())
+                    {
+                        return Err(SelectedInstructionOptimizationError::MissingExecution);
+                    }
+                    Ok(OwnedSelectedProgram::retain(ranges.selected()))
+                }
+                Self::LiteralFolds(run) => {
+                    validate_selected_lowering_optimization_custody(run)
+                        .map_err(SelectedInstructionOptimizationError::Rewrite)?;
+                    Ok(OwnedSelectedProgram::retain(run.attempt().fold()))
+                }
+                Self::PreAllocation(run) => {
+                    validate_pre_allocation_optimization_custody(run)
+                        .map_err(SelectedInstructionOptimizationError::PreAllocation)?;
+                    Ok(OwnedSelectedProgram::retain(&run.current()))
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum SelectedInstructionOptimizationError {
+        Liveness(OptimizedLivenessCustodyError),
+        LiveRanges(OptimizedLiveRangeCustodyError),
+        Legality(OptimizedAllocationLegalityCustodyError),
+        Rewrite(OptimizedLiteralFoldCustodyError),
+        PreAllocation(OptimizedPreAllocationCustodyError),
+        RecoveryCatalog(AllocationRecoveryRuleCatalogError),
+        UnsupportedComposition,
+        MissingExecution,
+    }
+
+    failed_display!(
+        SelectedInstructionOptimizationError,
+        "selected-instruction optimization failed"
+    );
+}
 
 use crate::analyses::stage_optimized_allocation_legality_for_frameless_leaf;
 use crate::{
@@ -11,9 +111,6 @@ use crate::{
 };
 use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
 
-/// Stage liveness and live ranges over the selected program, then execute
-/// the catalog slice this stage owns. Identity and nonempty selections both
-/// publish the same current-program carrier.
 pub fn optimize_selected_instructions(
     selected: SelectedOptimizationInput,
 ) -> Result<SelectedInstructionOptimizationOutput, SelectedInstructionOptimizationError> {
@@ -27,15 +124,9 @@ pub fn optimize_selected_instructions(
             SelectedInstructionOptimizationEvidence::Identity(ranges),
         );
     }
-    // The stage catalog is the admission authority: a selection under any
-    // other carried phase — which has a slice but no executor — composes
-    // unsupportedly. Rejection names the catalog slice rather than a
-    // hardcoded phase, so a new executor-less slice joins it automatically.
     if unexecutable_catalog_composition(selections).is_some() {
         return Err(SelectedInstructionOptimizationError::UnsupportedComposition);
     }
-    // One executed slice per composition: a selection spanning two executed
-    // phases has no chain order yet and rejects rather than guessing one.
     let mut executed =
         executed_slice_phases().filter(|phase| !selections.for_phase(*phase).is_empty());
     let phase = executed
@@ -65,10 +156,6 @@ pub fn optimize_selected_instructions(
     }
 }
 
-/// Whether this entrance executes a catalog slice's selections, keyed on the
-/// slice's family rows rather than a phase literal: a family joins the
-/// executed set by adding its `SelectedStageRuleRows` arm here alongside its
-/// executor and evidence variant, not by editing admission predicates.
 fn slice_executes_at_stage(rows: SelectedStageRuleRows) -> bool {
     matches!(
         rows,
@@ -76,12 +163,6 @@ fn slice_executes_at_stage(rows: SelectedStageRuleRows) -> bool {
     )
 }
 
-/// The catalog phases this entrance executes, in catalog order. This is the
-/// stage's one admission decision: `optimize_selected_instructions`
-/// composes and rejects through it, and identity replay in
-/// `optimization_output` reads the same set, so a family that gains a
-/// `SelectedStageRuleRows` arm also gains its missing-execution rejection
-/// without a second site to edit.
 pub(crate) fn executed_slice_phases() -> impl Iterator<Item = OptimizationExecutionPhase> {
     SELECTED_STAGE_RULE_CATALOG
         .iter()
@@ -89,18 +170,10 @@ pub(crate) fn executed_slice_phases() -> impl Iterator<Item = OptimizationExecut
         .map(|slice| slice.phase())
 }
 
-/// Whether any slice with a stage executor has selections in flight.
-/// Declared-but-unexecuted slices alone compose to a no-op identity: the
-/// rule is admitted but no stage runs it yet.
 fn has_executed_selections(selections: &OptimizationSelections) -> bool {
     executed_slice_phases().any(|phase| !selections.for_phase(phase).is_empty())
 }
 
-/// With an executed composition in flight, the first other phase the stage
-/// catalog carries whose selection this entrance cannot execute. A selection
-/// under an executor-less slice with no executed members is tolerated: the
-/// rule is declared but no stage runs it yet, and the output stays a no-op
-/// identity.
 fn unexecutable_catalog_composition(
     selections: &OptimizationSelections,
 ) -> Option<OptimizationExecutionPhase> {

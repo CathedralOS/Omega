@@ -1,8 +1,9 @@
-//! Canonical x86-64 support encodings for exact IEEE scalar materialization
-//! and MXCSR custody.
-//!
-//! These are instruction mechanics only. Feature admission and the semantic
-//! reason for installing Omega's floating-control state remain upstream.
+/*
+We provide canonical x86-64 instruction encodings and structural decoders for
+exact IEEE 754 binary32/binary64 bit materialization into `XMM0`..`XMM15`,
+`RSP`-relative `STMXCSR`/`LDMXCSR` control-state custody (`OMEGA_CANONICAL_MXCSR`),
+and register-only scalar FMA3 (`VFMADD132SS`/`VFMADD132SD`) verification.
+*/
 
 use calling_conventions::MachineRegister;
 use diagnostics::Diagnostic;
@@ -15,13 +16,13 @@ pub fn encode_binary32_bits_to_xmm(
 ) -> Result<Vec<u8>, Diagnostic> {
     let destination = xmm_index(destination)?;
     let mut bytes = Vec::with_capacity(if destination < 8 { 9 } else { 10 });
-    bytes.push(0xb8); // mov eax, imm32
+    bytes.push(0xb8);
     crate::codec_bytes::push_encoded(&mut bytes, bits.to_le_bytes());
     bytes.push(0x66);
     if destination >= 8 {
-        bytes.push(0x44); // REX.R
+        bytes.push(0x44);
     }
-    bytes.extend_from_slice(&[0x0f, 0x6e, 0xc0 | ((destination & 7) << 3)]); // movd xmm, eax
+    bytes.extend_from_slice(&[0x0f, 0x6e, 0xc0 | ((destination & 7) << 3)]);
     Ok(bytes)
 }
 
@@ -31,11 +32,11 @@ pub fn encode_binary64_bits_to_xmm(
 ) -> Result<Vec<u8>, Diagnostic> {
     let destination = xmm_index(destination)?;
     let mut bytes = Vec::with_capacity(15);
-    bytes.extend_from_slice(&[0x48, 0xb8]); // mov rax, imm64
+    bytes.extend_from_slice(&[0x48, 0xb8]);
     crate::codec_bytes::push_encoded(&mut bytes, bits.to_le_bytes());
     bytes.push(0x66);
-    bytes.push(if destination < 8 { 0x48 } else { 0x4c }); // REX.W[+R]
-    bytes.extend_from_slice(&[0x0f, 0x6e, 0xc0 | ((destination & 7) << 3)]); // movq xmm, rax
+    bytes.push(if destination < 8 { 0x48 } else { 0x4c });
+    bytes.extend_from_slice(&[0x0f, 0x6e, 0xc0 | ((destination & 7) << 3)]);
     Ok(bytes)
 }
 
@@ -62,10 +63,6 @@ fn encode_mxcsr_rsp_displacement(
     encode_rsp_displacement(&[0x0f, 0xae], reg_field, byte_offset, suffix)
 }
 
-/// Encode one RSP-relative memory operand using the shortest canonical
-/// nonnegative displacement. x86 `disp8` is signed, so offsets 128 and above
-/// must use `disp32`; treating a `u8` offset as raw `disp8` would address below
-/// RSP for half of its range.
 fn encode_rsp_displacement(
     opcode: &[u8],
     reg_field: u8,
@@ -76,11 +73,11 @@ fn encode_rsp_displacement(
     bytes.extend_from_slice(opcode);
     match byte_offset {
         0 => {
-            bytes.push(reg_field | 0x04); // mod=00, r/m=SIB
-            bytes.push(0x24); // scale=1, no index, base=RSP
+            bytes.push(reg_field | 0x04);
+            bytes.push(0x24);
         }
         1..=127 => {
-            bytes.push(reg_field | 0x44); // mod=01, r/m=SIB
+            bytes.push(reg_field | 0x44);
             bytes.push(0x24);
             bytes.push(byte_offset as u8);
         }
@@ -88,7 +85,7 @@ fn encode_rsp_displacement(
             let displacement = i32::try_from(byte_offset).map_err(|_| {
                 Diagnostic::error("RSP-relative MXCSR frame offset exceeds positive disp32")
             })?;
-            bytes.push(reg_field | 0x84); // mod=10, r/m=SIB
+            bytes.push(reg_field | 0x84);
             bytes.push(0x24);
             crate::codec_bytes::push_encoded(&mut bytes, displacement.to_le_bytes());
         }
@@ -161,5 +158,100 @@ mod tests {
             [0x0f, 0xae, 0x94, 0x24, 0x34, 0x12, 0, 0]
         );
         assert!(encode_stmxcsr_rsp_displacement(0x8000_0000).is_err());
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecodedScalarFmaFormat {
+    Binary32,
+    Binary64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecodedVfmadd132Scalar {
+    pub format: DecodedScalarFmaFormat,
+    pub destination: MachineRegister,
+    pub addend: MachineRegister,
+    pub multiplicand: MachineRegister,
+}
+
+pub fn decode_vfmadd132_scalar(bytes: &[u8]) -> Result<DecodedVfmadd132Scalar, Diagnostic> {
+    let [vex, vex_second, vex_third, opcode, mod_rm] = bytes else {
+        return Err(Diagnostic::error(format!(
+            "canonical scalar VFMADD132 encoding must contain exactly 5 bytes, got {}",
+            bytes.len()
+        )));
+    };
+    if *vex != 0xc4
+        || (*vex_second & 0x5f) != 0x42
+        || (*vex_third & 0x07) != 0x01
+        || *opcode != 0x99
+        || (*mod_rm & 0xc0) != 0xc0
+    {
+        return Err(Diagnostic::error(
+            "bytes are not a canonical register-only scalar VFMADD132SS/SD encoding",
+        ));
+    }
+
+    let format = if (*vex_third & 0x80) == 0 {
+        DecodedScalarFmaFormat::Binary32
+    } else {
+        DecodedScalarFmaFormat::Binary64
+    };
+    let destination = ((*mod_rm >> 3) & 7) | (u8::from((*vex_second & 0x80) == 0) << 3);
+    let multiplicand = (*mod_rm & 7) | (u8::from((*vex_second & 0x20) == 0) << 3);
+    let addend = !(*vex_third >> 3) & 0x0f;
+    Ok(DecodedVfmadd132Scalar {
+        format,
+        destination: MachineRegister::X86Xmm(destination),
+        addend: MachineRegister::X86Xmm(addend),
+        multiplicand: MachineRegister::X86Xmm(multiplicand),
+    })
+}
+
+#[cfg(test)]
+mod fma_tests {
+    use super::{
+        DecodedScalarFmaFormat, DecodedVfmadd132Scalar, MachineRegister, decode_vfmadd132_scalar,
+    };
+
+    #[test]
+    fn independently_decodes_both_formats_and_extended_registers() {
+        for (bytes, expected) in [
+            (
+                [0xc4, 0xe2, 0x71, 0x99, 0xc2],
+                DecodedVfmadd132Scalar {
+                    format: DecodedScalarFmaFormat::Binary32,
+                    destination: MachineRegister::X86Xmm(0),
+                    addend: MachineRegister::X86Xmm(1),
+                    multiplicand: MachineRegister::X86Xmm(2),
+                },
+            ),
+            (
+                [0xc4, 0x42, 0xa9, 0x99, 0xcf],
+                DecodedVfmadd132Scalar {
+                    format: DecodedScalarFmaFormat::Binary64,
+                    destination: MachineRegister::X86Xmm(9),
+                    addend: MachineRegister::X86Xmm(10),
+                    multiplicand: MachineRegister::X86Xmm(15),
+                },
+            ),
+        ] {
+            assert_eq!(decode_vfmadd132_scalar(&bytes).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn decoder_rejects_noncanonical_or_non_132_scalar_forms() {
+        let canonical = [0xc4, 0xe2, 0x71, 0x99, 0xc2];
+        for (index, replacement) in [(0, 0xc5), (1, 0xa2), (2, 0x75), (3, 0x98), (4, 0x02)] {
+            let mut mutated = canonical;
+            mutated[index] = replacement;
+            assert!(decode_vfmadd132_scalar(&mutated).is_err());
+        }
+        assert!(decode_vfmadd132_scalar(&canonical[..4]).is_err());
+        let mut trailing = canonical.to_vec();
+        trailing.push(0x90);
+        assert!(decode_vfmadd132_scalar(&trailing).is_err());
     }
 }

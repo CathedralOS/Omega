@@ -1,9 +1,9 @@
-//! x86-64 fixed-frame stack transport and owned home addressing.
-//!
-//! Private over-aligned homes round addresses within reserved padding, never
-//! RSP itself. The mask precedes every member offset and changes flags; ordinary
-//! selected forms therefore advertise that clobber before allocation. Stack
-//! probing and continuation custody retain the fixed ABI frame coordinates.
+/*
+We encode and validate x86-64 fixed-frame stack transport, 4 KiB page-granule
+stack-commit probes (`X86_64StackProbe`), callee-saved slot save/restore
+(`X86_64FrameSlot`), over-aligned frame home rounding, and pointer memory
+accesses across System V AMD64 and Microsoft x64 frames.
+*/
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 
@@ -14,21 +14,12 @@ pub struct X86_64FrameSlot {
     pub size_bytes: u64,
 }
 
-/// Stack-commit probe roster for one frame, in the order the prologue
-/// performs it. Every admitted x86-64 target commits stack in 4096-byte
-/// granules; a frame larger than one granule is committed one granule at a
-/// time, touching each newly entered page so lazily backed stacks grow
-/// instead of letting one stack-pointer move skip the guard region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct X86_64StackProbe {
-    /// Stack-commit granule the roster probes, in bytes.
     pub interval_bytes: u64,
-    /// Ordered touches, one per committed chunk, each at the new stack
-    /// pointer position after that chunk is subtracted.
     pub touches: u32,
 }
 
-/// The stack-commit granule every admitted x86-64 target guarantees.
 pub(crate) const X86_64_STACK_PROBE_INTERVAL_BYTES: u64 = 4_096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,11 +39,6 @@ diagnostics::failed_display!(
 
 impl std::error::Error for X86_64FrameProtocolError {}
 
-/// Encode one canonical fixed System V frame. The returned epilogue excludes
-/// `ret`; the selected return instruction retains that semantic operation.
-/// `probe` is the validated layout's committed-stack roster: it must name the
-/// exact granule and touch count this frame size commits under, because the
-/// encoder emits a probe touch after every chunk it subtracts.
 pub fn encode_system_v_amd64_frame_protocol(
     model: &ValidatedPhysicalRegisterModel,
     frame_size_bytes: u64,
@@ -62,9 +48,6 @@ pub fn encode_system_v_amd64_frame_protocol(
     if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
     }
-    // `sub`/`add rsp, imm32` sign-extend their immediate, so a frame past
-    // `i32::MAX` would release in the wrong direction. Frame layout refuses
-    // such an activation by name before any protocol is encoded.
     if frame_size_bytes > i32::MAX as u64 {
         return Err(X86_64FrameProtocolError::InvalidFrameSize);
     }
@@ -79,8 +62,6 @@ pub fn encode_system_v_amd64_frame_protocol(
         loop {
             let chunk = remaining.min(X86_64_STACK_PROBE_INTERVAL_BYTES);
             append_stack_adjust(&mut prologue, chunk, true)?;
-            // `cmp byte ptr [rsp], 0` reads the lowest newly committed byte: a
-            // read faults on the guard region and writes no register or memory.
             prologue.extend_from_slice(&[0x80, 0x3c, 0x24, 0x00]);
             remaining -= chunk;
             if remaining == 0 {
@@ -108,9 +89,6 @@ pub fn encode_system_v_amd64_frame_protocol(
     Ok((prologue, epilogue))
 }
 
-/// The roster must be the exact commit schedule for this frame size: no
-/// touches inside one granule, and exactly one touch per granule chunk past
-/// it so the emitted prologue cannot skip or pad the commit sequence.
 fn validate_probe(
     frame_size_bytes: u64,
     probe: X86_64StackProbe,
@@ -230,8 +208,6 @@ fn append_register_memory(
     Ok(())
 }
 
-/// Encode a physical SP-relative scalar or full-vector transfer. Entry adapters own the
-/// allocation; this operation supplies no semantic slot or storage authority.
 pub fn encode_x86_64_frame_memory(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -242,8 +218,6 @@ pub fn encode_x86_64_frame_memory(
     encode_memory(model, view, 4, offset_bytes, byte_size, load)
 }
 
-/// Transfer physical bytes through a caller-selected pointer register. No
-/// semantic storage or authority is inferred from its address.
 pub fn encode_x86_64_pointer_memory(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -289,8 +263,6 @@ fn encode_memory(
         let prefix = match byte_size {
             4 => Some(0xf3),
             8 => Some(0xf2),
-            // MOVUPS retains all 128 bits without assuming the frame's
-            // displacement is aligned, unlike a scalar MOVSS/MOVSD save.
             16 => None,
             _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
         };
@@ -316,8 +288,6 @@ fn encode_memory(
     if byte_size == 2 && !load {
         bytes.push(0x66);
     }
-    // Byte/halfword loads zero-extend into r32. Stores select the exact
-    // width; a byte register numbered 4..7 needs REX to name sil/dil/bpl.
     let rex = 0x40 | ((register >> 3) << 2) | (base >> 3) | if byte_size == 8 { 8 } else { 0 };
     if rex != 0x40 || (byte_size == 1 && !load && register >= 4) {
         bytes.push(rex);
@@ -351,7 +321,6 @@ fn append_memory_operand(
     Ok(())
 }
 
-/// Form an address inside the caller-owned adapter frame without a slot ID.
 pub fn encode_x86_64_frame_address(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -377,9 +346,6 @@ pub(crate) fn encode_frame_address_signed(
     Ok(bytes)
 }
 
-/// Round an owned home's absolute address inside a padded fixed frame, then
-/// apply its member offset. RSP stays fixed; AND changes RFLAGS, which the
-/// selected frame forms must declare before register allocation.
 pub fn encode_x86_64_aligned_frame_address(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -407,7 +373,6 @@ pub fn encode_x86_64_aligned_frame_address(
     Ok(bytes)
 }
 
-/// Decode canonical frame address steps independently of their producer.
 pub(crate) fn validate_frame_address(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -491,7 +456,6 @@ pub(crate) fn decode_pointer_store_suffix<'bytes>(
     Some(&bytes[..prefix_length])
 }
 
-/// Materialize one complete interpretation word, not a semantic operation.
 pub fn encode_x86_64_integer_constant(
     model: &ValidatedPhysicalRegisterModel,
     view: RegisterViewId,
@@ -640,12 +604,10 @@ mod tests {
             interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
             touches: u32::try_from(frame_size.div_ceil(X86_64_STACK_PROBE_INTERVAL_BYTES)).unwrap(),
         };
-        // The last page under 2 GiB releases with one positive imm32.
         let (_, epilogue) =
             encode_system_v_amd64_frame_protocol(&model, 0x7fff_f000, probe(0x7fff_f000), &[])
                 .unwrap();
         assert_eq!(epilogue, [0x48, 0x81, 0xc4, 0x00, 0xf0, 0xff, 0x7f]);
-        // `add rsp, 0x80000000` would encode `add rsp, -2 GiB`.
         assert_eq!(
             encode_system_v_amd64_frame_protocol(&model, 0x8000_0000, probe(0x8000_0000), &[]),
             Err(X86_64FrameProtocolError::InvalidFrameSize)
@@ -692,7 +654,6 @@ mod tests {
             }],
         )
         .unwrap();
-        // sub rsp,4096 ; cmp byte [rsp],0 ; sub rsp,4096 ; cmp byte [rsp],0 ; save
         let chunk = [
             0x48, 0x81, 0xec, 0x00, 0x10, 0x00, 0x00, 0x80, 0x3c, 0x24, 0x00,
         ];
@@ -700,8 +661,6 @@ mod tests {
         assert_eq!(&prologue[11..22], &chunk);
         assert_eq!(&prologue[22..26], &[0x48, 0x89, 0x1c, 0x24]);
         assert_eq!(prologue.len(), 26);
-        // The epilogue restores the whole frame in one move: only the growing
-        // direction needs the commit touches.
         assert_eq!(
             &epilogue[epilogue.len() - 7..],
             &[0x48, 0x81, 0xc4, 0x00, 0x20, 0x00, 0x00]
@@ -718,7 +677,6 @@ mod tests {
         };
         let (prologue, _) =
             encode_system_v_amd64_frame_protocol(&model, 4_097, probe, &[]).unwrap();
-        // sub rsp,4096 ; touch ; sub rsp,1 ; touch
         assert_eq!(
             &prologue,
             &[

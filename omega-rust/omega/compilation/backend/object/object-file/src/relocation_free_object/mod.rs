@@ -1,5 +1,12 @@
-//! The OMGTRO container and the four-of-six target admission that decides whether
-//! a relocation-free plan is canonical at all.
+/*
+We define the immutable SHA-256-identified relocation-free object plan
+(`RelocationFreeObjectPlan`), its five-pair 64-bit target admission rules
+(`validate_relocation_free_object`), and its version-5 `OMGTRO` wire codec
+(`encode_relocation_free_object`, `decode_relocation_free_object`). We verify
+dense object-local function symbol intervals, unique semantic entry roles,
+canonical sorted foreign-import symbol sequences, and in-bounds foreign and
+image-address patch fields before admitting or publishing any container.
+*/
 
 use std::collections::BTreeSet;
 
@@ -27,8 +34,6 @@ use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v5\0";
 const CONTAINER_MAGIC: &[u8; 8] = b"OMGTRO\0\0";
-// Version 4 carries one tagged image-address roster for every referent.
-// Older split rosters are not inferred or migrated.
 const CONTAINER_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -39,10 +44,6 @@ impl ObjectLocalSymbolId {
         if value == 0 { None } else { Some(Self(value)) }
     }
 
-    /// The id of the `index`th row of a canonical sequence that begins after
-    /// `preceding` earlier rows: the function table starts the sequence, the
-    /// import plan continues it after the function rows. `None` is the index
-    /// arithmetic refusing, never a hole in the sequence.
     pub fn at(preceding: usize, index: usize) -> Option<Self> {
         u64::try_from(preceding)
             .ok()?
@@ -75,13 +76,7 @@ pub enum RelocationFreeObjectSymbolRole {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelocationFreeObjectRelocationRequirements {
     ProvenNoneForFullyResolvedInternalControlV1,
-    /// The section carries normalized-foreign-call import fields bound by this
-    /// object to declared import symbols. Internal control is fully resolved;
-    /// foreign imports remain object relocations, never in-section patches.
     UnresolvedNormalizedForeignImportFieldsV1,
-    /// The section carries tagged image address fields, with or without
-    /// normalized-foreign import fields. Each referent's placement owner binds
-    /// its fields to the corresponding image symbol.
     UnresolvedObjectSymbolFieldsV1,
 }
 
@@ -105,12 +100,6 @@ pub struct RelocationFreeFunctionSymbol {
     pub role: RelocationFreeObjectSymbolRole,
 }
 
-/// One declared normalized-foreign import symbol in the object's import plan.
-///
-/// The `{boundary, ordinal}` pair names the selected roster entry owning the
-/// call's evaluated locator; the raw foreign coordinate never enters the plan.
-/// Import symbol ids continue the canonical function-symbol sequence, so the
-/// first import is `symbols.len() + 1`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationFreeObjectNormalizedImport {
     pub symbol: ObjectLocalSymbolId,
@@ -119,20 +108,12 @@ pub struct RelocationFreeObjectNormalizedImport {
     pub name: String,
 }
 
-/// One unresolved normalized-foreign-call import field bound to its declared
-/// import symbol. `resolution` is the placement row exactly as the source text
-/// section recorded it; `symbol` is the `normalized_imports` entry declaring
-/// the roster coordinate `{resolution.boundary, resolution.ordinal}`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationFreeObjectUnresolvedForeignCall {
     pub symbol: ObjectLocalSymbolId,
     pub resolution: PlacedNormalizedForeignCallResolution,
 }
 
-/// Clean object-owned representation of one fully resolved optimizer text section.
-///
-/// This value deliberately owns no native-image, installation, process-entry, export, or
-/// publication authority. Its semantic entry remains an object-local function symbol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationFreeObjectPlan {
     pub identity: RelocationFreeObjectPlanIdentity,
@@ -147,17 +128,8 @@ pub struct RelocationFreeObjectPlan {
     pub symbols: Vec<RelocationFreeFunctionSymbol>,
     pub semantic_entry: MachineId,
     pub semantic_entry_symbol: ObjectLocalSymbolId,
-    /// The import plan: one declared external symbol per distinct
-    /// `{boundary, ordinal}` roster coordinate the unresolved calls name, in
-    /// canonical coordinate order. Empty unless `relocation_requirements` is
-    /// `UnresolvedNormalizedForeignImportFieldsV1`.
     pub normalized_imports: Vec<RelocationFreeObjectNormalizedImport>,
-    /// The section's unresolved import fields, each bound to its declared
-    /// import symbol. Source order is preserved exactly.
     pub unresolved_normalized_foreign_calls: Vec<RelocationFreeObjectUnresolvedForeignCall>,
-    /// The section's unresolved byte-literal image addresses, in source
-    /// order. Image emission owns the literals' read-only storage and binds
-    /// each row's fields to it; this plan only carries their coordinates.
     pub unresolved_image_addresses: Vec<machine_code::PlacedImageAddress>,
     pub relocation_record_count: u64,
     pub relocation_requirements: RelocationFreeObjectRelocationRequirements,
@@ -257,9 +229,6 @@ pub enum RelocationFreeObjectDecodeError {
 optimization_core::take_error_from_adapter!(RelocationFreeObjectDecodeError);
 optimization_core::truncated_from_adapter!(RelocationFreeObjectDecodeError);
 
-/// The canonical target wire identity's three failures, each keeping this
-/// format's own spelling: the object layer's error vocabulary never changes
-/// because the table moved to its owner.
 impl From<TargetWireIdentityError> for RelocationFreeObjectDecodeError {
     fn from(error: TargetWireIdentityError) -> Self {
         match error {
@@ -300,9 +269,6 @@ pub(crate) fn validate_relocation_free_object(
     if object.recomputed_identity()? != object.identity {
         return Err(RelocationFreeObjectError::StaleObjectIdentity);
     }
-    // Canonical targets are exactly the declared matrix pairs — Aarch64 with
-    // ELF or Mach-O, x86-64 with ELF, COFF or Mach-O — on a 64-bit pointer
-    // contract.
     let Some(policy) = object_target_policy(object.target) else {
         return Err(RelocationFreeObjectError::NonCanonicalTarget);
     };
@@ -454,8 +420,6 @@ pub(crate) fn validate_relocation_free_object(
         _ => return Err(RelocationFreeObjectError::MultipleSemanticEntries),
     }
 
-    // Import symbols continue the canonical function id sequence and hold the
-    // section's distinct roster coordinates in sorted order.
     let mut import_symbols = std::collections::BTreeMap::new();
     let mut last_coordinate = None;
     for (index, import) in object.normalized_imports.iter().enumerate() {
@@ -607,8 +571,6 @@ fn encode_plan_content(
         RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
         RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     });
-    // All image references share one tagged roster; placement ownership is
-    // resolved later by the referent's image owner.
     if object.relocation_requirements
         == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
     {
@@ -1182,7 +1144,6 @@ mod tests {
         );
     }
 
-    /// One AArch64 byte-literal address: `adrp x0, #0; add x0, x0, #0`.
     fn literal_plan() -> RelocationFreeObjectPlan {
         let mut object = plan();
         object.text_section.bytes = [0x9000_0000_u32, 0x9100_0000_u32]
@@ -1293,8 +1254,6 @@ mod tests {
             decode_relocation_free_object(&container.bytes),
             Ok(object.clone())
         );
-        // A literal row without its requirement, or the requirement without a
-        // row, or a field past the section, is not a canonical object.
         let mut unrequired = object.clone();
         unrequired.relocation_requirements =
             RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1;
@@ -1361,9 +1320,6 @@ mod tests {
 
     #[test]
     fn object_validation_fails_closed_on_undeclared_target_pairs() {
-        // The matrix admits five of the six (architecture, object-format)
-        // pairs; (Aarch64, Coff) must reject even when the section name and
-        // alignment happen to match a declared row.
         let mut object = plan();
         object.target = NativeTarget {
             architecture: Architecture::Aarch64,
@@ -1489,7 +1445,6 @@ mod tests {
             },
         };
         let mut object = plan();
-        // This test checks saved-object transport, not instruction execution.
         object.text_section.bytes.resize(40, 0);
         object.text_section.byte_count = 40;
         object.symbols[0].byte_count = 40;
@@ -1532,11 +1487,8 @@ mod tests {
         let mut container = encode_relocation_free_object(&object).unwrap().bytes;
         assert_eq!(decode_relocation_free_object(&container), Ok(object));
 
-        // Find the complete first placement, including the three-placement
-        // count, then damage only its tag. Decoding must reject before the
-        // changed bytes can be reported merely as a stale object identity.
         let mut first_placement = 3_u64.to_le_bytes().to_vec();
-        first_placement.push(2); // Bits
+        first_placement.push(2);
         for value in [0_u64, 16, 0, 0, 16] {
             first_placement.extend_from_slice(&value.to_le_bytes());
         }
@@ -1600,7 +1552,6 @@ mod tests {
         object.identity = object.recomputed_identity().unwrap();
         assert_eq!(validate_relocation_free_object(&object), Ok(()));
 
-        // Coordinates must be strictly increasing.
         let mut unordered = object.clone();
         unordered.normalized_imports = vec![import(2, 2), import(1, 3)];
         unordered.identity = unordered.recomputed_identity().unwrap();
@@ -1609,7 +1560,6 @@ mod tests {
             Err(RelocationFreeObjectError::NonCanonicalForeignImportOrder)
         );
 
-        // A declared import with no bound field rejects.
         let mut unused = object.clone();
         unused.normalized_imports.push(import(9, 4));
         unused.identity = unused.recomputed_identity().unwrap();
@@ -1618,7 +1568,6 @@ mod tests {
             Err(RelocationFreeObjectError::UnusedForeignImport)
         );
 
-        // A field row must bind the import that declares its coordinate.
         let mut mismatched = object.clone();
         mismatched.unresolved_normalized_foreign_calls[1]
             .resolution
@@ -1629,7 +1578,6 @@ mod tests {
             Err(RelocationFreeObjectError::ForeignImportCoordinateMismatch)
         );
 
-        // A field row must name a declared import symbol, not a function id.
         let mut unknown = object.clone();
         unknown.unresolved_normalized_foreign_calls[1].symbol =
             ObjectLocalSymbolId::new(1).unwrap();
@@ -1639,7 +1587,6 @@ mod tests {
             Err(RelocationFreeObjectError::UnknownForeignImportSymbol)
         );
 
-        // The record count is the exact field-row count.
         let mut miscounted = object.clone();
         miscounted.relocation_record_count = 3;
         miscounted.identity = miscounted.recomputed_identity().unwrap();

@@ -42,6 +42,7 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
         build_directory: Some(native_directory.clone()),
         targets: BuildTargets::Single(profile),
         product: ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },

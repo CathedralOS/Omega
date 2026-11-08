@@ -1,3 +1,10 @@
+/*
+We verify that the machine-effect catalog declares the exact condition-code
+custody, control-flow barrier class, and encoded branch/jump shape for every
+selected conditional and unconditional branch rule across all supported targets,
+and rejects per-fact corruptions.
+*/
+
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
@@ -12,10 +19,6 @@ use selected_instructions::{
     MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
-/// Every selected branch rule key with the semantic family the effect
-/// catalog must declare for it. The three conditional semantics share one
-/// constraint key; the sweep is keyed off the validated environment's
-/// selection, never off the effect producer's own roster.
 fn selected_branch_rules(
     environment: &crate::ValidatedTargetRegisterEnvironment,
 ) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
@@ -31,10 +34,6 @@ fn selected_branch_rules(
     .collect()
 }
 
-/// The declared branch contract one selected branch semantic must carry on
-/// every target/ABI pair: whether the rule reads the architecture's
-/// condition-code view, and the exact encoded control shape inside the
-/// control-flow barrier class.
 struct BranchContract {
     conditional: bool,
     control: MachineEncodedControlEffect,
@@ -57,9 +56,6 @@ fn branch_contract(semantic: MachineSemanticKind) -> BranchContract {
     }
 }
 
-/// The declared size knowledge for one selected branch semantic on each ISA:
-/// the x86-64 conditional envelope and near forms, the widened AArch64
-/// conditional encodings, and the fixed-width AArch64 unconditional `B`.
 fn expected_size(
     semantic: MachineSemanticKind,
     architecture: Architecture,
@@ -78,8 +74,6 @@ fn expected_size(
             other => panic!("{other:?} is not a selected branch rule"),
         },
         Architecture::Aarch64 => match semantic {
-            // `B.cond` when the taken edge fits imm19; widens to
-            // `B.<invcond> +8; B target` past it.
             ConditionalBranchNonZero
             | ConditionalBranchU64LessThan
             | ConditionalBranchI64LessThan => MachineSizeKnowledge::EncoderResolved {
@@ -92,9 +86,6 @@ fn expected_size(
     }
 }
 
-/// Every selected branch rule on every declared target/ABI pair is bound to
-/// the control-transfer mechanism and register custody that pair's ABI
-/// declares.
 #[test]
 fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
     for case in scalar_abi_cases() {
@@ -108,10 +99,6 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
             case.convention
         );
 
-        // Branch authority is declared for exactly the selected branch
-        // rules: no selected rule may lack a branch declaration and no other
-        // declaration may claim a branch semantic or a relative-branch
-        // encoding.
         let declared = declared_pairs(&catalog, |declaration| {
             matches!(
                 declaration.semantic,
@@ -153,9 +140,6 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
             "pc",
             "branch matrix names a program-counter view",
         );
-        // The ABI fixes the program counter and leaves the condition codes
-        // volatile: a branch may consume both but can never touch preserved
-        // state.
         assert!(
             program_counter
                 .units
@@ -184,10 +168,6 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
             assert_eq!(declaration.memory, MachineMemoryEffect::NoneV1, "{key:?}");
             assert_eq!(declaration.trap, MachineTrapBehavior::NeverV1, "{key:?}");
 
-            // A selected branch carries no register operands: its whole
-            // custody is the implicit condition-code read on a conditional
-            // form plus the program-counter use/def pair the control
-            // transfer itself requires, and it clobbers nothing.
             assert!(row.operands.is_empty(), "{key:?}");
             assert_eq!(
                 row.implicit_uses,
@@ -215,8 +195,6 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
                 "{key:?} implicit state must not include callee-saved units"
             );
 
-            // One canonical alternative replays the exact ABI branch
-            // mechanism for this target.
             let alternative = sole_alternative(declaration, *semantic, *key);
             assert_eq!(
                 alternative.size,
@@ -226,8 +204,6 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
             let encoded = &alternative.encoded;
             assert!(encoded.external_operand_reads.is_empty(), "{key:?}");
             assert!(encoded.external_operand_writes.is_empty(), "{key:?}");
-            // Encoded implicit state refines exactly to the constraint row's
-            // declared custody for every selected branch rule.
             assert_eq!(encoded.implicit_unit_uses, row.implicit_uses, "{key:?}");
             assert_eq!(encoded.implicit_unit_defs, row.implicit_defs, "{key:?}");
             assert_eq!(encoded.implicit_unit_clobbers, row.clobbers, "{key:?}");
@@ -238,10 +214,6 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
     }
 }
 
-/// Every selected branch rule replays its encoded control form: borrowing a
-/// sibling control shape, leaving the barrier class, understating the
-/// architectural fault, or forging custody must reject for every rule on
-/// every declared target/ABI pair.
 #[test]
 fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() {
     for case in scalar_abi_cases() {
@@ -266,9 +238,6 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 };
             }
 
-            // A branch cannot borrow a sibling control shape inside the
-            // control-flow barrier class: the conditional forms reject the
-            // unconditional encoding, and Jump rejects the conditional one.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).control = if contract.conditional {
                 MachineEncodedControlEffect::UnconditionalRelativeBranchV1
@@ -280,8 +249,6 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} borrowed sibling control shape must reject"
             );
 
-            // A return encoding is inside the barrier class but outside the
-            // branch shape.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).control =
                 MachineEncodedControlEffect::ReturnFromActivationStackV1;
@@ -290,8 +257,6 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} borrowed return control shape must reject"
             );
 
-            // Leaving the barrier class entirely — fall-through, call, or
-            // hosted exit — fails the encoded control/barrier join.
             for control in [
                 MachineEncodedControlEffect::FallThroughV1,
                 MachineEncodedControlEffect::DirectRelativeCallV1,
@@ -305,8 +270,6 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 );
             }
 
-            // Understating the architectural fault stays inside the admitted
-            // fallthrough trap surface, so only canonical ISA replay rejects it.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).trap =
                 MachineEncodedTrapBehavior::NeverV1;
@@ -316,13 +279,11 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} understated encoded trap must reject"
             );
 
-            // A hosted trap shape is outside the admitted branch surface.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).trap =
                 MachineEncodedTrapBehavior::HostedReadFailureV1;
             reject_encoded!(corrupted, "{key:?} hosted trap shape must reject");
 
-            // A branch cannot grow a memory footprint or a stack lifecycle.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0).memory =
                 MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -338,7 +299,6 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 };
             reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
-            // The operand-free row admits no encoded operand custody.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0)
                 .external_operand_reads
@@ -350,10 +310,6 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 .push(0);
             reject_encoded!(corrupted, "{key:?} forged operand write must reject");
 
-            // Losing a contracted implicit unit understates the row's
-            // custody and fails structural admission: the condition-code
-            // use on a conditional row, and the program-counter use and
-            // definition on either row.
             if contract.conditional {
                 let mut corrupted = catalog.clone();
                 encoded_mut(&mut corrupted, key, semantic, 0)
@@ -375,9 +331,6 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} lost program-counter definition must reject"
             );
 
-            // Custody the row does not declare fails structural admission:
-            // a foreign implicit unit, or any clobber on a row that declares
-            // none.
             let mut corrupted = catalog.clone();
             encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_uses
@@ -397,9 +350,6 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 .push(flags.units[0]);
             reject_encoded!(corrupted, "{key:?} forged clobber must reject");
 
-            // The single alternative cannot change family, borrow an
-            // operand-shaped applicability, or empty out; drifting its
-            // variant or size needs canonical replay.
             let mut corrupted = catalog.clone();
             declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .key
