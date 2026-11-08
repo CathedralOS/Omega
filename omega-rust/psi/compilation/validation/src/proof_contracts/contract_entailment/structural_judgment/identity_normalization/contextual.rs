@@ -7,6 +7,11 @@ use super::{
     spend_component_work,
 };
 
+struct ContextStep {
+    changed: Option<StructuralTerm>,
+    reached: bool,
+}
+
 impl StructuralJudge<'_> {
     pub(super) fn rewrite_identity_context(
         &self,
@@ -18,16 +23,25 @@ impl StructuralJudge<'_> {
         if substitutions.rows.is_empty() {
             return Ok(value);
         }
-        let Some(next) = self.identity_context_step(&value, depth, remaining, substitutions)?
-        else {
-            return Ok(value);
-        };
-        if next.same_resolution_payload(&value) {
-            return Ok(value);
+        if depth >= 32 {
+            return Err("the contextual Id substitution exceeds the query depth bound");
         }
-        // Every changed context retries its ancestors before a deeper walk.
-        // Rewrites consume the same allowance and logical depth as other Id work.
-        self.rewrite_identity_context(next, depth + 1, remaining, substitutions)
+        // Visit the same shallow frontier across all siblings before opening
+        // a deeper compound value. A change always retries the outer context.
+        for frontier in 0..(32 - depth) {
+            let step =
+                self.identity_context_step(&value, depth, frontier, remaining, substitutions)?;
+            if let Some(next) = step.changed {
+                if next.same_resolution_payload(&value) {
+                    return Ok(value);
+                }
+                return self.rewrite_identity_context(next, depth + 1, remaining, substitutions);
+            }
+            if !step.reached {
+                break;
+            }
+        }
+        Ok(value)
     }
 
     fn identity_context_root_step(
@@ -83,13 +97,27 @@ impl StructuralJudge<'_> {
         &self,
         value: &StructuralTerm,
         depth: usize,
+        frontier: usize,
         remaining: &mut usize,
         substitutions: &mut IdentitySubstitutions<'_>,
-    ) -> Result<Option<StructuralTerm>, &'static str> {
-        if let Some(next) =
-            self.identity_context_root_step(value, depth, remaining, substitutions)?
-        {
-            return Ok(Some(next));
+    ) -> Result<ContextStep, &'static str> {
+        if frontier == 0 {
+            return self
+                .identity_context_root_step(value, depth, remaining, substitutions)
+                .map(|changed| ContextStep {
+                    changed,
+                    reached: true,
+                });
+        }
+        if depth >= 32 {
+            return Err("the contextual Id substitution exceeds the query depth bound");
+        }
+        spend_component_work(remaining)?;
+        if let Some(observed) = self.identity_content_observation(value) {
+            return Ok(ContextStep {
+                changed: (!observed.same_resolution_payload(value)).then_some(observed),
+                reached: false,
+            });
         }
         let prepared = match value {
             StructuralTerm::Application { .. } => value.clone(),
@@ -103,7 +131,10 @@ impl StructuralJudge<'_> {
                     if !fields.is_empty() {
                         return Err("a Boolean constructor has unexpected value fields");
                     }
-                    return Ok(None);
+                    return Ok(ContextStep {
+                        changed: None,
+                        reached: false,
+                    });
                 }
                 let observed = self
                     .identity_constructor_field_pairs(*identity, fields, *identity, fields)
@@ -126,30 +157,40 @@ impl StructuralJudge<'_> {
             }
             // Captures, reference descriptors and content have their own
             // custody. No contextual walk opens those values.
-            _ => return Ok(None),
+            _ => {
+                return Ok(ContextStep {
+                    changed: None,
+                    reached: false,
+                });
+            }
         };
         if !prepared.same_resolution_payload(value) {
-            return Ok(Some(prepared));
-        }
-        // Try every immediate child root before descending into the first
-        // child's details. A later mul(X, one) can expose an enclosing fact
-        // without first expanding the already established compound X.
-        let direct = Self::map_identity_context_children(prepared, |child| {
-            self.identity_context_root_step(child, depth + 1, remaining, substitutions)
-        })?;
-        if !direct.same_resolution_payload(value) {
-            return Ok(Some(direct));
+            return Ok(ContextStep {
+                changed: Some(prepared),
+                reached: true,
+            });
         }
         let mut changed = false;
-        let deeper = Self::map_identity_context_children(direct, |child| {
+        let mut reached = false;
+        let next = Self::map_identity_context_children(prepared, |child| {
             if changed {
                 return Ok(None);
             }
-            let next = self.identity_context_step(child, depth + 1, remaining, substitutions)?;
-            changed = next.is_some();
-            Ok(next)
+            let step = self.identity_context_step(
+                child,
+                depth + 1,
+                frontier - 1,
+                remaining,
+                substitutions,
+            )?;
+            reached |= step.reached;
+            changed = step.changed.is_some();
+            Ok(step.changed)
         })?;
-        Ok(changed.then_some(deeper))
+        Ok(ContextStep {
+            changed: changed.then_some(next),
+            reached,
+        })
     }
 
     fn map_identity_context_children(
