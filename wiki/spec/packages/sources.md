@@ -129,7 +129,14 @@ that select the same immutable instance deduplicate despite different authored
 selectors. Different resolutions reject with all conflicting dependency paths;
 there is no guessed compatibility relation. Multiple simultaneous instances per
 key are unsupported: they would require instance identity throughout types,
-conformances, providers, and evidence, not just another alias.
+conformances, providers, and evidence, not just another alias. This is the
+intended policy, not a gap: a program is one coordinated closure whose every
+dependency revision its owner has reviewed and accepted, so two libraries that
+privately pin conflicting revisions of a third are reconciled by that owner at
+update. Subsystems whose internals genuinely never meet separate as
+[components](../build/component_publication.md#selection-and-component-closure),
+each with its own closure, where duplicable immutable dependencies may be
+copied and interoperation crosses a component contract.
 
 Selective updates preserve pins for unchanged Git locator/revision requests.
 Changing an alias or member selection does not refresh the repository. New or
