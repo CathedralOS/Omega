@@ -3437,7 +3437,7 @@ mod result_domains {
             if validation::completed_storage::completed_membership_with_refusal(
                 program,
                 facts,
-                exit.returned_value,
+                exit,
                 facts.semantic.place_segments.span_or_empty(place.segments),
                 domain_symbol,
                 semantic_domain,

@@ -456,6 +456,33 @@ fn append_one_to_one_call_carry_facts<'plans>(
     stay proven through the borrowed source place and are deliberately absent
     here so a later source write still invalidates them.
 */
+fn trace_result_fields(
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    details: std::fmt::Arguments<'_>,
+) {
+    let Ok(filter) = std::env::var("OMEGA_RECEIVING_TRACE") else {
+        return;
+    };
+    if filter != "1"
+        && !filter.split(',').any(|selected| {
+            [machine.name.as_str(), state.name.as_str()]
+                .into_iter()
+                .any(|name| name == selected || name.rsplit("::").next() == Some(selected))
+        })
+    {
+        return;
+    }
+    static EVENTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 64 {
+        eprintln!(
+            "RECEIVING result-fields machine={} state={} expression={expression:?} {details}",
+            machine.name, state.name
+        );
+    }
+}
+
 fn append_call_result_field_domain_facts<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
@@ -473,11 +500,26 @@ fn append_call_result_field_domain_facts<'plans>(
         borrow_call.statement_index,
         borrow_call.call_ordinal,
     ) else {
+        trace_result_fields(
+            machine,
+            state,
+            ExpressionHandle::invalid(),
+            format_args!(
+                "target={:?} statement={} ordinal={} source-site-unavailable",
+                borrow_call.target_symbol, borrow_call.statement_index, borrow_call.call_ordinal
+            ),
+        );
         return;
     };
     let selected = program.requirement_call_signature(machine.symbol, call);
     let Some(return_type) = build.expression_result_type_at(program, machine, state, expression)
     else {
+        trace_result_fields(
+            machine,
+            state,
+            expression,
+            format_args!("result-type-unavailable"),
+        );
         return;
     };
     if validation::reference_shell(program, return_type).is_some() {
@@ -503,6 +545,16 @@ fn append_call_result_field_domain_facts<'plans>(
         .get(&key)
         .expect("call-result identities are inserted on miss")
         .clone();
+    trace_result_fields(
+        machine,
+        state,
+        expression,
+        format_args!(
+            "target={:?} result_type={return_type:?} planned={}",
+            borrow_call.target_symbol,
+            paths.len()
+        ),
+    );
     if paths.is_empty() {
         return;
     }
@@ -510,14 +562,27 @@ fn append_call_result_field_domain_facts<'plans>(
     let evidence = crate::published::facts::propagated_evidence(borrow_call.target_symbol);
     let realization = checked_realization_result_identities(program, build, machine.symbol, call);
     let rows = paths.iter().filter(|row| {
-        result_identity_is_available(
+        let available = result_identity_is_available(
             program,
             machine.symbol,
             expression,
             call,
             realization.as_deref().map(Vec::as_slice),
             row,
-        )
+        );
+        trace_result_fields(
+            machine,
+            state,
+            expression,
+            format_args!(
+                "path_len={} path={:?} domain={:?} instance={:?} eligible={available}",
+                row.identity.0.len(),
+                &row.identity.0[..row.identity.0.len().min(8)],
+                row.identity.1,
+                row.identity.2,
+            ),
+        );
+        available
     });
     super::call_results::append_memberships(
         semantic,
