@@ -1607,6 +1607,21 @@ pub(crate) mod ownership {
             }
         }
 
+        impl crate::CheckedUnitCompletionPlan {
+            pub fn definite_call_transfers<'calls>(
+                &self,
+                values: &CheckedValueFacts,
+                call_schedules: &CallSchedules<'_, 'calls>,
+                producer: &CheckedUnitEffectOperationPlan,
+                local: SymbolHandle,
+            ) -> usize {
+                CallTransfers::for_producer(values, call_schedules, producer, local)
+                    .and_then(|transfers| transfers.completion(&self.expression))
+                    .flatten()
+                    .unwrap_or(0)
+            }
+        }
+
         #[cfg(test)]
         mod tests {
 
@@ -1715,21 +1730,6 @@ pub(crate) mod ownership {
                 }
                 argument.access = CheckedStructuralAccess::SharedBorrow;
                 assert_eq!(transfers.argument(&argument), 0);
-            }
-        }
-
-        impl crate::CheckedUnitCompletionPlan {
-            pub fn definite_call_transfers<'calls>(
-                &self,
-                values: &CheckedValueFacts,
-                call_schedules: &CallSchedules<'_, 'calls>,
-                producer: &CheckedUnitEffectOperationPlan,
-                local: SymbolHandle,
-            ) -> usize {
-                CallTransfers::for_producer(values, call_schedules, producer, local)
-                    .and_then(|transfers| transfers.completion(&self.expression))
-                    .flatten()
-                    .unwrap_or(0)
             }
         }
     }
