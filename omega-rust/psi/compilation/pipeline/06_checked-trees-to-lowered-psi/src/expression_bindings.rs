@@ -758,6 +758,7 @@ pub(crate) mod bindings {
 
         #[derive(Clone)]
         pub(crate) struct PlaceObservation {
+            pub(crate) state: symbols::SymbolHandle,
             pub(crate) statement_index: u32,
             pub(crate) symbol: symbols::SymbolHandle,
             pub(crate) loan: checked_trees::CheckedPlaceLoanPlan,
@@ -2558,6 +2559,79 @@ pub(crate) mod bindings {
             }
         }
 
+        // A private storage observation has one logical reference shell but no
+        // stored descriptor. Keep that distinction on the argument source.
+        pub(crate) fn retain_place_loan_presentation(
+            checked: &checked_trees::CheckedTrees,
+            state: symbols::SymbolHandle,
+            loan: &checked_trees::CheckedPlaceLoanPlan,
+            argument: &mut checked_trees::CheckedUnitStructuralArgumentPlan,
+        ) -> Result<(), LoweringError> {
+            use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
+
+            let Source::StructuralLocal { symbol } = argument.source else {
+                return Ok(());
+            };
+            if symbol != loan.symbol {
+                return unsupported("place observation changes its admitted local");
+            }
+            let state = checked
+                .state_by_symbol(state)
+                .ok_or(LoweringError::Unsupported(
+                    "place observation lost its source state",
+                ))?;
+            let (statement, local) = checked.state_local_declaration(state, symbol).ok_or(
+                LoweringError::Unsupported("place observation lost its declared local"),
+            )?;
+            if local.role != language_core::LocalBindingRole::DispatchObservation {
+                return Ok(());
+            }
+            let shell = validation::reference_shell(checked, local.type_reference).ok_or(
+                LoweringError::Unsupported("place observation lost its declared reference shell"),
+            )?;
+            if !matches!(
+                argument.path.first(),
+                Some(CheckedUnitStructuralPathSegment::Referent)
+            ) {
+                return unsupported("place observation lost its logical reference crossing");
+            }
+            if statement != loan.statement_index as usize
+                || local.is_mutable
+                || loan.access != CheckedStructuralAccess::SharedBorrow
+                || CheckedStructuralAccess::from(shell.access) != loan.access
+                || checked.normalized_type_identity(shell.referee)
+                    != checked.normalized_type_identity(loan.referee)
+                || validation::reference_shell(checked, loan.referee).is_some()
+                || loan.recast_source.is_valid()
+                || loan.path.iter().any(|step| {
+                    !matches!(
+                        step,
+                        CheckedUnitStructuralPathSegment::Field(_)
+                            | CheckedUnitStructuralPathSegment::Case(_)
+                    )
+                })
+                || !structural_access_can_supply(
+                    terminal_access(loan.access),
+                    terminal_access(argument.access),
+                )
+            {
+                return unsupported("place observation changes its admitted type or access");
+            }
+            let root_type_identity = crate::shared::terminal_identities::stored_structural_identity(
+                checked,
+                loan.referee,
+            );
+            if !root_type_identity.is_valid() {
+                return unsupported("place observation has no retained referee identity");
+            }
+            argument.source = Source::StructuralLocalBorrow {
+                symbol,
+                root_type_identity,
+                root_reference_hops: 1,
+            };
+            Ok(())
+        }
+
         pub(crate) fn lower_structural_path(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             path: &[CheckedUnitStructuralPathSegment],
@@ -4278,6 +4352,12 @@ pub(crate) mod bindings {
                     return unsupported("place loan has duplicate or cyclic origin");
                 }
                 visited.push(symbol);
+                structural_paths::retain_place_loan_presentation(
+                    checked,
+                    alias.state,
+                    &alias.loan,
+                    &mut argument,
+                )?;
                 if !structural_paths::structural_access_can_supply(
                     structural_paths::terminal_access(alias.loan.access),
                     structural_paths::terminal_access(argument.access),

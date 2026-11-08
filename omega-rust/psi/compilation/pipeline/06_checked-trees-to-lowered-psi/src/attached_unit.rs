@@ -2049,6 +2049,7 @@ pub(crate) mod inner {
                         machine.machine,
                         machine.state,
                         &machine.structural_parameters,
+                        &machine.place_loans,
                         &machine.operations,
                         None,
                         roots,
@@ -2061,6 +2062,7 @@ pub(crate) mod inner {
                                 state_declaration(checked, state.state)?.0.symbol,
                                 state.state,
                                 &state.structural_parameters,
+                                &state.place_loans,
                                 &state.operations,
                                 Some(state),
                                 roots,
@@ -2077,6 +2079,7 @@ pub(crate) mod inner {
                 machine: symbols::SymbolHandle,
                 state: symbols::SymbolHandle,
                 parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+                place_loans: &[checked_trees::CheckedPlaceLoanPlan],
                 operations: &'plans [CheckedUnitEffectOperationPlan],
                 control: Option<&'plans checked_trees::CheckedComposedUnitControlStatePlan>,
                 roots: &mut Vec<TypeIdentityId>,
@@ -2087,6 +2090,7 @@ pub(crate) mod inner {
                     machine,
                     state,
                     parameters,
+                    place_loans,
                     roots,
                 };
                 let mut namespace = Vec::new();
@@ -2255,6 +2259,7 @@ pub(crate) mod inner {
                 machine: symbols::SymbolHandle,
                 state: symbols::SymbolHandle,
                 parameters: &'checked [checked_trees::CheckedUnitStructuralParameterPlan],
+                place_loans: &'checked [checked_trees::CheckedPlaceLoanPlan],
                 roots: &'output mut Vec<TypeIdentityId>,
             }
 
@@ -2408,6 +2413,26 @@ pub(crate) mod inner {
                     if !argument.path.contains(&Segment::Referent) {
                         return Ok(());
                     }
+                    let mut presented = argument.clone();
+                    if let Source::StructuralLocal { symbol } = argument.source {
+                        let mut aliases =
+                            self.place_loans.iter().filter(|loan| loan.symbol == symbol);
+                        if let Some(alias) = aliases.next() {
+                            if aliases.next().is_some() {
+                                return unsupported(
+                                    "operation storage path has ambiguous place aliases",
+                                );
+                            }
+                            crate::expression_preparation::bindings::structural_paths::retain_place_loan_presentation(
+                                self.checked,
+                                self.state,
+                                alias,
+                                &mut presented,
+                            )
+                            .map_err(|error| self.at_statement(statement, error))?;
+                        }
+                    }
+                    let argument = &presented;
                     let root = source_type(
                         self.checked,
                         self.state,
@@ -2415,7 +2440,8 @@ pub(crate) mod inner {
                         self.parameters,
                         namespace,
                         argument,
-                    )?;
+                    )
+                    .map_err(|error| self.at_statement(statement, error))?;
                     let mut path = argument.path.as_slice();
                     if let Source::StructuralLocalBorrow {
                         root_reference_hops,

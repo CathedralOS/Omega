@@ -1957,6 +1957,7 @@ mod local_data {
             return None;
         };
         if loan.access != CheckedStructuralAccess::SharedBorrow
+            || validation::reference_shell(program, loan.referee).is_some()
             || loan.recast_source.is_valid()
             || loan.path.iter().any(|step| {
                 !matches!(
