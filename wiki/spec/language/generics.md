@@ -543,6 +543,8 @@ blocking, crashes and termination use the other rows of
 [static binder contract dependencies](effects.md#static-binder-contract-dependencies).
 Generic bodies use the abstract requirement envelope. Callers substitute selected
 published contracts into those dependencies, not incidental stronger behavior.
+A wrapper publishes a selected callback's result guarantee only through an
+authored [result relation](effects.md#callback-result-relations) claim.
 
 A required member operation belongs to a named trait and is supplied through an
 explicit conformance binder, for example `Order satisfies Ranked<Element>`.
