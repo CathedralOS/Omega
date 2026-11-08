@@ -780,10 +780,21 @@ directory can retain another worktree's artifacts when timestamp freshness sees
 the candidate sources as older than those artifacts. Rebuilding the runner alone
 does not establish that its linked compiler dependencies came from the candidate.
 An isolated target directory avoids that ambiguity without deleting peer caches.
-On the pinned nightly, content freshness needs both
-`CARGO_UNSTABLE_CHECKSUM_FRESHNESS=true` (or `cargo -Z checksum-freshness`)
-and `CARGO_BUILD_FINGERPRINT=content`; enabling the unstable feature alone keeps
-timestamp freshness. See [Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
+
+Keep lint and build commands on the supported producer's freshness settings to
+avoid rebuilding unchanged dependencies. On the pinned nightly, content freshness
+needs both `CARGO_UNSTABLE_CHECKSUM_FRESHNESS=true` and
+`CARGO_BUILD_FINGERPRINT=content`; the supported producer sets both. Set them on
+direct `mbx build`, `mbx check` and `mbx clippy` commands sharing its target
+directory too. Enabling the unstable feature alone keeps timestamp freshness;
+changing the fingerprint method dirties existing units. See
+[Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
+
+For bounded rebuild diagnosis on the pinned Cargo, set
+`CARGO_LOG=cargo::compiler::fingerprint=trace` and retain the actual dirty reasons
+with the command's source, profile and environment evidence. Bound the command's
+time, memory and log size as for other local runs; use its recorded reasons to
+distinguish source changes from freshness-method changes.
 
 Profile admission also requires a regular executable image (ELF, Mach-O or PE)
 with host execution permission. A matching Cargo profile receipt alone does
