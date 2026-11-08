@@ -42,6 +42,7 @@ mod place_values;
 mod value_predicates;
 
 pub(super) use place_types::{canonical_place_is_borrowable, needs_copied_place_root};
+pub(super) use place_values::names_owned_structural_value;
 
 impl Builder<'_, '_> {
     /// Retain runtime children independently of the canonical endpoint's ordinal.
