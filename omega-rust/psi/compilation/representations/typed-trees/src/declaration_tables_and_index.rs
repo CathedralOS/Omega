@@ -4316,7 +4316,7 @@ pub(crate) mod trait_and_machine_tables {
                 .iter()
                 .find(|candidate| candidate.symbol == symbol)
                 .or_else(|| {
-                    trait_definition
+                    self.trait_definition_by_symbol(trait_definition.symbol)?
                         .refinement_clauses
                         .iter()
                         .map(|clause| &clause.signature)

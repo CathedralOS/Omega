@@ -6366,20 +6366,27 @@ pub(crate) mod trait_scopes {
                 if bounds.is_empty() {
                     continue;
                 }
-                let bindings = self
+                let mut bindings = self
                     .static_machine_application_bindings(invocation)
                     .to_vec();
                 let mut arguments = Vec::with_capacity(bindings.len());
-                for binding in bindings {
-                    let actual = match binding.value {
+                let mut retained_types = false;
+                for binding in &mut bindings {
+                    let actual = match &mut binding.value {
                         StaticMachineBindingValue::Type(reference)
-                        | StaticMachineBindingValue::Const(reference) => reference,
+                        | StaticMachineBindingValue::Const(reference) => *reference,
                         StaticMachineBindingValue::Machine(argument)
-                        | StaticMachineBindingValue::Conformance(argument) => self
-                            .static_operand_type_reference_in_scope(
-                                &argument,
-                                record.lexical_owner,
-                            )?,
+                        | StaticMachineBindingValue::Conformance(argument) => {
+                            if !argument.type_reference.is_valid() {
+                                argument.type_reference = self
+                                    .static_operand_type_reference_in_scope(
+                                        argument,
+                                        record.lexical_owner,
+                                    )?;
+                                retained_types = true;
+                            }
+                            argument.type_reference
+                        }
                         StaticMachineBindingValue::RuntimeValue { .. } => {
                             return Err(
                                 "refinement postcondition invocation has an unresolved value argument",
@@ -6387,6 +6394,10 @@ pub(crate) mod trait_scopes {
                         }
                     };
                     arguments.push((binding.parameter, actual));
+                }
+                if retained_types {
+                    self.expression_table
+                        .set_static_machine_application_bindings(invocation, &bindings);
                 }
                 let lifetimes = self.static_application_lifetimes_for_declaration(
                     invocation,

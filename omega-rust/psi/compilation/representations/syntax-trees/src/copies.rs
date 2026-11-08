@@ -1032,7 +1032,7 @@ pub(crate) mod item_copies {
         pub(crate) supplied_type_copies: Vec<crate::types::TypeReferenceHandle>,
         pub(crate) retain_alias_header_role: bool,
         lifetime_substitutions: Vec<(source::SourceSpan, String, crate::identifier::Identifier)>,
-        scoped_lifetimes: Vec<(String, crate::identifier::Identifier)>,
+        pub(crate) scoped_lifetimes: Vec<(String, crate::identifier::Identifier)>,
         pub(crate) array_length_substitutions: Vec<(
             source::SourceSpan,
             String,
