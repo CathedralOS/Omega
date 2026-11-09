@@ -729,7 +729,7 @@ pub(crate) mod affine_cleanup {
         ) -> Result<(), LoweringError> {
             let completions = super::super::selected_continuations::CleanupCompletionIndex::new(
                 completed_cleanup_frontiers,
-            );
+            )?;
             let copied_roots = copied_operand_roots(parameters, blocks);
             if partitioned_roots(blocks, extractions, &copied_roots).is_empty() {
                 return Ok(());
@@ -5206,7 +5206,7 @@ pub(crate) mod continuation_specialization {
         ) -> Result<Vec<IdentityUses>, LoweringError> {
             let completions = super::super::selected_continuations::CleanupCompletionIndex::new(
                 rows.completed_cleanup_frontiers,
-            );
+            )?;
             let local =
                 machine
                     .blocks
