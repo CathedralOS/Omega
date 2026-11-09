@@ -1124,6 +1124,23 @@ pub(crate) mod attached_unit {
                     operations: &mut OperationBuffer,
                 ) -> Result<(), LoweringError> {
                     use checked_trees::CheckedCleanupCaseReachability as Reachability;
+                    // The full checked subtree contains no cleanup action. Its
+                    // payloads are complete without another case-tag read.
+                    if leaf_span.is_empty() {
+                        return self.completed_partition_edge(
+                            identities,
+                            place,
+                            path,
+                            crate::emission::selected_continuations::CompletedCleanupKind::CasePayloads(
+                                arms.iter().map(|arm| arm.case).collect(),
+                            ),
+                            values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            operations,
+                        );
+                    }
                     let reachable = arms
                         .iter()
                         .filter(|arm| arm.reachability != Reachability::Inactive)
