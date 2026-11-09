@@ -2796,6 +2796,7 @@ pub(in crate::checks) mod call_guarantees {
         use typed_trees::expression::{ExpressionHandle, ExpressionNode};
         use typed_trees::state::State;
 
+        #[derive(Clone)]
         pub(in crate::checks) struct AvailableGuarantee<'program> {
             pub(in crate::checks) expression: ExpressionHandle,
             pub(in crate::checks) fact: arena::Handle<typed_trees::domain::ProofFact>,
@@ -2931,6 +2932,215 @@ pub(in crate::checks) mod call_guarantees {
             let Some(caller_machine) = program.machine_by_symbol(caller.machine_symbol) else {
                 return Vec::new();
             };
+            scan(
+                facts,
+                caller,
+                use_point,
+                contexts,
+                |statement, ordinal, source, expression| {
+                    admit(
+                        program,
+                        facts,
+                        caller,
+                        caller_machine,
+                        frames,
+                        statement,
+                        ordinal,
+                        source,
+                        expression,
+                    )
+                },
+                |_| false,
+            )
+            .0
+        }
+
+        /*
+            Whether any available guarantee satisfies `accept`, visiting them in the
+            order `available` returns them and stopping at the first that does.
+            Later guarantees are never admitted; admission only reads its inputs,
+            so skipping it changes no answer.
+        */
+        pub(in crate::checks) fn any_available<'program>(
+            program: &'program dyn ::validation::CheckingInput,
+            facts: checked_trees::CheckFactsRef<'_>,
+            caller: &FlowStateFact,
+            use_point: GuaranteeUse,
+            contexts: &[facts::FactContextHandle],
+            frames: &validation::CallFrameResolver<'_>,
+            accept: impl FnMut(&AvailableGuarantee<'program>) -> bool,
+        ) -> bool {
+            let Some(caller_machine) = program.machine_by_symbol(caller.machine_symbol) else {
+                return false;
+            };
+            scan(
+                facts,
+                caller,
+                use_point,
+                contexts,
+                |statement, ordinal, source, expression| {
+                    admit(
+                        program,
+                        facts,
+                        caller,
+                        caller_machine,
+                        frames,
+                        statement,
+                        ordinal,
+                        source,
+                        expression,
+                    )
+                },
+                accept,
+            )
+            .1
+        }
+
+        /*
+            One state's call guarantees, asked at a sequence of use points. Whether a
+            call's guarantee is admitted (its declaration owns it, its inputs are
+            stable and the call preserves them) does not depend on where it is used;
+            only its presence in the use's live contexts does. Borrow checks ask at
+            every statement, so re-deciding admission for every earlier call made
+            each statement cost as much as all the calls before it.
+
+            Each admission is decided at most once and kept here. That is sound
+            because an admission is a function of the inputs this value holds by
+            shared reference, which cannot change while it is borrowed (the program,
+            the check facts, the caller state and the frame resolver), plus the
+            call's coordinates, source fact and expression, which are the memo key.
+            The use point and contexts, the only per-use inputs, are applied afresh
+            on every question. A value lives for one state's check and is dropped.
+        */
+        pub(in crate::checks) struct StateGuarantees<'a, 'program> {
+            program: &'program dyn ::validation::CheckingInput,
+            facts: checked_trees::CheckFactsRef<'a>,
+            caller: &'a FlowStateFact,
+            frames: Option<&'a validation::CallFrameResolver<'a>>,
+            /* Indexed by statement; one row per (ordinal, source, expression). */
+            admitted: Vec<Vec<Admission<'program>>>,
+        }
+
+        struct Admission<'program> {
+            ordinal: usize,
+            source: arena::Handle<typed_trees::domain::ProofFact>,
+            expression: ExpressionHandle,
+            guarantee: Option<AvailableGuarantee<'program>>,
+        }
+
+        impl<'a, 'program> StateGuarantees<'a, 'program> {
+            pub(in crate::checks) fn new(
+                program: &'program dyn ::validation::CheckingInput,
+                facts: checked_trees::CheckFactsRef<'a>,
+                caller: &'a FlowStateFact,
+                frames: Option<&'a validation::CallFrameResolver<'a>>,
+            ) -> Self {
+                Self {
+                    program,
+                    facts,
+                    caller,
+                    frames,
+                    admitted: Vec::new(),
+                }
+            }
+
+            pub(in crate::checks) fn caller(&self) -> &'a FlowStateFact {
+                self.caller
+            }
+
+            /* The same guarantees, in the same order, as the free `available`. */
+            pub(in crate::checks) fn available(
+                &mut self,
+                use_point: GuaranteeUse,
+                contexts: &[facts::FactContextHandle],
+            ) -> Vec<AvailableGuarantee<'program>> {
+                self.walk(use_point, contexts, |_| false).0
+            }
+
+            /* The same answer as the free `any_available`. */
+            pub(in crate::checks) fn any_available(
+                &mut self,
+                use_point: GuaranteeUse,
+                contexts: &[facts::FactContextHandle],
+                accept: impl FnMut(&AvailableGuarantee<'program>) -> bool,
+            ) -> bool {
+                self.walk(use_point, contexts, accept).1
+            }
+
+            fn walk(
+                &mut self,
+                use_point: GuaranteeUse,
+                contexts: &[facts::FactContextHandle],
+                stop: impl FnMut(&AvailableGuarantee<'program>) -> bool,
+            ) -> (Vec<AvailableGuarantee<'program>>, bool) {
+                let Some(frames) = self.frames else {
+                    return (Vec::new(), false);
+                };
+                let program = self.program;
+                let Some(caller_machine) = program.machine_by_symbol(self.caller.machine_symbol)
+                else {
+                    return (Vec::new(), false);
+                };
+                let (facts, caller, admitted) = (self.facts, self.caller, &mut self.admitted);
+                scan(
+                    facts,
+                    caller,
+                    use_point,
+                    contexts,
+                    |statement, ordinal, source, expression| {
+                        if admitted.len() <= statement {
+                            admitted.resize_with(statement + 1, Vec::new);
+                        }
+                        let row = &mut admitted[statement];
+                        if let Some(known) = row.iter().find(|known| {
+                            known.ordinal == ordinal
+                                && known.source == source
+                                && known.expression == expression
+                        }) {
+                            return known.guarantee.clone();
+                        }
+                        let guarantee = admit(
+                            program,
+                            facts,
+                            caller,
+                            caller_machine,
+                            frames,
+                            statement,
+                            ordinal,
+                            source,
+                            expression,
+                        );
+                        row.push(Admission {
+                            ordinal,
+                            source,
+                            expression,
+                            guarantee: guarantee.clone(),
+                        });
+                        guarantee
+                    },
+                    stop,
+                )
+            }
+        }
+
+        /*
+            The live call guarantees at one use, in context order and without
+            duplicates. `admit` decides each call's use-independent admission;
+            `stop` ends the walk early, and the second result says whether it did.
+        */
+        fn scan<'program>(
+            facts: checked_trees::CheckFactsRef<'_>,
+            caller: &FlowStateFact,
+            use_point: GuaranteeUse,
+            contexts: &[facts::FactContextHandle],
+            mut admit: impl FnMut(
+                usize,
+                usize,
+                arena::Handle<typed_trees::domain::ProofFact>,
+                ExpressionHandle,
+            ) -> Option<AvailableGuarantee<'program>>,
+            mut stop: impl FnMut(&AvailableGuarantee<'program>) -> bool,
+        ) -> (Vec<AvailableGuarantee<'program>>, bool) {
             let mut guarantees = Vec::new();
             for fact in contexts.iter().flat_map(|context| {
                 facts
@@ -2971,60 +3181,91 @@ pub(in crate::checks) mod call_guarantees {
                 }) {
                     continue;
                 }
-                let Some(supplied) = invocation(program, caller, statement_index, call_ordinal)
+                let Some(guarantee) = admit(statement_index, call_ordinal, source, expression)
                 else {
                     continue;
                 };
-                if !validation::independent_call_site(
-                    program,
-                    caller.machine_symbol,
-                    supplied.callable.owner_symbol(),
-                    &supplied.site,
-                ) && !super::induction::strict_recursive_call(program, facts, caller, &supplied)
-                {
-                    continue;
+                if stop(&guarantee) {
+                    return (guarantees, true);
                 }
-                if !owns_guarantee(program, &supplied, source, expression)
-                    || !stable_predicate_inputs(program, facts, caller, &supplied, expression)
-                    || !capture_preserved(
-                        program,
-                        facts.operators,
-                        facts.borrow,
-                        caller_machine,
-                        &supplied,
-                        expression,
-                        frames,
-                    )
-                    || !builtin_predicate(program, facts.operators, &supplied, expression)
-                {
-                    continue;
-                }
-                let post_return_writes = super::invocation_fact(facts, caller, &supplied)
-                    .filter(|call| call.normal_return_writes_complete)
-                    .map(|call| {
-                        facts
-                            .flow
-                            .control
-                            .operand_origin_writes
-                            .span_or_empty(call.normal_return_writes)
-                            .iter()
-                            .map(|write| {
-                                crate::checks::places::place_or_root_in(
-                                    &facts.flow.control.operand_referent_segments,
-                                    write.root,
-                                    write.segments,
-                                )
-                            })
-                            .collect()
-                    });
-                guarantees.push(AvailableGuarantee {
-                    expression,
-                    fact: source,
-                    invocation: supplied,
-                    post_return_writes,
-                });
+                guarantees.push(guarantee);
             }
-            guarantees
+            (guarantees, false)
+        }
+
+        /*
+            Everything that decides whether one call's guarantee is available and
+            does not depend on where it is used.
+        */
+        #[allow(clippy::too_many_arguments)]
+        fn admit<'program>(
+            program: &'program dyn ::validation::CheckingInput,
+            facts: checked_trees::CheckFactsRef<'_>,
+            caller: &FlowStateFact,
+            caller_machine: &typed_trees::machine::Machine,
+            frames: &validation::CallFrameResolver<'_>,
+            statement_index: usize,
+            call_ordinal: usize,
+            source: arena::Handle<typed_trees::domain::ProofFact>,
+            expression: ExpressionHandle,
+        ) -> Option<AvailableGuarantee<'program>> {
+            let supplied = invocation(program, caller, statement_index, call_ordinal)?;
+            /*
+                Every test below must pass and none has effects, so their order only
+                sets the cost of a rejection: the two that read the declaration
+                alone run before the ones that walk call dependencies or flow.
+            */
+            if !owns_guarantee(program, &supplied, source, expression)
+                || !builtin_predicate(program, facts.operators, &supplied, expression)
+            {
+                return None;
+            }
+            if !validation::independent_call_site(
+                program,
+                caller.machine_symbol,
+                supplied.callable.owner_symbol(),
+                &supplied.site,
+            ) && !super::induction::strict_recursive_call(program, facts, caller, &supplied)
+            {
+                return None;
+            }
+            if !stable_predicate_inputs(program, facts, caller, &supplied, expression)
+                || !capture_preserved(
+                    program,
+                    facts.operators,
+                    facts.borrow,
+                    caller_machine,
+                    &supplied,
+                    expression,
+                    frames,
+                )
+            {
+                return None;
+            }
+            let post_return_writes = super::invocation_fact(facts, caller, &supplied)
+                .filter(|call| call.normal_return_writes_complete)
+                .map(|call| {
+                    facts
+                        .flow
+                        .control
+                        .operand_origin_writes
+                        .span_or_empty(call.normal_return_writes)
+                        .iter()
+                        .map(|write| {
+                            crate::checks::places::place_or_root_in(
+                                &facts.flow.control.operand_referent_segments,
+                                write.root,
+                                write.segments,
+                            )
+                        })
+                        .collect()
+                });
+            Some(AvailableGuarantee {
+                expression,
+                fact: source,
+                invocation: supplied,
+                post_return_writes,
+            })
         }
 
         fn owns_guarantee(
@@ -3813,8 +4054,11 @@ pub(in crate::checks) mod call_guarantees {
         }
     }
     pub(crate) use availability::GuaranteeUse;
-    pub(in crate::checks) use availability::{AvailableGuarantee, available};
+    pub(in crate::checks) use availability::{
+        AvailableGuarantee, StateGuarantees, any_available, available,
+    };
 
+    #[derive(Clone)]
     struct Invocation<'program> {
         site: CallSite<'program>,
         callable: Callable<'program>,
@@ -3874,31 +4118,33 @@ pub(in crate::checks) mod call_guarantees {
             literal: &|expression| crate::flow::literal(program, expression),
             place,
         };
-        let guarantees = available(
+        any_available(
             program,
             facts.view(),
             caller,
             GuaranteeUse::StatementEntry(statement),
             contexts,
             frames,
-        );
-        guarantees.into_iter().any(|guarantee| {
-            let supplied = PredicateScope {
-                callable: guarantee.invocation.callable,
-                literal: &|expression| bound_literal(program, &guarantee.invocation, expression),
-                place: &|expression| bound_place(program, &guarantee.invocation, expression),
-            };
-            predicates_match(
-                program,
-                &facts.semantic,
-                contexts,
-                &required,
-                expression,
-                &supplied,
-                guarantee.expression,
-                &mut Vec::new(),
-            )
-        })
+            |guarantee| {
+                let supplied = PredicateScope {
+                    callable: guarantee.invocation.callable,
+                    literal: &|expression| {
+                        bound_literal(program, &guarantee.invocation, expression)
+                    },
+                    place: &|expression| bound_place(program, &guarantee.invocation, expression),
+                };
+                predicates_match(
+                    program,
+                    &facts.semantic,
+                    contexts,
+                    &required,
+                    expression,
+                    &supplied,
+                    guarantee.expression,
+                    &mut Vec::new(),
+                )
+            },
+        )
     }
 
     /*
@@ -4132,12 +4378,13 @@ pub(in crate::checks) mod call_guarantees {
     pub(in crate::checks::contracts) fn proves(
         program: &dyn ::validation::CheckingInput,
         facts: &checked_trees::CheckFacts,
-        caller: &FlowStateFact,
+        guarantees: &mut StateGuarantees<'_, '_>,
         call: &FlowCallFact,
         contexts: &[facts::FactContextHandle],
         expression: ExpressionHandle,
         frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> bool {
+        let caller = guarantees.caller();
         let operators = &facts.operators;
         let semantic = &facts.semantic;
         let Some(required) = invocation(program, caller, call.statement_index, call.call_ordinal)
@@ -4153,66 +4400,63 @@ pub(in crate::checks) mod call_guarantees {
             return false;
         }
         let mut arithmetic_hypotheses = Vec::new();
-        let exact = available(
-            program,
-            facts.view(),
-            caller,
+        let exact = guarantees.any_available(
             GuaranteeUse::EvaluatedContext(call.statement_index),
             contexts,
-            frames,
-        )
-        .into_iter()
-        .any(|guarantee| {
-            if let Some(post_return_writes) = guarantee.post_return_writes.as_deref()
-                && let Some(bound) = arithmetic::at_invocation(
-                    program,
-                    facts,
-                    caller,
-                    &guarantee.invocation,
-                    guarantee.expression,
-                    post_return_writes,
-                    frames,
-                )
-            {
-                arithmetic_hypotheses.push(validation::ScopedArithmeticHypothesis {
-                    proposition: bound.proposition,
-                    holds: true,
-                });
-            }
-            let required_scope = PredicateScope {
-                callable: required.callable,
-                literal: &|expression| bound_literal(program, &required, expression),
-                place: &|expression| {
-                    let place = bound_place(program, &required, expression)?;
-                    let machine = program.machine_by_symbol(caller.machine_symbol)?;
-                    crate::flow::local_reference_storage_at_call(
+            |guarantee| {
+                if let Some(post_return_writes) = guarantee.post_return_writes.as_deref()
+                    && let Some(bound) = arithmetic::at_invocation(
                         program,
-                        frames,
-                        machine,
-                        &facts.flow,
+                        facts,
                         caller,
-                        call,
-                        place,
-                        crate::flow::ValueObservation::Contents,
+                        &guarantee.invocation,
+                        guarantee.expression,
+                        post_return_writes,
+                        frames,
                     )
-                },
-            };
-            let supplied_scope = PredicateScope {
-                callable: guarantee.invocation.callable,
-                literal: &|expression| bound_literal(program, &guarantee.invocation, expression),
-                place: &|expression| bound_place(program, &guarantee.invocation, expression),
-            };
-            predicates_match(
-                program,
-                semantic,
-                contexts,
-                &required_scope,
-                expression,
-                &supplied_scope,
-                guarantee.expression,
-                &mut Vec::new(),
-            )
-        });
+                {
+                    arithmetic_hypotheses.push(validation::ScopedArithmeticHypothesis {
+                        proposition: bound.proposition,
+                        holds: true,
+                    });
+                }
+                let required_scope = PredicateScope {
+                    callable: required.callable,
+                    literal: &|expression| bound_literal(program, &required, expression),
+                    place: &|expression| {
+                        let place = bound_place(program, &required, expression)?;
+                        let machine = program.machine_by_symbol(caller.machine_symbol)?;
+                        crate::flow::local_reference_storage_at_call(
+                            program,
+                            frames,
+                            machine,
+                            &facts.flow,
+                            caller,
+                            call,
+                            place,
+                            crate::flow::ValueObservation::Contents,
+                        )
+                    },
+                };
+                let supplied_scope = PredicateScope {
+                    callable: guarantee.invocation.callable,
+                    literal: &|expression| {
+                        bound_literal(program, &guarantee.invocation, expression)
+                    },
+                    place: &|expression| bound_place(program, &guarantee.invocation, expression),
+                };
+                predicates_match(
+                    program,
+                    semantic,
+                    contexts,
+                    &required_scope,
+                    expression,
+                    &supplied_scope,
+                    guarantee.expression,
+                    &mut Vec::new(),
+                )
+            },
+        );
         exact
             || arithmetic::proves(
                 program,

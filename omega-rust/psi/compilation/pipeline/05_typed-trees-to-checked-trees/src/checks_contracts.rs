@@ -11699,6 +11699,13 @@ pub(super) fn check_flow_call_contracts(
                 let mut state_value_qualifications = arena::Arena::default();
                 let mut state_diagnostics = Vec::new();
                 let caller_is_proof = struct_trace && is_proof_machine(state_flow.machine_symbol);
+                let mut guarantees =
+                    crate::checks::contracts::prover::call_guarantees::StateGuarantees::new(
+                        program,
+                        facts.view(),
+                        state_flow,
+                        call_frames,
+                    );
                 for call_flow in facts.flow.control.calls.span_or_empty(state_flow.calls) {
                     if struct_trace {
                         eprintln!(
@@ -11725,7 +11732,7 @@ pub(super) fn check_flow_call_contracts(
                     check_call_requires(
                         program,
                         facts,
-                        state_flow,
+                        &mut guarantees,
                         call_flow,
                         &nominal_requirements,
                         incoming_guards.for_machine(state_flow.machine_symbol),

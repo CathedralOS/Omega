@@ -1522,6 +1522,13 @@ pub(super) fn check_compatibility(
                     )
                 })
                 .unwrap_or_default();
+                let mut guarantees =
+                    crate::checks::contracts::prover::call_guarantees::StateGuarantees::new(
+                        program,
+                        facts.view(),
+                        state_flow,
+                        call_frames,
+                    );
                 for call in calls {
                     if !invocation_is_evaluated(program, facts, state_flow, call) {
                         continue;
@@ -1530,9 +1537,8 @@ pub(super) fn check_compatibility(
                     super::overlap::append_statement_premises(
                         program,
                         facts,
-                        state_flow,
                         call.statement_index,
-                        call_frames,
+                        &mut guarantees,
                         &mut available_premises,
                         &mut local_bound_lookup,
                     );
