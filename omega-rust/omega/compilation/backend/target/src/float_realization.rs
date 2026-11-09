@@ -179,18 +179,25 @@ pub const CANONICAL_FLOAT_OPERATIONS: [&str; 104] = [
     "F64::fused_multiply_add_toward_negative",
 ];
 
-/// Reduces a requirement identity such as `Float::add(named(name(f32)),..)`
-/// or a package-qualified path to the canonical `Owner::operation` spelling.
+/// Finds the canonical `Owner::operation` spelling inside a requirement
+/// identity. Identities arrive as `operator::F32::negate(named(name(f32)))..`
+/// for named operations and as escaped `named-callable(path(nominal\\(..\\,
+/// path\\(Float::less\\)..` for spelled operator families, so the name is
+/// matched as a whole path token: the longest canonical name whose
+/// neighbouring characters are not identifier characters.
 pub fn canonical_float_operation_name(requirement: &str) -> Option<&'static str> {
-    let path = requirement.split('(').next().unwrap_or(requirement);
-    let mut segments = path.rsplit("::");
-    let operation = segments.next()?;
-    let owner = segments.next()?;
-    CANONICAL_FLOAT_OPERATIONS.iter().copied().find(|canonical| {
-        canonical
-            .split_once("::")
-            .is_some_and(|(left, right)| left == owner && right == operation)
-    })
+    let identifier = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    CANONICAL_FLOAT_OPERATIONS
+        .iter()
+        .copied()
+        .filter(|canonical| {
+            requirement.match_indices(canonical).any(|(start, _)| {
+                let before = requirement[..start].chars().next_back();
+                let after = requirement[start + canonical.len()..].chars().next();
+                before.is_none_or(|c| !identifier(c)) && after.is_none_or(|c| !identifier(c))
+            })
+        })
+        .max_by_key(|canonical| canonical.len())
 }
 
 impl TargetProfile {
@@ -278,6 +285,16 @@ mod tests {
         );
         assert_eq!(
             TargetProfile::LinuxX64.canonical_float_realization("FloatNativeOperations"),
+            None
+        );
+        assert_eq!(
+            canonical_float_operation_name(
+                "named-callable(path(nominal\\(toolchain-owner\\,path\\(Float::less\\)\\)),parameters())"
+            ),
+            Some("Float::less")
+        );
+        assert_eq!(
+            canonical_float_operation_name("operator::F32::negate_twice(named(name(f32)))"),
             None
         );
         assert_eq!(

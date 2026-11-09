@@ -386,6 +386,18 @@ fn validate_provider_owners(
                     );
                 }
             }
+            if realization.is_some() && !found && requires_declaration(&selected.plan, row)
+                && std::env::var_os("OMEGA_DEBUG_FLOAT_REALIZATION").is_some()
+            {
+                let wanted = selected.plan.identities.text(row.requirement_identity);
+                eprintln!("[float-retained] plan {} target {} origin {:?} provider {:?}/{:?} trait pkg {:?} machine {machine} wanted {wanted:?} realization {realization:?} total {}", selected.plan.name, selected.plan.target, selected.plan.origin_package_identity, selected.plan.provider_type, selected.plan.provider_type_package_identity, selected.plan.schema.declaration.trait_package_identity, external_providers.len());
+                for candidate in external_providers {
+                    let requirement = identities.text(candidate.requirement_identity);
+                    if requirement.is_some_and(|text| text.contains("Float::subtract")) {
+                        eprintln!("[float-retained]   candidate req {requirement:?} target {:?} req pkg {:?} realization pkg {:?} callable {:?} machine {:?} binding {:?} intrinsic {:?} provider {:?}", candidate.target, candidate.requirement_package, candidate.realization_package, identities.text(candidate.realization.callable), identities.text(candidate.realization.machine.identity()), candidate.binding, candidate.numeric_intrinsic.is_some(), candidate.provider.as_ref().map(|provider| (identities.text(provider.identity), provider.package)));
+                    }
+                }
+            }
             if realization.is_some() && !found && requires_declaration(&selected.plan, row) {
                 return Err(format!(
                     "selected provider `{}` has no retained external implementation for `{}` (implementation `{}`)",
