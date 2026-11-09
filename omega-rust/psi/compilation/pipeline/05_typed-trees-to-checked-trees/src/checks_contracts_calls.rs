@@ -105,6 +105,7 @@ mod boolean_requirements {
         expression: ExpressionHandle,
         incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         call_frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
     ) -> bool {
         let proven = closed_boolean_value(program, &facts.operators, expression) == Some(true)
             || super::super::call_bounds::proves(
@@ -175,7 +176,14 @@ mod boolean_requirements {
                 call_frames,
             )
             || standing_domain_fact_proves_requirement(program, state_flow, call_flow, expression)
-            || proves_call(program, state_flow, call_flow, expression, call_frames);
+            || proves_call(
+                program,
+                state_flow,
+                call_flow,
+                expression,
+                call_frames,
+                completed,
+            );
         if proven {
             return true;
         }
@@ -193,6 +201,7 @@ mod boolean_requirements {
                     conjunct,
                     incoming_guards,
                     call_frames,
+                    &mut *completed,
                 )
             })
     }
@@ -393,7 +402,12 @@ mod captured_boolean {
                 let result = super::super::prover::call_guarantees::proves(
                     program, facts, guarantees, call, contexts, *required, frames,
                 ) || super::super::current_values::proves_call(
-                    program, state, call, *required, frames,
+                    program,
+                    state,
+                    call,
+                    *required,
+                    frames,
+                    guarantees.completed_calls(),
                 ) || super::super::entailment::structural_call_requirement(
                     program,
                     facts,
@@ -2971,6 +2985,7 @@ pub(super) fn check_call_requires(
                                     expression,
                                     incoming_guards,
                                     call_frames,
+                                    guarantees.completed_calls(),
                                 )
                             }
                             _ => {

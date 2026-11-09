@@ -8983,22 +8983,24 @@ pub(crate) mod call_requirements {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn establish_citation(
+    pub(crate) fn establish_citation<'program>(
         program: &dyn CheckingInput,
         machine: &Machine,
         state: &State,
         statement_index: usize,
         environment: &[(String, StructuralTerm)],
-        judge: &StructuralJudge<'_>,
+        judge: &StructuralJudge<'program>,
         classification: &typed_trees::proof_only::ProofOnlyClassification,
         hypotheses: &[(String, StructuralTerm)],
         equations: &[(StructuralTerm, StructuralTerm)],
+        arm: &mut Option<super::structural_prefix::AdmittedArm<'program>>,
         guarantees: &mut CitationFacts,
         target: &CitationTarget,
         arguments: &[StructuralTerm],
     ) {
-        let prior_guarantees = guarantees.clone();
-        establish_citation_from_prefix(
+        // The site judge is the walk's running arm with the earlier guarantees
+        // admitted, the judge `establish_citation_from_prefix` rebuilds.
+        if let Some(established) = citation_guarantees(
             program,
             machine,
             state,
@@ -9006,13 +9008,18 @@ pub(crate) mod call_requirements {
             environment,
             judge,
             classification,
-            hypotheses,
-            equations,
-            &prior_guarantees,
-            guarantees,
+            || {
+                super::structural_prefix::AdmittedArm::in_slot(
+                    arm, program, judge, hypotheses, equations,
+                )
+                .admitting(guarantees)
+                .clone()
+            },
             target,
             arguments,
-        );
+        ) {
+            guarantees.extend(established);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -9031,6 +9038,44 @@ pub(crate) mod call_requirements {
         target: &CitationTarget,
         arguments: &[StructuralTerm],
     ) {
+        if let Some(established) = citation_guarantees(
+            program,
+            machine,
+            state,
+            statement_index,
+            environment,
+            judge,
+            classification,
+            || {
+                let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
+                prior_guarantees.intake(&mut site_judge);
+                site_judge
+            },
+            target,
+            arguments,
+        ) {
+            guarantees.extend(established);
+        }
+    }
+
+    /*
+        The guarantees one citation admits, or `None` when it cannot be
+        established here. A citation that needs a site judge is proved against
+        `site_judge()`: the arm judge with the earlier guarantees admitted.
+    */
+    #[allow(clippy::too_many_arguments)]
+    fn citation_guarantees<'program>(
+        program: &dyn CheckingInput,
+        machine: &Machine,
+        state: &State,
+        statement_index: usize,
+        environment: &[(String, StructuralTerm)],
+        judge: &StructuralJudge<'program>,
+        classification: &typed_trees::proof_only::ProofOnlyClassification,
+        site_judge: impl FnOnce() -> StructuralJudge<'program>,
+        target: &CitationTarget,
+        arguments: &[StructuralTerm],
+    ) -> Option<CitationFacts> {
         if !super::citations::can_establish_citation(
             program,
             classification,
@@ -9039,12 +9084,11 @@ pub(crate) mod call_requirements {
             arguments.len(),
             judge.has_runtime_body_values(),
         ) {
-            return;
+            return None;
         }
         let mut diagnostics = Vec::new();
         let established = if super::citations::citation_needs_site_judge(program, target) {
-            let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
-            prior_guarantees.intake(&mut site_judge);
+            let mut site_judge = site_judge();
             if !judge.has_runtime_body_values() {
                 intake_state_induction(
                     program,
@@ -9077,9 +9121,7 @@ pub(crate) mod call_requirements {
                 true,
             )
         };
-        if diagnostics.is_empty() {
-            guarantees.extend(established);
-        }
+        diagnostics.is_empty().then_some(established)
     }
 
     fn intake_state_induction(
@@ -9243,6 +9285,18 @@ pub(crate) mod citations {
             frontier.predicates = self.predicates.len();
             frontier.cases = self.cases.len();
             changed
+        }
+
+        /*
+            Whether `intake_since` from `frontier` leaves a judge exactly as one
+            `intake` of the whole list would: every predicate precedes every
+            case there, so no predicate may arrive after a case was admitted,
+            and the list must not have shrunk.
+        */
+        pub(crate) fn extends_in_order(&self, frontier: &CitationFrontier) -> bool {
+            self.predicates.len() >= frontier.predicates
+                && self.cases.len() >= frontier.cases
+                && (frontier.cases == 0 || self.predicates.len() == frontier.predicates)
         }
 
         pub(crate) fn intake(&self, judge: &mut StructuralJudge<'_>) {
@@ -44585,6 +44639,9 @@ pub(crate) mod structural_case_arms {
                 };
             let mut transitions = Vec::new();
             let mut saw_transition = false;
+            // This loop's arm premises with each citation admitted once; dropped
+            // whenever the path judge changes.
+            let mut admitted_arm = None;
             for (execution_position, statement_index) in
                 execution.iter().copied().enumerate().skip(start_position)
             {
@@ -44622,7 +44679,8 @@ pub(crate) mod structural_case_arms {
                     &case_hypotheses,
                     &case_equations,
                     &established_guarantees,
-                );
+                )
+                .admitted_by(&mut admitted_arm);
                 for visitor in visitors.iter_mut() {
                     if visitor.site().state == state.symbol
                         && visitor.site().statement_index == statement_index
@@ -44705,6 +44763,7 @@ pub(crate) mod structural_case_arms {
                     }
                     citation_preserves_values = complete && writes.is_empty();
                     let version = judge.statement_storage_version(state, statement_index);
+                    admitted_arm = None;
                     judge.observe_storage_effects(
                         state,
                         complete.then_some(writes.as_slice()),
@@ -44754,6 +44813,7 @@ pub(crate) mod structural_case_arms {
                             classification,
                             &case_hypotheses,
                             &case_equations,
+                            &mut admitted_arm,
                             &mut established_guarantees,
                             &target,
                             &arguments,
@@ -83838,6 +83898,73 @@ pub(crate) mod structural_prefix {
         diagnostics.is_empty().then_some(())
     }
 
+    /*
+        One state walk's arm premises with every citation admitted so far.
+        `arm_premises` used to rebuild this judge at each call site, and
+        `establish_citation` at each citation, re-admitting all k earlier
+        citations, so a state with n citations paid n^2 admissions. The walk
+        keeps one of these per statement loop instead and admits only the
+        citations added since the last use.
+
+        Every judge it hands out is the one the rebuild would have made. The
+        rebuild is a function of the path judge, the arm hypotheses and
+        equations, and the established guarantees. The walk drops this value
+        whenever it changes the path judge (its storage-effect update, the only
+        `&mut` use in the loop); hypotheses and equations are fixed for the
+        loop; guarantees are only appended to. Admitting the appended suffix
+        runs the same intakes in the same order on the same judge as one
+        `intake` of the whole list, except when a predicate arrives after a
+        case was admitted (`intake` puts every predicate first) or the list
+        shrank; then it starts again from the unadmitted arm.
+    */
+    pub(crate) struct AdmittedArm<'program> {
+        arm: StructuralJudge<'program>,
+        judge: StructuralJudge<'program>,
+        admitted: super::citations::CitationFrontier,
+    }
+
+    impl<'program> AdmittedArm<'program> {
+        /* The slot's arm, built on first use so a walk without sites pays nothing. */
+        pub(crate) fn in_slot<'slot>(
+            slot: &'slot mut Option<Self>,
+            program: &dyn crate::CheckingInput,
+            judge: &StructuralJudge<'program>,
+            hypotheses: &[(String, StructuralTerm)],
+            equations: &[(StructuralTerm, StructuralTerm)],
+        ) -> &'slot mut Self {
+            slot.get_or_insert_with(|| {
+                let arm = structural_arm_judge(program, judge, hypotheses, equations);
+                Self {
+                    judge: arm.clone(),
+                    arm,
+                    admitted: Default::default(),
+                }
+            })
+        }
+
+        /* The arm judge with exactly `guarantees` admitted. */
+        pub(crate) fn admitting(
+            &mut self,
+            guarantees: &CitationFacts,
+        ) -> &StructuralJudge<'program> {
+            if !guarantees.extends_in_order(&self.admitted) {
+                self.judge = self.arm.clone();
+                self.admitted = Default::default();
+            }
+            guarantees.intake_since(&mut self.judge, &mut self.admitted);
+            &self.judge
+        }
+
+        /* What `arm_premises` returns for the same inputs. */
+        fn premises(&mut self, guarantees: &CitationFacts) -> Option<StructuralJudge<'program>> {
+            if self.arm.hypotheses_contradictory {
+                return None;
+            }
+            let judge = self.admitting(guarantees).clone();
+            (!judge.integer_premises_contradictory()).then_some(judge)
+        }
+    }
+
     pub(crate) struct SiteArm<'arm, 'program> {
         program: &'program dyn crate::CheckingInput,
         machine: &'arm Machine,
@@ -83846,6 +83973,7 @@ pub(crate) mod structural_prefix {
         hypotheses: &'arm [(String, StructuralTerm)],
         equations: &'arm [(StructuralTerm, StructuralTerm)],
         guarantees: &'arm CitationFacts,
+        admitted: Option<&'arm mut Option<AdmittedArm<'program>>>,
         prepared: Option<Option<StructuralJudge<'program>>>,
     }
 
@@ -83868,8 +83996,18 @@ pub(crate) mod structural_prefix {
                 hypotheses,
                 equations,
                 guarantees,
+                admitted: None,
                 prepared: None,
             }
+        }
+
+        /* Premises come from the walk's running arm instead of a rebuild. */
+        pub(crate) fn admitted_by(
+            mut self,
+            admitted: &'arm mut Option<AdmittedArm<'program>>,
+        ) -> Self {
+            self.admitted = Some(admitted);
+            self
         }
 
         pub(crate) fn deliver<V: StructuralPrefixVisitor + ?Sized>(&mut self, visitor: &mut V) {
@@ -83878,13 +84016,23 @@ pub(crate) mod structural_prefix {
                 return;
             }
             if self.prepared.is_none() {
-                self.prepared = Some(arm_premises(
-                    self.program,
-                    self.judge,
-                    self.hypotheses,
-                    self.equations,
-                    self.guarantees,
-                ));
+                self.prepared = Some(match self.admitted.as_deref_mut() {
+                    Some(slot) => AdmittedArm::in_slot(
+                        slot,
+                        self.program,
+                        self.judge,
+                        self.hypotheses,
+                        self.equations,
+                    )
+                    .premises(self.guarantees),
+                    None => arm_premises(
+                        self.program,
+                        self.judge,
+                        self.hypotheses,
+                        self.equations,
+                        self.guarantees,
+                    ),
+                });
             }
             let Some(Some(judge)) = &self.prepared else {
                 return;
