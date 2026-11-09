@@ -46,7 +46,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: a copying generator and a scheduler run as libraries over stepping under `--both`.
 
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
-  - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/**/target_body/main.omg`, `audio_playback`, and target fixtures.
+  - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/placed_stable_write/target_body` (a selected provider's placed `Access` write rejects natively: a formal pointer is not backing authority), `audio_playback`, and target fixtures.
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
   Acceptance: one portable call selects per-target implementations from one Terminal artifact under `omega run --both`.
 
