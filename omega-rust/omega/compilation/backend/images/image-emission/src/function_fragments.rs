@@ -9852,6 +9852,7 @@ mod source {
             source: &AbstractOperation,
             target: &TargetFunction,
             selected: &SelectedFunction,
+            addresses: &mut super::placed_reference::AddressReplay<'_>,
         ) -> bool {
             let graph = &target.graph;
             match source {
@@ -9914,7 +9915,6 @@ mod source {
                         _ => None,
                     });
                     let Some(tag_byte_offset) = observations.next() else { return false; };
-                    let mut addresses = super::placed_reference::AddressReplay::new(target, selected);
                     result.scalar_type == semantic_vocabulary::ScalarType::Boolean
                         && observations.next().is_none()
                         && selected.instructions().filter(|row|
@@ -9922,7 +9922,7 @@ mod source {
                                 && match row.kind {
                                     selected_instructions::SelectedInstructionKind::Load32 { .. } =>
                                         super::placed_reference::case_tag_load_matches(
-                                            *psi_operation, *source, path, tag_byte_offset, row, &mut addresses,
+                                            *psi_operation, *source, path, tag_byte_offset, row, addresses,
                                         ).is_some(),
                                     selected_instructions::SelectedInstructionKind::ZeroExtendU32 => path.is_empty() && tag_byte_offset == 0,
                                     _ => false,
@@ -12237,11 +12237,112 @@ mod source {
             true
         }
 
+        #[derive(Clone, Copy)]
+        enum DefinitionOccurrence<'a> {
+            Missing,
+            Unique(&'a SelectedInstruction),
+            Repeated,
+        }
+
+        // Address checks distinguish ordinary output candidates from all defining
+        // rows. Retain both input associations while checking each use afresh.
+        struct AddressInputs<'a> {
+            definitions: Vec<DefinitionOccurrence<'a>>,
+            ordinary_outputs: Vec<Vec<&'a SelectedInstruction>>,
+        }
+
+        impl<'a> AddressInputs<'a> {
+            fn new(selected: &'a SelectedFunction) -> Self {
+                let mut definitions =
+                    vec![DefinitionOccurrence::Missing; selected.virtual_registers.len()];
+                let mut ordinary_outputs = vec![Vec::new(); selected.virtual_registers.len()];
+                let mut last_defining_row = vec![None; selected.virtual_registers.len()];
+                let rows = selected.blocks.iter().flat_map(|block| {
+                    block
+                        .instructions
+                        .iter()
+                        .map(|row| (row, true))
+                        .chain(std::iter::once((
+                            selected_instructions::terminator_instruction(&block.terminator),
+                            false,
+                        )))
+                });
+                for (ordinal, (row, ordinary)) in rows.enumerate() {
+                    if ordinary
+                        && let Some(register) = address_output(row)
+                        && let Some(outputs) = ordinary_outputs.get_mut(register.0 as usize)
+                    {
+                        outputs.push(row);
+                    }
+                    for operand in &row.operands {
+                        if !matches!(
+                            operand.access,
+                            RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+                        ) {
+                            continue;
+                        }
+                        let position = operand.virtual_register.0 as usize;
+                        let Some(last) = last_defining_row.get_mut(position) else {
+                            continue;
+                        };
+                        // The old predicate counted an instruction once even when
+                        // more than one of its operands defines this register.
+                        if *last == Some(ordinal) {
+                            continue;
+                        }
+                        *last = Some(ordinal);
+                        definitions[position] = match definitions[position] {
+                            DefinitionOccurrence::Missing => DefinitionOccurrence::Unique(row),
+                            _ => DefinitionOccurrence::Repeated,
+                        };
+                    }
+                }
+                Self {
+                    definitions,
+                    ordinary_outputs,
+                }
+            }
+
+            fn occurrence(&self, register: VirtualRegisterId) -> Option<DefinitionOccurrence<'a>> {
+                self.definitions.get(register.0 as usize).copied()
+            }
+
+            fn unique(&self, register: VirtualRegisterId) -> Option<&'a SelectedInstruction> {
+                match self.occurrence(register)? {
+                    DefinitionOccurrence::Unique(row) => Some(row),
+                    _ => None,
+                }
+            }
+        }
+
+        fn address_output(row: &SelectedInstruction) -> Option<VirtualRegisterId> {
+            let output = match row.kind {
+                SelectedInstructionKind::FrameAddress { .. }
+                | SelectedInstructionKind::MaterializeI64 { .. } => 0,
+                SelectedInstructionKind::AddressOffset { .. }
+                | SelectedInstructionKind::Load64 { .. }
+                | SelectedInstructionKind::CopyI64 => 1,
+                SelectedInstructionKind::ByteViewAddress
+                | SelectedInstructionKind::WrappingMultiplyI64 => 2,
+                _ => return None,
+            };
+            operand(row, output)
+        }
+
         pub(super) fn source_value(
             selected: &SelectedFunction,
             register: VirtualRegisterId,
             consumer: &SelectedInstruction,
         ) -> Option<ValueId> {
+            let origin = selected.virtual_register(register)?.origin;
+            if !matches!(
+                origin,
+                VirtualRegisterOrigin::EntryParameter { .. }
+                    | VirtualRegisterOrigin::BlockParameter { .. }
+                    | VirtualRegisterOrigin::InstructionResult { .. }
+            ) {
+                return None;
+            }
             let mut definitions = all_instructions(selected).filter(|row| {
                 row.operands.iter().any(|operand| {
                     operand.virtual_register == register
@@ -12251,77 +12352,75 @@ mod source {
                         )
                 })
             });
-            match selected.virtual_register(register)?.origin {
-                VirtualRegisterOrigin::EntryParameter { source_value, .. }
-                    if definitions.next().is_none() =>
+            let occurrence = match (definitions.next(), definitions.next()) {
+                (None, _) => DefinitionOccurrence::Missing,
+                (Some(row), None) => DefinitionOccurrence::Unique(row),
+                _ => DefinitionOccurrence::Repeated,
+            };
+            resolved_source_value(selected, origin, consumer, occurrence)
+        }
+
+        fn resolved_source_value(
+            selected: &SelectedFunction,
+            origin: VirtualRegisterOrigin,
+            consumer: &SelectedInstruction,
+            definition: DefinitionOccurrence<'_>,
+        ) -> Option<ValueId> {
+            match (origin, definition) {
+                (
+                    VirtualRegisterOrigin::EntryParameter { source_value, .. },
+                    DefinitionOccurrence::Missing,
+                ) => Some(source_value),
+                (
+                    VirtualRegisterOrigin::BlockParameter {
+                        source_value,
+                        block,
+                        ..
+                    },
+                    DefinitionOccurrence::Missing,
+                ) if selected
+                    .block(block)?
+                    .instruction_index(consumer.id)
+                    .is_some() =>
                 {
                     Some(source_value)
                 }
-                VirtualRegisterOrigin::BlockParameter {
-                    source_value,
-                    block,
-                    ..
-                } if definitions.next().is_none()
-                    && selected
-                        .block(block)?
-                        .instruction_index(consumer.id)
-                        .is_some() =>
-                {
-                    Some(source_value)
-                }
-                VirtualRegisterOrigin::InstructionResult {
-                    instruction,
-                    source_value,
-                } if definitions.next()?.id == instruction
-                    && definitions.next().is_none()
-                    && precedes(selected, instruction, consumer.id) =>
-                {
+                (
+                    VirtualRegisterOrigin::InstructionResult {
+                        instruction,
+                        source_value,
+                    },
+                    DefinitionOccurrence::Unique(row),
+                ) if row.id == instruction && precedes(selected, instruction, consumer.id) => {
                     Some(source_value)
                 }
                 _ => None,
             }
         }
 
-        fn definition(
-            selected: &SelectedFunction,
+        fn definition<'a>(
+            selected: &'a SelectedFunction,
+            inputs: &AddressInputs<'a>,
             operation: OperationId,
             register: VirtualRegisterId,
-        ) -> Option<&SelectedInstruction> {
-            let mut rows = selected.instructions().filter(|row| {
-                if !row.provenance.operations.contains(&operation)
-                    && !matches!(
-                        row.kind,
-                        SelectedInstructionKind::FrameAddress { .. }
-                            | SelectedInstructionKind::CopyI64
-                    )
-                {
-                    return false;
-                }
-                let output = match row.kind {
-                    SelectedInstructionKind::FrameAddress { .. }
-                    | SelectedInstructionKind::MaterializeI64 { .. } => 0,
-                    SelectedInstructionKind::AddressOffset { .. }
-                    | SelectedInstructionKind::Load64 { .. }
-                    | SelectedInstructionKind::CopyI64 => 1,
-                    SelectedInstructionKind::ByteViewAddress
-                    | SelectedInstructionKind::WrappingMultiplyI64 => 2,
-                    _ => return false,
-                };
-                operand(row, output) == Some(register)
-            });
+        ) -> Option<&'a SelectedInstruction> {
+            let mut rows = inputs
+                .ordinary_outputs
+                .get(register.0 as usize)?
+                .iter()
+                .copied()
+                .filter(|row| {
+                    row.provenance.operations.contains(&operation)
+                        || matches!(
+                            row.kind,
+                            SelectedInstructionKind::FrameAddress { .. }
+                                | SelectedInstructionKind::CopyI64
+                        )
+                });
             let (Some(row), None) = (rows.next(), rows.next()) else {
                 return None;
             };
-            let mut definitions = all_instructions(selected).filter(|instruction| {
-                instruction.operands.iter().any(|operand| {
-                    operand.virtual_register == register
-                        && matches!(
-                            operand.access,
-                            RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                        )
-                })
-            });
-            if definitions.next()?.id != row.id || definitions.next().is_some() {
+            if inputs.unique(register)?.id != row.id {
                 return None;
             }
             match selected.virtual_register(register)?.origin {
@@ -12336,18 +12435,25 @@ mod source {
 
         fn scaled_index(
             selected: &SelectedFunction,
+            inputs: &AddressInputs<'_>,
             operation: OperationId,
             register: VirtualRegisterId,
             consumer: &SelectedInstruction,
         ) -> Option<(ValueId, u64)> {
-            let row = definition(selected, operation, register)?;
+            let row = definition(selected, inputs, operation, register)?;
             if row.kind != SelectedInstructionKind::WrappingMultiplyI64
                 || !precedes(selected, row.id, consumer.id)
             {
                 return None;
             }
-            let value = source_value(selected, operand(row, 0)?, row)?;
-            let stride = definition(selected, operation, operand(row, 1)?)?;
+            let value_register = operand(row, 0)?;
+            let value = resolved_source_value(
+                selected,
+                selected.virtual_register(value_register)?.origin,
+                row,
+                inputs.occurrence(value_register)?,
+            )?;
+            let stride = definition(selected, inputs, operation, operand(row, 1)?)?;
             if !precedes(selected, stride.id, row.id) {
                 return None;
             }
@@ -12363,6 +12469,7 @@ mod source {
         pub(super) struct AddressReplay<'a> {
             target: &'a TargetFunction,
             selected: &'a SelectedFunction,
+            inputs: Option<AddressInputs<'a>>,
             spills: Option<super::spill_values::SpillValues<'a>>,
             failure: Option<&'static str>,
         }
@@ -12371,10 +12478,17 @@ mod source {
                 Self {
                     target,
                     selected,
+                    inputs: None,
                     spills: None,
                     failure: None,
                 }
             }
+            fn inputs(&mut self) -> &AddressInputs<'a> {
+                let selected = self.selected;
+                self.inputs
+                    .get_or_insert_with(|| AddressInputs::new(selected))
+            }
+
             fn at(
                 &mut self,
                 operation: OperationId,
@@ -12418,15 +12532,10 @@ mod source {
                         .get(parameter_index)?;
                     if parameter.semantic.place != place
                         || parameter.semantic.access == terminal_psi::StructuralAccess::Owned
-                        || all_instructions(selected).any(|instruction| {
-                            instruction.operands.iter().any(|operand| {
-                                operand.virtual_register == register
-                                    && matches!(
-                                        operand.access,
-                                        RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                                    )
-                            })
-                        })
+                        || !matches!(
+                            self.inputs().occurrence(register)?,
+                            DefinitionOccurrence::Missing
+                        )
                     {
                         return None;
                     }
@@ -12437,15 +12546,17 @@ mod source {
                         indices: Vec::new(),
                     });
                 }
-                if let Some(address) = block_entry_pointer(target, selected, register, consumer) {
+                if let Some(address) =
+                    block_entry_pointer(target, selected, self.inputs(), register, consumer)
+                {
                     return Some(address);
                 }
-                if let Some(load) = unique_definition(selected, register)
+                if let Some(load) = self.inputs().unique(register)
                     && load.kind == (SelectedInstructionKind::Load64 { byte_offset: 0 })
                     && load.provenance == Default::default()
                 {
                     let pointer = operand(load, 0)?;
-                    if let Some(frame) = unique_definition(selected, pointer)
+                    if let Some(frame) = self.inputs().unique(pointer)
                         && let SelectedInstructionKind::FrameAddress {
                             slot:
                                 FrameStorageSlotId::Local(
@@ -12493,7 +12604,7 @@ mod source {
                         return self.address(operation, operand(writer, 0)?, remaining - 1, writer);
                     }
                 }
-                let row = definition(selected, operation, register)?;
+                let row = definition(selected, self.inputs(), operation, register)?;
                 if !precedes(selected, row.id, consumer.id) {
                     return None;
                 }
@@ -12531,6 +12642,7 @@ mod source {
                             self.address(operation, operand(row, 0)?, remaining - 1, row)?;
                         result.indices.push(scaled_index(
                             selected,
+                            self.inputs(),
                             operation,
                             operand(row, 1)?,
                             row,
@@ -12696,32 +12808,14 @@ mod source {
             ))
         }
 
-        fn unique_definition(
-            selected: &SelectedFunction,
-            register: VirtualRegisterId,
-        ) -> Option<&SelectedInstruction> {
-            let mut definitions = all_instructions(selected).filter(|row| {
-                row.operands.iter().any(|operand| {
-                    operand.virtual_register == register
-                        && matches!(
-                            operand.access,
-                            RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                        )
-                })
-            });
-            let (Some(row), None) = (definitions.next(), definitions.next()) else {
-                return None;
-            };
-            Some(row)
-        }
-
         fn block_entry_pointer(
             target: &TargetFunction,
             selected: &SelectedFunction,
+            inputs: &AddressInputs<'_>,
             register: VirtualRegisterId,
             consumer: &SelectedInstruction,
         ) -> Option<Address> {
-            let load = unique_definition(selected, register)?;
+            let load = inputs.unique(register)?;
             if load.kind != (SelectedInstructionKind::Load64 { byte_offset: 0 })
                 || load.provenance != Default::default()
                 || operand(load, 1) != Some(register)
@@ -12730,7 +12824,7 @@ mod source {
                 return None;
             }
             let pointer = operand(load, 0)?;
-            let frame = unique_definition(selected, pointer)?;
+            let frame = inputs.unique(pointer)?;
             let SelectedInstructionKind::FrameAddress {
                 slot:
                     FrameStorageSlotId::Local(
@@ -12861,6 +12955,7 @@ mod source {
             load: &SelectedInstruction,
             addresses: &mut AddressReplay<'_>,
         ) -> Option<()> {
+            addresses.failure = None;
             let SelectedInstructionKind::Load32 {
                 byte_offset: displacement,
             } = load.kind
@@ -18155,7 +18250,7 @@ mod source {
                         result: AbstractStructuralCallResult::Structural { .. },
                         ..
                     }
-                    | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),
+                    | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected, &mut addresses),
                     AbstractOperation::EstablishPrimitiveLocal { .. }
                     | AbstractOperation::PrimitiveLocalStore { .. } => {
                         super::structural::primitive_operation_retained(abstracted, selected, operation)
