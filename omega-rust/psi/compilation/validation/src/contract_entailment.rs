@@ -38857,7 +38857,44 @@ pub(crate) mod specification_calls {
                 owner: &SelectedCallContract<'_>,
                 site: crate::CallSite<'_>,
             ) -> Option<Self> {
-                let mut bindings = Self::for_retained_call_site(program, caller, owner, site)?;
+                let mut bindings = if let Some(member) =
+                    super::direct_named_member_contract(program, caller, site)
+                {
+                    let SelectedCallContract::Concrete(machine, state) = owner else {
+                        return None;
+                    };
+                    if machine.symbol != member.machine.symbol
+                        || state.symbol != member.state.symbol
+                    {
+                        return None;
+                    }
+                    let mut bindings = Self::for_retained_call_site(
+                        program,
+                        caller,
+                        &SelectedCallContract::Signature(member.signature),
+                        site,
+                    )?;
+                    let public =
+                        program.requirement_invocation_contract_parameters(member.signature);
+                    let declared = program.machine_type_parameters(member.machine);
+                    if public.len() != declared.len()
+                        || public.iter().zip(declared).any(|(public, declared)| {
+                            std::mem::discriminant(&public.kind)
+                                != std::mem::discriminant(&declared.kind)
+                        })
+                    {
+                        return None;
+                    }
+                    let parameters = public
+                        .iter()
+                        .zip(declared)
+                        .map(|(public, declared)| (public.symbol, declared.symbol))
+                        .collect::<Vec<_>>();
+                    bindings.transport_parameters(&parameters)?;
+                    bindings
+                } else {
+                    Self::for_retained_call_site(program, caller, owner, site)?
+                };
                 bindings.retain_requirement_operations(program, caller, site)?;
                 Some(bindings)
             }
@@ -41519,6 +41556,72 @@ pub(crate) mod specification_calls {
         Operator(&'program typed_trees::operator::OperatorDefinition),
     }
 
+    struct DirectNamedMemberContract<'program> {
+        machine: &'program Machine,
+        state: &'program State,
+        signature: &'program StateSignature,
+    }
+
+    fn direct_named_member_contract<'program>(
+        program: &'program dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        site: crate::CallSite<'_>,
+    ) -> Option<DirectNamedMemberContract<'program>> {
+        let receiver = match site {
+            crate::CallSite::Expression { call, .. } => {
+                expression_table(program)
+                    .name_path_node(call.receiver)?
+                    .symbol
+            }
+            crate::CallSite::Statement(call) => call.receiver_symbol,
+            crate::CallSite::TransitionNamed { .. } => return None,
+        };
+        let conformance = program.conformance_by_symbol(receiver)?;
+        let dispatch = site.static_requirement_dispatch()?;
+        if dispatch.evidence_parameter.is_valid() {
+            return None;
+        }
+        // The named member keeps its own declared contract. The retained map
+        // and executable argument correspondence still authenticate this exact
+        // selection; a bound call cannot acquire its implementation's promises.
+        let (_, signature) = crate::requirement_contract_signature(program, caller, &site)?;
+        crate::selected_call_arguments(program, caller, &site).ok()?;
+        let applications = program.selected_conformance_applications(
+            caller,
+            dispatch.selection_application,
+            dispatch.evidence_parameter,
+            dispatch.requirement,
+            dispatch.application_report_fingerprint,
+            dispatch.application_commitment,
+        );
+        let [application] = applications.as_slice() else {
+            return None;
+        };
+        if application.declaration != conformance.symbol {
+            return None;
+        }
+        let mut rows = conformance.rows.iter().filter(|row| {
+            row.source.owns_realization()
+                && row.declaring_trait == dispatch.declaring_trait
+                && row.requirement == dispatch.requirement
+                && row.realization_machine == dispatch.realization_machine
+                && row.realization_state == dispatch.realization_state
+        });
+        rows.next()?;
+        if rows.next().is_some() {
+            return None;
+        }
+        let (machine, state) = selected_machine(program, site.target_symbol(program))?;
+        if program.machine_states(machine).first()?.symbol != state.symbol {
+            return None;
+        }
+        Some(DirectNamedMemberContract {
+            machine,
+            state,
+            signature,
+        })
+    }
+
     pub(crate) fn selected_call_contract<'program>(
         program: &'program dyn crate::CheckingInput,
         caller: SymbolHandle,
@@ -41542,6 +41645,9 @@ pub(crate) mod specification_calls {
         let caller = program
             .machine_holding_state(caller)
             .map_or(caller, |machine| machine.symbol);
+        if let Some(member) = direct_named_member_contract(program, caller, site) {
+            return Some(SelectedCallContract::Concrete(member.machine, member.state));
+        }
         if let Some((_, signature)) = crate::requirement_contract_signature(program, caller, &site)
         {
             return Some(SelectedCallContract::Signature(signature));
@@ -41732,6 +41838,20 @@ pub(crate) mod specification_calls {
         owner: &SelectedCallContract<'program>,
         site: crate::CallSite<'program>,
     ) -> Option<std::borrow::Cow<'program, [StateParameter]>> {
+        if let Some(member) = direct_named_member_contract(program, caller, site) {
+            let SelectedCallContract::Concrete(machine, state) = owner else {
+                return None;
+            };
+            if machine.symbol != member.machine.symbol || state.symbol != member.state.symbol {
+                return None;
+            }
+            let applied = AppliedProofBindings::for_call_site(program, caller, owner, site)?;
+            let mut parameters = program.state_parameters(state).to_vec();
+            for parameter in &mut parameters {
+                parameter.type_reference = applied.project_type(program, parameter.type_reference);
+            }
+            return Some(std::borrow::Cow::Owned(parameters));
+        }
         if site.static_requirement_dispatch().is_some() {
             return crate::machine_calls::calls::executable_parameters(program, caller, &site).ok();
         }
@@ -41922,12 +42042,21 @@ pub(crate) mod specification_calls {
         observed: impl FnMut(RuntimeScalarSubject) -> Option<StructuralTerm>,
     ) -> Option<Vec<(typed_trees::signature::StateParameter, StructuralTerm)>> {
         if site.static_requirement_dispatch().is_some() {
-            let (_, selected) = crate::requirement_contract_signature(program, caller, &site)?;
-            let SelectedCallContract::Signature(signature) = owner else {
-                return None;
-            };
-            if !std::ptr::eq(*signature, selected) {
-                return None;
+            if let Some(member) = direct_named_member_contract(program, caller, site) {
+                let SelectedCallContract::Concrete(machine, state) = owner else {
+                    return None;
+                };
+                if machine.symbol != member.machine.symbol || state.symbol != member.state.symbol {
+                    return None;
+                }
+            } else {
+                let (_, selected) = crate::requirement_contract_signature(program, caller, &site)?;
+                let SelectedCallContract::Signature(signature) = owner else {
+                    return None;
+                };
+                if !std::ptr::eq(*signature, selected) {
+                    return None;
+                }
             }
             crate::selected_call_arguments(program, caller, &site).ok()?;
         }
