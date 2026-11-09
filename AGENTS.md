@@ -215,9 +215,10 @@ Never run an unfiltered corpus sweep locally (`mbx xtask corpus` enforces a
 
 Builds, corpus runs and compiled programs from every local agent share one
 machine. Before the first build on a host you share with its owner or with
-other agents, apply the [host build budget](tools/build_slot.md): one expensive
-build at a time, and on a workstation its owner is using, capped jobs at the
-lowest operating-system priority, written into every worker prompt.
+other agents, apply the [host build budget](tools/build_slot.md): cap the total
+load of all agents so the machine never reaches 100%, run at the lowest
+operating-system priority on a workstation its owner is using, and write the
+budget into every worker prompt.
 
 ## The Psi/Omega firewall
 
