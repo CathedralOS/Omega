@@ -691,7 +691,7 @@ source suspension and blocking in the checked envelope. A redundant marker alone
 does not violate that floor.
 Interpreter budget suspension is not a source `suspends` permission.
 
-Starting a task is separate: `runtime.start<M>` acknowledges only what `start`
+Starting a task is separate: `TaskRuntime::start<M>` acknowledges only what `start`
 may do to the current activation, not what `M` may do in its new activation.
 See [Terminal suspension](../terminal-psi/calls_and_outcomes.md#suspension).
 
