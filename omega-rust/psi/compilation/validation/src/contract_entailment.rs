@@ -42095,7 +42095,23 @@ pub(crate) mod specification_calls {
         owner: SymbolHandle,
         parameters: &[StateParameter],
     ) -> Option<SelectedCallContract<'program>> {
-        selected_call_contract(program, owner, call).or_else(|| {
+        let selected = selected_call_contract(program, owner, call);
+        if matches!(selected, Some(SelectedCallContract::Signature(_)))
+            && call.is_ordinary_positional_call()
+            && super::law_conformance::neutral_call_payload(call)
+            && let Some(application) = program.closed_requirement_application(owner)
+            && let Some((declaration, _)) = program.trait_machine_signature(call.target_symbol)
+            && application
+                .trait_scope
+                .scope(program.typed_program())?
+                .declaring_scope(program.typed_program(), declaration.symbol)
+                .is_some()
+        {
+            return program
+                .requirement_call_signature_in_scope(owner, call, application.trait_scope)
+                .map(SelectedCallContract::Signature);
+        }
+        selected.or_else(|| {
             let (symbol, _, _) =
                 crate::float_semantic_application_for_parameters(program, call, owner, parameters)?;
             typed_trees::operator::declaration_by_symbol(program, symbol)

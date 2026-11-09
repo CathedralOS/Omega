@@ -6244,17 +6244,32 @@ pub(crate) mod trait_scopes {
             if let Some(signature) = self.resolve_named_conformance_call_signature(call).ok()? {
                 return Some(signature);
             }
-            if let Some(signature) = self.requirement_call_signature(lexical_owner, call) {
-                return Some(signature);
-            }
-            if call.requirement_application.is_valid() || call.static_requirement_dispatch.is_some()
+            if !call.is_ordinary_positional_call()
+                || call.requirement_application.is_valid()
+                || call.exact_coercion_target.is_valid()
+                || call.build_selection.is_valid()
+                || call.operational_acknowledgement.acknowledges_suspend
+                || call.operational_acknowledgement.acknowledges_block
+                || self
+                    .closed_requirement_application(call.target_symbol)
+                    .is_some_and(|application| !application.local_arguments.is_empty())
             {
-                return None;
+                return self.requirement_call_signature(lexical_owner, call);
             }
-            let (declaration, declared) = self.trait_machine_signature(call.target_symbol)?;
-            let scope = supplying_scope
+            let requirement = self
+                .closed_requirement_application(call.target_symbol)
+                .map_or(call.target_symbol, |application| application.template);
+            let Some((declaration, declared)) = self.trait_machine_signature(requirement) else {
+                return self.requirement_call_signature(lexical_owner, call);
+            };
+            let Some(scope) = supplying_scope
                 .scope(self)?
-                .declaring_scope(self, declaration.symbol)?;
+                .declaring_scope(self, declaration.symbol)
+            else {
+                return self.requirement_call_signature(lexical_owner, call);
+            };
+            // A copied sibling keeps its source operation symbol. Its complete
+            // receiving application owns the callable contract and result type.
             self.applied_callable_signature(&scope, declared.symbol)
                 .filter(|signature| {
                     signature.type_parameters.is_empty() && signature.lifetime_parameters.is_empty()
