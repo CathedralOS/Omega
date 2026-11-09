@@ -61996,33 +61996,40 @@ pub(crate) mod structural_judgment {
                 Some(vec![reference])
             }
 
-            pub(crate) fn selected_scalar_reads(
+            pub(crate) fn selected_scalar_read(
                 program: &dyn crate::CheckingInput,
                 machine: &Machine,
                 state: &typed_trees::state::State,
                 expression: ExpressionHandle,
                 node: &ExpressionNode,
-            ) -> [Option<TypeReferenceHandle>; 2] {
-                let ExpressionNode::Binary(binary) = node else {
-                    return [None; 2];
-                };
-                if !crate::has_builtin_binary_expression_meaning(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                ) {
-                    return [None; 2];
+                operand: ExpressionHandle,
+                receiving: Option<TypeReferenceHandle>,
+            ) -> Option<TypeReferenceHandle> {
+                let reference =
+                    crate::expression_result_type_reference(program, machine, state, operand)?;
+                crate::reference_shell(program, reference)?;
+                crate::value_custody::expression_types::scalar_observation_meaning(
+                    program, reference,
+                )?;
+                if matches!(node, ExpressionNode::Binary(_))
+                    && crate::has_builtin_binary_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                    )
+                {
+                    return Some(reference);
                 }
-                [binary.left, binary.right].map(|operand| {
-                    let reference =
-                        crate::expression_result_type_reference(program, machine, state, operand)?;
-                    crate::reference_shell(program, reference)?;
-                    crate::value_custody::expression_types::scalar_observation_meaning(
+                let receiving = receiving?;
+                program.primitive_type_reference(receiving)?;
+                let observed =
+                    crate::value_custody::expression_types::readable_observation_type_reference(
                         program, reference,
                     )?;
-                    Some(reference)
-                })
+                // A scalar destination receives the checked contents of its source
+                // borrow. Retain the source type for access and backing checks.
+                crate::declared_carriers_match(program, receiving, observed).then_some(reference)
             }
         }
         pub(crate) mod owned_arguments {
@@ -63969,20 +63976,26 @@ pub(crate) mod structural_judgment {
                         [indexed.collection, range.start, range.end]
                             .into_iter()
                             .filter(|child| child.is_valid())
-                            .map(|child| (child, scope.2)),
+                            .map(|child| (child, scope.2, None)),
                     );
                 } else {
                     let mut position = 0;
                     children(program, node, |child| {
-                        let reference = child_references
+                        let receiving = child_references
                             .as_ref()
                             .and_then(|references| references.get(position))
                             .copied()
-                            .filter(|reference| reference.is_valid())
-                            .unwrap_or(scope.2);
+                            .filter(|reference| reference.is_valid());
                         position += 1;
                         if child.is_valid() && Some(child) != namespace_receiver {
-                            children_to_evaluate.push((child, reference));
+                            let scalar_read = operand_types::selected_scalar_read(
+                                program, scope.0, scope.1, expression, node, child, receiving,
+                            );
+                            children_to_evaluate.push((
+                                child,
+                                receiving.unwrap_or(scope.2),
+                                scalar_read,
+                            ));
                         }
                     });
                 }
@@ -64007,13 +64020,9 @@ pub(crate) mod structural_judgment {
                         }
                     }
                 }
-                let scalar_reads = operand_types::selected_scalar_reads(
-                    program, scope.0, scope.1, expression, node,
-                );
                 let operands = children_to_evaluate
                     .into_iter()
-                    .enumerate()
-                    .map(|(position, (child, child_reference))| {
+                    .map(|(child, child_reference, scalar_read)| {
                         let entry_values_requested = before_operation
                             || matches!(demand, NormalValueDemand::ObserveOnly(_))
                                 && requested_operations.expressions.contains(&expression);
@@ -64074,7 +64083,7 @@ pub(crate) mod structural_judgment {
                             reference: child_reference,
                             demand: child_demand,
                             scalar_read: matches!(child_demand, NormalValueDemand::Value)
-                                .then(|| scalar_reads.get(position).copied().flatten())
+                                .then_some(scalar_read)
                                 .flatten(),
                         }
                     })
