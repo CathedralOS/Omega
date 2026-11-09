@@ -45,12 +45,12 @@ requires addr::Bound == 18446744073709551616
     let slots: [Slot; 8192];
     let mut owner: Pool = Pool { before: 91, slots: slots, after: 97 };
     let mut calls: Calls = Calls { count: 0 };
-    let first: u64 = reserve(&mut owner, 0, 0, 47, &mut calls);
-    let fallback: u64 = reserve(&mut owner, 0, 0, 59, &mut calls);
-    let second: u64 = reserve(&mut owner, 0, 1, 59, &mut calls);
+    let first: u64 = reserve(&mut owner, 1, 1, 47, &mut calls);
+    let fallback: u64 = reserve(&mut owner, 1, 1, 59, &mut calls);
+    let second: u64 = reserve(&mut owner, 2, 1, 59, &mut calls);
     let valid: bool = first == 47 && fallback == 83 && second == 59 &&
-        read(&owner.slots[0]) == 47 && read(&owner.slots[1]) == 59 &&
-        read(&owner.slots[2]) == 0 && owner.before == 91 && owner.after == 97 && calls.count == 2;
+        read(&owner.slots[2]) == 47 && read(&owner.slots[3]) == 59 &&
+        read(&owner.slots[1]) == 0 && read(&owner.slots[4]) == 0 && owner.before == 91 && owner.after == 97 && calls.count == 2;
     drop(owner);
     transition valid { true -> done() false -> bad() }
     machine done() {}
