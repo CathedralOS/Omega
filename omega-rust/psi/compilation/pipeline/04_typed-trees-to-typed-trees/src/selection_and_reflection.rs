@@ -52,6 +52,20 @@ pub(crate) mod selection {
             let mut machine_index = 0usize;
             let mut evidence_index = 0usize;
             for selected in machine_arguments {
+                // Retained source types preserve an implementation's scope;
+                // the operand still fills its declared evidence slot.
+                if selected.names_implementation(&program.symbols) {
+                    if evidence_index >= candidate.template.evidence_parameters.len() {
+                        return Err(StaticArgumentOverflow);
+                    }
+                    proposals.evidence.push((
+                        callee.candidate_index,
+                        evidence_index,
+                        selected.clone(),
+                    ));
+                    evidence_index += 1;
+                    continue;
+                }
                 let value_slot = const_index < candidate.template.const_parameters.len()
                     && candidate
                         .template
@@ -218,21 +232,6 @@ pub(crate) mod selection {
                             .push((callee.candidate_index, type_index, handle));
                     }
                     type_index += 1;
-                    continue;
-                }
-                if matches!(
-                    kind,
-                    SymbolKind::Conformance | SymbolKind::ConformanceParameter
-                ) {
-                    if evidence_index >= candidate.template.evidence_parameters.len() {
-                        return Err(StaticArgumentOverflow);
-                    }
-                    proposals.evidence.push((
-                        callee.candidate_index,
-                        evidence_index,
-                        selected.clone(),
-                    ));
-                    evidence_index += 1;
                     continue;
                 }
                 if !matches!(kind, SymbolKind::State | SymbolKind::MachineParameter) {

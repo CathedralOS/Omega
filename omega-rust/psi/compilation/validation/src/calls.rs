@@ -4590,7 +4590,9 @@ pub(crate) mod type_arguments {
                             program, *expression, &parameter.kind, owner,
                         ))
                 });
-            let actual = if const_expression {
+            // This query projects Type/Const substitutions from a complete
+            // static tuple. Implementation source references remain evidence.
+            let actual = if const_expression || selected.names_implementation(&program.symbols) {
                 None
             } else if selected.type_reference.is_valid() {
                 Some(selected.type_reference)
