@@ -6030,6 +6030,36 @@ pub(crate) mod selected_continuations {
         symbols::BuildSymbolHasher.hash_one(incoming)
     }
 
+    // A missing key is absent; None marks a repeated identity. Recording either
+    // condition is harmless until the original query order requests that block.
+    struct BlockPositions(symbols::SymbolKeyMap<BlockId, Option<usize>>);
+
+    impl BlockPositions {
+        const ABSENT_ERROR: LoweringError =
+            LoweringError::Unsupported("selected continuation names an absent block");
+        const REPEATED_ERROR: LoweringError =
+            LoweringError::Unsupported("selected continuation repeats a block identity");
+
+        fn new(blocks: impl Iterator<Item = BlockId>) -> Self {
+            let mut positions = symbols::SymbolKeyMap::default();
+            for (position, block) in blocks.enumerate() {
+                positions
+                    .entry(block)
+                    .and_modify(|entry| *entry = None)
+                    .or_insert(Some(position));
+            }
+            Self(positions)
+        }
+
+        fn position(&self, target: BlockId) -> Result<usize, LoweringError> {
+            self.0
+                .get(&target)
+                .copied()
+                .ok_or(Self::ABSENT_ERROR)?
+                .ok_or(Self::REPEATED_ERROR)
+        }
+    }
+
     pub(crate) fn prepare(
         machine: semantic_vocabulary::MachineId,
         entry: BlockId,
@@ -6040,6 +6070,9 @@ pub(crate) mod selected_continuations {
         groups: &[SelectedCleanupGroup],
         has_claim_bindings: bool,
     ) -> Result<Option<Specialization>, LoweringError> {
+        // Record identities once, but report absent or repeated identities only
+        // when the original validation order asks for that block.
+        let positions = BlockPositions::new(blocks.iter().map(|block| block.id));
         let mut regions = Vec::new();
         for group in groups {
             if group.region.access != StructuralAccess::Owned {
@@ -6057,7 +6090,7 @@ pub(crate) mod selected_continuations {
             {
                 return unsupported("selected home retirement has a projected value receiver");
             }
-            validate_group(machine, blocks, group)?;
+            validate_group(machine, blocks, &positions, group)?;
         }
         let extractions =
             super::affine_cleanup::owned_extractions(parameters, places, blocks, types)?;
@@ -6083,7 +6116,7 @@ pub(crate) mod selected_continuations {
         if regions.is_empty() && !has_claim_bindings {
             return Ok(None);
         }
-        let entry = block_position(blocks, entry)?;
+        let entry = positions.position(entry)?;
         let mut initial = vec![RegionState::Absent; regions.len()];
         for parameter in parameters {
             establish_parameter(&regions, &mut initial, parameter, &projected_roots);
@@ -6203,7 +6236,7 @@ pub(crate) mod selected_continuations {
                         dispose(&regions, &mut outgoing, action);
                     }
                 }
-                let original_block = block_position(blocks, target)?;
+                let original_block = positions.position(target)?;
                 let signature = incoming_signature(&outgoing);
                 let successor = candidates
                     .find(original_block, signature, &outgoing, &continuations)
@@ -6462,23 +6495,10 @@ pub(crate) mod selected_continuations {
         }
     }
 
-    fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringError> {
-        let mut positions = blocks
-            .iter()
-            .enumerate()
-            .filter(|(_, block)| block.id == target);
-        let Some((position, _)) = positions.next() else {
-            return unsupported("selected continuation names an absent block");
-        };
-        if positions.next().is_some() {
-            return unsupported("selected continuation repeats a block identity");
-        }
-        Ok(position)
-    }
-
     fn validate_group(
         machine: semantic_vocabulary::MachineId,
         blocks: &[Block],
+        positions: &BlockPositions,
         group: &SelectedCleanupGroup,
     ) -> Result<(), LoweringError> {
         let mut sites = blocks.iter().filter_map(|block| match &block.terminator {
@@ -6524,8 +6544,8 @@ pub(crate) mod selected_continuations {
                 },
             )));
         }
-        let entry = &blocks[block_position(blocks, target)?];
-        let bypass = &blocks[block_position(blocks, group.bypass)?];
+        let entry = &blocks[positions.position(target)?];
+        let bypass = &blocks[positions.position(group.bypass)?];
         if !entry.structural_parameters.is_empty()
             || !bypass.structural_parameters.is_empty()
             || entry
@@ -6552,6 +6572,30 @@ pub(crate) mod selected_continuations {
     mod continuation_candidate_tests {
         use super::*;
         use semantic_vocabulary::{ObligationId, ScalarType, StructuralCaseId, ValueId};
+
+        #[test]
+        fn block_positions_preserve_lazy_missing_and_duplicate_queries() {
+            let id = |value| BlockId::new(value).unwrap();
+            let blocks = [id(1), id(2), id(4), id(2)];
+            let positions = BlockPositions::new(blocks.into_iter());
+            for target in [id(1), id(4), id(2), id(3), id(1)] {
+                let direct = {
+                    let mut matches = blocks
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, block)| **block == target);
+                    match matches.next() {
+                        None => Err(BlockPositions::ABSENT_ERROR),
+                        Some((_, _)) if matches.next().is_some() => {
+                            Err(BlockPositions::REPEATED_ERROR)
+                        }
+                        Some((position, _)) => Ok(position),
+                    }
+                };
+                let indexed = positions.position(target);
+                assert_eq!(indexed, direct);
+            }
+        }
 
         #[test]
         fn signature_collisions_keep_full_states_and_first_discovery() {

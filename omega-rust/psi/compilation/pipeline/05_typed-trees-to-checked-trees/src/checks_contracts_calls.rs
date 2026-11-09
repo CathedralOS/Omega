@@ -242,6 +242,7 @@ mod captured_boolean {
         call: &FlowCallFact,
         contexts: &[facts::FactContextHandle],
         requirement: &Fact,
+        incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
         whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
     ) -> Option<bool> {
@@ -283,6 +284,7 @@ mod captured_boolean {
                     reference.fact,
                     contract_call.target_state_symbol,
                     expression,
+                    incoming_guards,
                     frames,
                     whole_contract_cache,
                 ) {
@@ -386,6 +388,7 @@ mod captured_boolean {
         contract_handle: arena::Handle<checked_trees::ContractProofFact>,
         target: symbols::SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
+        incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
         whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
     ) -> bool {
@@ -425,7 +428,17 @@ mod captured_boolean {
             }
         }
         captured_expression_proven(
-            program, facts, state, call, contexts, contract, target, expression, frames,
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            contract,
+            target,
+            expression,
+            incoming_guards,
+            frames,
+            guarantees.completed_calls(),
         )
     }
 
@@ -443,7 +456,59 @@ mod captured_boolean {
         contract: &checked_trees::ContractProofFact,
         target: symbols::SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
+        incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
+    ) -> bool {
+        // One clause may need its saved value while another can safely read an
+        // unchanged scalar. Check source identity separately for each clause;
+        // success here is never stored as a whole-contract answer.
+        captured_value_expression_proven(
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            contract,
+            target,
+            expression,
+            incoming_guards,
+            frames,
+            &mut *completed,
+        ) || (expression_substitution_preserves_captures(
+            program,
+            facts,
+            state,
+            call,
+            expression,
+            contract.fact,
+        ) == Some(true)
+            && super::boolean_requirements::proves(
+                program,
+                facts,
+                state,
+                call,
+                contexts,
+                expression,
+                incoming_guards,
+                frames,
+                completed,
+            ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn captured_value_expression_proven(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        state: &FlowStateFact,
+        call: &FlowCallFact,
+        contexts: &[facts::FactContextHandle],
+        contract: &checked_trees::ContractProofFact,
+        target: symbols::SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+        incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
+        frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
     ) -> bool {
         if call_values::proves_captured_arithmetic_requirement(
             program, facts, state, call, expression,
@@ -481,9 +546,19 @@ mod captured_boolean {
         }
         if let Some(binary) = program.expression_table.binary_node(expression) {
             use typed_trees::expression::BinaryOperator;
-            let child = |expression| {
+            let mut child = |expression| {
                 captured_expression_proven(
-                    program, facts, state, call, contexts, contract, target, expression, frames,
+                    program,
+                    facts,
+                    state,
+                    call,
+                    contexts,
+                    contract,
+                    target,
+                    expression,
+                    incoming_guards,
+                    frames,
+                    &mut *completed,
                 )
             };
             match binary.operator {
@@ -885,6 +960,24 @@ mod captured_boolean {
         else {
             return None;
         };
+        expression_substitution_preserves_captures(
+            program,
+            facts,
+            state,
+            call,
+            expression,
+            source_fact,
+        )
+    }
+
+    fn expression_substitution_preserves_captures(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        state: &FlowStateFact,
+        call: &FlowCallFact,
+        expression: typed_trees::expression::ExpressionHandle,
+        source_fact: arena::Handle<typed_trees::domain::ProofFact>,
+    ) -> Option<bool> {
         let contract_call = facts.proof.contract_call_at(&(
             state.machine_symbol,
             state.state_symbol,
@@ -3170,6 +3263,7 @@ pub(super) fn check_call_requires(
                     call_flow,
                     requirement_contexts,
                     fact,
+                    incoming_guards,
                     call_frames,
                     &mut whole_contract_caches[cache_index].answers,
                 );
