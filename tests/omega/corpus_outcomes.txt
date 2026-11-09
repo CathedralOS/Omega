@@ -21473,7 +21473,7 @@ pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 40039ms check-t
 pass/drops/runtime_nested_nominal_producer_loans_exit checked 36001ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 60977ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_array_replacement_exit checked 52055ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_nominal_case_observation_exit checked 9931ms check-target:macos_arm64 @6c3dcb823e47
+pass/drops/runtime_nominal_case_observation_exit checked 2658ms check-target:macos_arm64 @fb1a2e2bda83
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 43820ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_alias_exit checked 42431ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit checked 55727ms check-target:macos_arm64 @ee4dbb4b2d56
