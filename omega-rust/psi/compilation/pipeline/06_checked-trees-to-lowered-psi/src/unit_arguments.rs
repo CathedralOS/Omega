@@ -1003,13 +1003,25 @@ pub(crate) mod attached_unit {
                             leaf_span,
                             ..
                         } => {
-                            let candidate = if leaf_span.is_empty() {
-                                None
-                            } else {
-                                leaves.get(leaf_span.start)
+                            // This checked scope has no cleanup actions. Retain its
+                            // completed-value record without testing absent children.
+                            if leaf_span.is_empty() {
+                                return self.completed_partition_edge(
+                                    identities,
+                                    *place,
+                                    path,
+                                    crate::emission::selected_continuations::CompletedCleanupKind::Value,
+                                    values,
+                                    next_value,
+                                    next_block,
+                                    next_edge,
+                                    operations,
+                                );
                             }
-                            .and_then(|leaf| leaf.selected_region.as_ref())
-                            .filter(|region| region.place == *place && region.path == *path);
+                            let candidate = leaves
+                                .get(leaf_span.start)
+                                .and_then(|leaf| leaf.selected_region.as_ref())
+                                .filter(|region| region.place == *place && region.path == *path);
                             let bypass = if let Some(region) =
                                 candidate.filter(|candidate| Some(*candidate) != selected_scope)
                             {
@@ -1117,8 +1129,14 @@ pub(crate) mod attached_unit {
                         .filter(|arm| arm.reachability != Reachability::Inactive)
                         .collect::<Vec<_>>();
                     if reachable.is_empty() {
-                        return Err(LoweringError::InvalidCleanupPartition {
+                        return Err(LoweringError::InvalidCleanupCasePartition {
                             reason: "cleanup partition has no reachable alternative",
+                            place,
+                            path: path.to_vec(),
+                            structural_type,
+                            leaf_span: leaf_span.clone(),
+                            declared_cases: arms.len(),
+                            common_scopes: common.len(),
                         });
                     }
                     let condition = crate::unit::unit_cleanup::CleanupCaseCondition {

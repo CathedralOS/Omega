@@ -982,6 +982,15 @@ pub(crate) mod lowering_error {
         InvalidCleanupPartition {
             reason: &'static str,
         },
+        InvalidCleanupCasePartition {
+            reason: &'static str,
+            place: semantic_vocabulary::PlaceId,
+            path: Vec<terminal_psi::StructuralPathSegment>,
+            structural_type: semantic_vocabulary::StructuralTypeId,
+            leaf_span: std::ops::Range<usize>,
+            declared_cases: usize,
+            common_scopes: usize,
+        },
         InvalidReferenceContract {
             supplying_type: typed_trees::types::TypeReferenceHandle,
             reason: String,

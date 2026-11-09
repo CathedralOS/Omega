@@ -6073,6 +6073,112 @@ pub(crate) mod selected_continuations {
                 .or_default()
                 .push(position);
         }
+
+        fn release(&mut self, block: usize, continuations: &mut [Continuation]) {
+            for position in self.by_block[block].values().flatten() {
+                continuations[*position].incoming = Vec::new();
+            }
+            self.by_block[block].clear();
+        }
+    }
+
+    // Incoming states are lookup keys only while another predecessor can arrive.
+    // Keep the emitted topology, but release processed keys after their last reader.
+    struct IncomingKeyLifetimes {
+        successors: Vec<Vec<usize>>,
+        predecessors: Vec<usize>,
+        pending: Vec<usize>,
+        closed: Vec<bool>,
+    }
+
+    impl IncomingKeyLifetimes {
+        fn for_blocks(
+            blocks: &[Block],
+            positions: &BlockPositions,
+            groups: &[SelectedCleanupGroup],
+        ) -> Option<Self> {
+            let mut bypasses = groups
+                .iter()
+                .map(|group| (group.edge, group.bypass))
+                .collect::<Vec<_>>();
+            bypasses.sort_unstable_by_key(|(edge, _)| *edge);
+            let mut successors = Vec::with_capacity(blocks.len());
+            for (position, block) in blocks.iter().enumerate() {
+                // Unknown or repeated identities leave the original lazy checks in
+                // charge. They do not establish that a lookup key is dead.
+                if positions.position(block.id).ok()? != position {
+                    return None;
+                }
+                let mut targets = Vec::new();
+                for (edge, target) in block.terminator.successor_edges() {
+                    targets.push(positions.position(target).ok()?);
+                    let first = bypasses.partition_point(|(candidate, _)| *candidate < edge);
+                    for (_, bypass) in bypasses[first..]
+                        .iter()
+                        .take_while(|(candidate, _)| *candidate == edge)
+                    {
+                        targets.push(positions.position(*bypass).ok()?);
+                    }
+                }
+                targets.sort_unstable();
+                targets.dedup();
+                successors.push(targets);
+            }
+            Self::from_successors(successors)
+        }
+
+        fn from_successors(successors: Vec<Vec<usize>>) -> Option<Self> {
+            let mut predecessors = vec![0_usize; successors.len()];
+            for targets in &successors {
+                for target in targets {
+                    let count = predecessors.get_mut(*target)?;
+                    *count = count.checked_add(1)?;
+                }
+            }
+            let pending = vec![0; successors.len()];
+            let closed = vec![false; successors.len()];
+            Some(Self {
+                successors,
+                predecessors,
+                pending,
+                closed,
+            })
+        }
+
+        fn discover(&mut self, block: usize) {
+            // Every arrival's source is still pending, so it cannot have closed
+            // this destination's complete predecessor set.
+            debug_assert!(!self.closed[block]);
+            self.pending[block] += 1;
+        }
+
+        fn processed(&mut self, block: usize) -> Vec<usize> {
+            self.pending[block] -= 1;
+            self.close_ready(vec![block])
+        }
+
+        fn close_unused_roots(&mut self) {
+            let roots = (0..self.successors.len())
+                .filter(|block| self.predecessors[*block] == 0 && self.pending[*block] == 0)
+                .collect();
+            self.close_ready(roots);
+        }
+
+        fn close_ready(&mut self, mut ready: Vec<usize>) -> Vec<usize> {
+            let mut closed = Vec::new();
+            while let Some(block) = ready.pop() {
+                if self.closed[block] || self.predecessors[block] != 0 || self.pending[block] != 0 {
+                    continue;
+                }
+                self.closed[block] = true;
+                closed.push(block);
+                for target in &self.successors[block] {
+                    self.predecessors[*target] -= 1;
+                    ready.push(*target);
+                }
+            }
+            closed
+        }
     }
 
     fn incoming_signature(incoming: &[RegionState]) -> u64 {
@@ -6178,6 +6284,11 @@ pub(crate) mod selected_continuations {
             incoming: initial,
             successors: Vec::new(),
         }];
+        let mut key_lifetimes = IncomingKeyLifetimes::for_blocks(blocks, &positions, groups);
+        if let Some(lifetimes) = &mut key_lifetimes {
+            lifetimes.discover(entry);
+            lifetimes.close_unused_roots();
+        }
         // Only continuations of the same original block can share an incoming
         // state. Keep their discovery order and compare the complete state.
         let mut candidates = ContinuationCandidates::new(blocks.len());
@@ -6315,21 +6426,31 @@ pub(crate) mod selected_continuations {
                 }
                 let original_block = positions.position(target)?;
                 let signature = incoming_signature(&outgoing);
-                let successor = candidates
-                    .find(original_block, signature, &outgoing, &continuations)
-                    .unwrap_or_else(|| {
-                        let successor = continuations.len();
-                        continuations.push(Continuation {
-                            original_block,
-                            incoming: outgoing,
-                            successors: Vec::new(),
-                        });
-                        candidates.insert(original_block, signature, successor);
-                        successor
+                let successor = if let Some(successor) =
+                    candidates.find(original_block, signature, &outgoing, &continuations)
+                {
+                    successor
+                } else {
+                    if let Some(lifetimes) = &mut key_lifetimes {
+                        lifetimes.discover(original_block);
+                    }
+                    let successor = continuations.len();
+                    continuations.push(Continuation {
+                        original_block,
+                        incoming: outgoing,
+                        successors: Vec::new(),
                     });
+                    candidates.insert(original_block, signature, successor);
+                    successor
+                };
                 successors.push((edge, successor));
             }
             continuations[position].successors = successors;
+            if let Some(lifetimes) = &mut key_lifetimes {
+                for block in lifetimes.processed(continuations[position].original_block) {
+                    candidates.release(block, &mut continuations);
+                }
+            }
             position += 1;
         }
         Ok(Some(Specialization {
@@ -6654,6 +6775,49 @@ pub(crate) mod selected_continuations {
     mod continuation_candidate_tests {
         use super::*;
         use semantic_vocabulary::{ObligationId, ScalarType, StructuralCaseId, ValueId};
+
+        #[test]
+        fn incoming_keys_wait_for_all_predecessors_and_pending_work() {
+            let mut lifetimes = IncomingKeyLifetimes::from_successors(vec![
+                vec![1, 2],
+                vec![3],
+                vec![4],
+                vec![],
+                vec![3],
+                vec![3],
+            ])
+            .unwrap();
+            lifetimes.discover(0);
+            lifetimes.close_unused_roots();
+            assert!(lifetimes.closed[5]);
+            lifetimes.discover(1);
+            lifetimes.discover(2);
+            assert_eq!(lifetimes.processed(0), vec![0]);
+            lifetimes.discover(3);
+            assert_eq!(lifetimes.processed(1), vec![1]);
+            // The first arrival can finish before another predecessor arrives.
+            assert!(lifetimes.processed(3).is_empty());
+            assert!(!lifetimes.closed[3]);
+            lifetimes.discover(4);
+            assert_eq!(lifetimes.processed(2), vec![2]);
+            assert!(!lifetimes.closed[3]);
+            lifetimes.discover(3);
+            assert_eq!(lifetimes.processed(4), vec![4]);
+            assert!(!lifetimes.closed[3]);
+            assert_eq!(lifetimes.processed(3), vec![3]);
+
+            let mut cycle =
+                IncomingKeyLifetimes::from_successors(vec![vec![1], vec![1, 2], vec![]]).unwrap();
+            cycle.discover(0);
+            cycle.close_unused_roots();
+            cycle.discover(1);
+            assert_eq!(cycle.processed(0), vec![0]);
+            cycle.discover(2);
+            assert!(cycle.processed(1).is_empty());
+            assert!(cycle.processed(2).is_empty());
+            assert!(!cycle.closed[1] && !cycle.closed[2]);
+            assert!(IncomingKeyLifetimes::from_successors(vec![vec![1]]).is_none());
+        }
 
         #[test]
         fn copied_partial_states_share_paths_and_keep_independent_lists() {
