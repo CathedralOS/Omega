@@ -46587,6 +46587,7 @@ pub(crate) mod structural_case_arms {
             std::sync::Arc::make_mut(&mut arm_judge.substitutions)
                 .insert(0, (subject.clone(), constructor.clone()));
         }
+        arm_judge.retain_case_equation_guarantees(judge, case_hypotheses, case_equations);
         let requires = judge.premise_facts().to_vec();
         let vacuous = requires.iter().any(|fact| {
             matches!(
@@ -47681,6 +47682,77 @@ pub(crate) mod structural_judgment {
                         }
                     }
                     _ => {}
+                }
+            }
+
+            pub(crate) fn retain_case_equation_guarantees(
+                &mut self,
+                previous: &Self,
+                hypotheses: &[(String, StructuralTerm)],
+                equations: &[(StructuralTerm, StructuralTerm)],
+            ) {
+                // A match gives the same payload a fresh arm name. Carry equations
+                // already admitted for its exact source through that association;
+                // replacing only the parent otherwise strands its projected facts.
+                let bindings = equations
+                    .iter()
+                    .cloned()
+                    .chain(hypotheses.iter().map(|(name, constructor)| {
+                        (StructuralTerm::Variable(name.clone()), constructor.clone())
+                    }))
+                    .filter(|(subject, constructor)| {
+                        previous.equation_inputs_are_observed(subject, constructor, 0)
+                    })
+                    .map(|(subject, constructor)| {
+                        (
+                            subject.into_semantic_value(),
+                            constructor.into_semantic_value(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                if bindings.is_empty() {
+                    return;
+                }
+                fn substitute(
+                    value: StructuralTerm,
+                    bindings: &[(StructuralTerm, StructuralTerm)],
+                    changed: &mut bool,
+                    depth: usize,
+                ) -> StructuralTerm {
+                    if depth >= 64 {
+                        return value;
+                    }
+                    if let Some((_, replacement)) = bindings
+                        .iter()
+                        .find(|(source, _)| source.same_resolution_payload(&value))
+                    {
+                        *changed = true;
+                        return replacement.clone();
+                    }
+                    match value {
+                        StructuralTerm::ObservedValue {
+                            observed_type,
+                            value,
+                            descriptor,
+                        } => {
+                            // An arm name does not replace an observation's authority.
+                            StructuralTerm::ObservedValue {
+                                observed_type,
+                                value: Box::new(substitute(*value, bindings, changed, depth + 1)),
+                                descriptor,
+                            }
+                        }
+                        other => other
+                            .map_children(|child| substitute(child, bindings, changed, depth + 1)),
+                    }
+                }
+                for (left, right) in previous.rewrites.iter() {
+                    let mut changed = false;
+                    let left = substitute(left.clone(), &bindings, &mut changed, 0);
+                    let right = substitute(right.clone(), &bindings, &mut changed, 0);
+                    if changed {
+                        self.intake_equation(left, right, 0);
+                    }
                 }
             }
 
