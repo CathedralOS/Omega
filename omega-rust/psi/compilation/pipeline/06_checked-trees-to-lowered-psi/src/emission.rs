@@ -6078,7 +6078,7 @@ pub(crate) mod selected_continuations {
             for position in self.by_block[block].values().flatten() {
                 continuations[*position].incoming = Vec::new();
             }
-            self.by_block[block].clear();
+            self.by_block[block] = Default::default();
         }
     }
 
