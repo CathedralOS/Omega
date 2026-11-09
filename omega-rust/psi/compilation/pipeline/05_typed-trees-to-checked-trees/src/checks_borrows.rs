@@ -10970,7 +10970,7 @@ mod place_access {
         }
         let selected = selected.ok_or_else(|| {
             if ::validation::trace_flags::check_sites() {
-                trace_argument_capture_refusal(program, facts, state, call, access);
+                trace_argument_capture_refusal(facts, state, call, access);
             }
             "the access has no unique completed operand"
         })?;
@@ -11136,7 +11136,6 @@ mod place_access {
         Arena-wide matches are reported for diagnosis, never chosen as a fallback.
     */
     fn trace_argument_capture_refusal(
-        program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
         state: &FlowStateFact,
         call: &checked_trees::BorrowCallFact,
@@ -11144,130 +11143,24 @@ mod place_access {
     ) {
         let control = &facts.flow.control;
         eprintln!(
-            "CHECKSITE argument-capture machine={:?}({}) state={:?}({}) call={call:?} access={access:?}",
-            state.machine_symbol,
-            program.symbols.name(state.machine_symbol),
-            state.state_symbol,
-            program.symbols.name(state.state_symbol),
+            "CHECKSITE argument-capture state={:?} statement={} ordinal={} access={:?}",
+            state.state_symbol, call.statement_index, call.call_ordinal, access
         );
-        if program
-            .expression_table
-            .expression_is_valid(access.expression)
-        {
-            eprintln!(
-                "CHECKSITE argument-capture-source {:?} {}",
-                program.expression_table.source_span(access.expression),
-                program.render_proof_expression(
-                    access.expression,
-                    typed_trees::proposition::ProofSubstitutions::None
-                ),
-            );
-        }
-        let invocations = control.calls.span_or_empty(state.calls);
-        for invocation in invocations
-            .iter()
-            .filter(|invocation| invocation.statement_index == call.statement_index)
-            .take(8)
-        {
-            eprintln!("CHECKSITE argument-capture-invocation {invocation:?}");
-        }
-        let own = invocations
-            .iter()
-            .filter(|source| {
-                source.statement_index == call.statement_index
-                    && source.call_ordinal == call.call_ordinal
-            })
-            .collect::<Vec<_>>();
-        let reason = match own.as_slice() {
-            [] => "no call at the exact statement and ordinal",
-            [source] if source.target_symbol != call.target_symbol => "call target mismatch",
-            [source] if source.accesses != call.accesses => "call access span mismatch",
-            [_] => "inspect own operand graph",
-            _ => "multiple calls at the exact statement and ordinal",
-        };
-        eprintln!(
-            "CHECKSITE argument-capture-call-match count={} reason={reason}",
-            own.len()
-        );
-        if let [source] = own.as_slice() {
-            let mut pending = source.operands.handles().collect::<Vec<_>>();
-            let mut visited = Vec::new();
-            let mut matches = Vec::new();
-            let mut complete = true;
-            while let Some(handle) = pending.pop() {
-                if visited.contains(&handle) {
-                    continue;
-                }
-                if visited.len() == 64 || !control.operands.is_valid(handle) {
-                    eprintln!(
-                        "CHECKSITE argument-capture-graph-stop handle={handle:?} visited={}",
-                        visited.len()
-                    );
-                    complete = false;
-                    break;
-                }
-                visited.push(handle);
-                let value = control.operands.get(handle);
-                let at_call = value.state_symbol == state.state_symbol
-                    && value.statement_index == call.statement_index;
-                let matching = at_call && value.expression == access.expression;
-                eprintln!(
-                    "CHECKSITE argument-capture-operand handle={handle:?} at_call={at_call} matching={matching} value={value:?}"
-                );
-                if !at_call {
-                    continue;
-                }
-                if matching {
-                    matches.push(handle);
-                    continue;
-                }
-                if value.backing.is_valid() {
-                    pending.push(value.backing);
-                }
-                pending.extend(value.evaluated_inputs.handles());
-                let children = match value.completion {
-                    checked_trees::FlowOperandCompletion::Constructed(children) => {
-                        control.operand_children.span(children).map(|children| {
-                            children.iter().map(|child| child.value).collect::<Vec<_>>()
-                        })
-                    }
-                    checked_trees::FlowOperandCompletion::Selected(alternatives) => control
-                        .operand_alternatives
-                        .span(alternatives)
-                        .map(|alternatives| {
-                            alternatives
-                                .iter()
-                                .map(|alternative| alternative.value)
-                                .collect()
-                        }),
-                    _ => Some(Vec::new()),
-                };
-                if let Some(children) = children {
-                    pending.extend(children);
-                } else {
-                    eprintln!(
-                        "CHECKSITE argument-capture-graph-invalid-children handle={handle:?}"
-                    );
-                    complete = false;
-                    break;
-                }
+        for invocation in control.calls.span_or_empty(state.calls) {
+            if invocation.statement_index == call.statement_index {
+                eprintln!("CHECKSITE argument-capture-invocation {:?}", invocation);
             }
-            eprintln!(
-                "CHECKSITE argument-capture-graph-result complete={complete} visited={} matches={matches:?}",
-                visited.len()
-            );
         }
-        for (handle, value) in control
-            .operands
-            .iter()
-            .filter(|(_, value)| {
-                value.state_symbol == state.state_symbol
-                    && value.statement_index == call.statement_index
-                    && value.expression == access.expression
-            })
-            .take(16)
-        {
-            eprintln!("CHECKSITE argument-capture-candidate {handle:?} {value:?}");
+        for (handle, value) in control.operands.iter() {
+            if value.state_symbol == state.state_symbol
+                && value.statement_index == call.statement_index
+                && value.expression == access.expression
+            {
+                eprintln!(
+                    "CHECKSITE argument-capture-candidate {:?} {:?}",
+                    handle, value
+                );
+            }
         }
     }
 

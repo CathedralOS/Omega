@@ -34384,18 +34384,6 @@ pub(crate) mod refuted_requires {
             })
             .flatten()
             .map(|term| StructuralJudge::substitute_call_term(&term, map, machine_map));
-        if crate::trace_flags::check_sites()
-            && caller_scope.is_some_and(|(machine, _)| machine.name.as_str() == "owned_read")
-        {
-            judge.trace_selected_operation_receiving(
-                callee_owner,
-                fact,
-                whole.as_ref(),
-                map,
-                machine_map,
-                type_map,
-            );
-        }
         let projection_uncertified = whole
             .as_ref()
             .is_some_and(|term| uncertified_call_projection(program, term));
@@ -38869,49 +38857,9 @@ pub(crate) mod specification_calls {
                 owner: &SelectedCallContract<'_>,
                 site: crate::CallSite<'_>,
             ) -> Option<Self> {
-                let mut retained = Self::for_retained_call_site(program, caller, owner, site);
-                let operations = retained.as_mut().map(|bindings| {
-                    bindings
-                        .retain_requirement_operations(program, caller, site)
-                        .is_some()
-                });
-                if crate::trace_flags::check_sites()
-                    && program
-                        .machine_by_symbol(caller)
-                        .is_some_and(|machine| machine.name.as_str() == "owned_read")
-                {
-                    use std::sync::atomic::{AtomicUsize, Ordering};
-                    static OBSERVATIONS: AtomicUsize = AtomicUsize::new(0);
-                    if OBSERVATIONS.fetch_add(1, Ordering::Relaxed) < 4 {
-                        let header = match site {
-                            crate::CallSite::Expression { call, .. } => {
-                                call.authored_machine_application
-                            }
-                            crate::CallSite::Statement(call) => call.authored_machine_application,
-                            crate::CallSite::TransitionNamed { .. } => Default::default(),
-                        };
-                        eprintln!(
-                            "CHECKSITE selected-predicate-intake caller={caller:?} owner={:?} header={header:?} retained={} operations={operations:?} types={:?} machines={:?} implementations={:?}",
-                            owner_symbol(owner),
-                            retained.is_some(),
-                            retained.as_ref().map(|bindings| &bindings.types),
-                            retained.as_ref().map(|bindings| &bindings.machines),
-                            retained.as_ref().map(|bindings| &bindings.implementations)
-                        );
-                        if header.is_valid() {
-                            eprintln!(
-                                "CHECKSITE selected-predicate-header source={:?} arguments={:?} bindings={:?}",
-                                expression_table(program).static_machine_application(header),
-                                expression_table(program)
-                                    .static_machine_application_arguments(header),
-                                expression_table(program)
-                                    .static_machine_application_bindings(header)
-                            );
-                        }
-                    }
-                }
-                operations.filter(|retained| *retained)?;
-                retained
+                let mut bindings = Self::for_retained_call_site(program, caller, owner, site)?;
+                bindings.retain_requirement_operations(program, caller, site)?;
+                Some(bindings)
             }
 
             fn for_retained_call_site(
@@ -81157,44 +81105,16 @@ pub(crate) mod structural_judgment {
                             && program
                                 .primitive_type_reference(capture.observation_type)
                                 .is_some();
-                        let stored = selected_read
-                            .then(|| {
-                                self.stored_value_observation(
-                                    scope.map(|(machine, state, _)| (machine, state)),
-                                    capture.expression,
-                                    |selector| child_term!(selector),
-                                )
-                            })
-                            .flatten();
-                        let from_stored = stored.is_some();
-                        let value = stored.or_else(|| child_term!(capture.expression));
-                        if crate::trace_flags::check_sites()
-                            && program
-                                .symbols
-                                .display_path(self.machine_symbol, "::")
-                                .rsplit("::")
-                                .next()
-                                == Some("echo")
+                        if selected_read
+                            && let Some(value) = self.stored_value_observation(
+                                scope.map(|(machine, state, _)| (machine, state)),
+                                capture.expression,
+                                |selector| child_term!(selector),
+                            )
                         {
-                            static EVENTS: std::sync::atomic::AtomicUsize =
-                                std::sync::atomic::AtomicUsize::new(0);
-                            if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
-                                eprintln!(
-                                    "CHECKSITE scalar-capture owner={} expression={:?} source={} source_type={:?} observation_type={:?} selected_read={selected_read} from_stored={from_stored} stored_count={} specification={} runtime={} version={:?} scope={:?} value={value:?}",
-                                    program.symbols.display_path(self.machine_symbol, "::"),
-                                    capture.expression,
-                                    expression_table(program).display_name(capture.expression),
-                                    capture.source_type,
-                                    capture.observation_type,
-                                    self.stored_values.len(),
-                                    self.specification_terms,
-                                    self.runtime_body_values,
-                                    self.storage_version,
-                                    scope.map(|(machine, state, _)| (machine.symbol, state.symbol)),
-                                );
-                            }
+                            return Some(value);
                         }
-                        value
+                        child_term!(capture.expression)
                     },
                 );
             }
@@ -81514,85 +81434,6 @@ pub(crate) mod structural_judgment {
                     child_term!(binary.right)?,
                 ),
                 _ => None,
-            }
-        }
-
-        #[allow(clippy::too_many_arguments)]
-        pub(crate) fn trace_selected_operation_receiving(
-            &self,
-            callee: SymbolHandle,
-            fact: ExpressionHandle,
-            required: Option<&StructuralTerm>,
-            values: &[(String, StructuralTerm)],
-            machines: &[(SymbolHandle, TypeReferenceHandle, StaticMachineArgument)],
-            types: &[(SymbolHandle, TypeReferenceHandle)],
-        ) {
-            use std::sync::atomic::{AtomicUsize, Ordering};
-            static OBSERVATIONS: AtomicUsize = AtomicUsize::new(0);
-            if OBSERVATIONS.fetch_add(1, Ordering::Relaxed) >= 4 {
-                return;
-            }
-            eprintln!(
-                "CHECKSITE selected-predicate-demand caller={:?} state={:?} storage={:?} callee={callee:?} fact={fact:?} source={} required={required:?} values={values:?} machines={machines:?} types={types:?}",
-                self.machine_symbol,
-                self.declaration_state,
-                self.storage_version,
-                self.program.expression_table.display_name(fact)
-            );
-            eprintln!(
-                "CHECKSITE selected-predicate-frame parameters={:?} substitutions={:?} premise_facts={:?}",
-                self.declaration_parameters, self.substitutions, self.premise_facts
-            );
-            for (position, (left, right)) in self
-                .rewrites
-                .entries()
-                .iter()
-                .filter(|(left, right)| {
-                    matches!(left.semantic_value(), StructuralTerm::Application { .. })
-                        || matches!(right.semantic_value(), StructuralTerm::Application { .. })
-                })
-                .take(8)
-                .enumerate()
-            {
-                eprintln!(
-                    "CHECKSITE selected-predicate-available row={position} left={left:?} right={right:?}"
-                );
-            }
-            for (position, equation) in self.normal_guarantees.iter().take(4).enumerate() {
-                eprintln!(
-                    "CHECKSITE selected-predicate-normal row={position} equation={equation:?}"
-                );
-            }
-            for (position, stored) in self.stored_values.iter().take(8).enumerate() {
-                eprintln!(
-                    "CHECKSITE selected-predicate-storage row={position} coordinate={:?} entry={:?} current={:?} anchors={:?} anchor_state={:?} backing={:?}",
-                    stored.coordinate,
-                    stored.entry,
-                    stored.current,
-                    stored.current_anchors,
-                    stored.anchor_state,
-                    stored.backing.is_some()
-                );
-            }
-            fn shells(term: &StructuralTerm, remaining: &mut usize) {
-                if *remaining == 0 {
-                    return;
-                }
-                *remaining -= 1;
-                if let StructuralTerm::ObservedValue {
-                    observed_type,
-                    descriptor,
-                    ..
-                } = term
-                {
-                    eprintln!(
-                        "CHECKSITE selected-predicate-shell type={observed_type:?} descriptor={descriptor:?}"
-                    );
-                }
-                term.for_each_child(|child| shells(child, remaining));
-            }
-            if let Some(required) = required {
-                shells(required, &mut 24);
             }
         }
 
@@ -85113,20 +84954,6 @@ pub(crate) mod structural_terms {
                 .iter()
                 .map(|capture| {
                     let mut value = observe(capture)?;
-                    let trace = crate::trace_flags::check_sites()
-                        && program.symbols.display_path(application.owner, "::")
-                            .rsplit("::").next() == Some("echo");
-                    if trace {
-                        static EVENTS: std::sync::atomic::AtomicUsize =
-                            std::sync::atomic::AtomicUsize::new(0);
-                        if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
-                            eprintln!(
-                                "CHECKSITE scalar-application owner={} application={:?} capture={:?} source_type={:?} observation_type={:?} value={value:?}",
-                                program.symbols.display_path(application.owner, "::"),
-                                expression, capture.expression, capture.source_type, capture.observation_type,
-                            );
-                        }
-                    }
                     let mut value_type = capture.source_type;
                     if crate::reference_shell(program, capture.source_type).is_some()
                         && program
@@ -85138,18 +84965,8 @@ pub(crate) mod structural_terms {
                             capture.source_type,
                             capture.observation_type,
                         )?;
-                        let observed = super::scalar_operand_is_observed(program, capture.source_type, &value);
-                        if trace {
-                            static EVENTS: std::sync::atomic::AtomicUsize =
-                                std::sync::atomic::AtomicUsize::new(0);
-                            if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
-                                eprintln!(
-                                    "CHECKSITE scalar-application-read application={:?} capture={:?} observed={observed} value={value:?}",
-                                    expression, capture.expression,
-                                );
-                            }
-                        }
-                        if !observed {
+                        if !super::scalar_operand_is_observed(program, capture.source_type, &value)
+                        {
                             return None;
                         }
                         // This receives an existing checked read. A descriptor
