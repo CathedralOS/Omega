@@ -346,13 +346,11 @@ fn selected_plan<'plans>(
                         })
                 })
                 .flatten()
-                .and_then(|profile| {
-                    match profile.canonical_float_realization(name)? {
-                        target::CanonicalFloatRealization::Unsupported { constraint } => {
-                            Some((profile, constraint))
-                        }
-                        target::CanonicalFloatRealization::CatalogIntrinsic { .. } => None,
+                .and_then(|profile| match profile.canonical_float_realization(name)? {
+                    target::CanonicalFloatRealization::Unsupported { constraint } => {
+                        Some((profile, constraint))
                     }
+                    target::CanonicalFloatRealization::CatalogIntrinsic { .. } => None,
                 });
             if let Some((profile, constraint)) = unsupported {
                 return Err(Diagnostic::error(format!(

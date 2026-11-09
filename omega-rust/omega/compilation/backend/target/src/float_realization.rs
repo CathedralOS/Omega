@@ -226,6 +226,13 @@ impl TargetProfile {
             CanonicalFloatRealization::Unsupported {
                 constraint: "x86-64 has no directed-rounding fused multiply-add realization",
             }
+        } else if fused && directed {
+            // Core's former Build program selected these for AArch64, but the
+            // instruction catalog never realized them natively; declaring them
+            // unsupported rejects at checking instead of at native emission.
+            CanonicalFloatRealization::Unsupported {
+                constraint: "the AArch64 instruction catalog has no directed-rounding fused multiply-add realization",
+            }
         } else {
             CanonicalFloatRealization::CatalogIntrinsic {
                 isa: if x86 && fused {
@@ -259,14 +266,16 @@ mod tests {
     }
 
     #[test]
-    fn directed_fused_multiply_add_is_arm_only() {
+    fn directed_fused_multiply_add_has_no_native_realization() {
         let directed = "F64::fused_multiply_add_toward_zero(named(name(f64)))";
+        for profile in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+            assert!(matches!(
+                profile.canonical_float_realization(directed),
+                Some(CanonicalFloatRealization::Unsupported { .. })
+            ));
+        }
         assert!(matches!(
-            TargetProfile::LinuxX64.canonical_float_realization(directed),
-            Some(CanonicalFloatRealization::Unsupported { .. })
-        ));
-        assert!(matches!(
-            TargetProfile::LinuxArm64.canonical_float_realization(directed),
+            TargetProfile::LinuxArm64.canonical_float_realization("F64::divide_toward_zero"),
             Some(CanonicalFloatRealization::CatalogIntrinsic {
                 controls: FloatControlObligation::DirectedRoundingRestored,
                 ..

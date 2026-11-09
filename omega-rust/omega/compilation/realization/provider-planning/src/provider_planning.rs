@@ -215,11 +215,11 @@ pub(crate) fn entry_state<'typed>(
 
 pub(crate) mod selection_declarations {
     use crate::{ProviderSelection, ProviderSelectionSubject};
+    use checked_trees::typed_trees::TypedTrees;
     use provider_selection::{
         ProviderDeclaration, ProviderFamily, ProviderFamilyCoordinate, ProviderIdentity,
         ProviderSubject, SelectionProvenance,
     };
-    use checked_trees::typed_trees::TypedTrees;
     use symbols::SymbolHandle;
 
     pub(crate) fn project_declaration<Declaration, Origin>(

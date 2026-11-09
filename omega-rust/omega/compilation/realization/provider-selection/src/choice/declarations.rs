@@ -195,7 +195,7 @@ pub struct ProviderCandidate<Declaration, Owner = ()> {
     pub declarations: CandidateDeclarations<Declaration>,
     pub native_build: bool,
     pub canonical_float_map: bool, // provider is the authenticated sealed core float catalog map
-    pub owner: Owner, // exact derivation or canonical closure travels with its plan
+    pub owner: Owner,              // exact derivation or canonical closure travels with its plan
 }
 
 #[derive(Debug, Clone)]

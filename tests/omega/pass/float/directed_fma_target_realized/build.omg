@@ -1,6 +1,0 @@
-// AArch64 declares a catalog realization for directed-rounding fused
-// multiply-add; the program makes no float provider selection.
-machine build(builder: &mut Build) {
-    Build::application(builder, "directed_fma_target_realization");
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-}
