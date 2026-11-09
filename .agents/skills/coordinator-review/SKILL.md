@@ -78,6 +78,12 @@ the five checks below fail:
   through Stage 06 (`06_checked-trees-to-lowered-psi`), Terminal Psi
   execution, and native codegen (`omega run --both`), rather than stopping at
   `--check`.
+- **Bounce a sound patch in the wrong place:** Correct is not sufficient. Return
+  a PR that adds a carrier, case or per-place branch where a shared operation
+  could serve, even if every check passes. Accept a cluster report in its place.
+- **Family sweep shown, not claimed:** A claimed family sweep names the rows it
+  covered. The PR's `Gate:` line must describe the change's real purpose; a
+  `red rows: 0` PR must unlock something this review can check.
 
 ### Point 3: Golden File Diff Audit (`tests/omega/corpus_outcomes.txt` & `corpus_both_*.txt`)
 Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
