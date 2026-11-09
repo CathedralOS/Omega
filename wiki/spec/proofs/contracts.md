@@ -137,7 +137,10 @@ distinction; no new domain atom or runtime provider search stands in for it.
 Runtime integer/address values enter mathematical integer arithmetic through the
 total `embed` projection, retaining exact carrier range. Policy erasure with
 `as` instead selects Exact carrier arithmetic and retains representability
-obligations. Trapping arithmetic does not form a proof term. Floats project to
+obligations. Trapping arithmetic, including the `!`
+[policy operators](../language/numeric_values.md#policy-operators), does not
+form a proof term; the normal return of a `!` operation establishes that its
+result equals the exact mathematical result. Floats project to
 [FloatMeaning](../terminal-psi/mathematical_values.md#floatmeaning), preserving
 signed zero, infinity, and NaN rather than pretending every float is rational.
 

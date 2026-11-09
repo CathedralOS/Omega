@@ -148,6 +148,12 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Operation arithmetic policy](designs/operation_arithmetic_policy.md):
+  `%`, `|` and `!` suffixes choose wrapping, saturating or trapping arithmetic
+  at one operation, the three policy domains become core domains that forward
+  to them, and `source/psi` drops `in Trapping`; delete when the board item
+  lands.
+
 - [Validation subjects](designs/validation_subjects.md): check the selected
   packages in full and dependencies only through their semantic closure, with
   `Build::validate`, the workspace default and admission validation; delete

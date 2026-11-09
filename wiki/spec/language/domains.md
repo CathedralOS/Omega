@@ -614,6 +614,12 @@ one role reject: `Km & Wrapping` has different roles; `Wrapping & Trapping`
 has conflicting arithmetic policies. Composition is not sequential execution
 of unrelated operator implementations.
 
+`Wrapping`, `Saturating` and `Trapping` are the `omega::core` contributions to
+the arithmetic-policy role. Their unsuffixed integer operators are defined by
+the [policy operators](numeric_values.md#policy-domains): the domain selects
+which suffixed operation `+` means for its operands. A policy operator written
+directly reads no qualification and contributes to no role.
+
 Resolution reads static binding qualifications, never incidental flow facts.
 The selected operation is unambiguous and retained in the checked artifact;
 an unrelated import cannot inject a competing meaning. Predicates do not

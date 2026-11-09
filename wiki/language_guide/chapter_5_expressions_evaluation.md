@@ -308,11 +308,31 @@ does not excuse an overflowing intermediate. There is no implicit widening;
 `u8 + u8` requires a `u8` result unless an explicit conversion chooses a wider
 operation.
 
-For intentionally different overflow behavior, choose one policy:
+For intentionally different overflow behavior, name a policy at the operation
+with a suffix on the operator:
 
-- `Wrapping` reduces overflow modulo the carrier width.
-- `Saturating` clamps overflow to the carrier bounds.
-- `Trapping` checks at runtime and traps at the primitive's failure edge.
+```omega
+let next: u64 = cursor +! width;   // traps on overflow
+let mixed: u32 = hash *% 31;       // wraps modulo 2^32
+let raised: u8 = level +| step;    // clamps to 0..=255
+```
+
+- `%` (Wrapping) reduces overflow modulo the carrier width.
+- `|` (Saturating) clamps overflow to the carrier bounds.
+- `!` (Trapping) checks at runtime and traps at the primitive's failure edge.
+  After it returns, the result is the exact value and the checker knows it.
+
+The suffixes apply to `+`, `-`, `*`, `/`, `%`, `<<` and `>>`. Operands and
+results stay plain integers, so the next operation is Exact again unless it
+names a policy too. A `!` operation is a crash site: its machine's crash
+contract must admit `Trap` unless facts already rule the failure out.
+
+When every operation on a value should use one policy, qualify the value
+instead: `u32 in Wrapping`, `u8 in Saturating` or `u64 in Trapping`. These core
+domains make the unsuffixed operators mean the suffixed ones, and the result
+keeps the qualification. They suit values that are modular or clamped by
+nature, such as a hash state or a sequence number. For one checked addition the
+operator says the same thing without marking the value.
 
 These policies do not all repair invalid operands: wrapping and saturation
 never license integer division by zero. Policies compose with independent
