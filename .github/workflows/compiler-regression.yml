@@ -100,6 +100,8 @@ jobs:
         if: inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '' || inputs.qualification_controls != ''
         shell: bash
         env:
+          OMEGA_STRUCT_TRACE: "1"
+          OMEGA_ENTAILMENT_TRACE: "1"
           QUALIFICATION_CORPUS: ${{ inputs.qualification_corpus }}
           QUALIFICATION_RUNTIME: ${{ inputs.qualification_runtime }}
           QUALIFICATION_SAMPLES: ${{ inputs.qualification_samples }}
