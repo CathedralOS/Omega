@@ -3282,8 +3282,8 @@ pub(in crate::execution::terminal_unit) mod retained_owners {
     use super::actions::disposition_actions as selected_regions;
     use crate::execution::terminal_unit::types::ShapeCollector;
     use checked_trees::{
-        CheckFacts, CheckedNormalCleanupAction, CheckedUnitCallCoordinate,
-        CheckedUnitCallableEntry, CheckedUnitStructuralArgumentSourcePlan,
+        CheckFacts, CheckedUnitCallCoordinate, CheckedUnitCallableEntry,
+        CheckedUnitStructuralArgumentSourcePlan,
     };
     use language_semantics::PermissionEventSource;
     use symbols::SymbolHandle;
