@@ -38095,7 +38095,10 @@ pub(crate) mod specification_calls {
                     .ok_or("predicate implementation lost its source requirement identity")?;
                 let operation =
                     program.trait_requirement_callable_identity_text(declaration, signature);
-                Ok(format!("\0selected-operation:{identity}:{operation}"))
+                Ok(format!(
+                    "{}{identity}:{operation}",
+                    super::super::super::structural_terms::SELECTED_OPERATION_IDENTITY_PREFIX
+                ))
             }
 
             fn selected_operation(
@@ -38111,7 +38114,7 @@ pub(crate) mod specification_calls {
                 ),
                 &'static str,
             > {
-                use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+                use typed_trees::trait_definition::AppliedTraitScope;
                 let requirement = program
                     .evidence_bound_requirement(program.symbols.get(binder).parent, binder, source)
                     .map_err(|_| "predicate implementation lost its source evidence bound")?
@@ -38124,31 +38127,40 @@ pub(crate) mod specification_calls {
                     if application.is_some_and(|application| application.member.is_valid()) {
                         return Err("predicate implementation selected a member instead of a map");
                     }
-                    let arguments = application
-                        .map_or(&[][..], |application| application.arguments.as_ref())
-                        .iter()
-                        .map(|argument| {
-                            program.static_operand_type_reference_in_scope(argument, supplier)
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let public = AppliedTraitScope::from_conformance_application(
-                        program.typed_program(),
-                        conformance,
-                        TraitApplicationArguments {
-                            lexical_owner: supplier,
-                            enclosing_data_applications: &[],
-                            arguments: &arguments,
-                            lifetimes: application
-                                .map_or(&[], |application| application.lifetime_arguments.as_ref()),
-                        },
+                    let closed = crate::conformance_applications::close_conformance_application(
+                        program, selected,
                     )
-                    .and_then(|scope| {
-                        scope.declaring_scope(
-                            program.typed_program(),
-                            requirement.application.declaration.symbol,
-                        )
-                    })
-                    .ok_or("predicate implementation lost its complete public application")?;
+                    .map_err(|_| "predicate implementation is not a complete closed application")?;
+                    let mut public: Option<AppliedTraitScope<'_>> = None;
+                    for (_, _, _, retained) in program.closed_conformance_application_sites() {
+                        if retained != &closed {
+                            continue;
+                        }
+                        let scope = retained
+                            .trait_scope
+                            .scope(program.typed_program())
+                            .ok_or("predicate implementation lost its retained public scope")?;
+                        if scope.argument_owner != supplier {
+                            continue;
+                        }
+                        let scope = scope
+                            .declaring_scope(
+                                program.typed_program(),
+                                requirement.application.declaration.symbol,
+                            )
+                            .ok_or("predicate implementation lost its declaring public scope")?;
+                        if public.as_ref().is_some_and(|known| {
+                            !program.requirement_contract_scopes_match(known, &scope)
+                        }) {
+                            return Err(
+                                "predicate implementation has disagreeing retained public scopes",
+                            );
+                        }
+                        public = Some(scope);
+                    }
+                    let public = public.ok_or(
+                        "predicate implementation has no exact retained public application",
+                    )?;
                     let mut rows = conformance.rows.iter().filter(|row| {
                         row.requirement == requirement.signature.symbol
                             && row.declaring_trait == public.declaration.symbol
@@ -38236,7 +38248,7 @@ pub(crate) mod specification_calls {
             ) -> Result<Option<String>, &'static str> {
                 if let Some(dispatch) = &call.static_requirement_dispatch {
                     let owner = if dispatch.selection_application.is_valid() {
-                        program
+                        expression_table(program)
                             .static_machine_application(dispatch.selection_application)
                             .lexical_owner
                     } else {
@@ -38301,7 +38313,7 @@ pub(crate) mod specification_calls {
             }
 
             impl AppliedProofBindings {
-                fn retain_requirement_operations(
+                pub(super) fn retain_requirement_operations(
                     &mut self,
                     program: &dyn crate::CheckingInput,
                     caller: symbols::SymbolHandle,
@@ -81483,7 +81495,11 @@ pub(crate) mod structural_judgment {
                     }
                     if changed && !selections.is_empty() {
                         *machine = structural_call_machine_name(
-                            if selected.is_some() {
+                            if selected.is_some()
+                                || machine.starts_with(
+                                    super::structural_terms::SELECTED_OPERATION_IDENTITY_PREFIX,
+                                )
+                            {
                                 machine.as_str()
                             } else {
                                 machine.split('<').next().unwrap_or(machine)
@@ -87280,6 +87296,8 @@ pub(crate) mod structural_terms {
         }
     }
 
+    pub(crate) const SELECTED_OPERATION_IDENTITY_PREFIX: &str = "\0selected-operation:";
+
     pub(crate) fn structural_call_machine_name(
         target: &str,
         machine_arguments: &[StaticMachineArgument],
@@ -87293,7 +87311,9 @@ pub(crate) mod structural_terms {
                 .unwrap_or(name)
         };
         let target = substitute(target.to_owned());
-        if machine_arguments.is_empty() {
+        // Typed operation keys are complete. Their member arguments remain in
+        // StructuralTerm::selections, independently of this identity string.
+        if machine_arguments.is_empty() || target.starts_with(SELECTED_OPERATION_IDENTITY_PREFIX) {
             return target;
         }
         let selected: Vec<String> = machine_arguments
@@ -87314,7 +87334,7 @@ pub(crate) mod structural_terms {
             .as_ref()
             .and_then(|dispatch| program.closed_requirement_application(dispatch.contract_symbol()))
             .map(|application| {
-                program
+                expression_table(program)
                     .static_machine_application_arguments(application.application)
                     .to_vec()
             })
