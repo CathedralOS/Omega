@@ -1948,7 +1948,22 @@ pub(crate) mod case_flow {
             .into_iter()
             .flatten()
         {
-            queries.push(&transfer.destination);
+            // A static destination inside storage this step defines is
+            // already covered by that definition's write. Resolving it against
+            // the pre-step state would find the vacancy the definition fills
+            // (`holder.token = restored` after `holder.token` moved out) and
+            // drop every case fact instead of only the overlapping ones. A
+            // destination reached through a reference writes other storage,
+            // so it is still resolved.
+            let covered = super::contents_queries::static_destination(&transfer.destination)
+                .is_some_and(|destination| {
+                    definitions
+                        .iter()
+                        .any(|definition| definition.contains(&destination))
+                });
+            if !covered {
+                queries.push(&transfer.destination);
+            }
             if transfer.removes_source {
                 queries.push(&transfer.source);
             }
@@ -2140,6 +2155,20 @@ pub(crate) mod contents_queries {
     use super::engine::{DescriptorReadDepth, Origin, State, StorageResolution, Value};
     use super::*;
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
+
+    /// The storage a contents query names when every step is a fixed
+    /// address within its root, so no stored reference or runtime element
+    /// choice decides where the write lands.
+    pub(crate) fn static_destination(
+        query: &DescriptorContentsQuery,
+    ) -> Option<DescriptorLocation> {
+        let location = query.exact_location()?;
+        (!location
+            .path
+            .iter()
+            .any(|segment| matches!(segment, DescriptorPathSegment::Referent)))
+        .then_some(location)
+    }
 
     impl Replay<'_> {
         pub(crate) fn read_contents(
@@ -2583,6 +2612,17 @@ pub(crate) mod contents_queries {
             after: &mut State,
             transfers: &[DescriptorContentsTransfer],
         ) {
+            // Sources are read where the step found them. A static
+            // destination (a field path with no reference or element step) is
+            // resolved in the storage the step's own definitions established:
+            // a move-out leaves the moved field vacant (unknown) in `before`,
+            // so a write-back such as `holder.token = restored` would
+            // otherwise see an unknown ancestor of `holder.token.reference`
+            // and invalidate every stored reference. A destination reached
+            // through a reference still resolves in `before`, and a static
+            // destination still unknown after the definitions refuses as
+            // before.
+            let defined = after.clone();
             let mut replacements = BTreeMap::new();
             for transfer in transfers {
                 if transfer.removes_source
@@ -2596,7 +2636,11 @@ pub(crate) mod contents_queries {
                 if self
                     .contents_replacements(
                         machine,
-                        before,
+                        if static_destination(&transfer.destination).is_some() {
+                            &defined
+                        } else {
+                            before
+                        },
                         &transfer.destination,
                         incoming,
                         &mut replacements,
