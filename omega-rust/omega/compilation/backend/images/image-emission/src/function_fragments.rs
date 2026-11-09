@@ -9914,12 +9914,16 @@ mod source {
                         _ => None,
                     });
                     let Some(tag_byte_offset) = observations.next() else { return false; };
+                    let mut addresses = super::placed_reference::AddressReplay::new(target, selected);
                     result.scalar_type == semantic_vocabulary::ScalarType::Boolean
                         && observations.next().is_none()
                         && selected.instructions().filter(|row|
                             row.provenance.operations == [*psi_operation] && row.provenance.values == [result.value]
                                 && match row.kind {
-                                    selected_instructions::SelectedInstructionKind::Load32 { byte_offset } => byte_offset == tag_byte_offset,
+                                    selected_instructions::SelectedInstructionKind::Load32 { .. } =>
+                                        super::placed_reference::case_tag_load_matches(
+                                            *psi_operation, *source, path, tag_byte_offset, row, &mut addresses,
+                                        ).is_some(),
                                     selected_instructions::SelectedInstructionKind::ZeroExtendU32 => path.is_empty() && tag_byte_offset == 0,
                                     _ => false,
                                 }
@@ -12553,7 +12557,7 @@ mod source {
                 .proves(target.machine, result.place, source, correspondence)
                 .ok()?;
             let types = &target.graph.structural_types;
-            let (base, root) = address_root(target, selected, source)?;
+            let (base, root) = address_root(target, selected, source.place)?;
             let mut destinations = selected
                 .local_storage_slots
                 .iter()
@@ -12664,10 +12668,10 @@ mod source {
         fn address_root(
             target: &TargetFunction,
             selected: &SelectedFunction,
-            source: &StructuralArgument,
+            place: PlaceId,
         ) -> Option<(Address, semantic_vocabulary::StructuralTypeId)> {
             use super::structural_homes::{SourceHome, resolve};
-            let (root, home) = resolve(target, selected, source.place).ok()?;
+            let (root, home) = resolve(target, selected, place).ok()?;
             let (base, loads) = match home {
                 SourceHome::Allocation { slot, indirect } => (
                     AddressBase::Allocation(slot),
@@ -12846,6 +12850,54 @@ mod source {
             })
         }
 
+        // A large tag displacement may move from the load into an earlier pointer
+        // adjustment. Check the resulting address against the same exact field
+        // or element, including reference crossings and runtime index values.
+        pub(super) fn case_tag_load_matches(
+            operation: OperationId,
+            place: PlaceId,
+            path: &[terminal_psi::StructuralPathSegment],
+            byte_offset: u32,
+            load: &SelectedInstruction,
+            addresses: &mut AddressReplay<'_>,
+        ) -> Option<()> {
+            let SelectedInstructionKind::Load32 {
+                byte_offset: displacement,
+            } = load.kind
+            else {
+                return None;
+            };
+            let (base, root) = address_root(addresses.target, addresses.selected, place)?;
+            let geometry =
+                target_operations_to_selected_instructions::reference_formation_geometry(
+                    root,
+                    path,
+                    &addresses.target.graph.structural_types,
+                )?;
+            if !geometry.readable
+                || geometry.byte_offset != byte_offset
+                || geometry
+                    .pointer_slots
+                    .iter()
+                    .any(|slot| slot.scalar_descriptor)
+            {
+                return None;
+            }
+            let layout = crate::object::object_artifact::replay::structural::condition_layout::replay_structural_sum_layout(
+                geometry.selected.as_structural()?,
+                &target.graph.structural_types,
+            )?;
+            if layout.tag_byte_offset != 0
+                || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
+            {
+                return None;
+            }
+            let expected = geometry_address(base, &geometry, false)?;
+            let mut actual = addresses.at(operation, operand(load, 0)?, load)?;
+            actual.offset = actual.offset.checked_add(u64::from(displacement))?;
+            (actual == expected).then_some(())
+        }
+
         pub(super) fn borrowed_address_matches(
             operation: OperationId,
             source: &StructuralArgument,
@@ -12856,7 +12908,7 @@ mod source {
             addresses.failure = None;
             let target = addresses.target;
             let selected = addresses.selected;
-            let (base, root) = address_root(target, selected, source).ok_or_else(|| {
+            let (base, root) = address_root(target, selected, source.place).ok_or_else(|| {
                 format!("borrowed pointer {:?} for {:?} has no unique source home; parameter={:?}; allocation={:?}", register, source,
                     target.graph.parameters.iter().find(|row| row.place == source.place),
                     selected.local_storage_slots.iter().find(|row| row.id.structural_place() == Some(source.place)))
