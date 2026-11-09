@@ -1426,38 +1426,30 @@ pub(crate) mod body_cloning {
                 },
             );
         }
-        if let Some((application, supplying_application)) =
+        if let Some((application, _)) =
             capture.filter(|(application, _)| !application.lifetime_arguments.is_empty())
         {
-            let owner = expressions_of(program)
-                .static_machine_application(supplying_application)
-                .lexical_owner;
-            let arguments = application
-                .arguments
-                .iter()
-                .map(|argument| program.static_operand_type_reference_in_scope(argument, owner))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|message| vec![Diagnostic::error(message)])?;
-            let lifetimes = application
-                .lifetime_arguments
-                .iter()
-                .map(Identifier::generated)
-                .collect::<Vec<_>>();
             let selecting = program
                 .conformance_by_symbol(application.declaration)
                 .ok_or_else(|| failed("capture application lost its selecting declaration"))?;
-            let scope =
-                typed_trees::trait_definition::AppliedTraitScope::from_conformance_application(
-                    program,
-                    selecting,
-                    typed_trees::trait_definition::TraitApplicationArguments {
-                        lexical_owner: owner,
-                        enclosing_data_applications: &[],
-                        arguments: &arguments,
-                        lifetimes: &lifetimes,
-                    },
-                )
+            // The call occurrence and its captured implementation can have
+            // different region suppliers. Keep the checked capture's scope.
+            let scope = application
+                .trait_scope
+                .scope(program)
                 .ok_or_else(|| failed("capture application has no complete supplying scope"))?;
+            let owner = scope.argument_owner;
+            if !owner.is_valid()
+                || selecting.trait_symbol != application.trait_definition
+                || scope.declaration.symbol != application.trait_definition
+                || program.conformance_type_parameters(selecting).len()
+                    != application.arguments.len()
+                || selecting.lifetime_parameters.len() != application.lifetime_arguments.len()
+            {
+                return Err(failed(
+                    "capture application changed its complete supplying scope",
+                ));
+            }
             let environment = scope.environment();
             let mut bound_applications = Vec::new();
             for (index, bound) in cloned.conformance_bounds.iter().enumerate() {
