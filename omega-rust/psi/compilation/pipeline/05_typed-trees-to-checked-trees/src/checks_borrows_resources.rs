@@ -3444,15 +3444,18 @@ mod permission_sources {
         ) else {
             return false;
         };
-        if validation::completed_storage::at_snapshot(
-            program,
-            &facts.flow.control,
-            capture.storage_snapshot,
-            &place,
-            validation::completed_storage::StoredObservation::Binding,
-        )
-        .is_some()
-        {
+        let Some(validation::completed_storage::StoredOperand::Incoming(selected)) =
+            validation::completed_storage::sources_at_snapshot(
+                program,
+                &facts.flow.control,
+                capture.storage_snapshot,
+                &place,
+                validation::completed_storage::StoredObservation::Binding,
+            )
+        else {
+            return false;
+        };
+        if selected != place {
             return false;
         }
         super::super::aliases::resolve_descriptor_places(
@@ -3677,6 +3680,22 @@ mod permission_sources {
                                 )
                         })
                 })
+        } else if let Some(complete) = collect_entry_invocation_accesses(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            call,
+            source,
+            capture,
+            projection,
+            output_access,
+            retained_by_store,
+            output,
+            parents,
+        ) {
+            rule = "the incoming descriptor has no complete invocation access";
+            complete
         } else if let Some(complete) = collect_completed_formations(
             program,
             facts,
@@ -4413,6 +4432,52 @@ mod permission_sources {
         Absent,
         Complete,
         Unavailable,
+    }
+
+    /*
+        A completed expression can name an earlier evaluation of the same entry
+        descriptor. Keep the actual argument's checked access before following
+        that earlier value, which need not itself be an invocation argument.
+        The captured snapshot must still select the exact incoming reference leaf;
+        the enclosing record's borrow cannot supply its stored pointer permission.
+    */
+    #[allow(clippy::too_many_arguments)]
+    fn collect_entry_invocation_accesses(
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        loan_occurrences: &LoanOccurrences<'_>,
+        state: &FlowStateFact,
+        call: Handle<FlowCallFact>,
+        source: Handle<FlowOperandFact>,
+        capture: &FlowOperandFact,
+        projection: &[facts::PlaceSegment],
+        output_access: &checked_trees::BorrowAccessKind,
+        retained_by_store: bool,
+        output: &mut Vec<PermissionSupplier>,
+        parents: &mut Arena<Handle<BorrowLoanFact>>,
+    ) -> Option<bool> {
+        if !projection.is_empty()
+            || !has_captured_entry_reference(program, facts, loan_occurrences, state, source)
+        {
+            return None;
+        }
+        match collect_invocation_accesses(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            call,
+            source,
+            capture,
+            output_access,
+            retained_by_store,
+            output,
+            parents,
+        ) {
+            InvocationAccessCoverage::Absent => None,
+            InvocationAccessCoverage::Complete => Some(true),
+            InvocationAccessCoverage::Unavailable => Some(false),
+        }
     }
 
     fn collect_invocation_accesses(
@@ -6771,7 +6836,7 @@ pub(in crate::checks::borrows) mod supplied_permissions {
                 &access,
             ).inspect_err(|reason| {
                 if ::validation::trace_flags::check_sites() {
-                    eprintln!("CHECKSITE completed-output-input-refused source={source:?} stored={stored:?} owner={owner:?} operand={operand:?} original_call={original:?} lending_call={lending_call:?} path={path:?} access={access:?} reason={reason}");
+                    eprintln!("CHECKSITE completed-output-input-refused source={source:?} stored={stored:?} owner={owner:?} operand={operand:?} original_call={original:?} lending_call={lending_call:?} path={path:?} access={access:?} reason={}", reason.describe(program));
                     let value = facts.flow.control.operands.get(operand);
                     if facts.flow.control.operand_retentions.is_valid(value.retention) {
                         let profile = facts.flow.control.operand_retentions.get(value.retention);
