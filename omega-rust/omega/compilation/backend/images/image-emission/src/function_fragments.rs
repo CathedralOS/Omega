@@ -12867,12 +12867,13 @@ mod source {
             else {
                 return None;
             };
-            let (base, root) = address_root(addresses.target, addresses.selected, place)?;
+            let target = addresses.target;
+            let (base, root) = address_root(target, addresses.selected, place)?;
             let geometry =
                 target_operations_to_selected_instructions::reference_formation_geometry(
                     root,
                     path,
-                    &addresses.target.graph.structural_types,
+                    &target.graph.structural_types,
                 )?;
             if !geometry.readable
                 || geometry.byte_offset != byte_offset
