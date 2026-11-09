@@ -66082,6 +66082,33 @@ pub(crate) mod structural_judgment {
                     }
                     _ => value,
                 };
+                if parameter.access == language_semantics::ReferenceAccess::Shared
+                    && scalar.is_none()
+                    && super::super::structural_terms::completed_owned_carrier(
+                        program,
+                        value.semantic_value(),
+                    )
+                    .is_none()
+                    && super::super::structural_terms::owned_observation_type(program, &value)
+                        .is_none()
+                    && super::super::structural_terms::shared_inline_observation_type(
+                        program, &value,
+                    )
+                    .is_none()
+                    && crate::reference_shell(program, current_type).is_some_and(|source| {
+                        source.access == language_semantics::ReferenceAccess::Shared
+                            && crate::declared_carriers_match(
+                                program,
+                                source.referee,
+                                subject.type_reference,
+                            )
+                    })
+                {
+                    // Forward the same live shared subject used by its entry
+                    // predicate. Its descriptor does not become an owned snapshot
+                    // or admit observations of the aggregate's contents.
+                    return Some(value);
+                }
                 self.reference_subject_observation(subject.type_reference, value)
             }
 
