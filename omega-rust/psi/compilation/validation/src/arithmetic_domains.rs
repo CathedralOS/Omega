@@ -10191,6 +10191,7 @@ pub(crate) mod guard_narrowing {
                         completed_children: Default::default(),
                         return_ranges: Some(inference),
                         collect_arrivals: false,
+                        entry_target: None,
                     };
                     walk.state(state, &mut environment);
                     for observed in walk.observations {
@@ -10700,6 +10701,7 @@ pub(crate) mod guard_narrowing {
                 completed_children: Default::default(),
                 return_ranges: Some(&return_ranges),
                 collect_arrivals: false,
+                entry_target: None,
             };
             walk.state(state, &mut environment);
             OccurrenceValueEnvironments {
@@ -10757,6 +10759,7 @@ pub(crate) mod guard_narrowing {
                 completed_children: Default::default(),
                 return_ranges: Some(&return_ranges),
                 collect_arrivals: false,
+                entry_target: None,
             };
             if !walk.statements(
                 state,
@@ -10826,6 +10829,9 @@ pub(crate) mod guard_narrowing {
                 .map(|(entry, entry_seeds)| {
                     let mut external = ValueEnvironment::new();
                     entry_seeds.apply(program, machine, entry, &mut external);
+                    if invocation.is_none() {
+                        seed_entry_from_callers(program, machine, frames, &mut external);
+                    }
                     for parameter in program.state_parameters(entry) {
                         super::super::record_admitted_integer_fields(
                             program,
@@ -10898,6 +10904,7 @@ pub(crate) mod guard_narrowing {
                             completed_children: Default::default(),
                             return_ranges,
                             collect_arrivals: true,
+                            entry_target: None,
                         };
                         let mut environment = environment.clone();
                         if round > 0 || index != external_index || invocation.is_some() {
@@ -10946,6 +10953,190 @@ pub(crate) mod guard_narrowing {
                 state_seeds.apply(program, machine, state, environment);
             }
             current
+        }
+
+        /// One argument list that invokes a private nested machine, identified
+        /// by its stable table slice so a caller walk can prove it saw the site.
+        #[derive(Clone, Copy)]
+        struct NestedEntrySite {
+            caller: u32,
+            state: u32,
+            arguments: usize,
+        }
+
+        /// Every invocation of each private nested machine in the program.
+        ///
+        /// [Arrival rules](wiki/spec/language/state_contracts.md) let a body rely
+        /// on what every reachable predecessor established, and forbid omitting
+        /// unknown input. A machine therefore has sites here only when all of
+        /// its uses are direct calls inside walked states: a stored reference,
+        /// a call from a contract or a recursive cycle empties its row.
+        pub(crate) struct NestedEntryCallers {
+            positions: symbols::SymbolMap<u32>,
+            sites: Vec<Vec<NestedEntrySite>>,
+        }
+
+        impl NestedEntryCallers {
+            fn build(program: &dyn crate::CheckingInput) -> Self {
+                let machines = program.machines();
+                let mut positions = symbols::SymbolMap::default();
+                for (position, machine) in machines.iter().enumerate() {
+                    let is_nested = program
+                        .machine(program.symbols.get(machine.symbol).parent)
+                        .is_some();
+                    let Some(entry) = program.machine_states(machine).first() else {
+                        continue;
+                    };
+                    if is_nested
+                        && !machine.is_public
+                        && !program.state_parameters(entry).is_empty()
+                    {
+                        positions.insert(machine.symbol, position as u32);
+                        positions.insert(entry.symbol, position as u32);
+                    }
+                }
+                let mut sites = vec![Vec::new(); machines.len()];
+                let mut owned_sites = std::collections::HashSet::new();
+                for (caller, machine) in machines.iter().enumerate() {
+                    for (state, source) in program.machine_states(machine).iter().enumerate() {
+                        visit_state_call_targets(program, source, &mut |symbol, arguments| {
+                            if let Some(callee) = positions.get(&symbol)
+                                && !arguments.is_empty()
+                            {
+                                let arguments = arguments.as_ptr() as usize;
+                                owned_sites.insert(arguments);
+                                sites[*callee as usize].push(NestedEntrySite {
+                                    caller: caller as u32,
+                                    state: state as u32,
+                                    arguments,
+                                });
+                            }
+                            false
+                        });
+                    }
+                }
+                let table = expression_table(program);
+                let mut escaped = vec![false; machines.len()];
+                let mut receivers = std::collections::HashSet::new();
+                for (_, node) in table.iter_backing_expressions() {
+                    if let ExpressionNode::Call(call) = node {
+                        receivers.insert((call.receiver.arena_index(), call.receiver.generation()));
+                        if let Some(callee) = positions.get(&call.target_symbol) {
+                            let arguments = table.expression_handles(call.arguments);
+                            if arguments.is_empty()
+                                || !owned_sites.contains(&(arguments.as_ptr() as usize))
+                            {
+                                escaped[*callee as usize] = true;
+                            }
+                        }
+                    }
+                }
+                for (handle, node) in table.iter_backing_expressions() {
+                    if let ExpressionNode::Name(path) = node
+                        && !receivers.contains(&(handle.arena_index(), handle.generation()))
+                        && let Some(callee) = positions.get(&path.symbol)
+                    {
+                        escaped[*callee as usize] = true;
+                    }
+                }
+                for (row, escaped) in sites.iter_mut().zip(&escaped) {
+                    if *escaped {
+                        row.clear();
+                    }
+                }
+                // A machine is seeded only after all of its seeded callers, so
+                // recursion through callers terminates and the result does not
+                // depend on which machine is checked first.
+                // ponytail: repeated peeling is quadratic in nesting depth; use
+                // Kahn's algorithm if this appears in a profile.
+                let mut resolved = sites.iter().map(Vec::is_empty).collect::<Vec<_>>();
+                loop {
+                    let mut changed = false;
+                    for position in 0..sites.len() {
+                        if !resolved[position]
+                            && sites[position].iter().all(|site| resolved[site.caller as usize])
+                        {
+                            resolved[position] = true;
+                            changed = true;
+                        }
+                    }
+                    if !changed {
+                        break;
+                    }
+                }
+                for (row, resolved) in sites.iter_mut().zip(&resolved) {
+                    if !*resolved {
+                        row.clear();
+                    }
+                    row.sort_by_key(|site| (site.caller, site.state));
+                }
+                Self { positions, sites }
+            }
+        }
+
+        /// The argument facts every invocation of `machine` establishes, or
+        /// `None` when any invocation is unknown or could not be walked.
+        fn caller_entry_environment(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            frames: Option<&CallFrameResolver>,
+        ) -> Option<ValueEnvironment> {
+            let frames = frames?;
+            let index = program
+                .checking_memos()?
+                .nested_entry_callers
+                .get_or_init(|| std::sync::Arc::new(NestedEntryCallers::build(program)));
+            let sites = index.sites.get(*index.positions.get(&machine.symbol)? as usize)?;
+            let entry = program.machine_states(machine).first()?;
+            let ranges = ReturnInference::default();
+            let mut joined: Option<ValueEnvironment> = None;
+            for group in sites.chunk_by(|left, right| {
+                (left.caller, left.state) == (right.caller, right.state)
+            }) {
+                let caller = program.machines().get(group[0].caller as usize)?;
+                let state = program.machine_states(caller).get(group[0].state as usize)?;
+                let mut environment =
+                    incoming_guard_environment(program, caller, state, Some(frames));
+                let mut walk = ArrivalWalk {
+                    program,
+                    machine: caller,
+                    frames: Some(frames),
+                    arrivals: Vec::new(),
+                    observations: Vec::new(),
+                    completed_children: Default::default(),
+                    return_ranges: Some(&ranges),
+                    collect_arrivals: false,
+                    entry_target: Some(EntryTarget {
+                        symbols: [machine.symbol, entry.symbol],
+                        state: entry,
+                        rebound: Vec::new(),
+                        seen: Vec::new(),
+                    }),
+                };
+                walk.state(state, &mut environment);
+                let target = walk.entry_target?;
+                if !group.iter().all(|site| target.seen.contains(&site.arguments)) {
+                    return None;
+                }
+                for rebound in target.rebound {
+                    joined = Some(match joined {
+                        Some(previous) => previous.join(&rebound),
+                        None => rebound,
+                    });
+                }
+            }
+            joined
+        }
+
+        pub(crate) fn seed_entry_from_callers(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            frames: Option<&CallFrameResolver>,
+            environment: &mut ValueEnvironment,
+        ) {
+            if let Some(seed) = caller_entry_environment(program, machine, frames) {
+                environment.absorb(seed);
+            }
         }
 
         pub(crate) enum ValueObservationSite {
@@ -11018,7 +11209,16 @@ pub(crate) mod guard_narrowing {
             }
         }
 
+        /// The nested machine a caller walk is gathering entry facts for.
+        struct EntryTarget<'program> {
+            symbols: [SymbolHandle; 2],
+            state: &'program State,
+            rebound: Vec<ValueEnvironment>,
+            seen: Vec<usize>,
+        }
+
         pub(crate) struct ArrivalWalk<'program, 'frames> {
+            entry_target: Option<EntryTarget<'program>>,
             program: &'program dyn crate::CheckingInput,
             machine: &'program Machine,
             frames: Option<&'frames CallFrameResolver<'program>>,
@@ -11185,6 +11385,19 @@ pub(crate) mod guard_narrowing {
                     .and_then(|frames| frames.expression_may_write_paths(self.machine, expression))
             }
 
+            fn is_entry_target(&self, symbol: SymbolHandle) -> bool {
+                symbol.is_valid()
+                    && self
+                        .entry_target
+                        .as_ref()
+                        .is_some_and(|target| target.symbols.contains(&symbol))
+            }
+
+            /// A caller walk must reach calls that an ordinary walk may skip.
+            fn walks_calls(&self) -> bool {
+                self.collect_arrivals || self.entry_target.is_some()
+            }
+
             fn should_arrive(&self, symbol: SymbolHandle) -> bool {
                 self.collect_arrivals
                     && symbol.is_valid()
@@ -11202,7 +11415,10 @@ pub(crate) mod guard_narrowing {
                 arguments: &[ExpressionHandle],
                 environment: &mut ValueEnvironment,
             ) {
-                if self.should_arrive(symbol) {
+                if self.is_entry_target(symbol) {
+                    let values = self.arguments(source, arguments, environment);
+                    self.enter(source, arguments, &values, environment);
+                } else if self.should_arrive(symbol) {
                     let intervals = self.arguments(source, arguments, environment);
                     self.arrive(source, symbol, arguments, &intervals, environment);
                 } else {
@@ -11243,15 +11459,82 @@ pub(crate) mod guard_narrowing {
                 else {
                     return;
                 };
+                let rebound = self.rebound_at_target(
+                    source,
+                    target,
+                    arguments,
+                    values,
+                    environment,
+                    false,
+                );
+                self.join(symbol, rebound);
+            }
+
+            fn enter(
+                &mut self,
+                source: &State,
+                arguments: &[ExpressionHandle],
+                values: &[EvaluatedValue],
+                environment: &ValueEnvironment,
+            ) {
+                let Some(state) = self.entry_target.as_ref().map(|target| target.state) else {
+                    return;
+                };
+                let rebound =
+                    self.rebound_at_target(source, state, arguments, values, environment, true);
+                if let Some(target) = self.entry_target.as_mut() {
+                    target.seen.push(arguments.as_ptr() as usize);
+                    target.rebound.push(rebound);
+                }
+            }
+
+            /// Moves what `environment` knows about the arguments onto the
+            /// target's parameters. Across a nested entry only values the callee
+            /// cannot change keep facts: a mutable parameter, a writable
+            /// reference and any place overlapping a writable reference get none.
+            fn rebound_at_target(
+                &self,
+                source: &State,
+                target: &State,
+                arguments: &[ExpressionHandle],
+                values: &[EvaluatedValue],
+                environment: &ValueEnvironment,
+                nested_entry: bool,
+            ) -> ValueEnvironment {
                 let parameters = self.program.state_parameters(target);
                 if parameters.len() != arguments.len() {
-                    self.join(symbol, ValueEnvironment::new());
-                    return;
+                    return ValueEnvironment::new();
                 }
+                let keeps_facts = |parameter: &typed_trees::signature::StateParameter| {
+                    !nested_entry
+                        || (!parameter.is_mutable
+                            && !parameter.is_const
+                            && !is_writable_reference(self.program, parameter.type_reference))
+                };
+                let written = parameters
+                    .iter()
+                    .zip(arguments)
+                    .filter(|(parameter, _)| {
+                        nested_entry
+                            && is_writable_reference(self.program, parameter.type_reference)
+                    })
+                    .filter_map(|(_, argument)| self.bound_place(source, *argument))
+                    .collect::<Vec<_>>();
                 let mut bindings = Vec::new();
                 let mut exact_bindings = Vec::new();
                 for (parameter, argument) in parameters.iter().zip(arguments) {
-                    if let Some(path) = self.bound_place(source, *argument) {
+                    if !keeps_facts(parameter) {
+                        continue;
+                    }
+                    let place = self.bound_place(source, *argument);
+                    if place.as_deref().is_some_and(|place| {
+                        written.iter().any(|written| {
+                            crate::machine_calls::calls::frame_paths_overlap(written, place)
+                        })
+                    }) {
+                        continue;
+                    }
+                    if let Some(path) = place {
                         bindings.push((path, parameter.name.as_str().to_owned()));
                     }
                     if (!environment.ordered_values.is_empty()
@@ -11276,7 +11559,9 @@ pub(crate) mod guard_narrowing {
                 rebound.ordered_values =
                     ordered_values::rebind_relations(&environment.ordered_values, &exact_bindings);
                 for (parameter, value) in parameters.iter().zip(values) {
-                    if !is_reference(self.program, parameter.type_reference) {
+                    if keeps_facts(parameter)
+                        && !is_reference(self.program, parameter.type_reference)
+                    {
                         let interval =
                             match enforced_declared_range(self.program, parameter.type_reference) {
                                 Some(declared) => value.interval.intersect(declared),
@@ -11293,7 +11578,7 @@ pub(crate) mod guard_narrowing {
                         );
                     }
                 }
-                self.join(symbol, rebound);
+                rebound
             }
 
             fn bound_place(&self, source: &State, expression: ExpressionHandle) -> Option<String> {
@@ -11334,7 +11619,8 @@ pub(crate) mod guard_narrowing {
                     } => {
                         !self.observations.is_empty()
                             || self.should_arrive(path.symbol)
-                            || (self.collect_arrivals
+                            || self.is_entry_target(path.symbol)
+                            || (self.walks_calls()
                                 && self
                                     .program
                                     .statement_table
@@ -11349,7 +11635,7 @@ pub(crate) mod guard_narrowing {
                     }
                     TransitionTargetNode::Value(expression) => {
                         !self.observations.is_empty()
-                            || (self.collect_arrivals
+                            || (self.walks_calls()
                                 && crate::machine_calls::calls::expression_has_calls(
                                     self.program,
                                     *expression,
@@ -11440,7 +11726,7 @@ pub(crate) mod guard_narrowing {
                             let condition_needs_walk = match transition.guard {
                                 TransitionGuardNode::When(condition) => {
                                     !self.observations.is_empty()
-                                        || (self.collect_arrivals
+                                        || (self.walks_calls()
                                             && crate::machine_calls::calls::expression_has_calls(
                                                 self.program,
                                                 condition,
@@ -11510,7 +11796,7 @@ pub(crate) mod guard_narrowing {
                         }
                         StatementNode::Expression(expression) => {
                             if self.observations.is_empty()
-                                && !(self.collect_arrivals
+                                && !(self.walks_calls()
                                     && crate::machine_calls::calls::expression_has_calls(
                                         self.program,
                                         *expression,
@@ -12176,15 +12462,39 @@ pub(crate) mod guard_narrowing {
             }
         }
 
+        fn is_writable_reference(
+            program: &dyn crate::CheckingInput,
+            reference: TypeReferenceHandle,
+        ) -> bool {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference { access, .. } => {
+                    *access != language_core::ReferenceAccess::Shared
+                }
+                TypeReferenceNode::Constrained { base_type, .. } => {
+                    is_writable_reference(program, *base_type)
+                }
+                _ => false,
+            }
+        }
+
         fn state_has_in_machine_arrivals(
             program: &dyn crate::CheckingInput,
             machine: &Machine,
             state: &State,
         ) -> bool {
             let states = program.machine_states(machine);
-            let is_machine_state = |symbol: SymbolHandle| {
+            visit_state_call_targets(program, state, &mut |symbol, _| {
                 symbol.is_valid() && states.iter().any(|candidate| candidate.symbol == symbol)
-            };
+            })
+        }
+
+        /// Visits each named call or transition in `state` until `visit` says
+        /// to stop, and returns whether it stopped.
+        fn visit_state_call_targets(
+            program: &dyn crate::CheckingInput,
+            state: &State,
+            visit: &mut dyn FnMut(SymbolHandle, &[ExpressionHandle]) -> bool,
+        ) -> bool {
             let mut stack = Vec::new();
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
@@ -12200,12 +12510,11 @@ pub(crate) mod guard_narrowing {
                                 TransitionTargetNode::Named {
                                     path, arguments, ..
                                 } => {
-                                    if is_machine_state(path.symbol) {
+                                    let arguments = program.statement_table.expression_handles(*arguments);
+                                    if visit(path.symbol, arguments) {
                                         return true;
                                     }
-                                    stack.extend_from_slice(
-                                        program.statement_table.expression_handles(*arguments),
-                                    );
+                                    stack.extend_from_slice(arguments);
                                 }
                                 TransitionTargetNode::Value(expression) => stack.push(*expression),
                                 TransitionTargetNode::Terminal => {}
@@ -12222,12 +12531,11 @@ pub(crate) mod guard_narrowing {
                         stack.push(assignment.value);
                     }
                     StatementNode::Call(call) => {
-                        if is_machine_state(call.target_symbol) {
+                        let arguments = program.statement_table.expression_handles(call.arguments);
+                        if visit(call.target_symbol, arguments) {
                             return true;
                         }
-                        stack.extend_from_slice(
-                            program.statement_table.expression_handles(call.arguments),
-                        );
+                        stack.extend_from_slice(arguments);
                     }
                     StatementNode::Expression(expression) => stack.push(*expression),
                     StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
@@ -12250,13 +12558,12 @@ pub(crate) mod guard_narrowing {
                         }
                     }
                     ExpressionNode::Call(call) => {
-                        if is_machine_state(call.target_symbol) {
+                        let arguments = expression_table(program).expression_handles(call.arguments);
+                        if visit(call.target_symbol, arguments) {
                             return true;
                         }
                         stack.push(call.receiver);
-                        stack.extend_from_slice(
-                            expression_table(program).expression_handles(call.arguments),
-                        );
+                        stack.extend_from_slice(arguments);
                     }
                     ExpressionNode::Binary(binary) => {
                         stack.push(binary.left);
@@ -12316,6 +12623,7 @@ pub(crate) mod guard_narrowing {
                     completed_children: Default::default(),
                     return_ranges: None,
                     collect_arrivals: false,
+                    entry_target: None,
                 };
                 walk.completed_children.insert(
                     (expression.arena_index(), expression.generation()),
@@ -13560,6 +13868,7 @@ pub(crate) mod guard_narrowing {
         occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
     };
     pub(crate) use arrivals::{
+        NestedEntryCallers, seed_entry_from_callers,
         OccurrenceValueEnvironments, ReturnInference, inferred_normal_return_interval,
         occurrence_integer_child_values, occurrence_value_environment,
         occurrence_value_environments,
@@ -26006,6 +26315,47 @@ pub(crate) mod value_environment {
             rebound
         }
 
+        /// Adds facts that hold at the same program point as `self`.
+        pub(crate) fn absorb(&mut self, seed: ValueEnvironment) {
+            for (path, interval) in seed.intervals {
+                self.narrow(path, interval);
+            }
+            for (path, interval) in seed.float_intervals {
+                self.narrow_float(path, interval);
+            }
+            for range in seed.integer_ranges {
+                if !self.integer_ranges.iter().any(|stored| stored.place == range.place) {
+                    self.integer_ranges.push(range);
+                }
+            }
+            for value in seed.boolean_values {
+                if !self.boolean_values.contains(&value) {
+                    self.boolean_values.push(value);
+                }
+            }
+            for relation in seed.ordered_values {
+                if !self.ordered_values.contains(&relation) {
+                    self.ordered_values.push(relation);
+                }
+            }
+            self.float_elements.extend(seed.float_elements);
+            self.known_u64_values.extend(seed.known_u64_values);
+            self.non_nan.extend(seed.non_nan);
+            self.float_aliases.extend(seed.float_aliases);
+            self.joint_subtract_bounds.extend(seed.joint_subtract_bounds);
+            self.signed_joint_subtract_lower_bounds
+                .extend(seed.signed_joint_subtract_lower_bounds);
+            self.signed_joint_subtract_upper_bounds
+                .extend(seed.signed_joint_subtract_upper_bounds);
+            self.joint_multiply_bounds.extend(seed.joint_multiply_bounds);
+            self.signed_joint_multiply_lower_bounds
+                .extend(seed.signed_joint_multiply_lower_bounds);
+            self.signed_joint_multiply_upper_bounds
+                .extend(seed.signed_joint_multiply_upper_bounds);
+            self.signed_joint_multiply_negation_bounds
+                .extend(seed.signed_joint_multiply_negation_bounds);
+        }
+
         pub(crate) fn copy_path_facts(&mut self, source: &str, target: &str) {
             let rebound = self.rebind(&[(source.to_owned(), target.to_owned())]);
             for (path, interval) in rebound.intervals {
@@ -26690,6 +27040,7 @@ pub use guard_narrowing::{
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
     occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
 };
+pub(crate) use guard_narrowing::{NestedEntryCallers, seed_entry_from_callers};
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,
     record_boolean_assignment, record_boolean_local, requires_value_environment,

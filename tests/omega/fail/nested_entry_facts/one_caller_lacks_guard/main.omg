@@ -1,0 +1,20 @@
+// `finish` has a second caller with no guard. Facts join over every caller, so
+// the nested body may not use the first caller's bound.
+use omega::language::core::float_operations;
+
+machine convert(value: f64) -> i32 {
+    transition value == value && value >= 0.0 && value < 1000.0 {
+        true -> finish(value)
+        false -> finish(value)
+    }
+    machine finish(value: f64) -> i32 {
+        let converted: i32 = I32::from_f64(value);
+        converted * 1000
+    }
+}
+
+machine main() crashes Trap {
+    transition convert(1.5) == 1000 { true -> done() _ -> bad() }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

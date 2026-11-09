@@ -1386,6 +1386,9 @@ pub mod frozen_program {
         OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
     pub(crate) bound_maps:
         OnceLock<Arc<crate::proof_contracts::immutable_integer_bounds::BoundMaps>>,
+    pub(crate) nested_entry_callers: OnceLock<
+        Arc<crate::proof_contracts::arithmetic_domains::NestedEntryCallers>,
+    >,
     pub(crate) incoming_guard_environments: Mutex<
         symbols::SymbolMap<
             Arc<
