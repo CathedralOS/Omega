@@ -47708,10 +47708,16 @@ pub(crate) mod structural_judgment {
                         previous.equation_inputs_are_observed(subject, constructor, 0)
                     })
                     .map(|(subject, constructor)| {
+                        // Match subjects have their own completed snapshot. Follow
+                        // its established source before installing the new case;
+                        // the retained equations name that original completed value.
                         (
-                            subject.into_semantic_value(),
+                            previous.resolve(subject).into_semantic_value(),
                             constructor.into_semantic_value(),
                         )
+                    })
+                    .filter(|(subject, constructor)| {
+                        previous.equation_inputs_are_observed(subject, constructor, 0)
                     })
                     .collect::<Vec<_>>();
                 if bindings.is_empty() {
