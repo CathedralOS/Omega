@@ -47783,82 +47783,6 @@ pub(crate) mod structural_judgment {
         use symbols::SymbolHandle;
         use typed_trees::expression::BinaryOperator;
 
-        pub(super) fn receiving_trace(judge: &StructuralJudge<'_>) -> bool {
-            std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                && judge
-                    .program
-                    .machine_by_symbol(judge.machine_symbol)
-                    .is_some_and(|machine| machine.name.as_str() == "selected_decode")
-        }
-
-        pub(super) type TraceTypes = Vec<(
-            usize,
-            &'static str,
-            typed_trees::types::TypeReferenceHandle,
-            bool,
-        )>;
-
-        pub(super) fn term_types(value: &StructuralTerm) -> TraceTypes {
-            let mut types = Vec::new();
-            let mut pending = vec![(0, value)];
-            for _ in 0..32 {
-                let Some((depth, value)) = pending.pop() else {
-                    break;
-                };
-                match value {
-                    StructuralTerm::ObservedValue {
-                        observed_type,
-                        descriptor,
-                        ..
-                    } => {
-                        types.push((depth, "observation", *observed_type, descriptor.is_some()));
-                    }
-                    StructuralTerm::CapturedValue { result_type, .. } => {
-                        types.push((depth, "capture", *result_type, false));
-                    }
-                    StructuralTerm::Constructor {
-                        identity: super::ConstructorIdentity::Nominal { reference, .. },
-                        ..
-                    } => {
-                        types.push((depth, "constructor", *reference, false));
-                    }
-                    StructuralTerm::Application { result_type, .. }
-                    | StructuralTerm::CallProjection { result_type, .. } => {
-                        types.push((depth, "application", *result_type, false));
-                    }
-                    StructuralTerm::IndexedValue { element_type, .. } => {
-                        types.push((depth, "element", *element_type, false));
-                    }
-                    _ => {}
-                }
-                value.for_each_child(|child| pending.push((depth + 1, child)));
-            }
-            types
-        }
-
-        pub(super) fn condition_types(condition: &ObservedCondition) -> TraceTypes {
-            let mut types = Vec::new();
-            let mut pending = vec![condition];
-            for _ in 0..32 {
-                let Some(condition) = pending.pop() else {
-                    break;
-                };
-                match condition {
-                    ObservedCondition::Case { subject, .. }
-                    | ObservedCondition::Predicate(subject) => types.extend(term_types(subject)),
-                    ObservedCondition::Equal(left, right) => {
-                        types.extend(term_types(left));
-                        types.extend(term_types(right));
-                    }
-                    ObservedCondition::Connective { left, right, .. } => {
-                        pending.push(left);
-                        pending.push(right);
-                    }
-                }
-            }
-            types
-        }
-
         #[derive(Clone, Debug)]
         pub(crate) enum ObservedCondition {
             Case {
@@ -48056,17 +47980,8 @@ pub(crate) mod structural_judgment {
                     let mut ready = Vec::new();
                     for (ordinal, guarantee) in pending.iter().enumerate() {
                         let established = guarantee.conditions.iter().all(|(condition, holds)| {
-                            let judgment = condition.judgment(self);
-                            if receiving_trace(self) {
-                                static GUARDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-                                if GUARDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 48 {
-                                    eprintln!("CHECKSITE decoder-conditional-guard ordinal={ordinal} condition={condition:?} condition_types={:?} holds={holds} judgment={judgment:?} storage={:?} rewrites={:?} rewrite_types={:?}",
-                                        condition_types(condition), self.storage_version, self.rewrites.iter().take(8).collect::<Vec<_>>(),
-                                        self.rewrites.iter().take(8).map(|(left, right)| (term_types(left), term_types(right))).collect::<Vec<_>>());
-                                }
-                            }
                             matches!(
-                                (judgment, holds),
+                                (condition.judgment(self), holds),
                                 (StructuralJudgment::Proven, true)
                                     | (StructuralJudgment::Refuted, false)
                             )
@@ -51456,144 +51371,11 @@ pub(crate) mod structural_judgment {
                 if self.case_facts_only || depth >= 32 {
                     return;
                 }
-                let traced = Self::trace_completed_guarantee_receiving(&left, "resolve-and-stored")
-                    .then(|| (left.clone(), right.clone(), self.rewrites.iter().count()));
                 let resolution_depth = self.application_resolution_depth();
                 let left = self.resolve_with_at(left, resolution_depth, purpose);
                 let right = self.resolve_with_at(right, resolution_depth, purpose);
-                if let Some((source_left, source_right, _)) = &traced {
-                    eprintln!(
-                        "CHECKSITE guarantee-receiving-resolve owner={:?} storage={:?} depth={depth} resolution_depth={resolution_depth} integer_projection={} source_left={source_left:?} source_right={source_right:?} resolved_left={left:?} resolved_right={right:?} source_left_types={:?} source_right_types={:?} resolved_left_types={:?} resolved_right_types={:?}",
-                        self.machine_symbol,
-                        self.storage_version,
-                        purpose == ResolutionPurpose::IntegerProjection,
-                        Self::trace_completed_guarantee_types(source_left),
-                        Self::trace_completed_guarantee_types(source_right),
-                        Self::trace_completed_guarantee_types(&left),
-                        Self::trace_completed_guarantee_types(&right),
-                    );
-                }
                 self.intake_equation_fact_with_purpose(left, right, depth, purpose);
                 self.activate_conditional_guarantees();
-                if let Some((source_left, _, previous)) = traced {
-                    let added = self.rewrites.iter().count().saturating_sub(previous);
-                    let stored = self
-                        .rewrites
-                        .iter()
-                        .skip(previous)
-                        .take(8)
-                        .collect::<Vec<_>>();
-                    eprintln!(
-                        "CHECKSITE guarantee-receiving-stored owner={:?} source={source_left:?} added={added} stored={stored:?} source_types={:?} stored_types={:?}",
-                        self.machine_symbol,
-                        Self::trace_completed_guarantee_types(&source_left),
-                        stored
-                            .iter()
-                            .map(|(left, right)| (
-                                Self::trace_completed_guarantee_types(left),
-                                Self::trace_completed_guarantee_types(right),
-                            ))
-                            .collect::<Vec<_>>(),
-                    );
-                }
-            }
-
-            pub(crate) fn trace_completed_guarantee_receiving(
-                term: &StructuralTerm,
-                event: &str,
-            ) -> bool {
-                if !crate::trace_flags::check_sites() {
-                    return false;
-                }
-                // This temporary observer follows the two retained encoder receipts.
-                // Both traversal and output are bounded; it never runs a proof query.
-                fn contains_selected_capture(term: &StructuralTerm, remaining: &mut usize) -> bool {
-                    if *remaining == 0 {
-                        return false;
-                    }
-                    *remaining -= 1;
-                    if let StructuralTerm::CapturedValue { expression, .. } = term
-                        && matches!(expression.arena_index(), 14043 | 14191)
-                    {
-                        return true;
-                    }
-                    let mut found = false;
-                    term.for_each_child(|child| {
-                        found |= !found && contains_selected_capture(child, remaining);
-                    });
-                    found
-                }
-                if !contains_selected_capture(term, &mut 128) {
-                    return false;
-                }
-                static OBSERVATIONS: [std::sync::atomic::AtomicUsize; 4] =
-                    [const { std::sync::atomic::AtomicUsize::new(0) }; 4];
-                // Intake prefixes cannot consume the later requirement's budget.
-                // Resolution and its stored delta are emitted as one paired event.
-                let event = match event {
-                    "resolve-and-stored" => 0,
-                    "admission" => 1,
-                    "required" => 2,
-                    "completed" => 3,
-                    _ => return false,
-                };
-                OBSERVATIONS[event].fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 64
-            }
-
-            pub(crate) fn trace_completed_guarantee_types(term: &StructuralTerm) -> Vec<String> {
-                fn visit(
-                    term: &StructuralTerm,
-                    path: &mut Vec<usize>,
-                    remaining: &mut usize,
-                    types: &mut Vec<String>,
-                ) {
-                    if *remaining == 0 {
-                        return;
-                    }
-                    *remaining -= 1;
-                    let metadata = match term {
-                        StructuralTerm::ObservedValue {
-                            observed_type,
-                            descriptor,
-                            ..
-                        } => Some(format!(
-                            "ObservedValue type={observed_type:?} descriptor={}",
-                            descriptor.is_some()
-                        )),
-                        StructuralTerm::CapturedValue { result_type, .. } => {
-                            Some(format!("CapturedValue type={result_type:?}"))
-                        }
-                        StructuralTerm::Application { result_type, .. } => {
-                            Some(format!("Application result={result_type:?}"))
-                        }
-                        StructuralTerm::CallProjection { result_type, .. } => {
-                            Some(format!("CallProjection result={result_type:?}"))
-                        }
-                        StructuralTerm::ScalarBinary { references, .. } => {
-                            Some(format!("ScalarBinary receiving={references:?}"))
-                        }
-                        StructuralTerm::IntegerEmbedding { reference, .. } => {
-                            Some(format!("IntegerEmbedding receiving={reference:?}"))
-                        }
-                        StructuralTerm::IndexedValue { element_type, .. } => {
-                            Some(format!("IndexedValue element={element_type:?}"))
-                        }
-                        _ => None,
-                    };
-                    if let Some(metadata) = metadata {
-                        types.push(format!("{path:?}: {metadata}"));
-                    }
-                    let mut child_index = 0;
-                    term.for_each_child(|child| {
-                        path.push(child_index);
-                        visit(child, path, remaining, types);
-                        path.pop();
-                        child_index += 1;
-                    });
-                }
-                let mut types = Vec::new();
-                visit(term, &mut Vec::new(), &mut 128, &mut types);
-                types
             }
 
             pub(crate) fn intake_equation_fact(
@@ -51636,16 +51418,7 @@ pub(crate) mod structural_judgment {
                 depth: usize,
                 purpose: ResolutionPurpose,
             ) {
-                let observed = self.equation_inputs_are_observed(&left, &right, depth);
-                if Self::trace_completed_guarantee_receiving(&left, "admission") {
-                    eprintln!(
-                        "CHECKSITE guarantee-receiving-admission owner={:?} depth={depth} observed={observed} left={left:?} right={right:?} left_types={:?} right_types={:?}",
-                        self.machine_symbol,
-                        Self::trace_completed_guarantee_types(&left),
-                        Self::trace_completed_guarantee_types(&right),
-                    );
-                }
-                if !observed {
+                if !self.equation_inputs_are_observed(&left, &right, depth) {
                     return;
                 }
                 let left = left.into_semantic_value();
@@ -53425,23 +53198,11 @@ pub(crate) mod structural_judgment {
                     );
                 }
                 let resolved = self.resolve_at(predicate.clone(), depth + 1);
-                let equation = self.judge_equation(
+                match self.judge_equation(
                     resolved.clone(),
                     super::value_predicates::boolean_term(true),
                     depth + 1,
-                );
-                if Self::trace_completed_guarantee_receiving(&predicate, "required") {
-                    eprintln!(
-                        "CHECKSITE guarantee-receiving-required owner={:?} storage={:?} depth={depth} predicate={predicate:?} resolved={resolved:?} equation={equation:?} normal_guarantees={} captured_equations={} predicate_types={:?} resolved_types={:?}",
-                        self.machine_symbol,
-                        self.storage_version,
-                        self.normal_guarantees.len(),
-                        self.captured_result_equations.len(),
-                        Self::trace_completed_guarantee_types(&predicate),
-                        Self::trace_completed_guarantee_types(&resolved),
-                    );
-                }
-                match equation {
+                ) {
                     StructuralJudgment::Unknown => {
                         if let Some(judgment) =
                             self.observed_float_predicate_judgment(&predicate, depth)
@@ -58825,9 +58586,6 @@ pub(crate) mod structural_judgment {
                     equations: Vec<CapturedResultEquation>,
                 ) {
                     for mut equation in equations {
-                        let traced =
-                            Self::trace_completed_guarantee_receiving(&equation.left, "completed")
-                                .then(|| equation.clone());
                         if !equation.is_completed_call_identity() {
                             // Declared guarantees name the values actually passed. Copies
                             // of one unchanged input share its saved source; they must not
@@ -58835,16 +58593,6 @@ pub(crate) mod structural_judgment {
                             // Call-identity rows retain their exact executed occurrence.
                             equation.left = self.completed_value_identity(equation.left);
                             equation.right = self.completed_value_identity(equation.right);
-                        }
-                        if let Some(source) = traced {
-                            eprintln!(
-                                "CHECKSITE guarantee-receiving-completed owner={:?} source={source:?} completed={equation:?} source_left_types={:?} source_right_types={:?} completed_left_types={:?} completed_right_types={:?}",
-                                self.machine_symbol,
-                                Self::trace_completed_guarantee_types(&source.left),
-                                Self::trace_completed_guarantee_types(&source.right),
-                                Self::trace_completed_guarantee_types(&equation.left),
-                                Self::trace_completed_guarantee_types(&equation.right),
-                            );
                         }
                         if equation.is_data_identity() {
                             // The same typed Id operation consumes entry propositions,
@@ -59146,20 +58894,6 @@ pub(crate) mod structural_judgment {
                         captured.as_ref(),
                         0,
                     )?;
-                    if super::super::conditional_guarantees::receiving_trace(self) {
-                        static COMPLETIONS: std::sync::atomic::AtomicUsize =
-                            std::sync::atomic::AtomicUsize::new(0);
-                        if COMPLETIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8 {
-                            eprintln!(
-                                "CHECKSITE decoder-conditional-completion expression={expression:?} callable={callable:?} result={captured:?} result_types={:?} conditional={:?} condition_types={:?}",
-                                captured.as_ref().map(super::super::conditional_guarantees::term_types), guarantees.conditional,
-                                guarantees.conditional.iter().map(|guarantee| (
-                                    guarantee.conditions.iter().map(|(condition, _)| super::super::conditional_guarantees::condition_types(condition)).collect::<Vec<_>>(),
-                                    guarantee.conclusions.iter().map(|(condition, _)| super::super::conditional_guarantees::condition_types(condition)).collect::<Vec<_>>()
-                                )).collect::<Vec<_>>()
-                            );
-                        }
-                    }
                     let placement =
                         self.completed_placement_geometry(prepared, captured.as_ref())?;
                     self.retain_conditional_guarantees(placement);
@@ -69300,48 +69034,12 @@ pub(crate) mod structural_judgment {
                             crate::canonical_place_from_expression(program, expression).and_then(
                                 |place| {
                                     let symbol = place.root.as_symbol()?;
-                                    let parameter = parameters
+                                    parameters
                                         .iter()
                                         .find(|parameter| parameter.symbol == symbol)?;
                                     let (_, value) =
                                         bindings.iter().find(|(bound, _)| *bound == symbol)?;
-                                    let completed = self.captured_scalar_read(value, &place.segments);
-                                    if crate::trace_flags::check_sites()
-                                        && program.symbols.display_path(callable, "::").contains("WriteBuffer")
-                                        && program.symbols.display_path(self.machine_symbol, "::").contains("WriteBuffer")
-                                        && self.storage_version.is_some_and(|cut| cut.snapshot.is_valid())
-                                        && program.expression_table.display_name(expression) == "source.value"
-                                    {
-                                        static EVENTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-                                        if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 4 {
-                                            fn metadata(mut value: &StructuralTerm) -> Vec<(&'static str, TypeReferenceHandle, bool)> {
-                                                let mut types = Vec::new();
-                                                for _ in 0..8 {
-                                                    match value {
-                                                        StructuralTerm::ObservedValue { observed_type, descriptor, value: inner } => {
-                                                            types.push(("observed", *observed_type, descriptor.is_some()));
-                                                            value = inner;
-                                                        }
-                                                        StructuralTerm::IntegerEmbedding { reference, value: inner } => {
-                                                            types.push(("integer", *reference, false));
-                                                            value = inner;
-                                                        }
-                                                        StructuralTerm::CapturedValue { result_type, .. } | StructuralTerm::Application { result_type, .. } => {
-                                                            types.push(("source", *result_type, false));
-                                                            break;
-                                                        }
-                                                        _ => break,
-                                                    }
-                                                }
-                                                types
-                                            }
-                                            eprintln!("CHECKSITE bound-source-scalar callable={callable:?} scope={scope:?} expression={expression:?} place={place:?} parameter_type={:?} actual={value:?} actual_types={:?} completed={completed:?} completed_types={:?} cut={:?}", parameter.type_reference, metadata(value), completed.as_ref().map(metadata), self.storage_version);
-                                            for stored in self.stored_values.iter().filter(|stored| Self::coordinate_place(&stored.coordinate).is_some_and(|coordinate| coordinate.root == place.root)).take(8) {
-                                                eprintln!("CHECKSITE bound-source-storage coordinate={:?} entry={:?} entry_types={:?} current={:?} current_types={:?} completed_read={:?} backing={} anchors={:?}", stored.coordinate, stored.entry, stored.entry.as_ref().map(metadata), stored.current, stored.current.as_ref().map(metadata), stored.completed_read, stored.backing.is_some(), stored.current_anchors);
-                                            }
-                                        }
-                                    }
-                                    completed
+                                    self.captured_scalar_read(value, &place.segments)
                                 },
                             )
                         };
@@ -70844,54 +70542,15 @@ pub(crate) mod structural_judgment {
                 return;
             }
             let binary = program.expression_table.binary_node(expression);
-            let comparison = binary.filter(|binary| {
-                matches!(
+            if let Some(binary) = binary
+                && matches!(
                     binary.operator,
                     BinaryOperator::Equal | BinaryOperator::NotEqual
                 )
-            });
-            let comparison_references = comparison.and_then(|_| {
-                super::super::structural_terms::builtin_identity_operand_references(
+                && super::super::structural_terms::builtin_identity_operand_references(
                     program, scope, parameters, expression,
                 )
-            });
-            if comparison.is_some() && super::conditional_guarantees::receiving_trace(judge) {
-                static COMPARISONS: std::sync::atomic::AtomicUsize =
-                    std::sync::atomic::AtomicUsize::new(0);
-                if COMPARISONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
-                    let source_types = comparison.map(|binary| {
-                        [binary.left, binary.right].map(|operand| {
-                            crate::parameter_expression_result_type_reference(
-                                program, scope, parameters, operand,
-                            )
-                            .map(|reference| {
-                                (reference, program.primitive_type_reference(reference))
-                            })
-                        })
-                    });
-                    let result_owner = comparison
-                        .and_then(|binary| program.expression_table.binary_node(binary.right))
-                        .filter(|binary| binary.operator == BinaryOperator::CaseMembership)
-                        .and_then(|binary| crate::reserved_result_owner(program, binary.left));
-                    eprintln!(
-                        "CHECKSITE decoder-conditional-comparison scope={scope:?} callable={callable:?} expression={expression:?} binary={comparison:?} references={comparison_references:?} source_types={source_types:?} result_owner={result_owner:?} bindings={bindings:?} receiving_types={:?} binding_types={:?} types={type_bindings:?} result={result:?} result_types={:?}",
-                        parameters
-                            .iter()
-                            .map(|parameter| (parameter.symbol, parameter.type_reference))
-                            .collect::<Vec<_>>(),
-                        bindings
-                            .iter()
-                            .map(|(symbol, value)| (
-                                *symbol,
-                                super::conditional_guarantees::term_types(value)
-                            ))
-                            .collect::<Vec<_>>(),
-                        result.map(super::conditional_guarantees::term_types)
-                    );
-                }
-            }
-            if let Some(binary) = comparison
-                && comparison_references.is_some_and(|references| {
+                .is_some_and(|references| {
                     references.iter().all(|reference| {
                         program.primitive_type_reference(*reference)
                             == Some(typed_trees::types::PrimitiveType::Bool)
@@ -70912,30 +70571,10 @@ pub(crate) mod structural_judgment {
                         depth + 1,
                     )
                 };
-                let conditions = (
+                if let (Some(left), Some(right)) = (
                     judge.bound_observed_condition(binary.left, scope, parameters, &mut operand),
                     judge.bound_observed_condition(binary.right, scope, parameters, &mut operand),
-                );
-                if super::conditional_guarantees::receiving_trace(judge) {
-                    static CONDITIONS: std::sync::atomic::AtomicUsize =
-                        std::sync::atomic::AtomicUsize::new(0);
-                    if CONDITIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
-                        eprintln!(
-                            "CHECKSITE decoder-conditional-conditions scope={scope:?} expression={expression:?} conditions={conditions:?} condition_types={:?}",
-                            (
-                                conditions
-                                    .0
-                                    .as_ref()
-                                    .map(super::conditional_guarantees::condition_types),
-                                conditions
-                                    .1
-                                    .as_ref()
-                                    .map(super::conditional_guarantees::condition_types)
-                            )
-                        );
-                    }
-                }
-                if let (Some(left), Some(right)) = conditions {
+                ) {
                     // A published equivalence licenses either conclusion only
                     // after the caller independently knows the other truth value.
                     conditional.extend(
@@ -74987,35 +74626,7 @@ pub(crate) mod structural_judgment {
                 coordinate: &CapturedStorageCoordinate,
                 at: Option<StorageVersion>,
             ) -> Option<super::StructuralTerm> {
-                let scope = self.runtime_declaration_scope();
-                let trace = crate::trace_flags::check_sites()
-                    && self
-                        .program
-                        .symbols
-                        .display_path(machine.symbol, "::")
-                        .contains("WriteBuffer")
-                    && self.program.expression_table.display_name(expression) == "source.value"
-                    && {
-                        static VALID_CUT_EVENTS: std::sync::atomic::AtomicUsize =
-                            std::sync::atomic::AtomicUsize::new(0);
-                        static OTHER_CUT_EVENTS: std::sync::atomic::AtomicUsize =
-                            std::sync::atomic::AtomicUsize::new(0);
-                        let events = if at.is_some_and(|cut| cut.snapshot.is_valid()) {
-                            &VALID_CUT_EVENTS
-                        } else {
-                            &OTHER_CUT_EVENTS
-                        };
-                        events.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8
-                    };
-                if trace {
-                    eprintln!(
-                        "CHECKSITE entry-scalar-context machine={:?} state={:?} runtime={:?} expression={expression:?} coordinate={coordinate:?} cut={at:?}",
-                        machine.symbol,
-                        state.symbol,
-                        scope.map(|(machine, state)| (machine.symbol, state.symbol))
-                    );
-                }
-                let (owner, declaration) = scope?;
+                let (owner, declaration) = self.runtime_declaration_scope()?;
                 let at = at?;
                 if owner.symbol != machine.symbol
                     || declaration.symbol != state.symbol
@@ -75025,9 +74636,6 @@ pub(crate) mod structural_judgment {
                     return None;
                 }
                 let declared = self.scalar_reference_read_type(machine, state, expression)?;
-                if trace {
-                    eprintln!("CHECKSITE entry-scalar-type declared={declared:?}");
-                }
                 crate::reference_shell(self.program, declared)?
                     .access
                     .is_readable()
@@ -75041,25 +74649,15 @@ pub(crate) mod structural_judgment {
                         parameter.type_reference,
                         &place.segments,
                     )?;
-                let formed = self.scalar_coordinate_is_formed(
+                self.scalar_coordinate_is_formed(
                     parameter.type_reference,
                     &super::StructuralTerm::Variable(parameter.name.as_str().to_owned()),
                     &place.segments,
                     &cases,
                     &indices,
-                );
-                if trace {
-                    eprintln!("CHECKSITE entry-scalar-formed place={place:?} formed={formed}");
-                }
-                formed.then_some(())?;
-                let backing = self.entry_read_backing(machine, state, root, &place.segments);
-                if trace {
-                    eprintln!(
-                        "CHECKSITE entry-scalar-backing place={place:?} retained={}",
-                        backing.is_some()
-                    );
-                }
-                backing?;
+                )
+                .then_some(())?;
+                self.entry_read_backing(machine, state, root, &place.segments)?;
                 let graph = self.storage_graph()?;
                 // The descriptor and its scalar referent must both still be the
                 // exact incoming storage. An unknown or overlapping write refuses.
@@ -75067,57 +74665,13 @@ pub(crate) mod structural_judgment {
                     crate::completed_storage::StoredObservation::Binding,
                     crate::completed_storage::StoredObservation::Contents,
                 ] {
-                    let sources = crate::completed_storage::sources_at_snapshot(
+                    match crate::completed_storage::sources_at_snapshot(
                         self.program,
                         graph,
                         at.snapshot,
                         &place,
                         observation,
-                    );
-                    if trace {
-                        fn describe(
-                            source: &crate::completed_storage::StoredOperand,
-                            depth: usize,
-                        ) -> String {
-                            use crate::completed_storage::StoredOperand;
-                            match source {
-                                StoredOperand::Incoming(place) => format!("incoming {place:?}"),
-                                StoredOperand::Unavailable => "unavailable".to_owned(),
-                                StoredOperand::Value {
-                                    capture,
-                                    reference,
-                                    projection,
-                                    slot,
-                                } => format!(
-                                    "value capture={capture:?} type={reference:?} projection={projection:?} slot={slot:?}"
-                                ),
-                                StoredOperand::Alternatives(values) if depth < 3 => format!(
-                                    "alternatives count={} values={:?}",
-                                    values.len(),
-                                    values
-                                        .iter()
-                                        .take(4)
-                                        .map(|value| describe(value, depth + 1))
-                                        .collect::<Vec<_>>()
-                                ),
-                                StoredOperand::Alternatives(values) => {
-                                    format!("alternatives count={} truncated", values.len())
-                                }
-                            }
-                        }
-                        let kind = match observation {
-                            crate::completed_storage::StoredObservation::Binding => "binding",
-                            crate::completed_storage::StoredObservation::InlineContents => {
-                                "inline-contents"
-                            }
-                            crate::completed_storage::StoredObservation::Contents => "contents",
-                        };
-                        eprintln!(
-                            "CHECKSITE entry-scalar-preservation kind={kind} place={place:?} cut={at:?} source={:?}",
-                            sources.as_ref().map(|source| describe(source, 0))
-                        );
-                    }
-                    match sources? {
+                    )? {
                         crate::completed_storage::StoredOperand::Incoming(source)
                             if source == place => {}
                         _ => return None,
