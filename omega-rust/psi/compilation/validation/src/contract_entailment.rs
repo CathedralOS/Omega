@@ -60043,32 +60043,18 @@ pub(crate) mod structural_judgment {
                     scope: ValueScope<'_>,
                 ) -> Option<Self> {
                     let value = self.observed_value()?;
-                    let observed = structural_terms::scalar_operand_is_observed(
+                    if structural_terms::scalar_operand_is_observed(
                         self.judge.program,
                         declared,
                         value,
-                    );
-                    let completed = if observed {
-                        None
-                    } else {
-                        self.judge.frame_resolver().map(|resolver| {
-                            resolver.completed_scalar_read(scope.0, scope.1, expression)
-                        })
-                    };
-                    if crate::trace_flags::check_sites() && scope.0.name.as_str() == "echo" {
-                        static EVENTS: std::sync::atomic::AtomicUsize =
-                            std::sync::atomic::AtomicUsize::new(0);
-                        if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8 {
-                            eprintln!(
-                                "CHECKSITE scalar-receiving-read machine={:?} state={:?} expression={expression:?} source_type={declared:?} observed={observed} completed={completed:?} value={value:?}",
-                                scope.0.symbol, scope.1.symbol,
-                            );
-                        }
-                    }
-                    if observed {
+                    ) {
                         return Some(self);
                     }
-                    if completed != Some(true) {
+                    if !self
+                        .judge
+                        .frame_resolver()?
+                        .completed_scalar_read(scope.0, scope.1, expression)
+                    {
                         return None;
                     }
                     self.value = self
@@ -63499,22 +63485,6 @@ pub(crate) mod structural_judgment {
                         let mut paths = paths.into_iter().peekable();
                         while let Some(mut path) = paths.next() {
                             if let Some(reference) = scalar_read {
-                                if crate::trace_flags::check_sites()
-                                    && scope.0.name.as_str() == "echo"
-                                {
-                                    static EVENTS: std::sync::atomic::AtomicUsize =
-                                        std::sync::atomic::AtomicUsize::new(0);
-                                    if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8
-                                    {
-                                        eprintln!(
-                                            "CHECKSITE scalar-receiving-slot machine={:?} state={:?} expression={child:?} source_type={reference:?} receiving_type={:?} value={:?}",
-                                            scope.0.symbol,
-                                            scope.1.symbol,
-                                            operands[position].reference,
-                                            path.value,
-                                        );
-                                    }
-                                }
                                 path =
                                     path.complete_scalar_operand_read(child, reference, scope)?;
                                 path = path.at_expression(child, demand);
@@ -80580,43 +80550,6 @@ pub(crate) mod structural_judgment {
                 return None;
             };
             let target = *target;
-            let trace_model = if crate::trace_flags::check_sites()
-                && self
-                    .program
-                    .symbols
-                    .display_path(self.machine_symbol, "::")
-                    .contains("WriteBuffer::try_from")
-                && self
-                    .substitutions
-                    .iter()
-                    .any(|(name, _)| name.as_str() == super::RESULT_BINDER)
-                && self
-                    .program
-                    .symbols
-                    .display_path(target, "::")
-                    .contains("BufferModel")
-            {
-                static EVENTS: std::sync::atomic::AtomicUsize =
-                    std::sync::atomic::AtomicUsize::new(0);
-                EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 12
-            } else {
-                false
-            };
-            if trace_model {
-                eprintln!(
-                    "CHECKSITE model-application caller={:?} target={target:?} application={application:?}",
-                    self.machine_symbol
-                );
-            }
-            let observe = |value: Option<StructuralTerm>| {
-                if trace_model {
-                    eprintln!(
-                        "CHECKSITE model-application-result caller={:?} target={target:?} result={value:?}",
-                        self.machine_symbol
-                    );
-                }
-                value
-            };
             if super::struct_trace() {
                 eprintln!("STRUCT unfold? {machine_name} args {arguments:?} depth {depth}");
             }
@@ -80716,22 +80649,20 @@ pub(crate) mod structural_judgment {
                     continue;
                 }
                 if let Some(expression) = statement.as_expression() {
-                    return observe(
-                        (index + 1 == statements.len())
-                            .then(|| {
-                                specification.callee_term(
-                                    *expression,
-                                    &environment,
-                                    StaticObservations {
-                                        machine_bindings: &static_environment,
-                                        body_parameters: &[],
-                                    },
-                                    Some((machine, state, state.return_type)),
-                                    depth + 1,
-                                )
-                            })
-                            .flatten(),
-                    );
+                    return (index + 1 == statements.len())
+                        .then(|| {
+                            specification.callee_term(
+                                *expression,
+                                &environment,
+                                StaticObservations {
+                                    machine_bindings: &static_environment,
+                                    body_parameters: &[],
+                                },
+                                Some((machine, state, state.return_type)),
+                                depth + 1,
+                            )
+                        })
+                        .flatten();
                 }
                 let transition = statement.as_transition()?;
                 if transition.continuation.is_valid() {
@@ -80798,73 +80729,69 @@ pub(crate) mod structural_judgment {
                 if !fires {
                     continue;
                 }
-                return observe(
-                    match program.statement_table.transition_target(transition.target) {
-                        TransitionTargetNode::Value(value) => specification.callee_term(
-                            *value,
-                            &environment,
-                            StaticObservations {
-                                machine_bindings: &static_environment,
-                                body_parameters: &[],
-                            },
-                            Some((machine, state, state.return_type)),
-                            depth + 1,
-                        ),
-                        TransitionTargetNode::Named {
-                            path,
-                            arguments,
-                            static_machine_parameter,
-                            evidence_arguments,
-                            ..
-                        } if !static_machine_parameter.is_valid()
-                            && evidence_arguments.is_empty() =>
-                        {
-                            let (target, result_type) =
-                                crate::machine_calls::calls::terminal_callable_target(
-                                    program,
-                                    machine,
-                                    path.symbol,
-                                )?;
-                            let callee = self.entry_machines.machine(program, target)?;
-                            if !program.machine_type_parameters(callee).is_empty() {
-                                return None;
-                            }
-                            specification_application_candidate(
+                return match program.statement_table.transition_target(transition.target) {
+                    TransitionTargetNode::Value(value) => specification.callee_term(
+                        *value,
+                        &environment,
+                        StaticObservations {
+                            machine_bindings: &static_environment,
+                            body_parameters: &[],
+                        },
+                        Some((machine, state, state.return_type)),
+                        depth + 1,
+                    ),
+                    TransitionTargetNode::Named {
+                        path,
+                        arguments,
+                        static_machine_parameter,
+                        evidence_arguments,
+                        ..
+                    } if !static_machine_parameter.is_valid() && evidence_arguments.is_empty() => {
+                        let (target, result_type) =
+                            crate::machine_calls::calls::terminal_callable_target(
                                 program,
-                                machine.symbol,
-                                target,
-                                &[],
-                                self.frame_resolver(),
-                            )
-                            .ok()?;
-                            let arguments = program
-                                .statement_table
-                                .expression_handles(*arguments)
-                                .iter()
-                                .map(|argument| {
-                                    specification.callee_term(
-                                        *argument,
-                                        &environment,
-                                        StaticObservations {
-                                            machine_bindings: &static_environment,
-                                            body_parameters: &[],
-                                        },
-                                        Some((machine, state, state.return_type)),
-                                        depth + 1,
-                                    )
-                                })
-                                .collect::<Option<Vec<_>>>()?;
-                            Some(StructuralTerm::Application {
-                                result_type,
-                                target,
-                                selections: Vec::new(),
-                                machine: callee.name.as_str().to_owned(),
-                                arguments,
-                            })
+                                machine,
+                                path.symbol,
+                            )?;
+                        let callee = self.entry_machines.machine(program, target)?;
+                        if !program.machine_type_parameters(callee).is_empty() {
+                            return None;
                         }
-                        _ => None,
-                    },
-                );
+                        specification_application_candidate(
+                            program,
+                            machine.symbol,
+                            target,
+                            &[],
+                            self.frame_resolver(),
+                        )
+                        .ok()?;
+                        let arguments = program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .map(|argument| {
+                                specification.callee_term(
+                                    *argument,
+                                    &environment,
+                                    StaticObservations {
+                                        machine_bindings: &static_environment,
+                                        body_parameters: &[],
+                                    },
+                                    Some((machine, state, state.return_type)),
+                                    depth + 1,
+                                )
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        Some(StructuralTerm::Application {
+                            result_type,
+                            target,
+                            selections: Vec::new(),
+                            machine: callee.name.as_str().to_owned(),
+                            arguments,
+                        })
+                    }
+                    _ => None,
+                };
             }
             None
         }
@@ -81490,43 +81417,14 @@ pub(crate) mod structural_judgment {
                 }
                 ExpressionNode::Borrow(borrow) => child_term!(borrow.target),
                 ExpressionNode::Boolean(value) => Some(StructuralTerm::boolean(*value)),
-                ExpressionNode::Indexed(indexed) => {
-                    let collection = child_term!(indexed.collection)?;
-                    let index = child_term!(indexed.index)?;
-                    let inputs = if crate::trace_flags::check_sites()
-                        && program
-                            .symbols
-                            .display_path(self.machine_symbol, "::")
-                            .contains("WriteBuffer::try_from")
-                        && self
-                            .substitutions
-                            .iter()
-                            .any(|(name, _)| name.as_str() == super::RESULT_BINDER)
-                        && scope.is_some_and(|(machine, _, _)| {
-                            program
-                                .symbols
-                                .display_path(machine.symbol, "::")
-                                .contains("BufferModel")
-                        }) {
-                        static EVENTS: std::sync::atomic::AtomicUsize =
-                            std::sync::atomic::AtomicUsize::new(0);
-                        (EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 12)
-                            .then(|| (collection.clone(), index.clone()))
-                    } else {
-                        None
-                    };
-                    let value = super::structural_terms::indexed_term_in_scope(
-                        program, scope, None, expression, collection, index,
-                    );
-                    if let Some((collection, index)) = inputs {
-                        eprintln!(
-                            "CHECKSITE model-index caller={:?} scope={:?} expression={expression:?} environment={environment:?} collection={collection:?} index={index:?} result={value:?}",
-                            self.machine_symbol,
-                            scope.map(|(machine, state, _)| (machine.symbol, state.symbol)),
-                        );
-                    }
-                    value
-                }
+                ExpressionNode::Indexed(indexed) => super::structural_terms::indexed_term_in_scope(
+                    program,
+                    scope,
+                    None,
+                    expression,
+                    child_term!(indexed.collection)?,
+                    child_term!(indexed.index)?,
+                ),
                 ExpressionNode::Binary(binary) => super::structural_terms::binary_term_in_scope(
                     program,
                     scope,
@@ -81691,63 +81589,6 @@ pub(crate) mod structural_judgment {
             term.for_each_child(|child| Self::self_applications(child, selected_target, found));
         }
 
-        pub(crate) fn trace_returned_binding(
-            &self,
-            fact: ExpressionHandle,
-            value: &StructuralTerm,
-        ) {
-            if !crate::trace_flags::check_sites() {
-                return;
-            }
-            let name = self.program.symbols.display_path(self.machine_symbol, "::");
-            let lane = if name.rsplit("::").next() == Some("echo") {
-                0
-            } else if name.contains("WriteBuffer::try_from") {
-                1
-            } else {
-                return;
-            };
-            static EVENTS: [std::sync::atomic::AtomicUsize; 2] = [
-                std::sync::atomic::AtomicUsize::new(0),
-                std::sync::atomic::AtomicUsize::new(0),
-            ];
-            if EVENTS[lane].fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 4 {
-                return;
-            }
-            eprintln!(
-                "CHECKSITE returned-binding owner={name} state={:?} fact={fact:?} value={value:?} substitutions={:?} source={:?} storage={:?} nominal_count={}",
-                self.declaration_state,
-                self.substitutions,
-                self.returned_value_source.as_ref().map(|source| (
-                    source.machine,
-                    source.state,
-                    source.expression,
-                    source.type_reference,
-                    source.storage_version
-                )),
-                self.storage_version,
-                self.completed_nominal_values.len(),
-            );
-            for receipt in self.completed_nominal_values.iter().rev().take(8) {
-                eprintln!(
-                    "CHECKSITE returned-constructor owner={name} anchor={:?} type={:?} capture={:?} observed={:?}",
-                    receipt.anchor, receipt.reference, receipt.value, receipt.observed_value,
-                );
-            }
-            for stored in self.stored_values.iter().rev().take(8) {
-                eprintln!(
-                    "CHECKSITE returned-storage owner={name} coordinate={:?} entry={:?} current={:?} anchors={:?} anchor_state={:?} backing={} completed_read={:?}",
-                    stored.coordinate,
-                    stored.entry,
-                    stored.current,
-                    stored.current_anchors,
-                    stored.anchor_state,
-                    stored.backing.is_some(),
-                    stored.completed_read,
-                );
-            }
-        }
-
         pub(crate) fn judge_proposition(
             &self,
             program: &dyn crate::CheckingInput,
@@ -81788,43 +81629,14 @@ pub(crate) mod structural_judgment {
                     crate::mathematical_applications::is_mathematical_call(program, call)
                 })
             {
-                let preserved = self.entry_storage_observations_preserved(fact);
-                let predicate = preserved.then(|| self.declaration_term(fact)).flatten();
-                if crate::trace_flags::check_sites()
-                    && program
-                        .symbols
-                        .display_path(self.machine_symbol, "::")
-                        .rsplit("::")
-                        .next()
-                        == Some("echo")
-                    && self
-                        .substitutions
-                        .iter()
-                        .any(|(name, _)| name.as_str() == super::RESULT_BINDER)
-                {
-                    static EVENTS: std::sync::atomic::AtomicUsize =
-                        std::sync::atomic::AtomicUsize::new(0);
-                    if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 4 {
-                        eprintln!(
-                            "CHECKSITE returned-identity machine={:?} state={:?} fact={fact:?} preserved={preserved} storage={:?} predicate={predicate:?} substitutions={:?} source={:?} nominal_count={}",
-                            self.machine_symbol,
-                            self.declaration_state,
-                            self.storage_version,
-                            self.substitutions,
-                            self.returned_value_source.as_ref().map(|source| (
-                                source.machine,
-                                source.state,
-                                source.expression,
-                                source.type_reference,
-                                source.storage_version
-                            )),
-                            self.completed_nominal_values.len(),
-                        );
-                    }
+                if !self.entry_storage_observations_preserved(fact) {
+                    return StructuralJudgment::Unknown;
                 }
-                return predicate.map_or(StructuralJudgment::Unknown, |predicate| {
-                    self.judge_observed_predicate(predicate, 0)
-                });
+                return self
+                    .declaration_term(fact)
+                    .map_or(StructuralJudgment::Unknown, |predicate| {
+                        self.judge_observed_predicate(predicate, 0)
+                    });
             }
             let Some(binary) = expression_table(program).binary_node(fact) else {
                 return self
@@ -88865,11 +88677,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 if !result_is_parameter {
                     bound.bind_returned_value(value, source);
                 }
-                let judgment = bound.judge_proposition(program, fact);
-                if matches!(judgment, StructuralJudgment::Unknown) {
-                    bound.trace_returned_binding(fact, value);
-                }
-                (judgment, None)
+                (bound.judge_proposition(program, fact), None)
             };
             if struct_trace() {
                 eprintln!(
