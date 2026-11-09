@@ -74474,14 +74474,112 @@ pub(crate) mod structural_judgment {
                             )
                         })
                 });
-                if missing_contents
-                    && let Some((machine, state)) = scope
-                    && let Some(value) =
-                        self.current_backing_value(machine, state, expression, read_version)
-                {
-                    return Some(value);
+                if missing_contents && let Some((machine, state)) = scope {
+                    let declared = self.scalar_reference_read_type(machine, state, expression);
+                    if let Some(value) = self
+                        .current_backing_value(machine, state, expression, read_version)
+                        .filter(|value| {
+                            !super::super::structural_terms::term_is_unobserved_descriptor(
+                                self.program,
+                                value,
+                            ) && declared.is_none_or(|declared| {
+                                super::super::structural_terms::scalar_operand_is_observed(
+                                    self.program,
+                                    declared,
+                                    value,
+                                )
+                            })
+                        })
+                        .or_else(|| {
+                            self.preserved_entry_scalar_read(
+                                machine,
+                                state,
+                                expression,
+                                &place,
+                                read_version,
+                            )
+                        })
+                    {
+                        return Some(value);
+                    }
                 }
                 current
+            }
+
+            fn preserved_entry_scalar_read(
+                &self,
+                machine: &Machine,
+                state: &State,
+                expression: ExpressionHandle,
+                coordinate: &CapturedStorageCoordinate,
+                at: Option<StorageVersion>,
+            ) -> Option<super::StructuralTerm> {
+                let (owner, declaration) = self.runtime_declaration_scope()?;
+                let at = at?;
+                if owner.symbol != machine.symbol
+                    || declaration.symbol != state.symbol
+                    || at.state != state.symbol
+                    || !at.snapshot.is_valid()
+                {
+                    return None;
+                }
+                let declared = self.scalar_reference_read_type(machine, state, expression)?;
+                crate::reference_shell(self.program, declared)?
+                    .access
+                    .is_readable()
+                    .then_some(())?;
+                let place = Self::coordinate_place(coordinate)?;
+                let root = place.root.as_symbol()?;
+                let parameter = self.program.state_parameter_by_symbol(state, root)?;
+                let (cases, indices) =
+                    super::super::scoped_arithmetic::scalar_projection_requirements(
+                        self.program,
+                        parameter.type_reference,
+                        &place.segments,
+                    )?;
+                self.scalar_coordinate_is_formed(
+                    parameter.type_reference,
+                    &super::StructuralTerm::Variable(parameter.name.as_str().to_owned()),
+                    &place.segments,
+                    &cases,
+                    &indices,
+                )
+                .then_some(())?;
+                self.entry_read_backing(machine, state, root, &place.segments)?;
+                let graph = self.storage_graph()?;
+                // The descriptor and its scalar referent must both still be the
+                // exact incoming storage. An unknown or overlapping write refuses.
+                for observation in [
+                    crate::completed_storage::StoredObservation::Binding,
+                    crate::completed_storage::StoredObservation::Contents,
+                ] {
+                    match crate::completed_storage::sources_at_snapshot(
+                        self.program,
+                        graph,
+                        at.snapshot,
+                        &place,
+                        observation,
+                    )? {
+                        crate::completed_storage::StoredOperand::Incoming(source)
+                            if source == place => {}
+                        _ => return None,
+                    }
+                }
+                let mut entries = self
+                    .stored_values
+                    .values_at(coordinate)
+                    .filter(|stored| stored.anchor_state == state.symbol)
+                    .filter_map(|stored| stored.entry.as_ref());
+                let entry = entries.next()?;
+                if !super::super::structural_terms::scalar_operand_is_observed(
+                    self.program,
+                    declared,
+                    entry,
+                ) || entries.any(|other| !entry.same_resolution_payload(other))
+                {
+                    return None;
+                }
+                Some(entry.clone())
             }
 
             pub(crate) fn current_storage_value(
