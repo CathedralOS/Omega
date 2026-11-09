@@ -338,8 +338,8 @@ pub(crate) mod binding_observations {
         ) else {
             return false;
         };
-        if place.root.as_symbol().is_none()
-            || !(0..=place.segments.len()).all(|length| {
+        place.root.as_symbol().is_some()
+            && (0..=place.segments.len()).all(|length| {
                 crate::canonical_place_type_reference(
                     program,
                     state.symbol,
@@ -351,10 +351,6 @@ pub(crate) mod binding_observations {
                 )
                 .is_some_and(|reference| crate::reference_shell(program, reference).is_none())
             })
-        {
-            return false;
-        }
-        true
     }
 
     pub(crate) fn immutable_value_origin(
