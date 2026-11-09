@@ -17,6 +17,53 @@ fn internal_native_provider_worker() {
     crate::run_worker_if_requested();
 }
 
+// A worker must consume the sponsor handshake, so that processes its foreign
+// code starts never inherit it and wrongly start up as a worker. The parent
+// test spawns this binary with the four variables set; this probe reads them
+// once and checks that nothing is left for a child to inherit.
+#[test]
+fn sponsorship_probe() {
+    use crate::worker::{CHANNEL_ENV, PARENT_ENV, ROOT_ENV, TIMEOUT_ENV};
+    if std::env::var_os("OMEGA_SPONSORSHIP_PROBE").is_none() {
+        return;
+    }
+    let sponsorship = crate::worker::take_sponsorship().expect("handshake is present");
+    assert_eq!(sponsorship.endpoint, "probe-channel");
+    #[cfg(windows)]
+    assert_eq!(sponsorship.parent.as_deref(), Some("1".as_ref()));
+    assert_eq!(sponsorship.root.as_deref(), Some("probe-root".as_ref()));
+    assert_eq!(sponsorship.timeout.as_deref(), Some("1000".as_ref()));
+    for name in [CHANNEL_ENV, PARENT_ENV, ROOT_ENV, TIMEOUT_ENV] {
+        assert!(
+            std::env::var_os(name).is_none(),
+            "{name} would leak to children"
+        );
+    }
+    assert!(crate::worker::take_sponsorship().is_none());
+}
+
+#[test]
+fn worker_does_not_pass_its_handshake_to_children() {
+    use crate::worker::{CHANNEL_ENV, PARENT_ENV, ROOT_ENV, TIMEOUT_ENV};
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "physical_tests::sponsorship_probe",
+            "--nocapture",
+        ])
+        .env("OMEGA_SPONSORSHIP_PROBE", "1")
+        .env(CHANNEL_ENV, "probe-channel")
+        .env(PARENT_ENV, "1")
+        .env(ROOT_ENV, "probe-root")
+        .env(TIMEOUT_ENV, "1000")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let report = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "probe failed:\n{report}");
+    assert!(report.contains("1 passed"), "probe did not run:\n{report}");
+}
+
 #[test]
 fn inherited_worker_shared_home() {
     let Some(path) = std::env::var_os("OMEGA_NATIVE_HOME_TEST") else {
