@@ -8265,8 +8265,11 @@ pub mod field_domains {
                         }),
                 );
             }
+            // An applied schema keeps its fields even when an argument is generic.
+            // Unknown field carriers still retain their unresolved obligations below.
             if let Some(data) = program
-                .closed_data_definition(carrier)
+                .data_application_definition(carrier)
+                .or_else(|| program.closed_data_definition(carrier))
                 .or_else(|| owned_nominal_data_definition(program, carrier))
             {
                 if ancestors.contains(&data.symbol) {
