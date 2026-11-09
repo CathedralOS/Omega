@@ -5272,55 +5272,6 @@ pub(crate) mod attached_unit {
             }
 
             #[allow(clippy::too_many_arguments)]
-            pub(crate) fn window_endpoints(
-                &mut self,
-                identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-                checked: &CheckedTrees,
-                machine: symbols::SymbolHandle,
-                state: symbols::SymbolHandle,
-                operation: &CheckedUnitEffectOperationPlan,
-                argument: usize,
-                source_value_count: usize,
-                values: &mut Vec<ValueDeclaration>,
-                next_value: &mut u64,
-                next_block: &mut u64,
-                next_edge: &mut u64,
-                operations: &mut OperationBuffer,
-                calls: &mut CallEmissionContext<'_>,
-                environment: &mut OperationEnvironment<'_>,
-            ) -> Result<(), LoweringError> {
-                let Some(call) = operation.call() else {
-                    return unsupported("window endpoint schedule has no call");
-                };
-                for (role, root) in super::argument_schedule::recorded_window_endpoint_roots(
-                    checked,
-                    state,
-                    call.coordinate,
-                    argument,
-                ) {
-                    let value = self.source_value(
-                        identities,
-                        checked,
-                        machine,
-                        state,
-                        call.coordinate.statement_index,
-                        role,
-                        &CheckedCallScalarArgument::Computation(root),
-                        source_value_count,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        operations,
-                        calls,
-                        environment,
-                    )?;
-                    values.push(value);
-                }
-                Ok(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
             pub(crate) fn argument_at(
                 &mut self,
                 identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -6209,7 +6160,6 @@ pub(crate) mod attached_unit {
             CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
             LoweringError, byte_subslices, unsupported,
         };
-        use crate::shared::checked_facts::value_facts;
         pub(crate) enum Step {
             CaptureBefore(u32),
             Ordinary(usize),
@@ -6217,10 +6167,6 @@ pub(crate) mod attached_unit {
             Argument {
                 operation: usize,
                 ordinal: usize,
-            },
-            Endpoint {
-                operation: usize,
-                argument: usize,
             },
             Subslice {
                 operation: usize,
@@ -6481,9 +6427,6 @@ pub(crate) mod attached_unit {
                     });
                     continue;
                 }
-                let has_recorded_endpoints =
-                    !recorded_window_endpoint_roots(checked, state, coordinate, argument_ordinal)
-                        .is_empty();
                 let joined = structural_arguments
                     .get(argument_ordinal)
                     .and_then(|argument| argument.source_structural_result_binding_ordinal())
@@ -6531,12 +6474,6 @@ pub(crate) mod attached_unit {
                         complete: true,
                     });
                 }
-                if has_recorded_endpoints {
-                    steps.push(Step::Endpoint {
-                        operation: index,
-                        argument: argument_ordinal,
-                    });
-                }
             }
             active.pop();
             emitted.push(index);
@@ -6567,43 +6504,6 @@ pub(crate) mod attached_unit {
                 steps.push(Step::Operation(index));
             }
             Ok(())
-        }
-
-        pub(crate) fn recorded_window_endpoint_roots(
-            checked: &CheckedTrees,
-            state: symbols::SymbolHandle,
-            coordinate: checked_trees::CheckedUnitCallCoordinate,
-            argument_ordinal: usize,
-        ) -> Vec<(
-            checked_trees::CheckedScalarExpressionRole,
-            checked_trees::CheckedScalarComputationHandle,
-        )> {
-            let Ok(argument_ordinal) = u32::try_from(argument_ordinal) else {
-                return Vec::new();
-            };
-            let site = checked_trees::CheckedSubsliceSite::CallArgument {
-                call_ordinal: coordinate.call_ordinal,
-                argument_ordinal,
-            };
-            [
-                checked_trees::CheckedScalarExpressionRole::SubsliceStart { site },
-                checked_trees::CheckedScalarExpressionRole::SubsliceEnd { site },
-            ]
-            .into_iter()
-            .filter_map(|role| {
-                let root = value_facts(checked)
-                    .scalar_computations
-                    .roots
-                    .iter()
-                    .map(|(_, root)| root)
-                    .find(|root| {
-                        root.state == state
-                            && root.statement_ordinal == coordinate.statement_index
-                            && root.role == role
-                    })?;
-                Some((role, root.root))
-            })
-            .collect()
         }
     }
 }

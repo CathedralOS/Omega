@@ -731,35 +731,6 @@ pub(crate) mod attached_unit {
                             staged_structural_arguments[operation][argument] = Some(captured);
                             continue;
                         }
-                        Step::Endpoint {
-                            operation,
-                            argument,
-                        } => {
-                            let source_value_count =
-                                retained_source_count.ok_or(LoweringError::Unsupported(
-                                    "composed endpoint operand has no source prefix",
-                                ))?;
-                            evaluate_frame!(source_value_count, |frame| {
-                                let (mut environment, emission) = frame.split();
-                                emission.evaluation.window_endpoints(
-                                    identities,
-                                    checked,
-                                    machine,
-                                    state.state,
-                                    &planned_operations[operation],
-                                    argument,
-                                    source_value_count,
-                                    emission.values,
-                                    emission.next_value,
-                                    emission.next_block,
-                                    emission.next_edge,
-                                    emission.operations,
-                                    emission.calls,
-                                    &mut environment,
-                                )
-                            })?;
-                            continue;
-                        }
                         Step::Subslice { operation, ordinal } => {
                             let source_value_count =
                                 retained_source_count.ok_or(LoweringError::Unsupported(
