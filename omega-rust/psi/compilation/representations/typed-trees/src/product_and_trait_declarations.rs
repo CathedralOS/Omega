@@ -1687,6 +1687,30 @@ pub mod trait_definition {
                     Some(self)
                 }
 
+                /// Whether a member of this trait keeps the signature it was
+                /// declared with, so no applied signature exists for it.
+                ///
+                /// `under_invocation` puts the invoking machine's own bindings
+                /// in front. A trait member cannot name another machine's
+                /// parameters, so those frames leave its signature alone; only
+                /// the frames after them, which apply the trait, can change it.
+                pub fn keeps_declared_signatures(&self, program: &TypedTrees) -> bool {
+                    let invocation_frames = self
+                        .region_scopes
+                        .iter()
+                        .take_while(|frame| {
+                            frame.declaration.is_valid()
+                                && program.symbols.get(frame.declaration).kind
+                                    == symbols::SymbolKind::Machine
+                        })
+                        .count();
+                    self.declaration.lifetime_parameters.is_empty()
+                        && self
+                            .substitution_scope_starts
+                            .get(invocation_frames)
+                            .is_some_and(|start| *start == self.substitutions.len())
+                }
+
                 pub fn portable_application_identity(
                     &self,
                     program: &TypedTrees,

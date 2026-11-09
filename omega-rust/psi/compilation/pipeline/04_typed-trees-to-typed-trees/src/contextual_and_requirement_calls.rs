@@ -3172,11 +3172,7 @@ pub(crate) mod requirement_applications {
                 };
                 let Some(selected) = program
                     .applied_callable_signature(&scope, template)
-                    .or_else(|| {
-                        (scope.substitutions.is_empty()
-                            && declaration.lifetime_parameters.is_empty())
-                        .then_some(declared)
-                    })
+                    .or_else(|| scope.keeps_declared_signatures(program).then_some(declared))
                     .cloned()
                 else {
                     continue;
@@ -3245,11 +3241,7 @@ pub(crate) mod requirement_applications {
                 };
                 let Some(selected) = program
                     .applied_callable_signature(&scope, template)
-                    .or_else(|| {
-                        (scope.substitutions.is_empty()
-                            && declaration.lifetime_parameters.is_empty())
-                        .then_some(declared)
-                    })
+                    .or_else(|| scope.keeps_declared_signatures(program).then_some(declared))
                     .cloned()
                 else {
                     continue;
