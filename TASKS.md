@@ -84,6 +84,9 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Lowering, checker, and data-flow
 
+- **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/drafts/designs/operation_arithmetic_policy.md) (`+%`, `+|`, `+!`) and core policy domains.
+  Acceptance: the draft's fixtures pass `--both`; `source/psi` has no `in Trapping`.
+
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.
   - Add the crash row (public omission means none, private inference, requirement deferral, `crashes none` enforcement, per-cause routes) and the termination row (binder premises on authored `terminates`).

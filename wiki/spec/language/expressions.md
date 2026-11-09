@@ -169,6 +169,16 @@ clause.
 | Multiplicative | `*`, `/`, `%` | Left. |
 | Additive | `+`, `-` | Left. |
 
+Each of `+`, `-`, `*`, `/`, `%` and the shifts `<<` and `>>` also has three
+[policy forms](numeric_values.md#policy-operators), suffixed `%` (Wrapping),
+`|` (Saturating) and `!` (Trapping). A suffixed form has the precedence,
+associativity and arity of its base operator. Lexing takes the longest
+operator, so `a +!b` is a trapping add; a logical negation after `+` needs a
+space or parentheses, as in `a + !b`. Right shift keeps its two adjacent `>`
+tokens, and its suffix is the `%`, `|` or `!` immediately following the second
+`>`; no `>>` token is added. The suffixed forms are builtin integer operations
+only, so a `machine` declaration cannot bind one.
+
 Grouping is separate from the evaluation schedule. One declaration binds at
 most one fixed token. Distinct normalized operand/domain shapes may share a
 token; duplicate participating token/shape candidates reject. A second spelling

@@ -285,7 +285,9 @@ After explicit same-carrier erasure, Exact operations act on the actual stored
 value, not a mathematical pre-wrap result. A machine naming no arithmetic policy
 publishes Exact; a caller-selectable policy must occur in its contract. The
 generic spelling for that choice remains unsettled. Omission does not choose a
-weaker policy, and incompatible policies do not mix implicitly.
+weaker policy, and incompatible policies do not mix implicitly. A
+[policy operator](#policy-operators) selects its policy for that one operation
+and leaves its operands and result unqualified.
 
 ### Integer equality and order
 
@@ -352,6 +354,77 @@ signed `MIN / -1` (including `MIN % -1`), and a shift count outside
 Checking, verification, interpretation, and realization preserve the
 operation's exact denotation, cause, and path-conditioned site.
 
+### Policy operators
+
+Named decision: `operation-arithmetic-policy`, settled 2026-11-09. A policy can
+be chosen at one operation instead of on a binding's type. Each integer
+arithmetic and shift operator has three suffixed forms, and the bare operator
+stays Exact:
+
+- Wrapping: `+%`, `-%`, `*%`, `/%`, `%%`, `<<%`, `>>%`
+- Saturating: `+|`, `-|`, `*|`, `/|`, `%|`, `<<|`, `>>|`
+- Trapping: `+!`, `-!`, `*!`, `/!`, `%!`, `<<!`, `>>!`
+
+```omega
+let next: u64 = cursor +! width;   // traps when the sum leaves u64
+let mixed: u32 = hash *% 31;       // reduces modulo 2^32
+let raised: u8 = level +| step;    // clamps to 0..=255
+```
+
+A suffixed operator applies its policy's rule for that primitive at that node:
+the overflow rule above, the [quotient and remainder](#integer-quotient-and-remainder)
+rule and the [shift-count](#shift-counts) rule. It has no other meaning, and no
+binding's qualification selects or changes it. `a +% b` on two `u32` values is
+exactly what `+` means for two `u32 in Wrapping` operands, and likewise for
+every form.
+
+Both operands have the same fixed-integer carrier under the Exact operator's
+operand rules; a shift's count keeps its own. At least one operand must already
+be integer-typed and the other lands to that carrier. A wholly anonymous tree
+rejects, because it has no carrier to wrap, clamp or trap at. Predicate-only
+qualifications weaken implicitly as they do elsewhere. An operand carrying a
+unit, an arithmetic policy or another semantic qualification must first be
+erased with `as`: a suffixed operator neither consults nor strips one. The
+result is the bare carrier with no policy qualification, so the next operation
+is Exact unless it names a policy itself.
+
+A `%` or `|` form is total over its overflow case and adds no crash site. Like
+its policy, it does not license a zero divisor, and a `|` shift still owes the
+Exact count proof.
+
+A `!` form is a Trapping operation. It is its own `Trap` site under the
+primitive's predicate above, including a zero divisor and an out-of-range shift
+count, and it contributes that route to its machine's
+[crash contract](effects.md#guarded-crashes) like any other Trapping operation.
+Path facts that disprove the predicate remove the route. On normal return the
+result equals the exact mathematical result of the unsuffixed operation, and
+that equality is an established fact about the result.
+
+The suffixed forms are compiler-owned integer primitives. A `machine`
+declaration cannot bind one, floats have no suffixed forms, and no
+compound-assignment spelling is introduced.
+[Operator declarations](expressions.md#operator-declarations) owns their lexical
+rules.
+
+#### Policy domains
+
+`Wrapping`, `Saturating` and `Trapping` remain qualifications for a value whose
+every operation should use one policy. They are `omega::core` domains, not
+separately specified arithmetic. For each fixed integer carrier, the unsuffixed
+operator on operands qualified by one of them is the corresponding suffixed
+operation on the erased operands, with the result qualified by the same domain.
+`Trapping`'s operators publish `crashes Trap`. Their role, their composition
+with other qualifications, their erasure and the float policy rows are
+unchanged.
+
+Use a suffixed operator when one operation needs a policy. A qualified binding
+makes every later operation on it use that policy and must be erased before
+Exact use. A `Trapping` qualification in particular says nothing about the
+value it qualifies: a returned Trapping result is the exact value.
+
+Compiler and library support is pending **OPERATION-ARITHMETIC-POLICY** in
+[TASKS.md](../../../TASKS.md).
+
 ### Integer quotient and remainder
 
 Builtin `%` needs at least one already-integer-typed operand. The other operand
@@ -385,6 +458,12 @@ both return remainder zero. Neither policy licenses a zero divisor. The
 mathematical equation does not itself prove the safety of its authored machine
 intermediates or replace overflow-policy behavior.
 
+The [policy operators](#policy-operators) follow these rows. `/%` and `%%`
+return `MIN` and zero for signed `MIN` by `-1`, and `/|` and `%|` return `MAX`
+and zero; all four still owe a nonzero-divisor proof. On an unsigned carrier,
+where no quotient is unrepresentable, they therefore equal `/` and `%`. `/!`
+and `%!` trap on a zero divisor and on signed `MIN / -1` or `MIN % -1`.
+
 A separately named Euclidean modulo operation remains deferred with no selected
 spelling. There is no context-selected second meaning of `%`, or anonymous
 Euclidean-remainder warning: the untyped operation rejects.
@@ -400,6 +479,11 @@ Euclidean-remainder warning: the untyped operation rejects.
 
 Exact left-shift result representability is a separate obligation. Hardware
 masking cannot discharge the Exact count proof or silently change its meaning.
+
+The suffixed shifts take the matching row: `<<%` and `>>%` reduce the count,
+`<<|` and `>>|` keep the Exact count proof, and `<<!` and `>>!` trap on an
+out-of-range count. A right shift cannot overflow its value, so `>>|` means the
+same as `>>`; it exists to keep the suffix set uniform.
 
 Integer bitwise AND, OR, XOR, and complement preserve their signed/unsigned
 carrier and are total at its width; complement includes the full two's-complement
