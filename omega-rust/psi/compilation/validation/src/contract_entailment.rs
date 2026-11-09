@@ -15124,7 +15124,7 @@ pub(crate) mod contract_refinement {
             diagnostics.push(diagnostic);
             return;
         }
-        let member = ContractFacts::collect(
+        let mut member = ContractFacts::collect(
             program,
             machine.symbol,
             program
@@ -15136,6 +15136,12 @@ pub(crate) mod contract_refinement {
             invocation_parameters,
             &captured,
         );
+        if let Some(operations) =
+            selected_operation_correspondence(program, machine, application, requirement)
+        {
+            required.bind_selected_operations(program, &operations.required);
+            member.bind_selected_operations(program, &operations.provided);
+        }
         let owes_through_edge = program
             .machine_trait_conformances(machine)
             .iter()
@@ -15182,8 +15188,75 @@ pub(crate) mod contract_refinement {
         }
     }
 
+    struct SelectedOperationCorrespondence {
+        required: Vec<(SymbolHandle, String)>,
+        provided: Vec<(SymbolHandle, String)>,
+    }
+
+    fn selected_operation_correspondence(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        application: &AppliedTraitScope<'_>,
+        requirement: &StateSignature,
+    ) -> Option<SelectedOperationCorrespondence> {
+        use super::law_conformance::slot_bindings::TraitOperationSlots;
+
+        let (selected, scope) = program.lexical_conformance_scope(machine.symbol)?;
+        let scope =
+            scope.declaring_scope(program.typed_program(), application.declaration.symbol)?;
+        if !scope.same_application(program.typed_program(), application) {
+            return None;
+        }
+        let slots = TraitOperationSlots::new(program, application.declaration, Some(application));
+        let mut correspondence = SelectedOperationCorrespondence {
+            required: Vec::new(),
+            provided: Vec::new(),
+        };
+        let mut expressions = Vec::new();
+        for contract in program.state_signature_contracts(requirement) {
+            crate::queries::expression_traversal::collect_proof_fact_expression_trees(
+                program,
+                program.proof_facts.span_or_empty(contract.facts),
+                &mut expressions,
+            );
+        }
+        let bind = |bindings: &mut Vec<(SymbolHandle, String)>, symbol, key: &String| {
+            if let Some((_, existing)) = bindings.iter().find(|(known, _)| *known == symbol) {
+                return (existing == key).then_some(());
+            }
+            bindings.push((symbol, key.clone()));
+            Some(())
+        };
+        for expression in expressions {
+            let Some(call) = program.expression_table.call_node(expression) else {
+                continue;
+            };
+            let Some((slot, _)) = slots.resolve(program, call.target_symbol) else {
+                continue;
+            };
+            let mut rows = selected.rows.iter().enumerate().filter(|(_, row)| {
+                row.requirement == slot.requirement
+                    && program
+                        .trait_machine_signature(row.requirement)
+                        .is_some_and(|(owner, _)| owner.symbol == row.declaring_trait)
+            });
+            let (ordinal, row) = rows.next()?;
+            if rows.next().is_some() {
+                return None;
+            }
+            let provider = program.machine(row.realization_machine)?;
+            program.state_in_machine(provider, row.realization_state)?;
+            let key = format!("\0contract-operation:{ordinal}");
+            bind(&mut correspondence.required, call.target_symbol, &key)?;
+            bind(&mut correspondence.provided, row.realization_machine, &key)?;
+            bind(&mut correspondence.provided, row.realization_state, &key)?;
+        }
+        Some(correspondence)
+    }
+
     pub(crate) struct ContractFacts {
         owner: SymbolHandle,
+        binders: Vec<(SymbolHandle, String)>,
         bindings: Vec<ScopedArithmeticBinding>,
         requires: Vec<Conjunct>,
         ensures: Vec<Conjunct>,
@@ -15211,6 +15284,7 @@ pub(crate) mod contract_refinement {
             let binders = callable_binders(&generic, parameters);
             let mut facts = Self {
                 owner,
+                binders: binders.clone(),
                 bindings: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
@@ -15320,6 +15394,41 @@ pub(crate) mod contract_refinement {
                 }
             }
             facts
+        }
+
+        fn bind_selected_operations(
+            &mut self,
+            program: &dyn crate::CheckingInput,
+            operations: &[(SymbolHandle, String)],
+        ) {
+            if operations.is_empty() || !binder_mapping_is_unique(&self.binders, operations) {
+                return;
+            }
+            let mut binders = self.binders.clone();
+            binders.extend_from_slice(operations);
+            for conjunct in self.requires.iter_mut().chain(&mut self.ensures) {
+                let ProofFact::Expression(expression) = &conjunct.fact else {
+                    continue;
+                };
+                let mut expressions = Vec::new();
+                crate::collect_expression_tree(program, *expression, &mut expressions);
+                if expressions.iter().any(|expression| {
+                    program
+                        .expression_table
+                        .call_node(*expression)
+                        .is_some_and(|call| {
+                            operations
+                                .iter()
+                                .any(|(symbol, _)| *symbol == call.target_symbol)
+                                && !super::law_conformance::neutral_call_payload(call)
+                        })
+                }) {
+                    continue;
+                }
+                // The exact selected row supplies operation identity. No body
+                // fact or stronger private contract enters this correspondence.
+                conjunct.identity = correspondence_fact(program, &conjunct.fact, &binders);
+            }
         }
 
         fn instantiate_family_packs(
@@ -17392,7 +17501,9 @@ pub(crate) mod law_conformance {
             )
         }
 
-        fn neutral_call_payload(call: &typed_trees::expression::TableCallExpression) -> bool {
+        pub(crate) fn neutral_call_payload(
+            call: &typed_trees::expression::TableCallExpression,
+        ) -> bool {
             call.evidence_arguments.is_empty()
                 && !call.static_machine_parameter.is_valid()
                 && call.static_requirement_dispatch.is_none()
@@ -18948,7 +19059,7 @@ pub(crate) mod law_conformance {
         }
     }
 
-    pub(crate) use equality_conjuncts::collect_equality_conjuncts;
+    pub(crate) use equality_conjuncts::{collect_equality_conjuncts, neutral_call_payload};
     pub use inherited_requirements::{
         InheritedRequirementApplication, inherited_requirement_proposition_application,
         inherited_requirement_proposition_label, inherited_satisfier_parameters,
