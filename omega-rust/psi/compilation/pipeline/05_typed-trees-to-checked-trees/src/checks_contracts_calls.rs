@@ -717,20 +717,56 @@ mod captured_boolean {
         path: &[facts::PlaceSegment],
         frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<crate::checks::current_scalar_values::CallArgumentProjection> {
-        let (_, _, parameters) = contract_parameters(program, facts, contract, target)?;
-        let actuals = call_values::captured_argument_expressions(program, facts, state, call)?;
-        let invocation = facts.flow.control.operands.span(call.operands)?.last()?;
+        // Report the first unavailable input without repeating a proof query.
+        macro_rules! projection_input {
+            ($stage:literal, $value:expr) => {
+                match $value {
+                    Some(value) => value,
+                    None => {
+                        if validation::trace_flags::check_sites() {
+                            eprintln!(
+                                "CHECKSITE call-case-projection stage={} machine={:?} state={:?} statement={} call={} target={:?}",
+                                $stage, state.machine_symbol, state.state_symbol,
+                                call.statement_index, call.call_ordinal, target,
+                            );
+                        }
+                        return None;
+                    }
+                }
+            };
+        }
+        let (_, _, parameters) = projection_input!(
+            "contract-telescope",
+            contract_parameters(program, facts, contract, target)
+        );
+        let actuals = projection_input!(
+            "argument-roster",
+            call_values::captured_argument_expressions(program, facts, state, call)
+        );
+        let invocation = projection_input!(
+            "invocation-operand",
+            facts
+                .flow
+                .control
+                .operands
+                .span(call.operands)
+                .and_then(|rows| rows.last())
+        );
         let mut arguments = Vec::with_capacity(parameters.len());
         for parameter in &parameters {
-            let position = contract_parameter_position(
-                program,
-                &facts.proof,
-                contract,
-                target,
-                parameter.symbol,
-            )
-            .ok()??;
-            arguments.push(*actuals.get(position)?);
+            let position = projection_input!(
+                "formal-position",
+                contract_parameter_position(
+                    program,
+                    &facts.proof,
+                    contract,
+                    target,
+                    parameter.symbol,
+                )
+                .ok()
+                .flatten()
+            );
+            arguments.push(*projection_input!("actual-position", actuals.get(position)));
         }
         let mut reads = Vec::new();
         for segment in path {
@@ -739,44 +775,60 @@ mod captured_boolean {
             }
         }
         for read in reads {
-            let declared = validation::canonical_place_from_expression(program, read)?;
-            let symbol = declared.root.as_symbol()?;
-            let Some(position) =
-                contract_parameter_position(program, &facts.proof, contract, target, symbol)
-                    .ok()?
-            else {
+            let declared = projection_input!(
+                "selector-read-place",
+                validation::canonical_place_from_expression(program, read)
+            );
+            let symbol = projection_input!("selector-read-root", declared.root.as_symbol());
+            let Some(position) = projection_input!(
+                "selector-formal-position",
+                contract_parameter_position(program, &facts.proof, contract, target, symbol).ok()
+            ) else {
                 continue;
             };
-            let actual = call_values::actual_at(program, state, call, position, declared.segments)?;
-            let captures = call_values::captured_values(program, facts, state, call, &actual)?;
-            if captures.is_empty() {
-                return None;
-            }
+            let actual = projection_input!(
+                "selector-actual",
+                call_values::actual_at(program, state, call, position, declared.segments)
+            );
+            let captures = projection_input!(
+                "selector-captures",
+                call_values::captured_values(program, facts, state, call, &actual)
+            );
+            projection_input!(
+                "nonempty-selector-captures",
+                (!captures.is_empty()).then_some(())
+            );
             for capture in captures {
-                if capture_preserves_source(
-                    program,
-                    facts,
-                    state,
-                    call,
-                    capture.observation.row(),
-                    capture.observation_type,
-                    &capture.observation_projection.remaining,
-                    invocation,
-                ) != Some(true)
-                {
-                    return None;
-                }
+                projection_input!(
+                    "selector-source-preservation",
+                    (capture_preserves_source(
+                        program,
+                        facts,
+                        state,
+                        call,
+                        capture.observation.row(),
+                        capture.observation_type,
+                        &capture.observation_projection.remaining,
+                        invocation,
+                    ) == Some(true))
+                    .then_some(())
+                );
             }
         }
-        let (machine, caller) =
-            program.state_flow_site(state.machine_symbol, state.state_symbol)?;
-        let site = validation::find_call_site(
-            program,
-            state.machine_symbol,
-            state.state_symbol,
-            call.statement_index,
-            call.call_ordinal,
-        )?;
+        let (machine, caller) = projection_input!(
+            "caller-point",
+            program.state_flow_site(state.machine_symbol, state.state_symbol)
+        );
+        let site = projection_input!(
+            "call-site",
+            validation::find_call_site(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )
+        );
         let transition = validation::transition_call_target(
             program,
             machine,
@@ -786,14 +838,17 @@ mod captured_boolean {
         )
         .filter(|target| target.is_valid() && site.completes_transition(program, *target))
         .unwrap_or_else(typed_trees::statement::TransitionTargetHandle::invalid);
-        let mut values = crate::checks::current_scalar_values::CurrentScalarValues::at(
-            program,
-            machine,
-            caller,
-            call.statement_index,
-            transition,
-            frames,
-        )?;
+        let mut values = projection_input!(
+            "caller-scalar-inputs",
+            crate::checks::current_scalar_values::CurrentScalarValues::at(
+                program,
+                machine,
+                caller,
+                call.statement_index,
+                transition,
+                frames,
+            )
+        );
         let snapshot = program.storage_graph().and_then(|graph| {
             validation::completed_storage::versions::invocation_snapshot(
                 program,
@@ -804,9 +859,15 @@ mod captured_boolean {
             )
         });
         values.retire_unpreserved(snapshot);
-        let (callee, entry) = validation::find_state(program, target)
-            .or_else(|| validation::find_machine_head(program, target))?;
-        values.call_argument_projection(path, callee, entry, &parameters, &arguments)
+        let (callee, entry) = projection_input!(
+            "callee-point",
+            validation::find_state(program, target)
+                .or_else(|| validation::find_machine_head(program, target))
+        );
+        Some(projection_input!(
+            "bound-index-recipe",
+            values.call_argument_projection(path, callee, entry, &parameters, &arguments)
+        ))
     }
 
     fn source_substitution_preserves_captures(

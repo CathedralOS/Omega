@@ -882,6 +882,12 @@ mod case_access {
                 self.statement_index,
                 prefix,
             ) {
+                if validation::trace_flags::check_sites() {
+                    eprintln!(
+                        "CHECKSITE call-case-match stage=unstable-prefix state={:?} statement={}",
+                        self.state.symbol, self.statement_index
+                    );
+                }
                 return false;
             }
             let prepared_values = self
@@ -899,17 +905,38 @@ mod case_access {
                 })
                 .flatten();
             let Some(values) = self.scalar_values.as_ref().or(prepared_values.as_ref()) else {
+                if validation::trace_flags::check_sites() {
+                    eprintln!(
+                        "CHECKSITE call-case-match stage=scalar-inputs state={:?} statement={}",
+                        self.state.symbol, self.statement_index
+                    );
+                }
                 return false;
             };
-            self.case_evidence_proves(case, required, |case, required| {
+            let mut root_rows = 0_u32;
+            let mut stable_rows = 0_u32;
+            let mut matched_rows = 0_u32;
+            let proven = self.case_evidence_proves(case, required, |case, required| {
                 self.observations.iter().any(|row| {
                     row.place.root == prefix.root
+                        && {
+                            root_rows = root_rows.saturating_add(1);
+                            true
+                        }
                         && (!observations::has_index(&row.place) || row.stable_index_subject)
+                        && {
+                            stable_rows = stable_rows.saturating_add(1);
+                            true
+                        }
                         && values.matches_call_argument_projection(
                             &row.place.segments,
                             &prefix.segments,
                             projection,
                         )
+                        && {
+                            matched_rows = matched_rows.saturating_add(1);
+                            true
+                        }
                         && self.program.symbols.get(row.variant).parent
                             == self.program.symbols.get(case).parent
                         && if row.selected {
@@ -918,7 +945,21 @@ mod case_access {
                             row.variant == case && !required
                         }
                 })
-            })
+            });
+            if !proven && validation::trace_flags::check_sites() {
+                eprintln!(
+                    "CHECKSITE call-case-match machine={:?} state={:?} statement={} root={:?} case={:?} root_rows={} stable_rows={} matched_rows={}",
+                    self.machine.symbol,
+                    self.state.symbol,
+                    self.statement_index,
+                    prefix.root,
+                    case,
+                    root_rows,
+                    stable_rows,
+                    matched_rows,
+                );
+            }
+            proven
         }
 
         fn case_evidence_proves(

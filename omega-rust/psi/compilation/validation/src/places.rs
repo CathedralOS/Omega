@@ -274,8 +274,8 @@ pub(crate) mod binding_observations {
             })
     }
 
-    // Check the storage read by a value recipe. Its caller must separately
-    // authenticate the operations; unchanged inputs alone do not make a call pure.
+    // Check that the values read by an expression cannot change. The caller
+    // separately checks the operations; stable inputs alone do not make a call pure.
     pub fn value_reads_have_immutable_denotation(
         program: &dyn CheckingInput,
         machine: &typed_trees::machine::Machine,

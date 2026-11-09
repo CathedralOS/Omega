@@ -1075,6 +1075,19 @@ mod place_predicates {
             let Self::Case(case) = self else {
                 return false;
             };
+            let trace_refusal = |stage: &'static str| {
+                if validation::trace_flags::check_sites() {
+                    eprintln!(
+                        "CHECKSITE call-case-capture stage={} machine={:?} state={:?} statement={} call={} target={:?}",
+                        stage,
+                        state.machine_symbol,
+                        state.state_symbol,
+                        call.statement_index,
+                        call.call_ordinal,
+                        call.target_symbol,
+                    );
+                }
+            };
             let (source_state, source_statement) =
                 captured.producer_frontier(state.state_symbol, call.statement_index);
             let Some(evidence) = crate::flow::CaseEvidence::prepare(
@@ -1085,14 +1098,16 @@ mod place_predicates {
                 source_state,
                 source_statement,
             ) else {
+                trace_refusal("evidence-point");
                 return false;
             };
-            crate::flow::captured_value_places(program, facts.flow.view(), captured).is_some_and(
-                |places| {
+            let proven = crate::flow::captured_value_places(program, facts.flow.view(), captured)
+                .is_some_and(|places| {
                     !places.is_empty()
                         && places.iter().all(|place| {
                             let Some(prefix) = place.projected.segments.strip_suffix(declared)
                             else {
+                                trace_refusal("captured-path-suffix");
                                 return false;
                             };
                             let prefix = validation::CanonicalPlace {
@@ -1101,8 +1116,11 @@ mod place_predicates {
                             };
                             evidence.has_value_for_call_projection(&prefix, projection, *case, true)
                         })
-                },
-            )
+                });
+            if !proven {
+                trace_refusal("captured-path-or-case");
+            }
+            proven
         }
 
         /*

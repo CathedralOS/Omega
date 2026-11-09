@@ -5973,7 +5973,7 @@ pub(crate) mod selected_continuations {
         requirement: CleanupRequirement,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub(crate) enum RegionState {
         Absent,
         Live,
@@ -5990,6 +5990,44 @@ pub(crate) mod selected_continuations {
     pub(crate) struct Specialization {
         pub(crate) entry: usize,
         pub(crate) continuations: Vec<Continuation>,
+    }
+
+    struct ContinuationCandidates {
+        by_block: Vec<symbols::SymbolKeyMap<u64, Vec<usize>>>,
+    }
+
+    impl ContinuationCandidates {
+        fn new(block_count: usize) -> Self {
+            Self {
+                by_block: vec![symbols::SymbolKeyMap::default(); block_count],
+            }
+        }
+
+        fn find(
+            &self,
+            block: usize,
+            signature: u64,
+            incoming: &[RegionState],
+            continuations: &[Continuation],
+        ) -> Option<usize> {
+            self.by_block[block]
+                .get(&signature)?
+                .iter()
+                .copied()
+                .find(|&position| continuations[position].incoming == incoming)
+        }
+
+        fn insert(&mut self, block: usize, signature: u64, position: usize) {
+            self.by_block[block]
+                .entry(signature)
+                .or_default()
+                .push(position);
+        }
+    }
+
+    fn incoming_signature(incoming: &[RegionState]) -> u64 {
+        use std::hash::BuildHasher;
+        symbols::BuildSymbolHasher.hash_one(incoming)
     }
 
     pub(crate) fn prepare(
@@ -6057,8 +6095,8 @@ pub(crate) mod selected_continuations {
         }];
         // Only continuations of the same original block can share an incoming
         // state. Keep their discovery order and compare the complete state.
-        let mut candidates_by_block = vec![Vec::new(); blocks.len()];
-        candidates_by_block[entry].push(0);
+        let mut candidates = ContinuationCandidates::new(blocks.len());
+        candidates.insert(entry, incoming_signature(&continuations[0].incoming), 0);
         let mut position = 0;
         while position < continuations.len() {
             let block = &blocks[continuations[position].original_block];
@@ -6166,10 +6204,9 @@ pub(crate) mod selected_continuations {
                     }
                 }
                 let original_block = block_position(blocks, target)?;
-                let successor = candidates_by_block[original_block]
-                    .iter()
-                    .copied()
-                    .find(|&candidate| continuations[candidate].incoming == outgoing)
+                let signature = incoming_signature(&outgoing);
+                let successor = candidates
+                    .find(original_block, signature, &outgoing, &continuations)
                     .unwrap_or_else(|| {
                         let successor = continuations.len();
                         continuations.push(Continuation {
@@ -6177,7 +6214,7 @@ pub(crate) mod selected_continuations {
                             incoming: outgoing,
                             successors: Vec::new(),
                         });
-                        candidates_by_block[original_block].push(successor);
+                        candidates.insert(original_block, signature, successor);
                         successor
                     });
                 successors.push((edge, successor));
@@ -6509,6 +6546,94 @@ pub(crate) mod selected_continuations {
             return unsupported("selected cleanup bypass changes the captured continuation frame");
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod continuation_candidate_tests {
+        use super::*;
+        use semantic_vocabulary::{ObligationId, ScalarType, StructuralCaseId, ValueId};
+
+        #[test]
+        fn signature_collisions_keep_full_states_and_first_discovery() {
+            let segments = vec![
+                StructuralPathSegment::AllElements,
+                StructuralPathSegment::Case(StructuralCaseId::new(1).unwrap()),
+                StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1)),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2)),
+                StructuralPathSegment::FixedIndex(1),
+                StructuralPathSegment::FixedIndex(2),
+                StructuralPathSegment::FixedRange { start: 0, end: 3 },
+                StructuralPathSegment::FixedRange { start: 1, end: 3 },
+                StructuralPathSegment::FixedRange { start: 1, end: 4 },
+                StructuralPathSegment::RuntimeIndex {
+                    index: ValueId::new(1).unwrap(),
+                    obligation: ObligationId::new(1).unwrap(),
+                },
+                StructuralPathSegment::RuntimeIndex {
+                    index: ValueId::new(1).unwrap(),
+                    obligation: ObligationId::new(2).unwrap(),
+                },
+                StructuralPathSegment::RuntimeIndex {
+                    index: ValueId::new(2).unwrap(),
+                    obligation: ObligationId::new(1).unwrap(),
+                },
+                StructuralPathSegment::RepresentationView {
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    stored_scalar: None,
+                },
+                StructuralPathSegment::RepresentationView {
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    stored_scalar: Some(ScalarType::Boolean),
+                },
+                StructuralPathSegment::RepresentationView {
+                    structural_type: StructuralTypeId::new(2).unwrap(),
+                    stored_scalar: None,
+                },
+                StructuralPathSegment::Referent,
+            ];
+            let mut states = vec![
+                Vec::new(),
+                vec![RegionState::Absent],
+                vec![RegionState::Live],
+                vec![RegionState::Partial(Vec::new())],
+                vec![RegionState::Partial(vec![Vec::new()])],
+                vec![RegionState::Absent, RegionState::Live],
+                vec![RegionState::Live, RegionState::Absent],
+                vec![RegionState::Partial(vec![segments.clone()])],
+                vec![RegionState::Partial(vec![
+                    segments.iter().rev().cloned().collect(),
+                ])],
+            ];
+            states.extend(
+                segments
+                    .into_iter()
+                    .map(|segment| vec![RegionState::Partial(vec![vec![segment]])]),
+            );
+            let mut index = ContinuationCandidates::new(2);
+            let mut continuations: Vec<Continuation> = Vec::new();
+            // Every distinct state collides. Replay both blocks and duplicates;
+            // the direct old search decides each first representative.
+            for block in [0, 1, 0, 1] {
+                for incoming in &states {
+                    let direct = continuations.iter().position(|candidate| {
+                        candidate.original_block == block && candidate.incoming == *incoming
+                    });
+                    let found = index.find(block, 0, incoming, &continuations);
+                    assert_eq!(found, direct);
+                    if found.is_none() {
+                        let position = continuations.len();
+                        continuations.push(Continuation {
+                            original_block: block,
+                            incoming: incoming.clone(),
+                            successors: Vec::new(),
+                        });
+                        index.insert(block, 0, position);
+                    }
+                }
+            }
+            assert_eq!(continuations.len(), states.len() * 2);
+        }
     }
 }
 pub(crate) mod structural_byte_sequence_store {
