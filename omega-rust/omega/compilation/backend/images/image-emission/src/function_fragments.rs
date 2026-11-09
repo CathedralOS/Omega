@@ -13955,7 +13955,7 @@ mod source {
         };
         use semantic_vocabulary::ScalarType;
         use target_operations::{TargetFunction, TargetUnitOperation};
-        use terminal_psi::{StructuralArgument, live_field_by_id};
+        use terminal_psi::StructuralArgument;
 
         #[cfg(test)]
         mod tests {
