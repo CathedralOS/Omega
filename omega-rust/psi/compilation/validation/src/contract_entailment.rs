@@ -20698,9 +20698,13 @@ pub(crate) mod observed_projections {
         if !identity.same_resolution_payload(expected) {
             return None;
         }
-        let declared =
-            program.closed_data_member_field(reference, field, program.symbols.name(field))?;
-        if !crate::declared_carriers_match(program, projected, declared.type_reference) {
+        // A formed generic constructor keeps its applied field schema even
+        // while its type arguments remain abstract in the caller.
+        let declared = program.data_constructor_field(reference, declaration, field)?;
+        let field_owner = variant.map_or(definition.symbol, |variant| variant.symbol);
+        if program.symbols.get(declared.symbol).parent != field_owner
+            || !crate::declared_carriers_match(program, projected, declared.type_reference)
+        {
             return None;
         }
         let mut supplied = fields
@@ -87495,6 +87499,14 @@ pub(crate) mod structural_terms {
             term: &StructuralTerm,
         ) -> Option<TypeReferenceHandle> {
             let reference = match term {
+                StructuralTerm::Constructor {
+                    identity:
+                        super::super::structural_judgment::ConstructorIdentity::Nominal {
+                            reference,
+                            ..
+                        },
+                    ..
+                } => *reference,
                 StructuralTerm::Application { result_type, .. }
                 | StructuralTerm::CapturedValue { result_type, .. } => *result_type,
                 StructuralTerm::IndexedValue { element_type, .. } => *element_type,
