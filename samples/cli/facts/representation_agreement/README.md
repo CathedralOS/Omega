@@ -42,14 +42,25 @@ when that wrong value could itself round-trip successfully. Both malformed-frame
 decodes must fail. The selected-target program also checks distinct 17/29 markers
 from ordinary Build-selected implementations.
 
+The same programs also use the standard `Representation` interface. Its model
+observes the same two semantic fields; encoding borrows the `Pair`, and decoding
+borrows the frame and returns the value with an explicit empty resource request.
+The adapters call the original encoder and decoder implementations. A generic
+consumer selects their standard representation bundle, while an executable
+observer calls them through weak `TryFrom` contracts and checks both fields and
+malformed frames independently. All five original agreement laws remain.
+
 The invalid twin changes only the first decoder's last output field to its first
 input field. Encoding coverage and invalid-tag rejection remain valid, while the
 concrete round-trip law must reject. Its required diagnostic names
 `FirstAgreement::round_trip` and `ReadFirst.try_from(frame)`.
 
 These owned three-byte frames need no allocator, external buffer or host service.
-Resource-backed conversions and the standard Representation interface remain
-part of the parent outcome. The neighboring
+Resource-backed and independent-package conversions, reflection-derived generic
+codecs, and standard-interface qualification on the remaining hosts still belong
+to the parent outcome. Its other alias, `FixedLayout<T>` and niche/repair/recast
+acceptance remains tracked in `TASKS.md`. This row does not close that outcome.
+The neighboring
 [representation_conversion](../representation_conversion/README.md) row tests
 endpoint selection; this row tests whole-value agreement between maps with the
 same endpoint types.
@@ -72,9 +83,20 @@ Each project binds `ProgramEntry` for all four hosted targets and declares exit 
 The nine positive programs and nine decoder-only controls are mirrored under
 `tests/omega/{pass,fail}/facts/representation_agreement_through_*`.
 
-## Validation
+## Standard-interface validation
 
-These conversion examples pass on all four hosted targets. All nine positive
+The added standard-interface executions are awaiting qualification. The local
+positive, decoder-only twin and native/Psi check run first; the other eight
+places retain the identical addition and their original transport. No passing
+standard-interface or intended-control result is claimed yet.
+
+## Published custom-interface evidence
+
+The following reports cover the earlier custom-interface programs, before the
+standard-interface addition. They are historical evidence for that path, rather
+than fresh executions of the changed source.
+
+Those conversion examples pass on all four hosted targets. All nine positive
 places have native and Psi exit 0 observations on each host, and every decoder-only
 twin retains its intended rejection. The Linux x86_64 evidence combines its
 four-place batch with applicable retained observations of unchanged programs.
@@ -109,8 +131,8 @@ program ran. The linked second attempt reused the saved cache and completed the
 same eighteen projects on the same source. The first attempt remains a
 preparation timeout.
 
-The frozen programs and oracles are unchanged. Optimized producer profiles,
-exact source snapshots and original artifacts are retained for each run. The
+Those reports retain their original frozen programs and oracles. Optimized
+producer profiles, exact source snapshots and original artifacts are retained for each run. The
 README records host coverage milestones of the repair landed in
 [PR #2045](https://github.com/CathedralOS/Omega/pull/2045).
 
