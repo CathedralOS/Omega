@@ -209,6 +209,117 @@ mod call_contracts {
         ScopedArithmeticValue,
     };
 
+    /*
+        One state pass's completed-call hypotheses. Proving a call's
+        precondition replays the caller's prefix, and the replay re-derived
+        every earlier completed call's guarantees, so a state with n calls paid
+        n^2 derivations. The pass lends one of these to each replay instead.
+
+        `scoped_completed_call_guarantees` is a function of the frozen program
+        and the inputs a row records: the caller machine and state, statement,
+        call site, captured actuals, machine values and result. Its result
+        observations are a function of the program, machine, state and site
+        expression. A row answers only when every recorded input is equal to
+        the current one; otherwise the hypotheses are derived again and replace
+        the row. Nothing outlives the state's pass.
+    */
+    #[derive(Default)]
+    pub(crate) struct CompletedCallGuarantees {
+        /* Indexed by statement; few rows each. */
+        by_statement: Vec<Vec<CompletedCall>>,
+    }
+
+    struct CompletedCall {
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        site: CompletedSite,
+        actuals: Vec<ScopedArithmeticBinding>,
+        machine_values: Vec<(SymbolHandle, ScopedArithmeticValue)>,
+        result: Option<ScopedArithmeticValue>,
+        hypotheses: Vec<validation::ScopedArithmeticHypothesis>,
+    }
+
+    /* A call site by identity: its expression, or its statement call row. */
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(super) enum CompletedSite {
+        Expression(ExpressionHandle),
+        /* The row's address in the frozen statement table. */
+        Statement(usize),
+    }
+
+    impl CompletedSite {
+        /* Named transitions have no row identity here and are never reused. */
+        pub(super) fn of(site: CallSite<'_>) -> Option<Self> {
+            match site {
+                CallSite::Expression { expression, .. } => Some(Self::Expression(expression)),
+                CallSite::Statement(call) => {
+                    Some(Self::Statement(std::ptr::from_ref(call) as usize))
+                }
+                CallSite::TransitionNamed { .. } => None,
+            }
+        }
+    }
+
+    pub(super) struct CompletedCallInputs<'inputs> {
+        pub(super) machine: SymbolHandle,
+        pub(super) state: SymbolHandle,
+        pub(super) statement_index: usize,
+        pub(super) site: CompletedSite,
+        pub(super) actuals: &'inputs [ScopedArithmeticBinding],
+        pub(super) machine_values: &'inputs [(SymbolHandle, ScopedArithmeticValue)],
+        pub(super) result: &'inputs Option<ScopedArithmeticValue>,
+    }
+
+    impl CompletedCallGuarantees {
+        pub(super) fn hypotheses(
+            &mut self,
+            inputs: CompletedCallInputs<'_>,
+            derive: impl FnOnce() -> Vec<validation::ScopedArithmeticHypothesis>,
+        ) -> &[validation::ScopedArithmeticHypothesis] {
+            if self.by_statement.len() <= inputs.statement_index {
+                self.by_statement
+                    .resize_with(inputs.statement_index + 1, Vec::new);
+            }
+            let rows = &mut self.by_statement[inputs.statement_index];
+            let keyed = rows.iter().position(|row| {
+                row.machine == inputs.machine
+                    && row.state == inputs.state
+                    && row.site == inputs.site
+            });
+            let index = match keyed {
+                Some(index)
+                    if rows[index].actuals == inputs.actuals
+                        && rows[index].machine_values == inputs.machine_values
+                        && rows[index].result == *inputs.result =>
+                {
+                    index
+                }
+                keyed => {
+                    let row = CompletedCall {
+                        machine: inputs.machine,
+                        state: inputs.state,
+                        site: inputs.site,
+                        actuals: inputs.actuals.to_vec(),
+                        machine_values: inputs.machine_values.to_vec(),
+                        result: inputs.result.clone(),
+                        hypotheses: derive(),
+                    };
+                    match keyed {
+                        Some(index) => {
+                            rows[index] = row;
+                            index
+                        }
+                        None => {
+                            rows.push(row);
+                            rows.len() - 1
+                        }
+                    }
+                }
+            };
+            &rows[index].hypotheses
+        }
+    }
+
     struct CapturedParameterGoal {
         goal: ScopedArithmeticExpression,
         /* Exact actuals aligned with goal bindings; non-parameter rows are absent. */
@@ -625,31 +736,50 @@ mod call_contracts {
                 }
                 Vec::new()
             };
-            let result_observations = match site {
-                CallSite::Expression { expression, .. } if result.is_none() => {
-                    validation::scoped_call_result_observations(
-                        self.program,
-                        self.machine,
-                        self.state,
-                        expression,
-                    )
-                }
-                _ => Vec::new(),
+            let (program, machine, state) = (self.program, self.machine, self.state);
+            let derive = |result: Option<ScopedArithmeticValue>| {
+                let result_observations = match site {
+                    CallSite::Expression { expression, .. } if result.is_none() => {
+                        validation::scoped_call_result_observations(
+                            program, machine, state, expression,
+                        )
+                    }
+                    _ => Vec::new(),
+                };
+                validation::scoped_completed_call_guarantees(
+                    program,
+                    machine,
+                    validation::ScopedCallCompletion {
+                        state,
+                        statement_index,
+                        site,
+                        actuals,
+                        machine_values: &machine_values,
+                        result,
+                        result_observations: &result_observations,
+                    },
+                )
             };
-            for hypothesis in validation::scoped_completed_call_guarantees(
-                self.program,
-                self.machine,
-                validation::ScopedCallCompletion {
-                    state: self.state,
+            let Some(key) = CompletedSite::of(site) else {
+                for hypothesis in derive(result) {
+                    crate::shared::collections::push_unique(&mut self.hypotheses, hypothesis);
+                }
+                return;
+            };
+            let hypotheses = self.completed_calls.hypotheses(
+                CompletedCallInputs {
+                    machine: machine.symbol,
+                    state: state.symbol,
                     statement_index,
-                    site,
+                    site: key,
                     actuals,
                     machine_values: &machine_values,
-                    result,
-                    result_observations: &result_observations,
+                    result: &result,
                 },
-            ) {
-                crate::shared::collections::push_unique(&mut self.hypotheses, hypothesis);
+                || derive(result.clone()),
+            );
+            for hypothesis in hypotheses {
+                crate::shared::collections::push_unique(&mut self.hypotheses, hypothesis.clone());
             }
         }
 
@@ -801,6 +931,77 @@ mod call_contracts {
                 goal,
                 arguments_by_binding,
             })
+        }
+    }
+
+    #[cfg(test)]
+    mod completed_call_tests {
+        use super::{CompletedCallGuarantees, CompletedCallInputs, CompletedSite};
+        use symbols::SymbolHandle;
+        use typed_trees::expression::ExpressionHandle;
+        use validation::{
+            ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+            ScopedArithmeticHypothesis, ScopedArithmeticValue,
+        };
+
+        fn hypothesis(holds: bool) -> ScopedArithmeticHypothesis {
+            ScopedArithmeticHypothesis {
+                proposition: ScopedArithmeticExpression {
+                    owner: SymbolHandle::invalid(),
+                    expression: ExpressionHandle::invalid(),
+                    bindings: Vec::new(),
+                },
+                holds,
+            }
+        }
+
+        #[test]
+        fn completed_call_rows_answer_only_equal_inputs() {
+            let actual = |value: i128| {
+                vec![ScopedArithmeticBinding {
+                    binder: ScopedArithmeticBinder::Result,
+                    value: ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_i128(
+                        value,
+                    )),
+                }]
+            };
+            let inputs = |actuals| CompletedCallInputs {
+                machine: SymbolHandle::invalid(),
+                state: SymbolHandle::invalid(),
+                statement_index: 3,
+                site: CompletedSite::Expression(ExpressionHandle::invalid()),
+                actuals,
+                machine_values: &[],
+                result: &None,
+            };
+            let mut memo = CompletedCallGuarantees::default();
+            let mut derived = 0;
+            let (one, two) = (actual(1), actual(2));
+            let first = memo
+                .hypotheses(inputs(&one), || {
+                    derived += 1;
+                    vec![hypothesis(true)]
+                })
+                .to_vec();
+            let again = memo
+                .hypotheses(inputs(&one), || unreachable!("equal inputs reuse the row"))
+                .to_vec();
+            assert_eq!(
+                (first, again, derived),
+                (vec![hypothesis(true)], vec![hypothesis(true)], 1)
+            );
+            let changed = memo
+                .hypotheses(inputs(&two), || vec![hypothesis(false)])
+                .to_vec();
+            assert_eq!(changed, vec![hypothesis(false)]);
+            let replaced = memo
+                .hypotheses(inputs(&one), || vec![hypothesis(true), hypothesis(false)])
+                .to_vec();
+            assert_eq!(
+                replaced.len(),
+                2,
+                "a changed row is replaced, not kept beside"
+            );
         }
     }
 }
@@ -4274,7 +4475,11 @@ pub(crate) struct CurrentScalarValues<'program> {
         validation::CanonicalPlace,
         validation::completed_storage::versions::Snapshot,
     )>,
+    /* Lent by the state's pass for the replay only; empty otherwise. */
+    completed_calls: CompletedCallGuarantees,
 }
+
+pub(crate) use call_contracts::CompletedCallGuarantees;
 
 impl<'program> CurrentScalarValues<'program> {
     pub(crate) fn machine(&self) -> &Machine {
@@ -4315,6 +4520,33 @@ impl<'program> CurrentScalarValues<'program> {
         target: TransitionTargetHandle,
         frames: Option<&validation::CallFrameResolver<'_>>,
         requested: &[Vec<facts::PlaceSegment>],
+    ) -> Option<Self> {
+        Self::at_completing(
+            program,
+            machine,
+            state,
+            statement_index,
+            target,
+            frames,
+            requested,
+            &mut CompletedCallGuarantees::default(),
+        )
+    }
+
+    /*
+        `at_observing_projections`, reusing the completed-call hypotheses
+        `completed` already holds for this state; see `CompletedCallGuarantees`.
+    */
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn at_completing(
+        program: &'program dyn ::validation::CheckingInput,
+        machine: &'program Machine,
+        state: &'program State,
+        statement_index: usize,
+        target: TransitionTargetHandle,
+        frames: Option<&validation::CallFrameResolver<'_>>,
+        requested: &[Vec<facts::PlaceSegment>],
+        completed: &mut CompletedCallGuarantees,
     ) -> Option<Self> {
         let mut initial = program
             .state_parameters(state)
@@ -4480,7 +4712,21 @@ impl<'program> CurrentScalarValues<'program> {
             in_transition_target: target.is_valid(),
             scalar_observations: std::cell::OnceCell::new(),
             anchors: Vec::new(),
+            completed_calls: std::mem::take(completed),
         };
+        let replayed = Self::replay_prefix(&mut values, statement_index, target, frames, requested);
+        *completed = std::mem::take(&mut values.completed_calls);
+        replayed.map(|()| values)
+    }
+
+    fn replay_prefix(
+        values: &mut Self,
+        statement_index: usize,
+        target: TransitionTargetHandle,
+        frames: Option<&validation::CallFrameResolver<'_>>,
+        requested: &[Vec<facts::PlaceSegment>],
+    ) -> Option<()> {
+        let (program, machine, state) = (values.program, values.machine, values.state);
         let owned_frames = frames
             .is_none()
             .then(|| validation::CallFrameResolver::new(program))
@@ -4798,7 +5044,7 @@ impl<'program> CurrentScalarValues<'program> {
                 values.retire_operand_effects(*argument);
             }
         }
-        Some(values)
+        Some(())
     }
 
     /*
