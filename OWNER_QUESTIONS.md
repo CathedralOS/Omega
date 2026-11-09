@@ -67,4 +67,47 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None at present.
+### 1. May a private machine with no authored `requires` have its requirements inferred?
+
+A body reasons under its entry contract, and each caller establishes that
+contract. It is unsettled whether a private machine that authors no `requires`
+has an empty entry contract, or one the compiler may infer from its body and
+prove at every arrival. The answer decides whether this program is valid:
+
+```omega
+machine bit(count: u32) -> u64 {
+    transition count < 64u32 {
+        true -> calculate(count)
+        false -> (0)
+    }
+    machine calculate(count: u32) -> u64 { 1u64 << count }
+}
+```
+
+If the contract is empty, `calculate` must repeat `requires count < 64u32`. If
+inference is allowed, its one caller's guard discharges the shift.
+
+Contracts checked:
+
+- [`domains.md`](wiki/spec/language/domains.md) under uninhabited domains: "The
+  body reasons under its hypothetical entry contract; each caller must establish
+  that contract for its actual arguments." It addresses authored contracts and
+  is silent on a machine that authors none.
+- [`state_contracts.md`](wiki/spec/language/state_contracts.md#bindings-and-arrivals):
+  "body inference must justify any inferred private requirements on every
+  arrival, not grant them from lexical ancestry." It presupposes inference but
+  does not say when a private requirement may be inferred.
+- [`assembly.md`](wiki/spec/language/assembly.md): "admissible private contract
+  inference can discharge those goals", with every incoming edge justifying the
+  inference. It leaves "admissible" undefined outside assembly.
+
+Evidence: six `pass/` fixtures, recorded as having once checked, have this shape:
+`arithmetic/runtime_boolean_alias_shift_count_exit`,
+`arithmetic/runtime_boolean_guarded_bit_value_exit`,
+`arithmetic/runtime_boolean_state_shift_count_exit`,
+`arithmetic/runtime_transitive_bit_value_exit`,
+`expressions/match_owned_mixed_projection_reads` and
+`expressions/match_owned_parameter_field_subject`. A trial that seeded nested
+entries from all callers, fail-closed on unknown callers and mutable places,
+checked all six. Machines that do author a `requires` are outside this question:
+their bodies assume only that contract.

@@ -122,14 +122,21 @@ moves one re-derivation into one new `CheckFacts` field.
 ### Nested machine entry
 
 A guard the caller has proved does not reach the nested machine it transitions
-to, so a valid body is rejected until the programmer repeats the guard as
-`requires`. The loss is fail-closed: it refuses valid programs and does not
-admit invalid ones.
+to, so a body that relies on the guard is rejected until the programmer repeats
+it as `requires`. That is the intended rule, not a loss to repair: a body
+[reasons under its entry contract](../../spec/language/domains.md), and each
+caller establishes that contract for its actual arguments.
 
-This is one real loss, not the explanation for the PR stream. The Nested / pause
-place accounts for 19 of the 202 PRs, and most of those carry ownership or
-suspension facts through stage 05. Numeric facts in `ValueEnvironment`, which
-this loss concerns, are about 3 of them.
+Seeding a nested entry from its callers would let a body assume facts its own
+contract does not state. A trial of that seeding is held as draft
+[#2239](https://github.com/CathedralOS/Omega/pull/2239) and is not part of this
+design. Whether a machine with no authored `requires` may instead have
+requirements inferred is an open question in
+[`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md).
+
+The cost is small either way. The Nested / pause place accounts for 19 of the
+202 PRs, and most of those carry ownership or suspension facts through stage 05.
+Numeric facts in `ValueEnvironment` are about 3 of them.
 
 The witness, probed against `2ad42b16712`, uses the guard
 `value == value && value >= 0.0 && value < 1000.0`. In the guarded state,
@@ -150,11 +157,9 @@ entailment such as `float_integer_conversion_fits_at_occurrence`
 (`V/contract_entailment.rs:21806`), which answers direct obligations but not
 derived ones like the product above.
 
-The specification already allows the repair. Its
-[arrival rules](../../spec/language/state_contracts.md#bindings-and-arrivals)
-let a private body rely on inferred requirements that are justified on every
-arrival, and require every reachable predecessor in the join. An unknown
-caller therefore contributes nothing, which keeps the repair fail-closed.
+In the trial, 6 of 471 failing target rows moved to `checked` and none survives
+this rule: each relies on a caller's guard inside a nested machine with no
+`requires` of its own, so each needs that `requires` authored instead.
 
 `ValueEnvironment::rebind` (`V/arithmetic_domains.rs:25971`) looks like the
 culprit and is not. It copies only the string-keyed collections. At a
@@ -216,10 +221,9 @@ same commit ([compositional lowering](../../../omega-rust/pipeline.md#compositio
    `Engine` from `String` to `Place`. `float_elements` and reference-parameter
    `integer_ranges` become ordinary rows of the environment, so `rebind` and
    `copy_path_facts` have no per-collection list to forget.
-4. **Generic arrival join.** Make `StateValues` generic over the environment,
-   and seed a nested machine's entry from its callers' environments. Numeric
-   guard facts are lost at nested entry today (see above), a real but partial
-   target. The join addresses the Build column (41 of 202 PRs).
+4. **Generic arrival join.** Make `StateValues` generic over the environment.
+   A nested machine's entry stays its own authored contract (see above). The
+   join addresses the Build column (41 of 202 PRs).
 5. **Call return.** Collapse the normal-return modules onto the one operation.
 6. **Lowering.** Replace stage 06 `validation::` re-derivation with environment reads.
 7. **Check generic bodies once.** Check the template against its contracts and
