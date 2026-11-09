@@ -436,8 +436,8 @@ semantic evaluation, folding, interpretation, software realization, and target
 validation. Host `f64` arithmetic is not an alternative definition for `f32`.
 
 Primitive spellings use ordinary operand-driven resolution over the complete
-static carrier/domain tuple, selecting the exact requirement and target
-satisfier/plan. There is no float-only resolver, runtime operation tag,
+static carrier/domain tuple, selecting the exact requirement and the selected
+target's declared realization. There is no float-only resolver, runtime operation tag,
 `FloatOperations<F>` bundle, dynamic dispatch table, or ambient mode. Arithmetic,
 comparison, classification, conversion, directed rounding, and fused/unfused
 operations have separate normalized requirement identities.
@@ -554,18 +554,27 @@ Foreign bindings prove preservation or save/restore relevant controls. Callback
 entry establishes Omega controls and exit restores foreign controls. A stated
 calling-policy predicate alone does not establish execution of those steps.
 
-Target packages select compiler-known instruction lowerings or checked software
-machines through explicit satisfiers and retained plans. Format records do not
-teach machine encodings; new instructions need the checked instruction catalog.
-Hardware meaning remains admitted vendor evidence, while checked software can
-be derived against the same executable contract. Differential evidence retains
+Decision `target-realized-float-arithmetic` (2026-11-09): canonical `f32` and
+`f64` operations keep their declaration identities and `FloatSemantics`
+contracts and are realized by the selected target's declared realization table,
+not by Build provider selection. For each canonical operation a target package
+declares one entry: a catalog intrinsic, a checked Omega machine satisfying the
+operation's contract, or unsupported. The realization plan retains the chosen
+entry with its ISA-feature admission and floating-control obligations. A program
+using an unsupported operation on its target rejects, naming the operation and
+the target constraint. Build programs neither select nor override canonical
+float realizations; a program needing a particular algorithm calls a named
+machine. Format records do not teach machine encodings; new instructions need
+the checked instruction catalog. Hardware meaning remains admitted vendor
+evidence, while checked software can be derived against the same executable
+contract. Differential evidence retains
 selected identities and covers normal/subnormal boundaries, ties,
 overflow/underflow, signed zeros, infinities, NaNs, and policy edges. Exact NaN
 bit comparisons are required only for claimed raw-bit refinements. Compilation
 or image reproducibility is not hardware execution evidence.
 
-Optional ISA features, including x86 AVX+FMA3, are admitted by target/provider
-selection and retained in the realization plan. FMA uses the ordinary operation
+Optional ISA features, including x86 AVX+FMA3, are admitted by the target's
+realization table and retained in the realization plan. FMA uses the ordinary operation
 and instruction pipeline. Native images require no separate FMA fragment,
 occurrence, digest or provider-custody record, and emission does not decode or
 replay those records. The superseded constant-operand FMA custody route is not
