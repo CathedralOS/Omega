@@ -721,6 +721,11 @@ pub(crate) mod conformance_scopes {
             application: &crate::ClosedConformanceApplication,
             lexical_owner: symbols::SymbolHandle,
         ) -> Option<crate::type_identity::NormalizedTypeIdentity> {
+            let lexical_owner = if application.trait_scope.supplying_owner().is_valid() {
+                application.trait_scope.scope(self)?.argument_owner
+            } else {
+                lexical_owner
+            };
             let selected = crate::expression::StaticMachineArgument {
                 symbol: application.declaration,
                 application: Some(Box::new(crate::expression::StaticSymbolApplication {
@@ -802,11 +807,29 @@ pub(crate) mod conformance_scopes {
             self.prepare_closed_conformance_scope(site, application, selected)
         }
 
+        pub fn conformance_selection_region_supplier(
+            &self,
+            application: StaticMachineApplicationHandle,
+        ) -> Result<symbols::SymbolHandle, &'static str> {
+            if !application.is_valid() {
+                return Err("implementation selection lost its source application");
+            }
+            let source = self.static_machine_application(application);
+            let Some(selection) = &source.conformance_selection else {
+                return Ok(source.lexical_owner);
+            };
+            let selected = self
+                .static_machine_application_arguments(application)
+                .get(selection.operand_ordinal as usize)
+                .ok_or("implementation selection lost its exact operand")?;
+            self.static_operand_region_supplier(selected, source.lexical_owner)
+        }
+
         fn prepare_closed_conformance_scope(
             &mut self,
             site: ClosedConformanceApplicationSite,
             binding_application: StaticMachineApplicationHandle,
-            application: ClosedConformanceApplication,
+            mut application: ClosedConformanceApplication,
         ) -> Result<(), String> {
             if !binding_application.is_valid() {
                 return Err(
@@ -817,10 +840,11 @@ pub(crate) mod conformance_scopes {
             let owner = self
                 .static_machine_application(binding_application)
                 .lexical_owner;
+            let supplier = self.conformance_selection_region_supplier(binding_application)?;
             let arguments = application
                 .arguments
                 .iter()
-                .map(|argument| self.static_operand_type_reference_in_scope(argument, owner))
+                .map(|argument| self.static_operand_type_reference_in_scope(argument, supplier))
                 .collect::<Result<Vec<_>, _>>()?;
             let lifetimes = application
                 .lifetime_arguments
@@ -850,7 +874,7 @@ pub(crate) mod conformance_scopes {
                 self,
                 declaration,
                 TraitApplicationArguments {
-                    lexical_owner: owner,
+                    lexical_owner: supplier,
                     enclosing_data_applications: &[],
                     arguments: &arguments,
                     lifetimes: &lifetimes,
@@ -858,6 +882,7 @@ pub(crate) mod conformance_scopes {
             )
             .ok_or("closed implementation application lost its complete source telescope")?;
             let scope = scope.environment().retain(self)?;
+            application.trait_scope = scope;
             self.closed_conformance_application_at_mut(site)
                 .ok_or("closed implementation application lost its occurrence")?
                 .trait_scope = scope;
@@ -4241,6 +4266,58 @@ pub(crate) mod selected_operands {
     use crate::{TypedTrees, expression, types};
 
     impl TypedTrees {
+        pub fn static_operand_region_supplier(
+            &self,
+            selected: &expression::StaticMachineArgument,
+            lexical_owner: symbols::SymbolHandle,
+        ) -> Result<symbols::SymbolHandle, &'static str> {
+            use crate::type_identity::{IndexIdentityArgument, applied_index_identity};
+
+            let reference = selected.type_reference;
+            if !reference.is_valid() {
+                return Ok(lexical_owner);
+            }
+            if !self.contains_type_reference(reference) {
+                return Err("static operand lost its retained source type");
+            }
+            let supplier = self.type_reference_table.operand_lifetime_owner(reference);
+            if !supplier.is_valid() {
+                if !self
+                    .type_reference_table
+                    .operand_lifetimes(reference)
+                    .is_empty()
+                    || !matches!(
+                        self.type_reference_table.operand_origin(reference),
+                        types::TypeOperandOrigin::Lexical
+                    )
+                {
+                    return Err("captured static operand lost its supplying region owner");
+                }
+                return Ok(lexical_owner);
+            }
+
+            // The captured type authenticates the complete selected tuple. Its
+            // region supplier can differ from the owner of the receiving call.
+            let mut explicit = selected.clone();
+            explicit.type_reference = Default::default();
+            let retained = applied_index_identity(
+                self,
+                IndexIdentityArgument::StaticArgument(selected),
+                supplier,
+                &[],
+            );
+            let supplied = applied_index_identity(
+                self,
+                IndexIdentityArgument::StaticArgument(&explicit),
+                supplier,
+                &[],
+            );
+            if retained.is_none() || retained != supplied {
+                return Err("static operand changed its retained selected application");
+            }
+            Ok(supplier)
+        }
+
         pub fn static_operand_from_type_reference(
             &self,
             reference: types::TypeReferenceHandle,

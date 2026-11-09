@@ -1634,9 +1634,11 @@ pub(crate) mod explicit_requirement_calls {
             ));
         }
         let selected = if qualifier.is_valid() {
-            program
+            let mut selected = program
                 .static_operand_from_type_reference(qualifier)
-                .map_err(str::to_owned)?
+                .map_err(str::to_owned)?;
+            selected.type_reference = qualifier;
+            selected
         } else {
             StaticMachineArgument {
                 symbol: implementation,
@@ -1660,6 +1662,9 @@ pub(crate) mod explicit_requirement_calls {
                 program.symbols.display_path(owner, "::"),
             )
         })?;
+        let supplier = program
+            .static_operand_region_supplier(&selected, owner)
+            .map_err(str::to_owned)?;
         let captures = selected
             .application
             .as_ref()
@@ -1683,7 +1688,7 @@ pub(crate) mod explicit_requirement_calls {
                 program,
                 conformance,
                 typed_trees::trait_definition::TraitApplicationArguments {
-                    lexical_owner: owner,
+                    lexical_owner: supplier,
                     enclosing_data_applications: &[],
                     arguments: &captures,
                     lifetimes,
@@ -2088,9 +2093,13 @@ pub(crate) mod explicit_requirement_calls {
             implemented: &str,
             expected: ApplicationArguments,
         ) -> Result<(), String> {
+            let supplier = self
+                .program
+                .static_operand_region_supplier(self.implementation, self.lexical_owner)
+                .map_err(str::to_owned)?;
             let matched = application_arguments::matches_declaring_application(
                 self.program,
-                self.lexical_owner,
+                supplier,
                 self.declaring_trait,
                 &self.trait_references,
                 expected,
@@ -2137,8 +2146,9 @@ pub(crate) mod explicit_requirement_calls {
             return Ok(false);
         }
         let source_owner = source.lexical_owner;
+        let region_supplier = program.conformance_selection_region_supplier(handle)?;
         if previous.trait_scope.scope(program).is_some()
-            && previous.trait_scope.supplying_owner() != source_owner
+            && previous.trait_scope.supplying_owner() != region_supplier
         {
             return Err("refreshed conformance scope has another supplying owner");
         }

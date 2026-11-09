@@ -4325,10 +4325,14 @@ pub mod conformance_applications {
         let Some(application) = &selected.application else {
             return Ok(());
         };
+        let supplier = program
+            .typed_program()
+            .static_operand_region_supplier(selected, lexical_owner)
+            .map_err(Diagnostic::error)?;
         for lifetime in &application.lifetime_arguments {
             if typed_trees::type_identity::lifetime_parameter_identity(
                 program.typed_program(),
-                lexical_owner,
+                supplier,
                 lifetime.as_str(),
             )
             .is_none()
