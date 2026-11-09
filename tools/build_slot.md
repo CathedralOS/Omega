@@ -1,71 +1,95 @@
-# Build slots
+# Host build budget
 
-Agent count and build count are separate resources. One `mbx build -p omega`
-drives rustc to roughly 5.4 cores on a 10-core host, so two concurrent builds
-saturate the machine; a third adds contention rather than throughput, slowing
-every build, starving the landing queue behind them, and leaving agents that
-are not compiling unable to make progress.
+Agent count and build load are separate resources. Several agents can read,
+edit and reason at once, but every build, corpus run and compiled program they
+start shares one machine. On a workstation its owner is using, that machine is
+not the agents' to fill: on 2026-11-09 four local workers each ran
+`mbx build -p omega` with default settings on a 24-CPU Windows workstation and
+made it unusable for its owner twice.
 
-`tools/build_slot.py` caps only the build resource. Wrap an expensive command:
+`tools/build_slot.py`, the slot pool this page used to describe, was removed
+with the Python tooling in #2080 and has no replacement. Records that cite it
+describe how those runs were admitted at the time. Use the mechanisms below.
 
-```sh
-python3 tools/build_slot.py -- mbx build -p omega
-python3 tools/build_slot.py --slots 2 --timeout 3600 -- mbx nextest run -p psi
+## What limits a build today
+
+| Limit | Scope | How to set it |
+| --- | --- | --- |
+| mbx scheduler budget | Every mbx-run Cargo command that shares the mbx cache directory | `scheduler.cpus`, `scheduler.reserve_cpus` in the mbx configuration, or `MBX_SCHEDULER_CPUS`, `MBX_SCHEDULER_RESERVE_CPUS` in the environment |
+| Cargo jobs | One Cargo invocation | `CARGO_BUILD_JOBS`, or `-j N` |
+| Corpus workers | One corpus run | `OMEGA_CORPUS_JOBS` |
+| Operating-system priority | One process tree | `nice -n 19 <command>`; on Windows, the Idle priority class |
+
+The mbx scheduler is the only one of these that spans agents. Its
+[documentation](https://github.com/jdx/mr-boxington/blob/main/docs/scheduling.md)
+says independent Cargo commands share CPU and memory permits through one pool
+under the cache directory, that `scheduler.cpus` is that pool's CPU budget, and
+that `scheduler.reserve_cpus` withholds cores from it "to leave CPUs for other
+work". The budget defaults to every logical CPU, so the default pool queues
+agents behind each other but leaves nothing for anyone else. Cache hits take no
+permit. `scheduler.priority = "low"` only changes admission order among mbx
+builds; it does not lower operating-system priority.
+
+Programs that do not run through mbx are outside that pool: `corpus_runner`
+executing fixtures, `omega` itself, a compiled sample. Cap those with their own
+setting, or charge them to the pool with
+`mbx reserve --cpus N -- <command>`.
+
+## On a workstation someone is using
+
+Set the budget before the first build, not after the owner complains. A limit
+the owner states replaces these defaults.
+
+1. Start one expensive build at a time across all local agents unless a higher
+   width has been measured on that host
+   ([host setup](../.agents/skills/swarm/references/host-setup.md#admit-builds-not-just-agents)).
+2. Leave most of the machine free: budget about a quarter of the logical CPUs
+   for all agent work combined.
+3. Run builds and corpus runs at the lowest operating-system priority, so
+   interactive work preempts them.
+4. Put the budget in every worker prompt. A subagent does not inherit the
+   coordinator's shell environment.
+5. After an unexplained restart or killed processes, suspect the agents' own
+   load before starting the same work again.
+
+POSIX shells:
+
+```bash
+export MBX_SCHEDULER_CPUS=6 CARGO_BUILD_JOBS=6 OMEGA_CORPUS_JOBS=4
+nice -n 19 mbx build -p omega < /dev/null
 ```
 
-The standing configuration on this host is **8 worktrees, 8 subagents,
-2 build slots**. The pools are independent: eight agents may edit, author
-fixtures and run programs at once while two build at full speed.
+Windows PowerShell. A process started from an Idle-class parent inherits that
+class, so setting it on the shell covers `mbx`, `cargo` and every `rustc`:
 
-Waiting is bounded and reported on stderr, so a caller can tell "queued" from
-"hung" (`build_slot: waiting for one of 2 slot(s); held by [...]`). A slot
-whose owning process has died is reclaimed instead of wedging the pool, and a
-timeout exits 75 rather than starting the build.
+```powershell
+(Get-Process -Id $PID).PriorityClass = 'Idle'
+$env:MBX_SCHEDULER_CPUS = '6'; $env:CARGO_BUILD_JOBS = '6'; $env:OMEGA_CORPUS_JOBS = '4'
+mbx build -p omega
+```
 
-Slots live under the checkout's ignored `build/build-slots/`, keyed by the
-common git directory, so all worktrees of one checkout share a pool while
-unrelated checkouts do not contend.
+A host owner who wants one limit for every agent and session sets it once in
+the global mbx configuration, for example `mbx settings set
+scheduler.reserve_cpus 16`. That file belongs to the owner: an agent proposes
+the value and does not write it uninvited.
 
-Waiting is a race among pollers, not a queue: every waiter wakes on its own
-cadence and the first to see a freed slot takes it, so waiting longest grants
-nothing. On 2026-10-23, amid a fifty-lane wave, single chain acquisitions
-waited 3,039-5,282 seconds (up to 88 minutes) for one of the two slots —
-longer than any per-step re-acquisition pattern can survive inside a
-`--timeout`.
-
-Each completed hold appends one line to the pool directory's `history.jsonl`
-(worktree, command, seconds waited, seconds held, exit code), so slot use can
-be measured instead of reconstructed from PR prose. `corpus_gate.py` sizes its
-default worker count to one holder's share of the host:
-min(12, cores / slots, memory / (600 MiB x slots)), 5 on a 10-core 16 GB Mac.
+Observed on that Windows host (i9-12900K, 24 logical CPUs, mbx 1.29.2,
+2026-11-09): with the PowerShell form plus a six-CPU affinity mask, the `mbx`,
+`cargo` and `rustc` processes of a running `mbx build -p omega` all showed the
+Idle class and the mask, and total CPU load stayed between 10% and 25%.
+`MBX_SCHEDULER_CPUS=6 mbx settings get scheduler.cpus` printed `6`. Not
+measured here: how the mbx pool behaves when concurrent invocations carry
+different budgets, and the POSIX form.
 
 ## One hold for a whole chain
 
-Cover local checks, tests, corpus runs and builds with a single acquisition:
-
-```sh
-python3 tools/build_slot.py --slots 2 --timeout 5400 -- bash chain.sh
-```
-
-`hold()` exports `OMEGA_BUILD_SLOT_HELD=1` into everything it wraps, and the
-flag is inherited: nested `build_slot.py` and `corpus_gate.py` runner builds
-short-circuit instead of queueing again. Run the local steps sequentially.
-Release the slot before pushing a PR or waiting for GitHub's merge queue;
-[landing](landing.md) runs its integration check on GitHub, not in this pool.
-Docs-only changes need no compiler-build hold.
+Run a local chain (check, crate tests, scoped corpus gate) as sequential steps
+in one shell under one budget, and finish it before pushing: integration builds
+run on GitHub, not on the host ([landing](landing.md)). Docs-only changes need
+no compiler build.
 
 ## Diagnostics don't queue with chains
 
-Fixing a compile error or a red test is a minutes-scale check-edit-check loop.
-Run those single-crate checks in a separate named pool so they neither wait
-behind nor starve the chain slots:
-
-```sh
-python3 tools/build_slot.py --pool diag --slots 1 -- mbx check -p <crate>
-```
-
-The diag pool keeps its own slot file (`build/diag-slots/slot-0`) and its own
-short-circuit variable (`OMEGA_BUILD_SLOT_HELD_DIAG`), so it never contends
-with — or gets silenced by — the two chain slots. Budget one extra rustc
-process: keep diag commands short and single-crate, and under memory
-pressure, drop diag work before chain builds.
+A compile-error or red-test repair is a minutes-scale check-edit-check loop.
+Keep those checks single-crate (`mbx check -p <crate>`) and inside the same
+budget; under memory or CPU pressure, drop diagnostic work before the chain.
