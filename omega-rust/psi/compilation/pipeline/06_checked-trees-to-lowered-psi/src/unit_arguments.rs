@@ -6417,6 +6417,12 @@ pub(crate) mod attached_unit {
                 else {
                     continue;
                 };
+                // A runtime window argument evaluates its start and end exactly
+                // once, inside the step that forms the window: `Subslice` for a
+                // direct range, or the joined structural-value producer below.
+                // Scheduling the endpoint roots again would re-run any call in
+                // them (`cells[start()..end()]`) and give one call coordinate
+                // two terminal sites.
                 if byte_subslices::arguments(&operations[index])
                     .get(argument_ordinal)
                     .is_some_and(|argument| byte_subslices::range(argument).is_some())
