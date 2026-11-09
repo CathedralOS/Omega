@@ -39,7 +39,7 @@ pub(crate) mod affine_cleanup_plans {
     /// The tree records which case-specific and shared actions must complete
     /// before its branches join. The disposition identifies its exact source,
     /// completion, storage version and excluded transfers.
-    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedCleanupPartitionPlan {
         pub disposition: arena::Handle<crate::ContextualCleanupDisposition>,
         pub source: CheckedUnitStructuralArgumentSourcePlan,
@@ -47,6 +47,23 @@ pub(crate) mod affine_cleanup_plans {
         pub type_identity: TypeIdentityId,
         pub root: arena::Handle<CheckedCleanupPartitionNode>,
         pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
+    }
+
+    impl Default for CheckedCleanupPartitionPlan {
+        fn default() -> Self {
+            Self {
+                disposition: Default::default(),
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    value_dependency: None,
+                    expression: arena::Handle::invalid(),
+                    logical_root_type_identity: None,
+                },
+                path: Default::default(),
+                type_identity: Default::default(),
+                root: Default::default(),
+                actions: Default::default(),
+            }
+        }
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
