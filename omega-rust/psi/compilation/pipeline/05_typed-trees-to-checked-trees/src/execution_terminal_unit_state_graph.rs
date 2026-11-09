@@ -996,7 +996,7 @@ mod fused {
         if owners.len() <= 1 {
             return fused;
         }
-        let mut predecessors = Vec::new();
+        let mut predecessors = vec![Vec::new(); owners.len()];
         for (owner, state) in &fused {
             let Some(source_index) = owners.iter().position(|symbol| *symbol == owner.symbol)
             else {
@@ -1009,31 +1009,26 @@ mod fused {
                 let target_owner = fused[target_index].0.symbol;
                 if let Some(target_index) = owners.iter().position(|symbol| *symbol == target_owner)
                 {
-                    predecessors.push((target_index, source_index));
+                    predecessors[target_index].push(source_index);
                 }
             }
         }
-        predecessors.sort_unstable();
-        predecessors.dedup();
+        for incoming in &mut predecessors {
+            incoming.sort_unstable();
+            incoming.dedup();
+        }
+        let components = crate::checks::termination::strongly_connected_components(&predecessors);
+        let mut component_of = vec![0; owners.len()];
+        for (index, component) in components.iter().enumerate() {
+            for &owner in component {
+                component_of[owner] = index;
+            }
+        }
         let mut retained = vec![false; owners.len()];
         let mut ready = Vec::new();
-        if let Some(root) = retained.first_mut() {
-            *root = true;
-            ready.push(0);
-        }
-        let mut cursor = 0;
-        while let Some(&target) = ready.get(cursor) {
-            cursor += 1;
-            let first = predecessors.partition_point(|(candidate, _)| *candidate < target);
-            for &(_, source) in predecessors[first..]
-                .iter()
-                .take_while(|(candidate, _)| *candidate == target)
-            {
-                if !retained[source] {
-                    retained[source] = true;
-                    ready.push(source);
-                }
-            }
+        for &owner in &components[component_of[0]] {
+            retained[owner] = true;
+            ready.push(owner);
         }
         let mut cursor = 0;
         while let Some(&source) = ready.get(cursor) {
@@ -1059,8 +1054,12 @@ mod fused {
                         && (moves_activation_claim(program, target_state)
                             || shares_borrowed_storage(program, state, statement_index, &transfer))
                     {
-                        retained[target] = true;
-                        ready.push(target);
+                        for &owner in &components[component_of[target]] {
+                            if !retained[owner] {
+                                retained[owner] = true;
+                                ready.push(owner);
+                            }
+                        }
                     }
                 }
             }
