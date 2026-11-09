@@ -17,7 +17,7 @@ machine crossed<'storage>(left: &'storage mut u64, witness [erased]: &u64, right
     Pair { first: right, second: left }
 }
 
-machine exercise(proof: &u64, one: &mut u64, two: &mut u64, other: &mut u64) -> u64 {
+machine exercise(proof [erased]: &u64, one: &mut u64, two: &mut u64, other: &mut u64) -> u64 {
     let first: &mut u64 = direct(proof, one);
     other = 1;
     first = 10;
