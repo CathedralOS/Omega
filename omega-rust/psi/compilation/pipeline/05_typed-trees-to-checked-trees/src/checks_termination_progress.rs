@@ -1397,9 +1397,10 @@ mod machine_summaries {
                 guarantee: &signature.termination_guarantee,
             });
         }
-        if let Some(signature) = program
-            .trait_machine_signature(target_symbol)
-            .map(|(_, signature)| signature)
+        // Use the same applied public view as the call's premise parameters,
+        // including guarantees strengthened by its exact conformance bound.
+        if let Some((_, signature)) =
+            validation::selected_requirement_signature(program, target_symbol)
         {
             return Some(SelectedCallProgress {
                 guarantee: &signature.termination_guarantee,
