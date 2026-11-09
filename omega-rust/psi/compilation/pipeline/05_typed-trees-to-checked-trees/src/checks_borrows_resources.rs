@@ -1276,8 +1276,14 @@ mod formation_sources {
                     );
                 } else {
                     return refusal(&format!(
-                        "returned projection has no checked descriptor formation: state {:?}, statement {}, source {:?}, captured completion {:?}, selected path {path:?}, retained source {profile:?}",
+                        "returned projection has no checked descriptor formation: machine {:?}, state {:?} ({:?}), call target {:?}, statement {}, source {:?}, captured completion {:?}, selected path {path:?}, retained source {profile:?}",
+                        program.symbols.name(state.machine_symbol),
+                        program.symbols.name(state.state_symbol),
                         state.state_symbol,
+                        program
+                            .expression_table
+                            .call_node(row.formation_expression)
+                            .map(|call| program.symbols.name(call.target_symbol)),
                         row.statement_index,
                         row.formation_expression,
                         value.completion,
