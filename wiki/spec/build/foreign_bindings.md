@@ -221,8 +221,15 @@ Hosted direct calls use host-managed backing under the calling plan and provider
 containment contract. Fixed-stack or freestanding calls need admitted foreign
 demand or separately provisioned provider storage. A requirement ceiling is not
 evidence that opaque code fits. A provider's enforced guarded capacity can supply
-containment with abnormal overflow, not proof of successful completion. This is
-not a source crash cause for compiler-owned spills or a replacement for admitted
+containment with abnormal overflow, not proof of successful completion. Admitted
+demand and provisioned capacity are distinct: the binding admits that the leaf
+uses at most its declared bytes, while a provider may provision more as
+headroom, and headroom is never evidence that the code fits. A guard region
+alone is defense; containment requires evidence that the boundary cannot be
+skipped, such as a stack-probing discipline on the native code, together with a
+declared failure contract for reaching it. A false demand premise obliges no
+recovery; surviving one is the isolated provider's contract. This is not a
+source crash cause for compiler-owned spills or a replacement for admitted
 Omega stack backing. Exact contributions follow
 [stack accounting](../resources/storage.md#stack-demand-and-backing); callback
 preflight, arrival, switching, and underestimation detection follow

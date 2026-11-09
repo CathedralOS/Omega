@@ -1,10 +1,12 @@
 # Task activation and lifecycle
 
 A selected `TaskRuntime` boundary provider executes an ordinary named machine
-as a distinct activation. `runtime.start<Worker::run>(job)` and
-`runtime.try_start<Worker::run>(job)` use a compile-time machine-symbol argument,
-not capture inference or a runtime function value. A direct `Worker::run(job)`
-remains an ordinary call. There is no bare spawn, implicit detach, future
+as a distinct activation. `TaskRuntime::start<WorkResult, Job, Worker::run>(job)`
+and `TaskRuntime::try_start<WorkResult, Job, Worker::run>(job)` are boundary
+requirements invoked by path like any other; there is no receiver value, and
+the provider behind them is a build selection. The machine argument is a
+compile-time machine symbol, not capture inference or a runtime function
+value. A direct `Worker::run(job)` remains an ordinary call. There is no bare spawn, implicit detach, future
 transformation, or privileged supervisor. [Call acknowledgements](../language/effects.md#call-site-acknowledgements)
 describe only what the start/control operation may do to its caller.
 
@@ -56,8 +58,13 @@ The provider must guarantee usable backing for the full stack plan throughout
 the activation, including while parked. Its contract states the reservation and
 physical-commitment policy; deferred commitment must preserve that guarantee.
 Reserving an address range alone does not establish sufficient backing.
-Nonmoving frames preserve addresses relied on by live loans and outstanding
-operations across suspension.
+Guaranteed backing whose pages become resident on first touch is a permitted
+hosted policy: it changes residency, never the plan or the bound, and a serviced
+fault inside the plan is an implementation event, not an outcome. A
+persistently inaccessible region beyond the plan defends against a false
+foreign premise; it is not a growth mechanism, and reaching it is governed by
+the provider's declared containment policy. Nonmoving frames preserve addresses
+relied on by live loans and outstanding operations across suspension.
 
 Target/provider selection and physical plans remain in the
 [build-owned companion](../terminal-psi/product.md#build-owned-companion), not
@@ -96,8 +103,9 @@ another starter from spending that capacity.
 
 ## Linear task claim
 
-`Task<T>` is linear. `Task::request_cancel(&task)` retains the claim; it requests a
-transition, not proof that execution stopped. `Task::finish(move task)` terminally
+`Task<T>` is linear. `TaskLifecycle::request_cancel(&task)` retains the claim; it
+requests a transition, not proof that execution stopped.
+`TaskLifecycle::finish(move task)` terminally
 consumes it and returns ordinary `TaskOutcome<T>` cases `Cancelled`, `Returned(value)`,
 or `Failed(receipt)`. Application-level recoverable errors remain inside `T`;
 the outer sum describes lifecycle outcomes. Trap/abort remain declared crash
@@ -195,8 +203,9 @@ guarantees. Wake need not park; wait's suspension/blocking and
 [positive progress](../language/termination.md#opaque-progress-profiles) remain
 independent explicit premises.
 
-Foreign execution either contributes admitted same-stack demand or uses a
-separately provisioned provider stack while the caller accounts for its stub.
+Foreign execution either contributes admitted same-stack demand, declared on
+the foreign requirement as `stack N bytes`, or uses a separately provisioned
+provider stack while the caller accounts for its stub.
 [Stack demand](../resources/storage.md) and [entry stacks](../resources/entry_stacks.md)
 own composition. Callback plans/registration own inbound execution and its
 restricted synchronous graph; an ordinary hosted blocking executor is a package,
