@@ -213,6 +213,12 @@ mbx xtask check-boundary
 Never run an unfiltered corpus sweep locally (`mbx xtask corpus` enforces a
 200-fixture local selection budget).
 
+Builds, corpus runs and compiled programs from every local agent share one
+machine. Before the first build on a host you share with its owner or with
+other agents, apply the [host build budget](tools/build_slot.md): one expensive
+build at a time, and on a workstation its owner is using, capped jobs at the
+lowest operating-system priority, written into every worker prompt.
+
 ## The Psi/Omega firewall
 
 - **`psi/` (`omega-rust/psi/`, `source/psi/`)** owns target-neutral language
