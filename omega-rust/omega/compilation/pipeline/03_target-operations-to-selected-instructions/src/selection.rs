@@ -287,7 +287,7 @@ pub(crate) mod block_order {
 
         #[test]
         fn ready_blocks_preserve_a_long_reverse_chain() {
-            let count = 8192;
+            let count: usize = 8192;
             let outgoing: Vec<_> = (0..count)
                 .map(|position| position.checked_sub(1).into_iter().collect())
                 .collect();
