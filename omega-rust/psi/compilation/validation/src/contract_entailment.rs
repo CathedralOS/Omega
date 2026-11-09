@@ -72118,7 +72118,10 @@ pub(crate) mod structural_judgment {
                             );
                             continue;
                         }
-                        if let Err(reason) = self.retain_entry_scalar_observation(
+                        // Keep the formed entry subject even when its first load
+                        // occurs later. The snapshot owner leaves it entry-only
+                        // until a completed read proves storage preservation.
+                        if let Err(reason) = self.retain_entry_scalar_snapshot(
                             machine,
                             state,
                             crate::CanonicalPlace {
@@ -72220,15 +72223,10 @@ pub(crate) mod structural_judgment {
                                     program,
                                     field_reference,
                                     projected,
-                                ) && child.root.as_symbol().is_some_and(|root| {
-                                    self.entry_read_backing(machine, state, root, &child.segments)
-                                        .is_some()
-                                })
+                                )
                             });
                             let observed = if let Some(observed) = observed {
-                                self.retain_entry_scalar_observation(
-                                    machine, state, child, observed,
-                                )
+                                self.retain_entry_scalar_snapshot(machine, state, child, observed)
                             } else {
                                 self.retain_entry_predicate_scalar(machine, state, child)
                             };
