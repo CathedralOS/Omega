@@ -841,6 +841,7 @@ mod booleans {
         target_state_symbol: SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
         availability: &std::cell::OnceCell<Option<CasePremiseAvailability<'premises>>>,
+        assignments: &mut crate::values::RootAssignmentObservations<'premises>,
     ) -> bool {
         let semantic = &facts.semantic;
         macro_rules! prove_instantiated {
@@ -859,6 +860,7 @@ mod booleans {
                     target_state_symbol,
                     $expression,
                     availability,
+                    assignments,
                 )
             };
         }
@@ -875,6 +877,7 @@ mod booleans {
             target_state,
             target_state_symbol,
             expression,
+            assignments,
         ) {
             return true;
         }
@@ -6028,9 +6031,11 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         return true;
     }
     (field_proof.is_none() && {
-        // One unchanged entry roster supplies the case observations for every
-        // context and Boolean leaf. Each subject still receives its own check.
+        // Share the unchanged entry roster's case and assignment inputs across
+        // contexts and Boolean leaves. Check each subject and scalar agreement.
         let availability = std::cell::OnceCell::new();
+        let mut assignments =
+            crate::values::RootAssignmentObservations::new(program, semantic, entry_contexts);
         entry_contexts.iter().any(|entry_context| {
             let context = semantic.contexts.get(*entry_context);
             semantic_context_proves_instantiated_boolean_expression(
@@ -6047,6 +6052,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
                 call_flow.target_symbol,
                 expression,
                 &availability,
+                &mut assignments,
             )
         })
     }) || call_site_proves_boolean_contract_expression(

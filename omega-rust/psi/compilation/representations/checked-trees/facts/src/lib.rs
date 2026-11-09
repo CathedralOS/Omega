@@ -1152,6 +1152,46 @@ pub struct FactPlan {
     pub symbol_sets: Arena<SymbolFactSet>,
 }
 
+/// Read one context's assignment records for a root in their original order.
+pub struct RootAssignmentFacts<'plan> {
+    plan: &'plan FactPlan,
+    root: PlaceRoot,
+    assignments: std::slice::Iter<'plan, AssignedFactRef>,
+    finished: bool,
+}
+
+impl<'plan> Iterator for RootAssignmentFacts<'plan> {
+    type Item = &'plan Fact;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+        for assignment in self.assignments.by_ref() {
+            if assignment.root.group_key() != self.root.group_key() {
+                self.finished = true;
+                return None;
+            }
+            if assignment.root == self.root {
+                return Some(self.plan.facts.get(assignment.fact));
+            }
+        }
+        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (
+            0,
+            Some(if self.finished {
+                0
+            } else {
+                self.assignments.len()
+            }),
+        )
+    }
+}
+
 macro_rules! fact_plan_root_impls {
     ($($root:ident),* $(,)?) => {
         impl Clone for FactPlan {
@@ -1530,15 +1570,16 @@ impl FactPlan {
         &self,
         context: &FactContext,
         root: PlaceRoot,
-    ) -> impl Iterator<Item = &Fact> {
+    ) -> RootAssignmentFacts<'_> {
         let assignments = self.assigned_refs.span_or_empty(context.assignments);
         let key = root.group_key();
         let start = assignments.partition_point(|assignment| assignment.root.group_key() < key);
-        assignments[start..]
-            .iter()
-            .take_while(move |assignment| assignment.root.group_key() == key)
-            .filter(move |assignment| assignment.root == root)
-            .map(|assignment| self.facts.get(assignment.fact))
+        RootAssignmentFacts {
+            plan: self,
+            root,
+            assignments: assignments[start..].iter(),
+            finished: false,
+        }
     }
 
     pub fn append_symbol_set(

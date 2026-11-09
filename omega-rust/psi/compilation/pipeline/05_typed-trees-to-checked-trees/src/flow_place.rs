@@ -31,6 +31,31 @@ mod canonicalization {
         context_handles: &[facts::FactContextHandle],
         segments: &mut [facts::PlaceSegment],
     ) {
+        narrow_pinned_index_segments_with_values(
+            program,
+            state_symbol,
+            statement_index,
+            segments,
+            |selector| {
+                crate::values::scalar_value_at_place(
+                    program,
+                    semantic,
+                    context_handles
+                        .iter()
+                        .map(|handle| semantic.contexts.get(*handle)),
+                    selector,
+                )
+            },
+        );
+    }
+
+    pub(crate) fn narrow_pinned_index_segments_with_values(
+        program: &dyn ::validation::CheckingInput,
+        state_symbol: SymbolHandle,
+        statement_index: usize,
+        segments: &mut [facts::PlaceSegment],
+        mut scalar_at_place: impl FnMut(&CanonicalPlace) -> Option<facts::ScalarValue>,
+    ) {
         for segment in segments.iter_mut() {
             let facts::PlaceSegment::Index { expression } = *segment else {
                 continue;
@@ -49,15 +74,7 @@ mod canonicalization {
                     else {
                         continue;
                     };
-                    let Some(facts::ScalarValue::Integer(index)) =
-                        crate::values::scalar_value_at_place(
-                            program,
-                            semantic,
-                            context_handles
-                                .iter()
-                                .map(|handle| semantic.contexts.get(*handle)),
-                            &selector,
-                        )
+                    let Some(facts::ScalarValue::Integer(index)) = scalar_at_place(&selector)
                     else {
                         continue;
                     };
@@ -1673,7 +1690,8 @@ pub(crate) use facts::compose_captured_view_segments;
 
 pub(crate) use canonicalization::{
     canonical_place_from_semantic_place, canonical_place_from_symbol, narrow_pinned_index_segments,
-    projected_leaf_place, reference_source_place, source_independent_place,
+    narrow_pinned_index_segments_with_values, projected_leaf_place, reference_source_place,
+    source_independent_place,
 };
 pub(crate) use case_access::{
     CaseEvidence, place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,

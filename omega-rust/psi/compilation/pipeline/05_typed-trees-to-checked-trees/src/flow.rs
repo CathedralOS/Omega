@@ -11823,10 +11823,10 @@ pub(crate) use place::{
     canonical_place_segments_may_overlap, canonical_places_agree, case_tag_segments_may_overlap,
     compose_captured_view_segments, fixed_selection_segment, literal_argument_access_places,
     literal_expression_projections, literal_value_path_is_inactive, literal_value_projections,
-    narrow_pinned_index_segments, place_case_has_value, place_case_path_is_inactive,
-    place_cases_are_selected, place_cases_are_selected_after, place_segment_has_static_identity,
-    place_segment_has_unresolved_identity, projected_leaf_place, reference_source_place,
-    segments_cover_subject, source_independent_place, stable_case_subject,
+    narrow_pinned_index_segments, narrow_pinned_index_segments_with_values, place_case_has_value,
+    place_case_path_is_inactive, place_cases_are_selected, place_cases_are_selected_after,
+    place_segment_has_static_identity, place_segment_has_unresolved_identity, projected_leaf_place,
+    reference_source_place, segments_cover_subject, source_independent_place, stable_case_subject,
     static_place_segment_pair_equal,
 };
 pub(crate) use reach::attach_reach_summaries;
