@@ -277,7 +277,10 @@ pub(crate) mod source_occurrences {
                         // a copied call or specialization changes the call owner.
                         argument.type_reference =
                             self.static_operand_type_reference_in_scope(argument, owner)?;
-                    } else if !argument.symbol.is_valid() && argument.const_literal.is_none() {
+                    } else if !argument.symbol.is_valid()
+                        && argument.const_literal.is_none()
+                        && crate::static_const_argument_spelling(self, argument).is_none()
+                    {
                         complete = false;
                     }
                 }
