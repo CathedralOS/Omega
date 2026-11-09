@@ -6074,11 +6074,202 @@ pub(crate) mod selected_continuations {
                 .push(position);
         }
 
-        fn release(&mut self, block: usize, continuations: &mut [Continuation]) {
+        fn release(&mut self, block: usize, continuations: &mut [Continuation]) -> usize {
+            let mut released = 0_usize;
             for position in self.by_block[block].values().flatten() {
                 continuations[*position].incoming = Vec::new();
+                released = released.saturating_add(1);
             }
             self.by_block[block] = Default::default();
+            released
+        }
+    }
+
+    // Temporary bounded diagnostic; remove before normal qualification.
+    struct KeyLifetimeCensus {
+        machine: semantic_vocabulary::MachineId,
+        owner: usize,
+        active: bool,
+        reports: usize,
+        report_cap_reached: bool,
+        block_counts: Vec<(usize, usize)>,
+        block_count: usize,
+        untracked_updates: usize,
+        discovered: usize,
+        processed: usize,
+        closed: usize,
+        released: usize,
+        max_discovered: (usize, usize),
+        max_pending: (usize, usize),
+        graph_enabled: bool,
+        graph_cyclic: Option<bool>,
+        entry_predecessors: Option<usize>,
+    }
+
+    impl KeyLifetimeCensus {
+        fn new(machine: semantic_vocabulary::MachineId, block_count: usize) -> Self {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static OWNERS: AtomicUsize = AtomicUsize::new(0);
+            let requested = std::env::var_os("OMEGA_TRACE_CLEANUP_KEY_LIFETIMES").is_some();
+            let owner = if requested {
+                OWNERS.fetch_add(1, Ordering::Relaxed)
+            } else {
+                usize::MAX
+            };
+            let active = requested && owner < 64;
+            if requested && owner == 64 {
+                eprintln!("CLEANUP_KEYS owners_censored=true owner_cap=64");
+            }
+            Self {
+                machine,
+                owner,
+                active,
+                reports: 0,
+                report_cap_reached: false,
+                block_counts: if active {
+                    vec![(0, 0); block_count.min(65_536)]
+                } else {
+                    Vec::new()
+                },
+                block_count,
+                untracked_updates: 0,
+                discovered: 0,
+                processed: 0,
+                closed: 0,
+                released: 0,
+                max_discovered: (0, 0),
+                max_pending: (0, 0),
+                graph_enabled: false,
+                graph_cyclic: None,
+                entry_predecessors: None,
+            }
+        }
+
+        fn observe_graph(&mut self, graph: &IncomingKeyLifetimes) {
+            if !self.active || graph.successors.len() > 65_536 {
+                return;
+            }
+            let mut predecessors = graph.predecessors.clone();
+            let mut ready = predecessors
+                .iter()
+                .enumerate()
+                .filter_map(|(block, count)| (*count == 0).then_some(block))
+                .collect::<Vec<_>>();
+            let mut visited = 0_usize;
+            while let Some(block) = ready.pop() {
+                visited += 1;
+                for target in &graph.successors[block] {
+                    predecessors[*target] -= 1;
+                    if predecessors[*target] == 0 {
+                        ready.push(*target);
+                    }
+                }
+            }
+            self.graph_cyclic = Some(visited != graph.successors.len());
+        }
+
+        fn disabled(
+            &mut self,
+            block: Option<BlockId>,
+            role: &'static str,
+            reason: &dyn std::fmt::Debug,
+        ) {
+            if self.active {
+                eprintln!(
+                    "CLEANUP_KEYS graph_disabled machine={machine:?} owner={owner} block={block:?} role={role} reason={reason:?}",
+                    machine = self.machine,
+                    owner = self.owner
+                );
+                self.reports += 1;
+            }
+        }
+
+        fn discover(&mut self, block: usize) {
+            if !self.active {
+                return;
+            }
+            self.discovered = self.discovered.saturating_add(1);
+            if let Some((discovered, processed)) = self.block_counts.get_mut(block) {
+                *discovered = discovered.saturating_add(1);
+                if *discovered > self.max_discovered.1 {
+                    self.max_discovered = (block, *discovered);
+                }
+                let pending = discovered.saturating_sub(*processed);
+                if pending > self.max_pending.1 {
+                    self.max_pending = (block, pending);
+                }
+            } else {
+                self.untracked_updates = self.untracked_updates.saturating_add(1);
+            }
+        }
+
+        fn processed(&mut self, block: usize, graph: Option<&IncomingKeyLifetimes>) {
+            if !self.active {
+                return;
+            }
+            self.processed = self.processed.saturating_add(1);
+            if let Some((_, processed)) = self.block_counts.get_mut(block) {
+                *processed = processed.saturating_add(1);
+            } else {
+                self.untracked_updates = self.untracked_updates.saturating_add(1);
+            }
+            if self.processed.is_power_of_two() {
+                if self.reports < 62 {
+                    self.report("prepare_progress", graph);
+                } else {
+                    self.report_cap_reached = true;
+                }
+            }
+        }
+
+        fn report(&mut self, phase: &'static str, graph: Option<&IncomingKeyLifetimes>) {
+            if !self.active {
+                return;
+            }
+            self.reports = self.reports.saturating_add(1);
+            eprintln!(
+                "CLEANUP_KEYS phase={phase} machine={machine:?} owner={owner} graph_enabled={enabled} graph_cyclic={cyclic:?} cycle_scan_censored={cycle_censored} entry_predecessors={entry:?} original_blocks={blocks} closed_originals={closed} discovered={discovered} processed={processed} pending={pending} released_keys={released} retained_keys={retained} max_discovered_original={max_original} max_discovered_count={max_count} max_original_remaining_predecessors={max_predecessors:?} max_original_pending={max_current_pending:?} max_original_closed={max_closed:?} max_pending_original={pending_original} max_pending_count={pending_count} counted_originals={counted} block_counts_censored={block_censored} untracked_updates={untracked} reports_censored={report_censored} counter_cap_reached={counter_capped}",
+                machine = self.machine,
+                owner = self.owner,
+                enabled = self.graph_enabled,
+                cyclic = self.graph_cyclic,
+                cycle_censored = self.graph_enabled && self.block_count > 65_536,
+                entry = self.entry_predecessors,
+                blocks = self.block_count,
+                closed = self.closed,
+                discovered = self.discovered,
+                processed = self.processed,
+                pending = self.discovered.saturating_sub(self.processed),
+                released = self.released,
+                retained = self.discovered.saturating_sub(self.released),
+                max_original = self.max_discovered.0,
+                max_count = self.max_discovered.1,
+                max_predecessors = graph
+                    .and_then(|graph| graph.predecessors.get(self.max_discovered.0))
+                    .copied(),
+                max_current_pending = graph
+                    .and_then(|graph| graph.pending.get(self.max_discovered.0))
+                    .copied(),
+                max_closed = graph
+                    .and_then(|graph| graph.closed.get(self.max_discovered.0))
+                    .copied(),
+                pending_original = self.max_pending.0,
+                pending_count = self.max_pending.1,
+                counted = self.block_counts.len(),
+                block_censored = self.block_counts.len() < self.block_count,
+                untracked = self.untracked_updates,
+                report_censored = self.report_cap_reached,
+                counter_capped = [
+                    self.discovered,
+                    self.processed,
+                    self.closed,
+                    self.released,
+                    self.untracked_updates,
+                    self.max_discovered.1,
+                    self.max_pending.1
+                ]
+                .contains(&usize::MAX)
+            );
         }
     }
 
@@ -6096,6 +6287,7 @@ pub(crate) mod selected_continuations {
             blocks: &[Block],
             positions: &BlockPositions,
             groups: &[SelectedCleanupGroup],
+            census: &mut KeyLifetimeCensus,
         ) -> Option<Self> {
             let mut bypasses = groups
                 .iter()
@@ -6103,28 +6295,48 @@ pub(crate) mod selected_continuations {
                 .collect::<Vec<_>>();
             bypasses.sort_unstable_by_key(|(edge, _)| *edge);
             let mut successors = Vec::with_capacity(blocks.len());
+            let mut resolve = |block, role| {
+                positions
+                    .position(block)
+                    .inspect_err(|reason| census.disabled(Some(block), role, reason))
+                    .ok()
+            };
             for (position, block) in blocks.iter().enumerate() {
                 // Unknown or repeated identities leave the original lazy checks in
                 // charge. They do not establish that a lookup key is dead.
-                if positions.position(block.id).ok()? != position {
+                if resolve(block.id, "source")? != position {
+                    drop(resolve);
+                    census.disabled(
+                        Some(block.id),
+                        "source-position",
+                        &"identity maps to another position",
+                    );
                     return None;
                 }
                 let mut targets = Vec::new();
                 for (edge, target) in block.terminator.successor_edges() {
-                    targets.push(positions.position(target).ok()?);
+                    targets.push(resolve(target, "target")?);
                     let first = bypasses.partition_point(|(candidate, _)| *candidate < edge);
                     for (_, bypass) in bypasses[first..]
                         .iter()
                         .take_while(|(candidate, _)| *candidate == edge)
                     {
-                        targets.push(positions.position(*bypass).ok()?);
+                        targets.push(resolve(*bypass, "bypass")?);
                     }
                 }
                 targets.sort_unstable();
                 targets.dedup();
                 successors.push(targets);
             }
-            Self::from_successors(successors)
+            let prepared = Self::from_successors(successors);
+            if prepared.is_none() {
+                census.disabled(
+                    None,
+                    "predecessor-roster",
+                    &"invalid successor position or predecessor count overflow",
+                );
+            }
+            prepared
         }
 
         fn from_successors(successors: Vec<Vec<usize>>) -> Option<Self> {
@@ -6157,11 +6369,11 @@ pub(crate) mod selected_continuations {
             self.close_ready(vec![block])
         }
 
-        fn close_unused_roots(&mut self) {
+        fn close_unused_roots(&mut self) -> usize {
             let roots = (0..self.successors.len())
                 .filter(|block| self.predecessors[*block] == 0 && self.pending[*block] == 0)
                 .collect();
-            self.close_ready(roots);
+            self.close_ready(roots).len()
         }
 
         fn close_ready(&mut self, mut ready: Vec<usize>) -> Vec<usize> {
@@ -6284,11 +6496,18 @@ pub(crate) mod selected_continuations {
             incoming: initial,
             successors: Vec::new(),
         }];
-        let mut key_lifetimes = IncomingKeyLifetimes::for_blocks(blocks, &positions, groups);
+        let mut census = KeyLifetimeCensus::new(machine, blocks.len());
+        let mut key_lifetimes =
+            IncomingKeyLifetimes::for_blocks(blocks, &positions, groups, &mut census);
         if let Some(lifetimes) = &mut key_lifetimes {
+            census.graph_enabled = true;
+            census.observe_graph(lifetimes);
+            census.entry_predecessors = Some(lifetimes.predecessors[entry]);
             lifetimes.discover(entry);
-            lifetimes.close_unused_roots();
+            census.closed = lifetimes.close_unused_roots();
         }
+        census.discover(entry);
+        census.report("prepare_begin", key_lifetimes.as_ref());
         // Only continuations of the same original block can share an incoming
         // state. Keep their discovery order and compare the complete state.
         let mut candidates = ContinuationCandidates::new(blocks.len());
@@ -6435,6 +6654,7 @@ pub(crate) mod selected_continuations {
                         lifetimes.discover(original_block);
                     }
                     let successor = continuations.len();
+                    census.discover(original_block);
                     continuations.push(Continuation {
                         original_block,
                         incoming: outgoing,
@@ -6448,11 +6668,19 @@ pub(crate) mod selected_continuations {
             continuations[position].successors = successors;
             if let Some(lifetimes) = &mut key_lifetimes {
                 for block in lifetimes.processed(continuations[position].original_block) {
-                    candidates.release(block, &mut continuations);
+                    census.closed = census.closed.saturating_add(1);
+                    census.released = census
+                        .released
+                        .saturating_add(candidates.release(block, &mut continuations));
                 }
             }
+            census.processed(
+                continuations[position].original_block,
+                key_lifetimes.as_ref(),
+            );
             position += 1;
         }
+        census.report("prepare_return", key_lifetimes.as_ref());
         Ok(Some(Specialization {
             entry: 0,
             continuations,
