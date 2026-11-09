@@ -2973,7 +2973,7 @@ pub(crate) mod namespaces {
         }
     }
 }
-pub use machine_instances::{EnclosingInvocationFrame, MachineInstantiation};
+pub use machine_instances::MachineInstantiation;
 pub(crate) mod payloads {
     use super::{CallableApplication, CallableLifetimeOrigin};
     use crate::{TypedTrees, expression, static_applications, types};
