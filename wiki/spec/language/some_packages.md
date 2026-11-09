@@ -40,16 +40,19 @@ initializers and checks all related fields against that same choice, including
 callable contracts and the data invariant. Unresolved or inconsistent witnesses
 reject. A machine accepting `Socket` cannot accompany `&mut File`. Witnesses
 remain checking evidence, not runtime source-level type values. A generic helper
-may construct a package using its ordinary static type argument as the witness.
+may construct a package using its ordinary static type argument as the witness,
+and an [opened abstract witness](#owned-state-through-uniform-carriers) may do
+so within its scope.
 
-V1 permits sized concrete witnesses and borrowed storage. A field depending on
-`S` must have a uniform representation independent of the witness: references
-to sized referents and callable descriptors over those references are the basic
-forms; ordinary compositions of admitted uniform fields are allowed. Inline
-owned `S`, witness-sized arrays, witness-dependent field offsets and unsized
-referents are not admitted by this rule. A callable cannot require moving an
-unknown-layout `S` by value. Unrelated concrete owned fields remain ordinary
-data with their own cleanup. Owning arbitrary erased state is separate work.
+V1 permits sized concrete witnesses. A field depending on `S` must have a
+uniform representation independent of the witness: references to sized
+referents, callable descriptors over those references, and
+[uniform carriers](#owned-state-through-uniform-carriers) whose custody index
+names the witness are the basic forms; ordinary compositions of admitted
+uniform fields are allowed. Inline owned `S`, witness-sized arrays,
+witness-dependent field offsets and unsized referents are not admitted by this
+rule. A callable cannot require moving an unknown-layout `S` by value.
+Unrelated concrete owned fields remain ordinary data with their own cleanup.
 
 ## Opening by stable subject
 
@@ -124,10 +127,51 @@ runtime entries require compile-time prediction. Each construction and every
 use must be well-typed and obey the container's capacity/allocation contract.
 A reference to a helper's local cannot survive that local through packaging.
 
+## Owned state through uniform carriers
+
+Ratified 2026-11-08; [owning some packages](../../drafts/designs/owning_some_packages.md)
+records the migration. A field depending on a `some` witness may own that state
+when its type is uniform: the witness occurs only in custody or evidence
+indices, such as `Extent in Granted & Resident<P, S>`, or behind admitted
+references and callable descriptors, never in a position that determines
+layout. The judgment is structural over the field's type and over every
+parameter and result of every stored callable. A parameter or result of type
+`Owner<S>` is admitted where `Owner<S>` is uniform; bare `S` by value stays
+rejected. Equal sizes and authored assertions of uniformity establish nothing.
+
+The carrier is ordinary library data, not a privileged name. The qualified
+extent already owns one complete live `S` under
+[resident custody](../resources/access.md#establishment-and-retirement) and
+returns to its provider; an allocator family wraps it with its return handle
+where one is needed, and two owners of the same payload from different providers
+keep distinct return paths. Packing allocates nothing: it moves an established
+owner into the record. Stored operations take the owner, by reference or by
+value, rather than `&mut S`, so the consumer never specializes over the hidden
+type. Opening pairs `state` with its operations as above, while
+`&mut package.state` remains an ordinary field borrow.
+
+Each stored operation keeps its own
+[callable contract](machine_values.md#callable-types-and-construction), and
+construction checks the selected machine against it; one operation's reach or
+suspension does not attach to another because they share a record. Consumption
+is any stored operation taking the owner by value. There is no terminal-consumer
+spelling, and a package may offer several, such as `run` and `cancel`. Owning
+packages are `[linear]`. Packing preserves the hidden state's resident custody,
+contained loans, zero-sized obligations, storage claims, carry demands and code
+dependencies, and storing a consuming operation admits no automatic cleanup. A
+pending or failure outcome returns the remaining ownership as a package exposing
+only the operations valid in that state, under
+[consumers and cleanup](ownership.md#consumers-and-cleanup).
+
+An abstract witness introduced by a valid opening may construct another package
+within its scope under the ordinary construction, lifetime, custody and contract
+checks. This permits repacking after an incomplete settlement. It grants no
+equality with another package's witness and extends no contained loan.
+
 ## Representation, costs and replacement
 
-Uniform borrowed fields plus indirect callable descriptors give one external
-layout without a generated sum of all possible witnesses. No global roster,
+Uniform borrowed or owning fields plus indirect callable descriptors give one
+external layout without a generated sum of all possible witnesses. No global roster,
 tag assignment, or type/layout identity changes when another construction uses
 a new sized witness. There is no implicit box or runtime witness equality test
 for a source-checked pairing. Descriptor representation and dispatch still have
@@ -144,7 +188,8 @@ pairings, custody and call access. An untrusted asserted pairing grants no autho
 This does not authorize arbitrary new code to enter a closed product. Build
 admission, reachability, code retention and replacement contracts still apply.
 No Fused-only global-roster mechanism is required, but a package containing local
-machine descriptors or borrows cannot cross an Independent boundary unchanged.
+machine descriptors, borrows or owned state whose layout a component defines
+cannot cross an Independent boundary unchanged.
 Use its admitted boundary representation or a local proxy. Quiescence does not
 convert old state or release stored code dependencies: retain the old era, drain
 the packages, or consume and reconstruct them around explicit state migration.

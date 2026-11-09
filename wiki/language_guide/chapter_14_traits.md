@@ -507,6 +507,31 @@ You can return a complete reader, but its unknown state type stays inside the
 package. Replacing a reader also ends the validity of projections from its old
 state. See [some packages](../spec/language/some_packages.md).
 
+### Owning the state
+
+A borrowed package leaves the real owner elsewhere, so a factory cannot return
+one. To own the hidden state, store it through a carrier whose layout does not
+depend on the type. A qualified extent names the type only in its custody
+index, so every `Job` below has the same representation while each one owns a
+different state:
+
+```omega
+data Job<P, R, some S> [linear] {
+    state: Extent in Granted & Resident<P, S>;
+    run: machine(state: Extent in Granted & Resident<P, S>) -> R;
+}
+```
+
+The producer establishes the resident with its allocator, selects `run` over
+the concrete state and constructs the record; packing allocates nothing. A
+queue of such jobs holds owners of many state types and never learns any of
+them. The consumer opens a job and moves `state` into `run`, which knows the
+concrete owner and returns the storage to its provider. The package is linear,
+so a job cannot be dropped: it is run, cancelled through another consuming
+operation the producer supplied, or moved onward. Inline `state: S` stays out
+because no single layout represents it. See
+[owned state](../spec/language/some_packages.md#owned-state-through-uniform-carriers).
+
 <a id="dynamic-surface"></a>
 
 ### Static and runtime choices
