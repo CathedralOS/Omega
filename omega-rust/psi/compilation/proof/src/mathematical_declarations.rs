@@ -404,7 +404,7 @@ mod mathematical_signature {
                             // Capture the complete evaluated value. Splitting a fixed
                             // Wrapping computation into source leaves would silently
                             // replace its denotation with unbounded arithmetic.
-                            let domain = self.elaborate_source_operand_type(reference)?;
+                            let domain = self.elaborate_source_value_type(reference)?;
                             // A relation may name an existing value without
                             // constructing or duplicating its runtime resource. A
                             // mathematical value actual still owes its constructor
@@ -3077,7 +3077,7 @@ mod mathematical_signature {
                 // which carrier it denotes; signature occurrence is not authority.
                 let source_type = self.source_operand_type_reference(handle);
                 let source_domain = source_type
-                    .map(|reference| self.elaborate_source_operand_type(reference))
+                    .map(|reference| self.elaborate_source_value_type(reference))
                     .transpose()?;
                 if let Some(meaning) = integer_embedding_meaning(self.program, handle) {
                     return self.embedding_term(handle, meaning);
@@ -4097,7 +4097,7 @@ mod mathematical_signature {
                 };
                 reference
                     .map(|reference| {
-                        self.elaborate_source_operand_type(reference)
+                        self.elaborate_source_value_type(reference)
                             .map_err(|mut diagnostics| {
                                 for diagnostic in &mut diagnostics {
                                     diagnostic.source_span =
@@ -4119,6 +4119,19 @@ mod mathematical_signature {
                     return Ok(alias);
                 }
                 self.elaborate_type_reference(reference)
+            }
+
+            pub(super) fn elaborate_source_value_type(
+                &mut self,
+                declared: TypeReferenceHandle,
+            ) -> Result<TermHandle, Vec<Diagnostic>> {
+                let observed =
+                    validation::mathematical_applications::scalar_observation_type_reference(
+                        self.program,
+                        declared,
+                    )
+                    .unwrap_or(declared);
+                self.elaborate_source_operand_type(observed)
             }
 
             fn scalar_operand_carrier(
@@ -4547,6 +4560,40 @@ mod mathematical_signature {
                 if self.indexed_families.contains_key(base_symbol))
             }
 
+            fn source_carrier_has_runtime_types(&self, reference: TypeReferenceHandle) -> bool {
+                let mut pending = vec![reference];
+                let mut seen = std::collections::HashSet::new();
+                while let Some(reference) = pending.pop() {
+                    if !seen.insert(reference) {
+                        continue;
+                    }
+                    match type_reference_table(self.program).type_reference(reference) {
+                        TypeReferenceNode::Reference { .. }
+                        | TypeReferenceNode::DynamicTrait { .. }
+                        | TypeReferenceNode::FixedArray { .. }
+                        | TypeReferenceNode::Slice { .. } => return true,
+                        TypeReferenceNode::Generic {
+                            lifetime_arguments,
+                            arguments,
+                            ..
+                        } => {
+                            if !lifetime_arguments.is_empty() {
+                                return true;
+                            }
+                            pending.extend_from_slice(
+                                type_reference_table(self.program)
+                                    .type_reference_handles(*arguments),
+                            );
+                        }
+                        TypeReferenceNode::Constrained { base_type, .. } => {
+                            pending.push(*base_type);
+                        }
+                        _ => {}
+                    }
+                }
+                false
+            }
+
             pub(super) fn retain_source_evidence_carriers(
                 &mut self,
             ) -> Result<(), Vec<Diagnostic>> {
@@ -4598,14 +4645,19 @@ mod mathematical_signature {
                                 .program
                                 .state_parameters(state)
                                 .iter()
-                                .map(|parameter| parameter.type_reference)
+                                .map(|parameter| {
+                                    (parameter.type_reference, parameter.relevance.is_erased())
+                                })
                                 .chain(
                                     statement_table(self.program)
                                         .statements(state.statement_nodes)
                                         .iter()
                                         .filter_map(|statement| {
                                             if let StatementNode::LocalData(local) = statement {
-                                                Some(local.type_reference)
+                                                Some((
+                                                    local.type_reference,
+                                                    local.relevance.is_erased(),
+                                                ))
                                             } else {
                                                 None
                                             }
@@ -4614,7 +4666,7 @@ mod mathematical_signature {
                                 .collect::<Vec<_>>();
                             references
                                 .iter()
-                                .any(|reference| self.known_source_family(*reference))
+                                .any(|(reference, _)| self.known_source_family(*reference))
                                 .then_some((state, references))
                         })
                         .collect::<Vec<_>>();
@@ -4684,8 +4736,13 @@ mod mathematical_signature {
                                 );
                             }
                         }
-                        for reference in references {
+                        for (reference, erased) in references {
                             if !self.known_source_family(reference)
+                                // A runtime application need not have a mathematical
+                                // value domain just because another application of
+                                // its generic declaration has one. Erased inputs and
+                                // directly demanded mathematical types still check.
+                                || (!erased && self.source_carrier_has_runtime_types(reference))
                                 || self
                                     .prepared
                                     .source_carriers

@@ -3383,6 +3383,17 @@ pub mod mathematical_applications {
         operand_type_reference_in_declaration(program, owner, expression)
     }
 
+    /// The number or Boolean read from a borrow has its own value type. The
+    /// source capture still retains the borrow and must justify that exact read.
+    pub fn scalar_observation_type_reference(
+        program: &dyn crate::CheckingInput,
+        declared: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let observed = crate::expression_types_and_fields::expression_types::scalar_observations::readable_observation_type_reference(program, declared)?;
+        program.primitive_type_reference(observed)?;
+        Some(observed)
+    }
+
     /// Read an operand under its retained declaration telescope. Sibling trait
     /// operations and applied signatures can return types that belong to that
     /// exact owner; a context-free call query cannot export those local binders.
