@@ -69034,12 +69034,46 @@ pub(crate) mod structural_judgment {
                             crate::canonical_place_from_expression(program, expression).and_then(
                                 |place| {
                                     let symbol = place.root.as_symbol()?;
-                                    parameters
+                                    let parameter = parameters
                                         .iter()
                                         .find(|parameter| parameter.symbol == symbol)?;
                                     let (_, value) =
                                         bindings.iter().find(|(bound, _)| *bound == symbol)?;
-                                    self.captured_scalar_read(value, &place.segments)
+                                    let completed = self.captured_scalar_read(value, &place.segments);
+                                    if crate::trace_flags::check_sites()
+                                        && program.symbols.display_path(callable, "::").contains("WriteBuffer")
+                                        && program.expression_table.display_name(expression) == "source.value"
+                                    {
+                                        static EVENTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+                                        if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 4 {
+                                            fn metadata(mut value: &StructuralTerm) -> Vec<(&'static str, TypeReferenceHandle, bool)> {
+                                                let mut types = Vec::new();
+                                                for _ in 0..8 {
+                                                    match value {
+                                                        StructuralTerm::ObservedValue { observed_type, descriptor, value: inner } => {
+                                                            types.push(("observed", *observed_type, descriptor.is_some()));
+                                                            value = inner;
+                                                        }
+                                                        StructuralTerm::IntegerEmbedding { reference, value: inner } => {
+                                                            types.push(("integer", *reference, false));
+                                                            value = inner;
+                                                        }
+                                                        StructuralTerm::CapturedValue { result_type, .. } | StructuralTerm::Application { result_type, .. } => {
+                                                            types.push(("source", *result_type, false));
+                                                            break;
+                                                        }
+                                                        _ => break,
+                                                    }
+                                                }
+                                                types
+                                            }
+                                            eprintln!("CHECKSITE bound-source-scalar callable={callable:?} scope={scope:?} expression={expression:?} place={place:?} parameter_type={:?} actual={value:?} actual_types={:?} completed={completed:?} completed_types={:?} cut={:?}", parameter.type_reference, metadata(value), completed.as_ref().map(metadata), self.storage_version);
+                                            for stored in self.stored_values.iter().filter(|stored| Self::coordinate_place(&stored.coordinate).is_some_and(|coordinate| coordinate.root == place.root)).take(8) {
+                                                eprintln!("CHECKSITE bound-source-storage coordinate={:?} entry={:?} entry_types={:?} current={:?} current_types={:?} completed_read={:?} backing={} anchors={:?}", stored.coordinate, stored.entry, stored.entry.as_ref().map(metadata), stored.current, stored.current.as_ref().map(metadata), stored.completed_read, stored.backing.is_some(), stored.current_anchors);
+                                            }
+                                        }
+                                    }
+                                    completed
                                 },
                             )
                         };
@@ -74626,7 +74660,28 @@ pub(crate) mod structural_judgment {
                 coordinate: &CapturedStorageCoordinate,
                 at: Option<StorageVersion>,
             ) -> Option<super::StructuralTerm> {
-                let (owner, declaration) = self.runtime_declaration_scope()?;
+                let scope = self.runtime_declaration_scope();
+                let trace = crate::trace_flags::check_sites()
+                    && self
+                        .program
+                        .symbols
+                        .display_path(machine.symbol, "::")
+                        .contains("WriteBuffer")
+                    && self.program.expression_table.display_name(expression) == "source.value"
+                    && {
+                        static EVENTS: std::sync::atomic::AtomicUsize =
+                            std::sync::atomic::AtomicUsize::new(0);
+                        EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8
+                    };
+                if trace {
+                    eprintln!(
+                        "CHECKSITE entry-scalar-context machine={:?} state={:?} runtime={:?} expression={expression:?} coordinate={coordinate:?} cut={at:?}",
+                        machine.symbol,
+                        state.symbol,
+                        scope.map(|(machine, state)| (machine.symbol, state.symbol))
+                    );
+                }
+                let (owner, declaration) = scope?;
                 let at = at?;
                 if owner.symbol != machine.symbol
                     || declaration.symbol != state.symbol
@@ -74636,6 +74691,9 @@ pub(crate) mod structural_judgment {
                     return None;
                 }
                 let declared = self.scalar_reference_read_type(machine, state, expression)?;
+                if trace {
+                    eprintln!("CHECKSITE entry-scalar-type declared={declared:?}");
+                }
                 crate::reference_shell(self.program, declared)?
                     .access
                     .is_readable()
@@ -74649,15 +74707,25 @@ pub(crate) mod structural_judgment {
                         parameter.type_reference,
                         &place.segments,
                     )?;
-                self.scalar_coordinate_is_formed(
+                let formed = self.scalar_coordinate_is_formed(
                     parameter.type_reference,
                     &super::StructuralTerm::Variable(parameter.name.as_str().to_owned()),
                     &place.segments,
                     &cases,
                     &indices,
-                )
-                .then_some(())?;
-                self.entry_read_backing(machine, state, root, &place.segments)?;
+                );
+                if trace {
+                    eprintln!("CHECKSITE entry-scalar-formed place={place:?} formed={formed}");
+                }
+                formed.then_some(())?;
+                let backing = self.entry_read_backing(machine, state, root, &place.segments);
+                if trace {
+                    eprintln!(
+                        "CHECKSITE entry-scalar-backing place={place:?} retained={}",
+                        backing.is_some()
+                    );
+                }
+                backing?;
                 let graph = self.storage_graph()?;
                 // The descriptor and its scalar referent must both still be the
                 // exact incoming storage. An unknown or overlapping write refuses.
@@ -74665,13 +74733,57 @@ pub(crate) mod structural_judgment {
                     crate::completed_storage::StoredObservation::Binding,
                     crate::completed_storage::StoredObservation::Contents,
                 ] {
-                    match crate::completed_storage::sources_at_snapshot(
+                    let sources = crate::completed_storage::sources_at_snapshot(
                         self.program,
                         graph,
                         at.snapshot,
                         &place,
                         observation,
-                    )? {
+                    );
+                    if trace {
+                        fn describe(
+                            source: &crate::completed_storage::StoredOperand,
+                            depth: usize,
+                        ) -> String {
+                            use crate::completed_storage::StoredOperand;
+                            match source {
+                                StoredOperand::Incoming(place) => format!("incoming {place:?}"),
+                                StoredOperand::Unavailable => "unavailable".to_owned(),
+                                StoredOperand::Value {
+                                    capture,
+                                    reference,
+                                    projection,
+                                    slot,
+                                } => format!(
+                                    "value capture={capture:?} type={reference:?} projection={projection:?} slot={slot:?}"
+                                ),
+                                StoredOperand::Alternatives(values) if depth < 3 => format!(
+                                    "alternatives count={} values={:?}",
+                                    values.len(),
+                                    values
+                                        .iter()
+                                        .take(4)
+                                        .map(|value| describe(value, depth + 1))
+                                        .collect::<Vec<_>>()
+                                ),
+                                StoredOperand::Alternatives(values) => {
+                                    format!("alternatives count={} truncated", values.len())
+                                }
+                            }
+                        }
+                        let kind = match observation {
+                            crate::completed_storage::StoredObservation::Binding => "binding",
+                            crate::completed_storage::StoredObservation::InlineContents => {
+                                "inline-contents"
+                            }
+                            crate::completed_storage::StoredObservation::Contents => "contents",
+                        };
+                        eprintln!(
+                            "CHECKSITE entry-scalar-preservation kind={kind} place={place:?} cut={at:?} source={:?}",
+                            sources.as_ref().map(|source| describe(source, 0))
+                        );
+                    }
+                    match sources? {
                         crate::completed_storage::StoredOperand::Incoming(source)
                             if source == place => {}
                         _ => return None,
