@@ -6063,6 +6063,169 @@ pub(crate) mod selected_continuations {
         }
     }
 
+    // TEMPORARY DIAGNOSTIC ONLY. This owner observes retained allocations; none
+    // of its pointer identities participate in continuation selection or proof.
+    struct RetainedAllocationCensus {
+        owner: usize,
+        machine: semantic_vocabulary::MachineId,
+        regions: usize,
+        groups: usize,
+        blocks: usize,
+        processed: usize,
+        discovered: usize,
+        dense_bytes: usize,
+        partial_states: usize,
+        logical_paths: usize,
+        outer_lists: usize,
+        outer_bytes: usize,
+        path_rows: usize,
+        path_bytes: usize,
+        allocation_keys: std::collections::HashSet<(u8, usize)>,
+        keys_censored: bool,
+        by_block: Vec<usize>,
+        blocks_censored: bool,
+        maximum_per_block: usize,
+        reached_blocks: usize,
+    }
+
+    impl RetainedAllocationCensus {
+        const KEY_LIMIT: usize = 65_536;
+        const BLOCK_LIMIT: usize = 65_536;
+        const OWNER_LIMIT: usize = 64;
+
+        fn new(
+            machine: semantic_vocabulary::MachineId,
+            regions: usize,
+            groups: usize,
+            blocks: usize,
+        ) -> Option<Self> {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static OWNERS: AtomicUsize = AtomicUsize::new(0);
+            let owner = OWNERS.fetch_add(1, Ordering::Relaxed);
+            if owner >= Self::OWNER_LIMIT {
+                if owner == Self::OWNER_LIMIT {
+                    eprintln!(
+                        "CONTINUATION_CENSUS owner_limit_reached={} later_owners_censored=true",
+                        Self::OWNER_LIMIT
+                    );
+                }
+                return None;
+            }
+            let census = Self {
+                owner,
+                machine,
+                regions,
+                groups,
+                blocks,
+                processed: 0,
+                discovered: 0,
+                dense_bytes: 0,
+                partial_states: 0,
+                logical_paths: 0,
+                outer_lists: 0,
+                outer_bytes: 0,
+                path_rows: 0,
+                path_bytes: 0,
+                allocation_keys: std::collections::HashSet::new(),
+                keys_censored: false,
+                by_block: vec![0; blocks.min(Self::BLOCK_LIMIT)],
+                blocks_censored: blocks > Self::BLOCK_LIMIT,
+                maximum_per_block: 0,
+                reached_blocks: 0,
+            };
+            census.report("prepare_begin", 0, 0);
+            Some(census)
+        }
+
+        fn new_allocation(&mut self, kind: u8, pointer: usize) -> bool {
+            // Check the cap before allocating a new key. Retained allocations
+            // remain live in continuations, so their addresses cannot be reused.
+            if self.allocation_keys.contains(&(kind, pointer)) {
+                return false;
+            }
+            if self.allocation_keys.len() == Self::KEY_LIMIT {
+                self.keys_censored = true;
+                return false;
+            }
+            self.allocation_keys.insert((kind, pointer));
+            true
+        }
+
+        fn retain(
+            &mut self,
+            continuation: &Continuation,
+            frontier_capacity: usize,
+            outgoing_capacity: usize,
+        ) {
+            self.discovered += 1;
+            // Account each incoming vector once, when it becomes retained.
+            self.dense_bytes += continuation.incoming.capacity() * size_of::<RegionState>();
+            if let Some(count) = self.by_block.get_mut(continuation.original_block) {
+                if *count == 0 {
+                    self.reached_blocks += 1;
+                }
+                *count += 1;
+                self.maximum_per_block = self.maximum_per_block.max(*count);
+            }
+            for state in &continuation.incoming {
+                let RegionState::Partial(paths) = state else {
+                    continue;
+                };
+                self.partial_states += 1;
+                self.logical_paths += paths.len();
+                if self.new_allocation(0, Arc::as_ptr(paths) as usize) {
+                    self.outer_lists += 1;
+                    self.outer_bytes += size_of::<Vec<Arc<[StructuralPathSegment]>>>()
+                        + paths.capacity() * size_of::<Arc<[StructuralPathSegment]>>();
+                }
+                if self.keys_censored {
+                    continue;
+                }
+                for path in paths.iter() {
+                    if self.new_allocation(1, Arc::as_ptr(path) as *const () as usize) {
+                        self.path_rows += 1;
+                        self.path_bytes += path.len() * size_of::<StructuralPathSegment>();
+                    }
+                    if self.keys_censored {
+                        break;
+                    }
+                }
+            }
+            if self.discovered.is_power_of_two() {
+                self.report("prepare_progress", frontier_capacity, outgoing_capacity);
+            }
+        }
+
+        fn report(&self, phase: &str, frontier_capacity: usize, outgoing_capacity: usize) {
+            eprintln!(
+                "CONTINUATION_CENSUS phase={} owner={} machine={:?} regions={} groups={} blocks={} processed={} discovered={} reached_blocks={} max_per_block={} dense_retained_bytes={} frontier_bytes={} new_incoming_bytes_already_in_retained={} partial_states={} logical_paths={} unique_outer_lists={} outer_payload_bytes_lower_bound={} unique_path_rows={} path_payload_bytes_lower_bound={} allocation_keys={} keys_censored={} blocks_censored={} state_bytes={}",
+                phase,
+                self.owner,
+                self.machine,
+                self.regions,
+                self.groups,
+                self.blocks,
+                self.processed,
+                self.discovered,
+                self.reached_blocks,
+                self.maximum_per_block,
+                self.dense_bytes,
+                frontier_capacity * size_of::<RegionState>(),
+                outgoing_capacity * size_of::<RegionState>(),
+                self.partial_states,
+                self.logical_paths,
+                self.outer_lists,
+                self.outer_bytes,
+                self.path_rows,
+                self.path_bytes,
+                self.allocation_keys.len(),
+                self.keys_censored,
+                self.blocks_censored,
+                size_of::<RegionState>(),
+            );
+        }
+    }
+
     pub(crate) fn prepare(
         machine: semantic_vocabulary::MachineId,
         entry: BlockId,
@@ -6131,6 +6294,11 @@ pub(crate) mod selected_continuations {
         }];
         // Only continuations of the same original block can share an incoming
         // state. Keep their discovery order and compare the complete state.
+        let mut census =
+            RetainedAllocationCensus::new(machine, regions.len(), groups.len(), blocks.len());
+        if let Some(census) = &mut census {
+            census.retain(&continuations[0], 0, 0);
+        }
         let mut candidates = ContinuationCandidates::new(blocks.len());
         candidates.insert(entry, incoming_signature(&continuations[0].incoming), 0);
         let mut position = 0;
@@ -6251,12 +6419,25 @@ pub(crate) mod selected_continuations {
                             successors: Vec::new(),
                         });
                         candidates.insert(original_block, signature, successor);
+                        if let Some(census) = &mut census {
+                            census.retain(
+                                &continuations[successor],
+                                frontier.capacity(),
+                                continuations[successor].incoming.capacity(),
+                            );
+                        }
                         successor
                     });
                 successors.push((edge, successor));
             }
             continuations[position].successors = successors;
             position += 1;
+            if let Some(census) = &mut census {
+                census.processed = position;
+            }
+        }
+        if let Some(census) = &census {
+            census.report("prepare_return_before_downstream", 0, 0);
         }
         Ok(Some(Specialization {
             entry: 0,
