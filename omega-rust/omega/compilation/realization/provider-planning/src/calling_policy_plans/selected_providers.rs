@@ -93,9 +93,10 @@ pub(super) fn select(
             choice.selected_by,
             provider_selection::SelectionProvenance::BuildOverride(_)
                 | provider_selection::SelectionProvenance::TargetDefault(_)
+                | provider_selection::SelectionProvenance::TargetRealization(_)
         ) {
             return Err(vec![Diagnostic::error(
-                "calling-policy helper requires an exact Build or target-default provider selection",
+                "calling-policy helper requires an exact Build, target-default, or target-realized provider selection",
             )]);
         }
     }

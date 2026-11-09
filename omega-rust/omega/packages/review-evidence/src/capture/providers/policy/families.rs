@@ -167,7 +167,8 @@ fn authored(
             declarations,
         )),
         ProviderSelectionProvenance::UniqueCoveringCandidate
-        | ProviderSelectionProvenance::NativeBuild => None,
+        | ProviderSelectionProvenance::NativeBuild
+        | ProviderSelectionProvenance::TargetRealization(_) => None,
     }
 }
 

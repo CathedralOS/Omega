@@ -1614,6 +1614,38 @@ pub mod float_providers {
             && machine.name.as_str().starts_with("NativeFloats::")
     }
 
+    /// Whether `symbol` is the sealed core `NativeFloats` catalog map. Only
+    /// that map's plans realize canonical float operations from a target's
+    /// declared realization table; a same-named map elsewhere is ordinary.
+    pub fn is_sealed_catalog_map(typed: &TypedTrees, symbol: SymbolHandle) -> bool {
+        sealed(typed, symbol, "NativeFloats", SOURCE)
+    }
+
+    /// The sealed map and the public requirements its authenticated members
+    /// satisfy. A Build activation's checked projection keeps these so the
+    /// target realization table can supply float operations a Build program
+    /// reaches; no Build selection names them any more.
+    pub fn catalog_realization_declarations(typed: &TypedTrees) -> Vec<SymbolHandle> {
+        let mut declarations = Vec::new();
+        for (_, machine) in typed.machines.iter() {
+            if !is_catalog_declaration(typed, machine) {
+                continue;
+            }
+            let Ok((requirement, _)) = authenticate_intrinsic_member(typed, machine) else {
+                continue;
+            };
+            if let Some((implementation, _)) = typed.owned_conformance_realization(machine.symbol)
+                && !declarations.contains(&implementation.symbol)
+            {
+                declarations.push(implementation.symbol);
+            }
+            if !declarations.contains(&requirement) {
+                declarations.push(requirement);
+            }
+        }
+        declarations
+    }
+
     pub fn authenticate_intrinsic_member(
         typed: &TypedTrees,
         machine: &Machine,

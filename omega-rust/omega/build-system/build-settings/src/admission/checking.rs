@@ -62,7 +62,11 @@ pub(crate) fn prepare_checked_build(
         .map(|defaults| defaults.rejoin_build(typed))
         .transpose()?
         .unwrap_or_default();
-    let mut selected_declarations = Vec::new();
+    // The target realization table supplies canonical float operations, so
+    // the activation keeps the sealed catalog map and its public requirements
+    // in its projection whether or not any Build selection names them.
+    let mut selected_declarations =
+        typed_trees::float_providers::catalog_realization_declarations(typed);
     for selection in &completed_defaults {
         selected_declarations.push(selection.provider_type.symbol);
         match &selection.subject {
@@ -146,6 +150,7 @@ pub(crate) fn prepare_checked_build(
                 )]
             })?;
             let selected = provider_planning::select_derived_provider_plans(
+                context.typed,
                 &candidates,
                 profile,
                 &declarations.provider_defaults,

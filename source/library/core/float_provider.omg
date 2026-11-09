@@ -1,6 +1,7 @@
 // The ordinary map owns these machine members. Each member also records its
-// exact public arithmetic requirement; Build selects that recorded relation.
-// The compiler catalog supplies intrinsic execution only for this sealed map.
+// exact public arithmetic requirement; the selected target's realization
+// table binds that recorded relation, and Build never selects it. The
+// compiler catalog supplies intrinsic execution only for this sealed map.
 use omega::language::core::float_format;
 use omega::language::core::float_meaning;
 

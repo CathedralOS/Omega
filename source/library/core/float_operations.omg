@@ -1,9 +1,10 @@
 // Public floating-point operations.
 //
-// Primitive spellings resolve to the Float operators below. The core Build
-// companion selects the ordinary NativeFloats implementation for each target.
-// Public signatures and contracts stay at these selectable boundaries; the
-// fixed compiler catalog supplies their primitive IEEE execution.
+// Primitive spellings resolve to the Float operators below. Each target's
+// declared realization table binds them to the sealed NativeFloats catalog
+// members; no Build program selects or overrides them. Public signatures and
+// contracts stay at these boundaries; the fixed compiler catalog supplies
+// their primitive IEEE execution.
 //
 // Named operations use format-qualified F32/F64 names. For example,
 // F32::fused_multiply_add and F64::fused_multiply_add are distinct requirements;

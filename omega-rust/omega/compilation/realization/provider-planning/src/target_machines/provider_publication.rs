@@ -159,6 +159,11 @@ impl TargetProviderPreparationRequest<'_> {
                         .row_realizations
                         .iter()
                         .all(|row| row.native().is_some()),
+                    canonical_float_map:
+                        crate::provider_planning::selection_declarations::canonical_float_map(
+                            self.context.typed,
+                            &candidate.provenance,
+                        ),
                     owner: closed_declarations.map(|closed| {
                         provider_selection::PreparedProviderRealizations {
                             provider_declaration: closed.provider_declaration,

@@ -476,6 +476,17 @@ fn require_reached_providers(
                     .iter()
                     .any(|row| row.required == requirement))
             .then(|| {
+                // A canonical float operation is never Build-selected; when the
+                // target's realization table declares it unsupported, say so.
+                if let Some(target::CanonicalFloatRealization::Unsupported { constraint }) =
+                    target_profile.canonical_float_realization(requirement)
+                {
+                    return Diagnostic::error(format!(
+                        "canonical float operation `{}` has no realization on target `{}`: {constraint}",
+                        requirement_path(requirement),
+                        target_profile.target_name(),
+                    ));
+                }
                 Diagnostic::error(format!(
                     "no provider is selected for boundary requirement `{}`, which the program entry reaches on target `{}`",
                     requirement_path(requirement),

@@ -161,6 +161,7 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
                         plan: choice.plan,
                         declarations: choice.declarations,
                         native_build: choice.native_build,
+                        canonical_float_map: choice.canonical_float_map,
                         owner,
                     },
                     schema_owner: candidate.schema_owner,
@@ -377,6 +378,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                             plan,
                             declarations,
                             native_build,
+                            canonical_float_map,
                             owner,
                         } = selected.candidate;
                         let owner = owner?;
@@ -385,6 +387,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                                 plan,
                                 declarations,
                                 native_build,
+                                canonical_float_map,
                                 owner: owner.owner,
                             },
                             selected_by: selected.selected_by,
