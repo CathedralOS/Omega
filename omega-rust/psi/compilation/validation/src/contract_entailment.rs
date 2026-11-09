@@ -81104,16 +81104,44 @@ pub(crate) mod structural_judgment {
                             && program
                                 .primitive_type_reference(capture.observation_type)
                                 .is_some();
-                        if selected_read
-                            && let Some(value) = self.stored_value_observation(
-                                scope.map(|(machine, state, _)| (machine, state)),
-                                capture.expression,
-                                |selector| child_term!(selector),
-                            )
+                        let stored = selected_read
+                            .then(|| {
+                                self.stored_value_observation(
+                                    scope.map(|(machine, state, _)| (machine, state)),
+                                    capture.expression,
+                                    |selector| child_term!(selector),
+                                )
+                            })
+                            .flatten();
+                        let from_stored = stored.is_some();
+                        let value = stored.or_else(|| child_term!(capture.expression));
+                        if crate::trace_flags::check_sites()
+                            && program
+                                .symbols
+                                .display_path(self.machine_symbol, "::")
+                                .rsplit("::")
+                                .next()
+                                == Some("echo")
                         {
-                            return Some(value);
+                            static EVENTS: std::sync::atomic::AtomicUsize =
+                                std::sync::atomic::AtomicUsize::new(0);
+                            if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
+                                eprintln!(
+                                    "CHECKSITE scalar-capture owner={} expression={:?} source={} source_type={:?} observation_type={:?} selected_read={selected_read} from_stored={from_stored} stored_count={} specification={} runtime={} version={:?} scope={:?} value={value:?}",
+                                    program.symbols.display_path(self.machine_symbol, "::"),
+                                    capture.expression,
+                                    expression_table(program).display_name(capture.expression),
+                                    capture.source_type,
+                                    capture.observation_type,
+                                    self.stored_values.len(),
+                                    self.specification_terms,
+                                    self.runtime_body_values,
+                                    self.storage_version,
+                                    scope.map(|(machine, state, _)| (machine.symbol, state.symbol)),
+                                );
+                            }
                         }
-                        child_term!(capture.expression)
+                        value
                     },
                 );
             }
@@ -84954,6 +84982,20 @@ pub(crate) mod structural_terms {
                 .iter()
                 .map(|capture| {
                     let mut value = observe(capture)?;
+                    let trace = crate::trace_flags::check_sites()
+                        && program.symbols.display_path(application.owner, "::")
+                            .rsplit("::").next() == Some("echo");
+                    if trace {
+                        static EVENTS: std::sync::atomic::AtomicUsize =
+                            std::sync::atomic::AtomicUsize::new(0);
+                        if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
+                            eprintln!(
+                                "CHECKSITE scalar-application owner={} application={:?} capture={:?} source_type={:?} observation_type={:?} value={value:?}",
+                                program.symbols.display_path(application.owner, "::"),
+                                expression, capture.expression, capture.source_type, capture.observation_type,
+                            );
+                        }
+                    }
                     let mut value_type = capture.source_type;
                     if crate::reference_shell(program, capture.source_type).is_some()
                         && program
@@ -84965,8 +85007,18 @@ pub(crate) mod structural_terms {
                             capture.source_type,
                             capture.observation_type,
                         )?;
-                        if !super::scalar_operand_is_observed(program, capture.source_type, &value)
-                        {
+                        let observed = super::scalar_operand_is_observed(program, capture.source_type, &value);
+                        if trace {
+                            static EVENTS: std::sync::atomic::AtomicUsize =
+                                std::sync::atomic::AtomicUsize::new(0);
+                            if EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
+                                eprintln!(
+                                    "CHECKSITE scalar-application-read application={:?} capture={:?} observed={observed} value={value:?}",
+                                    expression, capture.expression,
+                                );
+                            }
+                        }
+                        if !observed {
                             return None;
                         }
                         // This receives an existing checked read. A descriptor
