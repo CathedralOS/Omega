@@ -158,6 +158,11 @@ Dated cost and failure evidence, superseded by a later run.
   crash and termination rows, and the `reaches none`/`crashes none` spellings;
   delete when the board item lands.
 
+- [Owning some packages](designs/owning_some_packages.md): owned hidden state
+  under `some` through uniform carriers, the inductive uniformity rule, opened
+  witnesses as construction witnesses and the linear-first lifecycle; delete
+  when the board item lands.
+
 - [Conditional callback carry](designs/conditional_callback_carry.md):
   migration and acceptance for one generic resource helper across synchronous
   and suspending callbacks, with exact conditional suspension permissions.
