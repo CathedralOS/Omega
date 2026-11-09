@@ -51387,11 +51387,64 @@ pub(crate) mod structural_judgment {
                 if self.case_facts_only || depth >= 32 {
                     return;
                 }
+                let traced = Self::trace_completed_guarantee_receiving(&left)
+                    .then(|| (left.clone(), right.clone(), self.rewrites.iter().count()));
                 let resolution_depth = self.application_resolution_depth();
                 let left = self.resolve_with_at(left, resolution_depth, purpose);
                 let right = self.resolve_with_at(right, resolution_depth, purpose);
+                if let Some((source_left, source_right, _)) = &traced {
+                    eprintln!(
+                        "CHECKSITE guarantee-receiving-resolve owner={:?} storage={:?} depth={depth} resolution_depth={resolution_depth} integer_projection={} source_left={source_left:?} source_right={source_right:?} resolved_left={left:?} resolved_right={right:?}",
+                        self.machine_symbol,
+                        self.storage_version,
+                        purpose == ResolutionPurpose::IntegerProjection,
+                    );
+                }
                 self.intake_equation_fact_with_purpose(left, right, depth, purpose);
                 self.activate_conditional_guarantees();
+                if let Some((source_left, _, previous)) = traced {
+                    let added = self.rewrites.iter().count().saturating_sub(previous);
+                    let stored = self
+                        .rewrites
+                        .iter()
+                        .skip(previous)
+                        .take(8)
+                        .collect::<Vec<_>>();
+                    eprintln!(
+                        "CHECKSITE guarantee-receiving-stored owner={:?} source={source_left:?} added={added} stored={stored:?}",
+                        self.machine_symbol,
+                    );
+                }
+            }
+
+            pub(crate) fn trace_completed_guarantee_receiving(term: &StructuralTerm) -> bool {
+                if !crate::trace_flags::check_sites() {
+                    return false;
+                }
+                // This temporary observer follows the two retained encoder receipts.
+                // Both traversal and output are bounded; it never runs a proof query.
+                fn contains_selected_capture(term: &StructuralTerm, remaining: &mut usize) -> bool {
+                    if *remaining == 0 {
+                        return false;
+                    }
+                    *remaining -= 1;
+                    if let StructuralTerm::CapturedValue { expression, .. } = term
+                        && matches!(expression.arena_index(), 14043 | 14191)
+                    {
+                        return true;
+                    }
+                    let mut found = false;
+                    term.for_each_child(|child| {
+                        found |= !found && contains_selected_capture(child, remaining);
+                    });
+                    found
+                }
+                if !contains_selected_capture(term, &mut 128) {
+                    return false;
+                }
+                static OBSERVATIONS: std::sync::atomic::AtomicUsize =
+                    std::sync::atomic::AtomicUsize::new(0);
+                OBSERVATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 512
             }
 
             pub(crate) fn intake_equation_fact(
@@ -51434,7 +51487,14 @@ pub(crate) mod structural_judgment {
                 depth: usize,
                 purpose: ResolutionPurpose,
             ) {
-                if !self.equation_inputs_are_observed(&left, &right, depth) {
+                let observed = self.equation_inputs_are_observed(&left, &right, depth);
+                if Self::trace_completed_guarantee_receiving(&left) {
+                    eprintln!(
+                        "CHECKSITE guarantee-receiving-admission owner={:?} depth={depth} observed={observed} left={left:?} right={right:?}",
+                        self.machine_symbol,
+                    );
+                }
+                if !observed {
                     return;
                 }
                 let left = left.into_semantic_value();
@@ -53214,11 +53274,21 @@ pub(crate) mod structural_judgment {
                     );
                 }
                 let resolved = self.resolve_at(predicate.clone(), depth + 1);
-                match self.judge_equation(
+                let equation = self.judge_equation(
                     resolved.clone(),
                     super::value_predicates::boolean_term(true),
                     depth + 1,
-                ) {
+                );
+                if Self::trace_completed_guarantee_receiving(&predicate) {
+                    eprintln!(
+                        "CHECKSITE guarantee-receiving-required owner={:?} storage={:?} depth={depth} predicate={predicate:?} resolved={resolved:?} equation={equation:?} normal_guarantees={} captured_equations={}",
+                        self.machine_symbol,
+                        self.storage_version,
+                        self.normal_guarantees.len(),
+                        self.captured_result_equations.len(),
+                    );
+                }
+                match equation {
                     StructuralJudgment::Unknown => {
                         if let Some(judgment) =
                             self.observed_float_predicate_judgment(&predicate, depth)
@@ -58602,6 +58672,8 @@ pub(crate) mod structural_judgment {
                     equations: Vec<CapturedResultEquation>,
                 ) {
                     for mut equation in equations {
+                        let traced = Self::trace_completed_guarantee_receiving(&equation.left)
+                            .then(|| equation.clone());
                         if !equation.is_completed_call_identity() {
                             // Declared guarantees name the values actually passed. Copies
                             // of one unchanged input share its saved source; they must not
@@ -58609,6 +58681,12 @@ pub(crate) mod structural_judgment {
                             // Call-identity rows retain their exact executed occurrence.
                             equation.left = self.completed_value_identity(equation.left);
                             equation.right = self.completed_value_identity(equation.right);
+                        }
+                        if let Some(source) = traced {
+                            eprintln!(
+                                "CHECKSITE guarantee-receiving-completed owner={:?} source={source:?} completed={equation:?}",
+                                self.machine_symbol,
+                            );
                         }
                         if equation.is_data_identity() {
                             // The same typed Id operation consumes entry propositions,
