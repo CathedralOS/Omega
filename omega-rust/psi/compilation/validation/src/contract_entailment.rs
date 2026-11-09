@@ -51387,7 +51387,7 @@ pub(crate) mod structural_judgment {
                 if self.case_facts_only || depth >= 32 {
                     return;
                 }
-                let traced = Self::trace_completed_guarantee_receiving(&left)
+                let traced = Self::trace_completed_guarantee_receiving(&left, "resolve-and-stored")
                     .then(|| (left.clone(), right.clone(), self.rewrites.iter().count()));
                 let resolution_depth = self.application_resolution_depth();
                 let left = self.resolve_with_at(left, resolution_depth, purpose);
@@ -51429,7 +51429,10 @@ pub(crate) mod structural_judgment {
                 }
             }
 
-            pub(crate) fn trace_completed_guarantee_receiving(term: &StructuralTerm) -> bool {
+            pub(crate) fn trace_completed_guarantee_receiving(
+                term: &StructuralTerm,
+                event: &str,
+            ) -> bool {
                 if !crate::trace_flags::check_sites() {
                     return false;
                 }
@@ -51454,9 +51457,18 @@ pub(crate) mod structural_judgment {
                 if !contains_selected_capture(term, &mut 128) {
                     return false;
                 }
-                static OBSERVATIONS: std::sync::atomic::AtomicUsize =
-                    std::sync::atomic::AtomicUsize::new(0);
-                OBSERVATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 512
+                static OBSERVATIONS: [std::sync::atomic::AtomicUsize; 4] =
+                    [const { std::sync::atomic::AtomicUsize::new(0) }; 4];
+                // Intake prefixes cannot consume the later requirement's budget.
+                // Resolution and its stored delta are emitted as one paired event.
+                let event = match event {
+                    "resolve-and-stored" => 0,
+                    "admission" => 1,
+                    "required" => 2,
+                    "completed" => 3,
+                    _ => return false,
+                };
+                OBSERVATIONS[event].fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 64
             }
 
             pub(crate) fn trace_completed_guarantee_types(term: &StructuralTerm) -> Vec<String> {
@@ -51556,7 +51568,7 @@ pub(crate) mod structural_judgment {
                 purpose: ResolutionPurpose,
             ) {
                 let observed = self.equation_inputs_are_observed(&left, &right, depth);
-                if Self::trace_completed_guarantee_receiving(&left) {
+                if Self::trace_completed_guarantee_receiving(&left, "admission") {
                     eprintln!(
                         "CHECKSITE guarantee-receiving-admission owner={:?} depth={depth} observed={observed} left={left:?} right={right:?} left_types={:?} right_types={:?}",
                         self.machine_symbol,
@@ -53349,7 +53361,7 @@ pub(crate) mod structural_judgment {
                     super::value_predicates::boolean_term(true),
                     depth + 1,
                 );
-                if Self::trace_completed_guarantee_receiving(&predicate) {
+                if Self::trace_completed_guarantee_receiving(&predicate, "required") {
                     eprintln!(
                         "CHECKSITE guarantee-receiving-required owner={:?} storage={:?} depth={depth} predicate={predicate:?} resolved={resolved:?} equation={equation:?} normal_guarantees={} captured_equations={} predicate_types={:?} resolved_types={:?}",
                         self.machine_symbol,
@@ -58744,8 +58756,9 @@ pub(crate) mod structural_judgment {
                     equations: Vec<CapturedResultEquation>,
                 ) {
                     for mut equation in equations {
-                        let traced = Self::trace_completed_guarantee_receiving(&equation.left)
-                            .then(|| equation.clone());
+                        let traced =
+                            Self::trace_completed_guarantee_receiving(&equation.left, "completed")
+                                .then(|| equation.clone());
                         if !equation.is_completed_call_identity() {
                             // Declared guarantees name the values actually passed. Copies
                             // of one unchanged input share its saved source; they must not
