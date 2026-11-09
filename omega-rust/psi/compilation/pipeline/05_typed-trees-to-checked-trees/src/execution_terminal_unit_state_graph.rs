@@ -1110,7 +1110,7 @@ mod fused {
                 StatementNode::Transition(transition) => Some((index, transition)),
                 _ => None,
             })
-            .flat_map(|(index, transition)| {
+            .flat_map(move |(index, transition)| {
                 transition.targets().filter_map(move |target| {
                     validation::completing_transition_transfer(program, target)
                         .map(|transfer| (index, transfer))
