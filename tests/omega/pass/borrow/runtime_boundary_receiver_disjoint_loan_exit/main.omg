@@ -2,8 +2,7 @@ use omega_language_std::console;
 
 data Main { bytes: [u8; 2]; }
 
-// Explicit disjoint arguments lend the capability and the byte field.
-// Keep the loan live through an internal state and a boundary invocation.
+// Forward the byte-field view through an internal state before printing it.
 machine Main::publish(bytes: &[u8]) reaches Console {
     transition { _ -> forward(bytes) }
     machine forward(bytes: &[u8]) {
@@ -14,8 +13,7 @@ machine Main::publish(bytes: &[u8]) reaches Console {
 machine Main::main(main: &mut Main) reaches Console {
     main.bytes[0] = 79;
     main.bytes[1] = 75;
-    let bytes_0__2_value: u8 = main.bytes[0..2];
-    Main::publish(bytes_0__2_value);
+    Main::publish(main.bytes[0..2]);
     Console::exit_process(70);
 }
 
