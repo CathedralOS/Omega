@@ -8689,6 +8689,7 @@ mod current_values {
         call: &checked_trees::FlowCallFact,
         expression: ExpressionHandle,
         frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
     ) -> bool {
         let Some((machine, state)) =
             program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
@@ -8721,13 +8722,15 @@ mod current_values {
         )
         .filter(|target| target.is_valid() && site.completes_transition(program, *target))
         .unwrap_or_else(TransitionTargetHandle::invalid);
-        let Some(mut values) = CurrentScalarValues::at(
+        let Some(mut values) = CurrentScalarValues::at_completing(
             program,
             machine,
             state,
             call.statement_index,
             target,
             frames,
+            &[],
+            completed,
         ) else {
             return false;
         };

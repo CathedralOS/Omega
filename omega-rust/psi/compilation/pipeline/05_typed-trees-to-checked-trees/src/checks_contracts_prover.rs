@@ -3019,6 +3019,11 @@ pub(in crate::checks) mod call_guarantees {
             frames: Option<&'a validation::CallFrameResolver<'a>>,
             /* Indexed by statement; one row per (ordinal, source, expression). */
             admitted: Vec<Vec<Admission<'program>>>,
+            /*
+                The same state's completed-call hypotheses, lent to each
+                current-value replay; see `CompletedCallGuarantees`.
+            */
+            completed_calls: crate::checks::current_scalar_values::CompletedCallGuarantees,
         }
 
         struct Admission<'program> {
@@ -3041,7 +3046,14 @@ pub(in crate::checks) mod call_guarantees {
                     caller,
                     frames,
                     admitted: Vec::new(),
+                    completed_calls: Default::default(),
                 }
+            }
+
+            pub(in crate::checks) fn completed_calls(
+                &mut self,
+            ) -> &mut crate::checks::current_scalar_values::CompletedCallGuarantees {
+                &mut self.completed_calls
             }
 
             pub(in crate::checks) fn caller(&self) -> &'a FlowStateFact {
