@@ -6063,167 +6063,57 @@ pub(crate) mod selected_continuations {
         }
     }
 
-    // TEMPORARY DIAGNOSTIC ONLY. This owner observes retained allocations; none
-    // of its pointer identities participate in continuation selection or proof.
-    struct RetainedAllocationCensus {
-        owner: usize,
-        machine: semantic_vocabulary::MachineId,
-        regions: usize,
-        groups: usize,
-        blocks: usize,
-        processed: usize,
-        discovered: usize,
-        dense_bytes: usize,
-        partial_states: usize,
-        logical_paths: usize,
-        outer_lists: usize,
-        outer_bytes: usize,
-        path_rows: usize,
-        path_bytes: usize,
-        allocation_keys: std::collections::HashSet<(u8, usize)>,
-        keys_censored: bool,
-        by_block: Vec<usize>,
-        blocks_censored: bool,
-        maximum_per_block: usize,
-        reached_blocks: usize,
-    }
+    // Cleanup state only selects a group's entry or bypass. Once no future
+    // group can read it, earlier path differences cannot change this plan.
+    struct SelectionObservationLiveness(Vec<bool>);
 
-    impl RetainedAllocationCensus {
-        const KEY_LIMIT: usize = 65_536;
-        const BLOCK_LIMIT: usize = 65_536;
-        const OWNER_LIMIT: usize = 64;
-
+    impl SelectionObservationLiveness {
         fn new(
-            machine: semantic_vocabulary::MachineId,
-            regions: usize,
-            groups: usize,
-            blocks: usize,
+            positions: &BlockPositions,
+            successors: impl ExactSizeIterator<Item = Vec<(EdgeId, BlockId)>>,
+            groups: &[SelectedCleanupGroup],
         ) -> Option<Self> {
-            use std::sync::atomic::{AtomicUsize, Ordering};
-            static OWNERS: AtomicUsize = AtomicUsize::new(0);
-            let owner = OWNERS.fetch_add(1, Ordering::Relaxed);
-            if owner >= Self::OWNER_LIMIT {
-                if owner == Self::OWNER_LIMIT {
-                    eprintln!(
-                        "CONTINUATION_CENSUS owner_limit_reached={} later_owners_censored=true",
-                        Self::OWNER_LIMIT
-                    );
-                }
+            // This is preparation, not validation. An unresolved graph disables
+            // forgetting; the original block query still owns its lazy error.
+            if positions.0.values().any(Option::is_none) {
                 return None;
             }
-            let census = Self {
-                owner,
-                machine,
-                regions,
-                groups,
-                blocks,
-                processed: 0,
-                discovered: 0,
-                dense_bytes: 0,
-                partial_states: 0,
-                logical_paths: 0,
-                outer_lists: 0,
-                outer_bytes: 0,
-                path_rows: 0,
-                path_bytes: 0,
-                allocation_keys: std::collections::HashSet::new(),
-                keys_censored: false,
-                by_block: vec![0; blocks.min(Self::BLOCK_LIMIT)],
-                blocks_censored: blocks > Self::BLOCK_LIMIT,
-                maximum_per_block: 0,
-                reached_blocks: 0,
-            };
-            census.report("prepare_begin", 0, 0);
-            Some(census)
-        }
-
-        fn new_allocation(&mut self, kind: u8, pointer: usize) -> bool {
-            // Check the cap before allocating a new key. Retained allocations
-            // remain live in continuations, so their addresses cannot be reused.
-            if self.allocation_keys.contains(&(kind, pointer)) {
-                return false;
+            let mut bypasses = symbols::SymbolKeyMap::<EdgeId, Vec<BlockId>>::default();
+            for group in groups {
+                bypasses.entry(group.edge).or_default().push(group.bypass);
             }
-            if self.allocation_keys.len() == Self::KEY_LIMIT {
-                self.keys_censored = true;
-                return false;
-            }
-            self.allocation_keys.insert((kind, pointer));
-            true
-        }
-
-        fn retain(
-            &mut self,
-            continuation: &Continuation,
-            frontier_capacity: usize,
-            outgoing_capacity: usize,
-        ) {
-            self.discovered += 1;
-            // Account each incoming vector once, when it becomes retained.
-            self.dense_bytes += continuation.incoming.capacity() * size_of::<RegionState>();
-            if let Some(count) = self.by_block.get_mut(continuation.original_block) {
-                if *count == 0 {
-                    self.reached_blocks += 1;
-                }
-                *count += 1;
-                self.maximum_per_block = self.maximum_per_block.max(*count);
-            }
-            for state in &continuation.incoming {
-                let RegionState::Partial(paths) = state else {
-                    continue;
-                };
-                self.partial_states += 1;
-                self.logical_paths += paths.len();
-                let new_outer = self.new_allocation(0, Arc::as_ptr(paths) as usize);
-                if new_outer {
-                    self.outer_lists += 1;
-                    self.outer_bytes += size_of::<Vec<Arc<[StructuralPathSegment]>>>()
-                        + paths.capacity() * size_of::<Arc<[StructuralPathSegment]>>();
-                }
-                if !new_outer || self.keys_censored {
-                    continue;
-                }
-                for path in paths.iter() {
-                    if self.new_allocation(1, Arc::as_ptr(path) as *const () as usize) {
-                        self.path_rows += 1;
-                        self.path_bytes += path.len() * size_of::<StructuralPathSegment>();
-                    }
-                    if self.keys_censored {
-                        break;
+            let mut observed = vec![false; successors.len()];
+            let mut predecessors = vec![Vec::new(); successors.len()];
+            let mut pending = Vec::new();
+            for (source, edges) in successors.enumerate() {
+                for (edge, target) in edges {
+                    let target = positions.0.get(&target).copied().flatten()?;
+                    predecessors[target].push(source);
+                    if let Some(alternatives) = bypasses.get(&edge) {
+                        if !std::mem::replace(&mut observed[source], true) {
+                            pending.push(source);
+                        }
+                        for target in alternatives {
+                            let target = positions.0.get(target).copied().flatten()?;
+                            predecessors[target].push(source);
+                        }
                     }
                 }
             }
-            if self.discovered.is_power_of_two() {
-                self.report("prepare_progress", frontier_capacity, outgoing_capacity);
+            while let Some(target) = pending.pop() {
+                for &source in &predecessors[target] {
+                    if !std::mem::replace(&mut observed[source], true) {
+                        pending.push(source);
+                    }
+                }
             }
+            Some(Self(observed))
         }
 
-        fn report(&self, phase: &str, frontier_capacity: usize, outgoing_capacity: usize) {
-            eprintln!(
-                "CONTINUATION_CENSUS phase={} owner={} machine={:?} regions={} groups={} blocks={} processed={} discovered={} reached_blocks={} max_per_block={} dense_retained_bytes={} frontier_bytes={} new_incoming_bytes_already_in_retained={} partial_states={} logical_paths={} unique_outer_lists={} outer_payload_bytes_lower_bound={} unique_path_rows={} path_payload_bytes_lower_bound={} allocation_keys={} keys_censored={} blocks_censored={} state_bytes={}",
-                phase,
-                self.owner,
-                self.machine,
-                self.regions,
-                self.groups,
-                self.blocks,
-                self.processed,
-                self.discovered,
-                self.reached_blocks,
-                self.maximum_per_block,
-                self.dense_bytes,
-                frontier_capacity * size_of::<RegionState>(),
-                outgoing_capacity * size_of::<RegionState>(),
-                self.partial_states,
-                self.logical_paths,
-                self.outer_lists,
-                self.outer_bytes,
-                self.path_rows,
-                self.path_bytes,
-                self.allocation_keys.len(),
-                self.keys_censored,
-                self.blocks_censored,
-                size_of::<RegionState>(),
-            );
+        fn forget_unobserved(&self, block: usize, incoming: &mut [RegionState]) {
+            if !self.0[block] {
+                incoming.fill(RegionState::Absent);
+            }
         }
     }
 
@@ -6283,10 +6173,20 @@ pub(crate) mod selected_continuations {
         if regions.is_empty() && !has_claim_bindings {
             return Ok(None);
         }
+        let observation_liveness = SelectionObservationLiveness::new(
+            &positions,
+            blocks
+                .iter()
+                .map(|block| block.terminator.successor_edges()),
+            groups,
+        );
         let entry = positions.position(entry)?;
         let mut initial = vec![RegionState::Absent; regions.len()];
         for parameter in parameters {
             establish_parameter(&regions, &mut initial, parameter, &projected_roots);
+        }
+        if let Some(liveness) = &observation_liveness {
+            liveness.forget_unobserved(entry, &mut initial);
         }
         let mut continuations = vec![Continuation {
             original_block: entry,
@@ -6295,11 +6195,6 @@ pub(crate) mod selected_continuations {
         }];
         // Only continuations of the same original block can share an incoming
         // state. Keep their discovery order and compare the complete state.
-        let mut census =
-            RetainedAllocationCensus::new(machine, regions.len(), groups.len(), blocks.len());
-        if let Some(census) = &mut census {
-            census.retain(&continuations[0], 0, 0);
-        }
         let mut candidates = ContinuationCandidates::new(blocks.len());
         candidates.insert(entry, incoming_signature(&continuations[0].incoming), 0);
         let mut position = 0;
@@ -6409,6 +6304,9 @@ pub(crate) mod selected_continuations {
                     }
                 }
                 let original_block = positions.position(target)?;
+                if let Some(liveness) = &observation_liveness {
+                    liveness.forget_unobserved(original_block, &mut outgoing);
+                }
                 let signature = incoming_signature(&outgoing);
                 let successor = candidates
                     .find(original_block, signature, &outgoing, &continuations)
@@ -6420,25 +6318,12 @@ pub(crate) mod selected_continuations {
                             successors: Vec::new(),
                         });
                         candidates.insert(original_block, signature, successor);
-                        if let Some(census) = &mut census {
-                            census.retain(
-                                &continuations[successor],
-                                frontier.capacity(),
-                                continuations[successor].incoming.capacity(),
-                            );
-                        }
                         successor
                     });
                 successors.push((edge, successor));
             }
             continuations[position].successors = successors;
             position += 1;
-            if let Some(census) = &mut census {
-                census.processed = position;
-            }
-        }
-        if let Some(census) = &census {
-            census.report("prepare_return_before_downstream", 0, 0);
         }
         Ok(Some(Specialization {
             entry: 0,
@@ -6762,6 +6647,107 @@ pub(crate) mod selected_continuations {
     mod continuation_candidate_tests {
         use super::*;
         use semantic_vocabulary::{ObligationId, ScalarType, StructuralCaseId, ValueId};
+
+        #[test]
+        fn selection_observation_liveness_keeps_future_queries_and_forgets_dead_history() {
+            let block = |value| BlockId::new(value).unwrap();
+            let edge = |value| EdgeId::new(value).unwrap();
+            let blocks = (1..=9).map(block).collect::<Vec<_>>();
+            let positions = BlockPositions::new(blocks.iter().copied());
+            let graph = vec![
+                vec![(edge(1), block(2))],
+                vec![(edge(2), block(3))],
+                vec![(edge(3), block(5))],
+                vec![(edge(4), block(6))],
+                vec![(edge(5), block(3))],
+                vec![(edge(6), block(7))],
+                Vec::new(),
+                vec![(edge(7), block(9))],
+                vec![(edge(8), block(8))],
+            ];
+            let group = |selected, bypass| SelectedCleanupGroup {
+                edge: edge(selected),
+                region: StructuralArgument {
+                    place: PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+                requirement: CleanupRequirement::WholeValue,
+                bypass: block(bypass),
+            };
+            let groups = [group(2, 4), group(6, 7)];
+            // Compare backward preparation with independent forward reachability,
+            // including the bypass-only route to the second decision and cycles.
+            for returns_to_query in [false, true] {
+                let mut graph = graph.clone();
+                if returns_to_query {
+                    graph[4] = vec![(edge(5), block(2))];
+                }
+                let liveness =
+                    SelectionObservationLiveness::new(&positions, graph.iter().cloned(), &groups)
+                        .unwrap();
+                for start in 0..blocks.len() {
+                    let mut seen = vec![false; blocks.len()];
+                    let mut pending = vec![start];
+                    let mut direct = false;
+                    while let Some(source) = pending.pop() {
+                        if std::mem::replace(&mut seen[source], true) {
+                            continue;
+                        }
+                        for (selected, target) in &graph[source] {
+                            pending.push(positions.position(*target).unwrap());
+                            for group in groups.iter().filter(|group| group.edge == *selected) {
+                                direct = true;
+                                pending.push(positions.position(group.bypass).unwrap());
+                            }
+                        }
+                    }
+                    assert_eq!(liveness.0[start], direct);
+                    let original = vec![
+                        RegionState::Live,
+                        RegionState::Partial(Arc::new(vec![Arc::from([
+                            StructuralPathSegment::FixedIndex(3),
+                        ])])),
+                    ];
+                    let mut incoming = original.clone();
+                    liveness.forget_unobserved(start, &mut incoming);
+                    assert_eq!(
+                        incoming,
+                        if direct {
+                            original
+                        } else {
+                            vec![RegionState::Absent; 2]
+                        }
+                    );
+                }
+            }
+            let no_queries =
+                SelectionObservationLiveness::new(&positions, graph.iter().cloned(), &[]).unwrap();
+            assert!(no_queries.0.iter().all(|live| !live));
+            let mut missing = graph.clone();
+            missing[7] = vec![(edge(7), block(99))];
+            assert!(
+                SelectionObservationLiveness::new(&positions, missing.into_iter(), &groups,)
+                    .is_none()
+            );
+            let mut repeated = blocks.clone();
+            repeated[8] = block(7);
+            assert!(
+                SelectionObservationLiveness::new(
+                    &BlockPositions::new(repeated.into_iter()),
+                    graph.iter().cloned(),
+                    &groups,
+                )
+                .is_none()
+            );
+            assert!(
+                SelectionObservationLiveness::new(&positions, graph.into_iter(), &[group(2, 99)],)
+                    .is_none()
+            );
+            eprintln!(
+                "future query, normal/bypass paths, returning/dead cycles and conservative unresolved graphs match direct reachability; only dead scratch histories are cleared"
+            );
+        }
 
         #[test]
         fn copied_partial_states_share_paths_and_keep_independent_lists() {
