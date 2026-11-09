@@ -168,6 +168,15 @@ Dated cost and failure evidence, superseded by a later run.
   table instead of Build provider selection, closing the bulk-selection
   question; delete when the board item lands.
 
+- [Operation-record implementations](designs/operation_record_implementations.md):
+  implementations as ordinary records of static callable selections and
+  evidence, selection rows restored, structural identity and one schema for
+  static and runtime use; delete when the board item lands.
+
+- [Owned activations and typed replies](designs/owned_activations.md): source-held
+  execution custody, stepping, typed park and reply, and generators and tasks
+  as libraries, in three stages; delete when the board item lands.
+
 - [Fact transport](designs/fact_transport.md): proposal, not ratified. One
   place key, one overlap relation, one fact environment and one transport
   operation per place, replacing the per-fact-kind carriers behind 202

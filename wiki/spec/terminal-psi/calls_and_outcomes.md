@@ -271,8 +271,11 @@ While parked:
 - Later operations have not executed.
 - No return, crash, cleanup, or affine-disposition edge commits.
 
-Parking transfers scheduling custody of the still-live activation. It creates no
-source-visible continuation value. Resumption continues the same incomplete call;
+Parking transfers execution custody of the still-live activation to its owner: a
+runtime, or source holding the activation's linear
+[execution claim](../build/task_runtime.md#owned-activations-and-typed-replies).
+The suspending call itself receives no continuation value. Resumption continues
+the same incomplete call;
 normal completion then establishes the result and reaches its continuation.
 Budget suspension likewise preserves the completed prefix without repeating a
 paid invocation or transfer.
