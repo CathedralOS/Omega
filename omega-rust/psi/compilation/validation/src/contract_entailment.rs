@@ -69524,16 +69524,25 @@ pub(crate) mod structural_judgment {
                                 },
                             )
                         }
-                        ExpressionNode::Borrow(borrow) => self.bound_contract_term(
-                            borrow.target,
-                            scope,
-                            parameters,
-                            callable,
-                            bindings,
-                            type_bindings,
-                            result,
-                            depth + 1,
-                        ),
+                        ExpressionNode::Borrow(borrow) => {
+                            let value = self.bound_contract_term(
+                                borrow.target,
+                                scope,
+                                parameters,
+                                callable,
+                                bindings,
+                                type_bindings,
+                                result,
+                                depth + 1,
+                            )?;
+                            structural_terms::borrow_term_in_scope(
+                                program,
+                                None,
+                                Some((scope, parameters)),
+                                expression,
+                                value,
+                            )
+                        }
                         ExpressionNode::Unary(unary) => {
                             structural_terms::logical_not_term_in_scope(
                                 program,
@@ -82237,7 +82246,13 @@ pub(crate) mod structural_judgment {
                         arguments,
                     })
                 }
-                ExpressionNode::Borrow(borrow) => child_term!(borrow.target),
+                ExpressionNode::Borrow(borrow) => super::structural_terms::borrow_term_in_scope(
+                    program,
+                    scope,
+                    None,
+                    expression,
+                    child_term!(borrow.target)?,
+                ),
                 ExpressionNode::Boolean(value) => Some(StructuralTerm::boolean(*value)),
                 ExpressionNode::Indexed(indexed) => super::structural_terms::indexed_term_in_scope(
                     program,
@@ -85471,6 +85486,55 @@ pub(crate) mod structural_terms {
     use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
     use super::StructuralTerm;
+
+    pub(crate) fn borrow_term_in_scope(
+        program: &dyn crate::CheckingInput,
+        scope: Option<(
+            &typed_trees::machine::Machine,
+            &typed_trees::state::State,
+            typed_trees::types::TypeReferenceHandle,
+        )>,
+        frame: Option<(
+            symbols::SymbolHandle,
+            &[typed_trees::signature::StateParameter],
+        )>,
+        expression: ExpressionHandle,
+        value: StructuralTerm,
+    ) -> Option<StructuralTerm> {
+        let ExpressionNode::Borrow(borrow) = expression_table(program).expression(expression)
+        else {
+            return None;
+        };
+        if borrow.access != language_semantics::ReferenceAccess::Shared
+            || matches!(value, StructuralTerm::ObservedValue { .. })
+        {
+            return Some(value);
+        }
+        let reference = |expression| {
+            if let Some((owner, parameters)) = frame {
+                crate::parameter_expression_result_type_reference(
+                    program, owner, parameters, expression,
+                )
+            } else {
+                let (machine, state, _) = scope?;
+                crate::expression_result_type_reference(program, machine, state, expression)
+            }
+        };
+        let declared = reference(borrow.target)?;
+        if crate::reference_shell(program, declared).is_some() {
+            return Some(value);
+        }
+        let source = completed_owned_carrier(program, &value).unwrap_or(declared);
+        crate::declared_carriers_match(program, declared, source).then_some(())?;
+        // Borrowing an owned value keeps its typed contents as the predicate
+        // subject. Erasing this shell lets symbolic fields bypass the descriptor
+        // boundary that the later completed argument correctly retains.
+        shared_inline_observation(
+            program,
+            reference(expression)?,
+            owned_projection_observation(program, source, value),
+        )
+    }
 
     pub(crate) mod binary {
         use super::StructuralTerm;
@@ -88735,9 +88799,13 @@ pub(crate) mod structural_terms {
             ExpressionNode::ZeroValue(type_reference) => {
                 zero_value_structural_term(program, *type_reference)
             }
-            ExpressionNode::Borrow(borrow) => {
-                structural_term(program, scope, frame, borrow.target, bindings)
-            }
+            ExpressionNode::Borrow(borrow) => borrow_term_in_scope(
+                program,
+                scope,
+                frame,
+                expression,
+                structural_term(program, scope, frame, borrow.target, bindings)?,
+            ),
             _ => None,
         }
     }
