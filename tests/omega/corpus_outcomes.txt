@@ -26968,8 +26968,8 @@ pass/providers/finite_requirement_direct_provider_exit checked 10288ms check-tar
 pass/providers/finite_requirement_forwarded_const_exit checked 8474ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/float_operator_demands_its_provider_exit checked 11563ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/foreign_address_result_release_exit checked 17850ms check-target:linux_x86_64 @2be83686053c
-pass/providers/foreign_indirect_record_distinct_exit rejected 18692ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @2be83686053c
-	native artifact fragment object publication failed: foreign-call custody: InvalidForeignCallArgument { caller: MachineId(31), owner: Operation(OperationId(327)), import: Some("Foreign(NormalizedForeignLocator { target: LinuxX64, locator: ElfVersioned { object: [108, 105, 98, 99, 46, 115, 111, 46, 54], symbol: [109, 97, 108, 108, 105, 110, 102, 111, 50], version: [71, 76, 73, 66, 67, 95, 50, 46, 51, 51] }, non_authoritative_compatibility_fingerprint: 16900209877496562131, identity_digest: ForeignLocatorIdentityDigest([134, 162, 186, 167, 12, 78, 61, 182, 221, 212, 230, 95, 249, 149, 94, 207, 181, 226, 109, 55, 36, 220, 67, 229, 233, 138, 237, 22, 2, 195, 189, 78]) })"), parameter: None, reason: "structural result lost its exact storage capture", transport: None }
+pass/providers/foreign_indirect_record_distinct_exit rejected 20381ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a562d4060f10+wt
+	native artifact fragment object publication failed: foreign-call custody: InvalidForeignCallArgument { caller: MachineId(7), owner: Operation(OperationId(218)) }
 pass/providers/foreign_indirect_record_relay_exit checked 19532ms check-target:linux_x86_64 @2be83686053c
 pass/providers/foreign_indirect_record_result_exit checked 19302ms check-target:linux_x86_64 @2be83686053c
 pass/providers/foreign_multiregister_result_exit checked 16373ms check-target:macos_arm64 @ccdb99ca2214
