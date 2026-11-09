@@ -20795,15 +20795,35 @@ pub(crate) mod observed_projections {
             .iter()
             .filter(|(name, _)| name == declared.name.as_str());
         let (_, value) = supplied.next()?;
-        if supplied.next().is_some()
-            || !super::structural_terms::scalar_operand_is_observed(program, projected, value)
-        {
+        if supplied.next().is_some() {
+            return None;
+        }
+        let value =
+            if super::structural_terms::scalar_operand_is_observed(program, projected, value) {
+                value.clone()
+            } else {
+                let observed = super::structural_terms::owned_observation_type(program, value)?;
+                let shell = crate::reference_shell(program, declared.type_reference)?;
+                if shell.access != language_semantics::ReferenceAccess::Shared
+                    || !crate::declared_carriers_match(program, shell.referee, observed)
+                {
+                    return None;
+                }
+                // A checked owned referent supplies shared contents, never a new
+                // observation recovered from the reference descriptor alone.
+                super::structural_terms::shared_inline_observation(
+                    program,
+                    declared.type_reference,
+                    value.clone(),
+                )?
+            };
+        if !super::structural_terms::scalar_operand_is_observed(program, projected, &value) {
             return None;
         }
         // The checked constructor already retained this formed field operand.
         // Keep its source observation instead of replacing it with a descriptor's
         // opaque payload. Unobserved or symbolic projections still use that boundary.
-        Some(value.clone())
+        Some(value)
     }
 
     pub(crate) fn project_field(value: StructuralTerm, field_name: &str) -> Option<StructuralTerm> {
