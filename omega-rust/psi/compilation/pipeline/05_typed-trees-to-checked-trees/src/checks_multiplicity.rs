@@ -2423,13 +2423,13 @@ mod linear_obligations {
         pub(crate) entries: Vec<CheckedClaimOutcomeEntry>,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub(crate) struct CheckedClaimOutcomeEntry {
         pub(crate) output_path: Vec<facts::PlaceSegment>,
         pub(crate) source: CheckedClaimOutcomeSource,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub(crate) enum CheckedClaimOutcomeSource {
         Input {
             parameter_symbol: SymbolHandle,
@@ -5790,7 +5790,7 @@ mod returned_claims {
         One authentic consumer occurrence. The completed operand has its own
         evaluation prefix; the enclosing exit or invocation only names its owner.
     */
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub(crate) struct ClaimConsumption {
         pub machine: symbols::SymbolHandle,
         pub state: symbols::SymbolHandle,
