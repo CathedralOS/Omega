@@ -60180,7 +60180,26 @@ pub(crate) mod structural_judgment {
                                 operations,
                             );
                             entries = completed.entries;
-                            completed.paths
+                            // Every value of a data type satisfies its `requires`
+                            // (construction and every write are checked against the
+                            // default domain), so the bound local brings that
+                            // invariant with it, wherever the value was read from.
+                            // A field reached only through a runtime array index is
+                            // otherwise invisible to the entry-parameter facts.
+                            completed.paths.map(|paths| {
+                                paths
+                                    .into_iter()
+                                    .map(|mut path| {
+                                        if let Some(value) = path.observed_value().cloned() {
+                                            path.judge.intake_admitted_value_predicates(
+                                                local.type_reference,
+                                                value,
+                                            );
+                                        }
+                                        path
+                                    })
+                                    .collect()
+                            })
                         }
                         StatementNode::LocalData(local) => {
                             let value =
