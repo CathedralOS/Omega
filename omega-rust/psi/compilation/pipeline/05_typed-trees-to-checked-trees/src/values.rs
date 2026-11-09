@@ -2648,34 +2648,38 @@ mod snapshots {
         retained
     }
 
+    /*
+        Read assignments only as far as the scalar reader needs them. Unknown or
+        conflicting values already settle the query, so later contexts need not
+        rebuild their places. Keep the original context and assignment order.
+    */
     fn payloads_at_place<'a>(
         program: &dyn ::validation::CheckingInput,
         semantic: &FactPlan,
         contexts: impl IntoIterator<Item = &'a FactContext>,
         subject: &CanonicalPlace,
-    ) -> Vec<FactPayload> {
-        if let Some(payload) = literal_assignment_payload(program, subject) {
-            return vec![payload];
-        }
-        contexts
+    ) -> impl Iterator<Item = FactPayload> {
+        let literal = literal_assignment_payload(program, subject);
+        let contexts = literal
+            .is_none()
+            .then(|| contexts.into_iter())
             .into_iter()
-            .flat_map(|context| {
-                semantic
-                    .assignments_with_root(context, subject.root)
-                    .filter_map(|fact| {
-                        let place = semantic.places.get(fact.place.as_place()?);
-                        let candidate =
-                            canonical_place_from_semantic_place(program, semantic, place)?;
-                        if !crate::flow::canonical_places_agree(program, &candidate, subject) {
-                            return None;
-                        }
-                        if has_completed_call_snapshot(program, semantic, context, fact) {
-                            return None;
-                        }
-                        Some(fact.payload)
-                    })
-            })
-            .collect()
+            .flatten();
+        literal.into_iter().chain(contexts.flat_map(move |context| {
+            semantic
+                .assignments_with_root(context, subject.root)
+                .filter_map(move |fact| {
+                    let place = semantic.places.get(fact.place.as_place()?);
+                    let candidate = canonical_place_from_semantic_place(program, semantic, place)?;
+                    if !crate::flow::canonical_places_agree(program, &candidate, subject) {
+                        return None;
+                    }
+                    if has_completed_call_snapshot(program, semantic, context, fact) {
+                        return None;
+                    }
+                    Some(fact.payload)
+                })
+        }))
     }
 
     fn has_completed_call_snapshot(
@@ -2854,6 +2858,120 @@ mod snapshots {
             ExpressionNode::Integer(value) => value.value_bignum().map(ScalarValue::Integer),
             ExpressionNode::Boolean(value) => Some(ScalarValue::Boolean(*value)),
             _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{payloads_at_place, scalar_value_from_payloads};
+        use facts::{Fact, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue};
+        use std::cell::Cell;
+        use typed_trees::{TypedTrees, expression::ExpressionNode};
+        use validation::CanonicalPlace;
+
+        #[test]
+        fn scalar_payload_stream_preserves_results_and_stops_after_refusal() {
+            let mut program = TypedTrees::default();
+            let literal = program
+                .expression_table
+                .insert(ExpressionNode::Boolean(true));
+            let symbol = symbols::SymbolHandle::from_arena_index(1);
+            let subject = CanonicalPlace {
+                root: PlaceRoot::Symbol(symbol),
+                segments: Vec::new(),
+            };
+            for (first, second, expected, expected_reads) in [
+                (ScalarValue::Unknown, ScalarValue::Boolean(true), None, 1),
+                (
+                    ScalarValue::Boolean(true),
+                    ScalarValue::Boolean(false),
+                    None,
+                    2,
+                ),
+                (
+                    ScalarValue::Boolean(true),
+                    ScalarValue::Boolean(true),
+                    Some(ScalarValue::Boolean(true)),
+                    64,
+                ),
+            ] {
+                let mut semantic = FactPlan::default();
+                let place = semantic.append_symbol_place(symbol);
+                let contexts = (0..64)
+                    .map(|position| {
+                        let value = semantic.scalar_values.append(if position == 0 {
+                            first.clone()
+                        } else {
+                            second.clone()
+                        });
+                        let fact = semantic.append_fact(Fact {
+                            place: FactPlace::Place(place),
+                            payload: FactPayload::AssignedScalarValue { value },
+                            ..Default::default()
+                        });
+                        let mut refs = arena::HandleSpan::empty();
+                        semantic.append_ref(&mut refs, fact);
+                        semantic.append_context(Default::default(), refs)
+                    })
+                    .collect::<Vec<_>>();
+                let eager_reads = Cell::new(0);
+                let eager = payloads_at_place(
+                    &program,
+                    &semantic,
+                    contexts.iter().map(|context| {
+                        eager_reads.set(eager_reads.get() + 1);
+                        semantic.contexts.get(*context)
+                    }),
+                    &subject,
+                )
+                .collect::<Vec<_>>();
+                let direct = scalar_value_from_payloads(&program, &semantic, eager);
+                let stream_reads = Cell::new(0);
+                let streamed = scalar_value_from_payloads(
+                    &program,
+                    &semantic,
+                    payloads_at_place(
+                        &program,
+                        &semantic,
+                        contexts.iter().map(|context| {
+                            stream_reads.set(stream_reads.get() + 1);
+                            semantic.contexts.get(*context)
+                        }),
+                        &subject,
+                    ),
+                );
+                assert_eq!(direct, expected);
+                assert_eq!(streamed, direct);
+                assert_eq!(eager_reads.get(), 64);
+                assert_eq!(stream_reads.get(), expected_reads);
+
+                let literal_subject = CanonicalPlace {
+                    root: PlaceRoot::Expression(literal),
+                    segments: Vec::new(),
+                };
+                let literal_reads = Cell::new(0);
+                let literal_result = scalar_value_from_payloads(
+                    &program,
+                    &semantic,
+                    payloads_at_place(
+                        &program,
+                        &semantic,
+                        contexts.iter().map(|context| {
+                            literal_reads.set(literal_reads.get() + 1);
+                            semantic.contexts.get(*context)
+                        }),
+                        &literal_subject,
+                    ),
+                );
+                assert_eq!(literal_result, Some(ScalarValue::Boolean(true)));
+                assert_eq!(literal_reads.get(), 0);
+                eprintln!(
+                    "scalar payloads: eager contexts={}, streamed contexts={}, literal contexts={}",
+                    eager_reads.get(),
+                    stream_reads.get(),
+                    literal_reads.get(),
+                );
+            }
         }
     }
 }
