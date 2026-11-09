@@ -1223,6 +1223,52 @@ pub mod claim_frontier {
         pub conditional: bool,
     }
 
+    /// Share a result’s declared paths so field lookups do not copy the whole list.
+    /// Keep their original order, types and conditional flags together.
+    pub struct DeclaredClaimFrontier {
+        claims: Vec<ClaimFrontierClaim>,
+        paths: std::sync::OnceLock<facts::places::PlaceBucketIndex>,
+    }
+
+    impl DeclaredClaimFrontier {
+        pub(crate) fn new(claims: Vec<ClaimFrontierClaim>) -> Self {
+            Self {
+                claims,
+                paths: std::sync::OnceLock::new(),
+            }
+        }
+
+        pub fn claims(&self) -> &[ClaimFrontierClaim] {
+            &self.claims
+        }
+
+        pub fn positions<'query>(
+            &'query self,
+            path: &'query [facts::PlaceSegment],
+        ) -> impl Iterator<Item = usize> + 'query {
+            let rows = self.paths.get_or_init(|| {
+                facts::places::PlaceBucketIndex::new(self.claims.iter().map(|claim| {
+                    facts::places::place_bucket_hash(facts::PlaceRoot::Unknown, &claim.path)
+                }))
+            });
+            rows.candidates(facts::places::place_bucket_hash(
+                facts::PlaceRoot::Unknown,
+                path,
+            ))
+            .filter(move |position| self.claims[*position].path == path)
+        }
+    }
+
+    pub fn declared_claim_frontier(
+        program: &dyn crate::CheckingInput,
+        type_reference: TypeReferenceHandle,
+    ) -> std::sync::Arc<DeclaredClaimFrontier> {
+        crate::value_custody::type_properties::memoized_declared_claim_frontier(
+            program,
+            type_reference,
+        )
+    }
+
     pub fn owned_receiver_claims(
         program: &dyn crate::CheckingInput,
         machine_symbol: SymbolHandle,
@@ -1695,6 +1741,101 @@ pub mod claim_frontier {
             index.positions_for_symbol(symbol).last().copied()
         })?;
         program.data_definitions().get(position as usize)
+    }
+
+    #[cfg(test)]
+    mod declared_path_tests {
+        use super::{ClaimFrontierClaim, DeclaredClaimFrontier};
+        use facts::{PlaceRoot, PlaceSegment, places::PlaceBucketIndex};
+        use typed_trees::types::TypeReferenceHandle;
+
+        #[test]
+        fn declared_path_rows_preserve_duplicates_metadata_and_original_positions() {
+            let rows = (0..1024)
+                .map(|position| ClaimFrontierClaim {
+                    path: vec![
+                        PlaceSegment::Field {
+                            symbol: symbols::SymbolHandle::from_parts(
+                                (position % 31 + 1) as u32,
+                                (position % 2 + 1) as u32,
+                            ),
+                        },
+                        PlaceSegment::FixedIndex {
+                            index: position % 7,
+                        },
+                    ],
+                    type_reference: TypeReferenceHandle::from_parts(position as u32 + 1, 1),
+                    conditional: position % 3 == 0,
+                })
+                .collect::<Vec<_>>();
+            let start = std::time::Instant::now();
+            let declared = DeclaredClaimFrontier::new(rows.clone());
+            declared.positions(&rows[0].path).for_each(drop);
+            let preparation_ns = start.elapsed().as_nanos();
+            let mut direct_rows = 0;
+            let mut prepared_rows = 0;
+            for row in &rows {
+                let direct = rows
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, other)| {
+                        direct_rows += 1;
+                        (other.path == row.path).then_some(position)
+                    })
+                    .collect::<Vec<_>>();
+                let prepared = declared.positions(&row.path).collect::<Vec<_>>();
+                prepared_rows += declared
+                    .paths
+                    .get()
+                    .unwrap()
+                    .candidates(facts::places::place_bucket_hash(
+                        PlaceRoot::Unknown,
+                        &row.path,
+                    ))
+                    .count();
+                assert_eq!(prepared, direct);
+            }
+            assert_eq!(declared.claims(), rows);
+            assert!(
+                declared
+                    .positions(&[PlaceSegment::FixedIndex { index: 9000 }])
+                    .next()
+                    .is_none()
+            );
+
+            // Deliberately put every row in this query's bucket. Full path values,
+            // not hashes, still decide membership, cardinality and first position.
+            let path = rows[3].path.clone();
+            let collision = DeclaredClaimFrontier::new(rows.clone());
+            let query_hash = facts::places::place_bucket_hash(PlaceRoot::Unknown, &path);
+            assert!(
+                collision
+                    .paths
+                    .set(PlaceBucketIndex::new(rows.iter().map(|_| query_hash)))
+                    .is_ok()
+            );
+            assert_eq!(
+                collision.positions(&path).collect::<Vec<_>>(),
+                declared.positions(&path).collect::<Vec<_>>()
+            );
+            let mut changed = rows.clone();
+            changed.remove(0);
+            changed[0].conditional = !changed[0].conditional;
+            let rebuilt = DeclaredClaimFrontier::new(changed.clone());
+            assert_eq!(rebuilt.claims(), changed);
+            assert_eq!(
+                rebuilt.positions(&path).collect::<Vec<_>>(),
+                changed
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, row)| (row.path == path).then_some(position))
+                    .collect::<Vec<_>>()
+            );
+            eprintln!(
+                "declared-path rows={} direct_rows={direct_rows} prepared_candidates={prepared_rows} preparation_ns={preparation_ns}",
+                rows.len()
+            );
+        }
     }
 }
 
@@ -10520,12 +10661,12 @@ pub mod transition_operand_moves {
 
 pub mod type_properties {
     use crate::CheckingInput;
-    use crate::value_custody::claim_frontier::ClaimFrontierClaim;
-    use std::sync::OnceLock;
+    use crate::value_custody::claim_frontier::{ClaimFrontierClaim, DeclaredClaimFrontier};
+    use std::sync::{Arc, OnceLock};
     use typed_trees::types::TypeReferenceHandle;
 
     pub(crate) struct ClaimFrontierQueries {
-        rows: Vec<(TypeReferenceHandle, OnceLock<Vec<ClaimFrontierClaim>>)>,
+        rows: Vec<(TypeReferenceHandle, OnceLock<Arc<DeclaredClaimFrontier>>)>,
     }
 
     impl ClaimFrontierQueries {
@@ -10544,11 +10685,22 @@ pub mod type_properties {
         program: &dyn CheckingInput,
         type_reference: TypeReferenceHandle,
     ) -> Vec<ClaimFrontierClaim> {
+        memoized_declared_claim_frontier(program, type_reference)
+            .claims()
+            .to_vec()
+    }
+
+    pub(crate) fn memoized_declared_claim_frontier(
+        program: &dyn CheckingInput,
+        type_reference: TypeReferenceHandle,
+    ) -> Arc<DeclaredClaimFrontier> {
         let compute = || {
-            crate::value_custody::claim_frontier::linear_claim_frontier_uncached(
-                program,
-                type_reference,
-            )
+            Arc::new(DeclaredClaimFrontier::new(
+                crate::value_custody::claim_frontier::linear_claim_frontier_uncached(
+                    program,
+                    type_reference,
+                ),
+            ))
         };
         let Some(memos) = program.checking_memos() else {
             return compute();

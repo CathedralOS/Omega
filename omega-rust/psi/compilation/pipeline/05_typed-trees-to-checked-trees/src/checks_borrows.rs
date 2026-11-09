@@ -1920,7 +1920,7 @@ mod aggregates {
         state_flow: &FlowStateFact,
         borrow_state: &StateBorrowFact,
         stated_premises: &[StatedOrderingPremise],
-        call_frames: Option<&validation::CallFrameResolver<'_>>,
+        guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, 'p>,
         diagnostics: &mut Vec<Diagnostic>,
         bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
     ) {
@@ -1959,12 +1959,11 @@ mod aggregates {
             check_formed_leaves(
                 program,
                 facts,
-                state_flow,
                 formed[0].statement_index,
                 &leaves,
                 |owner| format!("`{}` holds", symbol_name(program, owner)),
                 stated_premises,
-                call_frames,
+                guarantees,
                 diagnostics,
                 bound_lookup,
             );
@@ -2012,12 +2011,11 @@ mod aggregates {
             check_formed_leaves(
                 program,
                 facts,
-                state_flow,
                 loans[0].statement_index,
                 &leaves,
                 |_| format!("machine `{subject}` returns"),
                 stated_premises,
-                call_frames,
+                guarantees,
                 diagnostics,
                 bound_lookup,
             );
@@ -2031,12 +2029,11 @@ mod aggregates {
     fn check_formed_leaves<'p>(
         program: &'p dyn ::validation::CheckingInput,
         facts: &CheckFacts,
-        state_flow: &FlowStateFact,
         statement_index: usize,
         leaves: &[FormedLeaf<'_>],
         subject: impl Fn(SymbolHandle) -> String,
         stated_premises: &[StatedOrderingPremise],
-        call_frames: Option<&validation::CallFrameResolver<'_>>,
+        guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, 'p>,
         diagnostics: &mut Vec<Diagnostic>,
         bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
     ) {
@@ -2055,9 +2052,8 @@ mod aggregates {
                     super::overlap::append_statement_premises(
                         program,
                         facts,
-                        state_flow,
                         statement_index,
-                        call_frames,
+                        guarantees,
                         &mut available,
                         bound_lookup,
                     );
@@ -5500,6 +5496,7 @@ mod statements {
         state_mutation_summaries: &StateMutationSummaryCache,
         receiver_reads: &StateReceiverReadCache,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
+        guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, 'p>,
         bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
     ) {
         let Some(state) =
@@ -5526,9 +5523,8 @@ mod statements {
             super::overlap::append_statement_premises(
                 program,
                 facts,
-                state_flow,
                 statement.statement_index,
-                call_frames,
+                guarantees,
                 &mut available_premises,
                 bound_lookup,
             );
@@ -6172,6 +6168,7 @@ mod statements {
             state_mutation_summaries,
             receiver_reads,
             call_frames,
+            guarantees,
             bound_lookup,
         );
     }
@@ -6210,6 +6207,7 @@ mod statements {
         summary_cache: &StateMutationSummaryCache,
         receiver_reads: &StateReceiverReadCache,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
+        guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, 'p>,
         bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
     ) {
         for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
@@ -6242,9 +6240,8 @@ mod statements {
             super::overlap::append_statement_premises(
                 program,
                 facts,
-                state_flow,
                 borrow_call.statement_index,
-                call_frames,
+                guarantees,
                 &mut available_premises,
                 bound_lookup,
             );
@@ -11482,6 +11479,13 @@ pub(crate) fn check_flow_call_borrows(
                     })
                     .unwrap_or_default();
 
+                    let mut guarantees =
+                        crate::checks::contracts::prover::call_guarantees::StateGuarantees::new(
+                            program,
+                            facts.view(),
+                            state_flow,
+                            call_frames,
+                        );
                     check_statement_borrows(
                         program,
                         facts,
@@ -11495,6 +11499,7 @@ pub(crate) fn check_flow_call_borrows(
                         mutation_summaries,
                         &receiver_reads,
                         call_frames,
+                        &mut guarantees,
                         &mut local_bound_lookup,
                     );
                     aggregates::check_formed_aggregates(
@@ -11503,7 +11508,7 @@ pub(crate) fn check_flow_call_borrows(
                         state_flow,
                         borrow_state,
                         &stated_premises,
-                        call_frames,
+                        &mut guarantees,
                         &mut local_diagnostics,
                         &mut local_bound_lookup,
                     );

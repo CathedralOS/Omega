@@ -19,6 +19,7 @@ use crate::{
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
+    ffi::OsString,
     fs::OpenOptions,
     io::{self, Write},
     mem::ManuallyDrop,
@@ -46,24 +47,63 @@ pub(crate) struct Worker {
     guest_last_error: u32, // Restored via `SetLastError` immediately around native entry.
 }
 
+/// The sponsor's handshake, read out of this process's environment.
+pub(crate) struct Sponsorship {
+    pub(crate) endpoint: OsString,
+    #[cfg(windows)]
+    pub(crate) parent: Option<OsString>,
+    pub(crate) root: Option<OsString>,
+    pub(crate) timeout: Option<OsString>,
+}
+
+/// Reads the sponsor's handshake and removes it from the environment.
+///
+/// Foreign code running in the worker may start processes, and they inherit
+/// our environment. If one of them is `omega` (or any host that calls
+/// `run_worker_if_requested`), a leftover `CHANNEL_ENV` would turn it into a
+/// broken worker that dials a channel it was never given, then exits 1 instead
+/// of running its command. So the handshake is consumed exactly once, here.
+pub(crate) fn take_sponsorship() -> Option<Sponsorship> {
+    let endpoint = std::env::var_os(CHANNEL_ENV)?;
+    let sponsorship = Sponsorship {
+        endpoint,
+        #[cfg(windows)]
+        parent: std::env::var_os(PARENT_ENV),
+        root: std::env::var_os(ROOT_ENV),
+        timeout: std::env::var_os(TIMEOUT_ENV),
+    };
+    for name in [CHANNEL_ENV, PARENT_ENV, ROOT_ENV, TIMEOUT_ENV] {
+        // SAFETY: hosts call this as the first statement of `main`, before
+        // they start any thread, so nothing can read the environment
+        // concurrently. Under the libtest harness the only other thread is
+        // the idle test runner, which does not touch the environment.
+        unsafe { std::env::remove_var(name) };
+    }
+    Some(sponsorship)
+}
+
 pub fn run_worker_if_requested() {
-    let Some(endpoint) = std::env::var_os(CHANNEL_ENV) else {
+    let Some(sponsorship) = take_sponsorship() else {
         return;
     };
     let result = (|| {
         configure_failure_reporting()?;
-        let endpoint = endpoint
+        let endpoint = sponsorship
+            .endpoint
             .into_string()
             .map_err(|_| invalid("native worker endpoint is not text"))?;
-        let timeout: u64 = std::env::var(TIMEOUT_ENV)
-            .map_err(|_| invalid("native worker has no sponsor deadline"))?
+        let timeout: u64 = sponsorship
+            .timeout
+            .and_then(|timeout| timeout.into_string().ok())
+            .ok_or_else(|| invalid("native worker has no sponsor deadline"))?
             .parse()
             .map_err(|_| invalid("native worker sponsor deadline is malformed"))?;
         if timeout == 0 || timeout > 3_600_000 {
             return Err(invalid("native worker sponsor deadline is out of range"));
         }
         let timeout = Duration::from_millis(timeout);
-        let directory = std::env::var_os(ROOT_ENV)
+        let directory = sponsorship
+            .root
             .ok_or_else(|| invalid("native worker has no private root"))?;
         #[cfg(unix)]
         let mut stream = channel::receive(
@@ -75,8 +115,10 @@ pub fn run_worker_if_requested() {
         #[cfg(windows)]
         let mut stream = channel::receive(
             &endpoint,
-            std::env::var(PARENT_ENV)
-                .map_err(|_| invalid("native worker has no parent identity"))?
+            sponsorship
+                .parent
+                .and_then(|parent| parent.into_string().ok())
+                .ok_or_else(|| invalid("native worker has no parent identity"))?
                 .parse()
                 .map_err(|_| invalid("native worker parent identity is malformed"))?,
             timeout,

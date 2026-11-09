@@ -1208,6 +1208,7 @@ mod owned_qualifications {
             })
             .copied()
             .collect::<Vec<_>>();
+        let mut transfers = Vec::new();
         for fact in candidates {
             let mut erased = false;
             let payload = if let Some((_, domain, domain_symbol, semantic_domain)) =
@@ -1285,45 +1286,36 @@ mod owned_qualifications {
                 destination.root,
                 &rebased,
             );
-            if semantic
-                .refs
-                .span_or_empty(*references)
-                .iter()
-                .any(|reference| {
-                    let prior = semantic.facts.get(reference.fact);
-                    prior.evidence == fact.evidence
-                        && matches!(prior.place, FactPlace::Place(prior_place)
-                        if semantic.places_equal(prior_place, place))
-                        && match (prior.payload, payload) {
-                            (
-                                FactPayload::FloatPredicate { predicate: left },
-                                FactPayload::FloatPredicate { predicate: right },
-                            ) => left == right,
-                            (prior, transferred) => prior
-                                .domain_membership()
-                                .zip(transferred.domain_membership())
-                                .is_some_and(
-                                    |(
-                                        (_, _, left_symbol, left_identity),
-                                        (_, _, right_symbol, right_identity),
-                                    )| {
-                                        left_symbol == right_symbol
-                                            && left_identity == right_identity
-                                    },
-                                ),
-                        }
-                })
-            {
-                continue;
-            }
-            let transferred = semantic.append_fact(Fact {
+            transfers.push(Fact {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::StatementTransfer,
                 evidence: fact.evidence,
                 payload,
             });
-            semantic.append_ref(references, transferred);
+        }
+        if transfers.is_empty() {
+            return;
+        }
+        // Assignment transport can already have published the first occurrence.
+        // Include that prefix only after a transfer survives all eligibility checks.
+        let prefix = semantic.refs.span_or_empty(*references);
+        let existing = prefix.len();
+        let mut batch = Vec::with_capacity(existing + transfers.len());
+        batch.extend(
+            prefix
+                .iter()
+                .map(|reference| *semantic.facts.get(reference.fact)),
+        );
+        batch.extend(transfers);
+        // Check each place's records together, then publish new records in the
+        // original order, leaving the entire existing prefix unchanged.
+        let first = semantic.first_owned_qualification_positions(&batch, existing);
+        for (position, fact) in batch.into_iter().enumerate().skip(existing) {
+            if first[position] == position {
+                let transferred = semantic.append_fact(fact);
+                semantic.append_ref(references, transferred);
+            }
         }
     }
 
