@@ -74300,7 +74300,7 @@ pub(crate) mod structural_judgment {
                 Some(())
             }
 
-            fn ordinary_storage_path(
+            pub(super) fn ordinary_storage_path(
                 &self,
                 scope: StorageScope<'_>,
                 expression: ExpressionHandle,
