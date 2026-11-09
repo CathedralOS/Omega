@@ -3425,25 +3425,6 @@ pub(crate) mod bindings {
             Ok((prepared, tip))
         }
 
-        pub(crate) fn prepare_unscoped_path(
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            path: &[CheckedUnitStructuralPathSegment],
-        ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
-            path.iter()
-                .map(|segment| match segment {
-                    CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
-                        Ok(PreparedStructuralPathSegment::RuntimeIndex(index.clone()))
-                    }
-                    CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
-                        Ok(PreparedStructuralPathSegment::ComputedIndex(*root))
-                    }
-                    segment => Ok(PreparedStructuralPathSegment::Static(
-                        lower_structural_path(identities, std::slice::from_ref(segment))?.remove(0),
-                    )),
-                })
-                .collect()
-        }
-
         pub(crate) fn lower_static_argument_path(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             path: &[CheckedUnitStructuralPathSegment],
@@ -3584,21 +3565,6 @@ pub(crate) mod bindings {
         ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
             emit_argument_path(
                 &prepare_argument_path(identities, path, root, types)?,
-                caller_scalar_values,
-                selector_values,
-                calls,
-            )
-        }
-
-        pub(crate) fn lower_argument_path(
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            path: &[CheckedUnitStructuralPathSegment],
-            caller_scalar_values: Option<&[ValueDeclaration]>,
-            selector_values: &mut dyn Iterator<Item = ValueId>,
-            calls: Option<&mut CallEmissionContext<'_>>,
-        ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
-            emit_argument_path(
-                &prepare_unscoped_path(identities, path)?,
                 caller_scalar_values,
                 selector_values,
                 calls,
