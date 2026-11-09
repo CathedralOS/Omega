@@ -3315,9 +3315,12 @@ pub(crate) mod attached_unit {
                                         .iter()
                                         .copied()
                                         .filter(|place| {
-                                            !regions
-                                                .iter()
-                                                .any(|region| region.action.place() == *place)
+                                            !regions.iter().any(|region| {
+                                                region
+                                                    .action
+                                                    .physical()
+                                                    .is_some_and(|action| action.place() == *place)
+                                            })
                                         })
                                         .map(|place| {
                                             crate::unit::unit_cleanup::CleanupRegion::unconditional(

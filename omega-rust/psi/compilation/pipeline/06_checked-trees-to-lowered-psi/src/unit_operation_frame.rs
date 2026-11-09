@@ -4653,12 +4653,18 @@ pub(crate) mod attached_unit {
 
                     boundary: &checked_trees::CheckedUnitCleanupBoundary,
                     cleanup_actions: &[checked_trees::CheckedNormalCleanupAction],
+                    partitions: arena::HandleSpan<checked_trees::CheckedCleanupPartitionRef>,
                     selected_regions: &[checked_trees::CheckedUnitStructuralArgumentPlan],
                 ) -> Result<(), LoweringError> {
                     let actions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
                         identities,
                         self.checked,
                         cleanup_actions,
+                        flow_facts(self.checked)
+                            .terminal_unit_effects
+                            .cleanup_control
+                            .partition_refs
+                            .span_or_empty(partitions),
                         selected_regions,
                         &flow_facts(self.checked)
                             .terminal_unit_effects
@@ -5107,7 +5113,7 @@ pub(crate) mod attached_unit {
                                     access: StructuralAccess::Owned,
                                 }),
                                 conditions,
-                                action,
+                                action: crate::unit::unit_cleanup::CleanupRegionAction::Run(action),
                             });
                         }
                     }
@@ -7855,11 +7861,13 @@ pub(crate) mod attached_unit {
                         boundary,
                         cleanup_actions,
                         selected_regions,
+                        partitions,
                         ..
                     } => self.continuation_cleanup(
                         identities,
                         boundary,
                         cleanup_actions,
+                        *partitions,
                         selected_regions,
                     ),
                     CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
@@ -8142,18 +8150,20 @@ pub(crate) mod attached_unit {
                                 }
                             }),
                             conditions,
-                            action: if path.is_empty() {
-                                self.evaluation
-                                    .descriptor_retirement(source, self.operations)?
-                            } else {
-                                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-                                    terminal_psi::StructuralAffineDiscard {
-                                        place: source,
-                                        path: path.clone(),
-                                        structural_type: leaf.id,
-                                    },
-                                )
-                            },
+                            action: crate::unit::unit_cleanup::CleanupRegionAction::Run(
+                                if path.is_empty() {
+                                    self.evaluation
+                                        .descriptor_retirement(source, self.operations)?
+                                } else {
+                                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                                        terminal_psi::StructuralAffineDiscard {
+                                            place: source,
+                                            path: path.clone(),
+                                            structural_type: leaf.id,
+                                        },
+                                    )
+                                },
+                            ),
                         }],
                         self.values,
                         self.next_value,

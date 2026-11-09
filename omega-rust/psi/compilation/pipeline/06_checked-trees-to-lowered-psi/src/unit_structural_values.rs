@@ -1584,14 +1584,15 @@ pub(crate) mod attached_unit {
                             identities,
                             self.checked,
                             control.actions.span_or_empty(completion.actions),
+                            control.partition_refs.span_or_empty(completion.partitions),
                             &self.evaluation.structural_locals,
                             |place| self.evaluation.carrier_multiplicity(place, self.operations),
                             self.calls,
                         )?;
                         let mut retired = Vec::new();
-                        for action in &actions {
-                            let place = action.action.place();
-                            if action.action.path().is_empty() && !retired.contains(&place) {
+                        for action in actions.iter().filter_map(|region| region.action.physical()) {
+                            let place = action.place();
+                            if action.path().is_empty() && !retired.contains(&place) {
                                 retired.push(place);
                             }
                         }

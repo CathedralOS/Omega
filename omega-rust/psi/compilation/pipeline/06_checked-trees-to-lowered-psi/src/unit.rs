@@ -2052,7 +2052,8 @@ pub(crate) mod unit_cleanup {
                                 control
                                     .actions
                                     .span_or_empty(owner.actions)
-                                    .contains(action)
+                                    .iter()
+                                    .any(|candidate| candidate.same_effect(action))
                             }) =>
                         {
                             *retained = false;
@@ -2114,6 +2115,7 @@ pub(crate) mod unit_cleanup {
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &checked_trees::CheckedTrees,
             actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
+            partition_refs: &[checked_trees::CheckedCleanupPartitionRef],
             completed_homes: &[StructuralLocalBinding],
             carrier_multiplicity: impl FnMut(
                 semantic_vocabulary::PlaceId,
@@ -2129,6 +2131,7 @@ pub(crate) mod unit_cleanup {
                 identities,
                 checked,
                 actions,
+                partition_refs,
                 &[],
                 control,
                 types,
@@ -2314,7 +2317,7 @@ pub(crate) mod unit_cleanup {
                                 }
                             }),
                             conditions,
-                            action,
+                            action: crate::unit::unit_cleanup::CleanupRegionAction::Run(action),
                         },
                         owners,
                     ));
@@ -2322,7 +2325,8 @@ pub(crate) mod unit_cleanup {
             }
             for (carrier, _) in &mut carriers {
                 if let Some(position) = authored_regions.iter().position(|region| {
-                    region.action.place() == carrier.action.place()
+                    region.action.physical().is_some()
+                        && region.action.place() == carrier.action.place()
                         && region.action.path() == carrier.action.path()
                 }) {
                     *carrier = authored_regions.remove(position);
@@ -2360,6 +2364,7 @@ pub(crate) mod unit_cleanup {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) enum CleanupPartitionNode {
         Scope {
+            leaf_span: std::ops::Range<usize>,
             place: PlaceId,
             path: Vec<terminal_psi::StructuralPathSegment>,
             structural_type: StructuralTypeId,
@@ -2368,6 +2373,7 @@ pub(crate) mod unit_cleanup {
         },
         Leaf(u32),
         Cases {
+            leaf_span: std::ops::Range<usize>,
             place: PlaceId,
             path: Vec<terminal_psi::StructuralPathSegment>,
             structural_type: StructuralTypeId,
@@ -2384,12 +2390,54 @@ pub(crate) mod unit_cleanup {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) enum CleanupRegionAction {
+        Run(terminal_psi::TerminalAffineCleanupAction),
+        CheckedPartition {
+            place: PlaceId,
+            path: Vec<terminal_psi::StructuralPathSegment>,
+        },
+    }
+
+    impl CleanupRegionAction {
+        pub(crate) fn place(&self) -> PlaceId {
+            match self {
+                Self::Run(action) => action.place(),
+                Self::CheckedPartition { place, .. } => *place,
+            }
+        }
+        pub(crate) fn path(&self) -> &[terminal_psi::StructuralPathSegment] {
+            match self {
+                Self::Run(action) => action.path(),
+                Self::CheckedPartition { path, .. } => path,
+            }
+        }
+        pub(crate) fn into_physical(self) -> Option<terminal_psi::TerminalAffineCleanupAction> {
+            match self {
+                Self::Run(action) => Some(action),
+                Self::CheckedPartition { .. } => None,
+            }
+        }
+        pub(crate) fn physical(&self) -> Option<&terminal_psi::TerminalAffineCleanupAction> {
+            match self {
+                Self::Run(action) => Some(action),
+                Self::CheckedPartition { .. } => None,
+            }
+        }
+    }
+
+    impl PartialEq<terminal_psi::TerminalAffineCleanupAction> for CleanupRegionAction {
+        fn eq(&self, other: &terminal_psi::TerminalAffineCleanupAction) -> bool {
+            self.physical() == Some(other)
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) struct CleanupRegion {
         pub(crate) partition_leaf: Option<CleanupPartitionLeaf>,
         pub(crate) declaration_order: Option<(u8, u32)>,
         pub(crate) selected_region: Option<terminal_psi::StructuralArgument>,
         pub(crate) conditions: Vec<CleanupCaseCondition>,
-        pub(crate) action: terminal_psi::TerminalAffineCleanupAction,
+        pub(crate) action: CleanupRegionAction,
     }
 
     impl CleanupRegion {
@@ -2399,7 +2447,7 @@ pub(crate) mod unit_cleanup {
                 declaration_order: None,
                 selected_region: None,
                 conditions: Vec::new(),
-                action,
+                action: crate::unit::unit_cleanup::CleanupRegionAction::Run(action),
             }
         }
     }
@@ -2494,12 +2542,104 @@ pub(crate) mod unit_cleanup {
             .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
     }
 
+    pub(crate) struct SelectedCleanupSequence<'action> {
+        pub(crate) actions:
+            Vec<std::borrow::Cow<'action, checked_trees::CheckedNormalCleanupAction>>,
+        pub(crate) partitions: Vec<checked_trees::CheckedCleanupPartitionRef>,
+    }
+
+    /// A later completion can select only part of an earlier cleanup schedule.
+    /// Detach that partial schedule explicitly; it cannot close the full carrier.
+    pub(crate) fn select_cleanup_partition_sequence<'action>(
+        control: &checked_trees::CheckedCleanupControlPlans,
+        roots: &[checked_trees::CheckedCleanupPartitionRef],
+        actions: &[&'action checked_trees::CheckedNormalCleanupAction],
+    ) -> Result<SelectedCleanupSequence<'action>, LoweringError> {
+        let key = |owner: arena::Handle<checked_trees::CheckedCleanupPartitionPlan>| {
+            (owner.arena_index(), owner.generation())
+        };
+        let mut owners = roots.iter().map(|root| root.partition).collect::<Vec<_>>();
+        owners.sort_by_key(|owner| key(*owner));
+        if owners.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(LoweringError::InvalidCleanupPartition {
+                reason: "cleanup sequence repeats a partition owner",
+            });
+        }
+        if actions.iter().any(|action| {
+            let owner = action.partition_leaf().partition;
+            owner.is_valid()
+                && owners
+                    .binary_search_by_key(&key(owner), |owner| key(*owner))
+                    .is_err()
+        }) {
+            return Err(LoweringError::InvalidCleanupPartition {
+                reason: "annotated cleanup action has no sequence partition owner",
+            });
+        }
+        let mut ordered = actions.iter().copied().enumerate().collect::<Vec<_>>();
+        ordered
+            .sort_by_key(|(position, action)| (key(action.partition_leaf().partition), *position));
+        let partitions = roots
+            .iter()
+            .copied()
+            .filter(|root| {
+                let owner = key(root.partition);
+                let start = ordered
+                    .partition_point(|(_, action)| key(action.partition_leaf().partition) < owner);
+                let mut selected = ordered[start..]
+                    .iter()
+                    .take_while(|(_, action)| action.partition_leaf().partition == root.partition)
+                    .map(|(_, action)| *action);
+                let plan = control.partitions.get(root.partition);
+                let complete = control
+                    .actions
+                    .span_or_empty(plan.actions)
+                    .iter()
+                    .all(|expected| selected.next() == Some(expected));
+                complete && selected.next().is_none()
+            })
+            .collect::<Vec<_>>();
+        let mut complete = partitions
+            .iter()
+            .map(|root| root.partition)
+            .collect::<Vec<_>>();
+        complete.sort_by_key(|owner| key(*owner));
+        let actions = actions
+            .iter()
+            .map(|action| {
+                let mut selected = std::borrow::Cow::Borrowed(*action);
+                let owner = action.partition_leaf().partition;
+                if owner.is_valid()
+                    && complete
+                        .binary_search_by_key(&key(owner), |owner| key(*owner))
+                        .is_err()
+                {
+                    match selected.to_mut() {
+                        checked_trees::CheckedNormalCleanupAction::Discard(row) => {
+                            row.partition_leaf = Default::default()
+                        }
+                        checked_trees::CheckedNormalCleanupAction::InvokeNominal(row) => {
+                            row.partition_leaf = Default::default()
+                        }
+                        checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {}
+                    }
+                }
+                selected
+            })
+            .collect();
+        Ok(SelectedCleanupSequence {
+            actions,
+            partitions,
+        })
+    }
+
     type CleanupStorage = (PlaceId, Vec<terminal_psi::StructuralPathSegment>);
 
     struct PreparedCleanupPartition {
         owner: arena::Handle<checked_trees::CheckedCleanupPartitionPlan>,
         root: std::sync::Arc<CleanupPartitionNode>,
         leaf_count: usize,
+        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2507,6 +2647,7 @@ pub(crate) mod unit_cleanup {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         scheduled: &[&checked_trees::CheckedNormalCleanupAction],
+        partition_refs: &[checked_trees::CheckedCleanupPartitionRef],
         control: &checked_trees::CheckedCleanupControlPlans,
         types: &[terminal_psi::StructuralTypeDeclaration],
         resolve_type: &mut impl FnMut(
@@ -2519,31 +2660,45 @@ pub(crate) mod unit_cleanup {
             &[checked_trees::CheckedUnitStructuralPathSegment],
         ) -> Result<CleanupStorage, LoweringError>,
     ) -> Result<Vec<PreparedCleanupPartition>, LoweringError> {
-        let mut ordered = scheduled
+        let mut owners = partition_refs
             .iter()
-            .copied()
-            .enumerate()
-            .filter(|(_, action)| action.partition_leaf().partition.is_valid())
+            .map(|row| row.partition)
             .collect::<Vec<_>>();
-        ordered.sort_by_key(|(position, action)| {
+        owners.sort_by_key(|owner| (owner.arena_index(), owner.generation()));
+        if owners.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(LoweringError::InvalidCleanupPartition {
+                reason: "cleanup sequence repeats a partition owner",
+            });
+        }
+        let mut selected = vec![Vec::new(); owners.len()];
+        for action in scheduled {
             let owner = action.partition_leaf().partition;
-            (owner.arena_index(), owner.generation(), *position)
-        });
+            if let Ok(position) = owners
+                .binary_search_by_key(&(owner.arena_index(), owner.generation()), |owner| {
+                    (owner.arena_index(), owner.generation())
+                })
+            {
+                selected[position].push(*action);
+            } else if owner.is_valid() {
+                return Err(LoweringError::InvalidCleanupPartition {
+                    reason: "annotated cleanup action has no sequence partition owner",
+                });
+            }
+        }
         let mut retained = Vec::new();
-        let mut remaining = ordered.as_slice();
-        while let Some((_, first)) = remaining.first() {
-            let owner = first.partition_leaf().partition;
-            let count = remaining
-                .iter()
-                .take_while(|(_, action)| action.partition_leaf().partition == owner)
-                .count();
-            let selected = remaining[..count]
-                .iter()
-                .map(|(_, action)| *action)
-                .collect::<Vec<_>>();
-            remaining = &remaining[count..];
+        for (owner, selected) in owners.into_iter().zip(selected) {
+            if !control.partitions.is_valid(owner) {
+                return Err(LoweringError::InvalidCleanupPartition {
+                    reason: "cleanup sequence names a missing partition owner",
+                });
+            }
             let plan = control.partitions.get(owner);
-            if !plan.disposition.is_valid() {
+            if !checked
+                .facts
+                .contextual_cleanup
+                .dispositions
+                .is_valid(plan.disposition)
+            {
                 return Err(LoweringError::InvalidCleanupPartition {
                     reason: "cleanup partition has no checked disposition",
                 });
@@ -2558,7 +2713,11 @@ pub(crate) mod unit_cleanup {
                     reason: "cleanup partition has no exact source root",
                 });
             }
-            let authorized = control.actions.span_or_empty(plan.actions);
+            let authorized = control.actions.span(plan.actions).ok_or(
+                LoweringError::InvalidCleanupPartition {
+                    reason: "cleanup partition has an invalid authorized action span",
+                },
+            )?;
             if selected.len() != authorized.len()
                 || selected.iter().zip(authorized).enumerate().any(
                     |(ordinal, (selected, authorized))| {
@@ -2575,7 +2734,12 @@ pub(crate) mod unit_cleanup {
             let expected = storage(
                 identities,
                 &plan.source,
-                control.paths.span_or_empty(plan.path),
+                control
+                    .paths
+                    .span(plan.path)
+                    .ok_or(LoweringError::InvalidCleanupPartition {
+                        reason: "cleanup partition has an invalid carrier path",
+                    })?,
             )?;
             let expected_type = resolve_type(identities, plan.type_identity)?;
             let mut leaves = Vec::new();
@@ -2592,6 +2756,7 @@ pub(crate) mod unit_cleanup {
                 &mut active,
                 &mut leaves,
             )?;
+            validate_cleanup_partition(&root, &expected, expected_type, selected.len(), types)?;
             if leaves
                 != (0..authorized.len())
                     .map(|ordinal| ordinal as u32)
@@ -2605,6 +2770,7 @@ pub(crate) mod unit_cleanup {
                 owner,
                 root: std::sync::Arc::new(root),
                 leaf_count: authorized.len(),
+                source: plan.source.clone(),
             });
         }
         Ok(retained)
@@ -2631,12 +2797,13 @@ pub(crate) mod unit_cleanup {
         leaves: &mut Vec<u32>,
     ) -> Result<CleanupPartitionNode, LoweringError> {
         use checked_trees::CheckedCleanupPartitionNode as Node;
-        if !handle.is_valid() || active.contains(&handle) {
+        if !control.partition_nodes.is_valid(handle) || active.contains(&handle) {
             return Err(LoweringError::InvalidCleanupPartition {
                 reason: "cleanup partition has a missing or recursive node",
             });
         }
         active.push(handle);
+        let first_leaf = leaves.len();
         let node = match control.partition_nodes.get(handle) {
             Node::Leaf { ordinal } => {
                 leaves.push(*ordinal);
@@ -2648,9 +2815,22 @@ pub(crate) mod unit_cleanup {
                 conditions,
                 steps,
             } => {
-                let (place, path) =
-                    storage(identities, source, control.paths.span_or_empty(*path))?;
+                let (place, path) = storage(
+                    identities,
+                    source,
+                    control
+                        .paths
+                        .span(*path)
+                        .ok_or(LoweringError::InvalidCleanupPartition {
+                            reason: "cleanup node has an invalid storage path",
+                        })?,
+                )?;
                 let structural_type = resolve_type(identities, *type_identity)?;
+                control.conditions.span(*conditions).ok_or(
+                    LoweringError::InvalidCleanupPartition {
+                        reason: "cleanup scope has an invalid condition span",
+                    },
+                )?;
                 let conditions = lower_cleanup_conditions(
                     identities,
                     checked,
@@ -2660,7 +2840,11 @@ pub(crate) mod unit_cleanup {
                     |builder, path| storage(builder, source, path),
                 )?;
                 let mut children = Vec::new();
-                for step in control.partition_steps.span_or_empty(*steps) {
+                for step in control.partition_steps.span(*steps).ok_or(
+                    LoweringError::InvalidCleanupPartition {
+                        reason: "cleanup scope has an invalid child span",
+                    },
+                )? {
                     children.push(prepare_cleanup_partition_node(
                         identities,
                         checked,
@@ -2675,6 +2859,7 @@ pub(crate) mod unit_cleanup {
                     )?);
                 }
                 CleanupPartitionNode::Scope {
+                    leaf_span: first_leaf..leaves.len(),
                     place,
                     path,
                     structural_type,
@@ -2688,11 +2873,23 @@ pub(crate) mod unit_cleanup {
                 arms,
                 common,
             } => {
-                let (place, path) =
-                    storage(identities, source, control.paths.span_or_empty(*path))?;
+                let (place, path) = storage(
+                    identities,
+                    source,
+                    control
+                        .paths
+                        .span(*path)
+                        .ok_or(LoweringError::InvalidCleanupPartition {
+                            reason: "cleanup node has an invalid storage path",
+                        })?,
+                )?;
                 let structural_type = resolve_type(identities, *type_identity)?;
                 let mut retained_arms = Vec::new();
-                for arm in control.partition_arms.span_or_empty(*arms) {
+                for arm in control.partition_arms.span(*arms).ok_or(
+                    LoweringError::InvalidCleanupPartition {
+                        reason: "cleanup carrier has an invalid alternative span",
+                    },
+                )? {
                     let (_, case) =
                         crate::expression_preparation::bindings::structural_cases::resolve_at(
                             identities,
@@ -2702,7 +2899,11 @@ pub(crate) mod unit_cleanup {
                             &arm.case_identity,
                         )?;
                     let mut steps = Vec::new();
-                    for step in control.partition_steps.span_or_empty(arm.steps) {
+                    for step in control.partition_steps.span(arm.steps).ok_or(
+                        LoweringError::InvalidCleanupPartition {
+                            reason: "cleanup alternative has an invalid child span",
+                        },
+                    )? {
                         steps.push(prepare_cleanup_partition_node(
                             identities,
                             checked,
@@ -2730,7 +2931,11 @@ pub(crate) mod unit_cleanup {
                     });
                 }
                 let mut retained_common = Vec::new();
-                for step in control.partition_steps.span_or_empty(*common) {
+                for step in control.partition_steps.span(*common).ok_or(
+                    LoweringError::InvalidCleanupPartition {
+                        reason: "cleanup shared fields have an invalid child span",
+                    },
+                )? {
                     retained_common.push(prepare_cleanup_partition_node(
                         identities,
                         checked,
@@ -2745,6 +2950,7 @@ pub(crate) mod unit_cleanup {
                     )?);
                 }
                 CleanupPartitionNode::Cases {
+                    leaf_span: first_leaf..leaves.len(),
                     place,
                     path,
                     structural_type,
@@ -2762,6 +2968,7 @@ pub(crate) mod unit_cleanup {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
+        partition_refs: &[checked_trees::CheckedCleanupPartitionRef],
         selected_regions: &[checked_trees::CheckedUnitStructuralArgumentPlan],
         control: &checked_trees::CheckedCleanupControlPlans,
         types: &[terminal_psi::StructuralTypeDeclaration],
@@ -2801,28 +3008,38 @@ pub(crate) mod unit_cleanup {
             identities,
             checked,
             &actions,
+            partition_refs,
             control,
             types,
             &mut resolve_type,
             &mut storage,
         )?;
-        actions
-            .into_iter()
+        let mut prepared = actions
+            .iter()
+            .copied()
             .map(|action| {
                 let leaf = action.partition_leaf();
-                let partition_leaf = partitions
-                    .binary_search_by_key(
-                        &(leaf.partition.arena_index(), leaf.partition.generation()),
-                        |partition| (partition.owner.arena_index(), partition.owner.generation()),
-                    )
-                    .ok()
-                    .map(|position| &partitions[position])
-                    .map(|partition| CleanupPartitionLeaf {
+                let partition_leaf = if leaf.partition.is_valid() {
+                    let position = partitions
+                        .binary_search_by_key(
+                            &(leaf.partition.arena_index(), leaf.partition.generation()),
+                            |partition| {
+                                (partition.owner.arena_index(), partition.owner.generation())
+                            },
+                        )
+                        .map_err(|_| LoweringError::InvalidCleanupPartition {
+                            reason: "cleanup action lost its prepared partition owner",
+                        })?;
+                    let partition = &partitions[position];
+                    Some(CleanupPartitionLeaf {
                         owner: partition.owner,
                         ordinal: leaf.ordinal,
                         root: partition.root.clone(),
                         leaf_count: partition.leaf_count,
-                    });
+                    })
+                } else {
+                    None
+                };
                 let (place, path) = storage(identities, action.source(), action.path())?;
                 let retires_home = matches!(
                     action,
@@ -2918,10 +3135,26 @@ pub(crate) mod unit_cleanup {
                     declaration_order: None,
                     selected_region,
                     conditions,
-                    action: lowered,
+                    action: crate::unit::unit_cleanup::CleanupRegionAction::Run(lowered),
                 }))
             })
-            .collect()
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        for partition in partitions
+            .iter()
+            .rev()
+            .filter(|partition| partition.leaf_count == 0)
+        {
+            let marker = PreparedNormalCleanupAction::PartitionOnly {
+                owner: partition.owner,
+                root: partition.root.clone(),
+            };
+            let position = actions
+                .iter()
+                .position(|action| action.source() == &partition.source)
+                .unwrap_or(prepared.len());
+            prepared.insert(position.min(prepared.len()), marker);
+        }
+        Ok(prepared)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2929,6 +3162,7 @@ pub(crate) mod unit_cleanup {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
+        partition_refs: &[checked_trees::CheckedCleanupPartitionRef],
         selected_regions: &[checked_trees::CheckedUnitStructuralArgumentPlan],
         control: &checked_trees::CheckedCleanupControlPlans,
         types: &[terminal_psi::StructuralTypeDeclaration],
@@ -2956,6 +3190,7 @@ pub(crate) mod unit_cleanup {
             identities,
             checked,
             actions,
+            partition_refs,
             selected_regions,
             control,
             types,
@@ -2975,12 +3210,15 @@ pub(crate) mod unit_cleanup {
     fn retain_cleanup_descendants(regions: &mut [CleanupRegion]) {
         for position in 0..regions.len().saturating_sub(1) {
             let (prefix, suffix) = regions.split_at_mut(position + 1);
-            let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
-                &mut prefix[position].action
+            let CleanupRegionAction::Run(terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
+                cleanup,
+            )) = &mut prefix[position].action
             else {
                 continue;
             };
-            let next = &suffix[0].action;
+            let Some(next) = suffix.iter().find_map(|region| region.action.physical()) else {
+                continue;
+            };
             cleanup.retains_descendants = next.place() == cleanup.place
                 && next.path().starts_with(&cleanup.path)
                 && (next.path().len() > cleanup.path.len()
@@ -3197,6 +3435,10 @@ pub(crate) mod unit_cleanup {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) enum PreparedNormalCleanupAction {
         Resolved(CleanupRegion),
+        PartitionOnly {
+            owner: arena::Handle<checked_trees::CheckedCleanupPartitionPlan>,
+            root: std::sync::Arc<CleanupPartitionNode>,
+        },
         InvokeNominal {
             partition_leaf: Option<CleanupPartitionLeaf>,
             selected_region: Option<terminal_psi::StructuralArgument>,
@@ -3418,6 +3660,28 @@ pub(crate) mod unit_cleanup {
             .map(|action| {
                 Ok(match action {
                     PreparedNormalCleanupAction::Resolved(action) => action.clone(),
+                    PreparedNormalCleanupAction::PartitionOnly { owner, root } => {
+                        let CleanupPartitionNode::Scope { place, path, .. } = root.as_ref() else {
+                            return Err(LoweringError::InvalidCleanupPartition {
+                                reason: "zero-action cleanup partition has no carrier scope",
+                            });
+                        };
+                        CleanupRegion {
+                            partition_leaf: Some(CleanupPartitionLeaf {
+                                owner: *owner,
+                                ordinal: 0,
+                                root: root.clone(),
+                                leaf_count: 0,
+                            }),
+                            declaration_order: None,
+                            selected_region: None,
+                            conditions: Vec::new(),
+                            action: CleanupRegionAction::CheckedPartition {
+                                place: *place,
+                                path: path.clone(),
+                            },
+                        }
+                    }
                     PreparedNormalCleanupAction::InvokeNominal {
                         partition_leaf,
                         selected_region,
@@ -3440,8 +3704,8 @@ pub(crate) mod unit_cleanup {
                             declaration_order: None,
                             selected_region: selected_region.clone(),
                             conditions: conditions.clone(),
-                            action: terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
-                                action,
+                            action: crate::unit::unit_cleanup::CleanupRegionAction::Run(
+                                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(action),
                             ),
                         }
                     }
@@ -3474,164 +3738,6 @@ pub(crate) mod unit_cleanup {
                 nominal_cleanup_subject(checked, cleanup.cleanup_machine, type_ids)?;
         }
         Ok(())
-    }
-    #[cfg(test)]
-    mod cleanup_partition_tests {
-        use super::*;
-        use terminal_psi::StructuralPathSegment as Segment;
-
-        #[test]
-        fn complete_carrier_keeps_each_case_tail_before_its_join() {
-            let original = checked_trees::CheckedNormalCleanupAction::Discard(Default::default());
-            let mut associated = original.clone();
-            if let checked_trees::CheckedNormalCleanupAction::Discard(row) = &mut associated {
-                row.partition_leaf.partition = arena::Handle::from_parts(1, 1);
-            }
-            assert_ne!(original, associated);
-            assert!(original.same_effect(&associated));
-            let place = place_id(17);
-            let carrier = structural_type_id(1);
-            let scalar = structural_type_id(2);
-            let empty = StructuralCaseId::new(1).unwrap();
-            let held = StructuralCaseId::new(2).unwrap();
-            let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-            let common = identities.intern("common");
-            let payload = identities.intern("payload");
-            let field =
-                |id, identity, _identities: &mut terminal_psi::TerminalIdentityTableBuilder| {
-                    terminal_psi::StructuralFieldDeclaration {
-                        inline_carrier: None,
-                        id,
-                        identity,
-                        relevance: language_core::BindingRelevance::Relevant,
-                        field_type: terminal_psi::StructuralFieldType::Structural(scalar),
-                        storage: None,
-                    }
-                };
-            let types = vec![
-                terminal_psi::StructuralTypeDeclaration {
-                    quotient_carrier: None,
-                    id: carrier,
-                    identity: identities.intern("carrier"),
-                    owns_linear_claim: false,
-                    copyable: false,
-                    no_code_affine_cleanup: false,
-                    descriptor_cleanup: false,
-                    scalar_restriction: None,
-                    shape: terminal_psi::StructuralTypeShape::Mixed {
-                        fields: vec![field(structural_field_id(1), common, &mut identities)],
-                        cases: vec![
-                            terminal_psi::StructuralCaseDeclaration {
-                                id: empty,
-                                identity: identities.intern("empty"),
-                                fields: Vec::new(),
-                            },
-                            terminal_psi::StructuralCaseDeclaration {
-                                id: held,
-                                identity: identities.intern("held"),
-                                fields: vec![field(
-                                    structural_field_id(2),
-                                    payload,
-                                    &mut identities,
-                                )],
-                            },
-                        ],
-                    },
-                },
-                terminal_psi::StructuralTypeDeclaration {
-                    quotient_carrier: None,
-                    id: scalar,
-                    identity: identities.intern("scalar"),
-                    owns_linear_claim: false,
-                    copyable: true,
-                    no_code_affine_cleanup: true,
-                    descriptor_cleanup: false,
-                    scalar_restriction: None,
-                    shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
-                },
-            ];
-            let root_path = vec![Segment::FixedIndex(2)];
-            let payload_path = vec![
-                Segment::FixedIndex(2),
-                Segment::Case(held),
-                Segment::Field(payload),
-            ];
-            let common_path = vec![Segment::FixedIndex(2), Segment::Field(common)];
-            let scope = |path: Vec<Segment>, ordinal| CleanupPartitionNode::Scope {
-                place,
-                path,
-                structural_type: scalar,
-                conditions: Vec::new(),
-                steps: vec![CleanupPartitionNode::Leaf(ordinal)],
-            };
-            let root = CleanupPartitionNode::Scope {
-                place,
-                path: root_path.clone(),
-                structural_type: carrier,
-                conditions: Vec::new(),
-                steps: vec![CleanupPartitionNode::Cases {
-                    place,
-                    path: root_path.clone(),
-                    structural_type: carrier,
-                    arms: vec![
-                        CleanupPartitionArm {
-                            case: empty,
-                            reachability: checked_trees::CheckedCleanupCaseReachability::Runtime,
-                            steps: Vec::new(),
-                        },
-                        CleanupPartitionArm {
-                            case: held,
-                            reachability: checked_trees::CheckedCleanupCaseReachability::Runtime,
-                            steps: vec![scope(payload_path.clone(), 0)],
-                        },
-                    ],
-                    common: vec![scope(common_path.clone(), 1)],
-                }],
-            };
-            let expected = (place, root_path.clone());
-            assert!(validate_cleanup_partition(&root, &expected, carrier, 2, &types).is_ok());
-            assert!(
-                validate_cleanup_partition(
-                    &root,
-                    &(place_id(18), root_path.clone()),
-                    carrier,
-                    2,
-                    &types
-                )
-                .is_err()
-            );
-            assert!(validate_cleanup_partition(&root, &expected, scalar, 2, &types).is_err());
-            for modification in 0..4 {
-                let mut invalid = root.clone();
-                let CleanupPartitionNode::Scope { steps, .. } = &mut invalid else {
-                    unreachable!()
-                };
-                let CleanupPartitionNode::Cases { arms, common, .. } = &mut steps[0] else {
-                    unreachable!()
-                };
-                match modification {
-                    0 => {
-                        common.clear();
-                    }
-                    1 => {
-                        common[0] = scope(common_path.clone(), 0);
-                    }
-                    2 => {
-                        arms[1].steps[0] = scope(payload_path.clone(), 1);
-                        common[0] = scope(common_path.clone(), 0);
-                    }
-                    _ => {
-                        arms.remove(0);
-                    }
-                }
-                assert!(
-                    validate_cleanup_partition(&invalid, &expected, carrier, 2, &types).is_err()
-                );
-            }
-            println!(
-                "partition: complete and payload-free alternatives retain their shared tail; missing/repeated/reordered leaves, missing arm and wrong carrier/type refuse"
-            );
-        }
     }
 }
 

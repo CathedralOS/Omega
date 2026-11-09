@@ -3108,7 +3108,9 @@ mod replacements {
                     captured_path.or_else(|| replaced.then_some(destination.path.as_slice())),
                 )?;
                 selected_disposition = true;
-                partitions.push(selected_actions.partition);
+                if path.starts_with(&destination.path) {
+                    partitions.push(selected_actions.partition);
+                }
                 for mut action in selected_actions.actions {
                     let action_path = match &action {
                         CheckedNormalCleanupAction::Discard(action) => &action.path,
@@ -3834,7 +3836,7 @@ pub(super) mod temporary_actions {
                             owner.disposition,
                             owner.owner.source,
                         )?;
-                        if actions.actions.is_empty() {
+                        if actions.actions.is_empty() && actions.partitions.is_empty() {
                             return Err(
                                 "release reference owner group selected no cleanup actions",
                             );

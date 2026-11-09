@@ -6004,9 +6004,7 @@ pub(crate) mod selected_continuations {
                 }
             }
             let rows = semantic_vocabulary::IdTable::from_rows_with_gaps(grouped, usize::MAX)
-                .map_err(|_| LoweringError::InvalidCleanupPartition {
-                    reason: "cleanup completion edge table exceeds its representable span",
-                })?;
+                .map_err(LoweringError::InvalidCleanupCompletionIndex)?;
             Ok(Self { rows })
         }
 

@@ -656,12 +656,14 @@ pub(crate) mod attached_unit {
                             declaration_order: None,
                             selected_region: None,
                             conditions,
-                            action: TerminalAffineCleanupAction::DiscardResidual(
-                                terminal_psi::StructuralAffineDiscard {
-                                    place,
-                                    path,
-                                    structural_type,
-                                },
+                            action: crate::unit::unit_cleanup::CleanupRegionAction::Run(
+                                TerminalAffineCleanupAction::DiscardResidual(
+                                    terminal_psi::StructuralAffineDiscard {
+                                        place,
+                                        path,
+                                        structural_type,
+                                    },
+                                ),
                             ),
                         });
                     }
@@ -744,7 +746,10 @@ pub(crate) mod attached_unit {
                             && region.conditions.is_empty()
                             && region.selected_region.is_none()
                     }) {
-                        return Ok(regions.into_iter().map(|region| region.action).collect());
+                        return Ok(regions
+                            .into_iter()
+                            .filter_map(|region| region.action.into_physical())
+                            .collect());
                     }
                     self.continue_cleanup_regions(
                         identities, checked, regions, values, next_value, next_block, next_edge,
@@ -885,11 +890,20 @@ pub(crate) mod attached_unit {
                                     reason: "cleanup partition actions are interleaved or reordered",
                                 });
                             }
+                            let selected = if leaf.leaf_count == 0 {
+                                &[][..]
+                            } else {
+                                selected
+                            };
                             self.partition_node(
-                                identities, &leaf.root, selected, 0, values, next_value,
+                                identities, &leaf.root, selected, None, 0, values, next_value,
                                 next_block, next_edge, operations,
                             )?;
-                            position = end;
+                            position = if leaf.leaf_count == 0 {
+                                position + 1
+                            } else {
+                                end
+                            };
                         } else {
                             let end = position
                                 + regions[position..]
@@ -955,6 +969,7 @@ pub(crate) mod attached_unit {
                     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
                     node: &crate::unit::unit_cleanup::CleanupPartitionNode,
                     leaves: &[CleanupRegion],
+                    selected_scope: Option<&terminal_psi::StructuralArgument>,
                     depth: usize,
                     values: &mut Vec<ValueDeclaration>,
                     next_value: &mut u64,
@@ -973,7 +988,7 @@ pub(crate) mod attached_unit {
                                 identities,
                                 std::slice::from_ref(region),
                                 depth,
-                                None,
+                                selected_scope,
                                 values,
                                 next_value,
                                 next_block,
@@ -982,32 +997,71 @@ pub(crate) mod attached_unit {
                             )
                         }
                         Node::Scope {
-                            place, path, steps, ..
+                            place,
+                            path,
+                            steps,
+                            leaf_span,
+                            ..
                         } => {
+                            let candidate = if leaf_span.is_empty() {
+                                None
+                            } else {
+                                leaves.get(leaf_span.start)
+                            }
+                            .and_then(|leaf| leaf.selected_region.as_ref())
+                            .filter(|region| region.place == *place && region.path == *path);
+                            let bypass = if let Some(region) =
+                                candidate.filter(|candidate| Some(*candidate) != selected_scope)
+                            {
+                                Some(self.select_storage(
+                                    identities, region, false, values, next_value, next_block,
+                                    next_edge, operations,
+                                )?)
+                            } else {
+                                None
+                            };
+                            let scope = if bypass.is_some() {
+                                candidate
+                            } else {
+                                selected_scope
+                            };
                             for step in steps {
                                 self.partition_node(
-                                    identities, step, leaves, depth, values, next_value,
+                                    identities, step, leaves, scope, depth, values, next_value,
                                     next_block, next_edge, operations,
                                 )?;
                             }
-                            // A direct whole-value leaf already records this exact frontier.
                             let whole_leaf = match steps.as_slice() {
                                 [Node::Leaf(ordinal)] => {
                                     leaves.get(*ordinal as usize).is_some_and(|region| {
                                         region.action.place() == *place
                                             && region.action.path() == path
-                                            && match &region.action {
-                                                TerminalAffineCleanupAction::InvokeNominal(
-                                                    cleanup,
-                                                ) => !cleanup.retains_descendants,
-                                                _ => true,
-                                            }
+                                            && region.action.physical().is_some_and(|action| {
+                                                match action {
+                                                    TerminalAffineCleanupAction::InvokeNominal(
+                                                        cleanup,
+                                                    ) => !cleanup.retains_descendants,
+                                                    _ => true,
+                                                }
+                                            })
                                     })
                                 }
                                 _ => false,
                             };
                             if !whole_leaf {
                                 self.completed_partition_edge(identities, *place, path, crate::emission::selected_continuations::CompletedCleanupKind::Value, values, next_value, next_block, next_edge, operations)?;
+                            }
+                            if let Some((bypass, parameters)) = bypass {
+                                self.cleanup_jump(
+                                    identities,
+                                    bypass,
+                                    &parameters,
+                                    Vec::new(),
+                                    Vec::new(),
+                                    values,
+                                    next_edge,
+                                    operations,
+                                )?;
                             }
                             Ok(())
                         }
@@ -1017,6 +1071,7 @@ pub(crate) mod attached_unit {
                             structural_type,
                             arms,
                             common,
+                            leaf_span,
                         } => self.partition_cases(
                             identities,
                             *place,
@@ -1025,6 +1080,8 @@ pub(crate) mod attached_unit {
                             arms,
                             common,
                             leaves,
+                            leaf_span.clone(),
+                            selected_scope,
                             depth,
                             values,
                             next_value,
@@ -1045,6 +1102,8 @@ pub(crate) mod attached_unit {
                     arms: &[crate::unit::unit_cleanup::CleanupPartitionArm],
                     common: &[crate::unit::unit_cleanup::CleanupPartitionNode],
                     leaves: &[CleanupRegion],
+                    leaf_span: std::ops::Range<usize>,
+                    selected_scope: Option<&terminal_psi::StructuralArgument>,
                     depth: usize,
                     values: &mut Vec<ValueDeclaration>,
                     next_value: &mut u64,
@@ -1075,6 +1134,10 @@ pub(crate) mod attached_unit {
                         access: terminal_psi::StructuralAccess::Owned,
                     };
                     let relevant = leaves
+                        .get(leaf_span)
+                        .ok_or(LoweringError::InvalidCleanupPartition {
+                            reason: "cleanup case leaves exceed their owning action span",
+                        })?
                         .iter()
                         .filter(|leaf| {
                             leaf.conditions
@@ -1091,6 +1154,7 @@ pub(crate) mod attached_unit {
                             })
                         });
                     let bypass = if selected
+                        && selected_scope != Some(&observation)
                         && !self.declared_single_case(&condition, operations)
                         && self.retained_case(&condition, operations).is_none()
                     {
@@ -1107,6 +1171,9 @@ pub(crate) mod attached_unit {
                     } else {
                         None
                     };
+                    // A case observation may add a bypass, but it does not replace
+                    // the active owner selected around the containing cleanup.
+                    let scope = selected_scope;
                     let join = block_id(allocate_dense(next_block)?);
                     let join_parameters = declarations(
                         &values
@@ -1196,7 +1263,7 @@ pub(crate) mod attached_unit {
                             depth + usize::from(arm.reachability == Reachability::Runtime);
                         for step in &arm.steps {
                             self.partition_node(
-                                identities, step, leaves, arm_depth, values, next_value,
+                                identities, step, leaves, scope, arm_depth, values, next_value,
                                 next_block, next_edge, operations,
                             )?;
                         }
@@ -1234,7 +1301,7 @@ pub(crate) mod attached_unit {
                     // this carrier's shared fields once, retaining their live obligations.
                     for step in common {
                         self.partition_node(
-                            identities, step, leaves, depth, values, next_value, next_block,
+                            identities, step, leaves, scope, depth, values, next_value, next_block,
                             next_edge, operations,
                         )?;
                     }
@@ -1361,8 +1428,10 @@ pub(crate) mod attached_unit {
                             ));
                         }
                         if first.conditions.len() == depth {
-                            let retirement =
-                                matches!(first.action, TerminalAffineCleanupAction::RetireHome(_));
+                            let retirement = matches!(
+                                first.action.physical(),
+                                Some(TerminalAffineCleanupAction::RetireHome(_))
+                            );
                             if let Some(region) = first.selected_region.as_ref()
                                 && Some(region) != selected_scope
                             {
@@ -1374,8 +1443,10 @@ pub(crate) mod attached_unit {
                                         .take_while(|entry| {
                                             entry.selected_region == first.selected_region
                                                 && !matches!(
-                                                    entry.action,
-                                                    TerminalAffineCleanupAction::RetireHome(_)
+                                                    entry.action.physical(),
+                                                    Some(TerminalAffineCleanupAction::RetireHome(
+                                                        _
+                                                    ))
                                                 )
                                         })
                                         .count()
@@ -1417,15 +1488,15 @@ pub(crate) mod attached_unit {
                                         entry.conditions.len() == depth
                                             && entry.selected_region == first.selected_region
                                             && !matches!(
-                                                entry.action,
-                                                TerminalAffineCleanupAction::RetireHome(_)
+                                                entry.action.physical(),
+                                                Some(TerminalAffineCleanupAction::RetireHome(_))
                                             )
                                     })
                                     .count()
                             };
                             let actions = remaining[..count]
                                 .iter()
-                                .map(|region| region.action.clone())
+                                .filter_map(|region| region.action.clone().into_physical())
                                 .collect();
                             self.continue_actions(
                                 identities, actions, values, next_value, next_block, next_edge,
@@ -3704,7 +3775,9 @@ pub(crate) mod attached_unit {
                             calls,
                         )?;
                         let cleanup_actions = if regions.iter().any(|region| {
-                            !region.conditions.is_empty() || region.selected_region.is_some()
+                            region.partition_leaf.is_some()
+                                || !region.conditions.is_empty()
+                                || region.selected_region.is_some()
                         }) {
                             super::cleanup_control::CleanupEmission {
                                 structural_types: calls.structural_types,
@@ -3730,7 +3803,10 @@ pub(crate) mod attached_unit {
                             )?;
                             Vec::new()
                         } else {
-                            regions.into_iter().map(|region| region.action).collect()
+                            regions
+                                .into_iter()
+                                .filter_map(|region| region.action.into_physical())
+                                .collect()
                         };
                         let edge = edge_id(allocate_dense(next_edge)?);
                         if let Some(plan) = claim_edge {

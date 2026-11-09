@@ -978,6 +978,7 @@ pub(crate) mod lowering_error {
         MachineNotFound(String),
         AmbiguousMachineName(String),
         MissingUnitStructuralType(String),
+        InvalidCleanupCompletionIndex(semantic_vocabulary::IdTableBuildError),
         InvalidCleanupPartition {
             reason: &'static str,
         },
