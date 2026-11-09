@@ -83989,10 +83989,11 @@ pub(crate) mod structural_prefix {
                     }
                     current = enclosing_declaration(program, current);
                 }
-                root.or_else(|| {
-                    program.external_invocation_roots()?;
-                    seen.last().copied()
-                })
+                // A machine outside any enclosing machine has no root here on
+                // purpose. Its body is proved from its own `requires`, however
+                // few callers it has, so knowing every call site must not make
+                // their arguments facts of the body.
+                root
             }
 
             fn externally_invocable(program: &dyn CheckingInput, machine: &Machine) -> bool {
