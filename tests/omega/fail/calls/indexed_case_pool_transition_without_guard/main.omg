@@ -1,4 +1,4 @@
-// Expected exit: 0
+// Reject: calling take without the empty-slot guard leaves its requirement unproved.
 use omega::language::core::drop;
 
 data Token [linear] dropped by drop_token { value: u64; }
