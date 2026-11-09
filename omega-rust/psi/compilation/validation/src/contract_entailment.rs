@@ -81700,18 +81700,18 @@ pub(crate) mod structural_judgment {
                 return;
             }
             let name = self.program.symbols.display_path(self.machine_symbol, "::");
-            let events = if name.rsplit("::").next() == Some("echo") {
-                static EVENTS: std::sync::atomic::AtomicUsize =
-                    std::sync::atomic::AtomicUsize::new(0);
-                &EVENTS
+            let lane = if name.rsplit("::").next() == Some("echo") {
+                0
             } else if name.contains("WriteBuffer::try_from") {
-                static EVENTS: std::sync::atomic::AtomicUsize =
-                    std::sync::atomic::AtomicUsize::new(0);
-                &EVENTS
+                1
             } else {
                 return;
             };
-            if events.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 4 {
+            static EVENTS: [std::sync::atomic::AtomicUsize; 2] = [
+                std::sync::atomic::AtomicUsize::new(0),
+                std::sync::atomic::AtomicUsize::new(0),
+            ];
+            if EVENTS[lane].fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 4 {
                 return;
             }
             eprintln!(
