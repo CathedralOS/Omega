@@ -19496,6 +19496,7 @@ pass/borrows/fixed_array_reference_results_exit checked 8069ms check-target:maco
 pass/borrows/foreign_output_captured_reference_exit checked 9150ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/foreign_output_copied_lifetime_last_use checked 2399ms @ccdb99ca2214
 pass/borrows/foreign_output_exclusive_anchor_exit checked 7469ms check-target:macos_arm64 @911f6617ba9e
+pass/borrows/foreign_output_nested_shared_input_exit checked 2541ms check-target:macos_arm64 @b3091681227f
 pass/borrows/formed_mutable_slice_argument_completion_exit checked 3970ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/generic_record_slice_referent_exit rejected 6792ms check-target:macos_arm64 @ac4821665951+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "loan retirement requires a descriptor carrier", gap: None })
@@ -19848,8 +19849,7 @@ pass/borrows/stored_reference_projection_exit checked 15667ms check-target:macos
 pass/borrows/stored_view_return_consumers checked 2281ms @ccdb99ca2214
 pass/borrows/structural_operand_view_catalog_exit checked 3710ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/supplied_output_ordinary_helper_saved_reference_exit checked 13262ms check-target:macos_arm64 @c011c9b7fe43
-pass/borrows/supplied_output_shared_stored_input_ceiling_exit rejected 2271ms check-target:macos_arm64 @70822431ff39
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/borrows/supplied_output_shared_stored_input_ceiling_exit checked 2593ms check-target:macos_arm64 @b3091681227f
 pass/borrows/suspension_projected_call_view_all_suppliers_only_view_exit checked 5499ms check-target:macos_arm64 @d68d95fa82f8
 pass/borrows/suspension_projected_call_view_earlier_argument_exit checked 5373ms check-target:macos_arm64 @d68d95fa82f8
 pass/borrows/suspension_projected_call_view_entry_source_exit checked 5376ms check-target:macos_arm64 @d68d95fa82f8
