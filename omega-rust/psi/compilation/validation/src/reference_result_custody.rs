@@ -2091,7 +2091,102 @@ pub(crate) mod captured_returns {
         };
         use semantic_vocabulary::ReferenceOriginExtent;
 
+        struct CapturedInvocationInput {
+            operand: Handle<FlowOperandFact>,
+            reference: typed_trees::types::TypeReferenceHandle,
+            source: crate::LocalWriteSource,
+            presentation: CapturedReturnPresentation,
+        }
+
         impl<'capture> Captures<'capture> {
+            pub(super) fn invocation_borrow_sources(
+                &mut self,
+                state: &typed_trees::state::State,
+                descriptor: &FlowOperandFact,
+            ) -> Option<(bool, Vec<super::CapturedInvocationBorrowSource>)> {
+                let FlowOperandCompletion::InvocationResult { invocation, .. } =
+                    descriptor.completion
+                else {
+                    return None;
+                };
+                let call =
+                    self.calls
+                        .invocation(&self.facts.flow.control, state.symbol, invocation)?;
+                if !crate::call_target_has_checked_body_contract(self.program, call.target_symbol) {
+                    return None;
+                }
+                let shell = crate::reference_shell(self.program, descriptor.type_reference)?;
+                let referee = self.program.normalized_type_identity(shell.referee);
+                let relative = crate::LocalWriteSource {
+                    invocation_output: None,
+                    invocation_result: None,
+                    is_image_storage: false,
+                    recasts: Vec::new(),
+                    representation: None,
+                    path: String::new(),
+                    collection_coarse: false,
+                    root: SymbolHandle::invalid(),
+                    segments: Vec::new(),
+                };
+                let presentation = CapturedReturnPresentation {
+                    path: Vec::new(),
+                    source_type: referee,
+                    endpoint_type: referee,
+                    result_type: referee,
+                    extent: ReferenceOriginExtent::Projected,
+                };
+                let (origins, inputs) = self.invocation_argument_sources_with_inputs(
+                    state,
+                    descriptor.type_reference,
+                    descriptor,
+                    &relative,
+                    &presentation,
+                    &mut Vec::new(),
+                    &mut Vec::new(),
+                    true,
+                )?;
+                let mut output = Vec::new();
+                for input in inputs {
+                    if !input.presentation.path.is_empty() {
+                        return None;
+                    }
+                    let outer_reference =
+                        crate::reference_shell(self.program, input.reference).is_some();
+                    let (source_path, projection) = if let Some(boundary) =
+                        super::input_descriptor_boundary(
+                            self.program,
+                            input.reference,
+                            &input.source.segments,
+                        )? {
+                        let actual = self.facts.flow.control.operands.get(input.operand);
+                        (
+                            super::super::loan_place_segments(
+                                self.program,
+                                actual.type_reference,
+                                &boundary.path,
+                            )?,
+                            input
+                                .source
+                                .segments
+                                .strip_prefix(boundary.prefix.as_slice())?
+                                .to_vec(),
+                        )
+                    } else {
+                        if !outer_reference {
+                            return None;
+                        }
+                        (Vec::new(), input.source.segments)
+                    };
+                    output.push(super::CapturedInvocationBorrowSource {
+                        operand: input.operand,
+                        source_path,
+                        projection,
+                        extent: input.presentation.extent,
+                    });
+                }
+                Some((!origins.is_empty(), output))
+            }
+
             #[allow(clippy::too_many_arguments)]
             pub(crate) fn invocation_argument_sources(
                 &mut self,
@@ -2103,6 +2198,31 @@ pub(crate) mod captured_returns {
                 active: &mut Vec<SymbolHandle>,
                 visiting: &mut Vec<Handle<FlowOperandFact>>,
             ) -> Option<Vec<CapturedArgumentOrigin>> {
+                self.invocation_argument_sources_with_inputs(
+                    state,
+                    reference,
+                    descriptor,
+                    relative,
+                    presentation,
+                    active,
+                    visiting,
+                    false,
+                )
+                .map(|(sources, _)| sources)
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            fn invocation_argument_sources_with_inputs(
+                &mut self,
+                state: &typed_trees::state::State,
+                reference: typed_trees::types::TypeReferenceHandle,
+                descriptor: &FlowOperandFact,
+                relative: &crate::LocalWriteSource,
+                presentation: &CapturedReturnPresentation,
+                active: &mut Vec<SymbolHandle>,
+                visiting: &mut Vec<Handle<FlowOperandFact>>,
+                retain_inputs: bool,
+            ) -> Option<(Vec<CapturedArgumentOrigin>, Vec<CapturedInvocationInput>)> {
                 let FlowOperandCompletion::InvocationResult {
                     invocation,
                     result_type,
@@ -2207,6 +2327,7 @@ pub(crate) mod captured_returns {
                         .target_sources(call.target_symbol, active)
                         .ok_or("returned invocation has no checked origin relation")?;
                     let mut output = Vec::new();
+                    let mut captured_inputs = Vec::new();
                     for candidate in sources {
                         if super::loan_place_segments(self.program, declared, &candidate.path)
                             .ok_or("returned invocation origin has no result path")?
@@ -2262,6 +2383,14 @@ pub(crate) mod captured_returns {
                                 visiting,
                             )
                             .ok_or("returned invocation input has no complete captured origins")?;
+                        if retain_inputs {
+                            captured_inputs.push(CapturedInvocationInput {
+                                operand: input,
+                                reference: parameter.type_reference,
+                                source,
+                                presentation: composed.clone(),
+                            });
+                        }
                         for mut input in inputs {
                             if composed.extent == ReferenceOriginExtent::WithinRegion {
                                 input.extent = ReferenceOriginExtent::WithinRegion;
@@ -2274,7 +2403,7 @@ pub(crate) mod captured_returns {
                             }
                         }
                     }
-                    Ok(output)
+                    Ok((output, captured_inputs))
                 })();
                 if let Err(reason) = &result
                     && crate::trace_flags::check_sites()
@@ -2289,9 +2418,7 @@ pub(crate) mod captured_returns {
         }
     }
     pub(crate) mod invocation_returns {
-        use super::super::{
-            MAX_REFERENCE_ORIGIN_LEAVES, declared_carrier_references, origin_place_segments,
-        };
+        use super::super::MAX_REFERENCE_ORIGIN_LEAVES;
         use super::{
             CapturedReturnOrigin, CapturedReturnPresentation, Captures,
             CheckedReferenceOriginProjection, CheckedReturnedReferencePlan,
@@ -2731,31 +2858,11 @@ pub(crate) mod captured_returns {
                 let outer_reference = crate::reference_shell(self.program, reference).is_some();
                 let carrier =
                     super::super::input_carrier_type(self.program, reference).unwrap_or(reference);
-                let mut boundary = None;
-                for leaf in declared_carrier_references(self.program, carrier)? {
-                    let segments =
-                        origin_place_segments(self.program, carrier, leaf.path.iter().cloned())?;
-                    if outer_reference && segments.is_empty() {
-                        continue;
-                    }
-                    if relative.segments.starts_with(&segments) {
-                        if boundary.is_some() {
-                            return None;
-                        }
-                        boundary = Some((leaf, segments));
-                    }
-                }
-                if let Some((leaf, segments)) = boundary {
-                    let path = leaf
-                        .path
-                        .iter()
-                        .map(|projection| match projection {
-                            CheckedReferenceOriginProjection::Exact(segment) => {
-                                Some(segment.clone())
-                            }
-                            CheckedReferenceOriginProjection::Element => None,
-                        })
-                        .collect::<Option<Vec<_>>>()?;
+                if let Some(boundary) =
+                    super::input_descriptor_boundary(self.program, reference, &relative.segments)?
+                {
+                    let path = boundary.path;
+                    let segments = boundary.prefix;
                     if !self.expression_leaf_present(
                         state,
                         operand.statement_index,
@@ -4062,6 +4169,68 @@ pub(crate) mod captured_returns {
         relations::complete(program, facts, |captures| {
             captures.target_sources(target, &mut Vec::new())
         })
+    }
+
+    struct CapturedInputDescriptor {
+        path: Vec<CheckedUnitStructuralPathSegment>,
+        prefix: Vec<facts::PlaceSegment>,
+    }
+
+    fn input_descriptor_boundary(
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        segments: &[facts::PlaceSegment],
+    ) -> Option<Option<CapturedInputDescriptor>> {
+        let outer_reference = crate::reference_shell(program, reference).is_some();
+        let carrier = super::input_carrier_type(program, reference).unwrap_or(reference);
+        let mut boundary = None;
+        for leaf in super::declared_carrier_references(program, carrier)? {
+            let prefix = super::origin_place_segments(program, carrier, leaf.path.iter().cloned())?;
+            if outer_reference && prefix.is_empty() {
+                continue;
+            }
+            if segments.starts_with(&prefix) {
+                if boundary.is_some() {
+                    return None;
+                }
+                boundary = Some((leaf, prefix));
+            }
+        }
+        let Some((leaf, prefix)) = boundary else {
+            return Some(None);
+        };
+        Some(Some(CapturedInputDescriptor {
+            path: leaf
+                .path
+                .into_iter()
+                .map(|projection| match projection {
+                    CheckedReferenceOriginProjection::Exact(segment) => Some(segment),
+                    CheckedReferenceOriginProjection::Element => None,
+                })
+                .collect::<Option<Vec<_>>>()?,
+            prefix,
+        }))
+    }
+
+    // Keep the captured input and its projection together. The borrowing checker
+    // still checks the input's permission and retained parents.
+    pub struct CapturedInvocationBorrowSource {
+        pub operand: arena::Handle<checked_trees::FlowOperandFact>,
+        pub source_path: Vec<facts::PlaceSegment>,
+        pub projection: Vec<facts::PlaceSegment>,
+        pub extent: ReferenceOriginExtent,
+    }
+
+    pub fn invocation_borrow_sources(
+        program: &dyn crate::CheckingInput,
+        facts: &CheckFacts,
+        state: &State,
+        descriptor: &checked_trees::FlowOperandFact,
+    ) -> Option<Vec<CapturedInvocationBorrowSource>> {
+        let (established, sources) = relations::complete(program, facts, |captures| {
+            captures.invocation_borrow_sources(state, descriptor)
+        })?;
+        (established && !sources.is_empty()).then_some(sources)
     }
 
     pub(crate) fn terminal_call_sources(
@@ -6666,6 +6835,7 @@ pub(crate) mod source_paths {
 }
 pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
+pub use captured_returns::{CapturedInvocationBorrowSource, invocation_borrow_sources};
 pub use declared_returns::{
     installed_context_sources, returned_sources as declared_return_sources,
 };

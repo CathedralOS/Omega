@@ -1736,6 +1736,13 @@ fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1806ms expected @c
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/replaced_descriptor_stale_pointee_fact rejected 727ms expected @cdaaea7fffc3
 	cannot prove requires contract for call demand_old from exercise: message.body.value == 19 (needs fact `target.value == 19` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/borrows/returned_case_descriptor_live_write rejected 10302ms expected @8f21571f2eb6
+	statement 2 mutates `locator` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/returned_case_descriptor_unselected_source rejected 10307ms expected @8f21571f2eb6
+	machine `name` state `entry` statement 0: cannot prove selected case for payload access `locator.name`: captured source `locator::Module.name` has no live case evidence: the current source does not select its required case
+	machine `name` state `entry` statement 0: cannot prove selected case for payload access `locator.name[0..2]`: captured source `locator::Module.name[0..2]` has no live case evidence: the current source does not select its required case
+	machine `name` state `entry` statement 0: cannot prove selected case for payload access `locator.name[0..2]`: captured source `locator::Module.name[0..2]` has no live case evidence: the current source does not select its required case
+	machine `name` state `entry` statement 0: cannot prove selected case for payload access `&locator.name[0..2]`: captured source `locator::Module.name[0..2]` has no live case evidence: the current source does not select its required case
 fail/borrows/returned_case_reference_live_source_write rejected 1919ms expected @ccdb99ca2214
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
