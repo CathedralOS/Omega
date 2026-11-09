@@ -435,6 +435,7 @@ impl Replay {
                     Some(target),
                     true,
                     false,
+                    true, // Use the same diagnostics as the original observation.
                     &self.directory.join(phase),
                 )?;
                 let rows = corpus::parse_records(&text)?;

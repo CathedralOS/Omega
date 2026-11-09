@@ -403,8 +403,7 @@ pass/borrows/runtime_copied_byte_distinct_epochs_exit built 2215ms exit:0 @a92f1
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 2747ms exit:0 @a92f16431042
 pass/borrows/runtime_copied_range_record_domains_exit built 2737ms exit:0 @a92f16431042
 pass/borrows/runtime_copyable_carrier_retirement_exit built 2067ms exit:0 @a92f16431042
-pass/borrows/runtime_cyclic_field_loan_release_exit rejected 6745ms regressed-from:built+exit:70 @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(19)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/runtime_cyclic_field_loan_release_exit built 34730ms exit:70 @2627f0cca796
 pass/borrows/runtime_descriptor_replacement_exit built 2003ms exit:0 @a92f16431042
 pass/borrows/runtime_direct_immutable_scalar_loan_exit built 2366ms exit:0 @a92f16431042
 pass/borrows/runtime_discarded_reference_release_exit built 6471ms exit:70 @a92f16431042

@@ -928,9 +928,9 @@ mod fused {
     /*
         The fused-state roster a composed control graph plans over.
 
-        `fused_states` fuses the recursive component, not every transitively
-        reachable callee: mutually recursive tail transfers must stay in one
-        graph to retain their shared rank and constant-stack execution. The rest
+        `fused_states` keeps recursive components and shared activation custody
+        in one graph, rather than fusing every reachable callee. Recursive tail
+        transfers retain their shared rank and constant-stack execution. The rest
         of this module's machinery — signatures, entry claims, successors — reads
         this roster through `FusedStates`, each state keeping its authored owner
         for signatures and proof facts.
@@ -949,11 +949,11 @@ mod fused {
     )>;
 
     /*
-        Fuse the recursive component, not every transitively reachable callee.
-        Mutually recursive tail transfers must stay in one graph to retain their
-        shared rank and constant-stack execution. Acyclic calls keep the ordinary
-        call plan, including operand preparation and completion cleanup. Each
-        fused state retains its authored owner for signatures and proof facts.
+        Keep recursive tail transfers in one graph so their rank and stack use
+        remain shared. A tail transfer also stays here when it carries activation
+        custody or overlapping borrowed storage. Other acyclic calls keep their
+        ordinary operand preparation and completion cleanup. Each fused state
+        retains its authored owner for signatures and proof facts.
     */
     pub(in crate::execution::terminal_unit) fn fused_states<'program>(
         program: &'program dyn ::validation::CheckingInput,
@@ -996,7 +996,7 @@ mod fused {
         if owners.len() <= 1 {
             return fused;
         }
-        let mut predecessors = Vec::new();
+        let mut predecessors = vec![Vec::new(); owners.len()];
         for (owner, state) in &fused {
             let Some(source_index) = owners.iter().position(|symbol| *symbol == owner.symbol)
             else {
@@ -1009,31 +1009,26 @@ mod fused {
                 let target_owner = fused[target_index].0.symbol;
                 if let Some(target_index) = owners.iter().position(|symbol| *symbol == target_owner)
                 {
-                    predecessors.push((target_index, source_index));
+                    predecessors[target_index].push(source_index);
                 }
             }
         }
-        predecessors.sort_unstable();
-        predecessors.dedup();
+        for incoming in &mut predecessors {
+            incoming.sort_unstable();
+            incoming.dedup();
+        }
+        let components = crate::checks::termination::strongly_connected_components(&predecessors);
+        let mut component_of = vec![0; owners.len()];
+        for (index, component) in components.iter().enumerate() {
+            for &owner in component {
+                component_of[owner] = index;
+            }
+        }
         let mut retained = vec![false; owners.len()];
         let mut ready = Vec::new();
-        if let Some(root) = retained.first_mut() {
-            *root = true;
-            ready.push(0);
-        }
-        let mut cursor = 0;
-        while let Some(&target) = ready.get(cursor) {
-            cursor += 1;
-            let first = predecessors.partition_point(|(candidate, _)| *candidate < target);
-            for &(_, source) in predecessors[first..]
-                .iter()
-                .take_while(|(candidate, _)| *candidate == target)
-            {
-                if !retained[source] {
-                    retained[source] = true;
-                    ready.push(source);
-                }
-            }
+        for &owner in &components[component_of[0]] {
+            retained[owner] = true;
+            ready.push(owner);
         }
         let mut cursor = 0;
         while let Some(&source) = ready.get(cursor) {
@@ -1043,8 +1038,8 @@ mod fused {
                 .filter(|(owner, _)| owner.symbol == owners[source])
                 .map(|(_, state)| *state);
             for state in source_states {
-                for target_symbol in completing_transition_targets(program, state) {
-                    let Some(target_index) = fused_target_index(program, &fused, target_symbol)
+                for (statement_index, transfer) in completing_transition_transfers(program, state) {
+                    let Some(target_index) = fused_target_index(program, &fused, transfer.target)
                     else {
                         continue;
                     };
@@ -1055,9 +1050,16 @@ mod fused {
                     else {
                         continue;
                     };
-                    if !retained[target] && moves_activation_claim(program, target_state) {
-                        retained[target] = true;
-                        ready.push(target);
+                    if !retained[target]
+                        && (moves_activation_claim(program, target_state)
+                            || shares_borrowed_storage(program, state, statement_index, &transfer))
+                    {
+                        for &owner in &components[component_of[target]] {
+                            if !retained[owner] {
+                                retained[owner] = true;
+                                ready.push(owner);
+                            }
+                        }
                     }
                 }
             }
@@ -1093,15 +1095,61 @@ mod fused {
         program: &'a dyn ::validation::CheckingInput,
         state: &'a typed_trees::state::State,
     ) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
+        completing_transition_transfers(program, state).map(|(_, transfer)| transfer.target)
+    }
+
+    fn completing_transition_transfers<'a>(
+        program: &'a dyn ::validation::CheckingInput,
+        state: &'a typed_trees::state::State,
+    ) -> impl Iterator<Item = (usize, validation::CompletingTransfer<'a>)> + 'a {
         crate::flow::state_statements(program, state.statement_nodes)
             .iter()
-            .filter_map(|statement| match statement {
-                StatementNode::Transition(transition) => Some(transition),
+            .enumerate()
+            .filter_map(|(index, statement)| match statement {
+                StatementNode::Transition(transition) => Some((index, transition)),
                 _ => None,
             })
-            .flat_map(|transition| transition.targets())
-            .filter_map(|target| validation::completing_transition_transfer(program, target))
-            .map(|transfer| transfer.target)
+            .flat_map(move |(index, transition)| {
+                transition.targets().filter_map(move |target| {
+                    validation::completing_transition_transfer(program, target)
+                        .map(|transfer| (index, transfer))
+                })
+            })
+    }
+
+    // Keep suspended storage and its child loan in the same activation. This
+    // selects the graph only; ordinary successor planning still checks every
+    // argument, captured selector, invocation contract and cleanup obligation.
+    fn shares_borrowed_storage(
+        program: &dyn ::validation::CheckingInput,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        transfer: &validation::CompletingTransfer<'_>,
+    ) -> bool {
+        let borrowed = transfer
+            .arguments
+            .iter()
+            .zip(program.state_parameters(transfer.state))
+            .filter_map(|(argument, parameter)| {
+                let shell = validation::reference_shell(program, parameter.type_reference)?;
+                let place = crate::published::places::place_at(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    *argument,
+                )?;
+                Some((place, shell.access))
+            })
+            .collect::<Vec<_>>();
+        borrowed.iter().enumerate().any(|(index, (left, access))| {
+            borrowed[index + 1..].iter().any(|(right, other_access)| {
+                (*access != language_semantics::ReferenceAccess::Shared
+                    || *other_access != language_semantics::ReferenceAccess::Shared)
+                    && left.root == right.root
+                    && (left.segments.starts_with(&right.segments)
+                        || right.segments.starts_with(&left.segments))
+            })
+        })
     }
 
     /*
