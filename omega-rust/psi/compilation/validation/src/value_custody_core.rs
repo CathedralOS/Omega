@@ -486,7 +486,10 @@ pub mod activation_storage {
     /// The sealed `toolchain::ActivationClaim` declaration itself: opaque,
     /// linear and fieldless, exactly as the activation storage contract
     /// requires of its claim.
-    pub fn is_toolchain_activation_claim(program: &dyn CheckingInput, data: &DataDefinition) -> bool {
+    pub fn is_toolchain_activation_claim(
+        program: &dyn CheckingInput,
+        data: &DataDefinition,
+    ) -> bool {
         data.supply_mode == DataSupplyMode::BoundaryOpaque
             && data.properties.multiplicity == Multiplicity::Linear
             && program.data_members(data).is_empty()
