@@ -62298,24 +62298,37 @@ pub(crate) mod structural_judgment {
                     {
                         return None;
                     }
-                    if super::super::super::structural_terms::owned_observation_type(
+                    let observed = super::super::super::structural_terms::owned_observation_type(
                         self.program,
                         value,
-                    )
-                    .is_some()
+                    );
+                    if observed.is_none()
+                        && self
+                            .frame_resolver()
+                            .is_some_and(|frames| frames.proof_value_is_caller_isolated(declared))
                     {
                         return Some(value.clone());
                     }
-                    if self
-                        .frame_resolver()
-                        .is_some_and(|frames| frames.proof_value_is_caller_isolated(declared))
+                    // Completed captures keep their source carrier, including the
+                    // exact constructor schema retained with that occurrence. Match
+                    // that carrier against the receiving declaration before reuse.
+                    let source = super::super::super::structural_terms::completed_owned_carrier(
+                        self.program,
+                        value.semantic_value(),
+                    )
+                    .or(observed)
+                    .unwrap_or(declared);
+                    if !crate::declared_carriers_match(self.program, declared, source)
+                        || observed.is_some_and(|observed| {
+                            !crate::declared_carriers_match(self.program, source, observed)
+                        })
                     {
-                        return Some(value.clone());
+                        return None;
                     }
                     Some(
                         super::super::super::structural_terms::owned_projection_observation(
                             self.program,
-                            declared,
+                            source,
                             value.clone(),
                         ),
                     )
