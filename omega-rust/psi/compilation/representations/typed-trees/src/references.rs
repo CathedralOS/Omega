@@ -87,7 +87,7 @@ pub(crate) mod source_occurrences {
                         continue;
                     };
                     let original_arguments = call.machine_arguments.clone();
-                    self.retain_conformance_operand_sources(&mut call.machine_arguments, owner)?;
+                    self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
                     // An ordinary call still has a source application when its
                     // static tuple is empty. Result evidence needs that exact
                     // declaration and lexical owner too.
@@ -183,7 +183,7 @@ pub(crate) mod source_occurrences {
                     .collect::<Vec<_>>();
                 for (handle, owner, mut call) in statement_calls {
                     let original_arguments = call.machine_arguments.clone();
-                    self.retain_conformance_operand_sources(&mut call.machine_arguments, owner)?;
+                    self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
                     let declaration = (!call.static_machine_parameter.is_valid()
                         && call.static_requirement_dispatch.is_none())
                     .then(|| direct_declaration(self, call.target_symbol))
@@ -224,7 +224,7 @@ pub(crate) mod source_occurrences {
                 Ok(())
             }
 
-            fn retain_conformance_operand_sources(
+            fn retain_static_operand_sources(
                 &mut self,
                 arguments: &mut [StaticMachineArgument],
                 owner: SymbolHandle,
@@ -234,6 +234,10 @@ pub(crate) mod source_occurrences {
                 let mut complete = true;
                 for argument in arguments {
                     if argument.type_reference.is_valid() {
+                        // A supplied Type already has its representation, but still
+                        // needs its original scope before a call is copied.
+                        self.type_reference_table
+                            .retain_operand_lifetime_owner(argument.type_reference, owner)?;
                         continue;
                     }
                     if argument.evidence_projection.is_some()
@@ -246,8 +250,7 @@ pub(crate) mod source_occurrences {
                         continue;
                     }
                     if let Some(application) = &mut argument.application
-                        && !self
-                            .retain_conformance_operand_sources(&mut application.arguments, owner)?
+                        && !self.retain_static_operand_sources(&mut application.arguments, owner)?
                     {
                         complete = false;
                         continue;
@@ -302,7 +305,7 @@ pub(crate) mod source_occurrences {
                 if arguments == original {
                     arguments.clone_from_slice(supplied);
                 } else {
-                    self.retain_conformance_operand_sources(&mut arguments, owner)?;
+                    self.retain_static_operand_sources(&mut arguments, owner)?;
                 }
                 self.expression_table
                     .static_machine_application_arguments_mut(application)
@@ -311,9 +314,16 @@ pub(crate) mod source_occurrences {
                 let mut bindings = original.to_vec();
                 for binding in &mut bindings {
                     match &mut binding.value {
+                        StaticMachineBindingValue::Type(reference)
+                        | StaticMachineBindingValue::Const(reference) => {
+                            if reference.is_valid() {
+                                self.type_reference_table
+                                    .retain_operand_lifetime_owner(*reference, owner)?;
+                            }
+                        }
                         StaticMachineBindingValue::Machine(argument)
                         | StaticMachineBindingValue::Conformance(argument) => {
-                            self.retain_conformance_operand_sources(
+                            self.retain_static_operand_sources(
                                 std::slice::from_mut(argument),
                                 owner,
                             )?;
