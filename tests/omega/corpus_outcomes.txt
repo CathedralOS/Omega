@@ -5119,7 +5119,7 @@ fail/drops/borrowed_projection_disjunctive_capture rejected 12510ms expected @ee
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish drop_receipt clause `receipt.code == 7`
 fail/drops/borrowed_projection_earlier_call_false_capture rejected 12345ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.first does not establish drop_receipt clause `receipt.code == 7`
-fail/drops/borrowed_projection_moved_child_reuse rejected 6568ms expected @ee4dbb4b2d56
+fail/drops/borrowed_projection_moved_child_reuse rejected 1645ms expected @fb1a2e2bda83
 	cannot use `first.receipt` in machine `main` state `entry` (statement 2) after `first.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first.receipt` first
 fail/drops/borrowed_projection_unselected_child_prerequisite rejected 10797ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Pair.second does not establish drop_receipt clause `receipt.code == 7`
@@ -5212,7 +5212,7 @@ fail/drops/parent_cleanup_disjunction_not_conjunction rejected 9269ms expected @
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.first does not establish drop_receipt clause `receipt.value == 9`
 fail/drops/parent_cleanup_missing_child_guarantee rejected 11695ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.first does not establish drop_receipt clause `receipt.value == 9`
-fail/drops/parent_cleanup_requires_before_guarantees rejected 11315ms expected @ee4dbb4b2d56
+fail/drops/parent_cleanup_requires_before_guarantees rejected 2139ms expected @fb1a2e2bda83
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner does not establish drop_owner clause `owner.first.value == 9 && owner.second.value == 13`
 fail/drops/parent_cleanup_wrong_child_guarantee rejected 9797ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.first does not establish drop_receipt clause `receipt.value == 9`
@@ -16195,7 +16195,7 @@ fail/ownership/linear_live_overwrite rejected 2352ms expected @ccdb99ca2214
 	linear value `receipt` reaches scope exit without being consumed or transferred in machine `Main::main` state `main`
 fail/ownership/linear_mixed_branch_treatment rejected 2964ms expected @b17a1e9569d9
 	linear value `receipt` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation (machine `Main::main` state `main`; statement 2 TransitionTarget: live=false, case_excluded=false, established=true; case selection (selected guard): `__transition_subject#4` has no binary case-membership operation; statement 3 TransitionTarget: live=true, case_excluded=false, established=true; case selection: unconditional guard has no case test)
-fail/ownership/linear_mixed_common_payload_duplicate_operand rejected 22749ms expected @ee4dbb4b2d56
+fail/ownership/linear_mixed_common_payload_duplicate_operand rejected 1722ms expected @fb1a2e2bda83
 	cannot use `receipt` in machine `main` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/linear_qualified_field_observation_after_transfer rejected 19274ms expected @ee4dbb4b2d56
 	cannot use `receipt.code` in machine `consumed` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
@@ -21440,7 +21440,7 @@ pass/drops/runtime_claim_bearing_temporary_cleanup_exit checked 14652ms check-ta
 pass/drops/runtime_cleanup_case_evidence_exit checked 17250ms check-target:macos_arm64 @cd110dbe60a3
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 13445ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_composed_nominal_output_hook_exit checked 12676ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_composed_nominal_return_hook_exit checked 21012ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/drops/runtime_composed_nominal_return_hook_exit checked 2599ms check-target:macos_arm64 @fb1a2e2bda83
 pass/drops/runtime_computed_call_owner_retirement_exit checked 58551ms check-target:macos_arm64 @911f6617ba9e
 pass/drops/runtime_distinct_temporary_parent_cleanup_once_exit checked 14592ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 3581ms check-target:macos_arm64 @ccdb99ca2214
@@ -21473,7 +21473,7 @@ pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 40039ms check-t
 pass/drops/runtime_nested_nominal_producer_loans_exit checked 36001ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 60977ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_array_replacement_exit checked 52055ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_nominal_case_observation_exit checked 9931ms check-target:macos_arm64 @6c3dcb823e47
+pass/drops/runtime_nominal_case_observation_exit checked 2658ms check-target:macos_arm64 @fb1a2e2bda83
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 43820ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_alias_exit checked 42431ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit checked 55727ms check-target:macos_arm64 @ee4dbb4b2d56

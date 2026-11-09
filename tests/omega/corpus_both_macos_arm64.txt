@@ -2740,7 +2740,7 @@ pass/drops/runtime_claim_bearing_temporary_cleanup_exit built 1715ms exit:0 inte
 pass/drops/runtime_cleanup_case_evidence_exit built 1106ms exit:0 interpreter-exit:0 interpreter:agrees @7e8766123767
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit built 1599ms exit:0 interpreter-exit:0 interpreter:agrees @e830e1bb7013+wt
 pass/drops/runtime_composed_nominal_output_hook_exit built 14800ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5833e7d00af3
-pass/drops/runtime_composed_nominal_return_hook_exit built 1579ms exit:0 interpreter-exit:0 interpreter:agrees @47ad8bb72cea
+pass/drops/runtime_composed_nominal_return_hook_exit built 2731ms exit:0 interpreter-exit:0 interpreter:agrees @fb1a2e2bda83
 pass/drops/runtime_computed_call_owner_retirement_exit built 5618ms exit:0 interpreter-exit:0 interpreter:agrees @e6fa1ec2311e+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit built 5579ms exit:0 interpreter-exit:0 interpreter:agrees @0e81fb3e4cce+wt
 pass/drops/runtime_empty_array_owner_cleanup_exit built 11883ms exit:0 interpreter-exit:0 interpreter:agrees @a4f0ef6b6479+wt
@@ -2757,7 +2757,7 @@ pass/drops/runtime_nested_empty_array_owner_cleanup_exit built 10881ms exit:0 in
 pass/drops/runtime_nested_nominal_producer_loans_exit built 1496ms exit:0 interpreter-exit:0 interpreter:agrees @f0ed096e2456+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit built 1731ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
 pass/drops/runtime_nominal_array_replacement_exit built 1627ms exit:0 interpreter-exit:0 interpreter:agrees @11521b5d20fe+wt
-pass/drops/runtime_nominal_case_observation_exit built 12514ms exit:0 interpreter-exit:0 interpreter:agrees @f772dfc723fb+wt
+pass/drops/runtime_nominal_case_observation_exit built 2871ms exit:0 interpreter-exit:0 interpreter:agrees @fb1a2e2bda83
 pass/drops/runtime_nominal_cleanup_compound_contract_exit built 1721ms exit:0 interpreter-exit:0 interpreter:agrees @4cc11cbadf31+wt
 pass/drops/runtime_nominal_state_loan_alias_exit built 1571ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @e5a7f19e3929
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit built 1127ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @91cfec61d529+wt
