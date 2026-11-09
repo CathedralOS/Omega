@@ -825,6 +825,67 @@ pub(crate) mod conformance_scopes {
             self.static_operand_region_supplier(selected, source.lexical_owner)
         }
 
+        fn closed_conformance_region_supplier(
+            &self,
+            site: ClosedConformanceApplicationSite,
+            binding_application: StaticMachineApplicationHandle,
+            selected: &ClosedConformanceApplication,
+        ) -> Result<symbols::SymbolHandle, &'static str> {
+            use crate::static_applications::StaticMachineBindingValue;
+
+            let ClosedConformanceApplicationSite::Invocation {
+                specialization,
+                application: ordinal,
+            } = site
+            else {
+                return self.conformance_selection_region_supplier(binding_application);
+            };
+            let receipt = self
+                .machine_specializations
+                .get(specialization)
+                .ok_or("implementation capture lost its specialization receipt")?;
+            let source = self.static_machine_application(binding_application);
+            if receipt.binding_application != binding_application
+                || source.binding_declaration != receipt.template
+                || receipt.conformance_applications.get(ordinal) != Some(selected)
+                || receipt.conformance_arguments.get(ordinal) != Some(&selected.declaration)
+            {
+                return Err("implementation capture changed its retained specialization");
+            }
+            let parameter = self
+                .machine_by_symbol(receipt.template)
+                .and_then(|template| template.conformance_bounds.get(ordinal))
+                .ok_or("implementation capture lost its exact declaration parameter")?;
+            let mut bindings = self
+                .static_machine_application_bindings(binding_application)
+                .iter()
+                .filter(|binding| binding.parameter == parameter.binder);
+            let binding = bindings
+                .next()
+                .ok_or("implementation capture lost its exact supplied binding")?;
+            let StaticMachineBindingValue::Conformance(operand) = &binding.value else {
+                return Err("implementation capture changed its supplied operand role");
+            };
+            let configured = operand.application.as_deref();
+            if bindings.next().is_some()
+                || operand.symbol != selected.declaration
+                || configured.map_or(&[][..], |application| application.arguments.as_ref())
+                    != selected.arguments.as_ref()
+                || !configured
+                    .map_or(&[][..], |application| {
+                        application.lifetime_arguments.as_ref()
+                    })
+                    .iter()
+                    .map(|lifetime| lifetime.as_str())
+                    .eq(selected.lifetime_arguments.iter().map(String::as_str))
+            {
+                return Err("implementation capture changed its complete selected tuple");
+            }
+            // The instance header owns the call. Its captured implementation
+            // keeps the region supplier of the exact original operand.
+            self.static_operand_region_supplier(operand, source.lexical_owner)
+        }
+
         fn prepare_closed_conformance_scope(
             &mut self,
             site: ClosedConformanceApplicationSite,
@@ -840,7 +901,8 @@ pub(crate) mod conformance_scopes {
             let owner = self
                 .static_machine_application(binding_application)
                 .lexical_owner;
-            let supplier = self.conformance_selection_region_supplier(binding_application)?;
+            let supplier =
+                self.closed_conformance_region_supplier(site, binding_application, &application)?;
             let arguments = application
                 .arguments
                 .iter()
