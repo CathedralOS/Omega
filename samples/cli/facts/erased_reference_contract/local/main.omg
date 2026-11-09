@@ -6,8 +6,8 @@ requires witness == 7 && record.value == 7 { runtime }
 machine exercise(flag: bool) -> i32 {
     let runtime: i32 = match flag { true -> 41, false -> 42 };
     let value: i32 = 7;
-    let witness: &i32 = &value;
     let record: Witness = Witness { value: 7 };
+    let witness: &i32 = &value;
     keep(runtime, witness, &record)
 }
 machine verify(result: i32, flag: bool) crashes Trap {

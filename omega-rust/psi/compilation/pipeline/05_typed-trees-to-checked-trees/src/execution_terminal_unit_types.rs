@@ -1785,7 +1785,15 @@ mod parameters {
                     {
                         program.normalized_type_identity(parameter.type_reference)
                     } else {
-                        base_type_identity(program, parameter.type_reference, &[], &[])?
+                        base_type_identity(
+                            program,
+                            proof_only.contract_term_observation_type(
+                                program,
+                                parameter.type_reference,
+                            )?,
+                            &[],
+                            &[],
+                        )?
                     },
                 })
             })

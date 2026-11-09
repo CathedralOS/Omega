@@ -1661,6 +1661,11 @@ pub(crate) mod call_lowering {
         exact_integer_casts: &[validation::ExactIntegerCastFact],
         proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     ) -> Option<CheckedProofTerm> {
+        // Erasure carries the observed value, while the located argument and
+        // authored formal retain the shared reference and its loan obligations.
+        let expected_type = proof_only
+            .contract_term_observation_type(program, expected_type)
+            .unwrap_or(expected_type);
         if let Some(view) = program.prepared_mathematics() {
             if let Some(constructor) = view.source_constructor(expression)
                 && constructor.type_identity == program.normalized_type_identity(expected_type)
@@ -1877,9 +1882,18 @@ pub(crate) mod call_lowering {
                 }
                 let state = program.state_by_symbol(caller_state)?;
                 let (_, local) = program.state_local_declaration(state, symbol)?;
-                if !local.relevance.is_erased()
+                if local.is_mutable
                     || !local.initial_value.is_valid()
                     || !parameter_is_erased_proof(program, proof_only, local.type_reference)
+                {
+                    return None;
+                }
+                let local_observation = proof_only
+                    .contract_term_observation_type(program, local.type_reference)
+                    .unwrap_or(local.type_reference);
+                if !local.relevance.is_erased()
+                    && program.normalized_type_identity(local_observation)
+                        != program.normalized_type_identity(expected_type)
                 {
                     return None;
                 }

@@ -1,2 +1,4 @@
 cannot prove requires contract for call exercise
 witness == 7
+cannot prove requires contract for call keep_record
+record.value == 7

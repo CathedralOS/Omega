@@ -235,11 +235,42 @@ pub mod evidence {
                 program: &TypedTrees,
                 type_reference: TypeReferenceHandle,
             ) -> bool {
+                self.contract_term_observation_type(program, type_reference)
+                    .is_some()
+            }
+
+            /// A shared reference supplies a proof-side observation of its referent,
+            /// while the original binding still owns type, scope and loan checking.
+            /// This selects no executable descriptor or read, and does not admit
+            /// mutable references or storage-bearing fields into a contract term.
+            pub fn contract_term_observation_type(
+                &self,
+                program: &TypedTrees,
+                type_reference: TypeReferenceHandle,
+            ) -> Option<TypeReferenceHandle> {
                 if self.proof_only_mention(program, type_reference).is_some() {
-                    return true;
+                    return Some(type_reference);
                 }
                 let mut visiting = Vec::new();
-                self.closed_contract_carrier(program, type_reference, &mut visiting)
+                if self.closed_contract_carrier(program, type_reference, &mut visiting) {
+                    return Some(type_reference);
+                }
+                if !program
+                    .type_reference_table
+                    .contains_type_reference(type_reference)
+                {
+                    return None;
+                }
+                let TypeReferenceNode::Reference {
+                    referee,
+                    access: language_core::ReferenceAccess::Shared,
+                    ..
+                } = program.type_reference_table.type_reference(type_reference)
+                else {
+                    return None;
+                };
+                self.closed_contract_carrier(program, *referee, &mut visiting)
+                    .then_some(*referee)
             }
 
             fn closed_contract_carrier(

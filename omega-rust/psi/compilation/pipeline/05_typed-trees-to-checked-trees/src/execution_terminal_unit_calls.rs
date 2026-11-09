@@ -354,7 +354,9 @@ mod argument_paths {
         ) {
             Some(program.normalized_type_identity(type_reference))
         } else {
-            base_type_identity(program, type_reference, &[], &[])
+            let observation = validation::proof_only_classification(program)
+                .contract_term_observation_type(program, type_reference)?;
+            base_type_identity(program, observation, &[], &[])
         }
     }
 
