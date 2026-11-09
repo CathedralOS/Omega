@@ -423,7 +423,9 @@ mod mathematical_signature {
                             // Capture the complete evaluated value. Splitting a fixed
                             // Wrapping computation into source leaves would silently
                             // replace its denotation with unbounded arithmetic.
-                            let domain = self.elaborate_source_subject_type(reference, expected)?;
+                            let observation_type =
+                                self.source_subject_observation_type(reference, expected);
+                            let domain = self.elaborate_source_operand_type(observation_type)?;
                             // A relation may name an existing value without
                             // constructing or duplicating its runtime resource. A
                             // mathematical value actual still owes its constructor
@@ -444,6 +446,7 @@ mod mathematical_signature {
                             captures.push(super::PreparedCapture {
                                 expression: operand,
                                 source_type: reference,
+                                observation_type,
                             });
                         } else {
                             children(self.program, node, |child| pending.push((child, None)));
@@ -4168,11 +4171,11 @@ mod mathematical_signature {
                 self.elaborate_source_operand_type(observed)
             }
 
-            pub(super) fn elaborate_source_subject_type(
-                &mut self,
+            pub(super) fn source_subject_observation_type(
+                &self,
                 declared: TypeReferenceHandle,
                 expected: Option<TypeReferenceHandle>,
-            ) -> Result<TermHandle, Vec<Diagnostic>> {
+            ) -> TypeReferenceHandle {
                 if let Some(expected) = expected
                     && let Some(observed) =
                         validation::mathematical_applications::subject_observation_type_reference(
@@ -4181,9 +4184,13 @@ mod mathematical_signature {
                             expected,
                         )
                 {
-                    return self.elaborate_source_operand_type(observed);
+                    return observed;
                 }
-                self.elaborate_source_value_type(declared)
+                validation::mathematical_applications::scalar_observation_type_reference(
+                    self.program,
+                    declared,
+                )
+                .unwrap_or(declared)
             }
 
             fn scalar_operand_carrier(

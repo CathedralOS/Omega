@@ -57111,7 +57111,7 @@ pub(crate) mod structural_judgment {
                             self.program,
                             None,
                             Some((owner, parameters)),
-                            capture,
+                            capture.expression,
                             None,
                         )?;
                         Some(Self::substitute_call_term(
@@ -68473,7 +68473,7 @@ pub(crate) mod structural_judgment {
                                     expression,
                                     |capture| {
                                         self.bound_contract_term(
-                                            capture,
+                                            capture.expression,
                                             scope,
                                             parameters,
                                             callable,
@@ -80634,7 +80634,23 @@ pub(crate) mod structural_judgment {
                 return super::structural_terms::mathematical_application_term(
                     program,
                     expression,
-                    |capture| child_term!(capture),
+                    |capture| {
+                        let selected_read = crate::reference_shell(program, capture.source_type)
+                            .is_some()
+                            && program
+                                .primitive_type_reference(capture.observation_type)
+                                .is_some();
+                        if selected_read
+                            && let Some(value) = self.stored_value_observation(
+                                scope.map(|(machine, state, _)| (machine, state)),
+                                capture.expression,
+                                |selector| child_term!(selector),
+                            )
+                        {
+                            return Some(value);
+                        }
+                        child_term!(capture.expression)
+                    },
                 );
             }
             if let Some(value) = super::proof_integer::anonymous_integer_value(program, expression)
@@ -84445,8 +84461,8 @@ pub(crate) mod structural_terms {
     pub(crate) mod mathematical {
         use super::StructuralTerm;
         use crate::mathematical_applications::{
-            PreparedApplication, PreparedConstantMeaning, PreparedMathematicalView,
-            PreparedSourceBinding, PreparedSourceBindingKind,
+            PreparedApplication, PreparedCapture, PreparedConstantMeaning,
+            PreparedMathematicalView, PreparedSourceBinding, PreparedSourceBindingKind,
         };
         use numerics::literals::FloatLiteral;
         use proof_admission::{Term, TermHandle};
@@ -84455,7 +84471,7 @@ pub(crate) mod structural_terms {
         pub(crate) fn application_term(
             program: &dyn crate::CheckingInput,
             expression: ExpressionHandle,
-            mut observe: impl FnMut(ExpressionHandle) -> Option<StructuralTerm>,
+            mut observe: impl FnMut(&PreparedCapture) -> Option<StructuralTerm>,
         ) -> Option<StructuralTerm> {
             let view = program.prepared_mathematics()?;
             let application = view.application(expression)?;
@@ -84465,15 +84481,41 @@ pub(crate) mod structural_terms {
                 .span_or_empty(application.captures)
                 .iter()
                 .map(|capture| {
-                    let value = observe(capture.expression)?;
-                    let value = if program
-                        .primitive_type_reference(capture.source_type)
-                        .is_some_and(|primitive| {
-                            primitive.is_fixed_integer()
-                                || primitive == typed_trees::types::PrimitiveType::Addr
-                        }) {
+                    let mut value = observe(capture)?;
+                    let mut value_type = capture.source_type;
+                    if crate::reference_shell(program, capture.source_type).is_some()
+                        && program
+                            .primitive_type_reference(capture.observation_type)
+                            .is_some()
+                    {
+                        crate::mathematical_applications::subject_observation_type_reference(
+                            program,
+                            capture.source_type,
+                            capture.observation_type,
+                        )?;
+                        if !super::scalar_operand_is_observed(program, capture.source_type, &value)
+                        {
+                            return None;
+                        }
+                        // This receives an existing checked read. A descriptor
+                        // alone cannot acquire the selected scalar carrier.
+                        value = super::owned_projection_observation(
+                            program,
+                            capture.observation_type,
+                            value.into_semantic_value(),
+                        );
+                        value_type = capture.observation_type;
+                    }
+                    let embeds_integer =
+                        program
+                            .primitive_type_reference(value_type)
+                            .is_some_and(|primitive| {
+                                primitive.is_fixed_integer()
+                                    || primitive == typed_trees::types::PrimitiveType::Addr
+                            });
+                    let value = if embeds_integer {
                         StructuralTerm::IntegerEmbedding {
-                            reference: capture.source_type,
+                            reference: value_type,
                             value: Box::new(value),
                         }
                     } else if crate::reference_shell(program, capture.source_type).is_none()
@@ -87173,7 +87215,7 @@ pub(crate) mod structural_terms {
             ExpressionNode::Call(call) => {
                 if crate::mathematical_applications::is_mathematical_call(program, call) {
                     return mathematical_application_term(program, expression, |capture| {
-                        structural_term(program, scope, frame, capture, bindings)
+                        structural_term(program, scope, frame, capture.expression, bindings)
                     });
                 }
                 let target = structural_call_target_in_frame(program, call, frame);

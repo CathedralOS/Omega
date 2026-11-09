@@ -1744,8 +1744,12 @@ pub mod mathematical_applications {
                     .checked_sub(index as usize + 1)
                     .ok_or("canonical content Id subject is outside its capture telescope")?;
                 let value = &captures[position];
-                let observed = crate::expression_types_and_fields::expression_types::scalar_observations::readable_observation_type_reference(program, value.source_type)
-                    .ok_or("canonical content Id subject has no readable source value")?;
+                let observed = super::subject_observation_type_reference(
+                    program,
+                    value.source_type,
+                    value.observation_type,
+                )
+                .ok_or("canonical content Id subject has no readable source value")?;
                 if identity.type_identity != program.normalized_type_identity(observed) {
                     return Err("canonical content Id subject lost its exact source carrier");
                 }
@@ -2863,6 +2867,9 @@ pub mod mathematical_applications {
         pub struct PreparedCapture {
             pub expression: ExpressionHandle,
             pub source_type: TypeReferenceHandle,
+            /// The value domain selected during formation; the original source
+            /// still supplies access, backing and storage version obligations.
+            pub observation_type: TypeReferenceHandle,
         }
 
         /// Exact source carrier carried by one emitted checked identity value.
