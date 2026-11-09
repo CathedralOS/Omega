@@ -1618,10 +1618,12 @@ pub mod trait_definition {
                     self.substitution_scope_starts.insert(0, 0);
                     self.region_scopes.insert(0, region);
                     for frame in enclosing {
+                        // Untyped bindings remain unresolved. They cannot close a
+                        // demanded trait operand, but unrelated traits still form.
                         let arguments = frame
                             .bindings
                             .iter()
-                            .map(|binding| {
+                            .filter_map(|binding| {
                                 use crate::static_applications::StaticMachineBindingValue;
                                 let reference = match &binding.value {
                                     StaticMachineBindingValue::Type(reference)
@@ -1636,7 +1638,7 @@ pub mod trait_definition {
                                     .is_valid()
                                     .then_some((binding.parameter, reference))
                             })
-                            .collect::<Option<Vec<_>>>()?;
+                            .collect::<Vec<_>>();
                         let region = invocation_region_scope(
                             program,
                             frame.declaration,
