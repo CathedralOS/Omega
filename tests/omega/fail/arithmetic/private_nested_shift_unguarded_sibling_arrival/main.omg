@@ -1,0 +1,22 @@
+// A private nested helper may assume only what every incoming edge proves.
+// `calculate` has two arrivals: the guarded arm proves `count < 64`, but the
+// sibling arm passes the count unchecked, so the joined entry range still
+// admits 64 and the exact shift must be refused.
+machine shift(count: u32, checked: bool) -> u64 {
+    transition checked {
+        true -> guarded(count)
+        false -> calculate(count)
+    }
+    machine guarded(count: u32) -> u64 {
+        transition count < 64u32 {
+            true -> calculate(count)
+            false -> empty()
+        }
+    }
+    machine calculate(count: u32) -> u64 { 1u64 << count }
+    machine empty() -> u64 { 0 }
+}
+
+machine main() {
+    let selected: u64 = shift(3u32, true);
+}

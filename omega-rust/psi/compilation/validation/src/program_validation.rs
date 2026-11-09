@@ -4292,7 +4292,16 @@ fn validate<'program>(
             );
             let mut value_environment = {
                 if state_index == 0 {
-                    arithmetic_domains::requires_value_environment(program, machine, state)
+                    let mut environment =
+                        arithmetic_domains::requires_value_environment(program, machine, state);
+                    arithmetic_domains::seed_private_nested_entry(
+                        program,
+                        machine,
+                        state,
+                        call_frames.as_ref(),
+                        &mut environment,
+                    );
+                    environment
                 } else {
                     incoming_environments
                         .get_or_insert_with(|| {

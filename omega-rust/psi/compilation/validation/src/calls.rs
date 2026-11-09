@@ -39042,12 +39042,12 @@ pub(crate) mod write_frames {
     };
     pub(crate) use call_targets::free_machine_entry_state;
     pub(crate) use call_targets::machine_state_by_symbol;
-    pub(crate) use caller_aliases::expression_has_calls;
     pub use caller_aliases::{
         AssignmentStorageOrigins, AssignmentWriteTarget, CallWriteOrigins, InvocationResultHome,
         LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
         ReferenceResultTransport, ReferenceViewFormation,
     };
+    pub(crate) use caller_aliases::{expression_any, expression_has_calls};
     pub use demand::CallFrameTables;
     pub(crate) use demand::CapturedStorageReadBacking;
     pub(crate) use demand::statement_value_expression_roots;
@@ -39765,7 +39765,7 @@ pub use write_frames::{
 };
 pub(crate) use write_frames::{CallFrameCaches, InvocationEntrySubject};
 pub(crate) use write_frames::{
-    boundary_trait_signature, expression_has_calls, free_machine_entry_state,
+    boundary_trait_signature, expression_any, expression_has_calls, free_machine_entry_state,
     statement_value_expression_roots,
 };
 pub(crate) use write_frames::{

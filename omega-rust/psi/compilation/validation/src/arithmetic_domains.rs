@@ -10948,6 +10948,357 @@ pub(crate) mod guard_narrowing {
             current
         }
 
+        /*
+            A private nested machine's entry ranges, joined from every incoming edge.
+
+            A retired `state` read its predecessor's guard as an incoming fact. Its
+            nested-machine replacement has its own entry, and an ordinary entry may
+            assume only its `requires`, because any caller may invoke it. A private
+            nested machine has no such open caller set: lexical scope fixes its
+            callers, so the spec's admissible private inference may seed its entry
+            with what every actual incoming edge proves about each argument
+            (`assembly.md`: "every actual incoming edge must justify any inferred
+            requirement").
+
+            Each caller's arguments are evaluated in that caller's own ordinary
+            environment, never in one seeded by this function, so the analysis is
+            one level deep and cannot recurse; a weaker caller environment, or an
+            argument the walk leaves unbounded, only widens the joined interval.
+            Only interval bounds cross the edge: a caller's relational recipe names
+            the caller's frame. This fails closed: any reference other than a
+            terminal transition target (an ordinary or statement call, a call in a
+            contract, a static machine argument, a name used as a value), or any
+            machine shape outside the private single-state checked body, leaves
+            the entry with its `requires` alone.
+        */
+        pub(crate) fn private_nested_entry_actuals(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            frames: Option<&CallFrameResolver>,
+        ) -> Option<Vec<(SymbolHandle, Interval)>> {
+            let states = program.machine_states(machine);
+            let [entry] = states else {
+                return None;
+            };
+            if machine.is_public
+                || machine.target_family_interface
+                || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || !machine.type_parameters.is_empty()
+            {
+                return None;
+            }
+            let enclosing = program.symbols.get(machine.symbol).parent;
+            let enclosing_symbol = program.symbols.get(enclosing);
+            let lexically_nested = program.machine_position_by_symbol(enclosing).is_some()
+                || enclosing_symbol.kind == symbols::SymbolKind::State
+                    && program
+                        .machine_position_by_symbol(enclosing_symbol.parent)
+                        .is_some();
+            if !lexically_nested {
+                return None;
+            }
+            let target = machine.symbol;
+            /* A call target may name the machine or its entry state. */
+            let resolves_to_target = |symbol: SymbolHandle| {
+                symbol == target
+                    || crate::machine_calls::calls::machine_state_by_symbol(program, symbol)
+                        .is_some_and(|(callee, _)| callee.symbol == target)
+            };
+            let names_target = |path: &typed_trees::expression::TableNamePath| {
+                resolves_to_target(path.symbol)
+                    || resolves_to_target(path.head_symbol)
+                    || program
+                        .expression_table
+                        .name_path_member_symbols(path.member_symbols)
+                        .iter()
+                        .any(|symbol| resolves_to_target(*symbol))
+            };
+            let names_in_static_arguments =
+                |arguments: &[typed_trees::expression::StaticMachineArgument]| {
+                    arguments
+                        .iter()
+                        .any(|argument| resolves_to_target(argument.symbol))
+                };
+            /*
+                Name and static-argument references are scanned over the whole
+                table: a stale clone can only refuse. Call targets are judged by
+                the live call-site walk below, because typing keeps rewritten
+                copies of call expressions that no reachable statement uses.
+            */
+            for node in program.expression_table.expression_nodes() {
+                let referenced = match node {
+                    ExpressionNode::Call(call) => {
+                        resolves_to_target(call.static_machine_parameter)
+                            || names_in_static_arguments(&call.machine_arguments)
+                    }
+                    ExpressionNode::Name(path) => names_target(path),
+                    _ => false,
+                };
+                if referenced {
+                    return None;
+                }
+            }
+
+            /* A specification-position call is not an incoming runtime edge. */
+            let calls_target = |root: ExpressionHandle| {
+                crate::machine_calls::calls::expression_any(program, root, |expression| {
+                    matches!(
+                        program.expression_table.expression(expression),
+                        ExpressionNode::Call(call) if resolves_to_target(call.target_symbol)
+                    )
+                })
+            };
+            for owner in program.machines() {
+                for contract in program.machine_contracts(owner) {
+                    for fact in program.proof_facts.span_or_empty(contract.facts) {
+                        if let typed_trees::domain::ProofFact::Expression(expression) = fact
+                            && calls_target(*expression)
+                        {
+                            return None;
+                        }
+                    }
+                }
+            }
+
+            /*
+                Incoming edges are terminal transition targets: a named target, or a
+                value target that is exactly a call of this machine. Any other call
+                position (a statement call, a call inside a larger expression)
+                refuses, since its argument occurrence is not modeled here.
+            */
+            enum Site {
+                Named(typed_trees::statement::TransitionTargetHandle),
+                Value(arena::HandleSpan<ExpressionHandle>),
+            }
+            let mut sites = Vec::new();
+            let mut value_calls = Vec::new();
+            let mut named_sites = 0usize;
+            for caller in program.machines() {
+                for (state_index, state) in program.machine_states(caller).iter().enumerate() {
+                    let statements = program.statement_table.statements(state.statement_nodes);
+                    for statement in statements {
+                        let Some(transition) = statement.as_transition() else {
+                            continue;
+                        };
+                        for handle in transition.targets() {
+                            match program.statement_table.transition_target(handle) {
+                                TransitionTargetNode::Named {
+                                    path,
+                                    static_machine_parameter,
+                                    evidence_arguments,
+                                    ..
+                                } if resolves_to_target(path.symbol) => {
+                                    if static_machine_parameter.is_valid()
+                                        || !evidence_arguments.is_empty()
+                                    {
+                                        return None;
+                                    }
+                                    sites.push((caller, state_index, state, Site::Named(handle)));
+                                }
+                                TransitionTargetNode::Value(expression) => {
+                                    if let ExpressionNode::Call(call) =
+                                        program.expression_table.expression(*expression)
+                                        && resolves_to_target(call.target_symbol)
+                                    {
+                                        if call.receiver.is_valid()
+                                            || !call.evidence_arguments.is_empty()
+                                        {
+                                            return None;
+                                        }
+                                        value_calls.push(*expression);
+                                        sites.push((
+                                            caller,
+                                            state_index,
+                                            state,
+                                            Site::Value(call.arguments),
+                                        ));
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+            for caller in program.machines() {
+                for state in program.machine_states(caller) {
+                    let statements = program.statement_table.statements(state.statement_nodes);
+                    for statement_index in 0..statements.len() {
+                        for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+                            program,
+                            caller,
+                            state,
+                            statement_index,
+                        ) {
+                            let refused = match site {
+                                crate::machine_calls::calls::CallSite::Statement(call) => {
+                                    resolves_to_target(call.target_symbol)
+                                        || resolves_to_target(call.static_machine_parameter)
+                                        || names_in_static_arguments(&call.machine_arguments)
+                                }
+                                crate::machine_calls::calls::CallSite::Expression {
+                                    expression,
+                                    call,
+                                } => {
+                                    (resolves_to_target(call.target_symbol)
+                                        && !value_calls.contains(&expression))
+                                        || resolves_to_target(call.static_machine_parameter)
+                                        || names_in_static_arguments(&call.machine_arguments)
+                                }
+                                crate::machine_calls::calls::CallSite::TransitionNamed {
+                                    path,
+                                    ..
+                                } => {
+                                    if resolves_to_target(path.symbol) {
+                                        named_sites += 1;
+                                    }
+                                    false
+                                }
+                            };
+                            if refused {
+                                return None;
+                            }
+                        }
+                    }
+                }
+            }
+            let expected_named = sites
+                .iter()
+                .filter(|(_, _, _, site)| matches!(site, Site::Named(_)))
+                .count();
+            if sites.is_empty() || expected_named != named_sites {
+                return None;
+            }
+
+            let parameters = program.state_parameters(entry);
+            let mut joined: Vec<Option<Interval>> = vec![None; parameters.len()];
+            let mut join = |position: usize, interval: Interval| {
+                joined[position] = Some(match joined[position] {
+                    None => interval,
+                    Some(previous) => previous.union(interval),
+                });
+            };
+            let root_ranges = ReturnInference::default();
+            for (caller, state_index, state, site) in sites {
+                let mut environment = if state_index == 0 {
+                    super::requires_value_environment(program, caller, state)
+                } else {
+                    incoming_guard_environment(program, caller, state, frames)
+                };
+                let arguments = match &site {
+                    Site::Value(arguments) => program
+                        .expression_table
+                        .expression_handles(*arguments)
+                        .to_vec(),
+                    Site::Named(_) => Vec::new(),
+                };
+                if arguments.len() != parameters.len() && matches!(site, Site::Value(_)) {
+                    return None;
+                }
+                let mut observations = match site {
+                    Site::Named(handle) => vec![ExpressionObservation::invocation(handle)],
+                    Site::Value(_) => arguments
+                        .iter()
+                        .map(|argument| ExpressionObservation::bounds(*argument))
+                        .collect(),
+                };
+                observations.sort_unstable_by_key(ExpressionObservation::key);
+                observations.dedup_by_key(|observation| observation.key());
+                let mut walk = ArrivalWalk {
+                    program,
+                    machine: caller,
+                    frames,
+                    arrivals: Vec::new(),
+                    observations,
+                    completed_children: Default::default(),
+                    return_ranges: Some(&root_ranges),
+                    collect_arrivals: false,
+                };
+                /* `false` only reports that control leaves through a terminal arm. */
+                let _falls_through = walk.state(state, &mut environment);
+                match site {
+                    Site::Named(_) => {
+                        let ValueObservationSite::Invocation { arrivals, .. } =
+                            &walk.observations.first()?.site
+                        else {
+                            return None;
+                        };
+                        if arrivals.is_empty() {
+                            return None;
+                        }
+                        for arrival in arrivals {
+                            if arrival.len() != parameters.len() {
+                                return None;
+                            }
+                            for (position, (interval, _)) in arrival.iter().enumerate() {
+                                join(position, *interval);
+                            }
+                        }
+                    }
+                    Site::Value(_) => {
+                        for (position, argument) in arguments.iter().enumerate() {
+                            /* An argument the walk did not bound is unbounded. */
+                            let interval = walk
+                                .observations
+                                .iter()
+                                .find(|observation| observation.expression() == Some(*argument))
+                                .and_then(|observation| observation.interval)
+                                .unwrap_or(Interval::UNBOUNDED);
+                            join(position, interval);
+                        }
+                    }
+                }
+            }
+            let actuals = parameters
+                .iter()
+                .zip(joined)
+                .filter_map(|(parameter, joined)| {
+                    let interval = joined?;
+                    (!parameter.is_const
+                        && !parameter.is_mutable
+                        && program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some())
+                    .then_some((parameter.symbol, interval))
+                })
+                .collect::<Vec<_>>();
+            (!actuals.is_empty()).then_some(actuals)
+        }
+
+        /*
+            Narrow an entry environment by its private incoming-edge actuals, the same
+            way an invocation seeds `incoming_environments`' external entry.
+        */
+        pub(crate) fn seed_private_nested_entry(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            entry: &State,
+            frames: Option<&CallFrameResolver>,
+            environment: &mut ValueEnvironment,
+        ) {
+            let Some(actuals) = private_nested_entry_actuals(program, machine, frames) else {
+                return;
+            };
+            for parameter in program.state_parameters(entry) {
+                let Some(carrier) = program
+                    .primitive_type_reference(parameter.type_reference)
+                    .and_then(super::super::primitive_range)
+                else {
+                    continue;
+                };
+                let Some((_, actual)) = actuals
+                    .iter()
+                    .find(|(symbol, _)| *symbol == parameter.symbol)
+                else {
+                    continue;
+                };
+                environment.narrow(
+                    parameter.name.as_str().to_owned(),
+                    carrier.intersect(*actual),
+                );
+            }
+        }
+
         pub(crate) enum ValueObservationSite {
             Expression(ExpressionHandle),
             Invocation {
@@ -26775,6 +27126,7 @@ pub(crate) use cited_element_bounds::{
 pub(crate) use expression_analysis::ArithmeticDecisions;
 pub(crate) use float_arithmetic::float_source_proves_integer_conversion;
 pub(crate) use float_arithmetic::{FloatSourceBounds, float_source_bounds};
+pub(crate) use guard_narrowing::arrivals::seed_private_nested_entry;
 pub use guard_narrowing::{
     OccurrenceIntegerBounds, arrival_integer_expression_bounds,
     occurrence_collection_footprint_fits, occurrence_integer_bounds,
