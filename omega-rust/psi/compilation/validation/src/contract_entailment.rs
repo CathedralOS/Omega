@@ -47714,14 +47714,42 @@ pub(crate) mod structural_judgment {
         pub(crate) struct ConditionalGuarantees {
             pub(crate) conditions: Vec<(ObservedCondition, bool)>,
             pub(crate) equations: Vec<CapturedResultEquation>,
+            pub(crate) conclusions: Vec<(ObservedCondition, bool)>,
         }
 
         impl ConditionalGuarantees {
+            pub(crate) fn boolean_comparison(
+                left: ObservedCondition,
+                right: ObservedCondition,
+                equal: bool,
+            ) -> Vec<Self> {
+                let mut guarantees = Vec::with_capacity(4);
+                for (condition, conclusion) in [(left.clone(), right.clone()), (right, left)] {
+                    for holds in [false, true] {
+                        guarantees.push(Self {
+                            conditions: vec![(condition.clone(), holds)],
+                            equations: Vec::new(),
+                            conclusions: vec![(
+                                conclusion.clone(),
+                                if equal { holds } else { !holds },
+                            )],
+                        });
+                    }
+                }
+                guarantees
+            }
+
             pub(crate) fn same_guarantee(&self, other: &Self) -> bool {
                 self.conditions.len() == other.conditions.len()
                     && self.conditions.iter().zip(&other.conditions).all(
                         |((condition, holds), (other, other_holds))| {
                             holds == other_holds && condition.same_condition(other)
+                        },
+                    )
+                    && self.conclusions.len() == other.conclusions.len()
+                    && self.conclusions.iter().zip(&other.conclusions).all(
+                        |((conclusion, holds), (other, other_holds))| {
+                            holds == other_holds && conclusion.same_condition(other)
                         },
                     )
                     && self.equations.len() == other.equations.len()
@@ -47774,6 +47802,9 @@ pub(crate) mod structural_judgment {
                         if selected.peek() == Some(&ordinal) {
                             selected.next();
                             self.intake_normal_call_equations(guarantee.equations.clone());
+                            for (conclusion, holds) in &guarantee.conclusions {
+                                conclusion.assume(self, *holds);
+                            }
                         } else {
                             remaining.push(guarantee.clone());
                         }
@@ -47806,6 +47837,7 @@ pub(crate) mod structural_judgment {
                 ConditionalGuarantees {
                     conditions: vec![(ObservedCondition::Equal(named(guard), integer(1)), true)],
                     equations: vec![CapturedResultEquation::public((named(output), integer(1)))],
+                    conclusions: Vec::new(),
                 }
             }
 
@@ -47841,6 +47873,49 @@ pub(crate) mod structural_judgment {
                     StructuralJudgment::Unknown
                 ));
                 assert!(!selected.has_no_new_effects_or_guarantees_since(&pending));
+            }
+
+            #[test]
+            fn boolean_comparison_preserves_both_directions_without_self_support() {
+                let program = TypedTrees::default();
+                for equal in [false, true] {
+                    for reverse in [false, true] {
+                        for holds in [false, true] {
+                            let mut judge = StructuralJudge::from_declaration_requires(
+                                &program,
+                                SymbolHandle::invalid(),
+                                &[],
+                                &[],
+                                true,
+                            );
+                            judge.retain_conditional_guarantees(
+                                ConditionalGuarantees::boolean_comparison(
+                                    ObservedCondition::Predicate(named("left")),
+                                    ObservedCondition::Predicate(named("right")),
+                                    equal,
+                                ),
+                            );
+                            for side in ["left", "right"] {
+                                assert!(matches!(
+                                    judge.judge_observed_predicate(named(side), 0),
+                                    StructuralJudgment::Unknown
+                                ));
+                            }
+                            let (source, target) = if reverse {
+                                ("right", "left")
+                            } else {
+                                ("left", "right")
+                            };
+                            judge.intake_equation(named(source), StructuralTerm::boolean(holds), 0);
+                            let expected = if equal { holds } else { !holds };
+                            assert!(matches!(
+                                (judge.judge_observed_predicate(named(target), 0), expected),
+                                (StructuralJudgment::Proven, true)
+                                    | (StructuralJudgment::Refuted, false)
+                            ));
+                        }
+                    }
+                }
             }
 
             #[test]
@@ -62223,6 +62298,7 @@ pub(crate) mod structural_judgment {
                                 true,
                             )],
                             equations,
+                            conclusions: Vec::new(),
                         });
                     }
                     Some(guarantees)
@@ -68262,7 +68338,7 @@ pub(crate) mod structural_judgment {
                     })
                 }
 
-                fn bound_observed_condition(
+                pub(super) fn bound_observed_condition(
                     &self,
                     expression: ExpressionHandle,
                     scope: SymbolHandle,
@@ -68415,6 +68491,7 @@ pub(crate) mod structural_judgment {
                                 conditional.push(ConditionalGuarantees {
                                     conditions: conditions.clone(),
                                     equations,
+                                    conclusions: Vec::new(),
                                 });
                             }
                         }
@@ -70225,6 +70302,50 @@ pub(crate) mod structural_judgment {
             }
             let binary = program.expression_table.binary_node(expression);
             if let Some(binary) = binary
+                && matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                )
+                && super::super::structural_terms::builtin_identity_operand_references(
+                    program, scope, parameters, expression,
+                )
+                .is_some_and(|references| {
+                    references.iter().all(|reference| {
+                        program.primitive_type_reference(*reference)
+                            == Some(typed_trees::types::PrimitiveType::Bool)
+                    })
+                })
+            {
+                let mut operand = |judge: &StructuralJudge<'_>, operand| {
+                    bound_contract_operation_term(
+                        judge,
+                        machine_bindings,
+                        operand,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        type_bindings,
+                        result,
+                        depth + 1,
+                    )
+                };
+                if let (Some(left), Some(right)) = (
+                    judge.bound_observed_condition(binary.left, scope, parameters, &mut operand),
+                    judge.bound_observed_condition(binary.right, scope, parameters, &mut operand),
+                ) {
+                    // A published equivalence licenses either conclusion only
+                    // after the caller independently knows the other truth value.
+                    conditional.extend(
+                        super::conditional_guarantees::ConditionalGuarantees::boolean_comparison(
+                            left,
+                            right,
+                            binary.operator == BinaryOperator::Equal,
+                        ),
+                    );
+                }
+            }
+            if let Some(binary) = binary
                 && binary.operator == BinaryOperator::And
             {
                 capture_guarantees(
@@ -70305,6 +70426,67 @@ pub(crate) mod structural_judgment {
                 }
                 if selected {
                     return;
+                }
+                let mut operand = |judge: &StructuralJudge<'_>, operand| {
+                    bound_contract_operation_term(
+                        judge,
+                        machine_bindings,
+                        operand,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        type_bindings,
+                        result,
+                        depth + 1,
+                    )
+                };
+                if let Some(left) =
+                    judge.bound_observed_condition(binary.left, scope, parameters, &mut operand)
+                {
+                    // The right operand is formed only on the short-circuit path
+                    // where the left is false. Retain that same condition on every
+                    // consequence, including nested equivalences and payload reads.
+                    let mut right_path = judge.clone();
+                    left.assume(&mut right_path, false);
+                    let mut right_equations = Vec::new();
+                    let mut right_identities = Vec::new();
+                    let mut nested = Vec::new();
+                    capture_guarantees(
+                        &right_path,
+                        binary.right,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        type_bindings,
+                        machine_bindings,
+                        result,
+                        &mut right_equations,
+                        &mut right_identities,
+                        &mut nested,
+                        depth + 1,
+                    );
+                    let right_equations = right_equations
+                        .into_iter()
+                        .map(super::normal_returns::CapturedResultEquation::public)
+                        .chain(
+                            right_identities
+                                .into_iter()
+                                .map(super::normal_returns::CapturedResultEquation::data_identity),
+                        )
+                        .collect::<Vec<_>>();
+                    if !right_equations.is_empty() {
+                        conditional.push(super::conditional_guarantees::ConditionalGuarantees {
+                            conditions: vec![(left.clone(), false)],
+                            equations: right_equations,
+                            conclusions: Vec::new(),
+                        });
+                    }
+                    for mut guarantee in nested {
+                        guarantee.conditions.insert(0, (left.clone(), false));
+                        conditional.push(guarantee);
+                    }
                 }
             }
             // The compared expression and parameter declarations stay unchanged while
