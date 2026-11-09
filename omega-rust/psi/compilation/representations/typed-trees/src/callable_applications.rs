@@ -6216,72 +6216,7 @@ pub(crate) mod trait_scopes {
                 )
                 .and_then(|scope| scope.declaring_scope(self, dispatch.declaring_trait))
                 .ok_or("selected contract lost its complete invocation scope")?;
-            let (required_identity, selected_identity) =
-                if required.declaration.symbol == selected.declaration.symbol {
-                    (
-                        required.application_identity(self),
-                        selected.application_identity(self),
-                    )
-                } else {
-                    (None, None)
-                };
-            if !required_identity
-                .zip(selected_identity)
-                .is_some_and(|(required, selected)| required == selected)
-            {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                    let name = |symbol: SymbolHandle| {
-                        if symbol.is_valid() {
-                            self.symbols.name(symbol).to_owned()
-                        } else {
-                            String::from("<none>")
-                        }
-                    };
-                    let inputs = |scope: &AppliedTraitScope<'_>| {
-                        scope
-                            .substitutions
-                            .iter()
-                            .map(|(parameter, reference)| {
-                                let retained = self
-                                    .type_reference_table
-                                    .contains_type_reference(*reference)
-                                    .then(|| {
-                                        (
-                                            format!(
-                                                "{:?}",
-                                                self.type_reference_table
-                                                    .type_reference(*reference)
-                                            ),
-                                            name(
-                                                self.type_reference_table
-                                                    .operand_lifetime_owner(*reference),
-                                            ),
-                                        )
-                                    });
-                                (name(*parameter), *reference, retained)
-                            })
-                            .collect::<Vec<_>>()
-                    };
-                    eprintln!(
-                        "CHECKSITE selected-contract-map-mismatch caller={} template={} binder={} map={} requirement={} source_owner={} required_owner={} selected_owner={} expected={:?} actual={:?} bound_lifetimes={:?} selected_lifetimes={:?} required_frames={:?} selected_frames={:?} expected_inputs={:?} actual_inputs={:?}",
-                        name(owner),
-                        name(receipt.template),
-                        name(bound.binder),
-                        name(application.declaration),
-                        name(dispatch.requirement),
-                        name(source.lexical_owner),
-                        name(required.argument_owner),
-                        name(selected.argument_owner),
-                        required_identity.and_then(|identity| self.type_identity_text(identity)),
-                        selected_identity.and_then(|identity| self.type_identity_text(identity)),
-                        bound.lifetime_arguments,
-                        application.lifetime_arguments,
-                        required.substitution_scope_starts,
-                        selected.substitution_scope_starts,
-                        inputs(&required),
-                        inputs(&selected),
-                    );
-                }
+            if !required.same_application(self, &selected) {
                 return Err("selected map disagrees with its supplying evidence bound");
             }
             Ok(required)

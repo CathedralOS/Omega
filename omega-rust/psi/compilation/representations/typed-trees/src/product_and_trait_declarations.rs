@@ -1712,7 +1712,11 @@ pub mod trait_definition {
                                 self.parameter_application(parameter.symbol)?;
                             let supplying = &scopes[..outer + preceding];
                             if parameter.kind.is_const_or_value()
-                                || matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                                || matches!(
+                                    parameter.kind,
+                                    TypeParameterKind::Machine { .. }
+                                        | TypeParameterKind::Implementation
+                                )
                             {
                                 portable_applied_index_identity(
                                     program,
@@ -1767,6 +1771,7 @@ pub mod trait_definition {
                             TypeParameterKind::Const { .. }
                                 | TypeParameterKind::Value { .. }
                                 | TypeParameterKind::Machine { .. }
+                                | TypeParameterKind::Implementation
                         ) {
                             portable_applied_index_identity(
                                 program,
@@ -1834,7 +1839,11 @@ pub mod trait_definition {
                         .find(|binder| binder.symbol == parameter)?;
                     self.with_identity_scopes(program, |scopes| {
                         if binder.kind.is_const_or_value()
-                            || matches!(binder.kind, TypeParameterKind::Machine { .. })
+                            || matches!(
+                                binder.kind,
+                                TypeParameterKind::Machine { .. }
+                                    | TypeParameterKind::Implementation
+                            )
                         {
                             applied_index_identity(
                                 program,
@@ -1921,6 +1930,7 @@ pub mod trait_definition {
                                     TypeParameterKind::Const { .. }
                                         | TypeParameterKind::Value { .. }
                                         | TypeParameterKind::Machine { .. }
+                                        | TypeParameterKind::Implementation
                                 ) {
                                     applied_index_identity(
                                         program,
