@@ -4669,13 +4669,16 @@ pub(crate) mod value {
                     }
                     let operand = values.pop().ok_or("missing constant cast operand")?;
                     let result = match operand {
+                        /* `as` lands its complete anonymous operand explicitly,
+                        so the implicit-landing error is acknowledged and
+                        discarded; integrality and range still reject. */
                         Value::Anonymous(operand) => land_anonymous(
                             program,
                             context,
                             operand,
                             primitive(target)?,
                             &selected_arms,
-                            &mut warnings,
+                            &mut Vec::new(),
                         )?,
                         Value::Landed(source, value, _) => Value::Landed(
                             target,
@@ -4994,8 +4997,9 @@ pub(crate) mod value {
                 let source = shapes.pop().ok_or("missing constant cast operand type")?;
                 match source {
                 Shape::Anonymous(operand) => {
+                    // Explicit landing: see the matching evaluation step.
                     match_dispatch::validate_landing(
-                        program, context, operand, primitive(target)?, &mut warnings,
+                        program, context, operand, primitive(target)?, &mut Vec::new(),
                     )?;
                 }
                 Shape::Integer(source, _, _) if source == target
@@ -5981,9 +5985,7 @@ pub(crate) fn evaluate(
                 ));
             }
         };
-        for warning in warnings {
-            eprintln!("{warning}");
-        }
+        crate::report_evaluation_diagnostics(&warnings)?;
         syntax.type_references.retain_const_argument_normalization(
             argument,
             reference,
