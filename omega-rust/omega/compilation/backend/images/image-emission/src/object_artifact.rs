@@ -4713,22 +4713,46 @@ pub(crate) mod replay {
                         | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => return None,
                         terminal_psi::StructuralPathSegment::Field(identity) => {
                             let declaration = declarations.get(&structural_type)?;
-                            let terminal_psi::StructuralTypeShape::Record { fields, .. } =
-                                &declaration.shape
-                            else {
-                                return None;
+                            let (fields, common_layout) = match &declaration.shape {
+                                terminal_psi::StructuralTypeShape::Record { fields, .. } => {
+                                    (fields, None)
+                                }
+                                terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
+                                    let layout = replay_sum_layout(
+                                        fields,
+                                        cases,
+                                        &declarations,
+                                        &mut cache,
+                                        &mut active,
+                                    )?;
+                                    (fields, Some(layout))
+                                }
+                                _ => return None,
                             };
                             let mut field_offset = 0_u32;
                             let mut selected = None;
-                            for field in fields.iter().filter(|field| layout_field(field)) {
+                            for (field_position, field) in fields
+                                .iter()
+                                .filter(|field| !field.relevance.is_erased())
+                                .enumerate()
+                            {
+                                if !layout_field(field) {
+                                    continue;
+                                }
                                 let shape = replay_structural_field_shape(
                                     &field.field_type,
                                     &declarations,
                                     &mut cache,
                                     &mut active,
                                 )?;
-                                field_offset =
-                                    checked_align_up(field_offset, u32::from(shape.alignment))?;
+                                field_offset = match &common_layout {
+                                    Some(layout) => {
+                                        layout.common_fields.get(field_position)?.byte_offset
+                                    }
+                                    None => {
+                                        checked_align_up(field_offset, u32::from(shape.alignment))?
+                                    }
+                                };
                                 if field.identity == *identity {
                                     let nested = field.field_type.as_structural()?;
                                     selected = Some((nested, shape, field_offset));
