@@ -51469,7 +51469,7 @@ pub(crate) mod structural_judgment {
                 self.activate_conditional_guarantees();
             }
 
-            fn equation_inputs_are_observed(
+            pub(super) fn equation_inputs_are_observed(
                 &self,
                 left: &StructuralTerm,
                 right: &StructuralTerm,
