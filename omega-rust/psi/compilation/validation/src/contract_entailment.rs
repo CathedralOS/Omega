@@ -38258,6 +38258,11 @@ pub(crate) mod specification_calls {
                 owner: symbols::SymbolHandle,
                 call: &typed_trees::expression::TableCallExpression,
             ) -> Result<Option<String>, &'static str> {
+                // Contract parameters belong to an entry state; its exact
+                // containing machine owns the specialization receipt.
+                let owner = program
+                    .machine_holding_state(owner)
+                    .map_or(owner, |machine| machine.symbol);
                 if let Some(dispatch) = &call.static_requirement_dispatch {
                     let owner = if dispatch.selection_application.is_valid() {
                         expression_table(program)
@@ -69012,7 +69017,10 @@ pub(crate) mod structural_judgment {
                                     program, call,
                                 ),
                                 machine: structural_terms::structural_predicate_call_machine_name(
-                                    program, scope, call,
+                                    program,
+                                    scope,
+                                    call,
+                                    &[],
                                 )?,
                                 arguments,
                             })
@@ -80913,45 +80921,29 @@ pub(crate) mod structural_judgment {
             if !self.specification_terms {
                 return false;
             }
-            let closed =
-                crate::machine_calls::denotational_calls::selected_requirement_authored_body(
+            // Named and abstract selections use the same public value contract.
+            // A provider body cannot supply a missing guarantee on that view.
+            if let Some(super::specification_calls::SelectedCallContract::Signature(signature)) =
+                super::specification_calls::selected_call_contract(
                     self.program,
                     lexical_owner,
                     call,
-                );
-            if closed.is_none()
-                && let Some(super::specification_calls::SelectedCallContract::Signature(signature)) =
-                    super::specification_calls::selected_call_contract(
-                        self.program,
-                        lexical_owner,
-                        call,
-                    )
-                && crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
-                    self.program,
-                    signature,
                 )
             {
-                return true;
+                return crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
+                    self.program, signature,
+                );
             }
-            let target = closed.map_or_else(
-                || {
-                    super::structural_terms::structural_call_target(
-                        self.program,
-                        lexical_owner,
-                        call,
-                    )
-                },
-                |(_, entry)| entry.symbol,
-            );
+            if call.static_requirement_dispatch.is_some() {
+                return false;
+            }
+            let target =
+                super::structural_terms::structural_call_target(self.program, lexical_owner, call);
             let candidate = specification_application_candidate(
                 self.program,
                 self.machine_symbol,
                 target,
-                if closed.is_some() {
-                    &[]
-                } else {
-                    &call.machine_arguments
-                },
+                &call.machine_arguments,
                 self.frame_resolver(),
             );
             if super::struct_trace()
@@ -81479,28 +81471,27 @@ pub(crate) mod structural_judgment {
                                 |selected| selected.symbol,
                             )
                         }),
-                        selections: if realization.is_some() {
-                            Vec::new()
-                        } else {
-                            call.machine_arguments
+                        selections: super::structural_terms::structural_predicate_call_selections(
+                            program, call,
+                        )
+                        .iter()
+                        .map(|argument| {
+                            static_observations
+                                .machine_bindings
                                 .iter()
-                                .map(|argument| {
-                                    static_observations
-                                        .machine_bindings
-                                        .iter()
-                                        .find(|(symbol, _, _)| *symbol == argument.symbol)
-                                        .map_or_else(
-                                            || argument.clone(),
-                                            |(_, _, selected)| selected.clone(),
-                                        )
-                                })
-                                .collect()
-                        },
-                        machine: structural_call_machine_name(
-                            call.target.as_str(),
-                            &call.machine_arguments,
+                                .find(|(symbol, _, _)| *symbol == argument.symbol)
+                                .map_or_else(
+                                    || argument.clone(),
+                                    |(_, _, selected)| selected.clone(),
+                                )
+                        })
+                        .collect(),
+                        machine: super::structural_terms::structural_predicate_call_machine_name(
+                            program,
+                            scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
+                            call,
                             static_observations.machine_bindings,
-                        ),
+                        )?,
                         arguments,
                     })
                 }
@@ -87537,6 +87528,7 @@ pub(crate) mod structural_terms {
         program: &dyn crate::CheckingInput,
         owner: symbols::SymbolHandle,
         call: &typed_trees::expression::TableCallExpression,
+        machine_environment: &[(symbols::SymbolHandle, String, StaticMachineArgument)],
     ) -> Option<String> {
         // Selected predicates keep the complete typed map identity, including
         // its supplying regions, rather than a flattened namespace spelling.
@@ -87548,7 +87540,7 @@ pub(crate) mod structural_terms {
             structural_call_machine_name(
                 selected.as_deref().unwrap_or(call.target.as_str()),
                 &structural_predicate_call_selections(program, call),
-                &[],
+                machine_environment,
             )
         })
     }
@@ -87967,6 +87959,7 @@ pub(crate) mod structural_terms {
                                     |(owner, _)| owner,
                                 ),
                                 call,
+                                &[],
                             )?,
                             arguments,
                         });
