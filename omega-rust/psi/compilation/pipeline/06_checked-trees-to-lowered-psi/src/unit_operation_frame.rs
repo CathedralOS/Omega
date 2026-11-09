@@ -842,7 +842,6 @@ pub(crate) mod attached_unit {
             use crate::emission::operation_emission::buffer::structural_result_declaration;
             use crate::emission::operation_emission::place_declarations::operation_result_place;
             use crate::emission::structural_byte_sequence_store as byte_store;
-            use crate::expression_preparation::bindings::structural_paths::lower_argument_path;
             use checked_trees::{
                 CheckedByteSequenceValue, CheckedUnitStructuralArgumentSourcePlan as Source,
             };
@@ -976,34 +975,20 @@ pub(crate) mod attached_unit {
                     }
                     let (_, state) =
                         crate::shared::declarations::state_declaration(self.checked, self.state)?;
-                    let home = bindings
-                        .borrowed_structural_home(source, self.checked.state_parameters(state))?;
+                    let prepared = bindings.prepared_borrowed_argument(
+                        identities,
+                        self.checked,
+                        source,
+                        self.checked.state_parameters(state),
+                        self.structural_types.declarations(),
+                    )?;
+                    let home =
+                        prepared.emit(self.values, self.calls, self.next_value, self.operations)?;
                     let place = home.place;
-                    if source.path.is_empty() && home.path.is_empty() {
+                    if home.path.is_empty() {
                         return Ok(place);
                     }
-                    let fields = crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
-                        &self.evaluation.structural_parameters,
-                        self.structural_types.declarations(),
-                    );
-                    let mut selectors = parameters::mint_runtime_index_selectors(
-                        identities,
-                        std::slice::from_ref(source),
-                        &fields,
-                        &self.evaluation.contextual_bindings(),
-                        self.values.as_slice(),
-                        self.next_value,
-                        self.operations,
-                    )?
-                    .into_iter();
-                    let mut path = home.path;
-                    path.extend(lower_argument_path(
-                        identities,
-                        &source.path,
-                        Some(self.values.as_slice()),
-                        &mut selectors,
-                        Some(&mut *self.calls),
-                    )?);
+                    let path = home.path;
                     let destination = place_id(allocate_dense(self.next_place)?);
                     let producer = self.operations.allocate();
                     self.operations.push(Operation::unsuspended(
@@ -7246,9 +7231,13 @@ pub(crate) mod attached_unit {
                     | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                         let (_, state) =
                             crate::shared::declarations::state_declaration(checked, node.state)?;
-                        let home = bindings
-                            .borrowed_structural_home(source, checked.state_parameters(state))?;
-                        let root_type = bindings.structural_argument_type(&home).ok_or(
+                        let resolved = bindings.resolve_borrowed_argument(
+                            checked,
+                            source,
+                            checked.state_parameters(state),
+                        )?;
+                        let home = &resolved.source;
+                        let root_type = bindings.structural_argument_type(home).ok_or(
                             LoweringError::Unsupported(
                                 "computed observation lost its original source carrier",
                             ),
@@ -7256,12 +7245,11 @@ pub(crate) mod attached_unit {
                         let access = home.access;
                         let mut path = home
                             .path
-                            .into_iter()
+                            .iter()
+                            .cloned()
                             .map(PreparedStructuralPathSegment::Static)
                             .collect::<Vec<_>>();
-                        path.extend(structural_paths::prepare_structural_argument_path(
-                            identities, checked, source, root_type, types,
-                        )?);
+                        path.extend(resolved.prepare_path(identities, checked, root_type, types)?);
                         Ok(ComputedValueObservation {
                             root_type,
                             path,

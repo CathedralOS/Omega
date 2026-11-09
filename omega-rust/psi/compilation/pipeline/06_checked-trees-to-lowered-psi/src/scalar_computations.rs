@@ -2020,10 +2020,13 @@ pub(crate) mod computations {
                             self.checked,
                             site.state,
                         )?;
-                        let source = site.bindings.borrowed_structural_home(
+                        let resolved = site.bindings.resolve_borrowed_argument(
+                            self.checked,
                             argument,
                             self.checked.state_parameters(state),
                         )?;
+                        let source = &resolved.source;
+                        let argument = &resolved.argument;
                         if !terminal_psi::StructuralAccess::SharedBorrow.admits(source.access) {
                             return unsupported(
                                 "case observation requires readable source custody",
@@ -2039,8 +2042,9 @@ pub(crate) mod computations {
                             let expression = site.bindings.element_case_observation(
                                 identities,
                                 argument,
-                                &source,
+                                source,
                                 &identity.spelling(),
+                                resolved.captured_coordinate(),
                             )?;
                             return Ok(self.binding(
                                 input_types,
@@ -2055,7 +2059,7 @@ pub(crate) mod computations {
                         }
                         let structural_type = site
                             .bindings
-                            .structural_argument_type(&source)
+                            .structural_argument_type(source)
                             .ok_or(LoweringError::Unsupported(
                                 "case observation lost its established carrier",
                             ))?;
@@ -2068,7 +2072,7 @@ pub(crate) mod computations {
                                 &argument.path,
                                 &identity,
                             )?;
-                        let mut selected = source.path;
+                        let mut selected = source.path.clone();
                         selected.extend(path);
                         return Ok(self.binding(
                             input_types,
@@ -2885,6 +2889,7 @@ pub(crate) mod computations {
             #[allow(clippy::too_many_arguments)]
             pub(crate) fn structural_field(
                 &mut self,
+                identities: &mut terminal_psi::TerminalIdentityTableBuilder,
                 computation: checked_trees::CheckedScalarComputationHandle,
                 receiver_expression: typed_trees::expression::ExpressionHandle,
                 receiver: checked_trees::CheckedStructuralValueHandle,
@@ -2899,7 +2904,7 @@ pub(crate) mod computations {
                 target: usize,
                 site: &super::Site<'_>,
             ) -> Result<usize, LoweringError> {
-                let (machine, state) =
+                let (_, state) =
                     crate::shared::declarations::state_declaration(self.checked, site.state)?;
                 let CheckedScalarComputationKind::StructuralField { result_type, .. } =
                     value_facts(self.checked)
@@ -3004,9 +3009,10 @@ pub(crate) mod computations {
                     None => {
                         let binding = field_binding(self.fields, subject, field, primitive)?;
                         let home = observation_source(
+                            identities,
+                            self.checked,
                             binding,
                             site.bindings,
-                            machine,
                             self.checked.state_parameters(state),
                             subject,
                         )?;
@@ -4280,14 +4286,17 @@ pub(crate) mod computations {
         }
 
         fn observation_source(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            checked: &CheckedTrees,
             binding: &Binding,
             bindings: &storage::ScalarBindings,
-            _machine: &checked_trees::machine::Machine,
             parameters: &[checked_trees::signature::StateParameter],
             subject: &CheckedUnitStructuralArgumentPlan,
         ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
             Ok(match binding.loan_source {
-                Some(LoanedSource::Parameter(parameter_index)) => bindings.borrowed_structural_home(
+                Some(LoanedSource::Parameter(parameter_index)) => bindings.borrowed_structural_argument(
+                    identities,
+                    checked,
                     &CheckedUnitStructuralArgumentPlan {
                         projection_evaluations: Default::default(),
                         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
@@ -4299,7 +4308,9 @@ pub(crate) mod computations {
                     },
                     parameters,
                 )?,
-                Some(LoanedSource::Local(symbol)) => bindings.borrowed_structural_home(
+                Some(LoanedSource::Local(symbol)) => bindings.borrowed_structural_argument(
+                    identities,
+                    checked,
                     &CheckedUnitStructuralArgumentPlan {
                         projection_evaluations: Default::default(),
                         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
@@ -4311,7 +4322,9 @@ pub(crate) mod computations {
                     },
                     parameters,
                 )?,
-                None => bindings.borrowed_structural_home(subject, parameters)?,
+                // The field binding already owns the subject suffix. Resolve
+                // its home without appending that suffix a second time.
+                None => bindings.resolve_borrowed_argument(checked, subject, parameters)?.source,
             })
         }
 
@@ -7376,29 +7389,18 @@ pub(crate) mod computations {
                 CheckedScalarComputationKind::StorageAddress { subject, .. } => {
                     let (_, state) =
                         crate::shared::declarations::state_declaration(self.checked, site.state)?;
-                    let source = site
-                        .bindings
-                        .borrowed_structural_home(&subject, self.checked.state_parameters(state))?;
-                    let root_type = site.bindings.structural_argument_type(&source).ok_or(
-                        LoweringError::Unsupported("address query lost its referent carrier"),
+                    let prepared = site.bindings.prepared_borrowed_argument(
+                        identities,
+                        self.checked,
+                        &subject,
+                        self.checked.state_parameters(state),
+                        self.structural_types,
                     )?;
-                    let mut path = source.path.into_iter().map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static).collect::<Vec<_>>();
-                    path.extend(crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
-                        identities, self.checked, &subject, root_type, self.structural_types)?);
                     self.binding(
                         input_types,
                         input_types.len(),
                         target,
-                        LoweredScalarBinding::StorageAddress(
-                            crate::emission::operation_emission::calls::PreparedStructuralArgument {
-                                source: source.place.into(),
-                                root_type: Some(root_type),
-                                access: source.access,
-                                path,
-                                selector_positions: Vec::new(),
-                            },
-                            result_type.scalar_type,
-                        ),
+                        LoweredScalarBinding::StorageAddress(prepared, result_type.scalar_type),
                     )
                 }
 
@@ -7438,6 +7440,7 @@ pub(crate) mod computations {
                     field,
                     ..
                 } => self.structural_field(
+                    identities,
                     *handle,
                     receiver_expression,
                     receiver_value,

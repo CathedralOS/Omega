@@ -2789,25 +2789,29 @@ pub(crate) mod attached_unit {
                             )
                             .with_structural_parameters(&self.evaluation.structural_parameters)
                             .with_structural_locals(&self.evaluation.structural_locals)
-                            .with_structural_observations(self.environment.structural_types);
+                            .with_structural_observations(self.environment.structural_types)
+                            .with_place_observations(&self.evaluation.place_observations);
                         let parameters = self.environment.checked.state_parameters(authored.1);
-                        let home = bindings.borrowed_structural_home(source, parameters)?;
-                        let root = bindings.structural_argument_type(&home).ok_or(
+                        let resolved = bindings.resolve_borrowed_argument(
+                            self.environment.checked,
+                            source,
+                            parameters,
+                        )?;
+                        let home = &resolved.source;
+                        let root = bindings.structural_argument_type(home).ok_or(
                             LoweringError::Unsupported(
                                 "readable projection lost its published root type",
                             ),
                         )?;
-                        let prepared =
-            crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
-                identities,
-                self.environment.checked,
-                source,
-                root,
-                bindings.structural_declarations(),
-            )?;
-                        let prepared = home.path.into_iter().map(
-            crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
-        ).chain(prepared).collect::<Vec<_>>();
+                        let prepared = resolved.prepare_path(
+                            identities,
+                            self.environment.checked,
+                            root,
+                            bindings.structural_declarations(),
+                        )?;
+                        let prepared = home.path.iter().cloned().map(
+                            crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
+                        ).chain(prepared).collect::<Vec<_>>();
                         self.complete_projection(
                 identities,
                 expression,

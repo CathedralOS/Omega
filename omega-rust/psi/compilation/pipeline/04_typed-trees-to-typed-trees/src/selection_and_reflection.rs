@@ -3280,7 +3280,11 @@ pub(crate) mod result_locals {
                 else {
                     unreachable!()
                 };
-                local.role = LocalBindingRole::Value;
+                local.role = if observed.is_some() {
+                    LocalBindingRole::DispatchObservation
+                } else {
+                    LocalBindingRole::Value
+                };
                 if let Some((expression, reference)) = observed {
                     local.initial_value = expression;
                     local.type_reference = reference;

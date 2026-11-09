@@ -7267,11 +7267,18 @@ pub(crate) mod attached_unit {
                                 None
                             };
                             let body_end = operations.len();
+                            let case_bindings =
+                                evaluation.completed_bindings(&operations, std::iter::empty());
+                            let case_sources = case_emission::SourceContext {
+                                checked,
+                                state,
+                                parameters: state_parameters,
+                                bindings: &case_bindings,
+                            };
                             let prepared_cases = case_emission::prepare(
                                 identities,
-                                state,
+                                &case_sources,
                                 self.catalogs,
-                                state_parameters,
                                 &operations,
                                 &mut next_value,
                             )?;
@@ -8637,6 +8644,8 @@ pub(crate) mod attached_unit {
                                 operations,
                                 &mut sequence,
                             )?;
+                            let case_bindings =
+                                edge_evaluation.completed_bindings(operations, std::iter::empty());
                             let mut arguments = Vec::new();
                             let mut structural_arguments = Vec::new();
                             let mut retiring_loan_carriers = Vec::new();
@@ -9073,23 +9082,20 @@ pub(crate) mod attached_unit {
                                             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                                                 ref subject, ref case_identity, ref field_identity, ref path,
                                             } => {
-                                                let (source, root_type) = match subject.source {
-                                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                                                        let parameter = state_parameters.get(parameter_index as usize).ok_or(
-                                                            LoweringError::Unsupported("Unit graph case-payload subject descriptor disappeared"),
-                                                        )?;
-                                                        (parameter.place, parameter.structural_type)
-                                                    }
-                                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                                                        let produced = case_emission::result(state, binding_ordinal, operations)?;
-                                                        (produced.place(), produced.structural_type())
-                                                    }
-                                                    _ => {
-                                                        return unsupported(
-                                                            "Unit graph case-payload subject source unsupported",
-                                                        );
-                                                    }
+                                                let context = case_emission::SourceContext {
+                                                    checked,
+                                                    state,
+                                                    parameters: state_parameters,
+                                                    bindings: &case_bindings,
                                                 };
+                                                let source = case_emission::source(
+                                                    identities, &context, self.catalogs, subject, operations,
+                                                )?;
+                                                let (source, root_type, subject_type) = (
+                                                    source.argument,
+                                                    source.root_type,
+                                                    source.declaration.id,
+                                                );
                                                 if matches!(subject.access, checked_trees::CheckedStructuralAccess::WriteOnlyBorrow) {
                                                     return unsupported(
                                                         "Unit graph case-payload subject is write-only",
@@ -9101,9 +9107,10 @@ pub(crate) mod attached_unit {
                                                     identities,
                                                     &self.catalogs.structural_types,
                                                     state_parameters,
-                                                    source,
+                                                    source.place,
                                                     root_type,
-                                                    &subject.path,
+                                                    subject_type,
+                                                    &source.path,
                                                     case_identity,
                                                     field_identity,
                                                     path,
@@ -12146,21 +12153,33 @@ pub(crate) mod attached_unit {
                     pub cases: Vec<PreparedCase<'a>>,
                 }
 
-                pub(crate) fn prepare<'a>(
+                pub(crate) struct SourceContext<'a> {
+                    pub checked: &'a checked_trees::CheckedTrees,
+                    pub state: &'a CheckedComposedUnitControlStatePlan,
+                    pub parameters: &'a [StructuralParameterDeclaration],
+                    pub bindings: &'a crate::expression_preparation::bindings::ScalarBindings,
+                }
+
+                pub(crate) struct CaseSource<'a> {
+                    pub argument: terminal_psi::StructuralArgument,
+                    pub root_type: semantic_vocabulary::StructuralTypeId,
+                    pub declaration: &'a terminal_psi::StructuralTypeDeclaration,
+                }
+
+                pub(crate) fn source<'a>(
                     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-                    state: &'a CheckedComposedUnitControlStatePlan,
-                    catalogs: &catalogs::ComposedCatalogs,
-                    parameters: &[StructuralParameterDeclaration],
+                    context: &SourceContext<'_>,
+                    catalogs: &'a catalogs::ComposedCatalogs,
+                    subject: &checked_trees::CheckedUnitStructuralArgumentPlan,
                     operations: &OperationBuffer,
-                    next_value: &mut u64,
-                ) -> Result<Option<PreparedCases<'a>>, LoweringError> {
-                    let CheckedComposedUnitControlTerminatorPlan::ClosedSum {
-                        subject, cases, ..
-                    } = &state.terminator
-                    else {
-                        return Ok(None);
-                    };
-                    let (place, structural_type) = match subject.source {
+                ) -> Result<CaseSource<'a>, LoweringError> {
+                    let SourceContext {
+                        checked,
+                        state,
+                        parameters,
+                        bindings,
+                    } = context;
+                    let published = match subject.source {
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                             let parameter =
                                 parameters
@@ -12168,38 +12187,88 @@ pub(crate) mod attached_unit {
                                     .ok_or(LoweringError::Unsupported(
                                         "Unit graph case parameter missing",
                                     ))?;
-                            (parameter.place, parameter.structural_type)
+                            Some((parameter.place, parameter.structural_type))
                         }
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal,
                         } => {
                             let produced = result(state, binding_ordinal, operations)?;
-                            (produced.place(), produced.structural_type())
+                            Some((produced.place(), produced.structural_type()))
                         }
-                        _ => return unsupported("Unit graph case subject source unsupported"),
+                        _ => None,
                     };
-                    let prepared_path =
-                        crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
-                            identities,
-                            &subject.path,
-                            structural_type,
-                            &catalogs.structural_types,
-                        )?;
-                    let path = prepared_path
+                    let (argument, root_type) = if let Some((place, structural_type)) = published {
+                        let prepared_path =
+                            crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+                                identities,
+                                &subject.path,
+                                structural_type,
+                                &catalogs.structural_types,
+                            )?;
+                        let path = prepared_path
                         .into_iter()
                         .map(|segment| match segment {
                             crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static(segment) => Ok(segment),
                             _ => unsupported("case dispatch runtime projection requires a selector evidence owner"),
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
+                        (
+                            terminal_psi::StructuralArgument {
+                                place,
+                                path,
+                                access: crate::expression_preparation::bindings::structural_paths::terminal_access(
+                                    subject.access,
+                                ),
+                            },
+                            structural_type,
+                        )
+                    } else {
+                        let (_, authored) =
+                            crate::shared::declarations::state_declaration(checked, state.state)?;
+                        let argument = bindings.borrowed_structural_argument(
+                            identities,
+                            checked,
+                            subject,
+                            checked.state_parameters(authored),
+                        )?;
+                        let root_type = bindings.structural_place_type(argument.place).ok_or(
+                            LoweringError::Unsupported(
+                                "Unit graph case subject source unsupported",
+                            ),
+                        )?;
+                        (argument, root_type)
+                    };
                     let declaration = terminal_semantics::runtime_structural_path_tip(
                         catalogs.structural_types.iter(),
-                        structural_type,
-                        &path,
+                        root_type,
+                        &argument.path,
                     )
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph case projection has no exact declared carrier",
                     ))?;
+                    Ok(CaseSource {
+                        argument,
+                        root_type,
+                        declaration,
+                    })
+                }
+
+                pub(crate) fn prepare<'a>(
+                    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                    context: &SourceContext<'a>,
+                    catalogs: &catalogs::ComposedCatalogs,
+                    operations: &OperationBuffer,
+                    next_value: &mut u64,
+                ) -> Result<Option<PreparedCases<'a>>, LoweringError> {
+                    let state = context.state;
+                    let CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+                        subject, cases, ..
+                    } = &state.terminator
+                    else {
+                        return Ok(None);
+                    };
+                    let resolved = source(identities, context, catalogs, subject, operations)?;
+                    let declaration = resolved.declaration;
                     let Some(declared) = declaration.shape.sum_cases() else {
                         return unsupported("Unit graph case subject is not a sum");
                     };
@@ -12281,8 +12350,8 @@ pub(crate) mod attached_unit {
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     Ok(Some(PreparedCases {
-                        source: place,
-                        path,
+                        source: resolved.argument.place,
+                        path: resolved.argument.path,
                         cases,
                     }))
                 }
@@ -12364,7 +12433,8 @@ pub(crate) mod attached_unit {
                     parameters: &[terminal_psi::StructuralParameterDeclaration],
                     source: PlaceId,
                     root_type: StructuralTypeId,
-                    subject_path: &[CheckedUnitStructuralPathSegment],
+                    subject_type: StructuralTypeId,
+                    subject_path: &[terminal_psi::StructuralPathSegment],
                     case_identity: &CheckedMemberIdentity,
                     field_identity: &CheckedMemberIdentity,
                     payload_path: &[CheckedUnitStructuralPathSegment],
@@ -12372,8 +12442,7 @@ pub(crate) mod attached_unit {
                     destination: PlaceId,
                     operations: &mut OperationBuffer,
                 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-                    let mut path = Vec::with_capacity(subject_path.len() + payload_path.len() + 2);
-                    path.extend_from_slice(subject_path);
+                    let mut path = Vec::with_capacity(payload_path.len() + 2);
                     path.push(CheckedUnitStructuralPathSegment::Case(
                         case_identity.clone(),
                     ));
@@ -12382,13 +12451,23 @@ pub(crate) mod attached_unit {
                     ));
                     path.extend_from_slice(payload_path);
                     let selected = structural_observations::stored_value_path(
-                        identities, root_type, &path, types,
+                        identities,
+                        subject_type,
+                        &path,
+                        types,
                     )?;
-                    let canonical = selected.static_observation_path().ok_or(
-                        LoweringError::Unsupported(
-                            "Unit graph case-payload copy requires static observation coordinates",
-                        ),
-                    )?;
+                    let canonical = terminal_semantics::canonical_static_projection(
+                        types.iter(),
+                        root_type,
+                        subject_path,
+                    )
+                    .and_then(|(mut prefix, _)| {
+                        prefix.extend(selected.static_observation_path()?);
+                        Some(prefix)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph case-payload copy requires static observation coordinates",
+                    ))?;
                     let leaf = selected.field_type()?.as_structural().ok_or(
                         LoweringError::Unsupported(
                             "Unit graph case payload is not a structural leaf",

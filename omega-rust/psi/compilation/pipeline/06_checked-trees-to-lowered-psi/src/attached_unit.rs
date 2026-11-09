@@ -2049,6 +2049,7 @@ pub(crate) mod inner {
                         machine.machine,
                         machine.state,
                         &machine.structural_parameters,
+                        &machine.place_loans,
                         &machine.operations,
                         None,
                         roots,
@@ -2061,6 +2062,7 @@ pub(crate) mod inner {
                                 state_declaration(checked, state.state)?.0.symbol,
                                 state.state,
                                 &state.structural_parameters,
+                                &state.place_loans,
                                 &state.operations,
                                 Some(state),
                                 roots,
@@ -2077,6 +2079,7 @@ pub(crate) mod inner {
                 machine: symbols::SymbolHandle,
                 state: symbols::SymbolHandle,
                 parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+                place_loans: &[checked_trees::CheckedPlaceLoanPlan],
                 operations: &'plans [CheckedUnitEffectOperationPlan],
                 control: Option<&'plans checked_trees::CheckedComposedUnitControlStatePlan>,
                 roots: &mut Vec<TypeIdentityId>,
@@ -2087,6 +2090,7 @@ pub(crate) mod inner {
                     machine,
                     state,
                     parameters,
+                    place_loans,
                     roots,
                 };
                 let mut namespace = Vec::new();
@@ -2255,6 +2259,7 @@ pub(crate) mod inner {
                 machine: symbols::SymbolHandle,
                 state: symbols::SymbolHandle,
                 parameters: &'checked [checked_trees::CheckedUnitStructuralParameterPlan],
+                place_loans: &'checked [checked_trees::CheckedPlaceLoanPlan],
                 roots: &'output mut Vec<TypeIdentityId>,
             }
 
@@ -2408,6 +2413,18 @@ pub(crate) mod inner {
                     if !argument.path.contains(&Segment::Referent) {
                         return Ok(());
                     }
+                    let mut presented = argument.clone();
+                    if let Source::StructuralLocal { symbol } = argument.source
+                        && let Some(alias) =
+                            self.place_loans.iter().find(|loan| loan.symbol == symbol)
+                    {
+                        crate::expression_preparation::bindings::structural_paths::retain_place_loan_presentation(
+                            self.checked,
+                            alias,
+                            &mut presented,
+                        );
+                    }
+                    let argument = &presented;
                     let root = source_type(
                         self.checked,
                         self.state,
@@ -2415,7 +2432,8 @@ pub(crate) mod inner {
                         self.parameters,
                         namespace,
                         argument,
-                    )?;
+                    )
+                    .map_err(|error| self.at_statement(statement, error))?;
                     let mut path = argument.path.as_slice();
                     if let Source::StructuralLocalBorrow {
                         root_reference_hops,
@@ -16048,24 +16066,33 @@ pub(crate) mod inner {
                 declarations: &[terminal_psi::StructuralTypeDeclaration],
             ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
                 let (_, authored) = crate::shared::declarations::state_declaration(checked, state)?;
-                let argument = &self.source;
-                let source = bindings
-                    .borrowed_structural_home(argument, checked.state_parameters(authored))?;
-                let root = bindings.structural_argument_type(&source).ok_or(
-                    LoweringError::Unsupported("range source lost its published storage type"),
+                let resolved = bindings.resolve_borrowed_argument(
+                    checked,
+                    &self.source,
+                    checked.state_parameters(authored),
                 )?;
+                let argument = &resolved.argument;
+                let source = &resolved.source;
+                let root =
+                    bindings
+                        .structural_argument_type(source)
+                        .ok_or(LoweringError::Unsupported(
+                            "range source lost its published storage type",
+                        ))?;
                 let mut prepared = prepare_projection_path(
                     identities,
                     checked,
                     &argument.path,
                     crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Borrowed {
                         published: root,
-                        logical: argument.subslice_root_type_identity().ok_or(
+                        logical: resolved.root_type_identity
+                            .or_else(|| self.source.subslice_root_type_identity())
+                            .ok_or(
                             LoweringError::Unsupported("range source lost its logical root"),
                         )?,
                         spelled_reference_hops: 0,
                     },
-                    argument
+                    self.source
                         .subslice_storage_type_identity()
                         .ok_or(LoweringError::Unsupported(
                             "range source lost its collection declaration",
@@ -16079,9 +16106,11 @@ pub(crate) mod inner {
                     &checked.facts.values.scalar_computations.operands,
                     &mut prepared,
                 )?;
+                resolved.retain_captured_coordinates(&mut prepared)?;
                 let path = source
                     .path
-                    .into_iter()
+                    .iter()
+                    .cloned()
                     .map(LoweredElementPathSegment::Static)
                     .chain(collection_path(
                         identities,
@@ -16135,7 +16164,21 @@ pub(crate) mod inner {
             let mut runtime_indices = 0;
             let mut dynamic_extent = false;
             path.into_iter()
-                .map(|segment| match segment {
+                .map(|segment| {
+                    if matches!(
+                        &segment,
+                        PreparedStructuralPathSegment::RuntimeIndex(_)
+                            | PreparedStructuralPathSegment::CapturedIndex(_)
+                    ) {
+                        dynamic_extent = false;
+                        runtime_indices += 1;
+                        if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {
+                            return unsupported(
+                                "collection view exceeds the runtime selector namespace",
+                            );
+                        }
+                    }
+                    match segment {
                     PreparedStructuralPathSegment::Static(segment) => {
                         if dynamic_extent
                             && let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment
@@ -16167,18 +16210,24 @@ pub(crate) mod inner {
                         Ok(LoweredElementPathSegment::ViewExtent { source, bytes })
                     }
                     PreparedStructuralPathSegment::ComputedIndex(_)
-                    | PreparedStructuralPathSegment::EvaluatedFixedIndex { .. }
-                    | PreparedStructuralPathSegment::CapturedIndex(_) => {
+                    | PreparedStructuralPathSegment::EvaluatedFixedIndex { .. } => {
                         unsupported("computed view selector requires its owning operand evaluation")
                     }
+                    PreparedStructuralPathSegment::CapturedIndex(place) => {
+                        Ok(LoweredElementPathSegment::RuntimeIndex {
+                            selector: LoweredDirectExpression::PrimitiveRead {
+                                qualifications: Default::default(),
+                                source: crate::emission::operation_emission::expressions::PrimitiveReadSource::Place(place),
+                                path: Vec::new(),
+                                scalar_type: terminal_scalar_type(
+                                    checked_trees::types::PrimitiveType::U64,
+                                )?,
+                            },
+                            extent: None,
+                            bound_decided: false,
+                        })
+                    }
                     PreparedStructuralPathSegment::RuntimeIndex(index) => {
-                        dynamic_extent = false;
-                        runtime_indices += 1;
-                        if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {
-                            return unsupported(
-                                "collection view exceeds the runtime selector namespace",
-                            );
-                        }
                         let selector = match index {
                             checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
                                 bindings.runtime_index_storage(symbol)?
@@ -16203,6 +16252,7 @@ pub(crate) mod inner {
                             extent: None,
                             bound_decided: false,
                         })
+                    }
                     }
                 })
                 .collect()
