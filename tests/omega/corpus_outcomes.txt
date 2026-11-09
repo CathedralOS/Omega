@@ -20657,8 +20657,7 @@ pass/constants/const_data_param checked 3254ms @ccdb99ca2214
 pass/constants/constant_bound_distance checked 3990ms @ccdb99ca2214
 pass/constants/direct_named_implementation_initializer_exit checked 7376ms check-target:macos_arm64 @923ef974b33c
 pass/constants/lexical_const_shadow checked 4267ms @ccdb99ca2214
-pass/constants/machine_const_indices rejected 807ms regressed-from:checked @ccdb99ca2214
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form specification operator `+` in closed const argument: no exact selected meaning", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(26), span: Span { start: 358, end: 359 } }), resolved_location: None })
+pass/constants/machine_const_indices checked 15490ms @602404d45977
 pass/constants/mathematical_constant_domain_selection rejected 806ms regressed-from:checked @ccdb99ca2214
 	constant initializer: constant initializer lost its selected construction field
 pass/constants/nested_const_projection checked 3735ms @ccdb99ca2214
@@ -20923,8 +20922,7 @@ pass/control_flow/runtime_index_state_grandchild_loan_exit checked 19148ms check
 pass/control_flow/runtime_index_state_loan_forwarding_exit checked 18208ms check-target:macos_arm64 @911f6617ba9e
 pass/control_flow/runtime_index_state_loan_snapshot_exit checked 18147ms check-target:macos_arm64 @911f6617ba9e
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 50126ms check-target:macos_arm64 @911f6617ba9e
-pass/control_flow/runtime_indexed_edge_regions_exit rejected 3771ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
+pass/control_flow/runtime_indexed_edge_regions_exit checked 17358ms check-target:macos_arm64 @602404d45977
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 12133ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_later_state_shared_array_loan checked 3086ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_local_record_array_byte_render_exit rejected 251352ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e1cfe02f1a9b
@@ -21613,8 +21611,7 @@ pass/expressions/match_float_subjects checked 6955ms check-target:macos_arm64 @c
 pass/expressions/match_fresh_owned checked 2173ms @ccdb99ca2214
 pass/expressions/match_operand_anonymous_operation_exit checked 11179ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_ordered_duplicate_patterns checked 2994ms @ccdb99ca2214
-pass/expressions/match_owned_authored_state_subject rejected 12666ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "completed arrival has no established block", gap: None })
+pass/expressions/match_owned_authored_state_subject checked 43608ms check-target:macos_arm64 @602404d45977
 pass/expressions/match_owned_call_product_arms checked 17896ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_call_return_values checked 12527ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_computed_arm_arguments checked 13915ms check-target:macos_arm64 @ccdb99ca2214
@@ -21924,17 +21921,13 @@ pass/facts/body_bearing_comparison_ordered_field_calls_exit checked 14845ms chec
 pass/facts/body_bearing_comparison_saved_field_result_exit checked 14337ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_stronger_fields_exit checked 14518ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_call_result_exit checked 13336ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/facts/body_bearing_comparison_through_const_name_exit rejected 13296ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "completed call scalar operands disagree with the target signature", gap: None })
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \\"main\\", reason: \\"completed call scalar operands disagree with the target signature\\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/body_bearing_comparison_through_const_name_exit checked 33918ms check-target:macos_arm64 terminal-inspections:match @602404d45977
 pass/facts/body_bearing_comparison_through_field_exit checked 13528ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_local_exit checked 13360ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_match_join_exit checked 11615ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_other_machine_exit checked 13168ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_other_state_exit checked 13156ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/facts/body_bearing_comparison_through_parameter_exit rejected 12585ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "completed call scalar operands disagree with the target signature", gap: None })
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \\"main\\", reason: \\"completed call scalar operands disagree with the target signature\\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/body_bearing_comparison_through_parameter_exit checked 31290ms check-target:macos_arm64 terminal-inspections:match @602404d45977
 pass/facts/body_bearing_comparison_through_target_body_exit checked 12074ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/borrowed_content_partition_through_call_result_exit checked 7668ms check-target:macos_arm64 @a5b74c596d2d
 pass/facts/borrowed_content_partition_through_const_name_exit checked 7707ms check-target:macos_arm64 @a5b74c596d2d
@@ -25868,8 +25861,7 @@ pass/generics/runtime_const_data_array_length_exit checked 12374ms check-target:
 pass/generics/runtime_const_data_machine_call_exit rejected 6944ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form specification operator `*` in closed const argument: no exact selected meaning", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 502, end: 503 } }), resolved_location: None })
 pass/generics/runtime_const_data_multiple_instances_exit checked 12362ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_const_data_symbolic_expression_exit rejected 8662ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form specification operator `+` in closed const argument: no exact selected meaning", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 465, end: 466 } }), resolved_location: None })
+pass/generics/runtime_const_data_symbolic_expression_exit checked 30322ms check-target:macos_arm64 @602404d45977
 pass/generics/runtime_const_data_where_fact_exit checked 67646ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_const_extent_guard_floors_exit checked 7775ms check-target:macos_arm64 @b31668d9a31f
 pass/generics/runtime_const_extent_index_walk_exit checked 5103ms check-target:macos_arm64 @ddc17fff6a3c
@@ -26223,8 +26215,7 @@ pass/layouts/runtime_sparse_fragmented_bits_exit checked 82604ms check-target:ma
 pass/layouts/runtime_stored_returned_encoded_reference_exit checked 3747ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_target_layout_byte_offset_exit checked 3302ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_target_layout_forwarded_integer_exit checked 5237ms check-target:macos_arm64 @44138b464cd4+wt
-pass/layouts/runtime_target_layout_queries_exit rejected 3897ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
+pass/layouts/runtime_target_layout_queries_exit checked 23990ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @602404d45977
 pass/layouts/runtime_transition_scalar_reference_codec_exit checked 3084ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/single_bool_array_layout_compile checked 2950ms @ccdb99ca2214
 pass/layouts/single_byte_member_layout_compile checked 2755ms @ccdb99ca2214
@@ -27318,8 +27309,7 @@ pass/slices/runtime_boolean_alias_guard_transport_exit checked 3726ms check-targ
 pass/slices/runtime_borrowed_noncopy_array_argument_exit checked 3136ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 11151ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_byte_view_guarded_state_contract_exit checked 11310ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_call_endpoint_argument_exit rejected 12141ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18179, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(26), requested: StructuralArgument { place: PlaceId(104), path: [], access: Owned }, requested_type: StructuralTypeId(26), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+pass/slices/runtime_call_endpoint_argument_exit checked 28481ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_call_endpoint_field_transition_exit checked 12097ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_call_endpoint_order_exit checked 12461ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_call_endpoint_view_exit checked 14438ms check-target:macos_arm64 @ccdb99ca2214
@@ -27345,8 +27335,7 @@ pass/slices/runtime_helper_stored_view_return_exit rejected 3031ms check-target:
 	statement 3 creates local borrow `windows` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 4)
 pass/slices/runtime_imported_range_views_exit checked 3789ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_imported_slice_provider_composition_exit checked 8229ms check-target:macos_arm64 @93ac4da811fe
-pass/slices/runtime_inclusive_call_endpoint_order_exit rejected 12556ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18197, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(30), requested: StructuralArgument { place: PlaceId(106), path: [], access: Owned }, requested_type: StructuralTypeId(30), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+pass/slices/runtime_inclusive_call_endpoint_order_exit checked 29369ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12614ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_indexed_descriptor_replacement_call_exit checked 4113ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_indexed_record_field_range_exit checked 8680ms check-target:macos_arm64 @ccdb99ca2214
@@ -27369,8 +27358,7 @@ pass/slices/runtime_mutable_slice_result_shared_observation_exit checked 3253ms 
 pass/slices/runtime_mutable_slice_result_whole_forward_exit checked 3660ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_mutable_subslice_state_forwarding_exit checked 3631ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_namespace_range_contract_exit checked 3892ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_nested_descriptor_scalar_store_exit rejected 3454ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
+pass/slices/runtime_nested_descriptor_scalar_store_exit checked 15376ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_nested_machine_field_window_exit checked 2891ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_stored_view_element_replacement_exit checked 2945ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_stored_view_return_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
@@ -27434,8 +27422,7 @@ pass/slices/state_projected_selector_bounds checked 2535ms @ccdb99ca2214
 pass/slices/state_record_array_mutable_view_exit checked 13579ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/state_record_array_shared_child_view_exit checked 12021ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/static_data_computed_index_hoists checked 5067ms @911f6617ba9e
-pass/slices/stored_element_view_branching_value rejected 3042ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
+pass/slices/stored_element_view_branching_value checked 15794ms check-target:macos_arm64 @602404d45977
 pass/slices/stored_element_view_runtime_destination rejected 3106ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
 pass/slices/stored_element_window_field_exit checked 6719ms check-target:macos_arm64 @ccdb99ca2214
@@ -28153,8 +28140,7 @@ run/calls/named_transition_scalar_borrow_plain_guard_exit checked 6510ms check-t
 run/calls/named_transition_suffixed_float_arguments_exit checked 5626ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/named_transition_zero_argument_guard_exit checked 5812ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/nested_case_terminal_process_exit checked 10410ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/nested_range_call_operands rejected 3157ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6435, generation: 1 }), established: StructuralArgument { place: PlaceId(24), path: [], access: Owned }, established_type: StructuralTypeId(12), requested: StructuralArgument { place: PlaceId(29), path: [], access: Owned }, requested_type: StructuralTypeId(12), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+run/calls/nested_range_call_operands checked 15760ms check-target:macos_arm64 @602404d45977
 run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
 run/calls/nested_static_implementation_shadow checked 3219ms check-target:macos_arm64 @02eca83b1303
 run/calls/ordered_literal_call_operands checked 3697ms check-target:macos_arm64 @ccdb99ca2214
@@ -28266,8 +28252,7 @@ run/domains/structural_predicate_casts checked 2784ms check-target:macos_arm64 @
 run/domains/structural_qualification_cast_transitions checked 9941ms check-target:macos_arm64 @787d97e293d7
 run/domains/structural_qualification_cast_values checked 3182ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/structural_qualification_nested_values checked 3172ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/vacuous_tag_call_arguments rejected 3167ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "completed call scalar operands disagree with the target signature", gap: None })
+run/domains/vacuous_tag_call_arguments checked 10514ms check-target:macos_arm64 @602404d45977
 run/domains/zero_case_default_domain checked 2349ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_case_default_payload checked 2278ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_field_call_formation_exit checked 2966ms check-target:macos_arm64 @ccdb99ca2214
