@@ -6110,10 +6110,18 @@ pub(crate) mod selected_continuations {
             Some(Self(observed))
         }
 
-        fn forget_unobserved(&self, block: usize, incoming: &mut [RegionState]) {
-            if !self.0[block] {
-                incoming.fill(RegionState::Absent);
-            }
+        fn forget_unobserved(
+            &self,
+            block: usize,
+            observed_region_count: usize,
+            incoming: &mut [RegionState],
+        ) {
+            let retained = if self.0[block] {
+                observed_region_count
+            } else {
+                0
+            };
+            incoming[retained..].fill(RegionState::Absent);
         }
     }
 
@@ -6149,6 +6157,9 @@ pub(crate) mod selected_continuations {
             }
             validate_group(machine, blocks, &positions, group)?;
         }
+        // Every group reads an exact tracker in this prefix. Any later tracker
+        // added for a projected root only propagates history; no group reads it.
+        let observed_region_count = regions.len();
         let extractions =
             super::affine_cleanup::owned_extractions(parameters, places, blocks, types)?;
         let copied_roots = super::affine_cleanup::copied_operand_roots(parameters, blocks);
@@ -6186,7 +6197,7 @@ pub(crate) mod selected_continuations {
             establish_parameter(&regions, &mut initial, parameter, &projected_roots);
         }
         if let Some(liveness) = &observation_liveness {
-            liveness.forget_unobserved(entry, &mut initial);
+            liveness.forget_unobserved(entry, observed_region_count, &mut initial);
         }
         let mut continuations = vec![Continuation {
             original_block: entry,
@@ -6305,7 +6316,11 @@ pub(crate) mod selected_continuations {
                 }
                 let original_block = positions.position(target)?;
                 if let Some(liveness) = &observation_liveness {
-                    liveness.forget_unobserved(original_block, &mut outgoing);
+                    liveness.forget_unobserved(
+                        original_block,
+                        observed_region_count,
+                        &mut outgoing,
+                    );
                 }
                 let signature = incoming_signature(&outgoing);
                 let successor = candidates
@@ -6672,7 +6687,7 @@ pub(crate) mod selected_continuations {
                     path: Vec::new(),
                     access: StructuralAccess::Owned,
                 },
-                requirement: CleanupRequirement::WholeValue,
+                requirement: CleanupRequirement::ResidentHome,
                 bypass: block(bypass),
             };
             let groups = [group(2, 4), group(6, 7)];
@@ -6710,13 +6725,31 @@ pub(crate) mod selected_continuations {
                         ])])),
                     ];
                     let mut incoming = original.clone();
-                    liveness.forget_unobserved(start, &mut incoming);
+                    // Both groups read the same home tracker. The second,
+                    // projected whole-value tracker is never read, even while
+                    // that home has a future query.
+                    liveness.forget_unobserved(start, 1, &mut incoming);
                     assert_eq!(
                         incoming,
+                        vec![
+                            if direct {
+                                original[0].clone()
+                            } else {
+                                RegionState::Absent
+                            },
+                            RegionState::Absent
+                        ]
+                    );
+                    // A live observed value must also retain its full Partial
+                    // state, rather than only its live/absent classification.
+                    let mut value = vec![original[1].clone()];
+                    liveness.forget_unobserved(start, 1, &mut value);
+                    assert_eq!(
+                        value[0],
                         if direct {
-                            original
+                            original[1].clone()
                         } else {
-                            vec![RegionState::Absent; 2]
+                            RegionState::Absent
                         }
                     );
                 }
@@ -6745,7 +6778,7 @@ pub(crate) mod selected_continuations {
                     .is_none()
             );
             eprintln!(
-                "future query, normal/bypass paths, returning/dead cycles and conservative unresolved graphs match direct reachability; only dead scratch histories are cleared"
+                "future query, normal/bypass paths, cycles and unresolved graphs match direct reachability; live observed states remain exact while the unobserved projected tail is always cleared"
             );
         }
 
