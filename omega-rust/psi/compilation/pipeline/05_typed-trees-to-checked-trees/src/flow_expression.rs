@@ -2937,9 +2937,18 @@ mod returned_descriptors {
                     .operand_retained_paths
                     .insert_many(path.iter().copied()),
             };
+            let Some(reference) =
+                validation::project_type_reference_from_segments(self.program, returned, path)
+                    .filter(|reference| {
+                        validation::reference_shell(self.program, *reference).is_some()
+                    })
+            else {
+                return Handle::invalid();
+            };
             let actual = self.context.control.calls.get(invocation);
             let completed_result = FlowOperandFact {
                 completion,
+                type_reference: reference,
                 expression: actual.authored_expression,
                 state_symbol: self.state.symbol,
                 statement_index: actual.statement_index,
@@ -2967,7 +2976,14 @@ mod returned_descriptors {
                     completed_result,
                 )
             })
-            .unwrap_or_default()
+            .unwrap_or_else(|| {
+                // Keep the performed call even when its geometry is unavailable here.
+                // Checked return sources still have to establish its borrowing permission.
+                self.context.control.operands.insert(FlowOperandFact {
+                    retention,
+                    ..completed_result
+                })
+            })
         }
 
         fn returned_descriptor(

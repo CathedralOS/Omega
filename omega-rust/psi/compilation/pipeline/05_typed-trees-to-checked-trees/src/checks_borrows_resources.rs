@@ -1248,7 +1248,42 @@ mod formation_sources {
                         if descriptor_profile.immutable_image {
                             continue;
                         }
-                        return refusal("returned projection lost its actual borrowing source");
+                        let returned_state =
+                            program.state_by_symbol(state.state_symbol).ok_or_else(|| {
+                                vec![Diagnostic::error(
+                                    "returned projection has no checked state",
+                                )]
+                            })?;
+                        let sources =
+                            validation::reference_result_custody::invocation_borrow_sources(
+                                program,
+                                facts,
+                                returned_state,
+                                descriptor,
+                            )
+                            .ok_or_else(|| {
+                                vec![Diagnostic::error(
+                                    "returned projection lost its actual borrowing source",
+                                )]
+                            })?;
+                        for source in sources {
+                            selected |= validate_captured_source(
+                                program,
+                                facts,
+                                loan_occurrences,
+                                state,
+                                flow_state,
+                                invocation,
+                                row,
+                                CapturedBorrowSource {
+                                    operand: source.operand,
+                                    source_path: &source.source_path,
+                                    projection: &source.projection,
+                                    extent: source.extent,
+                                },
+                            )?;
+                        }
+                        continue;
                     }
                     for source in facts
                         .flow
@@ -1296,6 +1331,13 @@ mod formation_sources {
             Ok(())
         }
 
+        struct CapturedBorrowSource<'source> {
+            operand: Handle<FlowOperandFact>,
+            source_path: &'source [facts::PlaceSegment],
+            projection: &'source [facts::PlaceSegment],
+            extent: semantic_vocabulary::ReferenceOriginExtent,
+        }
+
         fn validate_source(
             program: &dyn validation::CheckingInput,
             facts: &CheckFacts,
@@ -1306,17 +1348,48 @@ mod formation_sources {
             row: &BorrowLoanFact,
             source: &checked_trees::FlowOperandReborrowSource,
         ) -> Result<bool, Vec<Diagnostic>> {
-            let captured: &FlowOperandFact = facts.flow.control.operands.get(source.operand);
-            let source_path = facts
-                .flow
-                .control
-                .operand_retained_paths
-                .span_or_empty(source.source_path);
-            let projection = facts
-                .flow
-                .control
-                .operand_retained_paths
-                .span_or_empty(source.projection);
+            validate_captured_source(
+                program,
+                facts,
+                loan_occurrences,
+                state,
+                flow_state,
+                call,
+                row,
+                CapturedBorrowSource {
+                    operand: source.operand,
+                    source_path: facts
+                        .flow
+                        .control
+                        .operand_retained_paths
+                        .span_or_empty(source.source_path),
+                    projection: facts
+                        .flow
+                        .control
+                        .operand_retained_paths
+                        .span_or_empty(source.projection),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                },
+            )
+        }
+
+        fn validate_captured_source(
+            program: &dyn validation::CheckingInput,
+            facts: &CheckFacts,
+            loan_occurrences: &LoanOccurrences<'_>,
+            state: &checked_trees::StateBorrowFact,
+            flow_state: &checked_trees::FlowStateFact,
+            call: Handle<checked_trees::FlowCallFact>,
+            row: &BorrowLoanFact,
+            source: CapturedBorrowSource<'_>,
+        ) -> Result<bool, Vec<Diagnostic>> {
+            let CapturedBorrowSource {
+                operand,
+                source_path,
+                projection,
+                extent,
+            } = source;
+            let captured: &FlowOperandFact = facts.flow.control.operands.get(operand);
             let reference = validation::project_type_reference_from_segments(
                 program,
                 captured.type_reference,
@@ -1338,7 +1411,7 @@ mod formation_sources {
                 loan_occurrences,
                 flow_state,
                 call,
-                source.operand,
+                operand,
                 source_path,
                 &access,
             )
@@ -1354,6 +1427,18 @@ mod formation_sources {
                 place.segments.extend_from_slice(projection);
                 let Some(place) = physical_place(place) else {
                     return refusal("returned projection has no complete source projection");
+                };
+                let matches_place = |candidate: &checked_trees::CapturedPlace| {
+                    // A returned view can retain its enclosing collection. The output
+                    // must remain beneath that same captured backing.
+                    if extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion {
+                        candidate.incoming_reference == place.incoming_reference
+                            && candidate.incoming_owner_path == place.incoming_owner_path
+                            && candidate.root == place.root
+                            && candidate.segments.starts_with(&place.segments)
+                    } else {
+                        candidate == &place
+                    }
                 };
                 let parents = match supplier.source {
                     checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => {
@@ -1419,7 +1504,9 @@ mod formation_sources {
                             && candidate.storage_owner == row.storage_owner
                             && facts.borrow.loan_owner_path(candidate)
                                 == facts.borrow.loan_owner_path(row)
-                            && captured_place(&facts.borrow, candidate).as_ref() == Some(&place)
+                            && captured_place(&facts.borrow, candidate)
+                                .as_ref()
+                                .is_some_and(matches_place)
                     })
                     .collect::<Vec<_>>();
                 if parents.is_empty() {
@@ -1439,7 +1526,9 @@ mod formation_sources {
                 }) {
                     return refusal("returned view did not retain every input borrow it needs");
                 }
-                selected |= captured_place(&facts.borrow, row).as_ref() == Some(&place)
+                selected |= captured_place(&facts.borrow, row)
+                    .as_ref()
+                    .is_some_and(matches_place)
                     && match row.lineage {
                         BorrowLoanLineage::DirectRoot => parents.is_empty(),
                         BorrowLoanLineage::Reborrow { parent_loan } => {
