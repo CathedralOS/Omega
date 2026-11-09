@@ -1607,6 +1607,7 @@ pub mod trait_definition {
                     arguments: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
                     bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
                 ) -> Option<Self> {
+                    let enclosing = program.enclosing_invocation_frames(argument_owner).ok()?;
                     let region =
                         invocation_region_scope(program, declaration, argument_owner, bindings)?;
                     self.argument_owner = argument_owner;
@@ -1616,6 +1617,40 @@ pub mod trait_definition {
                     }
                     self.substitution_scope_starts.insert(0, 0);
                     self.region_scopes.insert(0, region);
+                    for frame in enclosing {
+                        let arguments = frame
+                            .bindings
+                            .iter()
+                            .map(|binding| {
+                                use crate::static_applications::StaticMachineBindingValue;
+                                let reference = match &binding.value {
+                                    StaticMachineBindingValue::Type(reference)
+                                    | StaticMachineBindingValue::Const(reference) => *reference,
+                                    StaticMachineBindingValue::Machine(argument)
+                                    | StaticMachineBindingValue::Conformance(argument) => {
+                                        argument.type_reference
+                                    }
+                                    StaticMachineBindingValue::RuntimeValue { .. } => return None,
+                                };
+                                reference
+                                    .is_valid()
+                                    .then_some((binding.parameter, reference))
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        let region = invocation_region_scope(
+                            program,
+                            frame.declaration,
+                            frame.argument_owner,
+                            &frame.lifetimes,
+                        )?;
+                        self.argument_owner = frame.argument_owner;
+                        self.substitutions.splice(0..0, arguments.iter().copied());
+                        for start in &mut self.substitution_scope_starts {
+                            *start += arguments.len();
+                        }
+                        self.substitution_scope_starts.insert(0, 0);
+                        self.region_scopes.insert(0, region);
+                    }
                     Some(self)
                 }
 

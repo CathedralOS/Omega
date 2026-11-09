@@ -8233,6 +8233,29 @@ pub mod static_bindings {
     ) -> Option<bool> {
         use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 
+        let enclosing = program.enclosing_invocation_frames(lexical_owner).ok()?;
+        let argument_owner = enclosing
+            .last()
+            .map_or(lexical_owner, |frame| frame.argument_owner);
+        let enclosing_arguments = enclosing
+            .iter()
+            .map(|frame| index_identity_arguments(frame.bindings))
+            .collect::<Vec<_>>();
+        let enclosing_lifetimes = enclosing
+            .iter()
+            .map(|frame| lifetime_identity_rows(&frame.lifetimes))
+            .collect::<Vec<_>>();
+        let mut scopes = enclosing
+            .iter()
+            .zip(&enclosing_arguments)
+            .zip(&enclosing_lifetimes)
+            .rev()
+            .map(|((frame, arguments), lifetimes)| AppliedTypeIdentityScope {
+                declaration: frame.declaration,
+                arguments,
+                lifetimes,
+            })
+            .collect::<Vec<_>>();
         let substitutions = index_identity_arguments(bindings);
         let lifetimes = lifetime_identity_rows(lifetimes);
         let machine_scope = AppliedTypeIdentityScope {
@@ -8269,13 +8292,16 @@ pub mod static_bindings {
             arguments: &actual_arguments,
             lifetimes: &actual_lifetimes,
         };
+        scopes.push(machine_scope);
         let required = crate::conformance_applications::applied_bound_argument_identities(
             program,
             bound,
             machine.symbol,
-            lexical_owner,
-            &[machine_scope],
+            argument_owner,
+            &scopes,
         );
+        scopes.pop();
+        scopes.push(actual_scope);
         let actual = (|| {
             let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
             let scope = typed_trees::trait_definition::AppliedTraitScope::from_conformance(
@@ -8286,8 +8312,8 @@ pub mod static_bindings {
             crate::conformance_applications::applied_scope_argument_identities(
                 program,
                 &scope,
-                lexical_owner,
-                &[actual_scope],
+                argument_owner,
+                &scopes,
             )
         })();
         required

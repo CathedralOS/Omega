@@ -1385,6 +1385,7 @@ pub(crate) mod domain_scopes {
 pub(crate) mod machine_instances {
     use crate::{
         TypedTrees,
+        static_applications::{StaticMachineBinding, StaticMachineLifetimeBinding},
         typed_trees::{CapturedMachineApplication, MachineSpecialization},
     };
     use symbols::SymbolHandle;
@@ -1393,6 +1394,13 @@ pub(crate) mod machine_instances {
     pub enum MachineInstantiation<'program> {
         Specialization(&'program MachineSpecialization),
         Capture(&'program CapturedMachineApplication),
+    }
+
+    pub struct EnclosingInvocationFrame<'program> {
+        pub declaration: SymbolHandle,
+        pub argument_owner: SymbolHandle,
+        pub bindings: &'program [StaticMachineBinding],
+        pub lifetimes: Vec<StaticMachineLifetimeBinding>,
     }
     impl MachineInstantiation<'_> {
         pub fn template(self) -> SymbolHandle {
@@ -1409,6 +1417,94 @@ pub(crate) mod machine_instances {
         }
     }
     impl TypedTrees {
+        /// Read enclosing applications from their exact instance receipts, from
+        /// the immediate caller out to the original supplying declaration.
+        pub fn enclosing_invocation_frames(
+            &self,
+            mut owner: SymbolHandle,
+        ) -> Result<Vec<EnclosingInvocationFrame<'_>>, &'static str> {
+            let mut frames = Vec::new();
+            let mut visited = Vec::new();
+            while owner.is_valid() {
+                if visited.contains(&owner) {
+                    return Err("enclosing invocation applications contain a cycle");
+                }
+                visited.push(owner);
+                let Some(receipt) = self.machine_instantiation(owner)? else {
+                    break;
+                };
+                let (application, declaration, argument_owner, lifetimes) = match receipt {
+                    MachineInstantiation::Specialization(receipt) => {
+                        let application = receipt.binding_application;
+                        if !application.is_valid() {
+                            return Err("enclosing specialization lost its binding application");
+                        }
+                        let source = self.static_machine_application(application);
+                        (
+                            application,
+                            receipt.template,
+                            source.lexical_owner,
+                            self.static_application_lifetimes_for_declaration(
+                                application,
+                                receipt.template,
+                            )?
+                            .into_owned(),
+                        )
+                    }
+                    MachineInstantiation::Capture(receipt) => {
+                        let application = receipt.binding_application;
+                        let selected = &receipt.conformance_application;
+                        let scope = selected
+                            .trait_scope
+                            .scope(self)
+                            .ok_or("enclosing capture lost its supplying scope")?;
+                        let declaration = self
+                            .conformance_by_symbol(selected.declaration)
+                            .ok_or("enclosing capture lost its implementation declaration")?;
+                        if !application.is_valid()
+                            || scope.declaration.symbol != selected.trait_definition
+                            || declaration.lifetime_parameters.len()
+                                != selected.lifetime_arguments.len()
+                        {
+                            return Err("enclosing capture changed its complete application");
+                        }
+                        let lifetimes = declaration
+                            .lifetime_parameters
+                            .iter()
+                            .zip(&selected.lifetime_arguments)
+                            .map(|(parameter, argument)| StaticMachineLifetimeBinding {
+                                parameter: parameter.clone(),
+                                argument: crate::name::Identifier::generated(argument),
+                            })
+                            .collect();
+                        (
+                            application,
+                            selected.declaration,
+                            scope.argument_owner,
+                            lifetimes,
+                        )
+                    }
+                };
+                let source = self.static_machine_application(application);
+                if source.binding_declaration != declaration || !argument_owner.is_valid() {
+                    return Err("enclosing invocation changed its declaration or supplier");
+                }
+                frames.push(EnclosingInvocationFrame {
+                    declaration,
+                    argument_owner,
+                    bindings: self.static_machine_application_bindings(application),
+                    lifetimes,
+                });
+                // Inferred instances without an authored outer application
+                // retain themselves as the terminal supplying owner.
+                if source.lexical_owner == owner {
+                    break;
+                }
+                owner = source.lexical_owner;
+            }
+            Ok(frames)
+        }
+
         pub fn machine_instantiation(
             &self,
             instance: SymbolHandle,
@@ -2877,7 +2973,7 @@ pub(crate) mod namespaces {
         }
     }
 }
-pub use machine_instances::MachineInstantiation;
+pub use machine_instances::{EnclosingInvocationFrame, MachineInstantiation};
 pub(crate) mod payloads {
     use super::{CallableApplication, CallableLifetimeOrigin};
     use crate::{TypedTrees, expression, static_applications, types};
