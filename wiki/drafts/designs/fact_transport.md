@@ -123,8 +123,8 @@ moves one re-derivation into one new `CheckFacts` field.
 
 A guard the caller has proved does not reach the nested machine it transitions
 to, so a valid body is rejected until the programmer repeats the guard as
-`requires`. The behaviour is fail-closed: valid programs are refused, and no
-invalid program is admitted.
+`requires`. The loss is fail-closed: it refuses valid programs and does not
+admit invalid ones.
 
 The witness, probed against `2ad42b16712`, uses the guard
 `value == value && value >= 0.0 && value < 1000.0`. In the guarded state,
