@@ -1,0 +1,6 @@
+// x86-64 declares no directed-rounding fused multiply-add realization, so reaching
+// the operation on Linux x86-64 rejects naming the operation and the target.
+machine build(builder: &mut Build) {
+    Build::application(builder, "directed_fma_target_realization");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

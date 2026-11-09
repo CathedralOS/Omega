@@ -1,0 +1,19 @@
+// Directed-rounding FMA is a distinct canonical operation from the
+// nearest-even fused form; the target's realization table decides whether it
+// exists. The operands arrive through a helper so the operation sees runtime
+// values: 1.5 * 2.0 + 0.25 is exact, so every rounding direction yields 3.25.
+use omega::language::core::float_operations;
+
+machine fused_toward_zero(left: f64, right: f64, addend: f64) -> f64 {
+    F64::fused_multiply_add_toward_zero(left, right, addend)
+}
+
+machine main() crashes Trap {
+    let value: f64 = fused_toward_zero(1.5, 2.0, 0.25);
+    transition value == 3.25 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
