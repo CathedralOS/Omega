@@ -887,7 +887,20 @@ pub(crate) mod conformance_scopes {
                 .ok_or("closed implementation application lost its occurrence")?
                 .trait_scope = scope;
             self.prepare_realization_contracts(&application, owner, scope)
-                .map_err(str::to_owned)?;
+                .map_err(|reason| {
+                    format!(
+                        "{reason}: selected={}, call_owner={}, region_supplier={}, lifetimes={:?}, captures={:?}, site={site:?}",
+                        self.symbols.display_path(application.declaration, "::"),
+                        self.symbols.display_path(owner, "::"),
+                        self.symbols.display_path(supplier, "::"),
+                        application.lifetime_arguments,
+                        application
+                            .arguments
+                            .iter()
+                            .map(crate::expression::StaticMachineArgument::display_name)
+                            .collect::<Vec<_>>(),
+                    )
+                })?;
             Ok(())
         }
     }
