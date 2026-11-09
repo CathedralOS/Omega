@@ -5969,6 +5969,55 @@ pub(crate) mod selected_continuations {
         pub(crate) bypass: BlockId,
     }
 
+    /// The checked partition has finished these value obligations. This records
+    /// availability only; real cleanup actions, homes, claims and loans stay in
+    /// their existing schedules and namespaces.
+    #[derive(Clone, Debug)]
+    pub(crate) struct CompletedCleanupFrontier {
+        pub(crate) edge: EdgeId,
+        pub(crate) region: StructuralArgument,
+        pub(crate) kind: CompletedCleanupKind,
+    }
+
+    #[derive(Clone, Debug)]
+    pub(crate) enum CompletedCleanupKind {
+        Value,
+        CasePayloads(Vec<semantic_vocabulary::StructuralCaseId>),
+    }
+
+    pub(crate) struct CleanupCompletionIndex<'rows> {
+        rows: semantic_vocabulary::IdTable<EdgeId, Vec<&'rows CompletedCleanupFrontier>>,
+    }
+
+    impl<'rows> CleanupCompletionIndex<'rows> {
+        pub(crate) fn new(rows: &'rows [CompletedCleanupFrontier]) -> Result<Self, LoweringError> {
+            let mut ordered = rows.iter().collect::<Vec<_>>();
+            ordered.sort_by_key(|row| row.edge);
+            let mut grouped = Vec::<(EdgeId, Vec<&CompletedCleanupFrontier>)>::new();
+            for row in ordered {
+                if let Some((edge, entries)) = grouped.last_mut()
+                    && *edge == row.edge
+                {
+                    entries.push(row);
+                } else {
+                    grouped.push((row.edge, vec![row]));
+                }
+            }
+            let rows = semantic_vocabulary::IdTable::from_rows_with_gaps(grouped, usize::MAX)
+                .map_err(|_| LoweringError::InvalidCleanupPartition {
+                    reason: "cleanup completion edge table exceeds its representable span",
+                })?;
+            Ok(Self { rows })
+        }
+
+        pub(crate) fn at(
+            &self,
+            edge: EdgeId,
+        ) -> impl Iterator<Item = &'rows CompletedCleanupFrontier> + '_ {
+            self.rows.get(edge).into_iter().flatten().copied()
+        }
+    }
+
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct TrackedRegion {
         region: StructuralArgument,
@@ -6063,68 +6112,6 @@ pub(crate) mod selected_continuations {
         }
     }
 
-    // Cleanup state only selects a group's entry or bypass. Once no future
-    // group can read it, earlier path differences cannot change this plan.
-    struct SelectionObservationLiveness(Vec<bool>);
-
-    impl SelectionObservationLiveness {
-        fn new(
-            positions: &BlockPositions,
-            successors: impl ExactSizeIterator<Item = Vec<(EdgeId, BlockId)>>,
-            groups: &[SelectedCleanupGroup],
-        ) -> Option<Self> {
-            // This is preparation, not validation. An unresolved graph disables
-            // forgetting; the original block query still owns its lazy error.
-            if positions.0.values().any(Option::is_none) {
-                return None;
-            }
-            let mut bypasses = symbols::SymbolKeyMap::<EdgeId, Vec<BlockId>>::default();
-            for group in groups {
-                bypasses.entry(group.edge).or_default().push(group.bypass);
-            }
-            let mut observed = vec![false; successors.len()];
-            let mut predecessors = vec![Vec::new(); successors.len()];
-            let mut pending = Vec::new();
-            for (source, edges) in successors.enumerate() {
-                for (edge, target) in edges {
-                    let target = positions.0.get(&target).copied().flatten()?;
-                    predecessors[target].push(source);
-                    if let Some(alternatives) = bypasses.get(&edge) {
-                        if !std::mem::replace(&mut observed[source], true) {
-                            pending.push(source);
-                        }
-                        for target in alternatives {
-                            let target = positions.0.get(target).copied().flatten()?;
-                            predecessors[target].push(source);
-                        }
-                    }
-                }
-            }
-            while let Some(target) = pending.pop() {
-                for &source in &predecessors[target] {
-                    if !std::mem::replace(&mut observed[source], true) {
-                        pending.push(source);
-                    }
-                }
-            }
-            Some(Self(observed))
-        }
-
-        fn forget_unobserved(
-            &self,
-            block: usize,
-            observed_region_count: usize,
-            incoming: &mut [RegionState],
-        ) {
-            let retained = if self.0[block] {
-                observed_region_count
-            } else {
-                0
-            };
-            incoming[retained..].fill(RegionState::Absent);
-        }
-    }
-
     pub(crate) fn prepare(
         machine: semantic_vocabulary::MachineId,
         entry: BlockId,
@@ -6133,11 +6120,13 @@ pub(crate) mod selected_continuations {
         blocks: &[Block],
         types: &[StructuralTypeDeclaration],
         groups: &[SelectedCleanupGroup],
+        completed_cleanups: &[CompletedCleanupFrontier],
         has_claim_bindings: bool,
     ) -> Result<Option<Specialization>, LoweringError> {
         // Record identities once, but report absent or repeated identities only
         // when the original validation order asks for that block.
         let positions = BlockPositions::new(blocks.iter().map(|block| block.id));
+        let completions = CleanupCompletionIndex::new(completed_cleanups)?;
         let mut regions = Vec::new();
         for group in groups {
             if group.region.access != StructuralAccess::Owned {
@@ -6157,9 +6146,6 @@ pub(crate) mod selected_continuations {
             }
             validate_group(machine, blocks, &positions, group)?;
         }
-        // Every group reads an exact tracker in this prefix. Any later tracker
-        // added for a projected root only propagates history; no group reads it.
-        let observed_region_count = regions.len();
         let extractions =
             super::affine_cleanup::owned_extractions(parameters, places, blocks, types)?;
         let copied_roots = super::affine_cleanup::copied_operand_roots(parameters, blocks);
@@ -6184,20 +6170,10 @@ pub(crate) mod selected_continuations {
         if regions.is_empty() && !has_claim_bindings {
             return Ok(None);
         }
-        let observation_liveness = SelectionObservationLiveness::new(
-            &positions,
-            blocks
-                .iter()
-                .map(|block| block.terminator.successor_edges()),
-            groups,
-        );
         let entry = positions.position(entry)?;
         let mut initial = vec![RegionState::Absent; regions.len()];
         for parameter in parameters {
             establish_parameter(&regions, &mut initial, parameter, &projected_roots);
-        }
-        if let Some(liveness) = &observation_liveness {
-            liveness.forget_unobserved(entry, observed_region_count, &mut initial);
         }
         let mut continuations = vec![Continuation {
             original_block: entry,
@@ -6314,14 +6290,32 @@ pub(crate) mod selected_continuations {
                         dispose(&regions, &mut outgoing, action);
                     }
                 }
-                let original_block = positions.position(target)?;
-                if let Some(liveness) = &observation_liveness {
-                    liveness.forget_unobserved(
-                        original_block,
-                        observed_region_count,
-                        &mut outgoing,
-                    );
+                for completion in completions.at(edge) {
+                    let paths = match &completion.kind {
+                        CompletedCleanupKind::Value => vec![completion.region.path.clone()],
+                        CompletedCleanupKind::CasePayloads(cases) => cases
+                            .iter()
+                            .map(|case| {
+                                let mut path = completion.region.path.clone();
+                                path.push(StructuralPathSegment::Case(*case));
+                                path
+                            })
+                            .collect(),
+                    };
+                    for path in paths {
+                        for (tracked, state) in regions.iter().zip(&mut outgoing) {
+                            if tracked.requirement == CleanupRequirement::WholeValue {
+                                consume_region(
+                                    &tracked.region,
+                                    state,
+                                    completion.region.place,
+                                    &path,
+                                );
+                            }
+                        }
+                    }
                 }
+                let original_block = positions.position(target)?;
                 let signature = incoming_signature(&outgoing);
                 let successor = candidates
                     .find(original_block, signature, &outgoing, &continuations)
@@ -6662,125 +6656,6 @@ pub(crate) mod selected_continuations {
     mod continuation_candidate_tests {
         use super::*;
         use semantic_vocabulary::{ObligationId, ScalarType, StructuralCaseId, ValueId};
-
-        #[test]
-        fn selection_observation_liveness_keeps_future_queries_and_forgets_dead_history() {
-            let block = |value| BlockId::new(value).unwrap();
-            let edge = |value| EdgeId::new(value).unwrap();
-            let blocks = (1..=9).map(block).collect::<Vec<_>>();
-            let positions = BlockPositions::new(blocks.iter().copied());
-            let graph = vec![
-                vec![(edge(1), block(2))],
-                vec![(edge(2), block(3))],
-                vec![(edge(3), block(5))],
-                vec![(edge(4), block(6))],
-                vec![(edge(5), block(3))],
-                vec![(edge(6), block(7))],
-                Vec::new(),
-                vec![(edge(7), block(9))],
-                vec![(edge(8), block(8))],
-            ];
-            let group = |selected, bypass| SelectedCleanupGroup {
-                edge: edge(selected),
-                region: StructuralArgument {
-                    place: PlaceId::new(1).unwrap(),
-                    path: Vec::new(),
-                    access: StructuralAccess::Owned,
-                },
-                requirement: CleanupRequirement::ResidentHome,
-                bypass: block(bypass),
-            };
-            let groups = [group(2, 4), group(6, 7)];
-            // Compare backward preparation with independent forward reachability,
-            // including the bypass-only route to the second decision and cycles.
-            for returns_to_query in [false, true] {
-                let mut graph = graph.clone();
-                if returns_to_query {
-                    graph[4] = vec![(edge(5), block(2))];
-                }
-                let liveness =
-                    SelectionObservationLiveness::new(&positions, graph.iter().cloned(), &groups)
-                        .unwrap();
-                for start in 0..blocks.len() {
-                    let mut seen = vec![false; blocks.len()];
-                    let mut pending = vec![start];
-                    let mut direct = false;
-                    while let Some(source) = pending.pop() {
-                        if std::mem::replace(&mut seen[source], true) {
-                            continue;
-                        }
-                        for (selected, target) in &graph[source] {
-                            pending.push(positions.position(*target).unwrap());
-                            for group in groups.iter().filter(|group| group.edge == *selected) {
-                                direct = true;
-                                pending.push(positions.position(group.bypass).unwrap());
-                            }
-                        }
-                    }
-                    assert_eq!(liveness.0[start], direct);
-                    let original = vec![
-                        RegionState::Live,
-                        RegionState::Partial(Arc::new(vec![Arc::from([
-                            StructuralPathSegment::FixedIndex(3),
-                        ])])),
-                    ];
-                    let mut incoming = original.clone();
-                    // Both groups read the same home tracker. The second,
-                    // projected whole-value tracker is never read, even while
-                    // that home has a future query.
-                    liveness.forget_unobserved(start, 1, &mut incoming);
-                    assert_eq!(
-                        incoming,
-                        vec![
-                            if direct {
-                                original[0].clone()
-                            } else {
-                                RegionState::Absent
-                            },
-                            RegionState::Absent
-                        ]
-                    );
-                    // A live observed value must also retain its full Partial
-                    // state, rather than only its live/absent classification.
-                    let mut value = vec![original[1].clone()];
-                    liveness.forget_unobserved(start, 1, &mut value);
-                    assert_eq!(
-                        value[0],
-                        if direct {
-                            original[1].clone()
-                        } else {
-                            RegionState::Absent
-                        }
-                    );
-                }
-            }
-            let no_queries =
-                SelectionObservationLiveness::new(&positions, graph.iter().cloned(), &[]).unwrap();
-            assert!(no_queries.0.iter().all(|live| !live));
-            let mut missing = graph.clone();
-            missing[7] = vec![(edge(7), block(99))];
-            assert!(
-                SelectionObservationLiveness::new(&positions, missing.into_iter(), &groups,)
-                    .is_none()
-            );
-            let mut repeated = blocks.clone();
-            repeated[8] = block(7);
-            assert!(
-                SelectionObservationLiveness::new(
-                    &BlockPositions::new(repeated.into_iter()),
-                    graph.iter().cloned(),
-                    &groups,
-                )
-                .is_none()
-            );
-            assert!(
-                SelectionObservationLiveness::new(&positions, graph.into_iter(), &[group(2, 99)],)
-                    .is_none()
-            );
-            eprintln!(
-                "future query, normal/bypass paths, cycles and unresolved graphs match direct reachability; live observed states remain exact while the unobserved projected tail is always cleared"
-            );
-        }
 
         #[test]
         fn copied_partial_states_share_paths_and_keep_independent_lists() {

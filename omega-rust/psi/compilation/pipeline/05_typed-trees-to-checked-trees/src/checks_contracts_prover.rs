@@ -1060,7 +1060,7 @@ mod place_predicates {
         }
 
         // The capture keeps the collection's storage epoch. Bind only its
-        // declaration-owned tail through the checked call's selector telescope.
+        // callee's remaining index expressions through the checked call's captured caller arguments.
         pub(in crate::checks::contracts) fn proven_for_call_projection(
             &self,
             program: &dyn ::validation::CheckingInput,

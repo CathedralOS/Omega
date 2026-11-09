@@ -978,6 +978,9 @@ pub(crate) mod lowering_error {
         MachineNotFound(String),
         AmbiguousMachineName(String),
         MissingUnitStructuralType(String),
+        InvalidCleanupPartition {
+            reason: &'static str,
+        },
         InvalidReferenceContract {
             supplying_type: typed_trees::types::TypeReferenceHandle,
             reason: String,

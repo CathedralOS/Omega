@@ -5099,6 +5099,7 @@ pub(crate) mod attached_unit {
                                 )
                             };
                             regions.push(CleanupRegion {
+                                partition_leaf: None,
                                 declaration_order: None,
                                 selected_region: Some(terminal_psi::StructuralArgument {
                                     place,
@@ -7854,6 +7855,7 @@ pub(crate) mod attached_unit {
                         boundary,
                         cleanup_actions,
                         selected_regions,
+                        ..
                     } => self.continuation_cleanup(
                         identities,
                         boundary,
@@ -8130,6 +8132,7 @@ pub(crate) mod attached_unit {
                         identities,
                         self.checked,
                         vec![crate::unit::unit_cleanup::CleanupRegion {
+                            partition_leaf: None,
                             declaration_order: None,
                             selected_region: select_evaluated_storage.then(|| {
                                 terminal_psi::StructuralArgument {

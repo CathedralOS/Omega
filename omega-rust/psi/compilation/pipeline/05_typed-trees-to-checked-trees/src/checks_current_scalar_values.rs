@@ -3907,7 +3907,7 @@ mod scalar_fields {
         }
 
         /*
-            Instantiate the whole selector telescope before looking up a projected
+            Instantiate the whole passed argument values before looking up a projected
             actual. A target's `slot` is the passed scalar value, not its old name
             in the source member of a mutual component.
         */

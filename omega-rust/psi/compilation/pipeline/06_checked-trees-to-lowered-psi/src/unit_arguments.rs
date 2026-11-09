@@ -652,6 +652,7 @@ pub(crate) mod attached_unit {
                             });
                         }
                         regions.push(CleanupRegion {
+                            partition_leaf: None,
                             declaration_order: None,
                             selected_region: None,
                             conditions,
@@ -739,7 +740,9 @@ pub(crate) mod attached_unit {
                     operations: &mut OperationBuffer,
                 ) -> Result<Vec<TerminalAffineCleanupAction>, LoweringError> {
                     if regions.iter().all(|region| {
-                        region.conditions.is_empty() && region.selected_region.is_none()
+                        region.partition_leaf.is_none()
+                            && region.conditions.is_empty()
+                            && region.selected_region.is_none()
                     }) {
                         return Ok(regions.into_iter().map(|region| region.action).collect());
                     }
@@ -859,10 +862,395 @@ pub(crate) mod attached_unit {
                     next_edge: &mut u64,
                     operations: &mut OperationBuffer,
                 ) -> Result<(), LoweringError> {
-                    self.cleanup_scope(
-                        identities, regions, 0, None, values, next_value, next_block, next_edge,
+                    let mut position = 0;
+                    while let Some(first) = regions.get(position) {
+                        if let Some(leaf) = &first.partition_leaf {
+                            let end = position.checked_add(leaf.leaf_count).ok_or(
+                                LoweringError::InvalidCleanupPartition {
+                                    reason: "cleanup partition action span overflows",
+                                },
+                            )?;
+                            let selected = regions.get(position..end).ok_or(
+                                LoweringError::InvalidCleanupPartition {
+                                    reason: "cleanup partition action span is truncated",
+                                },
+                            )?;
+                            if selected.iter().enumerate().any(|(ordinal, region)| {
+                                region.partition_leaf.as_ref().is_none_or(|candidate| {
+                                    candidate.owner != leaf.owner
+                                        || candidate.ordinal as usize != ordinal
+                                })
+                            }) {
+                                return Err(LoweringError::InvalidCleanupPartition {
+                                    reason: "cleanup partition actions are interleaved or reordered",
+                                });
+                            }
+                            self.partition_node(
+                                identities, &leaf.root, selected, 0, values, next_value,
+                                next_block, next_edge, operations,
+                            )?;
+                            position = end;
+                        } else {
+                            let end = position
+                                + regions[position..]
+                                    .iter()
+                                    .take_while(|region| region.partition_leaf.is_none())
+                                    .count();
+                            self.cleanup_scope(
+                                identities,
+                                &regions[position..end],
+                                0,
+                                None,
+                                values,
+                                next_value,
+                                next_block,
+                                next_edge,
+                                operations,
+                            )?;
+                            position = end;
+                        }
+                    }
+                    Ok(())
+                }
+
+                #[allow(clippy::too_many_arguments)]
+                fn completed_partition_edge(
+                    &mut self,
+                    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                    place: PlaceId,
+                    path: &[terminal_psi::StructuralPathSegment],
+                    kind: crate::emission::selected_continuations::CompletedCleanupKind,
+                    values: &mut Vec<ValueDeclaration>,
+                    next_value: &mut u64,
+                    next_block: &mut u64,
+                    next_edge: &mut u64,
+                    operations: &mut OperationBuffer,
+                ) -> Result<(), LoweringError> {
+                    let edge = self.continue_actions(
+                        identities,
+                        Vec::new(),
+                        values,
+                        next_value,
+                        next_block,
+                        next_edge,
                         operations,
-                    )
+                    )?;
+                    operations.completed_cleanup_frontiers.push(
+                        crate::emission::selected_continuations::CompletedCleanupFrontier {
+                            edge,
+                            region: terminal_psi::StructuralArgument {
+                                place,
+                                path: path.to_vec(),
+                                access: terminal_psi::StructuralAccess::Owned,
+                            },
+                            kind,
+                        },
+                    );
+                    Ok(())
+                }
+
+                #[allow(clippy::too_many_arguments)]
+                fn partition_node(
+                    &mut self,
+                    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                    node: &crate::unit::unit_cleanup::CleanupPartitionNode,
+                    leaves: &[CleanupRegion],
+                    depth: usize,
+                    values: &mut Vec<ValueDeclaration>,
+                    next_value: &mut u64,
+                    next_block: &mut u64,
+                    next_edge: &mut u64,
+                    operations: &mut OperationBuffer,
+                ) -> Result<(), LoweringError> {
+                    use crate::unit::unit_cleanup::CleanupPartitionNode as Node;
+                    match node {
+                        Node::Leaf(ordinal) => {
+                            let region =
+                                leaves
+                                    .get(*ordinal as usize)
+                                    .ok_or(LoweringError::InvalidCleanupPartition { reason: "cleanup partition leaf exceeds its ordered action span" })?;
+                            self.cleanup_scope(
+                                identities,
+                                std::slice::from_ref(region),
+                                depth,
+                                None,
+                                values,
+                                next_value,
+                                next_block,
+                                next_edge,
+                                operations,
+                            )
+                        }
+                        Node::Scope {
+                            place, path, steps, ..
+                        } => {
+                            for step in steps {
+                                self.partition_node(
+                                    identities, step, leaves, depth, values, next_value,
+                                    next_block, next_edge, operations,
+                                )?;
+                            }
+                            // A direct whole-value leaf already records this exact frontier.
+                            let whole_leaf = match steps.as_slice() {
+                                [Node::Leaf(ordinal)] => {
+                                    leaves.get(*ordinal as usize).is_some_and(|region| {
+                                        region.action.place() == *place
+                                            && region.action.path() == path
+                                            && match &region.action {
+                                                TerminalAffineCleanupAction::InvokeNominal(
+                                                    cleanup,
+                                                ) => !cleanup.retains_descendants,
+                                                _ => true,
+                                            }
+                                    })
+                                }
+                                _ => false,
+                            };
+                            if !whole_leaf {
+                                self.completed_partition_edge(identities, *place, path, crate::emission::selected_continuations::CompletedCleanupKind::Value, values, next_value, next_block, next_edge, operations)?;
+                            }
+                            Ok(())
+                        }
+                        Node::Cases {
+                            place,
+                            path,
+                            structural_type,
+                            arms,
+                            common,
+                        } => self.partition_cases(
+                            identities,
+                            *place,
+                            path,
+                            *structural_type,
+                            arms,
+                            common,
+                            leaves,
+                            depth,
+                            values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            operations,
+                        ),
+                    }
+                }
+
+                #[allow(clippy::too_many_arguments)]
+                fn partition_cases(
+                    &mut self,
+                    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                    place: PlaceId,
+                    path: &[terminal_psi::StructuralPathSegment],
+                    structural_type: semantic_vocabulary::StructuralTypeId,
+                    arms: &[crate::unit::unit_cleanup::CleanupPartitionArm],
+                    common: &[crate::unit::unit_cleanup::CleanupPartitionNode],
+                    leaves: &[CleanupRegion],
+                    depth: usize,
+                    values: &mut Vec<ValueDeclaration>,
+                    next_value: &mut u64,
+                    next_block: &mut u64,
+                    next_edge: &mut u64,
+                    operations: &mut OperationBuffer,
+                ) -> Result<(), LoweringError> {
+                    use checked_trees::CheckedCleanupCaseReachability as Reachability;
+                    let reachable = arms
+                        .iter()
+                        .filter(|arm| arm.reachability != Reachability::Inactive)
+                        .collect::<Vec<_>>();
+                    if reachable.is_empty() {
+                        return Err(LoweringError::InvalidCleanupPartition {
+                            reason: "cleanup partition has no reachable alternative",
+                        });
+                    }
+                    let condition = crate::unit::unit_cleanup::CleanupCaseCondition {
+                        place,
+                        path: path.to_vec(),
+                        structural_type,
+                        case: reachable[0].case,
+                    };
+                    self.case_subject(&condition, operations)?;
+                    let observation = terminal_psi::StructuralArgument {
+                        place,
+                        path: path.to_vec(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    };
+                    let relevant = leaves
+                        .iter()
+                        .filter(|leaf| {
+                            leaf.conditions
+                                .iter()
+                                .any(|candidate| candidate.place == place && candidate.path == path)
+                        })
+                        .collect::<Vec<_>>();
+                    let selected = !relevant.is_empty()
+                        && relevant.iter().all(|leaf| {
+                            leaf.selected_region.as_ref().is_some_and(|source| {
+                                source.place == place
+                                    && (source.path.starts_with(path)
+                                        || path.starts_with(&source.path))
+                            })
+                        });
+                    let bypass = if selected
+                        && !self.declared_single_case(&condition, operations)
+                        && self.retained_case(&condition, operations).is_none()
+                    {
+                        Some(self.select_storage(
+                            identities,
+                            &observation,
+                            false,
+                            values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            operations,
+                        )?)
+                    } else {
+                        None
+                    };
+                    let join = block_id(allocate_dense(next_block)?);
+                    let join_parameters = declarations(
+                        &values
+                            .iter()
+                            .map(|value| value.value_type())
+                            .collect::<Vec<_>>(),
+                        next_value,
+                    )?;
+                    let mut common_observations = None;
+                    for (position, arm) in reachable.iter().enumerate() {
+                        let more = position + 1 < reachable.len();
+                        let mut branch_observations = None;
+                        let mut remaining = None;
+                        if more {
+                            let condition = crate::unit::unit_cleanup::CleanupCaseCondition {
+                                case: arm.case,
+                                ..condition.clone()
+                            };
+                            let observed = self.observe_case(&condition, next_value, operations)?;
+                            if common_observations.is_none() {
+                                common_observations =
+                                    Some(operations.storage_observations.cases.clone());
+                            }
+                            branch_observations =
+                                Some(operations.storage_observations.cases.clone());
+                            let selected = block_id(allocate_dense(next_block)?);
+                            let selected_parameters = declarations(
+                                &values
+                                    .iter()
+                                    .map(|value| value.value_type())
+                                    .collect::<Vec<_>>(),
+                                next_value,
+                            )?;
+                            let later = block_id(allocate_dense(next_block)?);
+                            let later_parameters = declarations(
+                                &values
+                                    .iter()
+                                    .map(|value| value.value_type())
+                                    .collect::<Vec<_>>(),
+                                next_value,
+                            )?;
+                            let proof_arguments = self.proof_arguments()?;
+                            let successor = |edge, target| SuccessorEdge {
+                                edge,
+                                target,
+                                arguments: values.iter().map(|value| value.id).collect(),
+                                erased_arguments: Vec::new(),
+                                erased_proof_arguments: proof_arguments.clone(),
+                                structural_arguments: Vec::new(),
+                                cleanup_actions: Vec::new(),
+                            };
+                            self.blocks.push(Block {
+                                id: *self.current,
+                                parameters: std::mem::take(self.parameters),
+                                structural_parameters: std::mem::take(self.structural_parameters),
+                                erased_scalar_formals: std::mem::take(
+                                    self.block_erased_scalar_formals,
+                                ),
+                                erased_proof_formals: erased_proof_formal_declarations(
+                                    identities,
+                                    self.checked,
+                                    self.erased_proof_formals,
+                                ),
+                                operations: operations[*self.operation_start..].to_vec(),
+                                terminator: Terminator::Conditional {
+                                    condition: observed.id,
+                                    when_true: successor(
+                                        edge_id(allocate_dense(next_edge)?),
+                                        selected,
+                                    ),
+                                    when_false: successor(
+                                        edge_id(allocate_dense(next_edge)?),
+                                        later,
+                                    ),
+                                },
+                            });
+                            *self.current = selected;
+                            *self.parameters = selected_parameters.clone();
+                            *values = selected_parameters;
+                            *self.operation_start = operations.len();
+                            remaining = Some((later, later_parameters));
+                        }
+                        // The tree covers the exact declared alternatives. After all earlier
+                        // tests failed, the last reachable alternative is exhaustive; no
+                        // additional tag load or unreachable fallthrough is needed.
+                        let arm_depth =
+                            depth + usize::from(arm.reachability == Reachability::Runtime);
+                        for step in &arm.steps {
+                            self.partition_node(
+                                identities, step, leaves, arm_depth, values, next_value,
+                                next_block, next_edge, operations,
+                            )?;
+                        }
+                        let edge = self.cleanup_jump(
+                            identities,
+                            join,
+                            &join_parameters,
+                            Vec::new(),
+                            Vec::new(),
+                            values,
+                            next_edge,
+                            operations,
+                        )?;
+                        operations.completed_cleanup_frontiers.push(crate::emission::selected_continuations::CompletedCleanupFrontier {
+                            edge, region: observation.clone(), kind: crate::emission::selected_continuations::CompletedCleanupKind::CasePayloads(arms.iter().map(|arm| arm.case).collect()),
+                        });
+                        if let Some(observations) = branch_observations {
+                            operations.storage_observations.cases = observations;
+                        }
+                        if let Some((later, parameters)) = remaining {
+                            *self.current = later;
+                            *self.parameters = parameters.clone();
+                            *values = parameters;
+                            *self.operation_start = operations.len();
+                        }
+                    }
+                    *self.current = join;
+                    *self.parameters = join_parameters.clone();
+                    *values = join_parameters;
+                    *self.operation_start = operations.len();
+                    if let Some(observations) = common_observations {
+                        operations.storage_observations.cases = observations;
+                    }
+                    // All payload alternatives have the same settled frontier here. Emit
+                    // this carrier's shared fields once, retaining their live obligations.
+                    for step in common {
+                        self.partition_node(
+                            identities, step, leaves, depth, values, next_value, next_block,
+                            next_edge, operations,
+                        )?;
+                    }
+                    if let Some((bypass, parameters)) = bypass {
+                        self.cleanup_jump(
+                            identities,
+                            bypass,
+                            &parameters,
+                            Vec::new(),
+                            Vec::new(),
+                            values,
+                            next_edge,
+                            operations,
+                        )?;
+                    }
+                    Ok(())
                 }
 
                 fn select_storage(

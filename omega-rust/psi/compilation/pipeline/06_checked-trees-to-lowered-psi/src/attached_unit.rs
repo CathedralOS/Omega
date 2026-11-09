@@ -6028,6 +6028,7 @@ pub(crate) mod inner {
                 checked_trees::CheckedNormalResultCompletion::Value {
                     computation,
                     actions,
+                    ..
                 } => {
                     let mut actions = for_planned_actions(
                         identities,
@@ -11296,6 +11297,7 @@ pub(crate) mod inner {
                 mut block_entry_claims,
                 mut claim_introductions,
                 selected_cleanup_groups,
+                mut completed_cleanup_frontiers,
                 mut scalar_block_invariants,
                 mut source_calls,
                 quotient_adaptations,
@@ -11434,6 +11436,7 @@ pub(crate) mod inner {
                 &selected_cleanup_groups,
                 structural_types,
                 crate::emission::continuation_specialization::CompanionRows {
+                    completed_cleanup_frontiers: &mut completed_cleanup_frontiers,
                     source_returns: &mut source_returns,
                     continuation_value_uses: &[],
                     claim_introductions: &mut claim_introductions,
@@ -11455,6 +11458,7 @@ pub(crate) mod inner {
             )?;
             if completes_normally {
                 crate::emission::affine_cleanup::complete(
+                    &completed_cleanup_frontiers,
                     &parameter_cleanup,
                     &machine.structural_parameters,
                     &crate::emission::affine_cleanup::no_code_type_ids(checked, type_ids),

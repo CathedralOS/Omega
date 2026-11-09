@@ -1820,6 +1820,7 @@ pub(crate) mod unit_cleanup {
 
             fn cleanup(machine: SymbolHandle, marker: u64) -> CheckedUnitNominalAffineCleanupPlan {
                 CheckedUnitNominalAffineCleanupPlan {
+                    partition_leaf: Default::default(),
                     consumed_claims: Vec::new(),
                     source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index: 0,
@@ -2034,7 +2035,10 @@ pub(crate) mod unit_cleanup {
                             cleanup_actions,
                             ..
                         } => {
-                            if cleanup_actions.contains(action) {
+                            if cleanup_actions
+                                .iter()
+                                .any(|candidate| candidate.same_effect(action))
+                            {
                                 *retained = false;
                             }
                         }
@@ -2300,6 +2304,7 @@ pub(crate) mod unit_cleanup {
                     }
                     carriers.push((
                         CleanupRegion {
+                            partition_leaf: None,
                             declaration_order: None,
                             selected_region: Some({
                                 terminal_psi::StructuralArgument {
@@ -2345,7 +2350,42 @@ pub(crate) mod unit_cleanup {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) struct CleanupPartitionLeaf {
+        pub(crate) owner: arena::Handle<checked_trees::CheckedCleanupPartitionPlan>,
+        pub(crate) ordinal: u32,
+        pub(crate) root: std::sync::Arc<CleanupPartitionNode>,
+        pub(crate) leaf_count: usize,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) enum CleanupPartitionNode {
+        Scope {
+            place: PlaceId,
+            path: Vec<terminal_psi::StructuralPathSegment>,
+            structural_type: StructuralTypeId,
+            conditions: Vec<CleanupCaseCondition>,
+            steps: Vec<CleanupPartitionNode>,
+        },
+        Leaf(u32),
+        Cases {
+            place: PlaceId,
+            path: Vec<terminal_psi::StructuralPathSegment>,
+            structural_type: StructuralTypeId,
+            arms: Vec<CleanupPartitionArm>,
+            common: Vec<CleanupPartitionNode>,
+        },
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) struct CleanupPartitionArm {
+        pub(crate) case: semantic_vocabulary::StructuralCaseId,
+        pub(crate) reachability: checked_trees::CheckedCleanupCaseReachability,
+        pub(crate) steps: Vec<CleanupPartitionNode>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) struct CleanupRegion {
+        pub(crate) partition_leaf: Option<CleanupPartitionLeaf>,
         pub(crate) declaration_order: Option<(u8, u32)>,
         pub(crate) selected_region: Option<terminal_psi::StructuralArgument>,
         pub(crate) conditions: Vec<CleanupCaseCondition>,
@@ -2355,6 +2395,7 @@ pub(crate) mod unit_cleanup {
     impl CleanupRegion {
         pub(crate) fn unconditional(action: terminal_psi::TerminalAffineCleanupAction) -> Self {
             Self {
+                partition_leaf: None,
                 declaration_order: None,
                 selected_region: None,
                 conditions: Vec::new(),
@@ -2453,6 +2494,269 @@ pub(crate) mod unit_cleanup {
             .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
     }
 
+    type CleanupStorage = (PlaceId, Vec<terminal_psi::StructuralPathSegment>);
+
+    struct PreparedCleanupPartition {
+        owner: arena::Handle<checked_trees::CheckedCleanupPartitionPlan>,
+        root: std::sync::Arc<CleanupPartitionNode>,
+        leaf_count: usize,
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_cleanup_partitions(
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        checked: &CheckedTrees,
+        scheduled: &[&checked_trees::CheckedNormalCleanupAction],
+        control: &checked_trees::CheckedCleanupControlPlans,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+        resolve_type: &mut impl FnMut(
+            &mut terminal_psi::TerminalIdentityTableBuilder,
+            typed_trees::type_identity::TypeIdentityId,
+        ) -> Result<StructuralTypeId, LoweringError>,
+        storage: &mut impl FnMut(
+            &mut terminal_psi::TerminalIdentityTableBuilder,
+            &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+            &[checked_trees::CheckedUnitStructuralPathSegment],
+        ) -> Result<CleanupStorage, LoweringError>,
+    ) -> Result<Vec<PreparedCleanupPartition>, LoweringError> {
+        let mut ordered = scheduled
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(_, action)| action.partition_leaf().partition.is_valid())
+            .collect::<Vec<_>>();
+        ordered.sort_by_key(|(position, action)| {
+            let owner = action.partition_leaf().partition;
+            (owner.arena_index(), owner.generation(), *position)
+        });
+        let mut retained = Vec::new();
+        let mut remaining = ordered.as_slice();
+        while let Some((_, first)) = remaining.first() {
+            let owner = first.partition_leaf().partition;
+            let count = remaining
+                .iter()
+                .take_while(|(_, action)| action.partition_leaf().partition == owner)
+                .count();
+            let selected = remaining[..count]
+                .iter()
+                .map(|(_, action)| *action)
+                .collect::<Vec<_>>();
+            remaining = &remaining[count..];
+            let plan = control.partitions.get(owner);
+            if !plan.disposition.is_valid() {
+                return Err(LoweringError::InvalidCleanupPartition {
+                    reason: "cleanup partition has no checked disposition",
+                });
+            }
+            let disposition = checked
+                .facts
+                .contextual_cleanup
+                .dispositions
+                .get(plan.disposition);
+            if !disposition.root.is_valid() {
+                return Err(LoweringError::InvalidCleanupPartition {
+                    reason: "cleanup partition has no exact source root",
+                });
+            }
+            let authorized = control.actions.span_or_empty(plan.actions);
+            if selected.len() != authorized.len()
+                || selected.iter().zip(authorized).enumerate().any(
+                    |(ordinal, (selected, authorized))| {
+                        selected.partition_leaf().ordinal as usize != ordinal
+                            || *selected != authorized
+                            || selected.source() != &plan.source
+                    },
+                )
+            {
+                return Err(LoweringError::InvalidCleanupPartition {
+                    reason: "cleanup partition does not match its complete ordered action span",
+                });
+            }
+            let expected = storage(
+                identities,
+                &plan.source,
+                control.paths.span_or_empty(plan.path),
+            )?;
+            let expected_type = resolve_type(identities, plan.type_identity)?;
+            let mut leaves = Vec::new();
+            let mut active = Vec::new();
+            let root = prepare_cleanup_partition_node(
+                identities,
+                checked,
+                control,
+                types,
+                &plan.source,
+                plan.root,
+                resolve_type,
+                storage,
+                &mut active,
+                &mut leaves,
+            )?;
+            if leaves
+                != (0..authorized.len())
+                    .map(|ordinal| ordinal as u32)
+                    .collect::<Vec<_>>()
+            {
+                return Err(LoweringError::InvalidCleanupPartition {
+                    reason: "cleanup partition omits, repeats or reorders an action leaf",
+                });
+            }
+            retained.push(PreparedCleanupPartition {
+                owner,
+                root: std::sync::Arc::new(root),
+                leaf_count: authorized.len(),
+            });
+        }
+        Ok(retained)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_cleanup_partition_node(
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        checked: &CheckedTrees,
+        control: &checked_trees::CheckedCleanupControlPlans,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+        source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        handle: arena::Handle<checked_trees::CheckedCleanupPartitionNode>,
+        resolve_type: &mut impl FnMut(
+            &mut terminal_psi::TerminalIdentityTableBuilder,
+            typed_trees::type_identity::TypeIdentityId,
+        ) -> Result<StructuralTypeId, LoweringError>,
+        storage: &mut impl FnMut(
+            &mut terminal_psi::TerminalIdentityTableBuilder,
+            &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+            &[checked_trees::CheckedUnitStructuralPathSegment],
+        ) -> Result<CleanupStorage, LoweringError>,
+        active: &mut Vec<arena::Handle<checked_trees::CheckedCleanupPartitionNode>>,
+        leaves: &mut Vec<u32>,
+    ) -> Result<CleanupPartitionNode, LoweringError> {
+        use checked_trees::CheckedCleanupPartitionNode as Node;
+        if !handle.is_valid() || active.contains(&handle) {
+            return Err(LoweringError::InvalidCleanupPartition {
+                reason: "cleanup partition has a missing or recursive node",
+            });
+        }
+        active.push(handle);
+        let node = match control.partition_nodes.get(handle) {
+            Node::Leaf { ordinal } => {
+                leaves.push(*ordinal);
+                CleanupPartitionNode::Leaf(*ordinal)
+            }
+            Node::Scope {
+                path,
+                type_identity,
+                conditions,
+                steps,
+            } => {
+                let (place, path) =
+                    storage(identities, source, control.paths.span_or_empty(*path))?;
+                let structural_type = resolve_type(identities, *type_identity)?;
+                let conditions = lower_cleanup_conditions(
+                    identities,
+                    checked,
+                    control,
+                    *conditions,
+                    types,
+                    |builder, path| storage(builder, source, path),
+                )?;
+                let mut children = Vec::new();
+                for step in control.partition_steps.span_or_empty(*steps) {
+                    children.push(prepare_cleanup_partition_node(
+                        identities,
+                        checked,
+                        control,
+                        types,
+                        source,
+                        step.node,
+                        resolve_type,
+                        storage,
+                        active,
+                        leaves,
+                    )?);
+                }
+                CleanupPartitionNode::Scope {
+                    place,
+                    path,
+                    structural_type,
+                    conditions,
+                    steps: children,
+                }
+            }
+            Node::Cases {
+                path,
+                type_identity,
+                arms,
+                common,
+            } => {
+                let (place, path) =
+                    storage(identities, source, control.paths.span_or_empty(*path))?;
+                let structural_type = resolve_type(identities, *type_identity)?;
+                let mut retained_arms = Vec::new();
+                for arm in control.partition_arms.span_or_empty(*arms) {
+                    let (_, case) =
+                        crate::expression_preparation::bindings::structural_cases::resolve_at(
+                            identities,
+                            types,
+                            structural_type,
+                            &[],
+                            &arm.case_identity,
+                        )?;
+                    let mut steps = Vec::new();
+                    for step in control.partition_steps.span_or_empty(arm.steps) {
+                        steps.push(prepare_cleanup_partition_node(
+                            identities,
+                            checked,
+                            control,
+                            types,
+                            source,
+                            step.node,
+                            resolve_type,
+                            storage,
+                            active,
+                            leaves,
+                        )?);
+                    }
+                    if arm.reachability == checked_trees::CheckedCleanupCaseReachability::Inactive
+                        && !steps.is_empty()
+                    {
+                        return Err(LoweringError::InvalidCleanupPartition {
+                            reason: "inactive cleanup alternative has executable actions",
+                        });
+                    }
+                    retained_arms.push(CleanupPartitionArm {
+                        case,
+                        reachability: arm.reachability,
+                        steps,
+                    });
+                }
+                let mut retained_common = Vec::new();
+                for step in control.partition_steps.span_or_empty(*common) {
+                    retained_common.push(prepare_cleanup_partition_node(
+                        identities,
+                        checked,
+                        control,
+                        types,
+                        source,
+                        step.node,
+                        resolve_type,
+                        storage,
+                        active,
+                        leaves,
+                    )?);
+                }
+                CleanupPartitionNode::Cases {
+                    place,
+                    path,
+                    structural_type,
+                    arms: retained_arms,
+                    common: retained_common,
+                }
+            }
+        };
+        active.pop();
+        Ok(node)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare_checked_cleanup_regions<'action>(
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -2492,9 +2796,33 @@ pub(crate) mod unit_cleanup {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan,
             Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         )> = None;
+        let actions = actions.into_iter().collect::<Vec<_>>();
+        let partitions = prepare_cleanup_partitions(
+            identities,
+            checked,
+            &actions,
+            control,
+            types,
+            &mut resolve_type,
+            &mut storage,
+        )?;
         actions
             .into_iter()
             .map(|action| {
+                let leaf = action.partition_leaf();
+                let partition_leaf = partitions
+                    .binary_search_by_key(
+                        &(leaf.partition.arena_index(), leaf.partition.generation()),
+                        |partition| (partition.owner.arena_index(), partition.owner.generation()),
+                    )
+                    .ok()
+                    .map(|position| &partitions[position])
+                    .map(|partition| CleanupPartitionLeaf {
+                        owner: partition.owner,
+                        ordinal: leaf.ordinal,
+                        root: partition.root.clone(),
+                        leaf_count: partition.leaf_count,
+                    });
                 let (place, path) = storage(identities, action.source(), action.path())?;
                 let retires_home = matches!(
                     action,
@@ -2574,6 +2902,7 @@ pub(crate) mod unit_cleanup {
                     checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
                         let claims = consumed_claims(cleanup, place, &path)?;
                         return Ok(PreparedNormalCleanupAction::InvokeNominal {
+                            partition_leaf,
                             selected_region,
                             conditions,
                             cleanup: cleanup.clone(),
@@ -2585,6 +2914,7 @@ pub(crate) mod unit_cleanup {
                     }
                 };
                 Ok(PreparedNormalCleanupAction::Resolved(CleanupRegion {
+                    partition_leaf,
                     declaration_order: None,
                     selected_region,
                     conditions,
@@ -2868,6 +3198,7 @@ pub(crate) mod unit_cleanup {
     pub(crate) enum PreparedNormalCleanupAction {
         Resolved(CleanupRegion),
         InvokeNominal {
+            partition_leaf: Option<CleanupPartitionLeaf>,
             selected_region: Option<terminal_psi::StructuralArgument>,
             conditions: Vec<CleanupCaseCondition>,
             cleanup: CheckedUnitNominalAffineCleanupPlan,
@@ -2922,6 +3253,156 @@ pub(crate) mod unit_cleanup {
         )
     }
 
+    fn validate_cleanup_partition(
+        root: &CleanupPartitionNode,
+        expected: &CleanupStorage,
+        expected_type: StructuralTypeId,
+        leaf_count: usize,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+    ) -> Result<(), LoweringError> {
+        let CleanupPartitionNode::Scope {
+            place,
+            path,
+            structural_type,
+            ..
+        } = root
+        else {
+            return Err(LoweringError::InvalidCleanupPartition {
+                reason: "cleanup partition has no carrier root",
+            });
+        };
+        if *place != expected.0 || path != &expected.1 || *structural_type != expected_type {
+            return Err(LoweringError::InvalidCleanupPartition {
+                reason: "cleanup partition names another carrier or storage version",
+            });
+        }
+        fn visit(
+            node: &CleanupPartitionNode,
+            expected: &CleanupStorage,
+            expected_type: StructuralTypeId,
+            types: &[terminal_psi::StructuralTypeDeclaration],
+            leaves: &mut Vec<u32>,
+        ) -> Result<(), LoweringError> {
+            let (place, path, structural_type) = match node {
+                CleanupPartitionNode::Leaf(ordinal) => {
+                    leaves.push(*ordinal);
+                    return Ok(());
+                }
+                CleanupPartitionNode::Scope {
+                    place,
+                    path,
+                    structural_type,
+                    ..
+                }
+                | CleanupPartitionNode::Cases {
+                    place,
+                    path,
+                    structural_type,
+                    ..
+                } => (*place, path, *structural_type),
+            };
+            let relative = path.strip_prefix(expected.1.as_slice()).ok_or(
+                LoweringError::InvalidCleanupPartition {
+                    reason: "cleanup partition scope is outside its carrier",
+                },
+            )?;
+            if place != expected.0
+                || terminal_semantics::runtime_structural_path_tip(
+                    types.iter(),
+                    expected_type,
+                    relative,
+                )
+                .is_none_or(|declaration| declaration.id != structural_type)
+            {
+                return Err(LoweringError::InvalidCleanupPartition {
+                    reason: "cleanup partition scope has another root or type",
+                });
+            }
+            match node {
+                CleanupPartitionNode::Scope { steps, .. } => {
+                    for step in steps {
+                        visit(step, expected, expected_type, types, leaves)?;
+                    }
+                }
+                CleanupPartitionNode::Cases { arms, common, .. } => {
+                    let declaration = terminal_semantics::runtime_structural_path_tip(
+                        types.iter(),
+                        expected_type,
+                        relative,
+                    )
+                    .ok_or(LoweringError::InvalidCleanupPartition {
+                        reason: "cleanup alternatives lost their declared carrier",
+                    })?;
+                    let cases = match &declaration.shape {
+                        terminal_psi::StructuralTypeShape::Sum { cases }
+                        | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
+                        _ => {
+                            return Err(LoweringError::InvalidCleanupPartition {
+                                reason: "cleanup alternatives require a sum carrier",
+                            });
+                        }
+                    };
+                    if arms.len() != cases.len()
+                        || arms
+                            .iter()
+                            .enumerate()
+                            .any(|(position, arm)| arm.case != cases[position].id)
+                    {
+                        return Err(LoweringError::InvalidCleanupPartition {
+                            reason: "cleanup partition omits or reorders a declared alternative",
+                        });
+                    }
+                    let reachable = arms
+                        .iter()
+                        .filter(|arm| {
+                            arm.reachability
+                                != checked_trees::CheckedCleanupCaseReachability::Inactive
+                        })
+                        .count();
+                    if arms.iter().any(|arm| {
+                        arm.reachability == checked_trees::CheckedCleanupCaseReachability::Selected
+                    }) && reachable != 1
+                    {
+                        return Err(LoweringError::InvalidCleanupPartition {
+                            reason: "selected cleanup alternative has competing reachable cases",
+                        });
+                    }
+                    for arm in arms {
+                        if arm.reachability
+                            == checked_trees::CheckedCleanupCaseReachability::Inactive
+                            && !arm.steps.is_empty()
+                        {
+                            return Err(LoweringError::InvalidCleanupPartition {
+                                reason: "unreachable cleanup alternative has actions",
+                            });
+                        }
+                        for step in &arm.steps {
+                            visit(step, expected, expected_type, types, leaves)?;
+                        }
+                    }
+                    for step in common {
+                        visit(step, expected, expected_type, types, leaves)?;
+                    }
+                }
+                CleanupPartitionNode::Leaf(_) => {}
+            }
+            Ok(())
+        }
+        let mut leaves = Vec::new();
+        visit(root, expected, expected_type, types, &mut leaves)?;
+        if leaves
+            .iter()
+            .copied()
+            .map(|ordinal| ordinal as usize)
+            .ne(0..leaf_count)
+        {
+            return Err(LoweringError::InvalidCleanupPartition {
+                reason: "cleanup partition omits, repeats or reorders an action leaf",
+            });
+        }
+        Ok(())
+    }
+
     fn materialize_prepared_cleanup_regions(
         actions: &[PreparedNormalCleanupAction],
         mut nominal: impl FnMut(
@@ -2938,6 +3419,7 @@ pub(crate) mod unit_cleanup {
                 Ok(match action {
                     PreparedNormalCleanupAction::Resolved(action) => action.clone(),
                     PreparedNormalCleanupAction::InvokeNominal {
+                        partition_leaf,
                         selected_region,
                         conditions,
                         cleanup,
@@ -2954,6 +3436,7 @@ pub(crate) mod unit_cleanup {
                             consumed_claims,
                         )?;
                         CleanupRegion {
+                            partition_leaf: partition_leaf.clone(),
                             declaration_order: None,
                             selected_region: selected_region.clone(),
                             conditions: conditions.clone(),
@@ -2991,6 +3474,164 @@ pub(crate) mod unit_cleanup {
                 nominal_cleanup_subject(checked, cleanup.cleanup_machine, type_ids)?;
         }
         Ok(())
+    }
+    #[cfg(test)]
+    mod cleanup_partition_tests {
+        use super::*;
+        use terminal_psi::StructuralPathSegment as Segment;
+
+        #[test]
+        fn complete_carrier_keeps_each_case_tail_before_its_join() {
+            let original = checked_trees::CheckedNormalCleanupAction::Discard(Default::default());
+            let mut associated = original.clone();
+            if let checked_trees::CheckedNormalCleanupAction::Discard(row) = &mut associated {
+                row.partition_leaf.partition = arena::Handle::from_parts(1, 1);
+            }
+            assert_ne!(original, associated);
+            assert!(original.same_effect(&associated));
+            let place = place_id(17);
+            let carrier = structural_type_id(1);
+            let scalar = structural_type_id(2);
+            let empty = StructuralCaseId::new(1).unwrap();
+            let held = StructuralCaseId::new(2).unwrap();
+            let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+            let common = identities.intern("common");
+            let payload = identities.intern("payload");
+            let field =
+                |id, identity, _identities: &mut terminal_psi::TerminalIdentityTableBuilder| {
+                    terminal_psi::StructuralFieldDeclaration {
+                        inline_carrier: None,
+                        id,
+                        identity,
+                        relevance: language_core::BindingRelevance::Relevant,
+                        field_type: terminal_psi::StructuralFieldType::Structural(scalar),
+                        storage: None,
+                    }
+                };
+            let types = vec![
+                terminal_psi::StructuralTypeDeclaration {
+                    quotient_carrier: None,
+                    id: carrier,
+                    identity: identities.intern("carrier"),
+                    owns_linear_claim: false,
+                    copyable: false,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    scalar_restriction: None,
+                    shape: terminal_psi::StructuralTypeShape::Mixed {
+                        fields: vec![field(structural_field_id(1), common, &mut identities)],
+                        cases: vec![
+                            terminal_psi::StructuralCaseDeclaration {
+                                id: empty,
+                                identity: identities.intern("empty"),
+                                fields: Vec::new(),
+                            },
+                            terminal_psi::StructuralCaseDeclaration {
+                                id: held,
+                                identity: identities.intern("held"),
+                                fields: vec![field(
+                                    structural_field_id(2),
+                                    payload,
+                                    &mut identities,
+                                )],
+                            },
+                        ],
+                    },
+                },
+                terminal_psi::StructuralTypeDeclaration {
+                    quotient_carrier: None,
+                    id: scalar,
+                    identity: identities.intern("scalar"),
+                    owns_linear_claim: false,
+                    copyable: true,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: false,
+                    scalar_restriction: None,
+                    shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                },
+            ];
+            let root_path = vec![Segment::FixedIndex(2)];
+            let payload_path = vec![
+                Segment::FixedIndex(2),
+                Segment::Case(held),
+                Segment::Field(payload),
+            ];
+            let common_path = vec![Segment::FixedIndex(2), Segment::Field(common)];
+            let scope = |path: Vec<Segment>, ordinal| CleanupPartitionNode::Scope {
+                place,
+                path,
+                structural_type: scalar,
+                conditions: Vec::new(),
+                steps: vec![CleanupPartitionNode::Leaf(ordinal)],
+            };
+            let root = CleanupPartitionNode::Scope {
+                place,
+                path: root_path.clone(),
+                structural_type: carrier,
+                conditions: Vec::new(),
+                steps: vec![CleanupPartitionNode::Cases {
+                    place,
+                    path: root_path.clone(),
+                    structural_type: carrier,
+                    arms: vec![
+                        CleanupPartitionArm {
+                            case: empty,
+                            reachability: checked_trees::CheckedCleanupCaseReachability::Runtime,
+                            steps: Vec::new(),
+                        },
+                        CleanupPartitionArm {
+                            case: held,
+                            reachability: checked_trees::CheckedCleanupCaseReachability::Runtime,
+                            steps: vec![scope(payload_path.clone(), 0)],
+                        },
+                    ],
+                    common: vec![scope(common_path.clone(), 1)],
+                }],
+            };
+            let expected = (place, root_path.clone());
+            assert!(validate_cleanup_partition(&root, &expected, carrier, 2, &types).is_ok());
+            assert!(
+                validate_cleanup_partition(
+                    &root,
+                    &(place_id(18), root_path.clone()),
+                    carrier,
+                    2,
+                    &types
+                )
+                .is_err()
+            );
+            assert!(validate_cleanup_partition(&root, &expected, scalar, 2, &types).is_err());
+            for modification in 0..4 {
+                let mut invalid = root.clone();
+                let CleanupPartitionNode::Scope { steps, .. } = &mut invalid else {
+                    unreachable!()
+                };
+                let CleanupPartitionNode::Cases { arms, common, .. } = &mut steps[0] else {
+                    unreachable!()
+                };
+                match modification {
+                    0 => {
+                        common.clear();
+                    }
+                    1 => {
+                        common[0] = scope(common_path.clone(), 0);
+                    }
+                    2 => {
+                        arms[1].steps[0] = scope(payload_path.clone(), 1);
+                        common[0] = scope(common_path.clone(), 0);
+                    }
+                    _ => {
+                        arms.remove(0);
+                    }
+                }
+                assert!(
+                    validate_cleanup_partition(&invalid, &expected, carrier, 2, &types).is_err()
+                );
+            }
+            println!(
+                "partition: complete and payload-free alternatives retain their shared tail; missing/repeated/reordered leaves, missing arm and wrong carrier/type refuse"
+            );
+        }
     }
 }
 

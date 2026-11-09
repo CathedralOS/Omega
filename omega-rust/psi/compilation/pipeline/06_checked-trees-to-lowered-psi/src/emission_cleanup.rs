@@ -719,6 +719,7 @@ pub(crate) mod affine_cleanup {
         }
 
         pub(crate) fn complete(
+            completed_cleanup_frontiers: &[super::super::selected_continuations::CompletedCleanupFrontier],
             parameters: &[StructuralParameterDeclaration],
             local_places: &[StructuralPlaceDeclaration],
             entry: BlockId,
@@ -726,6 +727,9 @@ pub(crate) mod affine_cleanup {
             types: &[StructuralTypeDeclaration],
             extractions: &[(OperationId, StructuralArgument)],
         ) -> Result<(), LoweringError> {
+            let completions = super::super::selected_continuations::CleanupCompletionIndex::new(
+                completed_cleanup_frontiers,
+            );
             let copied_roots = copied_operand_roots(parameters, blocks);
             if partitioned_roots(blocks, extractions, &copied_roots).is_empty() {
                 return Ok(());
@@ -823,6 +827,7 @@ pub(crate) mod affine_cleanup {
                 let mut successors = Vec::new();
                 match &mut completed[position] {
                     Terminator::Jump {
+                        edge,
                         target,
                         structural_arguments,
                         cleanup_actions,
@@ -832,7 +837,7 @@ pub(crate) mod affine_cleanup {
                             transfer(&mut frontier, argument, &copied_roots)?;
                         }
                         complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
-                        successors.push((*target, frontier));
+                        successors.push((*edge, *target, frontier));
                     }
                     Terminator::Conditional {
                         when_true,
@@ -850,7 +855,7 @@ pub(crate) mod affine_cleanup {
                                 &roots,
                                 types,
                             )?;
-                            successors.push((edge.target, branch));
+                            successors.push((edge.edge, edge.target, branch));
                         }
                     }
                     Terminator::StructuralCase {
@@ -874,7 +879,7 @@ pub(crate) mod affine_cleanup {
                                 &roots,
                                 types,
                             )?;
-                            successors.push((edge.target, branch));
+                            successors.push((edge.edge, edge.target, branch));
                         }
                     }
                     terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
@@ -902,7 +907,10 @@ pub(crate) mod affine_cleanup {
                     }
                     Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
                 }
-                for (target, mut outgoing) in successors {
+                for (edge, target, mut outgoing) in successors {
+                    for completion in completions.at(edge) {
+                        normalize_completed_frontier(&mut outgoing, completion);
+                    }
                     let target = block_position(blocks, target)?;
                     outgoing.retain(|root| {
                         !blocks[target]
@@ -1125,6 +1133,43 @@ pub(crate) mod affine_cleanup {
             Ok(())
         }
 
+        fn normalize_completed_frontier(
+            frontier: &mut Frontier,
+            completion: &super::super::selected_continuations::CompletedCleanupFrontier,
+        ) {
+            use super::super::selected_continuations::CompletedCleanupKind;
+            let selected = &completion.region;
+            let paths = match &completion.kind {
+                CompletedCleanupKind::Value => vec![selected.path.clone()],
+                CompletedCleanupKind::CasePayloads(cases) => cases
+                    .iter()
+                    .map(|case| {
+                        let mut path = selected.path.clone();
+                        path.push(StructuralPathSegment::Case(*case));
+                        path
+                    })
+                    .collect(),
+            };
+            let position = frontier
+                .iter()
+                .position(|root| root.place == selected.place)
+                .unwrap_or_else(|| {
+                    frontier.push(MovedRoot {
+                        place: selected.place,
+                        paths: BTreeSet::new(),
+                    });
+                    frontier.len() - 1
+                });
+            let root = &mut frontier[position];
+            for path in paths {
+                if !root.paths.iter().any(|earlier| path.starts_with(earlier)) {
+                    root.paths.retain(|earlier| !earlier.starts_with(&path));
+                    root.paths.insert(path);
+                }
+            }
+            frontier.sort_by_key(|root| root.place);
+        }
+
         fn restore_path(frontier: &mut Frontier, place: PlaceId, path: &[StructuralPathSegment]) {
             let Some(position) = frontier.iter().position(|root| root.place == place) else {
                 return;
@@ -1273,6 +1318,74 @@ pub(crate) mod affine_cleanup {
             *cleanup_actions = actions;
             Ok(())
         }
+        #[cfg(test)]
+        mod completed_frontier_tests {
+            use super::*;
+            use crate::emission::selected_continuations::{
+                CompletedCleanupFrontier, CompletedCleanupKind,
+            };
+
+            #[test]
+            fn completed_payloads_keep_common_fields_and_other_slots_live() {
+                let place = PlaceId::new(7).unwrap();
+                let empty = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
+                let held = semantic_vocabulary::StructuralCaseId::new(2).unwrap();
+                let field = terminal_psi::TerminalIdentityIndex(1);
+                let slot = vec![StructuralPathSegment::FixedIndex(2)];
+                let payload = vec![
+                    StructuralPathSegment::FixedIndex(2),
+                    StructuralPathSegment::Case(held),
+                    StructuralPathSegment::Field(field),
+                ];
+                let common = vec![
+                    StructuralPathSegment::FixedIndex(2),
+                    StructuralPathSegment::Field(field),
+                ];
+                let neighbor = vec![StructuralPathSegment::FixedIndex(3)];
+                let receipt = CompletedCleanupFrontier {
+                    edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+                    region: StructuralArgument {
+                        place,
+                        path: slot.clone(),
+                        access: StructuralAccess::Owned,
+                    },
+                    kind: CompletedCleanupKind::CasePayloads(vec![empty, held]),
+                };
+                let mut active = vec![MovedRoot {
+                    place,
+                    paths: BTreeSet::from([payload.clone()]),
+                }];
+                let mut inactive = Vec::new();
+                assert_ne!(active, inactive);
+                normalize_completed_frontier(&mut active, &receipt);
+                normalize_completed_frontier(&mut inactive, &receipt);
+                assert_eq!(active, inactive);
+                assert!(require_available(&active, place, &payload).is_err());
+                assert!(require_available(&inactive, place, &payload).is_err());
+                assert!(require_available(&active, place, &common).is_ok());
+                assert!(require_available(&active, place, &neighbor).is_ok());
+                let mut with_common = vec![MovedRoot {
+                    place,
+                    paths: BTreeSet::from([common.clone(), payload]),
+                }];
+                normalize_completed_frontier(&mut with_common, &receipt);
+                assert_ne!(with_common, active);
+                assert!(require_available(&with_common, place, &common).is_err());
+                let whole = CompletedCleanupFrontier {
+                    kind: CompletedCleanupKind::Value,
+                    ..receipt
+                };
+                normalize_completed_frontier(&mut active, &whole);
+                normalize_completed_frontier(&mut with_common, &whole);
+                assert_eq!(active, with_common);
+                assert_eq!(active[0].paths, BTreeSet::from([slot]));
+                assert!(require_available(&active, place, &common).is_err());
+                assert!(require_available(&active, place, &neighbor).is_ok());
+                println!(
+                    "checked payload completion agrees for active/inactive histories, preserves common fields and neighboring slots, and retains unavailable-value refusals"
+                );
+            }
+        }
     }
 
     pub(crate) use projected_transfers::{
@@ -1304,6 +1417,7 @@ pub(crate) mod affine_cleanup {
     }
 
     pub(crate) fn complete(
+        completed_cleanup_frontiers: &[super::selected_continuations::CompletedCleanupFrontier],
         parameters: &[StructuralParameterDeclaration],
         entry_parameters: &[StructuralParameterDeclaration],
         no_code_types: &[semantic_vocabulary::StructuralTypeId],
@@ -1325,6 +1439,7 @@ pub(crate) mod affine_cleanup {
             &extractions,
         )?;
         projected_transfers::complete(
+            completed_cleanup_frontiers,
             entry_parameters,
             local_places,
             entry,
@@ -5089,6 +5204,9 @@ pub(crate) mod continuation_specialization {
             definitions: &[Definitions],
             rows: &CompanionRows<'_>,
         ) -> Result<Vec<IdentityUses>, LoweringError> {
+            let completions = super::super::selected_continuations::CleanupCompletionIndex::new(
+                rows.completed_cleanup_frontiers,
+            );
             let local =
                 machine
                     .blocks
@@ -5097,6 +5215,11 @@ pub(crate) mod continuation_specialization {
                     .map(|(block, definitions)| {
                         let mut namespace = observer();
                         namespace.block(&mut block.clone())?;
+                        for edge in &definitions.edges {
+                            for completion in completions.at(*edge) {
+                                namespace.argument(&mut completion.region.clone());
+                            }
+                        }
                         for call in
                             rows.source_calls
                                 .iter()
@@ -5222,6 +5345,8 @@ pub(crate) mod continuation_specialization {
     use dependencies::Definitions;
 
     pub(crate) struct CompanionRows<'a> {
+        pub(crate) completed_cleanup_frontiers:
+            &'a mut Vec<super::selected_continuations::CompletedCleanupFrontier>,
         pub(crate) source_returns:
             &'a mut Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
         pub(crate) continuation_value_uses: &'a [(BlockId, semantic_vocabulary::ValueId)],
@@ -5265,6 +5390,7 @@ pub(crate) mod continuation_specialization {
             &machine.blocks,
             types,
             groups,
+            rows.completed_cleanup_frontiers,
             !rows.claim_edge_bindings.is_empty(),
         )?
         else {
@@ -5420,6 +5546,18 @@ pub(crate) mod continuation_specialization {
                 claim.claim = instance.namespace.claim(claim.claim);
                 instance.namespace.path(&mut claim.path);
                 block_entry_claims.push(claim);
+            }
+        }
+        let originals = std::mem::take(rows.completed_cleanup_frontiers);
+        let completions = super::selected_continuations::CleanupCompletionIndex::new(&originals)?;
+        for instance in &mut instances {
+            for (original, _) in instance.namespace.edges.clone() {
+                for completion in completions.at(original) {
+                    let mut completion = completion.clone();
+                    completion.edge = instance.namespace.edge(original);
+                    instance.namespace.argument(&mut completion.region);
+                    rows.completed_cleanup_frontiers.push(completion);
+                }
             }
         }
         places.sort_by_key(|place| place.id);
