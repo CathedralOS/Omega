@@ -81578,12 +81578,29 @@ pub(crate) mod structural_judgment {
                     .iter()
                     .filter(|(name, _)| name == parameter.name.as_str());
                 let (_, actual) = actuals.next()?;
+                // A borrowed aggregate argument retains its observed referent.
+                // Match that carrier to the shared formal before asking the
+                // completed scalar-read owner for the selected contents.
+                let observed_referent =
+                    super::structural_terms::owned_observation_type(self.program, actual)
+                        .is_some_and(|observed| {
+                            crate::reference_shell(self.program, parameter.type_reference)
+                                .is_some_and(|shell| {
+                                    shell.access == language_semantics::ReferenceAccess::Shared
+                                        && crate::declared_carriers_match(
+                                            self.program,
+                                            shell.referee,
+                                            observed,
+                                        )
+                                })
+                        });
                 if actuals.next().is_some()
-                    || !super::structural_terms::scalar_operand_is_observed(
-                        self.program,
-                        parameter.type_reference,
-                        actual,
-                    )
+                    || (!observed_referent
+                        && !super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            parameter.type_reference,
+                            actual,
+                        ))
                 {
                     return None;
                 }
