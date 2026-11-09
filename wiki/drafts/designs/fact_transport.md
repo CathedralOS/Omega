@@ -119,26 +119,49 @@ mechanisms exist across typed-trees, 04, 05, validation and Terminal Psi.
 makes 158 `validation::` calls. Each "carry into lowering" PR (#2032, #1143)
 moves one re-derivation into one new `CheckFacts` field.
 
-### A probable live instance
+### Nested machine entry
 
-`ValueEnvironment::rebind` (`V/arithmetic_domains.rs:25971`) builds a fresh
-environment and copies only the string-keyed collections. Its two callers
-show the pattern in miniature:
+A guard the caller has proved does not reach the nested machine it transitions
+to, so a valid body is rejected until the programmer repeats the guard as
+`requires`. The behaviour is fail-closed: valid programs are refused, and no
+invalid program is admitted.
 
-- The state-arrival join (`V/arithmetic_domains.rs:11270`) calls `rebind`, then
-  re-carries `boolean_values` and `ordered_values` by hand through a second,
-  separate binding list, and re-seeds parameter intervals. `integer_ranges`
-  and `float_elements` are not carried. `numeric_observations` are
-  per-statement, so dropping them at an arrival is expected.
-- The match-capture alias (`copy_path_facts`, `:2878`) extends the environment
-  in place, so nothing already known is lost, but `integer_ranges`,
-  `boolean_values`, `ordered_values` and `float_elements` are never copied to
-  the capture path.
+The witness, probed against `2ad42b16712`, uses the guard
+`value == value && value >= 0.0 && value < 1000.0`. In the guarded state,
+`I32::from_f64(values[index]) * 1000` passes. In a nested machine,
+`let converted: i32 = I32::from_f64(value); converted * 1000` rejects with
+"exact arithmetic ... may overflow i32", for a by-value scalar, an element and
+a by-reference field. Adding the same condition as `requires` on the nested
+machine makes each one pass.
 
-`float_elements` was added by #1701 for disjoint writes and never reached
-either transport. Whether `integer_ranges` is re-derived elsewhere after an
-arrival is unverified. Each missing collection is a candidate "preserve X
-through Y" PR.
+`incoming_environments` (`V/arithmetic_domains.rs:10781`) joins only arrivals
+inside one machine, and `arrive` (`:11230`) needs its target in
+`machine_states(self.machine)`. A `transition` to a nested machine appears not
+to be such an arrival: the diagnostics name machine `finish`, state `entry`. A
+nested body therefore starts from an empty environment plus its `requires`.
+The `actuals` tuple (symbol, `Interval`, recipe) feeds only return-range
+inference. Guard facts reach a nested body through caller-side occurrence
+entailment such as `float_integer_conversion_fits_at_occurrence`
+(`V/contract_entailment.rs:21806`), which answers direct obligations but not
+derived ones like the product above.
+
+The specification already allows the repair. Its
+[arrival rules](../../spec/language/state_contracts.md#bindings-and-arrivals)
+let a private body rely on inferred requirements that are justified on every
+arrival, and require every reachable predecessor in the join. An unknown
+caller therefore contributes nothing, which keeps the repair fail-closed.
+
+`ValueEnvironment::rebind` (`V/arithmetic_domains.rs:25971`) looks like the
+culprit and is not. It copies only the string-keyed collections. At a
+same-machine arrival (`:11270`), `boolean_values` and `ordered_values` are
+carried by hand and `copied.record` restores scalar facts and root integer-range
+recipes for by-value parameters, which leaves `float_elements` and the
+`integer_ranges` of reference parameters uncarried. The match-capture alias
+(`copy_path_facts`, `:2878`) likewise never copies `integer_ranges`,
+`boolean_values`, `ordered_values` or `float_elements` to the capture path.
+These gaps are in the code, but the witnesses above never reach `arrive`, so
+they do not explain those rejections. How often authored programs reach
+`arrive` is unmeasured.
 
 ## Design
 
@@ -181,9 +204,13 @@ same commit ([compositional lowering](../../../omega-rust/pipeline.md#compositio
 1. **Overlap.** One relation; migrate the ten implementations and inline copies.
 2. **`PlaceMap`.** One formal-to-actual mapper; migrate the six rebasers.
 3. **Numeric environment keys.** Move `ValueEnvironment` and the entailment
-   `Engine` from `String` to `Place`; settle the `rebind` question above.
-4. **Generic arrival join.** Make `StateValues` generic over the environment.
-   This addresses the Build column (41 of 202 PRs).
+   `Engine` from `String` to `Place`. `float_elements` and reference-parameter
+   `integer_ranges` become ordinary rows of the environment, so `rebind` and
+   `copy_path_facts` have no per-collection list to forget.
+4. **Generic arrival join.** Make `StateValues` generic over the environment,
+   and seed a nested machine's entry from its callers' environments. Nested
+   entry is where guard facts are lost today (see above). This addresses the
+   Build column (41 of 202 PRs).
 5. **Call return.** Collapse the normal-return modules onto the one operation.
 6. **Lowering.** Replace stage 06 `validation::` re-derivation with environment reads.
 7. **Check generic bodies once.** Check the template against its contracts and
@@ -240,9 +267,15 @@ the code-generation baseline.
 So the Build column needs no new decision. Check each generic body once against
 its contracts, publish its facts in terms of its binders, and substitute
 arguments into those facts at each application; keep per-specialization target
-and layout checks. Pass 04 currently clones bodies before checking and checks
-each clone. That repeats work and may let a concrete instance prove what the
-template cannot, which the spec forbids. Verify which happens before migrating.
+and layout checks.
+
+The compiler already holds the rule; only the repeated work remains. Probes
+against `2ad42b16712` reject a generic body that only its one instantiation
+could prove (`scale<4>` overflow, division by a binder, an index past a binder),
+reject a generic with no applications at all, and reject a `T == u32 || T == u64`
+body that is valid only for the `u32` it is used with. Clones appear to be
+checked as well: pass 04 pushes each one as an ordinary machine and checking
+walks every machine. That part comes from reading the code, not from a probe.
 
 ## Method
 
