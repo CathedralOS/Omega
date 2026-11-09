@@ -1601,8 +1601,8 @@ use typed_trees::types::TypeReferenceHandle;
 pub use value_custody::access_atomic_observing_results;
 pub use value_custody::byte_observations::{ByteObservationCarrier, comparable_byte_carrier_type};
 pub use value_custody::claim_frontier::{
-    ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
-    type_carries_linear_obligation,
+    ClaimFrontierClaim, DeclaredClaimFrontier, declared_claim_frontier, linear_claim_frontier,
+    owned_receiver_claims, type_carries_linear_obligation,
 };
 pub use value_custody::constants::validate_constant_literal_fields;
 pub use value_custody::content_classes::classify_program_content_classes;
