@@ -6084,7 +6084,7 @@ pub(crate) mod selected_continuations {
 
     // Incoming states are lookup keys only while another predecessor can arrive.
     // Keep the emitted topology, but release processed keys after their last reader.
-    struct IncomingKeyLifetimes {
+    pub(crate) struct IncomingKeyLifetimes {
         successors: Vec<Vec<usize>>,
         predecessors: Vec<usize>,
         pending: Vec<usize>,
@@ -6092,6 +6092,11 @@ pub(crate) mod selected_continuations {
     }
 
     impl IncomingKeyLifetimes {
+        pub(crate) fn for_emitted_blocks(blocks: &[Block]) -> Option<Self> {
+            let positions = BlockPositions::new(blocks.iter().map(|block| block.id));
+            Self::for_blocks(blocks, &positions, &[])
+        }
+
         fn for_blocks(
             blocks: &[Block],
             positions: &BlockPositions,
@@ -6145,19 +6150,19 @@ pub(crate) mod selected_continuations {
             })
         }
 
-        fn discover(&mut self, block: usize) {
+        pub(crate) fn discover(&mut self, block: usize) {
             // Every arrival's source is still pending, so it cannot have closed
             // this destination's complete predecessor set.
             debug_assert!(!self.closed[block]);
             self.pending[block] += 1;
         }
 
-        fn processed(&mut self, block: usize) -> Vec<usize> {
+        pub(crate) fn processed(&mut self, block: usize) -> Vec<usize> {
             self.pending[block] -= 1;
             self.close_ready(vec![block])
         }
 
-        fn close_unused_roots(&mut self) {
+        pub(crate) fn close_unused_roots(&mut self) {
             let roots = (0..self.successors.len())
                 .filter(|block| self.predecessors[*block] == 0 && self.pending[*block] == 0)
                 .collect();

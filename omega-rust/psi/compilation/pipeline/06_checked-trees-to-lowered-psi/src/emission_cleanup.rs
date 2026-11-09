@@ -759,6 +759,17 @@ pub(crate) mod affine_cleanup {
             let mut incoming = vec![None; blocks.len()];
             let entry = block_position(blocks, entry)?;
             incoming[entry] = Some(Vec::new());
+            // Keep each saved frontier through every possible join comparison.
+            // Once its block is processed and no predecessor can arrive again,
+            // its paths are scratch storage with no remaining reader.
+            let mut key_lifetimes =
+                super::super::selected_continuations::IncomingKeyLifetimes::for_emitted_blocks(
+                    blocks,
+                );
+            if let Some(lifetimes) = &mut key_lifetimes {
+                lifetimes.discover(entry);
+                lifetimes.close_unused_roots();
+            }
             let mut ready = VecDeque::from([entry]);
             let mut completed = blocks
                 .iter()
@@ -926,9 +937,18 @@ pub(crate) mod affine_cleanup {
                         }
                         Some(_) => {}
                         None => {
+                            if let Some(lifetimes) = &mut key_lifetimes {
+                                lifetimes.discover(target);
+                            }
                             incoming[target] = Some(outgoing);
                             ready.push_back(target);
                         }
+                    }
+                }
+                if let Some(lifetimes) = &mut key_lifetimes {
+                    // Finish all outgoing comparisons before closing this source.
+                    for closed in lifetimes.processed(position) {
+                        incoming[closed] = None;
                     }
                 }
             }

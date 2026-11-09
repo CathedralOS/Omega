@@ -779,9 +779,9 @@ mod captured_boolean {
         Some((owner, declared, parameters))
     }
 
-    // Keep the complete recorded argument roster, and authenticate only the
-    // reads a selector actually uses before binding them in invocation scope.
-    // The collection keeps its separate captured storage and saved observation point.
+    // Keep the saved collection's identity and observation point. Check the
+    // reads used by each index expression before replacing the callee's
+    // parameters with the captured caller arguments.
     fn call_case_projection(
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
