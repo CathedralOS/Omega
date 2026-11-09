@@ -4202,6 +4202,8 @@ fail/data/constructor_stale_local_bounds rejected 1497ms expected @911f6617ba9e
 	data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/data/field_default_retired rejected 5ms expected @ccdb99ca2214
 	tests/omega/fail/data/field_default_retired/main.omg:10:18: data field `xs` declares a default initializer -- field defaults are retired: every field is zero-initialized (ZII), and a constructed default belongs in an ordinary constructor machine that writes the field
+fail/data/indexed_element_invariant_local_swapped rejected 3287ms expected @a5da41dcda8f
+	data `Vitality` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/data/match_nonexhaustive_cases rejected 201ms expected @ccdb99ca2214
 	match over `Command` does not cover `Command::Move`; add an arm or `_`
 fail/data/match_predicate_domain_needs_default rejected 85ms expected @ccdb99ca2214
@@ -21089,6 +21091,7 @@ pass/core/zii_default_composite_exit checked 63751ms check-target:macos_arm64 @9
 pass/data/case_first_payload_zero_established checked 2600ms @ccdb99ca2214
 pass/data/case_membership_union_guard_exit checked 10221ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/closed_literal_nested_predicates checked 3872ms @911f6617ba9e
+pass/data/indexed_element_invariant_local checked 4151ms @a5da41dcda8f
 pass/data/match_exhaustive_by_case_union_domain checked 115211ms check-target:macos_arm64 @ceec2d4e7d8b
 pass/data/mixed_record_common_field_and_payload_dispatch_exit checked 16989ms check-target:macos_arm64 @9af3eb514e16
 pass/data/opaque_copy_selected checked 3382ms check-target:macos_arm64 @ccdb99ca2214
@@ -25815,6 +25818,7 @@ pass/generics/open_value_case_constructor_checked checked 4157ms check-target:ma
 pass/generics/owned_member_applied_ceiling checked 13569ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/owned_member_applied_result checked 3993ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/owned_member_static_type_operand checked 3720ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/projected_field_const_argument checked 4699ms @a5da41dcda8f
 pass/generics/ranged_const_parameter_attached_shape checked 65183ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/record_const_named_literal_equivalence rejected 2610ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum
