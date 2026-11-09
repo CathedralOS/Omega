@@ -47783,6 +47783,14 @@ pub(crate) mod structural_judgment {
         use symbols::SymbolHandle;
         use typed_trees::expression::BinaryOperator;
 
+        pub(super) fn receiving_trace(judge: &StructuralJudge<'_>) -> bool {
+            std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                && judge
+                    .program
+                    .machine_by_symbol(judge.machine_symbol)
+                    .is_some_and(|machine| machine.name.as_str() == "selected_decode")
+        }
+
         #[derive(Clone, Debug)]
         pub(crate) enum ObservedCondition {
             Case {
@@ -47980,8 +47988,16 @@ pub(crate) mod structural_judgment {
                     let mut ready = Vec::new();
                     for (ordinal, guarantee) in pending.iter().enumerate() {
                         let established = guarantee.conditions.iter().all(|(condition, holds)| {
+                            let judgment = condition.judgment(self);
+                            if receiving_trace(self) {
+                                static GUARDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+                                if GUARDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 48 {
+                                    eprintln!("CHECKSITE decoder-conditional-guard ordinal={ordinal} condition={condition:?} holds={holds} judgment={judgment:?} storage={:?} rewrites={:?}",
+                                        self.storage_version, self.rewrites.iter().take(8).collect::<Vec<_>>());
+                                }
+                            }
                             matches!(
-                                (condition.judgment(self), holds),
+                                (judgment, holds),
                                 (StructuralJudgment::Proven, true)
                                     | (StructuralJudgment::Refuted, false)
                             )
@@ -58894,6 +58910,16 @@ pub(crate) mod structural_judgment {
                         captured.as_ref(),
                         0,
                     )?;
+                    if super::super::conditional_guarantees::receiving_trace(self) {
+                        static COMPLETIONS: std::sync::atomic::AtomicUsize =
+                            std::sync::atomic::AtomicUsize::new(0);
+                        if COMPLETIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8 {
+                            eprintln!(
+                                "CHECKSITE decoder-conditional-completion expression={expression:?} callable={callable:?} result={captured:?} conditional={:?}",
+                                guarantees.conditional
+                            );
+                        }
+                    }
                     let placement =
                         self.completed_placement_geometry(prepared, captured.as_ref())?;
                     self.retain_conditional_guarantees(placement);
@@ -70576,15 +70602,42 @@ pub(crate) mod structural_judgment {
                 return;
             }
             let binary = program.expression_table.binary_node(expression);
-            if let Some(binary) = binary
-                && matches!(
+            let comparison = binary.filter(|binary| {
+                matches!(
                     binary.operator,
                     BinaryOperator::Equal | BinaryOperator::NotEqual
                 )
-                && super::super::structural_terms::builtin_identity_operand_references(
+            });
+            let comparison_references = comparison.and_then(|_| {
+                super::super::structural_terms::builtin_identity_operand_references(
                     program, scope, parameters, expression,
                 )
-                .is_some_and(|references| {
+            });
+            if comparison.is_some() && super::conditional_guarantees::receiving_trace(judge) {
+                static COMPARISONS: std::sync::atomic::AtomicUsize =
+                    std::sync::atomic::AtomicUsize::new(0);
+                if COMPARISONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
+                    let source_types = comparison.map(|binary| {
+                        [binary.left, binary.right].map(|operand| {
+                            crate::parameter_expression_result_type_reference(
+                                program, scope, parameters, operand,
+                            )
+                            .map(|reference| {
+                                (reference, program.primitive_type_reference(reference))
+                            })
+                        })
+                    });
+                    let result_owner = comparison
+                        .and_then(|binary| program.expression_table.binary_node(binary.right))
+                        .filter(|binary| binary.operator == BinaryOperator::CaseMembership)
+                        .and_then(|binary| crate::reserved_result_owner(program, binary.left));
+                    eprintln!(
+                        "CHECKSITE decoder-conditional-comparison scope={scope:?} callable={callable:?} expression={expression:?} binary={comparison:?} references={comparison_references:?} source_types={source_types:?} result_owner={result_owner:?} bindings={bindings:?} types={type_bindings:?} result={result:?}"
+                    );
+                }
+            }
+            if let Some(binary) = comparison
+                && comparison_references.is_some_and(|references| {
                     references.iter().all(|reference| {
                         program.primitive_type_reference(*reference)
                             == Some(typed_trees::types::PrimitiveType::Bool)
@@ -70605,10 +70658,20 @@ pub(crate) mod structural_judgment {
                         depth + 1,
                     )
                 };
-                if let (Some(left), Some(right)) = (
+                let conditions = (
                     judge.bound_observed_condition(binary.left, scope, parameters, &mut operand),
                     judge.bound_observed_condition(binary.right, scope, parameters, &mut operand),
-                ) {
+                );
+                if super::conditional_guarantees::receiving_trace(judge) {
+                    static CONDITIONS: std::sync::atomic::AtomicUsize =
+                        std::sync::atomic::AtomicUsize::new(0);
+                    if CONDITIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
+                        eprintln!(
+                            "CHECKSITE decoder-conditional-conditions scope={scope:?} expression={expression:?} conditions={conditions:?}"
+                        );
+                    }
+                }
+                if let (Some(left), Some(right)) = conditions {
                     // A published equivalence licenses either conclusion only
                     // after the caller independently knows the other truth value.
                     conditional.extend(
