@@ -804,7 +804,8 @@ mod tests {
             Some("0".to_owned())
         );
         let rows = |facts: &str| {
-            parse_records(&format!("pass/borrows/header_only built 1ms {facts}\n")).unwrap()
+            let text = format!("pass/borrows/header_only built 1ms {facts}");
+            parse_records(text.trim_end()).unwrap()
         };
         let wrong = rows("exit:1 interpreter-exit:1 interpreter:agrees");
         let original = wrong.clone();

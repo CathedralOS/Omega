@@ -536,7 +536,7 @@ mod tests {
         .unwrap();
         fs::write(directory.join("expected_interpreter_exit.txt"), "trap\n").unwrap();
         let mut trapped =
-            corpus::parse_records("pass/a/b built 1ms exit:signal signal:4 interpreter:trapped\n")
+            corpus::parse_records("pass/a/b built 1ms exit:signal signal:4 interpreter:trapped stdout:match interpreter-stdout:match\n")
                 .unwrap()
                 .remove(0);
         assert!(validate_record(&trapped, &root, "linux_x86_64", true).is_ok());
