@@ -51394,10 +51394,14 @@ pub(crate) mod structural_judgment {
                 let right = self.resolve_with_at(right, resolution_depth, purpose);
                 if let Some((source_left, source_right, _)) = &traced {
                     eprintln!(
-                        "CHECKSITE guarantee-receiving-resolve owner={:?} storage={:?} depth={depth} resolution_depth={resolution_depth} integer_projection={} source_left={source_left:?} source_right={source_right:?} resolved_left={left:?} resolved_right={right:?}",
+                        "CHECKSITE guarantee-receiving-resolve owner={:?} storage={:?} depth={depth} resolution_depth={resolution_depth} integer_projection={} source_left={source_left:?} source_right={source_right:?} resolved_left={left:?} resolved_right={right:?} source_left_types={:?} source_right_types={:?} resolved_left_types={:?} resolved_right_types={:?}",
                         self.machine_symbol,
                         self.storage_version,
                         purpose == ResolutionPurpose::IntegerProjection,
+                        Self::trace_completed_guarantee_types(source_left),
+                        Self::trace_completed_guarantee_types(source_right),
+                        Self::trace_completed_guarantee_types(&left),
+                        Self::trace_completed_guarantee_types(&right),
                     );
                 }
                 self.intake_equation_fact_with_purpose(left, right, depth, purpose);
@@ -51411,8 +51415,16 @@ pub(crate) mod structural_judgment {
                         .take(8)
                         .collect::<Vec<_>>();
                     eprintln!(
-                        "CHECKSITE guarantee-receiving-stored owner={:?} source={source_left:?} added={added} stored={stored:?}",
+                        "CHECKSITE guarantee-receiving-stored owner={:?} source={source_left:?} added={added} stored={stored:?} source_types={:?} stored_types={:?}",
                         self.machine_symbol,
+                        Self::trace_completed_guarantee_types(&source_left),
+                        stored
+                            .iter()
+                            .map(|(left, right)| (
+                                Self::trace_completed_guarantee_types(left),
+                                Self::trace_completed_guarantee_types(right),
+                            ))
+                            .collect::<Vec<_>>(),
                     );
                 }
             }
@@ -51445,6 +51457,62 @@ pub(crate) mod structural_judgment {
                 static OBSERVATIONS: std::sync::atomic::AtomicUsize =
                     std::sync::atomic::AtomicUsize::new(0);
                 OBSERVATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 512
+            }
+
+            pub(crate) fn trace_completed_guarantee_types(term: &StructuralTerm) -> Vec<String> {
+                fn visit(
+                    term: &StructuralTerm,
+                    path: &mut Vec<usize>,
+                    remaining: &mut usize,
+                    types: &mut Vec<String>,
+                ) {
+                    if *remaining == 0 {
+                        return;
+                    }
+                    *remaining -= 1;
+                    let metadata = match term {
+                        StructuralTerm::ObservedValue {
+                            observed_type,
+                            descriptor,
+                            ..
+                        } => Some(format!(
+                            "ObservedValue type={observed_type:?} descriptor={}",
+                            descriptor.is_some()
+                        )),
+                        StructuralTerm::CapturedValue { result_type, .. } => {
+                            Some(format!("CapturedValue type={result_type:?}"))
+                        }
+                        StructuralTerm::Application { result_type, .. } => {
+                            Some(format!("Application result={result_type:?}"))
+                        }
+                        StructuralTerm::CallProjection { result_type, .. } => {
+                            Some(format!("CallProjection result={result_type:?}"))
+                        }
+                        StructuralTerm::ScalarBinary { references, .. } => {
+                            Some(format!("ScalarBinary receiving={references:?}"))
+                        }
+                        StructuralTerm::IntegerEmbedding { reference, .. } => {
+                            Some(format!("IntegerEmbedding receiving={reference:?}"))
+                        }
+                        StructuralTerm::IndexedValue { element_type, .. } => {
+                            Some(format!("IndexedValue element={element_type:?}"))
+                        }
+                        _ => None,
+                    };
+                    if let Some(metadata) = metadata {
+                        types.push(format!("{path:?}: {metadata}"));
+                    }
+                    let mut child_index = 0;
+                    term.for_each_child(|child| {
+                        path.push(child_index);
+                        visit(child, path, remaining, types);
+                        path.pop();
+                        child_index += 1;
+                    });
+                }
+                let mut types = Vec::new();
+                visit(term, &mut Vec::new(), &mut 128, &mut types);
+                types
             }
 
             pub(crate) fn intake_equation_fact(
@@ -51490,8 +51558,10 @@ pub(crate) mod structural_judgment {
                 let observed = self.equation_inputs_are_observed(&left, &right, depth);
                 if Self::trace_completed_guarantee_receiving(&left) {
                     eprintln!(
-                        "CHECKSITE guarantee-receiving-admission owner={:?} depth={depth} observed={observed} left={left:?} right={right:?}",
+                        "CHECKSITE guarantee-receiving-admission owner={:?} depth={depth} observed={observed} left={left:?} right={right:?} left_types={:?} right_types={:?}",
                         self.machine_symbol,
+                        Self::trace_completed_guarantee_types(&left),
+                        Self::trace_completed_guarantee_types(&right),
                     );
                 }
                 if !observed {
@@ -53281,11 +53351,13 @@ pub(crate) mod structural_judgment {
                 );
                 if Self::trace_completed_guarantee_receiving(&predicate) {
                     eprintln!(
-                        "CHECKSITE guarantee-receiving-required owner={:?} storage={:?} depth={depth} predicate={predicate:?} resolved={resolved:?} equation={equation:?} normal_guarantees={} captured_equations={}",
+                        "CHECKSITE guarantee-receiving-required owner={:?} storage={:?} depth={depth} predicate={predicate:?} resolved={resolved:?} equation={equation:?} normal_guarantees={} captured_equations={} predicate_types={:?} resolved_types={:?}",
                         self.machine_symbol,
                         self.storage_version,
                         self.normal_guarantees.len(),
                         self.captured_result_equations.len(),
+                        Self::trace_completed_guarantee_types(&predicate),
+                        Self::trace_completed_guarantee_types(&resolved),
                     );
                 }
                 match equation {
@@ -58684,8 +58756,12 @@ pub(crate) mod structural_judgment {
                         }
                         if let Some(source) = traced {
                             eprintln!(
-                                "CHECKSITE guarantee-receiving-completed owner={:?} source={source:?} completed={equation:?}",
+                                "CHECKSITE guarantee-receiving-completed owner={:?} source={source:?} completed={equation:?} source_left_types={:?} source_right_types={:?} completed_left_types={:?} completed_right_types={:?}",
                                 self.machine_symbol,
+                                Self::trace_completed_guarantee_types(&source.left),
+                                Self::trace_completed_guarantee_types(&source.right),
+                                Self::trace_completed_guarantee_types(&equation.left),
+                                Self::trace_completed_guarantee_types(&equation.right),
                             );
                         }
                         if equation.is_data_identity() {
