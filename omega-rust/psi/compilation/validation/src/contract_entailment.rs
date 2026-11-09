@@ -20684,26 +20684,55 @@ pub(crate) mod observed_projections {
             return None;
         };
         let ConstructorIdentity::Nominal {
-            declaration, case, ..
+            reference: source_reference,
+            declaration,
+            case,
+            ..
         } = *identity
         else {
             return None;
         };
-        let definition = program.data_constructor_definition(reference, declaration)?;
+        if !crate::declared_carriers_match(program, reference, source_reference) {
+            return None;
+        }
+        let definition = program.data_constructor_definition(source_reference, declaration)?;
         let variant = match case {
-            Some(case) => Some(program.data_constructor_case(reference, declaration, case)?),
+            Some(case) => {
+                Some(program.data_constructor_case(source_reference, declaration, case)?)
+            }
             None => None,
         };
-        let expected = ConstructorIdentity::at_reference(program, reference, definition, variant)?;
+        let expected =
+            ConstructorIdentity::at_reference(program, source_reference, definition, variant)?;
         if !identity.same_resolution_payload(expected) {
             return None;
         }
-        // A formed generic constructor keeps its applied field schema even
-        // while its type arguments remain abstract in the caller.
-        let declared = program.data_constructor_field(reference, declaration, field)?;
+        // Construction and receiving references may be distinct checked views
+        // of one carrier. Authenticate each field schema before reusing the
+        // observation retained by the source constructor.
+        let declared = program.data_constructor_field(source_reference, declaration, field)?;
         let field_owner = variant.map_or(definition.symbol, |variant| variant.symbol);
+        let receiving_definition = program.data_constructor_definition(reference, declaration)?;
+        let receiving_owner = match case {
+            Some(case) => {
+                program
+                    .data_constructor_case(reference, declaration, case)?
+                    .symbol
+            }
+            None => receiving_definition.symbol,
+        };
+        let receiving = program.data_constructor_field(reference, declaration, field)?;
         if program.symbols.get(declared.symbol).parent != field_owner
-            || !crate::declared_carriers_match(program, projected, declared.type_reference)
+            || program.symbols.get(receiving.symbol).parent != receiving_owner
+            || declared.identity != receiving.identity
+            || declared.relevance != receiving.relevance
+            || declared.name != receiving.name
+            || !crate::declared_carriers_match(program, projected, receiving.type_reference)
+            || !crate::declared_carriers_match(
+                program,
+                receiving.type_reference,
+                declared.type_reference,
+            )
         {
             return None;
         }
