@@ -60309,27 +60309,56 @@ pub(crate) mod structural_judgment {
                     mut self,
                     expression: ExpressionHandle,
                     declared: TypeReferenceHandle,
+                    receiving: TypeReferenceHandle,
                     scope: ValueScope<'_>,
                 ) -> Option<Self> {
                     let value = self.observed_value()?;
-                    if structural_terms::scalar_operand_is_observed(
+                    if !structural_terms::scalar_operand_is_observed(
                         self.judge.program,
                         declared,
                         value,
                     ) {
-                        return Some(self);
+                        if !self
+                            .judge
+                            .frame_resolver()?
+                            .completed_scalar_read(scope.0, scope.1, expression)
+                        {
+                            return None;
+                        }
+                        self.value = self
+                            .judge
+                            .capture_completed_scalar_read(expression, declared, scope, None)?;
+                        self.source = None;
                     }
-                    if !self
-                        .judge
-                        .frame_resolver()?
-                        .completed_scalar_read(scope.0, scope.1, expression)
+                    let program = self.judge.program;
+                    if crate::reference_shell(program, receiving).is_none()
+                        && program.primitive_type_reference(receiving).is_some()
+                        && crate::value_custody::expression_types::readable_observation_type_reference(
+                            program, declared,
+                        )
+                        .is_some_and(|scalar| {
+                            crate::declared_carriers_match(program, receiving, scalar)
+                        })
                     {
-                        return None;
+                        // The destination receives the completed scalar read, while
+                        // the source borrow keeps its own access and backing checks.
+                        if structural_terms::shared_inline_observation_type(program, &self.value)
+                            .is_some_and(|observed| {
+                                crate::declared_carriers_match(program, declared, observed)
+                            })
+                            && let StructuralTerm::ObservedValue { value, .. } = self.value
+                        {
+                            self.value = *value;
+                            self.source = None;
+                        }
+                        if !structural_terms::scalar_operand_is_observed(
+                            program,
+                            receiving,
+                            &self.value,
+                        ) {
+                            return None;
+                        }
                     }
-                    self.value = self
-                        .judge
-                        .capture_completed_scalar_read(expression, declared, scope, None)?;
-                    self.source = None;
                     Some(self)
                 }
             }
@@ -63754,9 +63783,10 @@ pub(crate) mod structural_judgment {
                         };
                         let mut paths = paths.into_iter().peekable();
                         while let Some(mut path) = paths.next() {
-                            if let Some(reference) = scalar_read {
-                                path =
-                                    path.complete_scalar_operand_read(child, reference, scope)?;
+                            if let Some(source) = scalar_read {
+                                path = path.complete_scalar_operand_read(
+                                    child, source, reference, scope,
+                                )?;
                                 path = path.at_expression(child, demand);
                             }
                             if observes_root {
