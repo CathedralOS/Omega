@@ -126,6 +126,11 @@ to, so a valid body is rejected until the programmer repeats the guard as
 `requires`. The loss is fail-closed: it refuses valid programs and does not
 admit invalid ones.
 
+This is one real loss, not the explanation for the PR stream. The Nested / pause
+place accounts for 19 of the 202 PRs, and most of those carry ownership or
+suspension facts through stage 05. Numeric facts in `ValueEnvironment`, which
+this loss concerns, are about 3 of them.
+
 The witness, probed against `2ad42b16712`, uses the guard
 `value == value && value >= 0.0 && value < 1000.0`. In the guarded state,
 `I32::from_f64(values[index]) * 1000` passes. In a nested machine,
@@ -159,9 +164,13 @@ recipes for by-value parameters, which leaves `float_elements` and the
 `integer_ranges` of reference parameters uncarried. The match-capture alias
 (`copy_path_facts`, `:2878`) likewise never copies `integer_ranges`,
 `boolean_values`, `ordered_values` or `float_elements` to the capture path.
-These gaps are in the code, but the witnesses above never reach `arrive`, so
-they do not explain those rejections. How often authored programs reach
-`arrive` is unmeasured.
+These gaps are in the code, but they do not cause the rejections above. A
+temporary counter in `arrive` on `2ad42b16712` observed no arrival across 180
+fixtures under `tests/omega/pass/control_flow/`. That is `--check` only, on the
+first 180 of 788 directories in the groups intended for the sample, and it stops
+before float, generics, machines and termination. It does not show that `arrive`
+is dead code, and it says nothing about machines the compiler generates: pass 04
+helpers can have several states.
 
 ## Design
 
@@ -208,9 +217,9 @@ same commit ([compositional lowering](../../../omega-rust/pipeline.md#compositio
    `integer_ranges` become ordinary rows of the environment, so `rebind` and
    `copy_path_facts` have no per-collection list to forget.
 4. **Generic arrival join.** Make `StateValues` generic over the environment,
-   and seed a nested machine's entry from its callers' environments. Nested
-   entry is where guard facts are lost today (see above). This addresses the
-   Build column (41 of 202 PRs).
+   and seed a nested machine's entry from its callers' environments. Numeric
+   guard facts are lost at nested entry today (see above), a real but partial
+   target. The join addresses the Build column (41 of 202 PRs).
 5. **Call return.** Collapse the normal-return modules onto the one operation.
 6. **Lowering.** Replace stage 06 `validation::` re-derivation with environment reads.
 7. **Check generic bodies once.** Check the template against its contracts and
