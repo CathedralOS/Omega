@@ -58190,6 +58190,7 @@ pub(crate) mod structural_judgment {
                         }
                         post_storage.push(PostCallStorage {
                             coordinate,
+                            value_type: subject.entry.type_reference,
                             value,
                             backing: None,
                             representation: (!restores_stored_domain)
@@ -62352,6 +62353,7 @@ pub(crate) mod structural_judgment {
         #[derive(Clone)]
         pub(crate) struct PostCallStorage {
             pub(crate) coordinate: super::storage_effects::CapturedStorageCoordinate,
+            pub(crate) value_type: TypeReferenceHandle,
             pub(crate) value: StructuralTerm,
             pub(crate) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
             pub(crate) representation: Option<(
@@ -72367,6 +72369,7 @@ pub(crate) mod structural_judgment {
                             );
                         staged.push(super::super::normal_returns::PostCallStorage {
                             coordinate: coordinate.clone(),
+                            value_type: geometry.result_type_reference,
                             value: value.clone(),
                             backing: Some(backing.clone()),
                             representation: None,
@@ -72483,6 +72486,37 @@ pub(crate) mod structural_judgment {
                         }
                         None => storage.value,
                     };
+                    if let Some(version) = self.storage_version
+                        && version.state == state.symbol
+                        && version.snapshot.is_valid()
+                        && let Some((coordinate, primitive)) = backing
+                            .as_ref()
+                            .and_then(|backing| backing.identity.as_ref())
+                        && crate::reference_shell(self.program, storage.value_type).is_none()
+                        && self.program.primitive_type_reference(storage.value_type)
+                            == Some(*primitive)
+                        && let Some(current) =
+                            self.current_storage_value_at(coordinate, Some(version))
+                        && super::super::super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            storage.value_type,
+                            &value,
+                        )
+                        && super::super::super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            storage.value_type,
+                            &current,
+                        )
+                        && !current.same_resolution_payload(&value)
+                    {
+                        // Both observations describe this scalar at the completed call.
+                        // Join their facts before later reads select either stored view.
+                        self.assume_completed_value_equation(
+                            storage.value_type,
+                            value.clone(),
+                            current,
+                        );
+                    }
                     if let Some(reference) = storage.coordinate.root.as_symbol().and_then(|root| {
                         storage.coordinate.segments.iter().try_fold(
                             crate::value_custody::places::assignment_value_type(
