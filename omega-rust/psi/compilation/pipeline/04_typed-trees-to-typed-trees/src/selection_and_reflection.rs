@@ -3084,11 +3084,11 @@ pub(crate) mod result_locals {
     use crate::tables::expressions_of;
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
+    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
     use typed_trees::references::DeclarationSelection;
     use typed_trees::statement::{StatementNode, TableLocalData};
     use typed_trees::type_identity::TypeIdentityRequest;
     use typed_trees::type_identity::applied_type_identity;
-    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
     use typed_trees::types::TypeReferenceHandle;
     use validation::expression_result_type_reference;
 
@@ -4238,7 +4238,9 @@ pub(crate) mod result_locals {
             return Vec::new();
         };
         let parameters = program.data_type_parameters(data);
-        let arguments = program.type_reference_table.type_reference_handles(*arguments);
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(*arguments);
         if parameters.len() != arguments.len() {
             return Vec::new();
         }
