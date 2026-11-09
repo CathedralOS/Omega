@@ -4296,8 +4296,9 @@ pub(crate) mod selected_operands {
                 return Ok(lexical_owner);
             }
 
-            // The captured type authenticates the complete selected tuple. Its
-            // region supplier can differ from the owner of the receiving call.
+            // A copied call can use lifetimes from the declaration that supplied
+            // its selected implementation. Check that the retained selection
+            // still matches before resolving those lifetimes there.
             let mut explicit = selected.clone();
             explicit.type_reference = Default::default();
             let retained = applied_index_identity(
@@ -7037,39 +7038,15 @@ impl CallableApplication {
                 origin: CallableLifetimeOrigin::Lexical,
             });
         };
-        let Some((region, substituted)) = environment.lifetime_identity(
-            program,
-            reference,
-            *preceding_frames,
-            original.as_str(),
-            self.region_scope,
-        ) else {
-            static REPORTED: std::sync::atomic::AtomicUsize =
-                std::sync::atomic::AtomicUsize::new(0);
-            if REPORTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
-                eprintln!(
-                    "REFINEMENT_REGION reference={reference:?} node={:?} slot={slot} name={original:?} retained_owner={:?} retained_path={} region_scope={:?} region_path={} preceding_frames={preceding_frames} argument_owner={:?} argument_path={} frame_count={}",
-                    program.type_reference_node(reference),
-                    program
-                        .type_reference_table
-                        .operand_lifetime_owner(reference),
-                    program.symbols.display_path(
-                        program
-                            .type_reference_table
-                            .operand_lifetime_owner(reference),
-                        "::"
-                    ),
-                    self.region_scope,
-                    program.symbols.display_path(self.region_scope, "::"),
-                    environment.argument_owner(),
-                    program
-                        .symbols
-                        .display_path(environment.argument_owner(), "::"),
-                    environment.frame_count(),
-                );
-            }
-            return Err("applied trait operand has no exact supplying region");
-        };
+        let (region, substituted) = environment
+            .lifetime_identity(
+                program,
+                reference,
+                *preceding_frames,
+                original.as_str(),
+                self.region_scope,
+            )
+            .ok_or("applied trait operand has no exact supplying region")?;
         let name = crate::type_identity::lifetime_parameter_name(program, region)
             .ok_or("applied trait operand lost its region declaration ordinal")?
             .clone();
