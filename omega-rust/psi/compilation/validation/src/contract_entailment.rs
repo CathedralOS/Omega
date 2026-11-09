@@ -65715,11 +65715,11 @@ pub(crate) mod structural_judgment {
                 }
                 let parameter = crate::reference_shell(program, subject.parameter_type)?;
                 parameter.access.is_readable().then_some(())?;
+                // Reuse the completed shared subject, including its exact owned
+                // carrier. A fresh view capture would separate that value from
+                // predicates already established on its fields and descriptors.
                 if parameter.access == language_semantics::ReferenceAccess::Shared
                     && !subject.sources.is_empty()
-                    && program
-                        .primitive_type_reference(subject.type_reference)
-                        .is_some()
                     && super::super::structural_terms::shared_inline_observation_type(
                         program, actual,
                     )
