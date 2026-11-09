@@ -168,6 +168,11 @@ Dated cost and failure evidence, superseded by a later run.
   table instead of Build provider selection, closing the bulk-selection
   question; delete when the board item lands.
 
+- [Fact transport](designs/fact_transport.md): proposal, not ratified. One
+  place key, one overlap relation, one fact environment and one transport
+  operation per place, replacing the per-fact-kind carriers behind 202
+  "preserve / carry" PRs since 2026-11-01.
+
 - [Conditional callback carry](designs/conditional_callback_carry.md):
   migration and acceptance for one generic resource helper across synchronous
   and suspending callbacks, with exact conditional suspension permissions.
