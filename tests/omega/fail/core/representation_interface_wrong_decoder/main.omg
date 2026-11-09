@@ -110,9 +110,12 @@ machine observe<'value>(value: &'value u8, expected: u8) -> bool {
 }
 machine reject_malformed(value: u8, expected: u8) -> bool {
     let malformed: Frame = Frame { tag: 0u8, value: value };
-    transition Read::try_from(RepresentationDecodeRequest { frame: &malformed, resources: NoResources { } }) {
-        Result::Err { error as error } -> (value == expected)
-        Result::Ok { value as unexpected } -> false
+    inspect(&malformed, value, expected)
+    machine inspect<'frame>(malformed: &'frame Frame, value: u8, expected: u8) -> bool {
+        transition Read<'frame>::try_from(RepresentationDecodeRequest { frame: malformed, resources: NoResources { } }) {
+            Result::Err { error as error } -> (value == expected)
+            Result::Ok { value as unexpected } -> false
+        }
     }
 }
 
