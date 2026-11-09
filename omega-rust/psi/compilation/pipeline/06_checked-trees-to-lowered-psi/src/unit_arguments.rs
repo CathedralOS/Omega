@@ -1182,10 +1182,10 @@ pub(crate) mod attached_unit {
                             .collect::<Vec<_>>(),
                         next_value,
                     )?;
-                    let mut common_observations = None;
+                    let mut common_observation_count = None;
                     for (position, arm) in reachable.iter().enumerate() {
                         let more = position + 1 < reachable.len();
-                        let mut branch_observations = None;
+                        let mut branch_observation_count = None;
                         let mut remaining = None;
                         if more {
                             let condition = crate::unit::unit_cleanup::CleanupCaseCondition {
@@ -1193,12 +1193,12 @@ pub(crate) mod attached_unit {
                                 ..condition.clone()
                             };
                             let observed = self.observe_case(&condition, next_value, operations)?;
-                            if common_observations.is_none() {
-                                common_observations =
-                                    Some(operations.storage_observations.cases.clone());
+                            if common_observation_count.is_none() {
+                                common_observation_count =
+                                    Some(operations.storage_observations.cases.len());
                             }
-                            branch_observations =
-                                Some(operations.storage_observations.cases.clone());
+                            branch_observation_count =
+                                Some(operations.storage_observations.cases.len());
                             let selected = block_id(allocate_dense(next_block)?);
                             let selected_parameters = declarations(
                                 &values
@@ -1280,8 +1280,8 @@ pub(crate) mod attached_unit {
                         operations.completed_cleanup_frontiers.push(crate::emission::selected_continuations::CompletedCleanupFrontier {
                             edge, region: observation.clone(), kind: crate::emission::selected_continuations::CompletedCleanupKind::CasePayloads(arms.iter().map(|arm| arm.case).collect()),
                         });
-                        if let Some(observations) = branch_observations {
-                            operations.storage_observations.cases = observations;
+                        if let Some(count) = branch_observation_count {
+                            operations.storage_observations.cases.truncate(count);
                         }
                         if let Some((later, parameters)) = remaining {
                             *self.current = later;
@@ -1294,8 +1294,8 @@ pub(crate) mod attached_unit {
                     *self.parameters = join_parameters.clone();
                     *values = join_parameters;
                     *self.operation_start = operations.len();
-                    if let Some(observations) = common_observations {
-                        operations.storage_observations.cases = observations;
+                    if let Some(count) = common_observation_count {
+                        operations.storage_observations.cases.truncate(count);
                     }
                     // All payload alternatives have the same settled frontier here. Emit
                     // this carrier's shared fields once, retaining their live obligations.
@@ -1599,7 +1599,7 @@ pub(crate) mod attached_unit {
                     operations: &mut OperationBuffer,
                 ) -> Result<(), LoweringError> {
                     let mut remaining = regions;
-                    let mut common_cases = None;
+                    let mut common_case_count = None;
                     while let Some(first) = remaining.first() {
                         let condition = &first.conditions[depth];
                         let count = remaining
@@ -1677,10 +1677,10 @@ pub(crate) mod attached_unit {
                         // The first discriminator dominates every arrival at this dispatch's
                         // join. Observations made inside an arm or its later false-chain do
                         // not: preserve only this common scope after the complete dispatch.
-                        if common_cases.is_none() {
-                            common_cases = Some(operations.storage_observations.cases.clone());
+                        if common_case_count.is_none() {
+                            common_case_count = Some(operations.storage_observations.cases.len());
                         }
-                        let branch_cases = operations.storage_observations.cases.clone();
+                        let branch_case_count = operations.storage_observations.cases.len();
                         let proof_arguments = self.proof_arguments()?;
                         let successor = |edge, target| SuccessorEdge {
                             edge,
@@ -1739,15 +1739,18 @@ pub(crate) mod attached_unit {
                             next_edge,
                             operations,
                         )?;
-                        operations.storage_observations.cases = branch_cases;
+                        operations
+                            .storage_observations
+                            .cases
+                            .truncate(branch_case_count);
                         *self.current = when_false;
                         *self.parameters = when_false_parameters.clone();
                         *values = when_false_parameters;
                         *self.operation_start = operations.len();
                         remaining = &remaining[count..];
                     }
-                    if let Some(common) = common_cases {
-                        operations.storage_observations.cases = common;
+                    if let Some(count) = common_case_count {
+                        operations.storage_observations.cases.truncate(count);
                     }
                     Ok(())
                 }

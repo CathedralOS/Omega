@@ -292,6 +292,31 @@ mod actions {
             .ok_or("cleanup cannot lower its disposed path")?
             .path
         };
+        if case_reachability(&place.segments)
+            .ok_or("cleanup cannot establish its carrier case reachability")?
+            == validation::CleanupCaseReachability::Inactive
+        {
+            if !selected.is_empty() {
+                return Err("inactive cleanup carrier still has selected hooks");
+            }
+            let nodes = [validation::CleanupPartitionNode::Scope {
+                path: Vec::new(),
+                type_identity,
+                conditions: Vec::new(),
+                steps: Vec::new(),
+            }];
+            let mut actions = Vec::new();
+            let partition = retain_partition(
+                shapes,
+                disposition_handle,
+                source,
+                &path,
+                type_identity,
+                &nodes,
+                &mut actions,
+            )?;
+            return Ok(DispositionActions { actions, partition });
+        }
         let mut moved = Vec::new();
         for removed in facts
             .contextual_cleanup
