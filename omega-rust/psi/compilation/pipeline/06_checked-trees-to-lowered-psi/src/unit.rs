@@ -2576,6 +2576,36 @@ pub(crate) mod unit_cleanup {
                 reason: "annotated cleanup action has no sequence partition owner",
             });
         }
+        for owner in &owners {
+            if !control.partitions.is_valid(*owner) {
+                return Err(LoweringError::InvalidCleanupPartition {
+                    reason: "selected cleanup sequence names a missing partition owner",
+                });
+            }
+            let plan = control.partitions.get(*owner);
+            let authorized = control.actions.span(plan.actions).ok_or(
+                LoweringError::InvalidCleanupPartition {
+                    reason: "selected cleanup partition has an invalid action span",
+                },
+            )?;
+            let mut previous = None;
+            for action in actions
+                .iter()
+                .copied()
+                .filter(|action| action.partition_leaf().partition == *owner)
+            {
+                let ordinal = action.partition_leaf().ordinal as usize;
+                if previous.is_some_and(|previous| ordinal <= previous)
+                    || authorized.get(ordinal) != Some(action)
+                    || action.source() != &plan.source
+                {
+                    return Err(LoweringError::InvalidCleanupPartition {
+                        reason: "partial cleanup sequence is not an ordered unique subset of its exact partition",
+                    });
+                }
+                previous = Some(ordinal);
+            }
+        }
         let mut ordered = actions.iter().copied().enumerate().collect::<Vec<_>>();
         ordered
             .sort_by_key(|(position, action)| (key(action.partition_leaf().partition), *position));
