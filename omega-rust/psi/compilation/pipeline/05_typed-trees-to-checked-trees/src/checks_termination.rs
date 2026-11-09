@@ -5153,7 +5153,9 @@ mod ranking {
 
         /*
             A `transition subject { true -> .. false -> .. }` dispatch reads its
-            subject once into an immutable `DispatchSubject` local, and the parser
+            subject once into an immutable generated local (typed trees do not
+            always retain its `DispatchSubject` role, so the unspellable generated
+            name identifies it, as in checks.rs), and the parser
             drops the guard of the final arm of an exhaustive Boolean pair. That
             arm's only fact is the negation of the earlier arm's guard over the
             captured local. The local cannot change between consecutive arms, so
@@ -5169,7 +5171,8 @@ mod ranking {
                 .filter_map(|statement| statement.as_local_data())
                 .find(|local| {
                     local.symbol == symbol
-                        && local.role == language_core::LocalBindingRole::DispatchSubject
+                        && (local.role == language_core::LocalBindingRole::DispatchSubject
+                            || local.name.as_str().starts_with("__transition_subject#"))
                         && !local.is_mutable
                         && local.initial_value.is_valid()
                 })
