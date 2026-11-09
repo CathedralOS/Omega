@@ -11054,7 +11054,9 @@ pub(crate) mod guard_narrowing {
                     let mut changed = false;
                     for position in 0..sites.len() {
                         if !resolved[position]
-                            && sites[position].iter().all(|site| resolved[site.caller as usize])
+                            && sites[position]
+                                .iter()
+                                .all(|site| resolved[site.caller as usize])
                         {
                             resolved[position] = true;
                             changed = true;
@@ -11086,15 +11088,19 @@ pub(crate) mod guard_narrowing {
                 .checking_memos()?
                 .nested_entry_callers
                 .get_or_init(|| std::sync::Arc::new(NestedEntryCallers::build(program)));
-            let sites = index.sites.get(*index.positions.get(&machine.symbol)? as usize)?;
+            let sites = index
+                .sites
+                .get(*index.positions.get(&machine.symbol)? as usize)?;
             let entry = program.machine_states(machine).first()?;
             let ranges = ReturnInference::default();
             let mut joined: Option<ValueEnvironment> = None;
-            for group in sites.chunk_by(|left, right| {
-                (left.caller, left.state) == (right.caller, right.state)
-            }) {
+            for group in sites
+                .chunk_by(|left, right| (left.caller, left.state) == (right.caller, right.state))
+            {
                 let caller = program.machines().get(group[0].caller as usize)?;
-                let state = program.machine_states(caller).get(group[0].state as usize)?;
+                let state = program
+                    .machine_states(caller)
+                    .get(group[0].state as usize)?;
                 let mut environment =
                     incoming_guard_environment(program, caller, state, Some(frames));
                 let mut walk = ArrivalWalk {
@@ -11115,7 +11121,10 @@ pub(crate) mod guard_narrowing {
                 };
                 walk.state(state, &mut environment);
                 let target = walk.entry_target?;
-                if !group.iter().all(|site| target.seen.contains(&site.arguments)) {
+                if !group
+                    .iter()
+                    .all(|site| target.seen.contains(&site.arguments))
+                {
                     return None;
                 }
                 for rebound in target.rebound {
@@ -11459,14 +11468,8 @@ pub(crate) mod guard_narrowing {
                 else {
                     return;
                 };
-                let rebound = self.rebound_at_target(
-                    source,
-                    target,
-                    arguments,
-                    values,
-                    environment,
-                    false,
-                );
+                let rebound =
+                    self.rebound_at_target(source, target, arguments, values, environment, false);
                 self.join(symbol, rebound);
             }
 
@@ -12510,7 +12513,8 @@ pub(crate) mod guard_narrowing {
                                 TransitionTargetNode::Named {
                                     path, arguments, ..
                                 } => {
-                                    let arguments = program.statement_table.expression_handles(*arguments);
+                                    let arguments =
+                                        program.statement_table.expression_handles(*arguments);
                                     if visit(path.symbol, arguments) {
                                         return true;
                                     }
@@ -12558,7 +12562,8 @@ pub(crate) mod guard_narrowing {
                         }
                     }
                     ExpressionNode::Call(call) => {
-                        let arguments = expression_table(program).expression_handles(call.arguments);
+                        let arguments =
+                            expression_table(program).expression_handles(call.arguments);
                         if visit(call.target_symbol, arguments) {
                             return true;
                         }
@@ -13861,17 +13866,16 @@ pub(crate) mod guard_narrowing {
             }
         }
     }
+    pub(crate) use arrivals::{
+        NestedEntryCallers, OccurrenceValueEnvironments, ReturnInference,
+        inferred_normal_return_interval, occurrence_integer_child_values,
+        occurrence_value_environment, occurrence_value_environments, seed_entry_from_callers,
+    };
     pub use arrivals::{
         OccurrenceIntegerBounds, arrival_integer_expression_bounds,
         occurrence_collection_footprint_fits, occurrence_integer_bounds,
         occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
         occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
-    };
-    pub(crate) use arrivals::{
-        NestedEntryCallers, seed_entry_from_callers,
-        OccurrenceValueEnvironments, ReturnInference, inferred_normal_return_interval,
-        occurrence_integer_child_values, occurrence_value_environment,
-        occurrence_value_environments,
     };
     use projected_facts::ProjectedOperand;
 
@@ -26324,7 +26328,11 @@ pub(crate) mod value_environment {
                 self.narrow_float(path, interval);
             }
             for range in seed.integer_ranges {
-                if !self.integer_ranges.iter().any(|stored| stored.place == range.place) {
+                if !self
+                    .integer_ranges
+                    .iter()
+                    .any(|stored| stored.place == range.place)
+                {
                     self.integer_ranges.push(range);
                 }
             }
@@ -26342,12 +26350,14 @@ pub(crate) mod value_environment {
             self.known_u64_values.extend(seed.known_u64_values);
             self.non_nan.extend(seed.non_nan);
             self.float_aliases.extend(seed.float_aliases);
-            self.joint_subtract_bounds.extend(seed.joint_subtract_bounds);
+            self.joint_subtract_bounds
+                .extend(seed.joint_subtract_bounds);
             self.signed_joint_subtract_lower_bounds
                 .extend(seed.signed_joint_subtract_lower_bounds);
             self.signed_joint_subtract_upper_bounds
                 .extend(seed.signed_joint_subtract_upper_bounds);
-            self.joint_multiply_bounds.extend(seed.joint_multiply_bounds);
+            self.joint_multiply_bounds
+                .extend(seed.joint_multiply_bounds);
             self.signed_joint_multiply_lower_bounds
                 .extend(seed.signed_joint_multiply_lower_bounds);
             self.signed_joint_multiply_upper_bounds
@@ -27034,13 +27044,13 @@ pub(crate) use cited_element_bounds::{
 pub(crate) use expression_analysis::ArithmeticDecisions;
 pub(crate) use float_arithmetic::float_source_proves_integer_conversion;
 pub(crate) use float_arithmetic::{FloatSourceBounds, float_source_bounds};
+pub(crate) use guard_narrowing::{NestedEntryCallers, seed_entry_from_callers};
 pub use guard_narrowing::{
     OccurrenceIntegerBounds, arrival_integer_expression_bounds,
     occurrence_collection_footprint_fits, occurrence_integer_bounds,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
     occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
 };
-pub(crate) use guard_narrowing::{NestedEntryCallers, seed_entry_from_callers};
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,
     record_boolean_assignment, record_boolean_local, requires_value_environment,
