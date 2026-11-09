@@ -62278,7 +62278,21 @@ pub(crate) mod structural_judgment {
                 {
                     return Some(reference);
                 }
-                let receiving = receiving?;
+                receiving_scalar_read(program, reference, receiving?)
+            }
+
+            pub(crate) fn receiving_scalar_read(
+                program: &dyn crate::CheckingInput,
+                reference: TypeReferenceHandle,
+                receiving: TypeReferenceHandle,
+            ) -> Option<TypeReferenceHandle> {
+                crate::reference_shell(program, reference)?;
+                crate::value_custody::expression_types::scalar_observation_meaning(
+                    program, reference,
+                )?;
+                if crate::reference_shell(program, receiving).is_some() {
+                    return None;
+                }
                 program.primitive_type_reference(receiving)?;
                 let observed =
                     crate::value_custody::expression_types::readable_observation_type_reference(
@@ -63536,6 +63550,15 @@ pub(crate) mod structural_judgment {
                 }
                 let mut paths = Vec::new();
                 let mut rhs_paths = Vec::new();
+                let scalar_read = crate::expression_result_type_reference(
+                    self.program,
+                    scope.0,
+                    scope.1,
+                    assignment.value,
+                )
+                .and_then(|source| {
+                    operand_types::receiving_scalar_read(self.program, source, reference)
+                });
                 for destination in destinations {
                     let captured = destination
                         .judge
@@ -63559,6 +63582,25 @@ pub(crate) mod structural_judgment {
                         return None;
                     };
                     for mut result in results {
+                        if let Some(source) = scalar_read
+                            && result.observed_value().is_some()
+                        {
+                            result = result
+                                .complete_scalar_operand_read(
+                                    assignment.value,
+                                    source,
+                                    reference,
+                                    scope,
+                                )?
+                                .at_expression(
+                                    assignment.value,
+                                    if advance {
+                                        NormalValueDemand::Value
+                                    } else {
+                                        NormalValueDemand::ObserveOnly(requested.values)
+                                    },
+                                );
+                        }
                         if requested.roots.contains(&assignment.value) {
                             rhs_paths.push(result.judge.clone());
                         }
