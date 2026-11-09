@@ -1,1 +1,1 @@
-argument `items` for state `entry` expects `&[Element]`
+argument `items` for state `view` expects `&[Element]`

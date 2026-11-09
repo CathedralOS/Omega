@@ -1,1 +1,1 @@
-argument `field` for state `entry` expects `&Accessor
+argument `field` for state `ignore` expects `&Accessor

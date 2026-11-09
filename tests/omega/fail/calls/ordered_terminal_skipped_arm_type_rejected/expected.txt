@@ -1,1 +1,1 @@
-argument `value` for state `entry` expects `u64`, got `bool`
+argument `value` for state `identity` expects `u64`, got `bool`

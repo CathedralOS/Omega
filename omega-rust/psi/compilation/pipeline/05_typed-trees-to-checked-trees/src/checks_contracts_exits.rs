@@ -4334,10 +4334,12 @@ mod result_domains {
                         .map(|base| (base.root, base.segments.clone()))
                         .unwrap_or((PlaceRoot::Expression(returned), Vec::new()));
                     segments.extend_from_slice(&path);
+                    // Same wording as the declared-place refusal below: a machine
+                    // exits from its single entry state, so naming that state
+                    // (usually the generated `entry`) adds nothing the reader wrote.
                     diagnostics.push(Diagnostic::error(format!(
-                        "cannot prove default-domain field requirement for return from {}, state {}, at statement {}: {} requires {}",
+                        "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
                         crate::published::labels::machine_name(program, exit.machine_symbol),
-                        crate::published::labels::symbol_name(program, exit.state_symbol),
                         exit.statement_index,
                         facts::canonical_place_label_from_parts(program, root, &segments),
                         crate::published::labels::symbol_name(program, domain_symbol),

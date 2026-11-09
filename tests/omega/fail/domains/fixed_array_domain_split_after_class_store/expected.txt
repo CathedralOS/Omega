@@ -1,2 +1,2 @@
-cannot prove default-domain field requirement for return from store
+cannot prove default-domain field requirement for return from write
 buffer.label requires [u8; N]::Utf8
