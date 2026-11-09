@@ -4032,6 +4032,30 @@ pub(crate) mod requirement_instances {
                 == Some(application.trait_application_identity)
         }
 
+        pub fn requirement_contract_scopes_match(
+            &self,
+            left: &crate::trait_definition::AppliedTraitScope<'_>,
+            right: &crate::trait_definition::AppliedTraitScope<'_>,
+        ) -> bool {
+            left.callable_contract_key(self)
+                .zip(right.callable_contract_key(self))
+                .is_some_and(|(left, right)| left == right)
+        }
+
+        pub fn requirement_application_matches_contract_scope<'program>(
+            &'program self,
+            requirement: SymbolHandle,
+            scope: &crate::trait_definition::AppliedTraitScope<'program>,
+        ) -> bool {
+            self.requirement_application_matches_scope(requirement, scope)
+                && self
+                    .closed_requirement_application(requirement)
+                    .and_then(|application| application.trait_scope.scope(self))
+                    .is_some_and(|retained| {
+                        self.requirement_contract_scopes_match(&retained, scope)
+                    })
+        }
+
         pub fn requirement_realization_specialization(
             &self,
             requirement: SymbolHandle,
@@ -4217,6 +4241,8 @@ pub(crate) mod requirement_instances {
                 .scope(self)
                 .ok_or("closed requirement lost its declaring trait scope")?;
             let declaring_trait = receiving_scope.declaration.symbol;
+            let refinements =
+                receiving_scope.callable_refinement_clauses(self, self.symbols.name(template));
             self.require_receiving_trait_operands(&receiving_scope)?;
             self.require_owned_application_operands(
                 &local_arguments
@@ -4246,6 +4272,10 @@ pub(crate) mod requirement_instances {
             if let Some(existing) = self.closed_requirement_applications().find(|existing| {
                 existing.declaring_trait == declaring_trait
                     && existing.template == template
+                    && self.requirement_application_matches_contract_scope(
+                        existing.signature.symbol,
+                        &receiving_scope,
+                    )
                     && existing.trait_application_identity == trait_application_identity
                     && existing.portable_trait_application_identity
                         == portable_trait_application_identity
@@ -4320,11 +4350,12 @@ pub(crate) mod requirement_instances {
             }) {
                 return Ok(existing.signature.symbol);
             }
-            let declared = self
+            let mut declared = self
                 .trait_machine_signature(template)
                 .filter(|(owner, _)| owner.symbol == declaring_trait)
                 .map(|(_, signature)| signature.clone())
                 .ok_or("closed requirement lost its authored signature")?;
+            self.apply_callable_refinements(&mut declared, &refinements)?;
             let outer_parameters = self
                 .trait_definition_by_symbol(declaring_trait)
                 .map(|owner| self.trait_type_parameters(owner).to_vec())
@@ -6082,6 +6113,115 @@ pub(crate) mod trait_scopes {
     use symbols::SymbolHandle;
 
     impl TypedTrees {
+        /// The selected map authenticates execution; the caller's evidence
+        /// bound supplies the public contract, including its refinements.
+        pub fn selected_requirement_contract_scope<'program>(
+            &'program self,
+            owner: SymbolHandle,
+            dispatch: &crate::StaticRequirementDispatch,
+        ) -> Result<AppliedTraitScope<'program>, &'static str> {
+            use crate::static_applications::StaticMachineBindingValue;
+            use crate::trait_definition::TraitApplicationArguments;
+
+            let applications = self.selected_conformance_applications(
+                owner,
+                dispatch.selection_application,
+                dispatch.evidence_parameter,
+                dispatch.requirement,
+                dispatch.application_report_fingerprint,
+                dispatch.application_commitment,
+            );
+            let [application] = applications.as_slice() else {
+                return Err("selected contract has no unique supplying map application");
+            };
+            let selected = application
+                .trait_scope
+                .scope(self)
+                .and_then(|scope| scope.declaring_scope(self, dispatch.declaring_trait))
+                .ok_or("selected contract lost its declaring map scope")?;
+            if !dispatch.evidence_parameter.is_valid() {
+                return Ok(selected);
+            }
+            let mut receipts = self
+                .machine_specializations
+                .iter()
+                .filter(|receipt| receipt.instance == owner);
+            let receipt = receipts
+                .next()
+                .ok_or("selected contract lost its supplying specialization")?;
+            if receipts.next().is_some() || !receipt.binding_application.is_valid() {
+                return Err("selected contract has an ambiguous supplying specialization");
+            }
+            let source = self.static_machine_application(receipt.binding_application);
+            if source.binding_declaration != receipt.template {
+                return Err("selected contract changed its supplying declaration");
+            }
+            let mut bounds = self
+                .callable_conformance_bounds(receipt.template)
+                .ok_or("selected contract lost its authored evidence bounds")?
+                .iter()
+                .filter(|bound| bound.binder == dispatch.evidence_parameter);
+            let bound = bounds
+                .next()
+                .ok_or("selected contract lost its exact evidence binder")?;
+            if bounds.next().is_some()
+                || !matches!(
+                    self.specialization_binding(receipt, bound.binder),
+                    Some(StaticMachineBindingValue::Conformance(_))
+                )
+            {
+                return Err("selected contract has no unique implementation binding");
+            }
+            let declaration = self
+                .trait_definition_by_symbol(bound.trait_symbol)
+                .ok_or("selected contract lost its bound declaration")?;
+            let root = AppliedTraitScope::new(
+                self,
+                declaration,
+                TraitApplicationArguments {
+                    lexical_owner: receipt.template,
+                    enclosing_data_applications: &[],
+                    arguments: &bound.arguments,
+                    lifetimes: &bound.lifetime_arguments,
+                },
+            )
+            .ok_or("selected contract cannot form its complete evidence bound")?;
+            let arguments = self
+                .static_machine_application_bindings(receipt.binding_application)
+                .iter()
+                .filter_map(|binding| {
+                    let reference = match &binding.value {
+                        StaticMachineBindingValue::Type(reference)
+                        | StaticMachineBindingValue::Const(reference) => *reference,
+                        StaticMachineBindingValue::Machine(argument)
+                        | StaticMachineBindingValue::Conformance(argument) => {
+                            argument.type_reference
+                        }
+                        StaticMachineBindingValue::RuntimeValue { .. } => return None,
+                    };
+                    Some((binding.parameter, reference))
+                })
+                .collect::<Vec<_>>();
+            let lifetimes = self.static_application_lifetimes_for_declaration(
+                receipt.binding_application,
+                receipt.template,
+            )?;
+            let required = root
+                .under_invocation(
+                    self,
+                    receipt.template,
+                    source.lexical_owner,
+                    &arguments,
+                    &lifetimes,
+                )
+                .and_then(|scope| scope.declaring_scope(self, dispatch.declaring_trait))
+                .ok_or("selected contract lost its complete invocation scope")?;
+            if !required.same_application(self, &selected) {
+                return Err("selected map disagrees with its supplying evidence bound");
+            }
+            Ok(required)
+        }
+
         pub fn requirement_call_signature(
             &self,
             lexical_owner: SymbolHandle,
@@ -6298,21 +6438,8 @@ pub(crate) mod trait_scopes {
                 .trait_machine_signature(target)
                 .ok_or("public view has no source requirement declaration")?;
             if let Some(dispatch) = dispatch {
-                let applications = self.selected_conformance_applications(
-                    lexical_owner,
-                    dispatch.selection_application,
-                    dispatch.evidence_parameter,
-                    dispatch.requirement,
-                    dispatch.application_report_fingerprint,
-                    dispatch.application_commitment,
-                );
-                let [application] = applications.as_slice() else {
-                    return Err("selected public view has no unique supplying map application");
-                };
-                let scope = application
-                    .trait_scope
-                    .scope(self)
-                    .ok_or("selected public view has no retained trait scope")?
+                let scope = self
+                    .selected_requirement_contract_scope(lexical_owner, dispatch)?
                     .declaring_scope(self, declaration.symbol)
                     .ok_or("selected public view has no declaring trait scope")?;
                 return self
@@ -6460,13 +6587,9 @@ pub(crate) mod trait_scopes {
             requirement: SymbolHandle,
         ) -> Option<&signature::StateSignature> {
             if let Some(closed) = self.closed_requirement_application(requirement)
-                && application
-                    .callable_refinement_clauses(self, closed.signature.name.as_str())
-                    .is_empty()
+                && self.requirement_application_matches_contract_scope(requirement, application)
             {
-                return self
-                    .requirement_application_matches_scope(requirement, application)
-                    .then_some(closed.signature);
+                return Some(closed.signature);
             }
             let (owner, identity) = application.callable_contract_key(self)?;
             self.applied_callable_signatures
@@ -6538,6 +6661,10 @@ pub(crate) mod trait_scopes {
                             for closed in self.closed_requirement_applications().filter(|closed| {
                                 closed.template == signature.symbol
                                     && self.requirement_application_matches_scope(
+                                        closed.signature.symbol,
+                                        scope,
+                                    )
+                                    && !self.requirement_application_matches_contract_scope(
                                         closed.signature.symbol,
                                         scope,
                                     )
