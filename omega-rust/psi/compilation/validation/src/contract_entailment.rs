@@ -34596,14 +34596,17 @@ pub(crate) mod refuted_requires {
                 StructuralJudgment::Unknown => {}
             }
         }
+        // Typed actual observations and selected operation substitutions belong
+        // to the same receiving contract, including calls with evidence bindings.
         if judge.has_runtime_body_values()
-            && machine_map.is_empty()
             && matches!(
                 judge.captured_operand_predicate_judgment(
                     callee_owner,
                     callee_parameters,
                     fact,
-                    map
+                    map,
+                    type_map,
+                    machine_map,
                 ),
                 StructuralJudgment::Proven
             )
@@ -47760,7 +47763,12 @@ pub(crate) mod structural_judgment {
                         }
                         if matches!(
                             self.captured_operand_predicate_judgment(
-                                scope, parameters, sibling, map
+                                scope,
+                                parameters,
+                                sibling,
+                                map,
+                                &[],
+                                &[],
                             ),
                             StructuralJudgment::Refuted
                         ) {
@@ -70491,6 +70499,8 @@ pub(crate) mod structural_judgment {
                 parameters: &[typed_trees::signature::StateParameter],
                 expression: ExpressionHandle,
                 substitution: &[(String, StructuralTerm)],
+                type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+                machine_bindings: &[PredicateMachineBinding],
             ) -> StructuralJudgment {
                 let bindings = parameters
                     .iter()
@@ -70507,8 +70517,8 @@ pub(crate) mod structural_judgment {
                     owner,
                     parameters,
                     &bindings,
-                    &[],
-                    &[],
+                    type_bindings,
+                    machine_bindings,
                     0,
                 )
             }
