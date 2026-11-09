@@ -173,6 +173,10 @@ same commit ([compositional lowering](../../../omega-rust/pipeline.md#compositio
    This addresses the Build column (41 of 202 PRs).
 5. **Call return.** Collapse the normal-return modules onto the one operation.
 6. **Lowering.** Replace stage 06 `validation::` re-derivation with environment reads.
+7. **Check generic bodies once.** Check the template against its contracts and
+   instantiate its published facts by substitution at each application, as
+   the spec requires (see below); keep per-specialization target and layout
+   checks. This retires the Build column.
 
 Add a ratchet beside `tools/cache_state.txt` counting overlap functions,
 formal/actual rebasers and place/path types; counts may only fall. While the
@@ -198,9 +202,28 @@ kind lands with no place-specific code.
    the place, overlap and `PlaceMap` layer with stage 05 (transport, not
    judgment), or keep its own for independence?
 2. Is the `ValueEnvironment::rebind` loss intended?
-3. Should generics be checked once and instantiated as facts, rather than
-   specialized in pass 04 and re-checked per clone? That would remove the Build
-   column entirely, but const-dependent proofs may require monomorphic checking.
+
+## Generic bodies: the spec already decides
+
+The specification requires a generic body to be valid from its declared
+contracts, independent of any one application:
+[generics](../../spec/language/generics.md) ("An unspecialized body checks every
+admitted alternative; one consumer cannot authorize an otherwise invalid generic
+body"; "Generic bodies use the abstract requirement envelope. Callers substitute
+selected published contracts into those dependencies"; generic axioms are
+admitted on the template, not per instance) and
+[dependent values](../../spec/language/dependent_values.md) (generic bodies
+"cannot rely on a later specialization to justify an otherwise unchecked
+observation"). Per-specialization obligations are limited to target, layout,
+instruction-width and static-only `const` operations; monomorphization remains
+the code-generation baseline.
+
+So the Build column needs no new decision. Check each generic body once against
+its contracts, publish its facts in terms of its binders, and substitute
+arguments into those facts at each application; keep per-specialization target
+and layout checks. Pass 04 currently clones bodies before checking and checks
+each clone. That repeats work and may let a concrete instance prove what the
+template cannot, which the spec forbids. Verify which happens before migrating.
 
 ## Method
 
