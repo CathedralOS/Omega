@@ -1744,16 +1744,18 @@ pub mod mathematical_applications {
                     .checked_sub(index as usize + 1)
                     .ok_or("canonical content Id subject is outside its capture telescope")?;
                 let value = &captures[position];
-                if identity.type_identity != program.normalized_type_identity(value.source_type) {
+                let observed = crate::expression_types_and_fields::expression_types::scalar_observations::readable_observation_type_reference(program, value.source_type)
+                    .ok_or("canonical content Id subject has no readable source value")?;
+                if identity.type_identity != program.normalized_type_identity(observed) {
                     return Err("canonical content Id subject lost its exact source carrier");
                 }
-                Ok(value)
+                Ok((value, observed))
             };
             let left = capture(subjects[0])?;
             let right = capture(subjects[1])?;
             Ok(IdentityApplication {
-                carrier: left.source_type,
-                subjects: [left.expression, right.expression],
+                carrier: left.1,
+                subjects: [left.0.expression, right.0.expression],
             })
         }
 
@@ -3392,6 +3394,22 @@ pub mod mathematical_applications {
         let observed = crate::expression_types_and_fields::expression_types::scalar_observations::readable_observation_type_reference(program, declared)?;
         program.primitive_type_reference(observed)?;
         Some(observed)
+    }
+
+    /// A proof statement can name a borrowed subject of its exact receiving
+    /// type. This forms the statement without copying or materializing the value.
+    pub fn subject_observation_type_reference(
+        program: &dyn crate::CheckingInput,
+        declared: TypeReferenceHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let observed = crate::expression_types_and_fields::expression_types::scalar_observations::readable_observation_type_reference(program, declared)?;
+        (program.type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
+            observed,
+        )) == program.type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
+            expected,
+        )))
+        .then_some(observed)
     }
 
     /// Read an operand under its retained declaration telescope. Sibling trait
