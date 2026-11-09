@@ -75,6 +75,7 @@ jobs:
       # recorded on a much faster macOS host (11-16 s).
       OMEGA_CORPUS_FIXTURE_SECS: '300'
       RUST_MIN_STACK: '67108864'
+      OMEGA_STRUCT_TRACE: '1'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
