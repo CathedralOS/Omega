@@ -37,6 +37,14 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Inductive uniformity over fields and stored-callable parameters/results; opened witnesses as construction witnesses; linear packages with by-value consuming operations; one owner family in `alloc` as the first customer.
   Acceptance: two factories into one container, wrong-pool return, captured borrow, restricted crossing, pending-settlement repack and bare-`S` result rejection pass `--both`.
 
+- **OPERATION-RECORD-IMPLEMENTATIONS.** Make implementations ordinary checked records of callable selections and evidence ([design](wiki/drafts/designs/operation_record_implementations.md)).
+  - Static callable-selection atom, selection rows, structural identity, open/closed field contracts, one schema for static and runtime use.
+  Acceptance: the design's cases pass `--both`; reusing a machine needs no forwarding member.
+
+- **OWNED-ACTIVATIONS.** Expose activation execution custody with typed replies ([design](wiki/drafts/designs/owned_activations.md)), after the record model.
+  - Foundation and core generator, then suspension leases and pause-protocol/per-step progress contracts; rebuild tasks on it.
+  Acceptance: a copying generator and a scheduler run as libraries over stepping under `--both`.
+
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/**/target_body/main.omg`, `audio_playback`, and target fixtures.
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.

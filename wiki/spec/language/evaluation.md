@@ -274,7 +274,8 @@ Specialization carries an already checked generic derivation under exact
 substitutions instead of repeating discovery. Proof-policy or search-algorithm
 changes cannot rename an existing index or select a different conformance.
 
-Eligible atoms are integers, Booleans, fixed arrays, records, and cases, with
+Eligible atoms are integers, Booleans, fixed arrays, records, cases, and
+[static callable selections](machine_values.md#static-callable-selections), with
 declaration order determining aggregate identity. Float/text values,
 references, slices, dynamic identities, and boundary-opaque values are not
 canonical generic atoms. Quotients and constrained records require a proved

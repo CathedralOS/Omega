@@ -121,6 +121,46 @@ uses one to relate two spellings of an index.
 See [conformance declarations](../spec/language/conformances.md#declaration-and-selection)
 for lifetime parameters and complete member matching.
 
+### Build an implementation from existing machines
+
+An implementation is an ordinary record of selected machines and the evidence
+its trait's laws require. Select an existing machine for a member instead of
+wrapping it. A selection keeps that machine's identity, so laws already proved
+about it apply:
+
+```omega
+trait Codec<T> {
+    machine encode(value: &T, out: &mut [u8]) -> u64;
+    machine decode(input: &[u8], out: &mut T) -> bool;
+}
+
+WireCodec satisfies Codec<Message> {
+    Codec::encode = lib_a::encode;
+    Codec::decode = lib_b::decode;
+}
+```
+
+One trait declaration serves compile-time and runtime use:
+
+```omega
+machine save_static<T, Format satisfies Codec<T>>(value: &T, out: &mut [u8]) -> u64 {
+    Format::encode(value, out)
+}
+
+machine save_dynamic<T>(format: &Codec<T>, value: &T, out: &mut [u8]) -> u64 {
+    (format.encode)(value, out)
+}
+```
+
+`save_static` receives the implementation as compile-time information and calls
+`lib_a::encode` directly. `save_dynamic` receives a runtime record and calls
+through its field, so no second record type restates the interface. Two
+implementations that select the same machines are the same implementation
+whatever they are named; add an explicit brand when a policy must stay distinct.
+A record whose member is still generic can only be used the compile-time way
+until its type arguments are fixed. See
+[operation records](../spec/language/conformances.md#implementations-are-operation-records).
+
 ### Domain establishment requirements
 
 A domain's access policy may name an exact trait requirement as an issuer. This does not make
