@@ -42,7 +42,7 @@ public trait RepresentationModel<Value, Frame> {
     ensures core::Identity<Value>(left, right);
 }
 
-// These guarantees constrain the selected TryFrom row itself. A separate
+// These guarantees constrain the selected TryFrom implementation. A separate
 // successful echo cannot establish encoding coverage or frame validity.
 public trait RepresentationEncoding<'value, Value, Resources, Frame, Error,
     Model satisfies RepresentationModel<Value, Frame>> =
@@ -68,8 +68,8 @@ public trait RepresentationDecoding<'frame, Value, Resources, Frame, Error,
     ensures (result in Result::Err) || Model::represents(source.frame, &result.value.value);
 }
 
-// This named map groups actual checked conversion contracts and their shared
-// model. Both maps retain their own effects, resource bounds and custody rules.
+// This trait groups the checked encoder, decoder and their shared model.
+// Each conversion retains its effects, resource bounds and ownership obligations.
 public trait Representation<'value, 'frame, Value, EncodingResources, DecodingResources, Frame,
     EncodingError, DecodingError,
     Model satisfies RepresentationModel<Value, Frame>,

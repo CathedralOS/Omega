@@ -2,18 +2,21 @@
 
 This consumer checks that an owned frame and a caller-owned byte buffer preserve
 the same semantic value through selected conversions. Its reject twin supplies
-maps that always return an error. An independent echo still proves that it
-preserves its input; that promise cannot establish anything about those maps.
+encoder and decoder implementations that always return an error. An independent
+echo still proves that it preserves its input; that promise cannot certify those
+implementations.
 
-Parent: **LIBRARY-REPRESENTATION-FAMILIES**. This is one library-interface
-milestone, not closure of its existing nine-place rows or host coverage.
+Parent: **LIBRARY-REPRESENTATION-FAMILIES**. This milestone adds the library
+interface. The full representation task remains open, including its nine
+transport places and host coverage.
 
 `RepresentationEncoding` and `RepresentationDecoding` strengthen the exact
 selected `TryFrom` requirements. Encoding must succeed, produce a valid frame
 and relate it to the borrowed input value. Decoding must accept valid frames,
 reject invalid frames and relate each successful value to its input frame.
 `Representation` groups these checked applications and their shared model.
-There is no separate round-trip implementation that can replace the map proofs.
+There is no separate round-trip implementation that can certify the encoder or
+decoder.
 
 The model queries borrow both the frame and semantic value. Its uniqueness law
 establishes semantic identity without cloning either owner or granting custody.
