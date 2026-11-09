@@ -130,7 +130,11 @@ Conformance matching uses canonical identity without heuristic theorem search.
 An exact conformance application for one symbolic index form does not match
 another solely because their indices are provably equal. Value transport under
 checked evidence does not reselect a map or rewrite its identity. Generic
-conformances over a common index and explicit contracts remain available.
+conformances over a common index and explicit contracts remain available, and
+a [`requires` clause](state_contracts.md#requirement-clauses) on a conformance
+declaration constrains its admitted applications, so one generic conformance
+can forward a selected map between two provably equal index forms; see
+[exact matching](../proofs/contracts.md#exact-matching-and-evidence-transport).
 
 Generic conformances own their telescopes independently of data declarations.
 Select one through a nested application with every type, const,
