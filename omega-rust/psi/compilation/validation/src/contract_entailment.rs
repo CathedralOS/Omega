@@ -80657,11 +80657,20 @@ pub(crate) mod structural_judgment {
                         return term;
                     }
                     StructuralTerm::Projection { subject, path } => {
-                        let subject = self.resolve_with_at(*subject, depth + 1, purpose);
+                        let original_subject = *subject;
+                        let subject =
+                            self.resolve_with_at(original_subject.clone(), depth + 1, purpose);
+                        let subject_changed = !subject.same_resolution_payload(&original_subject);
                         let resolved = StructuralTerm::Projection {
                             subject: Box::new(subject.clone()),
                             path: path.clone(),
                         };
+                        if subject_changed {
+                            // A newly resolved capture must pass through the same
+                            // checked constructor-field reader as a direct capture.
+                            term = resolved;
+                            continue;
+                        }
                         if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                             term = replacement.clone();
                             continue;
