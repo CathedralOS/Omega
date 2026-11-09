@@ -1259,101 +1259,6 @@ pub mod claim_frontier {
         }
     }
 
-    #[cfg(test)]
-    mod declared_path_tests {
-        use super::{ClaimFrontierClaim, DeclaredClaimFrontier};
-        use facts::{PlaceRoot, PlaceSegment, places::PlaceBucketIndex};
-        use typed_trees::types::TypeReferenceHandle;
-
-        #[test]
-        fn declared_path_rows_preserve_duplicates_metadata_and_original_positions() {
-            let rows = (0..1024)
-                .map(|position| ClaimFrontierClaim {
-                    path: vec![
-                        PlaceSegment::Field {
-                            symbol: symbols::SymbolHandle::from_parts(
-                                (position % 31 + 1) as u32,
-                                (position % 2 + 1) as u32,
-                            ),
-                        },
-                        PlaceSegment::FixedIndex {
-                            index: position % 7,
-                        },
-                    ],
-                    type_reference: TypeReferenceHandle::from_parts(position as u32 + 1, 1),
-                    conditional: position % 3 == 0,
-                })
-                .collect::<Vec<_>>();
-            let start = std::time::Instant::now();
-            let declared = DeclaredClaimFrontier::new(rows.clone());
-            declared.positions(&rows[0].path).for_each(drop);
-            let preparation_ns = start.elapsed().as_nanos();
-            let mut direct_rows = 0;
-            let mut prepared_rows = 0;
-            for row in &rows {
-                let direct = rows
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(position, other)| {
-                        direct_rows += 1;
-                        (other.path == row.path).then_some(position)
-                    })
-                    .collect::<Vec<_>>();
-                let prepared = declared.positions(&row.path).collect::<Vec<_>>();
-                prepared_rows += declared
-                    .paths
-                    .get()
-                    .unwrap()
-                    .candidates(facts::places::place_bucket_hash(
-                        PlaceRoot::Unknown,
-                        &row.path,
-                    ))
-                    .count();
-                assert_eq!(prepared, direct);
-            }
-            assert_eq!(declared.claims(), rows);
-            assert!(
-                declared
-                    .positions(&[PlaceSegment::FixedIndex { index: 9000 }])
-                    .next()
-                    .is_none()
-            );
-
-            // Deliberately put every row in this query's bucket. Full path values,
-            // not hashes, still decide membership, cardinality and first position.
-            let path = rows[3].path.clone();
-            let collision = DeclaredClaimFrontier::new(rows.clone());
-            let query_hash = facts::places::place_bucket_hash(PlaceRoot::Unknown, &path);
-            assert!(
-                collision
-                    .paths
-                    .set(PlaceBucketIndex::new(rows.iter().map(|_| query_hash)))
-                    .is_ok()
-            );
-            assert_eq!(
-                collision.positions(&path).collect::<Vec<_>>(),
-                declared.positions(&path).collect::<Vec<_>>()
-            );
-            let mut changed = rows.clone();
-            changed.remove(0);
-            changed[0].conditional = !changed[0].conditional;
-            let rebuilt = DeclaredClaimFrontier::new(changed.clone());
-            assert_eq!(rebuilt.claims(), changed);
-            assert_eq!(
-                rebuilt.positions(&path).collect::<Vec<_>>(),
-                changed
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(position, row)| (row.path == path).then_some(position))
-                    .collect::<Vec<_>>()
-            );
-            eprintln!(
-                "declared-path rows={} direct_rows={direct_rows} prepared_candidates={prepared_rows} preparation_ns={preparation_ns}",
-                rows.len()
-            );
-        }
-    }
-
     pub fn declared_claim_frontier(
         program: &dyn crate::CheckingInput,
         type_reference: TypeReferenceHandle,
@@ -1836,6 +1741,101 @@ pub mod claim_frontier {
             index.positions_for_symbol(symbol).last().copied()
         })?;
         program.data_definitions().get(position as usize)
+    }
+
+    #[cfg(test)]
+    mod declared_path_tests {
+        use super::{ClaimFrontierClaim, DeclaredClaimFrontier};
+        use facts::{PlaceRoot, PlaceSegment, places::PlaceBucketIndex};
+        use typed_trees::types::TypeReferenceHandle;
+
+        #[test]
+        fn declared_path_rows_preserve_duplicates_metadata_and_original_positions() {
+            let rows = (0..1024)
+                .map(|position| ClaimFrontierClaim {
+                    path: vec![
+                        PlaceSegment::Field {
+                            symbol: symbols::SymbolHandle::from_parts(
+                                (position % 31 + 1) as u32,
+                                (position % 2 + 1) as u32,
+                            ),
+                        },
+                        PlaceSegment::FixedIndex {
+                            index: position % 7,
+                        },
+                    ],
+                    type_reference: TypeReferenceHandle::from_parts(position as u32 + 1, 1),
+                    conditional: position % 3 == 0,
+                })
+                .collect::<Vec<_>>();
+            let start = std::time::Instant::now();
+            let declared = DeclaredClaimFrontier::new(rows.clone());
+            declared.positions(&rows[0].path).for_each(drop);
+            let preparation_ns = start.elapsed().as_nanos();
+            let mut direct_rows = 0;
+            let mut prepared_rows = 0;
+            for row in &rows {
+                let direct = rows
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, other)| {
+                        direct_rows += 1;
+                        (other.path == row.path).then_some(position)
+                    })
+                    .collect::<Vec<_>>();
+                let prepared = declared.positions(&row.path).collect::<Vec<_>>();
+                prepared_rows += declared
+                    .paths
+                    .get()
+                    .unwrap()
+                    .candidates(facts::places::place_bucket_hash(
+                        PlaceRoot::Unknown,
+                        &row.path,
+                    ))
+                    .count();
+                assert_eq!(prepared, direct);
+            }
+            assert_eq!(declared.claims(), rows);
+            assert!(
+                declared
+                    .positions(&[PlaceSegment::FixedIndex { index: 9000 }])
+                    .next()
+                    .is_none()
+            );
+
+            // Deliberately put every row in this query's bucket. Full path values,
+            // not hashes, still decide membership, cardinality and first position.
+            let path = rows[3].path.clone();
+            let collision = DeclaredClaimFrontier::new(rows.clone());
+            let query_hash = facts::places::place_bucket_hash(PlaceRoot::Unknown, &path);
+            assert!(
+                collision
+                    .paths
+                    .set(PlaceBucketIndex::new(rows.iter().map(|_| query_hash)))
+                    .is_ok()
+            );
+            assert_eq!(
+                collision.positions(&path).collect::<Vec<_>>(),
+                declared.positions(&path).collect::<Vec<_>>()
+            );
+            let mut changed = rows.clone();
+            changed.remove(0);
+            changed[0].conditional = !changed[0].conditional;
+            let rebuilt = DeclaredClaimFrontier::new(changed.clone());
+            assert_eq!(rebuilt.claims(), changed);
+            assert_eq!(
+                rebuilt.positions(&path).collect::<Vec<_>>(),
+                changed
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, row)| (row.path == path).then_some(position))
+                    .collect::<Vec<_>>()
+            );
+            eprintln!(
+                "declared-path rows={} direct_rows={direct_rows} prepared_candidates={prepared_rows} preparation_ns={preparation_ns}",
+                rows.len()
+            );
+        }
     }
 }
 
