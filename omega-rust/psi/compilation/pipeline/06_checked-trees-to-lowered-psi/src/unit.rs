@@ -2576,6 +2576,9 @@ pub(crate) mod unit_cleanup {
                 reason: "annotated cleanup action has no sequence partition owner",
             });
         }
+        let mut ordered = actions.iter().copied().enumerate().collect::<Vec<_>>();
+        ordered
+            .sort_by_key(|(position, action)| (key(action.partition_leaf().partition), *position));
         for owner in &owners {
             if !control.partitions.is_valid(*owner) {
                 return Err(LoweringError::InvalidCleanupPartition {
@@ -2589,11 +2592,14 @@ pub(crate) mod unit_cleanup {
                 },
             )?;
             let mut previous = None;
-            for action in actions
+            let start = ordered.partition_point(|(_, action)| {
+                key(action.partition_leaf().partition) < key(*owner)
+            });
+            for (_, action) in ordered[start..]
                 .iter()
-                .copied()
-                .filter(|action| action.partition_leaf().partition == *owner)
+                .take_while(|(_, action)| action.partition_leaf().partition == *owner)
             {
+                let action = *action;
                 let ordinal = action.partition_leaf().ordinal as usize;
                 if previous.is_some_and(|previous| ordinal <= previous)
                     || authorized.get(ordinal) != Some(action)
@@ -2606,9 +2612,6 @@ pub(crate) mod unit_cleanup {
                 previous = Some(ordinal);
             }
         }
-        let mut ordered = actions.iter().copied().enumerate().collect::<Vec<_>>();
-        ordered
-            .sort_by_key(|(position, action)| (key(action.partition_leaf().partition), *position));
         let partitions = roots
             .iter()
             .copied()
