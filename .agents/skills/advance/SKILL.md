@@ -49,7 +49,7 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    ```
    Keep the claim note concise: parent task, remaining acceptance, current
    witness, observed failure, and next action. Start it with the cluster line:
-   `Gate: <RC-NAME> | mechanism: <what fails> | rows sharing it: <N> of <total> | fix location: shared, or one-off because <reason>`.
+   `Gate: <release-gate> | mechanism: <what fails> | rows sharing it: <N> of <total> | fix location: shared, or one-off because <reason>`.
    Refine the mechanism after tracing; the count keeps the task from shrinking
    to its witness. At initial dispatch, `--path`
    can name the witness/board paths or subsystem directory from the recorded

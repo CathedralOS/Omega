@@ -63,11 +63,12 @@ every landed commit. `cargo xtask check-rules --body-file` checks it on every PR
 A PR in a compiler lane (`psi`, `omega`, `backend`, `compiler`, `build`,
 `packages`, `library`) also carries one line naming the release gate it serves
 and its net change in red corpus rows:
-`Gate: <RC-NAME> | red rows: <change>`, for example
-`Gate: RC-SOURCE-SEMANTICS | red rows: -12`. A negative number means rows turned
-green. `check-rules` compares the number with the ledger diff, so a row counts
-only once it is recorded. Work that turns no row green is allowed but must say
-what it unlocks: `Gate: RC-NATIVE-MATRIX | red rows: 0 | unlocks: <rows or capability>`.
+`Gate: <release-gate> | red rows: <change>`, where the name comes from the release
+matrix in [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
+A negative number means rows turned green. `check-rules` compares the number
+with the ledger diff, so a row counts only once it is recorded. Work that turns
+no row green is allowed but must say what it unlocks:
+`Gate: <release-gate> | red rows: 0 | unlocks: <rows or capability>`.
 
 ## Law of completion
 
