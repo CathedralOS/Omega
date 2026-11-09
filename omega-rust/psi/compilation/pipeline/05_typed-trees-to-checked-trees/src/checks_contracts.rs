@@ -2666,6 +2666,7 @@ mod direct {
         target_state: &(impl ContractTargetParameters + ?Sized),
         target_state_symbol: SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
+        assignments: &mut crate::values::RootAssignmentObservations<'_>,
     ) -> bool {
         let semantic = &facts.semantic;
         let parameters = target_state.contract_parameters(program);
@@ -2713,6 +2714,7 @@ mod direct {
             call_site,
             target_state,
             expression,
+            assignments,
         ) {
             return true;
         }
@@ -2794,6 +2796,7 @@ mod direct {
         call_site: &validation::CallSite<'_>,
         target: &(impl ContractTargetParameters + ?Sized),
         expression: typed_trees::expression::ExpressionHandle,
+        assignments: &mut crate::values::RootAssignmentObservations<'_>,
     ) -> bool {
         use super::prover::{ScalarValue, evaluate_scalar};
         use typed_trees::expression::ExpressionNode;
@@ -2827,6 +2830,7 @@ mod direct {
                             parameters,
                             arguments,
                             formal,
+                            assignments,
                         );
                     }
                 };
@@ -2838,8 +2842,6 @@ mod direct {
                             place_at(program, caller_state_symbol, statement_index, leaf)
                             && let Some(value) = scalar_value_at_observation(
                                 program,
-                                semantic,
-                                contexts,
                                 caller_state_symbol,
                                 statement_index,
                                 validation::expression_result_type_reference(
@@ -2849,6 +2851,7 @@ mod direct {
                                     leaf,
                                 )?,
                                 &place,
+                                assignments,
                             )
                         {
                             return Some(value);
@@ -2894,6 +2897,7 @@ mod direct {
         parameters: &[typed_trees::signature::StateParameter],
         arguments: &[typed_trees::expression::ExpressionHandle],
         leaf: typed_trees::expression::ExpressionHandle,
+        assignments: &mut crate::values::RootAssignmentObservations<'_>,
     ) -> Option<facts::ScalarValue> {
         let semantic = &facts.semantic;
         let length_receiver = expressions(program)
@@ -2929,8 +2933,6 @@ mod direct {
             };
             let Some(facts::ScalarValue::Integer(value)) = scalar_value_at_observation(
                 program,
-                semantic,
-                contexts,
                 caller_state_symbol,
                 statement_index,
                 validation::expression_result_type_reference(
@@ -2940,6 +2942,7 @@ mod direct {
                     expression,
                 )?,
                 &selector,
+                assignments,
             ) else {
                 continue;
             };
@@ -2990,12 +2993,11 @@ mod direct {
         }
         scalar_value_at_observation(
             program,
-            semantic,
-            contexts,
             caller_state_symbol,
             statement_index,
             observed_type,
             &actual,
+            assignments,
         )
     }
 
@@ -3006,33 +3008,24 @@ mod direct {
     */
     fn scalar_value_at_observation(
         program: &dyn ::validation::CheckingInput,
-        semantic: &facts::FactPlan,
-        contexts: &[facts::FactContextHandle],
         state: SymbolHandle,
         statement_index: usize,
         observed_type: typed_trees::types::TypeReferenceHandle,
         place: &validation::CanonicalPlace,
+        assignments: &mut crate::values::RootAssignmentObservations<'_>,
     ) -> Option<facts::ScalarValue> {
         if !observation_carriers_agree(program, state, statement_index, observed_type, place) {
             return None;
         }
         let mut place = place.clone();
-        crate::flow::narrow_pinned_index_segments(
+        crate::flow::narrow_pinned_index_segments_with_values(
             program,
-            semantic,
             state,
             statement_index,
-            contexts,
             &mut place.segments,
+            |selector| assignments.scalar_value(selector),
         );
-        super::prover::scalar_value_at_place(
-            program,
-            semantic,
-            contexts
-                .iter()
-                .map(|context| semantic.contexts.get(*context)),
-            &place,
-        )
+        assignments.scalar_value(&place)
     }
 
     /*

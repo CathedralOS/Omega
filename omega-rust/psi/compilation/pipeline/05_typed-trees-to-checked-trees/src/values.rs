@@ -2279,15 +2279,15 @@ mod snapshots {
     }
 
     /*
-        Read each root's assignments once for the current operand.
-        The selected contexts belong to this reader, so the next operand prepares
-        its own observations even when it uses the same place.
+        Share assignment inputs within one unchanged context selection. Each
+        operand prefix or storage epoch supplies its own reader rather than
+        joining rosters. Values and proof decisions are checked on every query.
     */
     pub(crate) struct RootAssignmentObservations<'input> {
         program: &'input dyn ::validation::CheckingInput,
         semantic: &'input FactPlan,
         contexts: &'input [facts::FactContextHandle],
-        roots: Vec<(facts::PlaceRoot, AssignmentObservationBatch<'input>)>,
+        roots: std::collections::HashMap<facts::PlaceRoot, RootAssignmentInputBatch<'input>>,
     }
 
     impl<'input> RootAssignmentObservations<'input> {
@@ -2300,38 +2300,152 @@ mod snapshots {
                 program,
                 semantic,
                 contexts,
-                roots: Vec::new(),
+                roots: std::collections::HashMap::new(),
             }
         }
 
-        fn for_root(&mut self, root: facts::PlaceRoot) -> &AssignmentObservationBatch<'input> {
-            let position = match self.roots.iter().position(|(known, _)| *known == root) {
-                Some(position) => position,
-                None => {
-                    let batch = AssignmentObservationBatch::prepare_for_root(
-                        self.program,
-                        self.semantic,
-                        self.contexts
-                            .iter()
-                            .map(|context| self.semantic.contexts.get(*context)),
-                        root,
-                    );
-                    self.roots.push((root, batch));
-                    self.roots.len() - 1
-                }
-            };
-            &self.roots[position].1
+        fn for_root(&mut self, root: facts::PlaceRoot) -> &mut RootAssignmentInputBatch<'input> {
+            self.roots
+                .entry(root)
+                .or_insert_with(|| RootAssignmentInputBatch {
+                    program: self.program,
+                    semantic: self.semantic,
+                    root,
+                    contexts: self.contexts.iter(),
+                    current: None,
+                    observations: Vec::new(),
+                    #[cfg(test)]
+                    work: AssignmentInputWork::default(),
+                })
         }
 
         pub(crate) fn scalar_value(&mut self, place: &CanonicalPlace) -> Option<ScalarValue> {
-            self.for_root(place.root).scalar_value(place)
+            if let Some(payload) = literal_assignment_payload(self.program, place) {
+                return scalar_value_from_payloads(self.program, self.semantic, [payload]);
+            }
+            let program = self.program;
+            let semantic = self.semantic;
+            scalar_value_from_payloads(program, semantic, self.for_root(place.root).payloads(place))
         }
 
         pub(crate) fn integer_bounds(
             &mut self,
             place: &CanonicalPlace,
         ) -> Option<facts::IntegerRange> {
-            self.for_root(place.root).integer_bounds(place)
+            if let Some(payload) = literal_assignment_payload(self.program, place) {
+                return integer_bounds_from_payloads(self.program, self.semantic, [payload]);
+            }
+            let program = self.program;
+            let semantic = self.semantic;
+            integer_bounds_from_payloads(
+                program,
+                semantic,
+                self.for_root(place.root).payloads(place),
+            )
+        }
+    }
+
+    /*
+        Prepare only the assignment rows a query reaches. Later fields replay that
+        prefix and continue reading when necessary. A refusal never fills the tail
+        or becomes an answer for another field; scalar agreement stays fresh.
+    */
+    struct RootAssignmentInputBatch<'input> {
+        program: &'input dyn ::validation::CheckingInput,
+        semantic: &'input FactPlan,
+        root: facts::PlaceRoot,
+        contexts: std::slice::Iter<'input, facts::FactContextHandle>,
+        current: Option<(&'input FactContext, facts::RootAssignmentFacts<'input>)>,
+        observations: Vec<RootAssignmentInput<'input>>,
+        #[cfg(test)]
+        work: AssignmentInputWork,
+    }
+
+    #[cfg(test)]
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+    struct AssignmentInputWork {
+        contexts: usize,
+        canonicalizations: usize,
+        snapshots: usize,
+    }
+
+    struct RootAssignmentInput<'input> {
+        place: CanonicalPlace,
+        context: &'input FactContext,
+        fact: &'input facts::Fact,
+        completed_snapshot: std::cell::OnceCell<bool>,
+    }
+
+    impl<'input> RootAssignmentInputBatch<'input> {
+        fn next_observation(&mut self) -> Option<RootAssignmentInput<'input>> {
+            loop {
+                if let Some((context, assignments)) = &mut self.current {
+                    for fact in assignments {
+                        #[cfg(test)]
+                        {
+                            self.work.canonicalizations += 1;
+                        }
+                        if let Some(place) = assignment_place(self.program, self.semantic, fact) {
+                            return Some(RootAssignmentInput {
+                                place,
+                                context,
+                                fact,
+                                completed_snapshot: std::cell::OnceCell::new(),
+                            });
+                        }
+                    }
+                }
+                let context = self.semantic.contexts.get(*self.contexts.next()?);
+                #[cfg(test)]
+                {
+                    self.work.contexts += 1;
+                }
+                self.current = Some((
+                    context,
+                    self.semantic.assignments_with_root(context, self.root),
+                ));
+            }
+        }
+
+        fn payloads<'query>(
+            &'query mut self,
+            subject: &'query CanonicalPlace,
+        ) -> impl Iterator<Item = FactPayload> + 'query {
+            let mut position = 0;
+            std::iter::from_fn(move || {
+                loop {
+                    if position == self.observations.len() {
+                        let observation = self.next_observation()?;
+                        self.observations.push(observation);
+                    }
+                    let observation = &self.observations[position];
+                    position += 1;
+                    if !crate::flow::canonical_places_agree(
+                        self.program,
+                        &observation.place,
+                        subject,
+                    ) {
+                        continue;
+                    }
+                    // This fixed input association is needed only for a matching
+                    // row. An unrelated field must not trigger its snapshot scan.
+                    if *observation.completed_snapshot.get_or_init(|| {
+                        #[cfg(test)]
+                        {
+                            self.work.snapshots += 1;
+                        }
+                        has_completed_call_snapshot(
+                            self.program,
+                            self.semantic,
+                            observation.context,
+                            observation.fact,
+                        )
+                    }) {
+                        continue;
+                    }
+                    return Some(observation.fact.payload);
+                }
+            })
         }
     }
 
@@ -2407,13 +2521,6 @@ mod snapshots {
 
         pub(crate) fn scalar_value(&self, subject: &CanonicalPlace) -> Option<ScalarValue> {
             scalar_value_from_payloads(self.program, self.semantic, self.payloads(subject))
-        }
-
-        pub(crate) fn integer_bounds(
-            &self,
-            subject: &CanonicalPlace,
-        ) -> Option<facts::IntegerRange> {
-            integer_bounds_from_payloads(self.program, self.semantic, self.payloads(subject))
         }
     }
 
@@ -2777,6 +2884,21 @@ mod snapshots {
         context: &FactContext,
         fact: &facts::Fact,
     ) -> Option<AssignmentObservation> {
+        let place = assignment_place(program, semantic, fact)?;
+        if has_completed_call_snapshot(program, semantic, context, fact) {
+            return None;
+        }
+        Some(AssignmentObservation {
+            place,
+            payload: fact.payload,
+        })
+    }
+
+    fn assignment_place(
+        program: &dyn ::validation::CheckingInput,
+        semantic: &FactPlan,
+        fact: &facts::Fact,
+    ) -> Option<CanonicalPlace> {
         if !matches!(
             fact.payload,
             FactPayload::AssignedValue { .. }
@@ -2786,15 +2908,7 @@ mod snapshots {
             return None;
         }
         let place = fact.place.as_place()?;
-        let place =
-            canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
-        if has_completed_call_snapshot(program, semantic, context, fact) {
-            return None;
-        }
-        Some(AssignmentObservation {
-            place,
-            payload: fact.payload,
-        })
+        canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
     }
 
     /*
@@ -2971,6 +3085,364 @@ mod snapshots {
                     stream_reads.get(),
                     literal_reads.get(),
                 );
+            }
+        }
+        fn context_with_facts(
+            semantic: &mut FactPlan,
+            facts: impl IntoIterator<Item = Fact>,
+        ) -> facts::FactContextHandle {
+            let mut refs = arena::HandleSpan::empty();
+            for fact in facts {
+                let fact = semantic.append_fact(fact);
+                semantic.append_ref(&mut refs, fact);
+            }
+            semantic.append_context(Default::default(), refs)
+        }
+
+        fn stored_scalar(
+            semantic: &mut FactPlan,
+            place: facts::PlaceHandle,
+            value: ScalarValue,
+        ) -> Fact {
+            let value = semantic.scalar_values.append(value);
+            Fact {
+                place: FactPlace::Place(place),
+                payload: FactPayload::AssignedScalarValue { value },
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn root_assignment_inputs_preserve_prefix_extension_scope_and_snapshots() {
+            use super::RootAssignmentObservations;
+            use facts::{FactOrigin, IntegerRange, Place, PlaceSegment, ProgramPoint};
+            use numerics::bignum::BigInt;
+            use typed_trees::expression::TableCallExpression;
+
+            let mut program = TypedTrees::default();
+            let literal = program
+                .expression_table
+                .insert(ExpressionNode::Boolean(true));
+            let root = PlaceRoot::Symbol(symbols::SymbolHandle::from_parts(1, 11));
+            let first = CanonicalPlace {
+                root,
+                segments: vec![PlaceSegment::FixedIndex { index: 0 }],
+            };
+            let last = CanonicalPlace {
+                root,
+                segments: vec![PlaceSegment::FixedIndex { index: 1 }],
+            };
+            for (initial, following, expected, prefix, visited) in [
+                (ScalarValue::Unknown, ScalarValue::Boolean(true), None, 1, 1),
+                (
+                    ScalarValue::Boolean(true),
+                    ScalarValue::Boolean(false),
+                    None,
+                    2,
+                    2,
+                ),
+                (
+                    ScalarValue::Boolean(true),
+                    ScalarValue::Boolean(true),
+                    Some(ScalarValue::Boolean(true)),
+                    65,
+                    64,
+                ),
+            ] {
+                let mut semantic = FactPlan::default();
+                let first_segments = semantic.place_segments.insert_many(first.segments.clone());
+                let first_place = semantic.append_place(Place {
+                    root,
+                    segments: first_segments,
+                });
+                let last_segments = semantic.place_segments.insert_many(last.segments.clone());
+                let last_place = semantic.append_place(Place {
+                    root,
+                    segments: last_segments,
+                });
+                let mut contexts = Vec::new();
+                for position in 0..64 {
+                    let fact = stored_scalar(
+                        &mut semantic,
+                        first_place,
+                        if position == 0 {
+                            initial.clone()
+                        } else {
+                            following.clone()
+                        },
+                    );
+                    let mut facts = vec![fact];
+                    if position == 63 {
+                        facts.push(stored_scalar(
+                            &mut semantic,
+                            last_place,
+                            ScalarValue::Boolean(true),
+                        ));
+                    }
+                    contexts.push(context_with_facts(&mut semantic, facts));
+                }
+                let mut inputs = RootAssignmentObservations::new(&program, &semantic, &contexts);
+                let direct_visits = Cell::new(0);
+                for _ in 0..3 {
+                    assert_eq!(
+                        super::scalar_value_at_place(
+                            &program,
+                            &semantic,
+                            contexts.iter().map(|handle| {
+                                direct_visits.set(direct_visits.get() + 1);
+                                semantic.contexts.get(*handle)
+                            }),
+                            &first,
+                        ),
+                        expected,
+                    );
+                    assert_eq!(inputs.scalar_value(&first), expected);
+                    assert_eq!(inputs.roots[&root].observations.len(), prefix);
+                    assert_eq!(inputs.roots[&root].work.contexts, visited);
+                    assert_eq!(inputs.roots[&root].work.canonicalizations, prefix);
+                    assert_eq!(inputs.roots[&root].work.snapshots, visited);
+                }
+                assert_eq!(direct_visits.get(), visited * 3);
+                let first_work = inputs.roots[&root].work;
+                // A refused first field cannot exhaust the root for another field.
+                assert_eq!(inputs.scalar_value(&last), Some(ScalarValue::Boolean(true)));
+                assert_eq!(inputs.roots[&root].observations.len(), 65);
+                assert_eq!(inputs.roots[&root].work.contexts, 64);
+                assert_eq!(inputs.roots[&root].work.canonicalizations, 65);
+                assert_eq!(inputs.roots[&root].work.snapshots, visited + 1);
+                let completed_work = inputs.roots[&root].work;
+                for _ in 0..3 {
+                    assert_eq!(inputs.scalar_value(&first), expected);
+                    assert_eq!(inputs.scalar_value(&last), Some(ScalarValue::Boolean(true)));
+                    assert_eq!(inputs.roots[&root].observations.len(), 65);
+                    assert_eq!(inputs.roots[&root].work, completed_work);
+                }
+                let direct = super::scalar_value_at_place(
+                    &program,
+                    &semantic,
+                    contexts.iter().map(|handle| semantic.contexts.get(*handle)),
+                    &first,
+                );
+                assert_eq!(direct, expected);
+                let retained_segments: usize = inputs.roots[&root]
+                    .observations
+                    .iter()
+                    .map(|row| row.place.segments.len())
+                    .sum();
+                assert_eq!(retained_segments, 65);
+                assert!(inputs.roots[&root].observations.capacity() <= 65 * 2);
+                let literal_place = CanonicalPlace {
+                    root: PlaceRoot::Expression(literal),
+                    segments: Vec::new(),
+                };
+                assert_eq!(
+                    inputs.scalar_value(&literal_place),
+                    Some(ScalarValue::Boolean(true))
+                );
+                assert!(!inputs.roots.contains_key(&literal_place.root));
+                eprintln!(
+                    "root inputs: direct contexts={} for 3 queries, prepared={first_work:?}, extended={completed_work:?}, after replays={:?}, retained rows=65, retained segments={retained_segments}, literal cursors=0",
+                    direct_visits.get(),
+                    inputs.roots[&root].work,
+                );
+            }
+
+            // A scalar refusal on a range is not a refusal to read its complete hull.
+            let mut semantic = FactPlan::default();
+            let place = semantic.append_symbol_place(root.as_symbol().unwrap());
+            let subject = CanonicalPlace {
+                root,
+                segments: Vec::new(),
+            };
+            let mut contexts = Vec::new();
+            for (minimum, maximum) in [(2, 5), (-4, 13)] {
+                let bounds = semantic.integer_ranges.append(IntegerRange {
+                    minimum: BigInt::from_i64(minimum),
+                    maximum: BigInt::from_i64(maximum),
+                });
+                contexts.push(context_with_facts(
+                    &mut semantic,
+                    [Fact {
+                        place: FactPlace::Place(place),
+                        payload: FactPayload::AssignedIntegerBounds { bounds },
+                        ..Default::default()
+                    }],
+                ));
+            }
+            let mut inputs = RootAssignmentObservations::new(&program, &semantic, &contexts);
+            assert_eq!(inputs.scalar_value(&subject), None);
+            assert_eq!(inputs.roots[&root].observations.len(), 1);
+            let hull = inputs.integer_bounds(&subject).unwrap();
+            assert_eq!(hull.minimum, BigInt::from_i64(-4));
+            assert_eq!(hull.maximum, BigInt::from_i64(13));
+            assert_eq!(inputs.roots[&root].observations.len(), 2);
+            assert_eq!(inputs.scalar_value(&subject), None);
+            assert_eq!(inputs.roots[&root].observations.len(), 2);
+
+            drop(inputs);
+
+            // Equal slots in different generations and different rosters stay separate.
+            let mut semantic = FactPlan::default();
+            let place = semantic.append_symbol_place(root.as_symbol().unwrap());
+            let fact = stored_scalar(&mut semantic, place, ScalarValue::Boolean(false));
+            let before = context_with_facts(&mut semantic, [fact]);
+            semantic.contexts.begin_page(29);
+            let other_root = PlaceRoot::Symbol(symbols::SymbolHandle::from_parts(1, 12));
+            let other_place = semantic.append_symbol_place(other_root.as_symbol().unwrap());
+            let true_fact = stored_scalar(&mut semantic, place, ScalarValue::Boolean(true));
+            let other_fact = stored_scalar(&mut semantic, other_place, ScalarValue::Boolean(false));
+            let after = context_with_facts(&mut semantic, [true_fact, other_fact]);
+            assert_eq!(before.arena_index(), after.arena_index());
+            assert_ne!(before.generation(), after.generation());
+            let mut root_facts = semantic.assignments_with_root(semantic.contexts.get(after), root);
+            assert_eq!(root_facts.next(), Some(&true_fact));
+            assert_eq!(root_facts.next(), None);
+            assert_eq!(root_facts.next(), None);
+            let before_roster = [before];
+            let after_roster = [after, after];
+            let mut old_inputs =
+                RootAssignmentObservations::new(&program, &semantic, &before_roster);
+            let mut new_inputs =
+                RootAssignmentObservations::new(&program, &semantic, &after_roster);
+            assert_eq!(
+                old_inputs.scalar_value(&subject),
+                Some(ScalarValue::Boolean(false))
+            );
+            assert_eq!(
+                new_inputs.scalar_value(&subject),
+                Some(ScalarValue::Boolean(true))
+            );
+            assert_eq!(new_inputs.roots[&root].observations.len(), 2);
+            assert_eq!(
+                new_inputs.scalar_value(&CanonicalPlace {
+                    root: other_root,
+                    segments: Vec::new()
+                }),
+                Some(ScalarValue::Boolean(false))
+            );
+            assert_eq!(new_inputs.roots[&other_root].observations.len(), 2);
+            assert_eq!(
+                old_inputs.scalar_value(&subject),
+                Some(ScalarValue::Boolean(false))
+            );
+
+            drop(old_inputs);
+            drop(new_inputs);
+
+            // Completed call observations suppress only the same context/place/point/origin.
+            let call = program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_selection: None,
+                    authored_call_binding: None,
+                    build_selection: Default::default(),
+                    authored_machine_application: Default::default(),
+                    exact_coercion_target: Default::default(),
+                    requirement_application: Default::default(),
+                    receiver: Default::default(),
+                    target_symbol: symbols::SymbolHandle::from_arena_index(2),
+                    static_machine_parameter: Default::default(),
+                    target: typed_trees::name::Identifier::generated("snapshot"),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::new([]),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    installed_interrupt_operation: None,
+                    layout_query: None,
+                    native_code_layout: None,
+                    arguments: Default::default(),
+                    evidence_arguments: Box::new([]),
+                    operational_acknowledgement: Default::default(),
+                }));
+
+            let mut semantic = FactPlan::default();
+            let place = semantic.append_symbol_place(root.as_symbol().unwrap());
+            let segments = semantic.place_segments.insert_many(last.segments.clone());
+            let other_place = semantic.append_place(Place { root, segments });
+            let source = Fact {
+                place: FactPlace::Place(other_place),
+                payload: FactPayload::AssignedValue { value: call },
+                origin: FactOrigin::CallEnsures,
+                ..Default::default()
+            };
+            let mut completed =
+                stored_scalar(&mut semantic, other_place, ScalarValue::Boolean(true));
+            completed.origin = source.origin;
+            let ordinary = stored_scalar(&mut semantic, place, ScalarValue::Boolean(true));
+            let context = context_with_facts(&mut semantic, [source, completed, ordinary]);
+            let contexts = [context];
+            let mut inputs = RootAssignmentObservations::new(&program, &semantic, &contexts);
+            assert_eq!(
+                inputs.scalar_value(&subject),
+                Some(ScalarValue::Boolean(true))
+            );
+            assert_eq!(inputs.roots[&root].work.canonicalizations, 3);
+            assert_eq!(inputs.roots[&root].work.snapshots, 1);
+            assert!(
+                inputs.roots[&root].observations[0]
+                    .completed_snapshot
+                    .get()
+                    .is_none()
+            );
+            assert!(
+                inputs.roots[&root].observations[1]
+                    .completed_snapshot
+                    .get()
+                    .is_none()
+            );
+            assert_eq!(inputs.scalar_value(&last), Some(ScalarValue::Boolean(true)));
+            assert_eq!(inputs.roots[&root].work.snapshots, 3);
+            let completed_work = inputs.roots[&root].work;
+            assert_eq!(inputs.scalar_value(&last), Some(ScalarValue::Boolean(true)));
+            assert_eq!(inputs.roots[&root].work, completed_work);
+            drop(inputs);
+
+            for (same_context, same_point, same_origin, expected) in [
+                (true, true, true, Some(ScalarValue::Boolean(true))),
+                (false, true, true, None),
+                (true, false, true, None),
+                (true, true, false, None),
+            ] {
+                let mut semantic = FactPlan::default();
+                let place = semantic.append_symbol_place(root.as_symbol().unwrap());
+                let source = Fact {
+                    place: FactPlace::Place(place),
+                    payload: FactPayload::AssignedValue { value: call },
+                    origin: FactOrigin::CallEnsures,
+                    ..Default::default()
+                };
+                let mut completed = stored_scalar(&mut semantic, place, ScalarValue::Boolean(true));
+                completed.origin = if same_origin {
+                    source.origin
+                } else {
+                    FactOrigin::StatementTransfer
+                };
+                completed.point = if same_point {
+                    source.point
+                } else {
+                    ProgramPoint::Definition {
+                        symbol: root.as_symbol().unwrap(),
+                    }
+                };
+                let contexts = if same_context {
+                    vec![context_with_facts(&mut semantic, [source, completed])]
+                } else {
+                    vec![
+                        context_with_facts(&mut semantic, [source]),
+                        context_with_facts(&mut semantic, [completed]),
+                    ]
+                };
+                let direct = super::scalar_value_at_place(
+                    &program,
+                    &semantic,
+                    contexts.iter().map(|handle| semantic.contexts.get(*handle)),
+                    &subject,
+                );
+                let mut inputs = RootAssignmentObservations::new(&program, &semantic, &contexts);
+                for _ in 0..2 {
+                    assert_eq!(inputs.scalar_value(&subject), direct);
+                    assert_eq!(direct, expected);
+                }
             }
         }
     }
