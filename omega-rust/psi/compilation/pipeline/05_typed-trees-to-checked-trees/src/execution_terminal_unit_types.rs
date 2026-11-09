@@ -1793,27 +1793,6 @@ mod parameters {
     }
 
     /*
-        Whether an authored parameter owns a slot in the caller's structural
-        argument namespace once the unit plan is sealed. Erased bindings and
-        `const` formals carry no runtime slot, and scalar primitives live in the
-        scalar namespace. Borrowed placed descriptors retain a structural slot;
-        the separate placement roster still requires established backing. A
-        structural parameter retains its authored position independently of the
-        machine's qualification.
-    */
-    pub(crate) fn structural_parameter_candidate(
-        program: &dyn ::validation::CheckingInput,
-        parameter: &StateParameter,
-    ) -> bool {
-        if parameter.is_const || strips_erased_parameter(parameter) == Some(true) {
-            return false;
-        }
-        program
-            .primitive_type_reference(parameter.type_reference)
-            .is_none()
-    }
-
-    /*
         Resolve the authored slot before the final structural roster is available.
         Callers with a completed roster must use that roster instead.
     */
@@ -1827,7 +1806,11 @@ mod parameters {
             parameters
                 .iter()
                 .take(authored_position)
-                .filter(|parameter| structural_parameter_candidate(program, parameter))
+                .filter(|parameter| {
+                    validation::reference_result_custody::is_mutable_structural_parameter(
+                        program, parameter,
+                    )
+                })
                 .count(),
         )
         .ok()

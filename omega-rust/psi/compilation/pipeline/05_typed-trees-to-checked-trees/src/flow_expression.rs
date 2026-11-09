@@ -3395,17 +3395,11 @@ mod returned_regions {
                 let CheckedReferenceOriginRoot::Parameter { index } = origin.source.root else {
                     return None;
                 };
-                let (position, parameter) = parameters
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, parameter)| {
-                        !parameter.is_const
-                            && self
-                                .program
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_none()
-                    })
-                    .nth(usize::try_from(index).ok()?)?;
+                let (position, parameter) = validation::reference_result_custody::origin_formal(
+                    self.program,
+                    parameters,
+                    index,
+                )?;
                 let (_, actual) = inputs.get(position)?;
                 let projection = validation::reference_result_custody::origin_place_segments(
                     self.program,
