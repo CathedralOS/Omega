@@ -6628,7 +6628,7 @@ pass/storage/runtime_parameter_slice_forward_exit built 6219ms exit:70 @a92f1643
 pass/storage/runtime_primitive_local_literal_composition_exit built 6291ms exit:70 @a92f16431042
 pass/structs/affine_record_state_clone built 6348ms exit:70 @a92f16431042
 pass/structs/affine_result_constructor built 6689ms exit:70 @a92f16431042
-pass/structs/case_field_type_store_shapes built 6053ms exit:70 @a92f16431042
+pass/structs/case_field_type_store_shapes built 29325ms exit:70 @44f3ff0c2918
 pass/structs/copied_array_field_shared_record built 6650ms exit:70 @a92f16431042
 pass/structs/deep_nested_write_paths_exit built 6011ms exit:70 @a92f16431042
 pass/structs/mutable_array_record_state_transfer built 6039ms exit:70 @a92f16431042
@@ -6639,7 +6639,7 @@ pass/structs/record_literal_array_field built 6029ms exit:0 @a92f16431042
 pass/structs/runtime_array_member_snapshot_exit built 5956ms exit:70 @a92f16431042
 pass/structs/runtime_case_array_payload_exit built 6010ms exit:70 @a92f16431042
 pass/structs/runtime_completed_array_elements_exit built 5955ms exit:70 @a92f16431042
-pass/structs/runtime_composed_case_payload_reads_exit built 6212ms exit:70 @a92f16431042
+pass/structs/runtime_composed_case_payload_reads_exit built 28865ms exit:70 @44f3ff0c2918
 pass/structs/runtime_declared_record_member_fill_exit built 5788ms exit:70 @a92f16431042
 pass/structs/runtime_local_array_snapshot_exit built 6833ms exit:70 @a92f16431042
 pass/structs/runtime_local_record_policy_exit built 7679ms exit:70 @a92f16431042
