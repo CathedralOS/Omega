@@ -25,11 +25,15 @@
 //! untracked changes, and no commit that exists only in that worktree. A slot with a
 //! topic belongs to the session that acquired it until `release` clears the topic, so
 //! `acquire` and `clean` never take a claimed slot; only its own topic reuses it.
+//! Those commands run one at a time under [`PoolLock`], so two sessions can never
+//! both pick the same idle slot before either has written its topic.
 
 use std::collections::BTreeSet;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
@@ -149,6 +153,75 @@ fn write_topic(git_dir: &Path, topic: Option<&str>) -> Result<(), String> {
         },
     };
     result.map_err(|error| format!("cannot update worktree topic {}: {error}", path.display()))
+}
+
+/// Serializes `acquire`, `release` and `clean` across sessions.
+///
+/// Choosing a slot and claiming it (writing its topic) must happen as one step.
+/// Without this lock, two sessions acquiring at once could both see the same
+/// slot as idle, for instance one freshly promoted from a legacy worktree that
+/// had no topic yet, and both be handed `worker-N`. A clean or dirty check cannot
+/// catch that, because a freshly acquired slot is clean.
+struct PoolLock(PathBuf);
+
+impl Drop for PoolLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+
+const POOL_LOCK_WAIT: Duration = Duration::from_secs(120);
+// Pool operations finish in seconds once `origin/main` is fetched (fetch runs
+// before the lock is taken), so an older lock was left by a killed process.
+const POOL_LOCK_STALE: Duration = Duration::from_secs(300);
+
+fn lock_pool(main_root: &Path) -> Result<PoolLock, String> {
+    lock_pool_at(
+        &main_root.join(".git/worktree-pool.lock"),
+        POOL_LOCK_WAIT,
+        POOL_LOCK_STALE,
+    )
+}
+
+fn lock_pool_at(path: &Path, wait: Duration, stale: Duration) -> Result<PoolLock, String> {
+    let deadline = Instant::now() + wait;
+    loop {
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+        {
+            Ok(mut file) => {
+                let _ = writeln!(file, "{}", std::process::id());
+                return Ok(PoolLock(path.to_path_buf()));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                // ponytail: two waiters can both break the same stale lock; the
+                // window is one remove/create pair after a crashed holder.
+                let age = fs::metadata(path)
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| t.elapsed().ok());
+                if age.is_some_and(|age| age > stale) {
+                    let _ = fs::remove_file(path);
+                    continue;
+                }
+                if Instant::now() >= deadline {
+                    return Err(format!(
+                        "another session holds the worktree pool lock {}; retry, or delete it if no `xtask worktree` command is running",
+                        path.display()
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(error) => {
+                return Err(format!(
+                    "cannot create worktree pool lock {}: {error}",
+                    path.display()
+                ));
+            }
+        }
+    }
 }
 
 fn report_error(message: String) -> u8 {
@@ -470,6 +543,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 .stdin(Stdio::null())
                 .status();
 
+            let _pool = lock_pool(&main_root).map_err(report_error)?;
             let items = list_worktrees(&main_root).map_err(report_error)?;
 
             // 1. If a worker-N slot already carries this topic and is clean, reuse it in place.
@@ -593,6 +667,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         }
         "release" => {
             let target_name = args.get(1).cloned().unwrap_or_else(|| current_name.clone());
+            let _ = Command::new("git")
+                .args(["fetch", "origin", "main"])
+                .current_dir(&main_root)
+                .stdin(Stdio::null())
+                .status();
+            let _pool = lock_pool(&main_root).map_err(report_error)?;
             let items = list_worktrees(&main_root).map_err(report_error)?;
             let Some(wt) = items.iter().find(|w| w.name == target_name) else {
                 eprintln!("worktree release: unknown worktree `{target_name}`");
@@ -605,11 +685,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 );
                 return Err(1);
             }
-            let _ = Command::new("git")
-                .args(["fetch", "origin", "main"])
-                .current_dir(&main_root)
-                .stdin(Stdio::null())
-                .status();
             if !reset_slot_to_main(&wt.path) {
                 return Err(1);
             }
@@ -640,6 +715,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             if !current_name.is_empty() {
                 keep.insert(current_name.clone());
             }
+            let _pool = lock_pool(&main_root).map_err(report_error)?;
 
             let items = list_worktrees(&main_root).map_err(report_error)?;
             let mut to_delete_dirs: Vec<(String, PathBuf)> = Vec::new();
@@ -807,10 +883,11 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_topic, reset_refusal, worktree_git_dir, write_topic};
+    use super::{lock_pool_at, read_topic, reset_refusal, worktree_git_dir, write_topic};
     use std::fs;
     use std::path::Path;
     use std::process::{Command, Stdio};
+    use std::time::Duration;
 
     #[test]
     fn ownership_follows_a_moved_linked_worktree() {
@@ -909,6 +986,34 @@ mod tests {
         assert!(read_topic(&moved_git_dir).is_err());
         let error = write_topic(&moved_git_dir, Some("tools-refused")).unwrap_err();
         assert!(error.contains("cannot update worktree topic"));
+    }
+
+    // Only one pool command holds the lock at a time; the next one gets it once
+    // the holder finishes, and a lock left by a killed process is broken.
+    #[test]
+    fn pool_lock_admits_one_holder_and_breaks_stale_locks() {
+        let path = std::env::temp_dir().join(format!(
+            "omega-worktree-pool-lock-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        ));
+        let hour = Duration::from_secs(3600);
+        let held = lock_pool_at(&path, Duration::ZERO, hour).unwrap();
+        let error = lock_pool_at(&path, Duration::from_millis(250), hour)
+            .err()
+            .expect("a second holder is refused");
+        assert!(error.contains("another session holds"));
+        drop(held);
+        assert!(!path.exists());
+        let held = lock_pool_at(&path, Duration::ZERO, hour).unwrap();
+        std::mem::forget(held); // A killed holder never removes its lock.
+        std::thread::sleep(Duration::from_millis(50));
+        let broken = lock_pool_at(&path, Duration::ZERO, Duration::from_millis(10)).unwrap();
+        drop(broken);
+        assert!(!path.exists());
     }
 
     // Every way a worktree can hold work blocks a reset; only an empty one passes.
