@@ -2271,48 +2271,41 @@ pass/facts/boundary_provider_call_through_other_machine_exit built 2577ms exit:0
 pass/facts/boundary_provider_call_through_other_state_exit built 2812ms exit:0 @a92f16431042
 pass/facts/boundary_provider_call_through_parameter_exit built 2867ms exit:0 @a92f16431042
 pass/facts/boundary_provider_call_through_target_body_exit built 3250ms exit:0 @a92f16431042
-pass/facts/bounded_activation_claim_split_through_call_result_exit rejected 2876ms @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(2)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/facts/bounded_activation_claim_split_through_const_name_exit rejected 2813ms @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/facts/bounded_activation_claim_split_through_field_exit rejected 3170ms @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/facts/bounded_activation_claim_split_through_local_exit rejected 2602ms @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/facts/bounded_activation_claim_split_through_match_join_exit rejected 2490ms @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/facts/bounded_activation_claim_split_through_other_machine_exit rejected 2322ms @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/facts/bounded_activation_claim_split_through_other_state_exit rejected 3322ms @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/facts/bounded_activation_claim_split_through_parameter_exit rejected 3076ms @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(2)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/facts/bounded_activation_claim_split_through_target_body_exit rejected 3639ms @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(3)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/facts/bounded_activation_cleanup_crossing_exit built 3108ms exit:0 stdout:match @a92f16431042
-pass/facts/bounded_activation_cleanup_pure_exit built 3453ms exit:0 stdout:match @a92f16431042
-pass/facts/bounded_activation_computed_bound_exit built 2460ms exit:0 @a92f16431042
-pass/facts/bounded_activation_extent_composition_exit built 2508ms exit:0 @a92f16431042
-pass/facts/bounded_activation_field_transport_exit built 2701ms exit:0 @a92f16431042
-pass/facts/bounded_activation_generic_bound_exit built 2700ms exit:0 @a92f16431042
-pass/facts/bounded_activation_main_exit built 2726ms exit:0 @a92f16431042
-pass/facts/bounded_activation_multiple_bounds_exit built 2717ms exit:0 @a92f16431042
-pass/facts/bounded_activation_named_attempt_exit built 2707ms exit:0 @a92f16431042
-pass/facts/bounded_activation_named_bound_exit built 2707ms exit:0 @a92f16431042
-pass/facts/bounded_activation_nested_lifo_exit built 2696ms exit:0 @a92f16431042
-pass/facts/bounded_activation_page_bound_exit built 2701ms exit:0 @a92f16431042
-pass/facts/bounded_activation_parameter_committed_exit built 2250ms exit:0 @a92f16431042
-pass/facts/bounded_activation_through_call_result_exit built 2255ms exit:0 @a92f16431042
-pass/facts/bounded_activation_through_const_name_exit built 2248ms exit:0 @a92f16431042
-pass/facts/bounded_activation_through_field_exit built 2252ms exit:0 @a92f16431042
-pass/facts/bounded_activation_through_local_exit built 2112ms exit:0 @a92f16431042
-pass/facts/bounded_activation_through_match_join_exit built 2241ms exit:0 @a92f16431042
-pass/facts/bounded_activation_through_other_machine_exit built 2102ms exit:0 @a92f16431042
-pass/facts/bounded_activation_through_other_state_exit built 2158ms exit:0 @a92f16431042
-pass/facts/bounded_activation_through_parameter_exit built 2084ms exit:0 @a92f16431042
-pass/facts/bounded_activation_through_target_body_exit built 2453ms exit:0 @a92f16431042
-pass/facts/bounded_activation_unsigned_max_request_exit built 2300ms exit:0 @a92f16431042
-pass/facts/bounded_activation_zero_bound_exit built 2222ms exit:0 @a92f16431042
+pass/facts/bounded_activation_claim_split_through_call_result_exit built 20541ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_const_name_exit built 20210ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_field_exit built 35655ms exit:0 terminal-runtime.main:unrequested terminal-inspections:match @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_local_exit built 34194ms exit:0 terminal-runtime.main:unrequested terminal-inspections:match @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_match_join_exit built 19102ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_other_machine_exit built 18671ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_other_state_exit built 18068ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_parameter_exit built 15833ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_target_body_exit built 18498ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_cleanup_crossing_exit built 19075ms exit:0 stdout:match @77558cbd0be7
+pass/facts/bounded_activation_cleanup_pure_exit built 18124ms exit:0 stdout:match @77558cbd0be7
+pass/facts/bounded_activation_computed_bound_exit built 16400ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_extent_composition_exit built 19080ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_field_transport_exit built 18100ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_generic_bound_exit built 16812ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_generic_holder_transfer_exit built 17513ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_generic_nested_holder_transfer_exit built 18650ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_main_exit built 18651ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_multiple_bounds_exit built 32653ms exit:0 terminal-runtime.main:unrequested terminal-inspections:match @77558cbd0be7
+pass/facts/bounded_activation_named_attempt_exit built 17272ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_named_bound_exit built 17312ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_nested_lifo_exit built 18400ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_page_bound_exit built 19266ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_parameter_committed_exit built 19778ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_through_call_result_exit built 17928ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_through_const_name_exit built 16166ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_through_field_exit built 17647ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_through_local_exit built 21235ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_through_match_join_exit built 18151ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_through_other_machine_exit built 18557ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_through_other_state_exit built 16544ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_through_parameter_exit built 17563ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_through_target_body_exit built 17833ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_unsigned_max_request_exit built 17286ms exit:0 @77558cbd0be7
+pass/facts/bounded_activation_zero_bound_exit built 24286ms exit:0 terminal-runtime.main:unrequested terminal-inspections:match @77558cbd0be7
 pass/facts/bounded_products_through_call_result_exit built 2235ms exit:0 @a92f16431042
 pass/facts/bounded_products_through_const_name_exit built 2244ms exit:0 @a92f16431042
 pass/facts/bounded_products_through_field_exit built 2224ms exit:0 @a92f16431042
