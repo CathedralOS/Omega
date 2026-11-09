@@ -19,8 +19,12 @@ describe how those runs were admitted at the time. Use the mechanisms below.
 | Cargo jobs | One Cargo invocation | `CARGO_BUILD_JOBS`, or `-j N` |
 | Corpus workers | One corpus run | `OMEGA_CORPUS_JOBS` |
 | Operating-system priority | One process tree | `nice -n 19 <command>`; on Windows, the Idle priority class |
+| CPU affinity or a cgroup CPU quota | One process tree, inherited by its children | `taskset`, a cgroup, or on Windows `ProcessorAffinity` |
 
-The mbx scheduler is the only one of these that spans agents. Its
+Job counts are per invocation, so they multiply across agents: four agents at
+six jobs each are twenty-four compilers. The mbx scheduler is the only setting
+here that spans agents, and an affinity mask or cgroup quota is the only hard
+ceiling. Its
 [documentation](https://github.com/jdx/mr-boxington/blob/main/docs/scheduling.md)
 says independent Cargo commands share CPU and memory permits through one pool
 under the cache directory, that `scheduler.cpus` is that pool's CPU budget, and
@@ -40,11 +44,15 @@ setting, or charge them to the pool with
 Set the budget before the first build, not after the owner complains. A limit
 the owner states replaces these defaults.
 
-1. Start one expensive build at a time across all local agents unless a higher
-   width has been measured on that host
-   ([host setup](../.agents/skills/swarm/references/host-setup.md#admit-builds-not-just-agents)).
-2. Leave most of the machine free: budget about a quarter of the logical CPUs
-   for all agent work combined.
+1. Cap the total, not each build. Either start one expensive build at a time
+   across all local agents
+   ([host setup](../.agents/skills/swarm/references/host-setup.md#admit-builds-not-just-agents)),
+   or give every agent the same shared limit: one mbx pool budget plus one
+   affinity mask or quota.
+2. Leave headroom and never drive the machine to 100%. Without a stated limit,
+   budget at most three quarters of the logical CPUs for all agent work
+   combined and keep whole cores free for the owner. Do not overcorrect either:
+   a build crawling on a sliver of an idle machine wastes it.
 3. Run builds and corpus runs at the lowest operating-system priority, so
    interactive work preempts them.
 4. Put the budget in every worker prompt. A subagent does not inherit the
@@ -52,31 +60,36 @@ the owner states replaces these defaults.
 5. After an unexplained restart or killed processes, suspect the agents' own
    load before starting the same work again.
 
-POSIX shells:
+The examples are for a 24-CPU host. POSIX shells:
 
 ```bash
-export MBX_SCHEDULER_CPUS=6 CARGO_BUILD_JOBS=6 OMEGA_CORPUS_JOBS=4
+export MBX_SCHEDULER_CPUS=18 CARGO_BUILD_JOBS=18 OMEGA_CORPUS_JOBS=6
 nice -n 19 mbx build -p omega < /dev/null
 ```
 
 Windows PowerShell. A process started from an Idle-class parent inherits that
-class, so setting it on the shell covers `mbx`, `cargo` and every `rustc`:
+class, and every child inherits the affinity mask, so setting both on the shell
+covers `mbx`, `cargo` and every `rustc`. The mask `0xFFFFC0` is logical CPUs 6
+to 23, which leaves six for the owner:
 
 ```powershell
-(Get-Process -Id $PID).PriorityClass = 'Idle'
-$env:MBX_SCHEDULER_CPUS = '6'; $env:CARGO_BUILD_JOBS = '6'; $env:OMEGA_CORPUS_JOBS = '4'
+$p = Get-Process -Id $PID; $p.PriorityClass = 'Idle'; $p.ProcessorAffinity = 0xFFFFC0
+$env:MBX_SCHEDULER_CPUS = '18'; $env:CARGO_BUILD_JOBS = '18'; $env:OMEGA_CORPUS_JOBS = '6'
 mbx build -p omega
 ```
 
 A host owner who wants one limit for every agent and session sets it once in
 the global mbx configuration, for example `mbx settings set
-scheduler.reserve_cpus 16`. That file belongs to the owner: an agent proposes
+scheduler.reserve_cpus 6`. That file belongs to the owner: an agent proposes
 the value and does not write it uninvited.
 
 Observed on that Windows host (i9-12900K, 24 logical CPUs, mbx 1.29.2,
-2026-11-09): with the PowerShell form plus a six-CPU affinity mask, the `mbx`,
-`cargo` and `rustc` processes of a running `mbx build -p omega` all showed the
-Idle class and the mask, and total CPU load stayed between 10% and 25%.
+2026-11-09): with the Idle class and a six-CPU mask set on the launching
+PowerShell, the `mbx`, `cargo` and `rustc` processes of a running
+`mbx build -p omega` all showed both, and total CPU load stayed between 10% and
+25%. The owner called that an overcorrection and set the limit for that host:
+never 100%, and 75% is fine. After the mask was widened to `0xFFFFC0`, the 32
+build processes of four concurrent workers all carried it.
 `MBX_SCHEDULER_CPUS=6 mbx settings get scheduler.cpus` printed `6`. Not
 measured here: how the mbx pool behaves when concurrent invocations carry
 different budgets, and the POSIX form.
