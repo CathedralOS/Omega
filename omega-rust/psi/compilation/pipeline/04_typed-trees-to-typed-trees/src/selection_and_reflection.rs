@@ -3084,6 +3084,7 @@ pub(crate) mod result_locals {
     use crate::tables::expressions_of;
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
+    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
     use typed_trees::references::DeclarationSelection;
     use typed_trees::statement::{StatementNode, TableLocalData};
     use typed_trees::type_identity::TypeIdentityRequest;
@@ -4156,15 +4157,105 @@ pub(crate) mod result_locals {
                     {
                         continue;
                     }
-                    updates.push(InferredUpdate {
-                        owner: machine.symbol,
-                        body: state.statement_nodes,
-                        offset,
-                        type_reference,
-                    });
+                    let receivers = if is_call {
+                        Vec::new()
+                    } else {
+                        receiver_application_bindings(program, machine, state, local.initial_value)
+                    };
+                    updates.push((
+                        InferredUpdate {
+                            owner: machine.symbol,
+                            body: state.statement_nodes,
+                            offset,
+                            type_reference,
+                        },
+                        receivers,
+                    ));
                 }
             }
         }
+        // A field's declared type is written in its data declaration's binders.
+        // Read through `binding: Binding<Actors>`, `binding.source` has type
+        // `Source<Actors>` in the reader's binders: substitution follows
+        // declaration identity through field types, const and value arguments
+        // included (spec/language/generics.md, closed applications). Instantiate
+        // from the innermost receiver outward. `instantiate` writes new rows only
+        // where a binder changes, so no declaration's own field type is rewritten;
+        // a binder it cannot express (a const array length) keeps the declared type.
+        let updates = updates
+            .into_iter()
+            .map(|(mut update, receivers)| {
+                for bindings in receivers {
+                    update.type_reference = program
+                        .type_reference_table
+                        .instantiate(update.type_reference, &bindings)
+                        .unwrap_or(update.type_reference);
+                }
+                update
+            })
+            .collect();
         Ok(apply_updates(program, updates))
+    }
+
+    /// For a field read `receiver.field` (possibly nested), each receiver's data
+    /// application bindings, innermost receiver first: its data's type, const
+    /// and value binders paired with the receiver type's arguments.
+    fn receiver_application_bindings(
+        program: &TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        expression: ExpressionHandle,
+    ) -> Vec<Vec<(SymbolHandle, TypeReferenceHandle)>> {
+        let mut chain = Vec::new();
+        let mut current = expression;
+        while let ExpressionNode::Member(member) = expressions_of(program).expression(current) {
+            let receiver = member.receiver;
+            let Some(receiver_type) =
+                expression_result_type_reference(program, machine, state, receiver)
+            else {
+                break;
+            };
+            chain.push(data_application_bindings(program, receiver_type));
+            current = receiver;
+        }
+        chain
+    }
+
+    fn data_application_bindings(
+        program: &TypedTrees,
+        receiver: TypeReferenceHandle,
+    ) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
+        let receiver = program.type_reference_table.peeled_type_reference(receiver);
+        let typed_trees::types::TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = program.type_reference_table.type_reference(receiver)
+        else {
+            return Vec::new();
+        };
+        let Some(data) = validation::unique_data_definition_by_symbol(program, *base_symbol) else {
+            return Vec::new();
+        };
+        let parameters = program.data_type_parameters(data);
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        if parameters.len() != arguments.len() {
+            return Vec::new();
+        }
+        parameters
+            .iter()
+            .zip(arguments)
+            .filter(|(parameter, _)| {
+                matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Type
+                        | typed_trees::data::TypeParameterKind::Const { .. }
+                        | typed_trees::data::TypeParameterKind::Value { .. }
+                )
+            })
+            .map(|(parameter, argument)| (parameter.symbol, *argument))
+            .collect()
     }
 }
