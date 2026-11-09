@@ -10144,16 +10144,30 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     }
 
     fn invocation_parameter_type(
-        &self,
+        &mut self,
         site: InvocationSite,
         position: usize,
     ) -> TypeReferenceHandle {
-        self.invocations
+        let ordinal = self
+            .invocations
             .iter()
             .find(|invocation| !invocation.visited && invocation.site == site)
-            .and_then(|invocation| {
-                validation::call_target_parameters(self.program, invocation.call.target_symbol)
+            .map(|invocation| invocation.call.call_ordinal);
+        // An applied call can receive a constructed record where its declaration
+        // names only a type parameter. Keep that receiving signature so the
+        // completed operand retains the record's fields and their loan backing.
+        ordinal
+            .and_then(|ordinal| {
+                super::calls::memoized_find_call_site(
+                    self.program,
+                    &mut *self.context,
+                    self.machine.symbol,
+                    self.state.symbol,
+                    self.statement_index,
+                    ordinal,
+                )
             })
+            .and_then(|site| site.parameters(self.program, self.machine.symbol))
             .and_then(|parameters| parameters.get(position))
             .map_or_else(TypeReferenceHandle::invalid, |parameter| {
                 parameter.type_reference
