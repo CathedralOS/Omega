@@ -6268,12 +6268,11 @@ pub(crate) mod trait_scopes {
             else {
                 return self.requirement_call_signature(lexical_owner, call);
             };
-            // A copied sibling keeps its source operation symbol. Its complete
-            // receiving application owns the callable contract and result type.
+            // A copied call can still name the original member. Use the contract
+            // and result type from the trait application supplying it. The member
+            // keeps its declared lifetimes for ordinary call checking.
             self.applied_callable_signature(&scope, declared.symbol)
-                .filter(|signature| {
-                    signature.type_parameters.is_empty() && signature.lifetime_parameters.is_empty()
-                })
+                .filter(|signature| signature.type_parameters.is_empty())
         }
 
         /// The same logical view with the reason its exact source cannot supply it.
