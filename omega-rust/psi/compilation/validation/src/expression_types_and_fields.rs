@@ -4621,7 +4621,9 @@ pub mod expression_types {
                 program,
                 owner_symbol,
                 parameters,
-                None,
+                program
+                    .closed_requirement_application(owner_symbol)
+                    .map(|application| application.trait_scope),
                 expression,
             )
         }
