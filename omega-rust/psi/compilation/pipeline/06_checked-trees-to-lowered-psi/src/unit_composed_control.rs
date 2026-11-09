@@ -12162,7 +12162,7 @@ pub(crate) mod attached_unit {
 
                 pub(crate) struct CaseSource<'a> {
                     pub argument: terminal_psi::StructuralArgument,
-                    pub root_type: terminal_psi::StructuralTypeId,
+                    pub root_type: semantic_vocabulary::StructuralTypeId,
                     pub declaration: &'a terminal_psi::StructuralTypeDeclaration,
                 }
 
@@ -12456,13 +12456,18 @@ pub(crate) mod attached_unit {
                         &path,
                         types,
                     )?;
-                    let suffix = selected.static_observation_path().ok_or(
-                        LoweringError::Unsupported(
-                            "Unit graph case-payload copy requires static observation coordinates",
-                        ),
-                    )?;
-                    let mut canonical = subject_path.to_vec();
-                    canonical.extend(suffix);
+                    let canonical = terminal_semantics::canonical_static_projection(
+                        types.iter(),
+                        root_type,
+                        subject_path,
+                    )
+                    .and_then(|(mut prefix, _)| {
+                        prefix.extend(selected.static_observation_path()?);
+                        Some(prefix)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph case-payload copy requires static observation coordinates",
+                    ))?;
                     let leaf = selected.field_type()?.as_structural().ok_or(
                         LoweringError::Unsupported(
                             "Unit graph case payload is not a structural leaf",
