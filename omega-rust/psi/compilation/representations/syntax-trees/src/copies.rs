@@ -45,7 +45,11 @@ pub(crate) mod body_copies {
                     .map(|bound| crate::item::GenericConformanceBound {
                         binder: bound.binder.clone(),
                         trait_name: bound.trait_name.clone(),
-                        lifetime_arguments: bound.lifetime_arguments.clone(),
+                        lifetime_arguments: bound
+                            .lifetime_arguments
+                            .iter()
+                            .map(|name| $self.copied_lifetime($other, name))
+                            .collect(),
                         arguments: $self.copy_type_reference_handle_span($other, bound.arguments),
                     })
                     .collect(),
@@ -150,7 +154,16 @@ pub(crate) mod body_copies {
             other: &SyntaxTrees,
             signature: &StateSignature,
         ) -> StateSignature {
-            copied_state_signature!(self, other, signature)
+            let enclosing = self.scoped_lifetimes.clone();
+            self.scoped_lifetimes.retain(|(name, _)| {
+                !signature
+                    .lifetime_parameters
+                    .iter()
+                    .any(|local| local.as_str(other) == name)
+            });
+            let copied = copied_state_signature!(self, other, signature);
+            self.scoped_lifetimes = enclosing;
+            copied
         }
 
         pub(crate) fn copy_state_parameter_handle_span(
@@ -1022,6 +1035,7 @@ pub(crate) mod item_copies {
         pub(crate) supplied_type_copies: Vec<crate::types::TypeReferenceHandle>,
         pub(crate) retain_alias_header_role: bool,
         lifetime_substitutions: Vec<(source::SourceSpan, String, crate::identifier::Identifier)>,
+        pub(crate) scoped_lifetimes: Vec<(String, crate::identifier::Identifier)>,
         pub(crate) array_length_substitutions: Vec<(
             source::SourceSpan,
             String,
@@ -1044,6 +1058,7 @@ pub(crate) mod item_copies {
                 supplied_type_copies: Vec::new(),
                 retain_alias_header_role: true,
                 lifetime_substitutions: Vec::new(),
+                scoped_lifetimes: Vec::new(),
                 array_length_substitutions: Vec::new(),
                 match_subject_copies: Vec::new(),
             }
@@ -1091,6 +1106,29 @@ pub(crate) mod item_copies {
             signature: &StateSignature,
         ) -> StateSignature {
             SyntaxCopy::new(self, other).copy_state_signature(other, signature)
+        }
+
+        /// Copy a selected trait requirement under its enclosing lifetime bindings.
+        /// The requirement's own telescope shadows the enclosing trait telescope.
+        pub fn copy_state_signature_in_lifetime_scope(
+            &mut self,
+            other: &SyntaxTrees,
+            signature: &StateSignature,
+            lifetimes: &[(String, crate::identifier::Identifier)],
+        ) -> StateSignature {
+            let mut copy = SyntaxCopy::new(self, other);
+            copy.scoped_lifetimes.extend(
+                lifetimes
+                    .iter()
+                    .filter(|(name, _)| {
+                        !signature
+                            .lifetime_parameters
+                            .iter()
+                            .any(|local| local.as_str(other) == name)
+                    })
+                    .cloned(),
+            );
+            copy.copy_state_signature(other, signature)
         }
 
         pub fn copy_static_machine_argument(
@@ -1170,6 +1208,11 @@ pub(crate) mod item_copies {
                 .find_map(|(source, spelling, actual)| {
                     (*source == name.source_span() && spelling == name.as_str(other))
                         .then(|| actual.clone())
+                })
+                .or_else(|| {
+                    self.scoped_lifetimes.iter().find_map(|(spelling, actual)| {
+                        (spelling == name.as_str(other)).then(|| actual.clone())
+                    })
                 })
                 .unwrap_or_else(|| name.clone())
         }

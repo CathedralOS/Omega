@@ -2023,7 +2023,6 @@ pub(crate) mod requirement_applications {
         use validation::expression_traversal::collect_expression_tree;
         use validation::expression_type_reference_in_state;
 
-        use super::selected_applications;
         use crate::monomorphization::failed;
 
         pub(crate) mod invocation_binding_views {
@@ -2571,7 +2570,7 @@ pub(crate) mod requirement_applications {
         .filter(|application| {
             application.template == template
                 && program
-                    .requirement_application_matches_scope(application.signature.symbol, scope)
+                    .requirement_application_matches_contract_scope(application.signature.symbol, scope)
                 && expressions_of(program)
                     .static_machine_application_lifetimes(application.application)
                     == invocation.lifetimes
@@ -2714,54 +2713,44 @@ pub(crate) mod requirement_applications {
             scope: &AppliedTraitScope<'_>,
         ) -> Result<Vec<InvocationTuple>, Vec<Diagnostic>> {
             let mut tuples = Vec::new();
-            let mut add = |owner,
-                           target,
-                           nominal_binder,
-                           receiver: &dyn Fn() -> Option<AppliedTraitScope<'p>>,
-                           application: TypeReferenceHandle,
-                           dispatch: Option<
-                &typed_trees::typed_trees::StaticRequirementDispatch,
-            >,
-                           invocation: InvocationTuple|
-             -> Result<(), Vec<Diagnostic>> {
-                let selected = if let Some(dispatch) = dispatch {
-                    let applications = selected_applications(program, owner, dispatch);
-                    if applications.len() != 1 {
-                        return Err(vec![Diagnostic::error(format!(
-                            "static method occurrence in `{}` has {} selected conformance applications for `{}`; exactly one is required",
-                            program.symbols.display_path(owner, "::"),
-                            applications.len(),
-                            program.symbols.display_path(dispatch.requirement, "::"),
-                        ))]);
+            let mut add =
+                |owner,
+                 target,
+                 nominal_binder,
+                 receiver: &dyn Fn() -> Option<AppliedTraitScope<'p>>,
+                 application: TypeReferenceHandle,
+                 dispatch: Option<&typed_trees::typed_trees::StaticRequirementDispatch>,
+                 invocation: InvocationTuple|
+                 -> Result<(), Vec<Diagnostic>> {
+                    let selected = if let Some(dispatch) = dispatch {
+                        let scope = program
+                            .selected_requirement_contract_scope(owner, dispatch)
+                            .map_err(failed)?;
+                        let template = program
+                            .closed_requirement_application(dispatch.requirement)
+                            .map_or(dispatch.requirement, |application| application.template);
+                        Some((template, scope))
+                    } else if let Some(source) = invocation_binding_views::nominal_source(
+                        program,
+                        owner,
+                        nominal_binder,
+                        target,
+                    )? {
+                        Some(source)
+                    } else {
+                        source_scope(program, owner, target, receiver, application)?
+                    };
+                    let Some((template, selected)) = selected else {
+                        return Ok(());
+                    };
+                    if template == requirement
+                        && program.requirement_contract_scopes_match(&selected, scope)
+                        && !tuples.contains(&invocation)
+                    {
+                        tuples.push(invocation);
                     }
-                    let template = program
-                        .closed_requirement_application(dispatch.requirement)
-                        .map_or(dispatch.requirement, |application| application.template);
-                    applications[0]
-                        .trait_scope
-                        .scope(program)
-                        .map(|scope| (template, scope))
-                } else if let Some(source) = invocation_binding_views::nominal_source(
-                    program,
-                    owner,
-                    nominal_binder,
-                    target,
-                )? {
-                    Some(source)
-                } else {
-                    source_scope(program, owner, target, receiver, application)?
+                    Ok(())
                 };
-                let Some((template, selected)) = selected else {
-                    return Ok(());
-                };
-                if template == requirement
-                    && selected.same_application(program, scope)
-                    && !tuples.contains(&invocation)
-                {
-                    tuples.push(invocation);
-                }
-                Ok(())
-            };
             for machine in program.machines() {
                 if program.callable_body_has_open_parameters(machine) {
                     continue;
@@ -2854,18 +2843,14 @@ pub(crate) mod requirement_applications {
             owner: SymbolHandle,
             dispatch: &typed_trees::typed_trees::StaticRequirementDispatch,
             invocation: &InvocationTuple,
-        ) -> SymbolHandle {
-            let applications = selected_applications(program, owner, dispatch);
-            let [application] = applications.as_slice() else {
-                return SymbolHandle::invalid();
-            };
-            let Some(scope) = application.trait_scope.scope(program) else {
-                return SymbolHandle::invalid();
-            };
+        ) -> Result<SymbolHandle, Vec<Diagnostic>> {
+            let scope = program
+                .selected_requirement_contract_scope(owner, dispatch)
+                .map_err(failed)?;
             let template = program
                 .closed_requirement_application(dispatch.requirement)
                 .map_or(dispatch.requirement, |closed| closed.template);
-            instance_in_scope(program, template, &scope, invocation)
+            Ok(instance_in_scope(program, template, &scope, invocation))
         }
 
         pub(crate) fn prepare_invocation_bindings(
@@ -2979,7 +2964,7 @@ pub(crate) mod requirement_applications {
                                     machine.symbol,
                                     dispatch,
                                     invocation,
-                                );
+                                )?;
                                 if selected.is_valid() {
                                     statement_dispatch_updates.push((
                                         state.statement_nodes.handle_at(position as u32),
@@ -3035,7 +3020,7 @@ pub(crate) mod requirement_applications {
                                     machine.symbol,
                                     dispatch,
                                     invocation,
-                                );
+                                )?;
                                 if selected.is_valid() {
                                     if let Some((_, prior)) = expression_dispatch_updates
                                         .iter()
@@ -3160,14 +3145,12 @@ pub(crate) mod requirement_applications {
                     continue;
                 };
                 let selected_scope = if let Some(dispatch) = &call.static_requirement_dispatch {
-                    let applications = selected_applications(program, owner, dispatch);
-                    let [application] = applications.as_slice() else {
-                        continue;
-                    };
-                    application
-                        .trait_scope
-                        .scope(program)
-                        .map(|scope| (dispatch.requirement, scope))
+                    Some((
+                        dispatch.requirement,
+                        program
+                            .selected_requirement_contract_scope(owner, dispatch)
+                            .map_err(failed)?,
+                    ))
                 } else {
                     source_scope(
                         program,
@@ -3235,14 +3218,12 @@ pub(crate) mod requirement_applications {
                     continue;
                 };
                 let selected_scope = if let Some(dispatch) = &call.static_requirement_dispatch {
-                    let applications = selected_applications(program, owner, dispatch);
-                    let [application] = applications.as_slice() else {
-                        continue;
-                    };
-                    application
-                        .trait_scope
-                        .scope(program)
-                        .map(|scope| (dispatch.requirement, scope))
+                    Some((
+                        dispatch.requirement,
+                        program
+                            .selected_requirement_contract_scope(owner, dispatch)
+                            .map_err(failed)?,
+                    ))
                 } else {
                     source_scope(
                         program,
@@ -3308,11 +3289,19 @@ pub(crate) mod requirement_applications {
 
         pub(crate) fn collect(program: &TypedTrees) -> Vec<Demand> {
             let mut scopes = Vec::<AppliedTraitScope<'_>>::new();
-            for root in program.applied_trait_roots() {
+            let mut roots = program.applied_trait_roots();
+            roots.extend(
+                program
+                    .prepared_callable_contracts()
+                    .filter_map(|contract| {
+                        contract.trait_scope.and_then(|scope| scope.scope(program))
+                    }),
+            );
+            for root in roots {
                 root.visit(program, &mut |scope| {
                     if !scopes
                         .iter()
-                        .any(|existing| existing.same_application(program, scope))
+                        .any(|existing| program.requirement_contract_scopes_match(existing, scope))
                     {
                         scopes.push(scope.clone());
                     }

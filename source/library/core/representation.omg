@@ -1,3 +1,5 @@
+use omega::language::core::conversion;
+
 // Compiler-owned relationship between provider-backed opaque semantics and a
 // concrete physical representation. A named implementation names both as
 // ordinary trait arguments: `Opaque` is the boundary-opaque declaration and
@@ -9,4 +11,68 @@
 // source-authored ABI numbers, supplies layout.
 
 public trait OpaqueRepresentation<Opaque, Representation> {
+}
+
+// Requests keep resources explicit. Encoding borrows the semantic value;
+// decoding returns an established value together with its declared resources.
+public data RepresentationRequest<Value, Resources> {
+    value: Value;
+    resources: Resources;
+}
+public data RepresentationDecodeRequest<'frame, Frame, Resources> {
+    frame: &'frame Frame;
+    resources: Resources;
+}
+public data RepresentationError<EncodingError, DecodingError> {
+    case Encoding(error: EncodingError);
+    case Decoding(error: DecodingError);
+}
+
+// The model observes a borrowed frame and value without cloning either owner.
+// Its uniqueness law gives semantic identity, not resource or storage authority.
+public trait RepresentationModel<Value, Frame> {
+    machine valid<'view>(frame: &'view Frame) -> bool
+    reaches none terminates;
+    machine represents<'view, 'value>(frame: &'view Frame, value: &'value Value) -> bool
+    reaches none terminates;
+    machine unique<'view, 'left, 'right>(frame: &'view Frame, left: &'left Value, right: &'right Value)
+    reaches none terminates
+    requires represents(frame, left)
+    requires represents(frame, right)
+    ensures core::Identity<Value>(left, right);
+}
+
+// These guarantees constrain the selected TryFrom implementation. A separate
+// successful echo cannot establish encoding coverage or frame validity.
+public trait RepresentationEncoding<'value, Value, Resources, Frame, Error,
+    Model satisfies RepresentationModel<Value, Frame>> =
+    TryFrom<RepresentationRequest<&'value Value, Resources>, Frame, Error>
+{
+    machine TryFrom::try_from
+    terminates
+    ensures result in Result::Ok
+    ensures Model::valid(&result.value)
+    ensures Model::represents(&result.value, source.value);
+}
+
+// Decoding borrows its frame and receives any materialization resources
+// separately. Its successful result must describe that same frame; invalid
+// frames return an error and expose no unestablished destination.
+public trait RepresentationDecoding<'frame, Value, Resources, Frame, Error,
+    Model satisfies RepresentationModel<Value, Frame>> =
+    TryFrom<RepresentationDecodeRequest<'frame, Frame, Resources>, RepresentationRequest<Value, Resources>, Error>
+{
+    machine TryFrom::try_from
+    terminates
+    ensures Model::valid(source.frame) == (result in Result::Ok)
+    ensures (result in Result::Err) || Model::represents(source.frame, &result.value.value);
+}
+
+// This trait groups the checked encoder, decoder and their shared model.
+// Each conversion retains its effects, resource bounds and ownership obligations.
+public trait Representation<'value, 'frame, Value, EncodingResources, DecodingResources, Frame,
+    EncodingError, DecodingError,
+    Model satisfies RepresentationModel<Value, Frame>,
+    Encode satisfies RepresentationEncoding<'value, Value, EncodingResources, Frame, EncodingError, Model>,
+    Decode satisfies RepresentationDecoding<'frame, Value, DecodingResources, Frame, DecodingError, Model>> {
 }

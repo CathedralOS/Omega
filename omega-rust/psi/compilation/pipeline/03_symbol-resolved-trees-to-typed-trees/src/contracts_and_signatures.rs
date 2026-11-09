@@ -223,7 +223,12 @@ pub(crate) mod contracts {
                     }
                 }
                 for definition in program.traits() {
-                    for signature in program.trait_machine_signatures(definition) {
+                    for signature in program.trait_machine_signatures(definition).iter().chain(
+                        definition
+                            .refinement_clauses
+                            .iter()
+                            .map(|clause| &clause.signature),
+                    ) {
                         collect(
                             signature.symbol,
                             program.state_signature_parameters(signature),

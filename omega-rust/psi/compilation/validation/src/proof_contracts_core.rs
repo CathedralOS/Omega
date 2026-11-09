@@ -137,32 +137,21 @@ pub mod carrier_contents {
         program: &dyn crate::CheckingInput,
         type_reference: TypeReferenceHandle,
     ) -> bool {
-        match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Slice { element_type } => {
-            type_has_forbidden_value_observation_content(program, *element_type)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            program
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .any(|constraint| {
-                    matches!(constraint, TypeConstraintNode::Domain(domain)
-                        if first_routed_qualification(program, domain, &mut HashSet::new()).is_some())
-                })
-                || shared_referent_has_forbidden_observation_content(program, *base_type)
-        }
-        _ => type_has_forbidden_value_observation_content(program, type_reference),
-    }
+        first_forbidden_content(
+            program,
+            &crate::proof_only_classification(program),
+            type_reference,
+            &mut HashSet::new(),
+            ContentUse::SharedObservation,
+        )
+        .is_some()
     }
 
     #[derive(Clone, Copy)]
     pub(crate) enum ContentUse {
         Quotient,
         ValueObservation,
+        SharedObservation,
     }
 
     fn first_forbidden_content(
@@ -205,12 +194,13 @@ pub mod carrier_contents {
                         purpose,
                     );
                 }
-                if matches!(purpose, ContentUse::ValueObservation)
-                    && matches!(
-                        program.symbols.builtin_type_atom(*symbol),
-                        Some(symbols::BuiltinTypeAtom::Int | symbols::BuiltinTypeAtom::UInt)
-                    )
-                {
+                if matches!(
+                    purpose,
+                    ContentUse::ValueObservation | ContentUse::SharedObservation
+                ) && matches!(
+                    program.symbols.builtin_type_atom(*symbol),
+                    Some(symbols::BuiltinTypeAtom::Int | symbols::BuiltinTypeAtom::UInt)
+                ) {
                     return None;
                 }
                 let parameter = match purpose {
@@ -219,11 +209,16 @@ pub mod carrier_contents {
                         .iter()
                         .flat_map(|definition| program.data_type_parameters(definition))
                         .find(|parameter| parameter.symbol == *symbol),
-                    ContentUse::ValueObservation => program.data_type_parameter_by_symbol(*symbol),
+                    ContentUse::ValueObservation | ContentUse::SharedObservation => {
+                        program.data_type_parameter_by_symbol(*symbol)
+                    }
                 };
                 let Some(parameter) = parameter else {
-                    return matches!(purpose, ContentUse::ValueObservation)
-                        .then(|| CarrierFenceViolation::UnshareableType(name.as_str().to_owned()));
+                    return matches!(
+                        purpose,
+                        ContentUse::ValueObservation | ContentUse::SharedObservation
+                    )
+                    .then(|| CarrierFenceViolation::UnshareableType(name.as_str().to_owned()));
                 };
                 (matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
                     && (match purpose {
@@ -231,7 +226,7 @@ pub mod carrier_contents {
                             parameter.bounds.multiplicity
                                 != language_semantics::Multiplicity::Unrestricted
                         }
-                        ContentUse::ValueObservation => {
+                        ContentUse::ValueObservation | ContentUse::SharedObservation => {
                             parameter.bounds.multiplicity
                                 == language_semantics::Multiplicity::Linear
                         }
@@ -248,14 +243,20 @@ pub mod carrier_contents {
                     *base_symbol,
                 );
                 let Some(definition) = definition else {
-                    return matches!(purpose, ContentUse::ValueObservation).then(|| {
+                    return matches!(
+                        purpose,
+                        ContentUse::ValueObservation | ContentUse::SharedObservation
+                    )
+                    .then(|| {
                         CarrierFenceViolation::UnshareableType(
                             program.display_type_reference(type_reference),
                         )
                     });
                 };
-                if matches!(purpose, ContentUse::ValueObservation)
-                    && program.data_type_parameters(definition).len() != arguments.len()
+                if matches!(
+                    purpose,
+                    ContentUse::ValueObservation | ContentUse::SharedObservation
+                ) && program.data_type_parameters(definition).len() != arguments.len()
                 {
                     return Some(CarrierFenceViolation::UnshareableType(
                         program.display_type_reference(type_reference),
@@ -296,6 +297,24 @@ pub mod carrier_contents {
             }
             TypeReferenceNode::FixedArray { element_type, .. } => {
                 first_forbidden_content(program, proof_only, *element_type, visited_data, purpose)
+            }
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if matches!(purpose, ContentUse::SharedObservation) && access.is_readable() => {
+                // The enclosing shared loan permits reads through these fields;
+                // their actual observations still retain storage and backing identity.
+                first_forbidden_content(program, proof_only, *referee, visited_data, purpose)
+            }
+            TypeReferenceNode::Slice { element_type }
+                if matches!(purpose, ContentUse::SharedObservation) =>
+            {
+                first_forbidden_content(
+                    program,
+                    proof_only,
+                    *element_type,
+                    &mut HashSet::new(),
+                    ContentUse::ValueObservation,
+                )
             }
             TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
@@ -376,7 +395,7 @@ pub mod carrier_contents {
                         != language_semantics::Multiplicity::Unrestricted
                         || definition.properties.carry.is_some())
             }
-            ContentUse::ValueObservation => {
+            ContentUse::ValueObservation | ContentUse::SharedObservation => {
                 definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape
                     || definition.properties.multiplicity
                         == language_semantics::Multiplicity::Linear
@@ -875,7 +894,14 @@ pub mod contract_results {
         program
             .traits()
             .iter()
-            .flat_map(move |definition| program.trait_machine_signatures(definition))
+            .flat_map(move |definition| {
+                program.trait_machine_signatures(definition).iter().chain(
+                    definition
+                        .refinement_clauses
+                        .iter()
+                        .map(|clause| &clause.signature),
+                )
+            })
             .map(unscoped)
             .chain(program.prepared_callable_contracts())
             .chain(
@@ -981,7 +1007,14 @@ pub mod contract_results {
         for signature in program
             .traits()
             .iter()
-            .flat_map(|definition| program.trait_machine_signatures(definition))
+            .flat_map(|definition| {
+                program.trait_machine_signatures(definition).iter().chain(
+                    definition
+                        .refinement_clauses
+                        .iter()
+                        .map(|clause| &clause.signature),
+                )
+            })
             .chain(program.prepared_callable_signatures())
         {
             parameters.extend(program.state_signature_type_parameters(signature));

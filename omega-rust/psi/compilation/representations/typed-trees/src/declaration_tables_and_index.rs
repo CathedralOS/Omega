@@ -4360,6 +4360,13 @@ pub(crate) mod trait_and_machine_tables {
                 .iter()
                 .find(|candidate| candidate.symbol == symbol)
                 .or_else(|| {
+                    self.trait_definition_by_symbol(trait_definition.symbol)?
+                        .refinement_clauses
+                        .iter()
+                        .map(|clause| &clause.signature)
+                        .find(|signature| signature.symbol == symbol)
+                })
+                .or_else(|| {
                     self.closed_requirement_application(symbol)
                         .filter(|application| {
                             application.declaring_trait == trait_definition.symbol
@@ -4441,6 +4448,16 @@ pub(crate) mod trait_and_machine_tables {
                 let signature =
                     &self.trait_machine_signatures(trait_definition)[signature_index as usize];
                 return Some((trait_definition, signature));
+            }
+            if symbol.is_valid()
+                && let Some(owner) =
+                    self.trait_definition_by_symbol(self.symbols.get(symbol).parent)
+                && let Some(clause) = owner
+                    .refinement_clauses
+                    .iter()
+                    .find(|clause| clause.signature.symbol == symbol)
+            {
+                return Some((owner, &clause.signature));
             }
             let application = self.closed_requirement_application(symbol)?;
             let trait_definition = self.trait_definition_by_symbol(application.declaring_trait)?;

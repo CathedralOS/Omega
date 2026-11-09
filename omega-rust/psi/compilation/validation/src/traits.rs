@@ -4329,10 +4329,14 @@ pub mod conformance_applications {
         let Some(application) = &selected.application else {
             return Ok(());
         };
+        let supplier = program
+            .typed_program()
+            .static_operand_region_supplier(selected, lexical_owner)
+            .map_err(Diagnostic::error)?;
         for lifetime in &application.lifetime_arguments {
             if typed_trees::type_identity::lifetime_parameter_identity(
                 program.typed_program(),
-                lexical_owner,
+                supplier,
                 lifetime.as_str(),
             )
             .is_none()
@@ -7327,6 +7331,8 @@ pub use provider_applications::{
 pub mod refinement_fit {
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
+    use typed_trees::signature::SignatureContractKind;
+    use typed_trees::trait_definition::AppliedTraitScope;
     use typed_trees::trait_definition::{
         Conformance, TraitDefinition, TraitRefinementClause, TraitRefinementReach,
     };
@@ -7375,6 +7381,7 @@ pub mod refinement_fit {
     pub fn refinement_fit_diagnostics(
         program: &dyn crate::CheckingInput,
         refinement: &TraitDefinition,
+        application: Option<&AppliedTraitScope<'_>>,
         conformance: &Conformance,
         template_name: &str,
         binder_name: &str,
@@ -7390,9 +7397,6 @@ pub mod refinement_fit {
             if clauses.is_empty() {
                 continue;
             }
-            let Some(machine) = program.machine(row.realization_machine) else {
-                continue;
-            };
             let reject = |axis: String| {
                 Diagnostic::error(format!(
                     "generic machine `{template_name}` cannot bind `{binder_name}` to conformance `{selected_name}`: refinement `{}` {axis}",
@@ -7401,6 +7405,87 @@ pub mod refinement_fit {
             };
             let requirement = row.requirement_name.as_str();
             let realization = row.realization_name.as_str();
+            let Some(machine) = program.machine(row.realization_machine) else {
+                diagnostics.push(reject(format!(
+                    "lost the selected realization `{realization}` for `{requirement}`"
+                )));
+                continue;
+            };
+            if clauses.iter().any(|clause| {
+                program
+                    .state_signature_contracts(&clause.signature)
+                    .iter()
+                    .any(|contract| contract.kind == SignatureContractKind::Ensures)
+            }) {
+                let fit = (|| {
+                    let application =
+                        application.ok_or("has no exact applied refinement context")?;
+                    let (declaring, _) = program
+                        .trait_machine_signature(row.requirement)
+                        .ok_or("lost the selected public requirement")?;
+                    let declaring = application
+                        .declaring_scope(program.typed_program(), declaring.symbol)
+                        .ok_or("has no unique applied requirement scope")?;
+                    let required = program
+                        .applied_callable_signature(&declaring, row.requirement)
+                        .ok_or(
+                            "has no prepared public contract for its exact refinement application",
+                        )?;
+                    let entry = program
+                        .state_in_machine(machine, row.realization_state)
+                        .ok_or("lost the selected realization's entry")?;
+                    let actual_generics = program.requirement_callable_parameters(
+                        required,
+                        &program.machine_callable_parameters(machine),
+                    );
+                    let required_generics = program.state_signature_type_parameters(required);
+                    if required_generics.len() != actual_generics.len() {
+                        return Err("has a different callable generic telescope");
+                    }
+                    let binders = required_generics
+                        .iter()
+                        .zip(&actual_generics)
+                        .map(|(required, actual)| (required.symbol, actual.symbol))
+                        .collect::<Vec<_>>();
+                    let actual_contracts = program
+                        .machine_contracts(machine)
+                        .iter()
+                        .chain(program.state_contracts(entry))
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    // A selected map must publish the promised facts itself. Its
+                    // body and the required guarantees are not proof premises.
+                    let implication = crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare(
+                        program,
+                        crate::proof_contracts::contract_entailment::CallableContract {
+                            owner: required.symbol,
+                            contracts: program.state_signature_contracts(required),
+                            parameters: program.state_signature_parameters(required),
+                            result: required.return_type,
+                        },
+                        crate::proof_contracts::contract_entailment::CallableContract {
+                            owner: machine.symbol,
+                            contracts: &actual_contracts,
+                            parameters: program.state_parameters(entry),
+                            result: entry.return_type,
+                        },
+                        &binders,
+                    )
+                    .ok_or("has no complete parameter/result correspondence")?;
+                    if !implication.proves(program, &SignatureContractKind::Requires) {
+                        return Err("does not preserve the public preconditions");
+                    }
+                    if !implication.proves(program, &SignatureContractKind::Ensures) {
+                        return Err("does not prove the strengthened public guarantees");
+                    }
+                    Ok(())
+                })();
+                if let Err(reason) = fit {
+                    diagnostics.push(reject(format!(
+                        "requires a stronger contract on `{requirement}`, but `{realization}` {reason}"
+                    )));
+                }
+            }
             for clause in clauses {
                 if !clause.signature.suspends_keyword_source_spans.is_empty()
                     && !clause.signature.suspends
@@ -7860,6 +7945,8 @@ pub(crate) mod trait_implementation_arguments {
                 *argument,
                 declaration,
                 owner,
+                arguments,
+                lifetime_arguments,
                 &[AppliedTypeIdentityScope {
                     declaration,
                     arguments: &substitutions,
@@ -7880,6 +7967,8 @@ pub(crate) mod trait_implementation_arguments {
         argument: TypeReferenceHandle,
         receiving_owner: SymbolHandle,
         owner: SymbolHandle,
+        receiving_arguments: &[TypeReferenceHandle],
+        receiving_lifetimes: &[typed_trees::name::Identifier],
         scopes: &[AppliedTypeIdentityScope<'_>],
     ) -> Result<(), String> {
         let selected = program
@@ -7972,9 +8061,25 @@ pub(crate) mod trait_implementation_arguments {
             ));
         }
         if let Some(refinement) = carrier.refinement {
+            let refinement_application = program
+                .trait_definition_by_symbol(receiving_owner)
+                .and_then(|receiving| {
+                    typed_trees::trait_definition::AppliedTraitScope::new(
+                        program.typed_program(),
+                        receiving,
+                        typed_trees::trait_definition::TraitApplicationArguments {
+                            lexical_owner: owner,
+                            enclosing_data_applications: &[],
+                            arguments: receiving_arguments,
+                            lifetimes: receiving_lifetimes,
+                        },
+                    )
+                })
+                .and_then(|scope| scope.bound_scope(program.typed_program(), bound.binder));
             let diagnostics = super::refinement_fit::refinement_fit_diagnostics(
                 program,
                 refinement,
+                refinement_application.as_ref(),
                 implementation,
                 "trait application",
                 bound.binder_name.as_str(),

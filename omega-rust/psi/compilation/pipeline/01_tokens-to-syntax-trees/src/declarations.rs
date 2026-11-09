@@ -2910,7 +2910,34 @@ pub(crate) mod trait_definition {
         let mut authored_blocks = false;
         let mut authored_terminates = false;
         let mut authored_reaches = false;
+        let mut contracts = Vec::new();
         loop {
+            if input.at_contextual("ensures") {
+                if requirement.is_none() {
+                    return Err(input.error_here(
+                        "a refinement postcondition names one exact base requirement",
+                    ));
+                }
+                let keyword_source_span = Some(input.current_source_span());
+                input = input.take_contextual("ensures")?;
+                let (binding, fact_input) = input.take_optional_label()?;
+                let ((facts, token_count), rest) =
+                    crate::grammar::contracts::facts::parse_required_proof_facts_until(
+                        syntax_trees,
+                        fact_input,
+                        refinement_reaches_clause_boundary,
+                        false,
+                    )?;
+                contracts.push(syntax_trees::item::CapabilityContract {
+                    kind: syntax_trees::item::CapabilityContractKind::Ensures,
+                    keyword_source_span,
+                    binding,
+                    facts,
+                    token_count,
+                });
+                input = rest;
+                continue;
+            }
             if input.at_contextual("reaches") {
                 if authored_reaches {
                     return Err(
@@ -2991,6 +3018,8 @@ pub(crate) mod trait_definition {
             break;
         }
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        signature.contracts =
+            crate::grammar::contracts::publish_capability_contracts(syntax_trees, contracts);
         clauses.push(syntax_trees::item::TraitRefinementClause {
             requirement,
             signature,

@@ -4133,6 +4133,9 @@ fail/core/qualified_integer_cast_specification_requires_representability rejecte
 	Exact integer cast in domain `i16::Invalid` predicate to `u8` is not provably representable; constrain the source with an independently accepted prior fact or use a named numeric conversion
 	Exact integer cast in domain `u16::SelfBound` predicate to `u8` is not provably representable; constrain the source with an independently accepted prior fact or use a named numeric conversion
 	Exact integer cast in machine `premise` state `entry` from `i16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/core/representation_interface_wrong_decoder rejected 8547ms expected @2adb50828c5f
+	implementation `OwnedRepresentation` cannot bind implementation `Encode`: generic machine `trait application` cannot bind `Encode` to conformance `Write`: refinement `RepresentationEncoding` requires a stronger contract on `try_from`, but `Write::try_from` does not prove the strengthened public guarantees
+	implementation `OwnedRepresentation` cannot bind implementation `Decode`: generic machine `trait application` cannot bind `Decode` to conformance `Read`: refinement `RepresentationDecoding` requires a stronger contract on `try_from`, but `Read::try_from` does not prove the strengthened public guarantees
 fail/core/resident_index_identity_mismatch_rejected rejected 1840ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Resident:mismatch::entry:exit-0:Resident<Native, Packet>==Resident<Network, Packet>` is not established: actual `Resident<Native, Packet>` and expected `Resident<Network, Packet>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/core/scoped_integer_call_abstract_trait_operator_requires_formation rejected 5829ms expected @8b519ca647cd+wt
@@ -21074,6 +21077,7 @@ pass/core/numeric_widening_published_ranges checked 4799ms check-target:macos_ar
 pass/core/owned_content_partition checked 13644ms @089c0a150e63
 pass/core/owned_content_partition_local checked 13315ms @089c0a150e63
 pass/core/qualified_integer_cast_preserves_value_exit checked 16697ms check-target:macos_arm64 @ccdb99ca2214
+pass/core/representation_interface_exit checked 14421ms check-target:macos_arm64 @2adb50828c5f
 pass/core/runtime_guarded_trapping_addition_exit checked 12990ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/runtime_guarded_trapping_conversion_exit checked 12818ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/runtime_inherited_content_formal_identity_exit checked 14221ms check-target:macos_arm64 @089c0a150e63

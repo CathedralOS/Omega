@@ -1965,7 +1965,9 @@ pub fn prepare_typed_trees(
     let opaque_representation_selections = request.opaque_representation_selections.to_vec();
     crate::rebound_parameter_homes::materialize(&mut program);
     validation::resolve_dynamic_call_targets(&mut program)?;
-    program.retain_static_argument_contexts();
+    program
+        .retain_static_argument_contexts()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     normalize_open_index_identities(&mut program)?;
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -2073,7 +2075,9 @@ pub(crate) fn normalize_open_index_identities(
 
 pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let type_frontier = program.type_reference_table.type_reference_count();
-    program.retain_static_argument_contexts();
+    program
+        .retain_static_argument_contexts()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     data_applications::retain_declared_field_scopes(program)?;
     let _ = crate::constructed_results::retain_constructed_result_types(program)?;
     loop {
@@ -2103,7 +2107,9 @@ pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees,
     elaborate(&mut program)?;
     crate::rebound_parameter_homes::materialize(&mut program);
     validation::resolve_dynamic_call_targets(&mut program)?;
-    program.retain_static_argument_contexts();
+    program
+        .retain_static_argument_contexts()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
     prepare_execution_applications(&mut program)?;

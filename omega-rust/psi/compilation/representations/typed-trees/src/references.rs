@@ -32,11 +32,11 @@ pub(crate) mod source_occurrences {
     use symbols::{SymbolHandle, SymbolKind};
 
     pub(crate) mod call_applications {
-        use crate::{TypedTrees, expression::ExpressionNode};
+        use crate::{TypedTrees, expression::ExpressionNode, expression::StaticMachineArgument};
         use symbols::SymbolHandle;
 
         impl TypedTrees {
-            pub fn retain_static_argument_contexts(&mut self) {
+            pub fn retain_static_argument_contexts(&mut self) -> Result<(), &'static str> {
                 use crate::expression::ExpressionHandle;
                 use crate::references::{TypedReferences, visit_program};
                 use crate::statement::StatementNode;
@@ -82,9 +82,12 @@ pub(crate) mod source_occurrences {
                 let mut roots = SourceCalls::default();
                 visit_program(self, &mut roots);
                 for (expression, owner) in roots.expressions {
-                    let Some(call) = self.expression_table.call_node(expression) else {
+                    let Some(mut call) = self.expression_table.call_node(expression).cloned()
+                    else {
                         continue;
                     };
+                    let original_arguments = call.machine_arguments.clone();
+                    self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
                     // An ordinary call still has a source application when its
                     // static tuple is empty. Result evidence needs that exact
                     // declaration and lexical owner too.
@@ -106,6 +109,17 @@ pub(crate) mod source_occurrences {
                         {
                             retained.binding_declaration = declaration;
                         }
+                        self.retain_application_operand_sources(
+                            application,
+                            &original_arguments,
+                            &call.machine_arguments,
+                        )?;
+                        let ExpressionNode::Call(destination) =
+                            self.expression_table.expression_mut(expression)
+                        else {
+                            unreachable!("retaining operand sources does not replace its call");
+                        };
+                        destination.machine_arguments = call.machine_arguments;
                         continue;
                     }
                     let namespace = self
@@ -119,7 +133,6 @@ pub(crate) mod source_occurrences {
                     {
                         continue;
                     }
-                    let call = call.clone();
                     let application = self.expression_table.retain_static_machine_application(
                         call.target_symbol,
                         call.target,
@@ -132,12 +145,19 @@ pub(crate) mod source_occurrences {
                     if let Some(declaration) = declaration {
                         retained.binding_declaration = declaration;
                     }
+                    self.retain_application_operand_sources(
+                        application,
+                        &original_arguments,
+                        &call.machine_arguments,
+                    )?;
+                    let arguments = call.machine_arguments;
                     let ExpressionNode::Call(call) =
                         self.expression_table.expression_mut(expression)
                     else {
                         unreachable!("retaining a source application does not replace its call");
                     };
                     call.authored_machine_application = application;
+                    call.machine_arguments = arguments;
                 }
                 let statement_calls = self
                     .machines()
@@ -148,42 +168,174 @@ pub(crate) mod source_occurrences {
                                 .iter_statements(state.statement_nodes)
                                 .filter_map(|(handle, statement)| {
                                     let call = statement.as_call()?;
-                                    ((!call.machine_arguments.is_empty()
+                                    (call.authored_machine_application.is_valid()
+                                        || !call.machine_arguments.is_empty()
                                         || has_region_telescope(self, call.target_symbol)
                                         || implementation_namespace(self, call.receiver_symbol)
                                         || (!call.static_machine_parameter.is_valid()
                                             && call.static_requirement_dispatch.is_none()
                                             && direct_declaration(self, call.target_symbol)
                                                 .is_some()))
-                                        && !call.authored_machine_application.is_valid())
                                     .then(|| (handle, machine.symbol, call.clone()))
                                 })
                         })
                     })
                     .collect::<Vec<_>>();
-                for (handle, owner, call) in statement_calls {
+                for (handle, owner, mut call) in statement_calls {
+                    let original_arguments = call.machine_arguments.clone();
+                    self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
                     let declaration = (!call.static_machine_parameter.is_valid()
                         && call.static_requirement_dispatch.is_none())
                     .then(|| direct_declaration(self, call.target_symbol))
                     .flatten();
-                    let application = self.expression_table.retain_static_machine_application(
-                        call.target_symbol,
-                        call.target,
-                        &call.machine_arguments,
-                    );
+                    let application = if call.authored_machine_application.is_valid() {
+                        call.authored_machine_application
+                    } else {
+                        self.expression_table.retain_static_machine_application(
+                            call.target_symbol,
+                            call.target.clone(),
+                            &call.machine_arguments,
+                        )
+                    };
                     let retained = self
                         .expression_table
                         .static_machine_application_mut(application);
-                    retained.lexical_owner = owner;
-                    if let Some(declaration) = declaration {
+                    if !retained.lexical_owner.is_valid() {
+                        retained.lexical_owner = owner;
+                    }
+                    if !retained.binding_declaration.is_valid()
+                        && let Some(declaration) = declaration
+                    {
                         retained.binding_declaration = declaration;
                     }
+                    self.retain_application_operand_sources(
+                        application,
+                        &original_arguments,
+                        &call.machine_arguments,
+                    )?;
+                    let arguments = call.machine_arguments;
                     let StatementNode::Call(call) = self.statement_table.statement_mut(handle)
                     else {
                         unreachable!("retaining a source application does not replace its call");
                     };
                     call.authored_machine_application = application;
+                    call.machine_arguments = arguments;
                 }
+                Ok(())
+            }
+
+            fn retain_static_operand_sources(
+                &mut self,
+                arguments: &mut [StaticMachineArgument],
+                owner: SymbolHandle,
+            ) -> Result<bool, &'static str> {
+                // An unresolved child defers its enclosing application until
+                // this same context pass runs after ordinary resolution.
+                let mut complete = true;
+                for argument in arguments {
+                    if argument.type_reference.is_valid() {
+                        // A supplied Type already has its representation, but still
+                        // needs its original scope before a call is copied.
+                        self.type_reference_table
+                            .retain_operand_lifetime_owner(argument.type_reference, owner)?;
+                        continue;
+                    }
+                    if argument.evidence_projection.is_some()
+                        || argument
+                            .application
+                            .as_ref()
+                            .is_some_and(|application| application.member.is_valid())
+                    {
+                        complete = false;
+                        continue;
+                    }
+                    if let Some(application) = &mut argument.application
+                        && !self.retain_static_operand_sources(&mut application.arguments, owner)?
+                    {
+                        complete = false;
+                        continue;
+                    }
+                    if argument.names_implementation(&self.symbols) {
+                        if self.symbols.get(argument.symbol).kind
+                            == symbols::SymbolKind::Conformance
+                        {
+                            let Some(declaration) = self.conformance_by_symbol(argument.symbol)
+                            else {
+                                complete = false;
+                                continue;
+                            };
+                            let application = argument.application.as_deref();
+                            if self.conformance_type_parameters(declaration).len()
+                                != application.map_or(0, |application| application.arguments.len())
+                                || declaration.lifetime_parameters.len()
+                                    != application.map_or(0, |application| {
+                                        application.lifetime_arguments.len()
+                                    })
+                            {
+                                complete = false;
+                                continue;
+                            }
+                        }
+                        // Capture the complete operand in its source scope before
+                        // a copied call or specialization changes the call owner.
+                        argument.type_reference =
+                            self.static_operand_type_reference_in_scope(argument, owner)?;
+                    } else if !argument.symbol.is_valid()
+                        && argument.const_literal.is_none()
+                        && crate::static_const_argument_spelling(self, argument).is_none()
+                    {
+                        complete = false;
+                    }
+                }
+                Ok(complete)
+            }
+
+            fn retain_application_operand_sources(
+                &mut self,
+                application: crate::static_applications::StaticMachineApplicationHandle,
+                original: &[StaticMachineArgument],
+                supplied: &[StaticMachineArgument],
+            ) -> Result<(), &'static str> {
+                use crate::static_applications::StaticMachineBindingValue;
+
+                let owner = self.static_machine_application(application).lexical_owner;
+                let mut arguments = self
+                    .static_machine_application_arguments(application)
+                    .to_vec();
+                if arguments == original {
+                    arguments.clone_from_slice(supplied);
+                } else {
+                    self.retain_static_operand_sources(&mut arguments, owner)?;
+                }
+                self.expression_table
+                    .static_machine_application_arguments_mut(application)
+                    .clone_from_slice(&arguments);
+                let original = self.static_machine_application_bindings(application);
+                let mut bindings = original.to_vec();
+                for binding in &mut bindings {
+                    match &mut binding.value {
+                        StaticMachineBindingValue::Type(reference)
+                        | StaticMachineBindingValue::Const(reference) => {
+                            if reference.is_valid() {
+                                self.type_reference_table
+                                    .retain_operand_lifetime_owner(*reference, owner)?;
+                            }
+                        }
+                        StaticMachineBindingValue::Machine(argument)
+                        | StaticMachineBindingValue::Conformance(argument) => {
+                            self.retain_static_operand_sources(
+                                std::slice::from_mut(argument),
+                                owner,
+                            )?;
+                        }
+                        _ => {}
+                    }
+                }
+                if bindings != self.static_machine_application_bindings(application) {
+                    self.expression_table
+                        .set_static_machine_application_bindings(application, &bindings);
+                }
+                Ok(())
             }
         }
 

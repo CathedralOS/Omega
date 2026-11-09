@@ -164,7 +164,16 @@ mod assignment {
         for owner in program.traits.iter() {
             let parameters = program.trait_type_parameters(owner);
             collect(program, parameters, &[], &mut scopes);
-            for signature in program.trait_machine_signatures(owner.machines) {
+            for signature in program
+                .trait_machine_signatures(owner.machines)
+                .iter()
+                .chain(
+                    owner
+                        .refinement_clauses
+                        .iter()
+                        .map(|clause| &clause.signature),
+                )
+            {
                 collect(
                     program,
                     program.data_type_parameters(signature.type_parameters),
@@ -1241,6 +1250,7 @@ mod value_expressions {
                 data_definitions: &program.roots.data_definitions,
                 type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
+                traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
                 data_members: &declarations.data_members,
                 data_type_parameters: &declarations.data_type_parameters,
@@ -1273,6 +1283,7 @@ mod value_expressions {
                 data_definitions: &program.roots.data_definitions,
                 type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
+                traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
                 data_members: &declarations.data_members,
                 data_type_parameters: &declarations.data_type_parameters,
@@ -1304,6 +1315,7 @@ mod value_expressions {
                     data_definitions: &program.roots.data_definitions,
                     type_aliases: &program.roots.type_aliases,
                     conformances: &program.roots.conformances,
+                    traits: &program.roots.traits,
                     operand_owners: &program.tables.types.operand_lifetime_owners,
                     data_members: &declarations.data_members,
                     data_type_parameters: &declarations.data_type_parameters,
@@ -1339,6 +1351,7 @@ mod value_expressions {
                 data_definitions: &program.roots.data_definitions,
                 type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
+                traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
                 data_members: &declarations.data_members,
                 data_type_parameters: &declarations.data_type_parameters,
@@ -1380,6 +1393,7 @@ mod value_expressions {
                 data_definitions: &program.roots.data_definitions,
                 type_aliases: &program.roots.type_aliases,
                 conformances: &program.roots.conformances,
+                traits: &program.roots.traits,
                 operand_owners: &program.tables.types.operand_lifetime_owners,
                 data_members: &declarations.data_members,
                 data_type_parameters: &declarations.data_type_parameters,
@@ -2009,6 +2023,7 @@ mod value_expressions {
                         data_definitions: &program.roots.data_definitions,
                         type_aliases: &program.roots.type_aliases,
                         conformances: &program.roots.conformances,
+                        traits: &program.roots.traits,
                         operand_owners: &program.tables.types.operand_lifetime_owners,
                         data_members: &program.tables.declarations.data_members,
                         data_type_parameters: &program.tables.declarations.data_type_parameters,

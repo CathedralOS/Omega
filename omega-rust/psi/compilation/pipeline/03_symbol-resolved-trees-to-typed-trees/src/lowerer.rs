@@ -1852,7 +1852,10 @@ pub(crate) fn close_typed_cohort(
 ) -> Result<(), Diagnostic> {
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
-    lowerer.typed_trees.retain_static_argument_contexts();
+    lowerer
+        .typed_trees
+        .retain_static_argument_contexts()
+        .map_err(Diagnostic::error)?;
     lowerer
         .typed_trees
         .instantiate_nominal_machine_parameter_contracts(cohort.typed_type_parameters)

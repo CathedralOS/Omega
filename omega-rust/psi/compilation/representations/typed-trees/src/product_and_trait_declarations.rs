@@ -1607,6 +1607,7 @@ pub mod trait_definition {
                     arguments: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
                     bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
                 ) -> Option<Self> {
+                    let enclosing = program.enclosing_invocation_frames(argument_owner).ok()?;
                     let region =
                         invocation_region_scope(program, declaration, argument_owner, bindings)?;
                     self.argument_owner = argument_owner;
@@ -1616,6 +1617,42 @@ pub mod trait_definition {
                     }
                     self.substitution_scope_starts.insert(0, 0);
                     self.region_scopes.insert(0, region);
+                    for frame in enclosing {
+                        // Untyped bindings remain unresolved. They cannot close a
+                        // demanded trait operand, but unrelated traits still form.
+                        let arguments = frame
+                            .bindings
+                            .iter()
+                            .filter_map(|binding| {
+                                use crate::static_applications::StaticMachineBindingValue;
+                                let reference = match &binding.value {
+                                    StaticMachineBindingValue::Type(reference)
+                                    | StaticMachineBindingValue::Const(reference) => *reference,
+                                    StaticMachineBindingValue::Machine(argument)
+                                    | StaticMachineBindingValue::Conformance(argument) => {
+                                        argument.type_reference
+                                    }
+                                    StaticMachineBindingValue::RuntimeValue { .. } => return None,
+                                };
+                                reference
+                                    .is_valid()
+                                    .then_some((binding.parameter, reference))
+                            })
+                            .collect::<Vec<_>>();
+                        let region = invocation_region_scope(
+                            program,
+                            frame.declaration,
+                            frame.argument_owner,
+                            &frame.lifetimes,
+                        )?;
+                        self.argument_owner = frame.argument_owner;
+                        self.substitutions.splice(0..0, arguments.iter().copied());
+                        for start in &mut self.substitution_scope_starts {
+                            *start += arguments.len();
+                        }
+                        self.substitution_scope_starts.insert(0, 0);
+                        self.region_scopes.insert(0, region);
+                    }
                     Some(self)
                 }
 
@@ -2580,10 +2617,12 @@ pub mod trait_definition {
                     &self,
                     program: &TypedTrees,
                     requirement: &str,
-                ) -> Vec<TraitRefinementClause> {
+                ) -> Vec<(TraitRefinementClause, super::TraitApplicationEnvironment)>
+                {
                     self.refinement_prefixes(program)
                         .into_iter()
                         .flat_map(|prefix| {
+                            let environment = prefix.environment();
                             prefix
                                 .declaration
                                 .refinement_clauses
@@ -2595,6 +2634,8 @@ pub mod trait_definition {
                                         .is_none_or(|name| name.as_str() == requirement)
                                 })
                                 .cloned()
+                                .map(|clause| (clause, environment.clone()))
+                                .collect::<Vec<_>>()
                         })
                         .collect()
                 }
@@ -2604,9 +2645,16 @@ pub mod trait_definition {
                 pub(crate) fn apply_callable_refinements(
                     &mut self,
                     signature: &mut StateSignature,
-                    clauses: &[TraitRefinementClause],
+                    clauses: &[(TraitRefinementClause, super::TraitApplicationEnvironment)],
                 ) -> Result<(), &'static str> {
-                    for clause in clauses {
+                    for (clause, environment) in clauses {
+                        if !clause.signature.contracts.is_empty() {
+                            self.apply_refinement_postconditions(
+                                signature,
+                                &clause.signature,
+                                environment,
+                            )?;
+                        }
                         if !clause.signature.suspends_keyword_source_spans.is_empty() {
                             signature.suspends &= clause.signature.suspends;
                             signature
@@ -3828,6 +3876,46 @@ pub mod trait_definition {
                 if ambiguous { None } else { selected }
             }
 
+            pub fn bound_scope(
+                &self,
+                program: &'program TypedTrees,
+                binder: SymbolHandle,
+            ) -> Option<Self> {
+                let mut bounds = self
+                    .declaration
+                    .conformance_bounds
+                    .iter()
+                    .filter(|bound| bound.binder == binder);
+                let bound = bounds.next()?;
+                if bounds.next().is_some() {
+                    return None;
+                }
+                let nested = Self::new(
+                    program,
+                    program.trait_definition_by_symbol(bound.trait_symbol)?,
+                    TraitApplicationArguments {
+                        lexical_owner: self.argument_owner,
+                        enclosing_data_applications: &[],
+                        arguments: &bound.arguments,
+                        lifetimes: &bound.lifetime_arguments,
+                    },
+                )?;
+                Some(nested.preceded_by(self))
+            }
+
+            fn preceded_by(mut self, outer: &Self) -> Self {
+                let mut substitutions = outer.substitutions.clone();
+                self.substitution_scope_starts = outer.substitution_scope_starts.clone();
+                self.substitution_scope_starts.push(substitutions.len());
+                substitutions.append(&mut self.substitutions);
+                self.substitutions = substitutions;
+                let mut regions = outer.region_scopes.clone();
+                regions.append(&mut self.region_scopes);
+                self.region_scopes = regions;
+                self.argument_owner = outer.argument_owner;
+                self
+            }
+
             pub fn visit(&self, program: &'program TypedTrees, visit: &mut impl FnMut(&Self)) {
                 self.visit_inherited(program, &mut Vec::new(), visit, &mut |_| {});
             }
@@ -3861,7 +3949,7 @@ pub mod trait_definition {
                     else {
                         continue;
                     };
-                    let Some(mut scope) = Self::new(
+                    let Some(scope) = Self::new(
                         program,
                         declaration,
                         TraitApplicationArguments {
@@ -3873,14 +3961,7 @@ pub mod trait_definition {
                     ) else {
                         continue;
                     };
-                    let mut substitutions = self.substitutions.clone();
-                    scope.substitution_scope_starts = self.substitution_scope_starts.clone();
-                    scope.substitution_scope_starts.push(substitutions.len());
-                    substitutions.append(&mut scope.substitutions);
-                    scope.substitutions = substitutions;
-                    let mut regions = self.region_scopes.clone();
-                    regions.append(&mut scope.region_scopes);
-                    scope.region_scopes = regions;
+                    let scope = scope.preceded_by(self);
                     scope.visit_inherited(program, active, visit, after);
                 }
                 after(self);
