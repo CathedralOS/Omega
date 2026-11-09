@@ -3,6 +3,8 @@ Requires-to-ensures contract entailment engine, inductive transition proving,
 ranking ranges, and arithmetic and structural algebra judgments
 (`proof_contracts::contract_entailment`).
 */
+pub(crate) use specification_calls::applied_bindings::PredicateMachineBinding;
+
 pub(crate) mod arithmetic_judgment {
     use super::{
         BTreeMap, BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
@@ -7601,7 +7603,8 @@ pub(crate) mod call_requirements {
             pub expression: ExpressionHandle,
             pub parameters: Vec<StateParameter>,
             pub values: Vec<(StateParameter, StructuralTerm)>,
-            pub selections: Vec<(SymbolHandle, TypeReferenceHandle, StaticMachineArgument)>,
+            pub selections:
+                Vec<crate::proof_contracts::contract_entailment::PredicateMachineBinding>,
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -7849,7 +7852,13 @@ pub(crate) mod call_requirements {
                             ..Default::default()
                         }
                     };
-                    selections.push((public.symbol, TypeReferenceHandle::invalid(), selected));
+                    selections.push(
+                        crate::proof_contracts::contract_entailment::PredicateMachineBinding::new(
+                            public.symbol,
+                            TypeReferenceHandle::invalid(),
+                            selected,
+                        ),
+                    );
                     continue;
                 }
                 let (required_type, actual_type) = match (&public.kind, &private.kind) {
@@ -7946,7 +7955,13 @@ pub(crate) mod call_requirements {
                     },
                     value,
                 ));
-                selections.push((public.symbol, required_type, selected));
+                selections.push(
+                    crate::proof_contracts::contract_entailment::PredicateMachineBinding::new(
+                        public.symbol,
+                        required_type,
+                        selected,
+                    ),
+                );
             }
             Ok(InheritedPredicate {
                 owner: applied.symbol,
@@ -34408,11 +34423,7 @@ pub(crate) mod refuted_requires {
         callee_parameters: &[typed_trees::signature::StateParameter],
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
-        machine_map: &[(
-            SymbolHandle,
-            typed_trees::types::TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        )],
+        machine_map: &[crate::proof_contracts::contract_entailment::PredicateMachineBinding],
         type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
         caller_scope: Option<(&Machine, &typed_trees::state::State)>,
         literal_replay: bool,
@@ -34443,11 +34454,7 @@ pub(crate) mod refuted_requires {
         callee_parameters: &[typed_trees::signature::StateParameter],
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
-        machine_map: &[(
-            SymbolHandle,
-            typed_trees::types::TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        )],
+        machine_map: &[crate::proof_contracts::contract_entailment::PredicateMachineBinding],
         type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
         caller_scope: Option<(&Machine, &typed_trees::state::State)>,
         literal_replay: bool,
@@ -34481,11 +34488,7 @@ pub(crate) mod refuted_requires {
         callee_parameters: &[typed_trees::signature::StateParameter],
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
-        machine_map: &[(
-            SymbolHandle,
-            typed_trees::types::TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        )],
+        machine_map: &[crate::proof_contracts::contract_entailment::PredicateMachineBinding],
         type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
         caller_scope: Option<(&Machine, &typed_trees::state::State)>,
         literal_replay: bool,
@@ -34786,11 +34789,7 @@ pub(crate) mod refuted_requires {
         callee_parameters: &[typed_trees::signature::StateParameter],
         binary: &typed_trees::expression::TableBinaryExpression,
         map: &[(String, StructuralTerm)],
-        machine_map: &[(
-            SymbolHandle,
-            typed_trees::types::TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        )],
+        machine_map: &[crate::proof_contracts::contract_entailment::PredicateMachineBinding],
         caller_scope: Option<(&Machine, &typed_trees::state::State)>,
         literal_replay: bool,
     ) -> Option<(StructuralTerm, StructuralTerm, bool, bool)> {
@@ -38254,15 +38253,30 @@ pub(crate) mod specification_calls {
                 owner: symbols::SymbolHandle,
                 requirement: symbols::SymbolHandle,
             ) -> Result<String, &'static str> {
+                operation_identity_in_regions(program, selected, owner, requirement, &[])
+            }
+
+            fn operation_identity_in_regions(
+                program: &dyn crate::CheckingInput,
+                selected: &StaticMachineArgument,
+                owner: symbols::SymbolHandle,
+                requirement: symbols::SymbolHandle,
+                regions: &[(
+                    typed_trees::type_identity::LifetimeParameterIdentity,
+                    typed_trees::type_identity::LifetimeParameterIdentity,
+                )],
+            ) -> Result<String, &'static str> {
                 let supplier = program.static_operand_region_supplier(selected, owner)?;
-                let identity = typed_trees::type_identity::portable_applied_index_identity(
-                    program.typed_program(),
-                    typed_trees::type_identity::IndexIdentityArgument::StaticArgument(selected),
-                    supplier,
-                    &[],
-                )
-                .and_then(|identity| program.type_identity_text(identity))
-                .ok_or("predicate implementation has no complete selected identity")?;
+                let identity =
+                    typed_trees::type_identity::portable_applied_index_identity_in_region_scope(
+                        program.typed_program(),
+                        typed_trees::type_identity::IndexIdentityArgument::StaticArgument(selected),
+                        supplier,
+                        &[],
+                        regions,
+                    )
+                    .and_then(|identity| program.type_identity_text(identity))
+                    .ok_or("predicate implementation has no complete selected identity")?;
                 let requirement = program
                     .closed_requirement_application(requirement)
                     .map_or(requirement, |application| application.template);
@@ -38422,6 +38436,18 @@ pub(crate) mod specification_calls {
                 owner: symbols::SymbolHandle,
                 call: &typed_trees::expression::TableCallExpression,
             ) -> Result<Option<String>, &'static str> {
+                selected_call_operation_identity_in_regions(program, owner, call, &[])
+            }
+
+            fn selected_call_operation_identity_in_regions(
+                program: &dyn crate::CheckingInput,
+                owner: symbols::SymbolHandle,
+                call: &typed_trees::expression::TableCallExpression,
+                regions: &[(
+                    typed_trees::type_identity::LifetimeParameterIdentity,
+                    typed_trees::type_identity::LifetimeParameterIdentity,
+                )],
+            ) -> Result<Option<String>, &'static str> {
                 // Contract parameters belong to an entry state; its exact
                 // containing machine owns the specialization receipt.
                 let owner = program
@@ -38454,11 +38480,12 @@ pub(crate) mod specification_calls {
                         .scope(program.typed_program())
                         .ok_or("predicate call lost its selected supplying scope")?
                         .argument_owner;
-                    return operation_identity(
+                    return operation_identity_in_regions(
                         program,
                         &selected_application_operand(application),
                         supplier,
                         dispatch.requirement,
+                        regions,
                     )
                     .map(Some);
                 }
@@ -38481,7 +38508,7 @@ pub(crate) mod specification_calls {
                     )
                     .map_err(|_| "predicate call lost its exact evidence operation")?
                     .ok_or("predicate call lost its evidence requirement")?;
-                operation_identity(
+                operation_identity_in_regions(
                     program,
                     &StaticMachineArgument {
                         symbol: receiver.symbol,
@@ -38489,6 +38516,7 @@ pub(crate) mod specification_calls {
                     },
                     program.symbols.get(receiver.symbol).parent,
                     requirement.signature.symbol,
+                    regions,
                 )
                 .map(Some)
             }
@@ -38686,13 +38714,16 @@ pub(crate) mod specification_calls {
                     result_type: typed_trees::types::TypeReferenceHandle,
                     selected: StaticMachineArgument,
                 ) -> Option<()> {
-                    if let Some((_, old_type, old_selected)) =
-                        self.machines.iter().find(|(known, _, _)| *known == source)
+                    let binding =
+                        super::PredicateMachineBinding::new(source, result_type, selected);
+                    if let Some(old) = self
+                        .machines
+                        .iter()
+                        .find(|known| known.same_source(&binding))
                     {
-                        return (*old_type == result_type && old_selected == &selected)
-                            .then_some(());
+                        return (old == &binding).then_some(());
                     }
-                    self.machines.push((source, result_type, selected));
+                    self.machines.push(binding);
                     Some(())
                 }
 
@@ -38719,7 +38750,7 @@ pub(crate) mod specification_calls {
                                 *expression,
                             )? {
                                 if let Some(existing) =
-                                    bindings.iter().find(|(source, _, _)| *source == binding.0)
+                                    bindings.iter().find(|source| source.same_source(&binding))
                                 {
                                     if existing != &binding {
                                         return Err(
@@ -38743,7 +38774,7 @@ pub(crate) mod specification_calls {
                     fact: ExpressionHandle,
                 ) -> Result<MachineBindings, &'static str> {
                     let mut result = self.machines.clone();
-                    if self.implementations.is_empty() {
+                    if self.implementations.is_empty() && self.regions.is_empty() {
                         return Ok(result);
                     }
                     let mut expressions = Vec::new();
@@ -38763,24 +38794,79 @@ pub(crate) mod specification_calls {
                             continue;
                         }
                         let binder = program.symbols.get(source).parent;
-                        let Some((_, selected)) = self
+                        if let Some((_, selected)) = self
                             .implementations
                             .iter()
                             .find(|(parameter, _)| *parameter == binder)
+                        {
+                            if result.iter().any(|known| {
+                                known.source == source && known.source_operation.is_none()
+                            }) {
+                                continue;
+                            }
+                            let (result_type, selected) = selected_operation(
+                                program,
+                                binder,
+                                source,
+                                selected,
+                                self.implementation_owner,
+                            )?;
+                            result.push(super::PredicateMachineBinding::new(
+                                source,
+                                result_type,
+                                selected,
+                            ));
+                            continue;
+                        }
+                        if self.regions.is_empty()
+                            || result.iter().any(|known| {
+                                known.source == source && known.source_operation.is_none()
+                            })
+                        {
+                            continue;
+                        }
+                        let Some(original) =
+                            selected_call_operation_identity(program, owner, call)?
                         else {
                             continue;
                         };
-                        if result.iter().any(|(known, _, _)| *known == source) {
+                        let applied = selected_call_operation_identity_in_regions(
+                            program,
+                            owner,
+                            call,
+                            &self.regions,
+                        )?
+                        .ok_or("applied predicate lost its selected operation")?;
+                        if applied == original {
                             continue;
                         }
-                        let (result_type, selected) = selected_operation(
-                            program,
-                            binder,
-                            source,
-                            selected,
-                            self.implementation_owner,
-                        )?;
-                        result.push((source, result_type, selected));
+                        let result_type = crate::parameter_expression_result_type_reference(
+                            program, owner, parameters, expression,
+                        )
+                        .ok_or("applied predicate lost its declared result carrier")?;
+                        // One method may occur at several map applications in the
+                        // same clause. Match its complete source identity as well as
+                        // the callable before substituting the validated call regions.
+                        let mut binding = super::PredicateMachineBinding::new(
+                            super::super::super::structural_terms::realized_requirement_state(call).unwrap_or(source),
+                            self.project_type(program, result_type),
+                            StaticMachineArgument {
+                                symbol: super::super::super::structural_terms::realized_requirement_state(call).unwrap_or(source),
+                                path: Box::from([typed_trees::name::Identifier::generated(&applied)]),
+                                ..Default::default()
+                            },
+                        );
+                        binding.source_operation = Some(original);
+                        if let Some(known) = result.iter().find(|known| known.same_source(&binding))
+                        {
+                            if known != &binding {
+                                return Err(
+                                    "applied predicate has conflicting operation substitutions",
+                                );
+                            }
+                        } else {
+                            result.push(binding);
+                        }
                     }
                     Ok(result)
                 }
@@ -38847,11 +38933,32 @@ pub(crate) mod specification_calls {
             reference
         }
 
-        pub(crate) type PredicateMachineBinding = (
-            SymbolHandle,
-            TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        );
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        pub(crate) struct PredicateMachineBinding {
+            pub source: SymbolHandle,
+            pub result_type: TypeReferenceHandle,
+            pub selected: typed_trees::expression::StaticMachineArgument,
+            pub source_operation: Option<String>,
+        }
+
+        impl PredicateMachineBinding {
+            pub fn new(
+                source: SymbolHandle,
+                result_type: TypeReferenceHandle,
+                selected: typed_trees::expression::StaticMachineArgument,
+            ) -> Self {
+                Self {
+                    source,
+                    result_type,
+                    selected,
+                    source_operation: None,
+                }
+            }
+
+            pub fn same_source(&self, other: &Self) -> bool {
+                self.source == other.source && self.source_operation == other.source_operation
+            }
+        }
         pub(crate) type MachineBindings = Vec<PredicateMachineBinding>;
 
         #[derive(Default)]
@@ -38863,6 +38970,10 @@ pub(crate) mod specification_calls {
             pub implementations:
                 Vec<(SymbolHandle, typed_trees::expression::StaticMachineArgument)>,
             implementation_owner: SymbolHandle,
+            regions: Vec<(
+                typed_trees::type_identity::LifetimeParameterIdentity,
+                typed_trees::type_identity::LifetimeParameterIdentity,
+            )>,
         }
 
         pub(crate) struct AppliedResultPresentation<'scope> {
@@ -39116,7 +39227,49 @@ pub(crate) mod specification_calls {
                     Self::for_retained_call_site(program, caller, owner, site)?
                 };
                 bindings.retain_requirement_operations(program, caller, site)?;
+                bindings
+                    .retain_call_regions(program, site)
+                    .inspect_err(|reason| {
+                        if super::super::struct_trace() {
+                            eprintln!(
+                                "STRUCT call region bindings refused caller={caller:?}: {reason}"
+                            );
+                        }
+                    })
+                    .ok()?;
                 Some(bindings)
+            }
+
+            fn retain_call_regions(
+                &mut self,
+                program: &dyn crate::CheckingInput,
+                site: crate::CallSite<'_>,
+            ) -> Result<(), &'static str> {
+                let handle = match site {
+                    crate::CallSite::Expression { call, .. } => call.authored_machine_application,
+                    crate::CallSite::Statement(call) => call.authored_machine_application,
+                    crate::CallSite::TransitionNamed { .. } => return Ok(()),
+                };
+                if !handle.is_valid() {
+                    return Ok(());
+                }
+                let application = expression_table(program).static_machine_application(handle);
+                let rows = program.static_application_lifetimes_for_declaration(
+                    handle,
+                    application.binding_declaration,
+                )?;
+                let resolved = crate::borrow_contracts::resolve_callable_lifetime_bindings(
+                    program,
+                    application.binding_declaration,
+                    application.lexical_owner,
+                    &rows,
+                    &[],
+                )?;
+                self.regions = resolved
+                    .into_iter()
+                    .map(|binding| (binding.parameter, binding.argument))
+                    .collect();
+                Ok(())
             }
 
             fn for_retained_call_site(
@@ -39437,10 +39590,10 @@ pub(crate) mod specification_calls {
                         return None;
                     }
                 }
-                for (parameter, _, _) in &mut self.machines {
-                    let logical = target(*parameter)?;
+                for binding in &mut self.machines {
+                    let logical = target(binding.source)?;
                     if logical.is_valid() {
-                        *parameter = logical;
+                        binding.source = logical;
                     }
                 }
                 for (parameter, _) in &mut self.implementations {
@@ -40143,7 +40296,7 @@ pub(crate) mod specification_calls {
                     TypeParameterKind::Machine { .. } => self
                         .machines
                         .iter()
-                        .any(|(symbol, _, _)| *symbol == parameter.symbol),
+                        .any(|binding| binding.source == parameter.symbol),
                     TypeParameterKind::Implementation => self
                         .implementations
                         .iter()
@@ -40378,7 +40531,9 @@ pub(crate) mod specification_calls {
             }
         }
     }
-    pub(crate) use applied_bindings::{AppliedProofBindings, canonical_result_reference};
+    pub(crate) use applied_bindings::{
+        AppliedProofBindings, PredicateMachineBinding, canonical_result_reference,
+    };
 
     use super::refuted_requires::instantiated_selected_fact_judgment;
     use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
@@ -42352,13 +42507,7 @@ pub(crate) mod specification_calls {
         program: &dyn crate::CheckingInput,
         owner: &SelectedCallContract<'_>,
         arguments: &[typed_trees::expression::StaticMachineArgument],
-    ) -> Option<
-        Vec<(
-            SymbolHandle,
-            typed_trees::types::TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        )>,
-    > {
+    ) -> Option<Vec<crate::proof_contracts::contract_entailment::PredicateMachineBinding>> {
         let parameters = match owner {
             SelectedCallContract::Concrete(machine, _) => program
                 .machine_kind_type_parameters(machine)
@@ -42392,13 +42541,9 @@ pub(crate) mod specification_calls {
         program: &dyn crate::CheckingInput,
         parameter: SymbolHandle,
         selected: &typed_trees::expression::StaticMachineArgument,
-    ) -> Option<(
-        SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-        typed_trees::expression::StaticMachineArgument,
-    )> {
+    ) -> Option<crate::proof_contracts::contract_entailment::PredicateMachineBinding> {
         plain_machine_selection(program, selected).then_some(())?;
-        Some((
+        Some(PredicateMachineBinding::new(
             parameter,
             selected_machine_result_type(program, selected.symbol)?,
             selected.clone(),
@@ -47407,7 +47552,6 @@ pub(crate) mod structural_judgment {
         use std::sync::Arc;
         use symbols::SymbolHandle;
         use typed_trees::data::{DataDefinition, DataMember, DataVariant};
-        use typed_trees::expression::StaticMachineArgument;
         use typed_trees::expression::{BinaryOperator, ExpressionHandle};
         use typed_trees::types::TypeReferenceHandle;
 
@@ -47653,7 +47797,7 @@ pub(crate) mod structural_judgment {
                 parameters: &[typed_trees::signature::StateParameter],
                 fact: ExpressionHandle,
                 map: &[(String, StructuralTerm)],
-                machine_map: &[(SymbolHandle, TypeReferenceHandle, StaticMachineArgument)],
+                machine_map: &[crate::proof_contracts::contract_entailment::PredicateMachineBinding],
             ) -> StructuralJudgment {
                 self.instantiated_case_guarantee(scope, parameters, fact, map, machine_map)
                     .map_or(StructuralJudgment::Unknown, |guarantee| {
@@ -47667,11 +47811,7 @@ pub(crate) mod structural_judgment {
                 parameters: &[typed_trees::signature::StateParameter],
                 fact: ExpressionHandle,
                 map: &[(String, StructuralTerm)],
-                machine_map: &[(
-                    SymbolHandle,
-                    TypeReferenceHandle,
-                    typed_trees::expression::StaticMachineArgument,
-                )],
+                machine_map: &[crate::proof_contracts::contract_entailment::PredicateMachineBinding],
             ) -> Option<CaseGuarantee> {
                 let binary = self.program.expression_table.binary_node(fact)?;
                 if !crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
@@ -58268,9 +58408,8 @@ pub(crate) mod structural_judgment {
     }
     pub(crate) mod mathematical_predicates {
         use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
-        use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
+        use typed_trees::expression::ExpressionHandle;
         use typed_trees::signature::StateParameter;
-        use typed_trees::types::TypeReferenceHandle;
 
         impl StructuralJudge<'_> {
             pub(crate) fn instantiated_mathematical_predicate(
@@ -58279,11 +58418,7 @@ pub(crate) mod structural_judgment {
                 parameters: &[StateParameter],
                 expression: ExpressionHandle,
                 bindings: &[(String, StructuralTerm)],
-                machine_bindings: &[(
-                    symbols::SymbolHandle,
-                    TypeReferenceHandle,
-                    StaticMachineArgument,
-                )],
+                machine_bindings: &[crate::proof_contracts::contract_entailment::PredicateMachineBinding],
             ) -> StructuralJudgment {
                 // Proof contexts and runtime prefixes both supply instantiated actuals.
                 // Tag preservation alone cannot establish a value predicate.
@@ -83007,7 +83142,7 @@ pub(crate) mod structural_judgment {
         pub(crate) fn substitute_call_term(
             term: &StructuralTerm,
             map: &[(String, StructuralTerm)],
-            machine_map: &[(SymbolHandle, TypeReferenceHandle, StaticMachineArgument)],
+            machine_map: &[crate::proof_contracts::contract_entailment::PredicateMachineBinding],
         ) -> StructuralTerm {
             let substitute =
                 |value: StructuralTerm| Self::substitute_call_term(&value, map, machine_map);
@@ -83036,20 +83171,29 @@ pub(crate) mod structural_judgment {
                         } => (target, selections, machine, result_type),
                         _ => unreachable!(),
                     };
-                    let selected = machine_map.iter().find(|(symbol, _, _)| symbol == target);
+                    let selected = machine_map
+                        .iter()
+                        .find(|binding| {
+                            binding.source == *target
+                                && binding.source_operation.as_deref() == Some(machine.as_str())
+                        })
+                        .or_else(|| {
+                            machine_map.iter().find(|binding| {
+                                binding.source == *target && binding.source_operation.is_none()
+                            })
+                        });
                     let mut changed = false;
-                    if let Some((_, selected_result, selected)) = selected {
-                        *target = selected.symbol;
-                        *machine = selected.path.joined_path();
-                        *result_type = *selected_result;
+                    if let Some(binding) = selected {
+                        *target = binding.selected.symbol;
+                        *machine = binding.selected.path.joined_path();
+                        *result_type = binding.result_type;
                         changed = true;
                     }
                     for selection in selections.iter_mut() {
-                        if let Some((_, _, actual)) = machine_map
-                            .iter()
-                            .find(|(symbol, _, _)| *symbol == selection.symbol)
-                        {
-                            *selection = actual.clone();
+                        if let Some(binding) = machine_map.iter().find(|binding| {
+                            binding.source == selection.symbol && binding.source_operation.is_none()
+                        }) {
+                            *selection = binding.selected.clone();
                             changed = true;
                         }
                     }
