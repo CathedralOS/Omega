@@ -24302,6 +24302,8 @@ pub(crate) mod total_specification {
         let entry_state = program.machine_states(machine).first();
         let mut machine_environment = ValueEnvironment::new();
         let mut machine_prior_facts = Vec::new();
+        let mut completion_environment = ValueEnvironment::new();
+        let mut completion_prior_facts = Vec::new();
         for contract in program.machine_contracts(machine) {
             let owner = format!(
                 "machine `{}` {} contract",
@@ -24310,12 +24312,19 @@ pub(crate) mod total_specification {
             );
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 let diagnostics_before = diagnostics.len();
+                let obligations_before = formation_obligations.len();
+                let (environment, prior_facts) = if contract.kind == SignatureContractKind::Ensures
+                {
+                    (&completion_environment, &completion_prior_facts)
+                } else {
+                    (&machine_environment, &machine_prior_facts)
+                };
                 crate::proof_contracts::contract_entailment::validate_specification_call_requirements(
                 program,
                 machine,
                 entry_state,
                 fact,
-                &machine_prior_facts,
+                prior_facts,
                 &owner,
                 diagnostics,
                 formation_obligations,
@@ -24324,7 +24333,7 @@ pub(crate) mod total_specification {
                     program,
                     machine.symbol,
                     fact,
-                    &machine_prior_facts,
+                    prior_facts,
                     &owner,
                     &|candidate| {
                         crate::proof_contracts::bound_expression_meaning::builtin_arithmetic(
@@ -24342,8 +24351,8 @@ pub(crate) mod total_specification {
                         machine,
                         entry_state,
                         *expression,
-                        &machine_environment,
-                        Some(&machine_prior_facts),
+                        environment,
+                        Some(prior_facts),
                         &owner,
                         diagnostics,
                     ));
@@ -24362,12 +24371,35 @@ pub(crate) mod total_specification {
                             );
                         }
                     }
+                    // Earlier, fully formed postconditions guard later clauses of
+                    // that same conjunction. They are not entry assumptions or
+                    // evidence for proving the machine's postconditions.
+                    if matches!(
+                        contract.kind,
+                        SignatureContractKind::Requires | SignatureContractKind::Ensures
+                    ) && diagnostics.len() == diagnostics_before
+                        && formation_obligations.len() == obligations_before
+                    {
+                        completion_prior_facts.push(*expression);
+                        if let Some(entry_state) = entry_state {
+                            narrow_environment_by_condition(
+                                program,
+                                machine,
+                                Some(entry_state),
+                                &mut completion_environment,
+                                *expression,
+                                true,
+                            );
+                        }
+                    }
                 }
             }
         }
         for state in program.machine_states(machine) {
             let mut state_environment = machine_environment.clone();
             let mut state_prior_facts = machine_prior_facts.clone();
+            let mut state_completion_environment = machine_environment.clone();
+            let mut state_completion_facts = machine_prior_facts.clone();
             for contract in program.state_contracts(state) {
                 let owner = format!(
                     "machine `{}` state `{}` {} contract",
@@ -24377,15 +24409,22 @@ pub(crate) mod total_specification {
                 );
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
                     let diagnostics_before = diagnostics.len();
+                    let obligations_before = formation_obligations.len();
+                    let (environment, prior_facts) =
+                        if contract.kind == SignatureContractKind::Ensures {
+                            (&state_completion_environment, &state_completion_facts)
+                        } else {
+                            (&state_environment, &state_prior_facts)
+                        };
                     crate::proof_contracts::contract_entailment::validate_specification_call_requirements(
-                    program, machine, Some(state), fact, &state_prior_facts, &owner, diagnostics,
+                    program, machine, Some(state), fact, prior_facts, &owner, diagnostics,
                     formation_obligations,
                 );
                     crate::proof_contracts::contract_entailment::validate_proof_fact_integer_formation(
                     program,
                     state.symbol,
                     fact,
-                    &state_prior_facts,
+                    prior_facts,
                     &owner,
                     &|candidate| {
                         crate::proof_contracts::bound_expression_meaning::builtin_arithmetic(
@@ -24403,8 +24442,8 @@ pub(crate) mod total_specification {
                             machine,
                             Some(state),
                             *expression,
-                            &state_environment,
-                            Some(&state_prior_facts),
+                            environment,
+                            Some(prior_facts),
                             &owner,
                             diagnostics,
                         ));
@@ -24417,6 +24456,22 @@ pub(crate) mod total_specification {
                                 machine,
                                 Some(state),
                                 &mut state_environment,
+                                *expression,
+                                true,
+                            );
+                        }
+                        if matches!(
+                            contract.kind,
+                            SignatureContractKind::Requires | SignatureContractKind::Ensures
+                        ) && diagnostics.len() == diagnostics_before
+                            && formation_obligations.len() == obligations_before
+                        {
+                            state_completion_facts.push(*expression);
+                            narrow_environment_by_condition(
+                                program,
+                                machine,
+                                Some(state),
+                                &mut state_completion_environment,
                                 *expression,
                                 true,
                             );
@@ -24913,12 +24968,19 @@ pub(crate) mod total_specification {
         diagnostics: &mut Vec<Diagnostic>,
         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum FormationPremises {
+            None,
+            Entry,
+            Completion,
+        }
+
         fn validate_facts(
             program: &dyn crate::CheckingInput,
             facts: &[ProofFact],
             owner: &str,
             bindings: AbstractSpecificationBindings<'_>,
-            admit_to_environment: bool,
+            premises: FormationPremises,
             environment: &mut ValueEnvironment,
             prior_facts: &mut Vec<ExpressionHandle>,
             seen: &mut Vec<ExpressionHandle>,
@@ -24976,6 +25038,7 @@ pub(crate) mod total_specification {
             }
             for fact in facts {
                 let diagnostics_before = diagnostics.len();
+                let obligations_before = formation_obligations.len();
                 crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_call_requirements(
                 program, bindings.owner_symbol, &parameters, fact, prior_facts, owner, diagnostics,
                 formation_obligations,
@@ -25064,7 +25127,11 @@ pub(crate) mod total_specification {
                     false,
                     diagnostics,
                 );
-                if admit_to_environment && diagnostics.len() == diagnostics_before {
+                if premises != FormationPremises::None
+                    && diagnostics.len() == diagnostics_before
+                    && (premises != FormationPremises::Completion
+                        || formation_obligations.len() == obligations_before)
+                {
                     prior_facts.push(*expression);
                     narrow_abstract_specification_environment(
                         program,
@@ -25088,21 +25155,45 @@ pub(crate) mod total_specification {
         ) {
             let mut environment = ValueEnvironment::new();
             let mut prior_facts = Vec::new();
+            let mut completion_environment = ValueEnvironment::new();
+            let mut completion_prior_facts = Vec::new();
             for contract in contracts {
                 let contract_owner =
                     format!("{owner} {} contract", contract_kind_name(&contract.kind));
+                let requires_before = prior_facts.len();
+                let (formation_environment, formation_facts) =
+                    if contract.kind == SignatureContractKind::Ensures {
+                        (&mut completion_environment, &mut completion_prior_facts)
+                    } else {
+                        (&mut environment, &mut prior_facts)
+                    };
                 validate_facts(
                     program,
                     program.proof_facts.span_or_empty(contract.facts),
                     &contract_owner,
                     bindings,
-                    contract.kind == SignatureContractKind::Requires,
-                    &mut environment,
-                    &mut prior_facts,
+                    match contract.kind {
+                        SignatureContractKind::Requires => FormationPremises::Entry,
+                        SignatureContractKind::Ensures => FormationPremises::Completion,
+                        _ => FormationPremises::None,
+                    },
+                    formation_environment,
+                    formation_facts,
                     seen,
                     diagnostics,
                     formation_obligations,
                 );
+                if contract.kind == SignatureContractKind::Requires {
+                    for &expression in &prior_facts[requires_before..] {
+                        completion_prior_facts.push(expression);
+                        narrow_abstract_specification_environment(
+                            program,
+                            bindings,
+                            &mut completion_environment,
+                            expression,
+                        );
+                    }
+                }
             }
         }
 
@@ -25123,7 +25214,7 @@ pub(crate) mod total_specification {
                         parameters: &parameters,
                         ..Default::default()
                     },
-                    false,
+                    FormationPremises::None,
                     &mut ValueEnvironment::new(),
                     &mut Vec::new(),
                     &mut seen,
@@ -25153,7 +25244,7 @@ pub(crate) mod total_specification {
                         &[ProofFact::Expression(expression)],
                         &owner,
                         bindings,
-                        false,
+                        FormationPremises::None,
                         &mut environment,
                         &mut prior_facts,
                         &mut seen,
@@ -25188,7 +25279,7 @@ pub(crate) mod total_specification {
                     domain: Some(domain),
                     ..Default::default()
                 },
-                true,
+                FormationPremises::Entry,
                 &mut environment,
                 &mut prior_facts,
                 &mut seen,
@@ -25209,7 +25300,7 @@ pub(crate) mod total_specification {
                     data: Some(data),
                     ..Default::default()
                 },
-                true,
+                FormationPremises::Entry,
                 &mut environment,
                 &mut prior_facts,
                 &mut seen,
@@ -25240,7 +25331,7 @@ pub(crate) mod total_specification {
                         data: Some(data),
                         ..Default::default()
                     },
-                    true,
+                    FormationPremises::Entry,
                     &mut environment.clone(),
                     &mut prior_facts.clone(),
                     &mut seen,
