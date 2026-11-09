@@ -1059,6 +1059,52 @@ mod place_predicates {
             proven
         }
 
+        // The capture keeps the collection's storage epoch. Bind only its
+        // declaration-owned tail through the checked call's selector telescope.
+        pub(in crate::checks::contracts) fn proven_for_call_projection(
+            &self,
+            program: &dyn ::validation::CheckingInput,
+            facts: &CheckFacts,
+            state: &FlowStateFact,
+            call: &FlowCallFact,
+            contexts: &[facts::FactContextHandle],
+            captured: &crate::flow::CapturedValue<'_>,
+            declared: &[facts::PlaceSegment],
+            projection: &crate::checks::current_scalar_values::CallArgumentProjection,
+        ) -> bool {
+            let Self::Case(case) = self else {
+                return false;
+            };
+            let (source_state, source_statement) =
+                captured.producer_frontier(state.state_symbol, call.statement_index);
+            let Some(evidence) = crate::flow::CaseEvidence::prepare(
+                program,
+                &facts.semantic,
+                contexts,
+                state.machine_symbol,
+                source_state,
+                source_statement,
+            ) else {
+                return false;
+            };
+            crate::flow::captured_value_places(program, facts.flow.view(), captured).is_some_and(
+                |places| {
+                    !places.is_empty()
+                        && places.iter().all(|place| {
+                            let Some(prefix) = place.projected.segments.strip_suffix(declared)
+                            else {
+                                return false;
+                            };
+                            let prefix = validation::CanonicalPlace {
+                                root: place.projected.root,
+                                segments: prefix.to_vec(),
+                            };
+                            evidence.has_value_for_call_projection(&prefix, projection, *case, true)
+                        })
+                },
+            )
+        }
+
         /*
             One failed obligation's retained cuts, without searching another value
             or evaluating a second proof. Missing diagnostic metadata stays absent.

@@ -865,6 +865,73 @@ mod case_access {
                             }
                     })
             };
+            self.case_evidence_proves(case, required, has_case_evidence)
+        }
+
+        pub(crate) fn has_value_for_call_projection(
+            &self,
+            prefix: &CanonicalPlace,
+            projection: &crate::checks::current_scalar_values::CallArgumentProjection,
+            case: SymbolHandle,
+            required: bool,
+        ) -> bool {
+            if !stable_subject(
+                self.program,
+                self.machine,
+                self.state,
+                self.statement_index,
+                prefix,
+            ) {
+                return false;
+            }
+            let prepared_values = self
+                .scalar_values
+                .is_none()
+                .then(|| {
+                    crate::checks::current_scalar_values::CurrentScalarValues::at(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        self.statement_index,
+                        typed_trees::statement::TransitionTargetHandle::invalid(),
+                        None,
+                    )
+                })
+                .flatten();
+            let Some(values) = self.scalar_values.as_ref().or(prepared_values.as_ref()) else {
+                return false;
+            };
+            self.case_evidence_proves(case, required, |case, required| {
+                self.observations.iter().any(|row| {
+                    row.place.root == prefix.root
+                        && (!observations::has_index(&row.place) || row.stable_index_subject)
+                        && values.matches_call_argument_projection(
+                            &row.place.segments,
+                            &prefix.segments,
+                            projection,
+                        )
+                        && self.program.symbols.get(row.variant).parent
+                            == self.program.symbols.get(case).parent
+                        && if row.selected {
+                            (row.variant == case) == required
+                        } else {
+                            row.variant == case && !required
+                        }
+                })
+            })
+        }
+
+        fn case_evidence_proves(
+            &self,
+            case: SymbolHandle,
+            required: bool,
+            mut has_case_evidence: impl FnMut(SymbolHandle, bool) -> bool,
+        ) -> bool {
+            if !case.is_valid()
+                || self.program.symbols.get(case).kind != symbols::SymbolKind::Variant
+            {
+                return false;
+            }
             if has_case_evidence(case, required) {
                 return true;
             }

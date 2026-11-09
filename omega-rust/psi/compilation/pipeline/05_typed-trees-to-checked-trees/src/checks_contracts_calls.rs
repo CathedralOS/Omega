@@ -559,7 +559,28 @@ mod captured_boolean {
                             if !predicate
                                 .proven_for_capture(program, facts, state, call, &contexts, &value)
                             {
-                                return None;
+                                let projection = call_case_projection(
+                                    program,
+                                    facts,
+                                    state,
+                                    call,
+                                    contract,
+                                    target,
+                                    &declared.segments,
+                                    frames,
+                                )?;
+                                if !predicate.proven_for_call_projection(
+                                    program,
+                                    facts,
+                                    state,
+                                    call,
+                                    &contexts,
+                                    &value,
+                                    &declared.segments,
+                                    &projection,
+                                ) {
+                                    return None;
+                                }
                             }
                         }
                         return Some(true);
@@ -598,6 +619,41 @@ mod captured_boolean {
         target: symbols::SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<BoundPredicate> {
+        let (owner, declared, parameters) = contract_parameters(program, facts, contract, target)?;
+        let predicate = lower_parameter_boolean_expression(
+            program,
+            &facts.operators,
+            owner,
+            &parameters,
+            expression,
+            &facts.operators.exact_integer_casts,
+        )
+        .or_else(|| {
+            let mut remaining = 256;
+            lower_callable_scalar_contract_predicate(
+                program,
+                &facts.operators,
+                owner,
+                &parameters,
+                typed_trees::types::TypeReferenceHandle::invalid(),
+                expression,
+                false,
+                &mut remaining,
+            )
+        })?;
+        bind_parameters(program, owner, declared, &parameters, None, predicate)
+    }
+
+    fn contract_parameters(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        contract: &checked_trees::ContractProofFact,
+        target: symbols::SymbolHandle,
+    ) -> Option<(
+        symbols::SymbolHandle,
+        symbols::SymbolHandle,
+        Vec<typed_trees::signature::StateParameter>,
+    )> {
         use checked_trees::ContractProofFactOwner;
         let (owner, declared) = if let Some(scope) = contract.inherited_scope {
             let scope = facts.proof.inherited_contract_scopes.get(scope);
@@ -645,28 +701,112 @@ mod captured_boolean {
                 Some(parameter)
             })
             .collect::<Option<Vec<_>>>()?;
-        let predicate = lower_parameter_boolean_expression(
-            program,
-            &facts.operators,
-            owner,
-            &parameters,
-            expression,
-            &facts.operators.exact_integer_casts,
-        )
-        .or_else(|| {
-            let mut remaining = 256;
-            lower_callable_scalar_contract_predicate(
+        Some((owner, declared, parameters))
+    }
+
+    // Keep the complete recorded argument roster, and authenticate only the
+    // reads a selector actually uses before binding them in invocation scope.
+    // The collection keeps its separate captured storage and producer frontier.
+    fn call_case_projection(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        state: &FlowStateFact,
+        call: &FlowCallFact,
+        contract: &checked_trees::ContractProofFact,
+        target: symbols::SymbolHandle,
+        path: &[facts::PlaceSegment],
+        frames: Option<&validation::CallFrameResolver<'_>>,
+    ) -> Option<crate::checks::current_scalar_values::CallArgumentProjection> {
+        let (_, _, parameters) = contract_parameters(program, facts, contract, target)?;
+        let actuals = call_values::captured_argument_expressions(program, facts, state, call)?;
+        let invocation = facts.flow.control.operands.span(call.operands)?.last()?;
+        let mut arguments = Vec::with_capacity(parameters.len());
+        for parameter in &parameters {
+            let position = contract_parameter_position(
                 program,
-                &facts.operators,
-                owner,
-                &parameters,
-                typed_trees::types::TypeReferenceHandle::invalid(),
-                expression,
-                false,
-                &mut remaining,
+                &facts.proof,
+                contract,
+                target,
+                parameter.symbol,
             )
-        })?;
-        bind_parameters(program, owner, declared, &parameters, None, predicate)
+            .ok()??;
+            arguments.push(*actuals.get(position)?);
+        }
+        let mut reads = Vec::new();
+        for segment in path {
+            if let facts::PlaceSegment::Index { expression } = segment {
+                append_expression_occurrences(program, *expression, &mut reads);
+            }
+        }
+        for read in reads {
+            let declared = validation::canonical_place_from_expression(program, read)?;
+            let symbol = declared.root.as_symbol()?;
+            let Some(position) =
+                contract_parameter_position(program, &facts.proof, contract, target, symbol)
+                    .ok()?
+            else {
+                continue;
+            };
+            let actual = call_values::actual_at(program, state, call, position, declared.segments)?;
+            let captures = call_values::captured_values(program, facts, state, call, &actual)?;
+            if captures.is_empty() {
+                return None;
+            }
+            for capture in captures {
+                if capture_preserves_source(
+                    program,
+                    facts,
+                    state,
+                    call,
+                    capture.observation.row(),
+                    capture.observation_type,
+                    &capture.observation_projection.remaining,
+                    invocation,
+                ) != Some(true)
+                {
+                    return None;
+                }
+            }
+        }
+        let (machine, caller) =
+            program.state_flow_site(state.machine_symbol, state.state_symbol)?;
+        let site = validation::find_call_site(
+            program,
+            state.machine_symbol,
+            state.state_symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )?;
+        let transition = validation::transition_call_target(
+            program,
+            machine,
+            caller,
+            call.statement_index,
+            call.call_ordinal,
+        )
+        .filter(|target| target.is_valid() && site.completes_transition(program, *target))
+        .unwrap_or_else(typed_trees::statement::TransitionTargetHandle::invalid);
+        let mut values = crate::checks::current_scalar_values::CurrentScalarValues::at(
+            program,
+            machine,
+            caller,
+            call.statement_index,
+            transition,
+            frames,
+        )?;
+        let snapshot = program.storage_graph().and_then(|graph| {
+            validation::completed_storage::versions::invocation_snapshot(
+                program,
+                graph,
+                caller.symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )
+        });
+        values.retire_unpreserved(snapshot);
+        let (callee, entry) = validation::find_state(program, target)
+            .or_else(|| validation::find_machine_head(program, target))?;
+        values.call_argument_projection(path, callee, entry, &parameters, &arguments)
     }
 
     fn source_substitution_preserves_captures(

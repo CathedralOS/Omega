@@ -3830,23 +3830,16 @@ mod scalar_fields {
             Some(indexes)
         }
 
-        /*
-            Instantiate the whole selector telescope before looking up a projected
-            actual. A target's `slot` is the passed scalar value, not its old name
-            in the source member of a mutual component.
-        */
-        pub(crate) fn projected_scalar_value_in_call(
+        // Bind every selector in a contract path before comparing it with a
+        // caller path. The stored rows are inputs, not a selected case or value.
+        pub(crate) fn call_argument_projection(
             &self,
-            actual: ExpressionHandle,
             path: &[facts::PlaceSegment],
             callee: &typed_trees::machine::Machine,
             state: &typed_trees::state::State,
             parameters: &[typed_trees::signature::StateParameter],
             arguments: &[ExpressionHandle],
-        ) -> Option<ScopedArithmeticValue> {
-            if path.is_empty() {
-                return self.capture(self.program, self.machine, self.state, actual);
-            }
+        ) -> Option<CallArgumentProjection> {
             if parameters.len() != arguments.len() {
                 return None;
             }
@@ -3875,12 +3868,63 @@ mod scalar_fields {
                 })
                 .collect::<Vec<_>>();
             let occurrence = self.occurrence_at(self.program, callee, state, &[]);
-            let path = capture_path(path, |selector| {
+            let bound = capture_path(path, |selector| {
                 coordinates::selector_value(occurrence, selector, &bindings, &fields)
             })?;
+            Some(CallArgumentProjection(bound))
+        }
+
+        pub(crate) fn matches_call_argument_projection(
+            &self,
+            path: &[facts::PlaceSegment],
+            prefix: &[facts::PlaceSegment],
+            required: &CallArgumentProjection,
+        ) -> bool {
+            let Some(mut required_path) = capture_path(prefix, |selector| {
+                coordinates::selector_value(
+                    self.occurrence(),
+                    selector,
+                    &self.current,
+                    &self.fields,
+                )
+            }) else {
+                return false;
+            };
+            required_path.extend_from_slice(&required.0);
+            let observed = capture_path(path, |selector| {
+                coordinates::selector_value(
+                    self.occurrence(),
+                    selector,
+                    &self.current,
+                    &self.fields,
+                )
+            });
+            observed.is_some_and(|observed| {
+                same_projection(self.occurrence(), &observed, &required_path)
+            })
+        }
+
+        /*
+            Instantiate the whole selector telescope before looking up a projected
+            actual. A target's `slot` is the passed scalar value, not its old name
+            in the source member of a mutual component.
+        */
+        pub(crate) fn projected_scalar_value_in_call(
+            &self,
+            actual: ExpressionHandle,
+            path: &[facts::PlaceSegment],
+            callee: &typed_trees::machine::Machine,
+            state: &typed_trees::state::State,
+            parameters: &[typed_trees::signature::StateParameter],
+            arguments: &[ExpressionHandle],
+        ) -> Option<ScopedArithmeticValue> {
+            if path.is_empty() {
+                return self.capture(self.program, self.machine, self.state, actual);
+            }
+            let path = self.call_argument_projection(path, callee, state, parameters, arguments)?;
             self.captured_scalar_fields(actual, 0)
                 .into_iter()
-                .find(|field| same_projection(self.occurrence(), &field.path, &path))
+                .find(|field| same_projection(self.occurrence(), &field.path, &path.0))
                 .map(|field| field.value)
         }
 
@@ -4480,6 +4524,10 @@ pub(crate) struct CurrentScalarValues<'program> {
 }
 
 pub(crate) use call_contracts::CompletedCallGuarantees;
+
+// A declaration path after its selectors have been bound to one caller frame.
+// Only the frame's typed projection operations can construct or compare it.
+pub(crate) struct CallArgumentProjection(Vec<ScalarProjection>);
 
 impl<'program> CurrentScalarValues<'program> {
     pub(crate) fn machine(&self) -> &Machine {
