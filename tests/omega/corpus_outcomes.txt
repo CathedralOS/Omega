@@ -21437,8 +21437,7 @@ pass/drops/runtime_borrowed_temporary_selected_first_child_cleanup_exit checked 
 pass/drops/runtime_borrowed_temporary_shared_cohort_cleanup_exit checked 15355ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_case_selected_cleanup_continuations_exit checked 13830ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit checked 14652ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_cleanup_case_evidence_exit rejected 29628ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(24), callee: Some(MachineId(30)), operation: OperationId(281), reason: "callee stored-reference effects are unresolved" }
+pass/drops/runtime_cleanup_case_evidence_exit checked 17250ms check-target:macos_arm64 @cd110dbe60a3
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 13445ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_composed_nominal_output_hook_exit checked 12676ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_composed_nominal_return_hook_exit checked 21012ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -21500,8 +21499,7 @@ pass/drops/runtime_replaced_record_scalar_exit checked 4441ms check-target:macos
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 50051ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 36188ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_scalar_temporary_residual_partition_exit checked 3713ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_case_mutation_bindings_exit rejected 40517ms check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(26), callee: Some(MachineId(8)), operation: OperationId(262), reason: "callee stored-reference effects are unresolved" }
+pass/drops/runtime_selected_case_mutation_bindings_exit checked 17100ms check-target:macos_arm64 @cd110dbe60a3
 pass/drops/runtime_selected_case_mutation_complement_exit checked 9940ms check-target:macos_arm64 @6c3dcb823e47
 pass/drops/runtime_selected_linear_residual_death_exit incomplete 41387ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	`main` calls `scenario`; `scenario` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural value: operand custody)); in state `scenario::entry`, statement 1
@@ -21673,8 +21671,7 @@ pass/expressions/runtime_owned_match_multiple_projected_claims_exit rejected 190
 pass/expressions/runtime_owned_match_parameter_claim_replacement_exit checked 20673ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/expressions/runtime_owned_match_pattern_claim_replacement_exit checked 16152ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/expressions/runtime_owned_match_pattern_replacement_exit checked 3244ms check-target:macos_arm64 @ccdb99ca2214
-pass/expressions/runtime_owned_match_skipped_pattern_residual_cleanup_exit rejected 14240ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(12), callee: Some(MachineId(19)), operation: OperationId(152), reason: "callee stored-reference effects are unresolved" }
+pass/expressions/runtime_owned_match_skipped_pattern_residual_cleanup_exit checked 17087ms check-target:macos_arm64 @cd110dbe60a3
 pass/expressions/runtime_temporary_record_field_call_exit checked 3659ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/runtime_widened_comparison_exit checked 16091ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/scalar_match_boundary_composition_exit checked 20817ms check-target:macos_arm64 @ccdb99ca2214
@@ -26548,10 +26545,8 @@ pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 11724ms chec
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 13261ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 12785ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_case_inventory_insert_exit checked 11227ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_borrowed_case_restore_variants_exit rejected 13672ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(10)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
-pass/ownership/runtime_borrowed_case_result_restore_exit rejected 13552ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(13)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
+pass/ownership/runtime_borrowed_case_restore_variants_exit checked 14589ms check-target:macos_arm64 @cd110dbe60a3
+pass/ownership/runtime_borrowed_case_result_restore_exit checked 15185ms check-target:macos_arm64 @cd110dbe60a3
 pass/ownership/runtime_borrowed_content_partition_exit checked 12661ms check-target:macos_arm64 @089c0a150e63
 pass/ownership/runtime_borrowed_content_partition_nested_reverse_exit checked 14800ms check-target:macos_arm64 @089c0a150e63
 pass/ownership/runtime_borrowed_match_repeated_repair_exit checked 15406ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26574,8 +26569,7 @@ pass/ownership/runtime_captured_replacement_selector_exit checked 25789ms check-
 pass/ownership/runtime_captured_selector_call_exit checked 12576ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_captured_selector_partial_cleanup_exit checked 12975ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 11656ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_case_alternative_custody_exit rejected 14587ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(12)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
+pass/ownership/runtime_case_alternative_custody_exit checked 17691ms check-target:macos_arm64 @cd110dbe60a3
 pass/ownership/runtime_complete_array_reference_store_exit checked 3703ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_completed_case_claim_return_exit checked 2842ms check-target:macos_arm64 @ab6bb7225261
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 16393ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26590,8 +26584,7 @@ pass/ownership/runtime_fixed_selector_collection_capture_exit checked 12826ms ch
 pass/ownership/runtime_fixed_selector_owned_argument_exit incomplete 73575ms check-target:macos_arm64 @ee4dbb4b2d56
 	`main` has no executable body: this compiler does not lower a statement of it yet (call result argument: owned projected storage); in state `main::entry`, statement 2
 pass/ownership/runtime_generic_borrowed_case_restore_exit checked 4289ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_generic_linear_case_restore_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(13)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
+pass/ownership/runtime_generic_linear_case_restore_exit checked 8990ms check-target:macos_arm64 @cd110dbe60a3
 pass/ownership/runtime_inactive_case_carrier_transfer_exit checked 2944ms check-target:macos_arm64 @ab6bb7225261
 pass/ownership/runtime_index_before_descriptor_retarget_exit checked 13700ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_indexed_recoverable_replacement_exit checked 13473ms check-target:macos_arm64 @ee4dbb4b2d56
