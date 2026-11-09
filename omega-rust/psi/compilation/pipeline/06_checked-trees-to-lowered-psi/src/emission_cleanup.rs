@@ -5146,9 +5146,10 @@ pub(crate) mod continuation_specialization {
             let mut words = InputWords::default();
             for identity in identities {
                 words.insert(roster.binary_search(identity).map_err(|_| {
-                    LoweringError::Unsupported(
-                        "dependency input is absent from its prepared roster",
-                    )
+                    LoweringError::MissingDependencyRosterEntry {
+                        identity_kind: std::any::type_name::<T>(),
+                        role: "input or definition",
+                    }
                 })?);
             }
             Ok(words)
@@ -5548,7 +5549,10 @@ pub(crate) mod continuation_specialization {
                             let destination = roster
                                 .claims
                                 .binary_search(&binding.destination)
-                                .map_err(|_| LoweringError::Unsupported("claim binding destination is absent from its prepared roster"))?;
+                                .map_err(|_| LoweringError::MissingDependencyRosterEntry {
+                                    identity_kind: "claim",
+                                    role: "edge binding destination",
+                                })?;
                             if source.claims.contains(destination) {
                                 if count != 1 {
                                     return Err(LoweringError::Unsupported(
@@ -5557,10 +5561,12 @@ pub(crate) mod continuation_specialization {
                                 }
                                 translated.remove(destination);
                                 receiving.insert(
-                                    roster
-                                        .claims
-                                        .binary_search(&binding.source)
-                                        .map_err(|_| LoweringError::Unsupported("claim binding source is absent from its prepared roster"))?,
+                                    roster.claims.binary_search(&binding.source).map_err(|_| {
+                                        LoweringError::MissingDependencyRosterEntry {
+                                            identity_kind: "claim",
+                                            role: "edge binding source",
+                                        }
+                                    })?,
                                 );
                             }
                             remaining = &remaining[count..];

@@ -979,6 +979,10 @@ pub(crate) mod lowering_error {
         AmbiguousMachineName(String),
         MissingUnitStructuralType(String),
         InvalidCleanupCompletionIndex(semantic_vocabulary::IdTableBuildError),
+        MissingDependencyRosterEntry {
+            identity_kind: &'static str,
+            role: &'static str,
+        },
         InvalidCleanupPartition {
             reason: &'static str,
         },
