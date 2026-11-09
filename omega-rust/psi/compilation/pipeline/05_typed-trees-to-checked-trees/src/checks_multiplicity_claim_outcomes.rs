@@ -1434,28 +1434,84 @@ mod joins {
     }
 
     /*
-        An absent conditional payload remains absent only while the exact storage
-        path is preserved through the entire consuming statement. Unknown identity
-        alone, and an inactive unguarded allocation, establish no such fact.
+        Check an absent field against the same state records and statement effects
+        throughout one complete value check. Recursive children share this owner;
+        a later check starts from its own immutable flow and borrow snapshot.
     */
-    #[allow(clippy::too_many_arguments)]
-    pub(in crate::checks::multiplicity) fn preserved_inactive_place<'a>(
-        program: &dyn ::validation::CheckingInput,
-        borrow: &checked_trees::BorrowFacts,
-        state: &typed_trees::state::State,
-        statement_index: usize,
-        place: &validation::CanonicalPlace,
-        ownership: &FlowOwnershipFacts,
-        events: impl IntoIterator<Item = &'a FlowPermissionEventFact>,
-    ) -> Option<usize> {
-        InactivePlaceWrites::prepare(program, borrow, state)?.preserved(
-            program,
-            state,
-            statement_index,
-            place,
-            ownership,
-            events,
-        )
+    pub(in crate::checks::multiplicity) struct InactiveClaimQueries<'snapshot> {
+        program: &'snapshot dyn ::validation::CheckingInput,
+        borrow: &'snapshot checked_trees::BorrowFacts,
+        ownership: &'snapshot FlowOwnershipFacts,
+        state: SymbolHandle,
+        prepared: std::cell::OnceCell<Option<InactiveStateQueries<'snapshot>>>,
+    }
+
+    struct InactiveStateQueries<'snapshot> {
+        writes: InactivePlaceWrites,
+        events: super::PermissionEvents<'snapshot>,
+    }
+
+    impl<'snapshot> InactiveClaimQueries<'snapshot> {
+        pub(in crate::checks::multiplicity) fn new(
+            program: &'snapshot dyn ::validation::CheckingInput,
+            facts: checked_trees::CheckFactsRef<'snapshot>,
+            state: SymbolHandle,
+        ) -> Self {
+            Self {
+                program,
+                borrow: facts.borrow,
+                ownership: facts.flow.ownership,
+                state,
+                prepared: std::cell::OnceCell::new(),
+            }
+        }
+
+        pub(in crate::checks::multiplicity) fn preserved(
+            &mut self,
+            state: &typed_trees::state::State,
+            statement_index: usize,
+            place: &validation::CanonicalPlace,
+        ) -> Option<usize> {
+            if state.symbol != self.state
+                || !place
+                    .segments
+                    .iter()
+                    .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
+            {
+                return None;
+            }
+            let prepared = self
+                .prepared
+                .get_or_init(|| {
+                    let writes = InactivePlaceWrites::prepare(self.program, self.borrow, state)?;
+                    // Filtering the original arena keeps its row order, including the
+                    // last occurrence when two establishments have the same position.
+                    let rows = self
+                        .ownership
+                        .permissions
+                        .iter()
+                        .filter(|(_, event)| event.state_symbol == state.symbol)
+                        .map(|(_, event)| event.clone())
+                        .collect();
+                    Some(InactiveStateQueries {
+                        writes,
+                        events: super::PermissionEvents::owned(rows, &self.ownership.segments),
+                    })
+                })
+                .as_ref()?;
+            prepared.writes.preserved(
+                self.program,
+                state,
+                statement_index,
+                place,
+                self.ownership,
+                prepared.events.at_place_across_statements(
+                    state.symbol,
+                    place.root,
+                    &place.segments,
+                ),
+            )
+        }
     }
 
     /*
@@ -2285,21 +2341,35 @@ mod event_queries {
     }
 
     pub(super) struct PermissionEvents<'events> {
-        events: &'events [FlowPermissionEventFact],
+        events: std::borrow::Cow<'events, [FlowPermissionEventFact]>,
         associations: Option<EventAssociations>,
     }
 
     impl<'events> PermissionEvents<'events> {
         pub(super) fn recorded(events: &'events [FlowPermissionEventFact]) -> Self {
             Self {
-                events,
+                events: std::borrow::Cow::Borrowed(events),
                 associations: None,
             }
         }
 
         pub(super) fn prepare(
             events: &'events [FlowPermissionEventFact],
-            segments: &'events arena::PagedArenaSet<facts::PlaceSegment>,
+            segments: &arena::PagedArenaSet<facts::PlaceSegment>,
+        ) -> Self {
+            Self::with_rows(std::borrow::Cow::Borrowed(events), segments)
+        }
+
+        pub(super) fn owned(
+            events: Vec<FlowPermissionEventFact>,
+            segments: &arena::PagedArenaSet<facts::PlaceSegment>,
+        ) -> Self {
+            Self::with_rows(std::borrow::Cow::Owned(events), segments)
+        }
+
+        fn with_rows(
+            events: std::borrow::Cow<'events, [FlowPermissionEventFact]>,
+            segments: &arena::PagedArenaSet<facts::PlaceSegment>,
         ) -> Self {
             let statements =
                 SortedRows::new(events.iter().enumerate().filter_map(|(ordinal, event)| {
@@ -2354,7 +2424,7 @@ mod event_queries {
             }
         }
 
-        pub(super) fn iter(&self) -> std::slice::Iter<'events, FlowPermissionEventFact> {
+        pub(super) fn iter(&self) -> std::slice::Iter<'_, FlowPermissionEventFact> {
             self.events.iter()
         }
 
@@ -2428,7 +2498,7 @@ mod event_queries {
             rows: Option<&'query [(u64, usize)]>,
         ) -> EventCandidates<'query> {
             EventCandidates {
-                events: self.events,
+                events: &self.events,
                 rows,
                 position: 0,
             }
@@ -2565,6 +2635,12 @@ mod event_queries {
             let preparation_start = std::time::Instant::now();
             let prepared = PermissionEvents::prepare(events, segments);
             let preparation_elapsed = preparation_start.elapsed();
+            let owned = PermissionEvents::owned(events.to_vec(), segments);
+            assert_eq!(
+                owned.iter().collect::<Vec<_>>(),
+                events.iter().collect::<Vec<_>>()
+            );
+            let owned_absence_scans = Cell::new(0);
             let indexed_rows = prepared.associations.as_ref().map_or(0, |rows| {
                 rows.statements.rows.len()
                     + rows.origins.rows.len()
@@ -2658,6 +2734,12 @@ mod event_queries {
                     .filter(inactive)
                     .max_by_key(latest);
                 assert_eq!(indexed, direct);
+                let from_owned = owned
+                    .at_place_across_statements(event.state_symbol, event.root, path)
+                    .inspect(|_| owned_absence_scans.set(owned_absence_scans.get() + 1))
+                    .filter(inactive)
+                    .max_by_key(latest);
+                assert_eq!(from_owned, direct);
                 matched.set(matched.get() + usize::from(direct.is_some()));
                 let same_origin = |candidate: &&FlowPermissionEventFact| {
                     candidate.state_symbol == event.state_symbol
@@ -2726,6 +2808,10 @@ mod event_queries {
                 identity_direct.get(),
                 identity_prepared.get(),
                 identity_matches.get()
+            );
+            eprintln!(
+                "owned absence snapshot: {} candidate rows across the same query batch",
+                owned_absence_scans.get()
             );
             (direct_scans.get(), prepared_scans.get(), matched.get())
         }
@@ -3272,7 +3358,7 @@ use event_queries::{
 use crate::flow::literal_expression_projections;
 use crate::shared::collections::push_unique;
 use crate::shared::collections::unique_in_order;
-pub(super) use joins::preserved_inactive_place;
+pub(super) use joins::InactiveClaimQueries;
 pub(crate) use joins::{CallClaimJoinFailure, publish_call_claim_joins, validate_call_claim_joins};
 
 use crate::checks::multiplicity::linear_obligations::{

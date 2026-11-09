@@ -5751,8 +5751,8 @@ mod returned_claims {
         them. Ordinary affine storage moves are checked separately: they neither
         create linear resources nor prove that a case payload is absent.
     */
+    use super::claim_outcomes::InactiveClaimQueries;
     use super::claim_outcomes::claim_paths_are_case_alternatives;
-    use super::claim_outcomes::preserved_inactive_place;
     use super::linear_obligations::LinearPlace;
     use super::linear_validation::permission_event_statement_index;
     use crate::flow::{CapturedValueChoice, SelectionCondition, SelectionConditions};
@@ -5880,6 +5880,7 @@ mod returned_claims {
             operand,
             ClaimObservation::Consumed,
             None,
+            &mut InactiveClaimQueries::new(program, facts, consumer.state),
             conditions,
         )
     }
@@ -5905,6 +5906,7 @@ mod returned_claims {
             operand,
             ClaimObservation::Consumed,
             None,
+            &mut InactiveClaimQueries::new(program, facts, consumer.state),
             conditions,
         )
     }
@@ -5981,6 +5983,7 @@ mod returned_claims {
                 parent: Default::default(),
             },
             destination.as_ref(),
+            &mut InactiveClaimQueries::new(program, facts, consumer.state),
             conditions,
         )
     }
@@ -6029,6 +6032,7 @@ mod returned_claims {
         operand: &FlowOperandFact,
         observation: ClaimObservation<'_>,
         receiving: Option<&validation::CanonicalPlace>,
+        inactive: &mut InactiveClaimQueries<'_>,
         conditions: &mut SelectionConditions,
     ) -> Result<Vec<ReturnedClaim>, &'static str> {
         if !operand.type_reference.is_valid() || operand.state_symbol != consumer.state {
@@ -6072,6 +6076,7 @@ mod returned_claims {
                     facts.flow.control.operands.get(alternative.value),
                     observation,
                     receiving,
+                    inactive,
                     conditions,
                 )? {
                     claim.condition = conditions.all(choice, claim.condition);
@@ -6296,6 +6301,7 @@ mod returned_claims {
                     child_operand,
                     observation.for_child(operand.expression),
                     None,
+                    inactive,
                     conditions,
                 )? {
                     let mut path = destination.to_vec();
@@ -6360,21 +6366,9 @@ mod returned_claims {
                 && let Some(state) = program.state_by_symbol(operand.state_symbol)
             {
                 place.segments.extend_from_slice(&expected.path);
-                if preserved_inactive_place(
-                    program,
-                    facts.borrow,
-                    state,
-                    operand.statement_index,
-                    &place,
-                    facts.flow.ownership,
-                    facts
-                        .flow
-                        .ownership
-                        .permissions
-                        .iter()
-                        .map(|(_, event)| event),
-                )
-                .is_some()
+                if inactive
+                    .preserved(state, operand.statement_index, &place)
+                    .is_some()
                 {
                     represented_paths.insert(expected.path.clone());
                     claims.push(ReturnedClaim {
@@ -6395,6 +6389,7 @@ mod returned_claims {
                     source_place.as_ref(),
                     has_carrier_transfer,
                     evaluation,
+                    inactive,
                     conditions,
                 )?
             {
@@ -6422,6 +6417,7 @@ mod returned_claims {
         source_place: Option<&validation::CanonicalPlace>,
         has_carrier_transfer: bool,
         evaluation: FlowPermissionEvaluation,
+        inactive: &mut InactiveClaimQueries<'_>,
         conditions: &mut SelectionConditions,
     ) -> Result<Option<Vec<ReturnedClaim>>, &'static str> {
         let Some(mut source) = source_place.cloned() else {
@@ -6514,6 +6510,7 @@ mod returned_claims {
                         saved,
                         ClaimObservation::Consumed,
                         None,
+                        inactive,
                         conditions,
                     )?;
                     let mut selected = Vec::new();
