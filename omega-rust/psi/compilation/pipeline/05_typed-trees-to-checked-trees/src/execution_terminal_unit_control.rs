@@ -1304,6 +1304,7 @@ mod boundary_machine {
     }
 }
 mod call_occurrences {
+
     /*
         Scalar operand calls belong to computation roots; structural operands retain
         their own result producers within the same authored statement.
@@ -1331,10 +1332,19 @@ mod call_occurrences {
         child twice. Different computations still cannot consume one captured call.
     */
     #[derive(Default)]
-    struct CallOccurrenceLedger {
+    struct CallOccurrenceLedger<'prefix> {
+        prefix: Option<&'prefix CallOccurrencePrefix>,
         calls: Vec<arena::Handle<checked_trees::FlowCallFact>>,
         accounted_computations: Vec<AccountedComputation>,
         pending_minima: Vec<Option<u32>>,
+    }
+
+    /// Immutable accounting of the common subject/pattern prefix. Branch-local
+    /// operands borrow it without copying the statement's call inventory.
+    struct CallOccurrencePrefix {
+        calls: Vec<arena::Handle<checked_trees::FlowCallFact>>,
+        call_keys: std::collections::BTreeSet<(u32, u32)>,
+        computations: std::collections::BTreeMap<(u32, u32, usize, u32, u32), Option<u32>>,
     }
 
     struct AccountedComputation {
@@ -1348,7 +1358,7 @@ mod call_occurrences {
         minimum_call_ordinal: Option<u32>,
     }
 
-    impl CallOccurrenceLedger {
+    impl CallOccurrenceLedger<'_> {
         fn record_minimum(&mut self, minimum: Option<u32>) {
             if let Some(minimum) = minimum {
                 for pending in &mut self.pending_minima {
@@ -1358,6 +1368,11 @@ mod call_occurrences {
         }
         fn contains(&self, call: &arena::Handle<checked_trees::FlowCallFact>) -> bool {
             self.calls.contains(call)
+                || self.prefix.as_ref().is_some_and(|prefix| {
+                    prefix
+                        .call_keys
+                        .contains(&(call.arena_index(), call.generation()))
+                })
         }
         fn push(&mut self, call: arena::Handle<checked_trees::FlowCallFact>) {
             self.calls.push(call);
@@ -1367,10 +1382,43 @@ mod call_occurrences {
             call twice records it at its first position and drops the repeat.
         */
         fn record_once(&mut self, call: arena::Handle<checked_trees::FlowCallFact>) {
-            crate::shared::collections::push_unique(&mut self.calls, call);
+            if !self.contains(&call) {
+                self.calls.push(call);
+            }
         }
-        fn iter(&self) -> std::slice::Iter<'_, arena::Handle<checked_trees::FlowCallFact>> {
-            self.calls.iter()
+        fn iter(&self) -> impl Iterator<Item = &arena::Handle<checked_trees::FlowCallFact>> {
+            self.prefix
+                .iter()
+                .flat_map(|prefix| prefix.calls.iter())
+                .chain(self.calls.iter())
+        }
+        fn accounted_minimum(
+            &self,
+            state: SymbolHandle,
+            statement: usize,
+            computation: CheckedScalarComputationHandle,
+        ) -> Option<Option<u32>> {
+            self.accounted_computations
+                .iter()
+                .find_map(|entry| {
+                    (entry.state == state
+                        && entry.statement == statement
+                        && entry.computation == computation)
+                        .then_some(entry.minimum_call_ordinal)
+                })
+                .or_else(|| {
+                    self.prefix
+                        .as_ref()?
+                        .computations
+                        .get(&(
+                            state.arena_index(),
+                            state.generation(),
+                            statement,
+                            computation.arena_index(),
+                            computation.generation(),
+                        ))
+                        .copied()
+                })
         }
     }
 
@@ -1382,6 +1430,7 @@ mod call_occurrences {
         separately resolves the callee's executable entry and signature.
     */
     mod collecting {
+
         /*
             Which calls a statement's expressions contain: the recursive collector and
             its per-kind operand walks, plus the dispatch-subject and
@@ -1410,7 +1459,7 @@ mod call_occurrences {
             statement_index: usize,
             assignment: &typed_trees::statement::TableAssignment,
             calls: &[checked_trees::FlowCallFact],
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
         ) -> Option<()> {
             let owner = program.machine_by_symbol(machine)?;
             let plans = &facts.values.scalar_computations;
@@ -1499,7 +1548,7 @@ mod call_occurrences {
             statement_index: usize,
             statement: &StatementNode,
             calls: &[checked_trees::FlowCallFact],
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
         ) -> Option<()> {
             let construction_destination = match statement {
                 StatementNode::LocalData(local) if !local.is_mutable => {
@@ -1593,51 +1642,29 @@ mod call_occurrences {
             Some(())
         }
 
-        /*
-            A separately scheduled invocation owns its scalar operand calls through
-            the same computation roots as an invocation in the statement sequence.
-            A transition guard retains its own earlier computation. The two schedules
-            share an occurrence ledger so neither can claim a call the other executes.
-            Remaining occurrences must belong to this invocation's arm: a sibling
-            arm's calls run only when this arm does not, and a structural argument
-            owns the calls nested under its value, including a qualification cast.
-        */
-        pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
+        pub(super) fn statement_computation_prefix(
             program: &dyn ::validation::CheckingInput,
             facts: &CheckFacts,
             machine: SymbolHandle,
             state: SymbolHandle,
-            call: &checked_trees::FlowCallFact,
+            statement_index: usize,
             calls: &[checked_trees::FlowCallFact],
-            predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
-        ) -> Option<()> {
-            if facts.flow.control.is_retired(state, call)
-                || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
-            {
-                return None;
-            }
-            let site = validation::find_call_site(
-                program,
-                machine,
-                state,
-                call.statement_index,
-                call.call_ordinal,
-            )?;
-            let arguments = validation::call_site_argument_expressions(program, &site);
+        ) -> Option<(super::CallOccurrenceLedger<'static>, Option<usize>)> {
             let mut consumed = super::CallOccurrenceLedger::default();
             let owner = program.machine_by_symbol(machine)?;
             let source_state = program
                 .machine_states(owner)
                 .iter()
                 .find(|source| source.symbol == state)?;
+            let mut guard_maximum = None;
             if let Some(StatementNode::Transition(transition)) = program
                 .statement_table
-                .statement_at(source_state, call.statement_index)
+                .statement_at(source_state, statement_index)
                 && let typed_trees::statement::TransitionGuardNode::When(expression) =
                     transition.guard
             {
                 let plans = &facts.values.scalar_computations;
-                let statement_ordinal = u32::try_from(call.statement_index).ok()?;
+                let statement_ordinal = u32::try_from(statement_index).ok()?;
                 let mut roots =
                     plans.roots_for_statement_role(state, statement_ordinal, ExpressionRole::Guard);
                 if let Some(root) = roots.next() {
@@ -1655,7 +1682,7 @@ mod call_occurrences {
                         program,
                         facts,
                         state,
-                        call.statement_index,
+                        statement_index,
                         root.root,
                         calls,
                         0,
@@ -1663,29 +1690,32 @@ mod call_occurrences {
                     )?;
                     if consumed.iter().any(|handle| {
                         let guard_call = facts.flow.control.calls.get(*handle);
-                        guard_call.call_ordinal >= call.call_ordinal
-                            || validation::transition_call_target(
-                                program,
-                                owner,
-                                source_state,
-                                call.statement_index,
-                                guard_call.call_ordinal,
-                            )
-                            .is_none_or(|target| target.is_valid())
+                        validation::transition_call_target(
+                            program,
+                            owner,
+                            source_state,
+                            statement_index,
+                            guard_call.call_ordinal,
+                        )
+                        .is_none_or(|target| target.is_valid())
                     }) {
                         return None;
                     }
+                    guard_maximum = consumed
+                        .iter()
+                        .map(|handle| facts.flow.control.calls.get(*handle).call_ordinal)
+                        .max();
                 }
             }
             let statement = program
                 .statement_table
-                .statement_at(source_state, call.statement_index)?;
+                .statement_at(source_state, statement_index)?;
             collect_constructor_calls(
                 program,
                 facts,
                 machine,
                 source_state,
-                call.statement_index,
+                statement_index,
                 statement,
                 calls,
                 &mut consumed,
@@ -1696,15 +1726,70 @@ mod call_occurrences {
                     facts,
                     machine,
                     source_state,
-                    call.statement_index,
+                    statement_index,
                     assignment,
                     calls,
                     &mut consumed,
                 )?;
             }
+            Some((consumed, guard_maximum))
+        }
+
+        /// A separately scheduled invocation owns its scalar operand calls through
+        /// the same computation roots as an invocation in the statement sequence.
+        /// A transition guard retains its own earlier computation. The two schedules
+        /// share an occurrence ledger so neither can claim a call the other executes.
+        /// Remaining occurrences must belong to this invocation's arm: a sibling
+        /// arm's calls run only when this arm does not, and a structural argument
+        /// owns the calls nested under its value, including a qualification cast.
+        pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
+            program: &dyn ::validation::CheckingInput,
+            facts: &CheckFacts,
+            machine: SymbolHandle,
+            state: SymbolHandle,
+            call: &checked_trees::FlowCallFact,
+            calls: &[checked_trees::FlowCallFact],
+            predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+            selected: Option<&mut super::SelectedInvocationAccounting>,
+        ) -> Option<()> {
+            if facts.flow.control.is_retired(state, call)
+                || !match selected.as_deref() {
+                    Some(selected) => selected.contains_leaf(facts, machine, state, call, calls),
+                    None => calls.iter().any(|candidate| std::ptr::eq(candidate, call)),
+                }
+            {
+                return None;
+            }
+            let site = validation::find_call_site(
+                program,
+                machine,
+                state,
+                call.statement_index,
+                call.call_ordinal,
+            )?;
+            let arguments = validation::call_site_argument_expressions(program, &site);
+            let owner = program.machine_by_symbol(machine)?;
+            let source_state = program.state_in_machine(owner, state)?;
+            let (mut consumed, guard_maximum) = match selected.as_deref() {
+                Some(selected) => selected.operand_ledger(),
+                None => statement_computation_prefix(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    call.statement_index,
+                    calls,
+                )?,
+            };
+            if guard_maximum.is_some_and(|ordinal| ordinal >= call.call_ordinal) {
+                return None;
+            }
             for nested in structural_operands::for_call(program, facts, owner, source_state, call)?
             {
-                if !calls.iter().any(|source| std::ptr::eq(source, nested)) {
+                if !match selected.as_deref() {
+                    Some(selected) => selected.contains_call(facts, nested),
+                    None => calls.iter().any(|source| std::ptr::eq(source, nested)),
+                } {
                     return None;
                 }
                 let handle = facts.flow.control.calls.handle_of(nested)?;
@@ -1754,6 +1839,20 @@ mod call_occurrences {
                 calls,
                 &mut consumed,
             )?;
+            if selected.is_some() {
+                if selected.as_deref()?.operands_reschedule_producer(
+                    program,
+                    facts,
+                    call,
+                    &consumed.calls,
+                    predecessors,
+                )? {
+                    return None;
+                }
+                // Release the borrowed common prefix before joining branch-local work.
+                let calls = consumed.calls;
+                return selected?.account(facts, call, &calls);
+            }
             let scheduled_subject = |candidate: &checked_trees::FlowCallFact| {
                 scheduled_dispatch_subject(
                     program,
@@ -1813,7 +1912,7 @@ mod call_occurrences {
             call: &checked_trees::FlowCallFact,
             arguments: &[typed_trees::expression::ExpressionHandle],
             calls: &[checked_trees::FlowCallFact],
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
         ) -> Option<()> {
             let statement_ordinal = u32::try_from(call.statement_index).ok()?;
             let minimum = u32::try_from(call.call_ordinal.checked_add(1)?).ok()?;
@@ -1868,11 +1967,9 @@ mod call_occurrences {
             }
         }
 
-        /*
-            The active arm's preparation already scheduled this call, including a
-            call retained inside a structural value rather than as its own operation.
-        */
-        fn scheduled_by_active_arm(
+        /// The active arm's preparation already scheduled this call, including a
+        /// call retained inside a structural value rather than as its own operation.
+        pub(super) fn scheduled_by_active_arm(
             candidate: &checked_trees::FlowCallFact,
             predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
         ) -> bool {
@@ -1886,11 +1983,9 @@ mod call_occurrences {
             })
         }
 
-        /*
-            A call that completes or evaluates a different arm of this transition.
-            Guard calls keep the zero target and stay on every arm's roster.
-        */
-        fn other_transition_arm(
+        /// A call that completes or evaluates a different arm of this transition.
+        /// Guard calls keep the zero target and stay on every arm's roster.
+        pub(super) fn other_transition_arm(
             program: &dyn ::validation::CheckingInput,
             machine: &typed_trees::machine::Machine,
             state: &typed_trees::state::State,
@@ -1928,28 +2023,45 @@ mod call_occurrences {
             calls: &[checked_trees::FlowCallFact],
             predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
         ) -> bool {
-            let Some((statement, expression)) = validation::saved_dispatch_call(
+            super::dispatch_producers::authenticated_producer(
                 program,
+                facts,
                 state,
-                candidate.statement_index,
-                candidate.authored_expression,
-            ) else {
-                return false;
-            };
-            let mut producers = calls.iter().filter(|producer| {
-                producer.statement_index == statement && producer.authored_expression == expression
-            });
-            let Some(producer) = producers.next() else {
-                return false;
-            };
-            if producers.next().is_some()
-                || facts.flow.control.is_retired(state.symbol, producer)
-                || producer.target_symbol != candidate.target_symbol
-                || (producer.statement_index, producer.call_ordinal)
-                    >= (invocation.statement_index, invocation.call_ordinal)
-            {
-                return false;
-            }
+                candidate,
+                |statement, expression| {
+                    let mut producers = calls.iter().filter(|producer| {
+                        producer.statement_index == statement
+                            && producer.authored_expression == expression
+                    });
+                    let producer = producers.next()?;
+                    producers.next().is_none().then_some(producer)
+                },
+                |producer| {
+                    scheduled_owner_count(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        producer,
+                        calls,
+                        predecessors,
+                    )
+                },
+            )
+            .is_some_and(|producer| {
+                producer < (invocation.statement_index, invocation.call_ordinal)
+            })
+        }
+
+        fn scheduled_owner_count(
+            program: &dyn validation::CheckingInput,
+            facts: &CheckFacts,
+            machine: &typed_trees::machine::Machine,
+            state: &typed_trees::state::State,
+            producer: &checked_trees::FlowCallFact,
+            calls: &[checked_trees::FlowCallFact],
+            predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+        ) -> Option<usize> {
             let mut owners = 0;
             for operation in predecessors {
                 let Some(planned) = operation.call() else {
@@ -1959,13 +2071,11 @@ mod call_occurrences {
                     candidate.statement_index == planned.coordinate.statement_index as usize
                         && candidate.call_ordinal == planned.coordinate.call_ordinal as usize
                 });
-                let Some(prior) = occurrences.next() else {
-                    return false;
-                };
+                let prior = occurrences.next()?;
                 if occurrences.next().is_some()
                     || facts.flow.control.is_retired(state.symbol, prior)
                 {
-                    return false;
+                    return None;
                 }
                 if std::ptr::eq(prior, producer) {
                     owners += 1;
@@ -1974,17 +2084,17 @@ mod call_occurrences {
                 if prior.statement_index != producer.statement_index {
                     continue;
                 }
-                let Some(site) = validation::find_call_site(
+                // Scalar operand invocations execute in the preceding call's retained
+                // computation roots rather than as separate structural operations.
+                let site = validation::find_call_site(
                     program,
                     machine.symbol,
                     state.symbol,
                     prior.statement_index,
                     prior.call_ordinal,
-                ) else {
-                    return false;
-                };
+                )?;
                 let mut consumed = super::CallOccurrenceLedger::default();
-                if collect_argument_calls(
+                collect_argument_calls(
                     program,
                     facts,
                     machine.symbol,
@@ -1993,11 +2103,7 @@ mod call_occurrences {
                     validation::call_site_argument_expressions(program, &site),
                     calls,
                     &mut consumed,
-                )
-                .is_none()
-                {
-                    return false;
-                }
+                )?;
                 if consumed
                     .iter()
                     .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), producer))
@@ -2005,7 +2111,7 @@ mod call_occurrences {
                     owners += 1;
                 }
             }
-            owners == 1
+            Some(owners)
         }
 
         pub(super) fn collect_argument_calls(
@@ -2016,7 +2122,7 @@ mod call_occurrences {
             call: &checked_trees::FlowCallFact,
             arguments: &[typed_trees::expression::ExpressionHandle],
             calls: &[checked_trees::FlowCallFact],
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
         ) -> Option<()> {
             let register_operation = program
                 .symbols
@@ -2171,7 +2277,7 @@ mod call_occurrences {
             site: checked_trees::CheckedSubsliceSite,
             calls: &[checked_trees::FlowCallFact],
             minimum_call_ordinal: u32,
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
         ) -> Option<bool> {
             let plans = &facts.values.scalar_computations;
             let statement_ordinal = u32::try_from(statement).ok()?;
@@ -2224,7 +2330,7 @@ mod call_occurrences {
             calls: &[checked_trees::FlowCallFact],
             minimum_call_ordinal: u32,
             visits: &mut Vec<ComputationVisit>,
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
         ) -> Option<()> {
             for handle in argument.computation_operands(&facts.values.scalar_computations.operands)
             {
@@ -2255,7 +2361,7 @@ mod call_occurrences {
             statement_index: usize,
             root: &checked_trees::CheckedScalarComputationRoot,
             calls: &[checked_trees::FlowCallFact],
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
         ) -> Option<()> {
             if root.machine != machine {
                 return None;
@@ -2281,7 +2387,7 @@ mod call_occurrences {
             root: CheckedScalarComputationHandle,
             calls: &[checked_trees::FlowCallFact],
             minimum_call_ordinal: u32,
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
         ) -> Option<()> {
             collect(
                 program,
@@ -2305,18 +2411,13 @@ mod call_occurrences {
             calls: &[checked_trees::FlowCallFact],
             minimum_call_ordinal: u32,
             visits: &mut Vec<ComputationVisit>,
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
         ) -> Option<()> {
             let plans = &facts.values.scalar_computations;
             if !plans.nodes.is_valid(handle) {
                 return None;
             }
-            if let Some(minimum) = consumed.accounted_computations.iter().find_map(|entry| {
-                (entry.state == state
-                    && entry.statement == statement
-                    && entry.computation == handle)
-                    .then_some(entry.minimum_call_ordinal)
-            }) {
+            if let Some(minimum) = consumed.accounted_minimum(state, statement, handle) {
                 if minimum.is_some_and(|ordinal| ordinal < minimum_call_ordinal) {
                     return None;
                 }
@@ -2573,7 +2674,821 @@ mod call_occurrences {
             Some(())
         }
     }
+    mod dispatch_producers {
+        //! Resolve each saved call to its unique already scheduled producer once.
+        //! The invocation-order comparison stays at the actual consuming leaf.
+
+        use super::{CallOccurrenceLedger, CheckFacts};
+        use arena::Handle;
+        use checked_trees::{CheckedUnitEffectOperationPlan, FlowCallFact};
+        use std::collections::{BTreeMap, BTreeSet};
+        use typed_trees::{machine::Machine, state::State};
+
+        type CallKey = (u32, u32);
+        type CallOrder = (usize, usize);
+
+        fn key(handle: Handle<FlowCallFact>) -> CallKey {
+            (handle.arena_index(), handle.generation())
+        }
+
+        pub(super) fn authenticated_producer<'a>(
+            program: &dyn validation::CheckingInput,
+            facts: &CheckFacts,
+            state: &State,
+            candidate: &FlowCallFact,
+            find: impl FnOnce(
+                usize,
+                typed_trees::expression::ExpressionHandle,
+            ) -> Option<&'a FlowCallFact>,
+            owners: impl FnOnce(&FlowCallFact) -> Option<usize>,
+        ) -> Option<CallOrder> {
+            let producer = source_producer(program, facts, state, candidate, find)?;
+            (owners(producer)? == 1).then_some((producer.statement_index, producer.call_ordinal))
+        }
+
+        fn source_producer<'a>(
+            program: &dyn validation::CheckingInput,
+            facts: &CheckFacts,
+            state: &State,
+            candidate: &FlowCallFact,
+            find: impl FnOnce(
+                usize,
+                typed_trees::expression::ExpressionHandle,
+            ) -> Option<&'a FlowCallFact>,
+        ) -> Option<&'a FlowCallFact> {
+            let (statement, expression) = validation::saved_dispatch_call(
+                program,
+                state,
+                candidate.statement_index,
+                candidate.authored_expression,
+            )?;
+            let producer = find(statement, expression)?;
+            (!facts.flow.control.is_retired(state.symbol, producer)
+                && producer.target_symbol == candidate.target_symbol)
+                .then_some(producer)
+        }
+
+        #[derive(Clone, Copy)]
+        struct Producer {
+            key: CallKey,
+            order: CallOrder,
+        }
+
+        #[derive(Default)]
+        struct Owners {
+            counts: BTreeMap<CallKey, usize>,
+            unknown_operands: BTreeMap<usize, BTreeSet<CallKey>>,
+            invalid: bool,
+        }
+
+        impl Owners {
+            fn count(&self, producer: Producer) -> Option<usize> {
+                // A direct owner skips its own operand query. All other preceding
+                // calls at this statement must supply complete operand inventories.
+                if self.invalid
+                    || self
+                        .unknown_operands
+                        .get(&producer.order.0)
+                        .is_some_and(|unknown| {
+                            unknown.len() != 1 || !unknown.contains(&producer.key)
+                        })
+                {
+                    return None;
+                }
+                Some(self.counts.get(&producer.key).copied().unwrap_or(0))
+            }
+        }
+
+        pub(super) struct DispatchProducers {
+            by_call: BTreeMap<CallKey, Producer>,
+            orders: BTreeMap<CallKey, CallOrder>,
+            coordinates: BTreeMap<CallOrder, Option<Handle<FlowCallFact>>>,
+            common: Owners,
+            predecessor_count: usize,
+        }
+
+        /// Prefix candidates retain their producer identities independently of who
+        /// scheduled them. A leaf can add an owner or make an earlier owner ambiguous.
+        pub(super) struct PrefixProducers {
+            candidates: BTreeSet<CallKey>,
+            common: BTreeMap<usize, BTreeSet<(usize, CallKey)>>,
+        }
+
+        impl DispatchProducers {
+            pub(super) fn prepare(
+                program: &dyn validation::CheckingInput,
+                facts: &CheckFacts,
+                machine: &Machine,
+                state: &State,
+                calls: &[FlowCallFact],
+                statement: usize,
+                predecessors: &[CheckedUnitEffectOperationPlan],
+            ) -> Self {
+                let mut expressions = BTreeMap::new();
+                let mut coordinates = BTreeMap::new();
+                let mut orders = BTreeMap::new();
+                for call in calls {
+                    let handle = facts.flow.control.calls.handle_of(call);
+                    expressions
+                        .entry((
+                            call.statement_index,
+                            call.authored_expression.arena_index(),
+                            call.authored_expression.generation(),
+                        ))
+                        .and_modify(|prior| *prior = None)
+                        .or_insert(handle);
+                    coordinates
+                        .entry((call.statement_index, call.call_ordinal))
+                        .and_modify(|prior| *prior = None)
+                        .or_insert(handle);
+                    if let Some(handle) = handle {
+                        orders.insert(key(handle), (call.statement_index, call.call_ordinal));
+                    }
+                }
+                let mut by_call = BTreeMap::new();
+                for candidate in calls
+                    .iter()
+                    .filter(|call| call.statement_index == statement)
+                {
+                    let producer = source_producer(
+                        program,
+                        facts,
+                        state,
+                        candidate,
+                        |statement, expression| {
+                            expressions
+                                .get(&(
+                                    statement,
+                                    expression.arena_index(),
+                                    expression.generation(),
+                                ))
+                                .copied()
+                                .flatten()
+                                .map(|handle| facts.flow.control.calls.get(handle))
+                        },
+                    );
+                    if let Some(producer) = producer
+                        && let Some(producer_handle) = facts.flow.control.calls.handle_of(producer)
+                        && let Some(handle) = facts.flow.control.calls.handle_of(candidate)
+                    {
+                        by_call.insert(
+                            key(handle),
+                            Producer {
+                                key: key(producer_handle),
+                                order: (producer.statement_index, producer.call_ordinal),
+                            },
+                        );
+                    }
+                }
+                let mut result = Self {
+                    by_call,
+                    orders,
+                    coordinates,
+                    common: Owners::default(),
+                    predecessor_count: predecessors.len(),
+                };
+                result.common = result.owners(program, facts, machine, state, calls, predecessors);
+                result
+            }
+
+            fn owners(
+                &self,
+                program: &dyn validation::CheckingInput,
+                facts: &CheckFacts,
+                machine: &Machine,
+                state: &State,
+                calls: &[FlowCallFact],
+                predecessors: &[CheckedUnitEffectOperationPlan],
+            ) -> Owners {
+                let mut owners = Owners::default();
+                for operation in predecessors {
+                    let Some(planned) = operation.call() else {
+                        continue;
+                    };
+                    let Some(prior_handle) = self
+                        .coordinates
+                        .get(&(
+                            planned.coordinate.statement_index as usize,
+                            planned.coordinate.call_ordinal as usize,
+                        ))
+                        .copied()
+                        .flatten()
+                    else {
+                        owners.invalid = true;
+                        break;
+                    };
+                    let prior = facts.flow.control.calls.get(prior_handle);
+                    if facts.flow.control.is_retired(state.symbol, prior) {
+                        owners.invalid = true;
+                        break;
+                    }
+                    let prior_key = key(prior_handle);
+                    *owners.counts.entry(prior_key).or_default() += 1;
+                    let mut consumed = CallOccurrenceLedger::default();
+                    let complete = validation::find_call_site(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        prior.statement_index,
+                        prior.call_ordinal,
+                    )
+                    .and_then(|site| {
+                        super::collecting::collect_argument_calls(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state.symbol,
+                            prior,
+                            validation::call_site_argument_expressions(program, &site),
+                            calls,
+                            &mut consumed,
+                        )
+                    })
+                    .is_some();
+                    if !complete {
+                        owners
+                            .unknown_operands
+                            .entry(prior.statement_index)
+                            .or_default()
+                            .insert(prior_key);
+                        continue;
+                    }
+                    // Several roles in one prior operation still constitute one owner.
+                    let owned = consumed
+                        .iter()
+                        .filter_map(|handle| {
+                            let row = facts.flow.control.calls.get(*handle);
+                            (row.statement_index == prior.statement_index
+                                && key(*handle) != prior_key)
+                                .then_some(key(*handle))
+                        })
+                        .collect::<BTreeSet<_>>();
+                    for producer in owned {
+                        *owners.counts.entry(producer).or_default() += 1;
+                    }
+                }
+                owners
+            }
+
+            pub(super) fn local_owners(
+                &self,
+                program: &dyn validation::CheckingInput,
+                facts: &CheckFacts,
+                machine: &Machine,
+                state: &State,
+                calls: &[FlowCallFact],
+                predecessors: &[CheckedUnitEffectOperationPlan],
+            ) -> Option<LocalProducers> {
+                let local = self.owners(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    calls,
+                    predecessors.get(self.predecessor_count..)?,
+                );
+                Some(LocalProducers { owners: local })
+            }
+
+            pub(super) fn prefix(&self, calls: &[Handle<FlowCallFact>]) -> PrefixProducers {
+                let mut prefix = PrefixProducers {
+                    candidates: BTreeSet::new(),
+                    common: BTreeMap::new(),
+                };
+                for handle in calls {
+                    if let Some(producer) = self.by_call.get(&key(*handle)).copied() {
+                        prefix.candidates.insert(producer.key);
+                        if self.common.count(producer) == Some(1) {
+                            prefix
+                                .common
+                                .entry(producer.order.0)
+                                .or_default()
+                                .insert((producer.order.1, producer.key));
+                        }
+                    }
+                }
+                prefix
+            }
+
+            pub(super) fn before(
+                &self,
+                handle: Handle<FlowCallFact>,
+                invocation: &FlowCallFact,
+            ) -> bool {
+                self.by_call.get(&key(handle)).is_some_and(|producer| {
+                    producer.order < (invocation.statement_index, invocation.call_ordinal)
+                        && self.common.count(*producer) == Some(1)
+                })
+            }
+        }
+
+        pub(super) struct LocalProducers {
+            owners: Owners,
+        }
+
+        impl LocalProducers {
+            fn owns(&self, prepared: &DispatchProducers, producer: Producer) -> bool {
+                prepared
+                    .common
+                    .count(producer)
+                    .zip(self.owners.count(producer))
+                    .is_some_and(|(common, local)| common + local == 1)
+            }
+
+            pub(super) fn rescheduled(
+                &self,
+                prepared: &DispatchProducers,
+                prefix: &PrefixProducers,
+                operands: &[Handle<FlowCallFact>],
+                before: CallOrder,
+            ) -> bool {
+                if !self.owners.invalid {
+                    for (statement, candidates) in &prefix.common {
+                        if *statement > before.0 {
+                            break;
+                        }
+                        // An unknown operand owner invalidates every other producer at
+                        // this statement. Its own producer already has a local owner,
+                        // which would duplicate the one required by this common set.
+                        if self.owners.unknown_operands.contains_key(statement) {
+                            continue;
+                        }
+                        for (ordinal, producer) in candidates {
+                            if (*statement, *ordinal) >= before {
+                                break;
+                            }
+                            if self.owners.counts.get(producer).copied().unwrap_or(0) == 0 {
+                                return true;
+                            }
+                            // Every skipped candidate has a new local owner, so this
+                            // walk is bounded by the new work rather than prefix size.
+                        }
+                    }
+                }
+                // A producer absent from the common schedule can be owned by this
+                // leaf's preparation. Only locally touched identities need this join.
+                for producer in self
+                    .owners
+                    .counts
+                    .keys()
+                    .filter(|key| prefix.candidates.contains(key))
+                {
+                    if let Some(order) = prepared.orders.get(producer).copied()
+                        && order < before
+                        && self.owns(
+                            prepared,
+                            Producer {
+                                key: *producer,
+                                order,
+                            },
+                        )
+                    {
+                        return true;
+                    }
+                }
+                operands.iter().any(|handle| {
+                    prepared.by_call.get(&key(*handle)).is_some_and(|producer| {
+                        producer.order < before && self.owns(prepared, *producer)
+                    })
+                })
+            }
+        }
+
+        #[cfg(test)]
+        mod tests {
+
+            use super::*;
+
+            #[test]
+            fn prefix_owner_index_matches_complete_join() {
+                let first = (11, 3);
+                let second = (12, 3);
+                let third = (13, 4);
+                let orders = BTreeMap::from([(first, (1, 1)), (second, (1, 2)), (third, (2, 1))]);
+                let prepared = DispatchProducers {
+                    by_call: BTreeMap::new(),
+                    orders,
+                    coordinates: BTreeMap::new(),
+                    common: Owners {
+                        counts: BTreeMap::from([(first, 1), (third, 1)]),
+                        ..Default::default()
+                    },
+                    predecessor_count: 0,
+                };
+                let prefix = PrefixProducers {
+                    candidates: BTreeSet::from([first, second, third]),
+                    common: BTreeMap::from([
+                        (1, BTreeSet::from([(1, first)])),
+                        (2, BTreeSet::from([(1, third)])),
+                    ]),
+                };
+                let locals = [
+                    Owners::default(),
+                    Owners {
+                        counts: BTreeMap::from([(second, 1)]),
+                        ..Default::default()
+                    },
+                    Owners {
+                        counts: BTreeMap::from([(first, 1), (third, 1)]),
+                        ..Default::default()
+                    },
+                    Owners {
+                        counts: BTreeMap::from([(first, 1)]),
+                        unknown_operands: BTreeMap::from([(1, BTreeSet::from([first]))]),
+                        ..Default::default()
+                    },
+                    Owners {
+                        counts: BTreeMap::from([(second, 1)]),
+                        unknown_operands: BTreeMap::from([(1, BTreeSet::from([first, second]))]),
+                        ..Default::default()
+                    },
+                    Owners {
+                        invalid: true,
+                        ..Default::default()
+                    },
+                ];
+                for owners in locals {
+                    let local = LocalProducers { owners };
+                    for before in [(1, 1), (1, 3), (2, 1), (3, 0)] {
+                        let linear = prefix.candidates.iter().any(|key| {
+                            let order = prepared.orders[key];
+                            order < before && local.owns(&prepared, Producer { key: *key, order })
+                        });
+                        assert_eq!(local.rescheduled(&prepared, &prefix, &[], before), linear);
+                    }
+                }
+            }
+        }
+    }
+    mod selected_calls {
+        //! Account a selected invocation tree without treating its other leaves as
+        //! unscheduled work on the current branch. Each leaf still proves its complete
+        //! operand custody. Only the final all-leaf join can cover the statement.
+
+        use super::dispatch_producers::{DispatchProducers, PrefixProducers};
+        use super::{CallOccurrenceLedger, CallOccurrencePrefix, CheckFacts, SymbolHandle};
+        use arena::{Handle, HandleSpan};
+        use checked_trees::{CheckedCompletionExpressionKind as Kind, FlowCallFact};
+        use std::collections::{BTreeMap, BTreeSet};
+
+        type CallKey = (u32, u32);
+
+        pub(in crate::execution::terminal_unit) struct SelectedInvocationAccounting {
+            machine: SymbolHandle,
+            state: SymbolHandle,
+            statement: usize,
+            calls: HandleSpan<FlowCallFact>,
+            leaves: BTreeSet<CallKey>,
+            bound: BTreeSet<CallKey>,
+            accounted: BTreeSet<CallKey>,
+            prefix: CallOccurrencePrefix,
+            guard_maximum: Option<usize>,
+            producers: DispatchProducers,
+            prefix_producers: PrefixProducers,
+            first: Handle<FlowCallFact>,
+            expression_calls: BTreeMap<(usize, u32, u32), Option<Handle<FlowCallFact>>>,
+        }
+
+        fn key(call: Handle<FlowCallFact>) -> CallKey {
+            (call.arena_index(), call.generation())
+        }
+
+        fn in_span(span: HandleSpan<FlowCallFact>, handle: Handle<FlowCallFact>) -> bool {
+            handle
+                .arena_index()
+                .checked_sub(span.start().arena_index())
+                .and_then(|offset| span.handles().nth(offset as usize))
+                == Some(handle)
+        }
+
+        impl SelectedInvocationAccounting {
+            pub(in crate::execution::terminal_unit) fn new(
+                program: &dyn validation::CheckingInput,
+                facts: &CheckFacts,
+                root: &checked_trees::CheckedCompletionRoot,
+                predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+            ) -> Option<Self> {
+                if root.refusal.is_some() {
+                    return None;
+                }
+                let calls = facts.flow.control.state(root.machine, root.state)?.calls;
+                let roster = facts.flow.control.calls.span_or_empty(calls);
+                let mut expression_calls = BTreeMap::new();
+                for (handle, call) in calls.handles().zip(roster) {
+                    if call.statement_index != root.statement_ordinal as usize {
+                        continue;
+                    }
+                    let coordinate = (
+                        call.call_ordinal,
+                        call.authored_expression.arena_index(),
+                        call.authored_expression.generation(),
+                    );
+                    expression_calls
+                        .entry(coordinate)
+                        .and_modify(|prior| *prior = None)
+                        .or_insert(Some(handle));
+                }
+                let plans = &facts.values.completions;
+                let mut pending = vec![(root.root, false)];
+                let mut visited = BTreeMap::new();
+                let mut leaves = BTreeSet::new();
+                let mut first = None;
+                while let Some((handle, completed)) = pending.pop() {
+                    if !plans.nodes.is_valid(handle) {
+                        return None;
+                    }
+                    let coordinate = (handle.arena_index(), handle.generation());
+                    if completed {
+                        visited.insert(coordinate, false);
+                        continue;
+                    }
+                    match visited.get(&coordinate) {
+                        Some(true) => return None,
+                        Some(false) => continue,
+                        None => {}
+                    }
+                    visited.insert(coordinate, true);
+                    let node = plans.nodes.get(handle);
+                    match &node.kind {
+                        Kind::Missing => return None,
+                        Kind::Invocation { source_call } => {
+                            if !in_span(calls, *source_call) {
+                                return None;
+                            }
+                            let call = facts.flow.control.calls.get(*source_call);
+                            if call.statement_index != root.statement_ordinal as usize
+                                || call.authored_expression != node.expression
+                            {
+                                return None;
+                            }
+                            leaves.insert(key(*source_call));
+                            first.get_or_insert(*source_call);
+                            visited.insert(coordinate, false);
+                        }
+                        Kind::Dispatch { arms, .. } => {
+                            let arms = plans.arms.span(*arms)?;
+                            if arms.is_empty() {
+                                return None;
+                            }
+                            pending.push((handle, true));
+                            pending.extend(arms.iter().rev().map(|arm| (arm.completion, false)));
+                        }
+                    }
+                }
+                let first = first?;
+                let (prefix, guard_maximum) = super::collecting::statement_computation_prefix(
+                    program,
+                    facts,
+                    root.machine,
+                    root.state,
+                    root.statement_ordinal as usize,
+                    roster,
+                )?;
+                if !prefix.pending_minima.is_empty()
+                    || prefix.prefix.is_some()
+                    || prefix.calls.iter().any(|call| leaves.contains(&key(*call)))
+                {
+                    return None;
+                }
+                let machine = program.machine_by_symbol(root.machine)?;
+                let state = program.state_in_machine(machine, root.state)?;
+                let producers = DispatchProducers::prepare(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    roster,
+                    root.statement_ordinal as usize,
+                    predecessors,
+                );
+                let prefix_producers = producers.prefix(&prefix.calls);
+                let accounted = prefix.calls.iter().copied().map(key).collect();
+                let computations = prefix
+                    .accounted_computations
+                    .into_iter()
+                    .map(|entry| {
+                        (
+                            (
+                                entry.state.arena_index(),
+                                entry.state.generation(),
+                                entry.statement,
+                                entry.computation.arena_index(),
+                                entry.computation.generation(),
+                            ),
+                            entry.minimum_call_ordinal,
+                        )
+                    })
+                    .collect();
+                Some(Self {
+                    machine: root.machine,
+                    state: root.state,
+                    statement: root.statement_ordinal as usize,
+                    calls,
+                    leaves,
+                    bound: BTreeSet::new(),
+                    accounted,
+                    prefix: CallOccurrencePrefix {
+                        call_keys: prefix.calls.iter().copied().map(key).collect(),
+                        calls: prefix.calls,
+                        computations,
+                    },
+                    guard_maximum,
+                    producers,
+                    prefix_producers,
+                    first,
+                    expression_calls,
+                })
+            }
+
+            pub(super) fn contains_call(&self, facts: &CheckFacts, call: &FlowCallFact) -> bool {
+                facts
+                    .flow
+                    .control
+                    .calls
+                    .handle_of(call)
+                    .is_some_and(|handle| in_span(self.calls, handle))
+            }
+
+            pub(super) fn contains_leaf(
+                &self,
+                facts: &CheckFacts,
+                machine: SymbolHandle,
+                state: SymbolHandle,
+                call: &FlowCallFact,
+                calls: &[FlowCallFact],
+            ) -> bool {
+                machine == self.machine
+                    && state == self.state
+                    && call.statement_index == self.statement
+                    && std::ptr::eq(calls, facts.flow.control.calls.span_or_empty(self.calls))
+                    && facts
+                        .flow
+                        .control
+                        .calls
+                        .handle_of(call)
+                        .is_some_and(|handle| self.leaves.contains(&key(handle)))
+            }
+
+            pub(super) fn operand_ledger(&self) -> (CallOccurrenceLedger<'_>, Option<usize>) {
+                (
+                    CallOccurrenceLedger {
+                        prefix: Some(&self.prefix),
+                        ..Default::default()
+                    },
+                    self.guard_maximum,
+                )
+            }
+
+            pub(super) fn operands_reschedule_producer(
+                &self,
+                program: &dyn validation::CheckingInput,
+                facts: &CheckFacts,
+                call: &FlowCallFact,
+                operands: &[Handle<FlowCallFact>],
+                predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+            ) -> Option<bool> {
+                let machine = program.machine_by_symbol(self.machine)?;
+                let state = program.state_in_machine(machine, self.state)?;
+                let local = self.producers.local_owners(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    facts.flow.control.calls.span_or_empty(self.calls),
+                    predecessors,
+                )?;
+                Some(local.rescheduled(
+                    &self.producers,
+                    &self.prefix_producers,
+                    operands,
+                    (call.statement_index, call.call_ordinal),
+                ))
+            }
+
+            pub(super) fn account(
+                &mut self,
+                facts: &CheckFacts,
+                call: &FlowCallFact,
+                consumed: &[Handle<FlowCallFact>],
+            ) -> Option<()> {
+                let call = key(facts.flow.control.calls.handle_of(call)?);
+                if !self.leaves.contains(&call)
+                    || consumed
+                        .iter()
+                        .any(|handle| self.leaves.contains(&key(*handle)))
+                {
+                    return None;
+                }
+                self.accounted.extend(consumed.iter().copied().map(key));
+                self.accounted.insert(call);
+                self.bound.insert(call);
+                Some(())
+            }
+
+            /// A checked operand may stop before its callee is invoked. Retain only
+            /// calls actually owned by that completed prefix, plus the leaf's known
+            /// stopped disposition. Unknown or unrelated source rows remain debt.
+            pub(in crate::execution::terminal_unit) fn stopped_prefix(
+                &mut self,
+                facts: &CheckFacts,
+                call: &FlowCallFact,
+                operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+            ) -> Option<()> {
+                let leaf = key(facts.flow.control.calls.handle_of(call)?);
+                if !self.leaves.contains(&leaf) || call.statement_index != self.statement {
+                    return None;
+                }
+                let stop = operations
+                    .iter()
+                    .position(|operation| !operation.has_normal_continuation())?;
+                let mut accounted = BTreeSet::new();
+                for operation in &operations[..=stop] {
+                    for operation in operation.with_value_calls() {
+                        let Some(planned) = operation.call() else {
+                            continue;
+                        };
+                        let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
+                            planned.source_site()
+                        else {
+                            return None;
+                        };
+                        if planned.coordinate.statement_index as usize != self.statement {
+                            return None;
+                        }
+                        let handle = self
+                            .expression_calls
+                            .get(&(
+                                planned.coordinate.call_ordinal as usize,
+                                expression.arena_index(),
+                                expression.generation(),
+                            ))
+                            .copied()
+                            .flatten()?;
+                        if self.leaves.contains(&key(handle)) {
+                            return None;
+                        }
+                        accounted.insert(key(handle));
+                    }
+                }
+                // This accounts for source ownership, not execution of the callee.
+                self.accounted.extend(accounted);
+                self.accounted.insert(leaf);
+                self.bound.insert(leaf);
+                Some(())
+            }
+
+            pub(in crate::execution::terminal_unit) fn finish(
+                &self,
+                program: &dyn validation::CheckingInput,
+                facts: &CheckFacts,
+                predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+            ) -> Option<()> {
+                if self.bound != self.leaves {
+                    return None;
+                }
+                let machine = program.machine_by_symbol(self.machine)?;
+                let state = program.state_in_machine(machine, self.state)?;
+                let first = facts.flow.control.calls.get(self.first);
+                let calls = facts.flow.control.calls.span_or_empty(self.calls);
+                let active_arm = validation::transition_call_target(
+                    program,
+                    machine,
+                    state,
+                    self.statement,
+                    first.call_ordinal,
+                );
+                calls
+                    .iter()
+                    .filter(|call| call.statement_index == self.statement)
+                    .all(|call| {
+                        facts
+                            .flow
+                            .control
+                            .calls
+                            .handle_of(call)
+                            .is_some_and(|handle| self.accounted.contains(&key(handle)))
+                            || facts
+                                .flow
+                                .control
+                                .calls
+                                .handle_of(call)
+                                .is_some_and(|handle| self.producers.before(handle, first))
+                            || super::collecting::scheduled_by_active_arm(call, predecessors)
+                            || super::collecting::other_transition_arm(
+                                program, machine, state, active_arm, call,
+                            )
+                            || facts.flow.control.is_retired(self.state, call)
+                            || program
+                                .symbols
+                                .builtin_function_for_symbol(call.target_symbol)
+                                .is_some_and(|function| function.has_empty_write_frame())
+                    })
+                    .then_some(())
+            }
+        }
+    }
     mod structural_values {
+
         /*
             Shared occurrence accounting for an explicitly retained structural value.
 
@@ -2595,7 +3510,7 @@ mod call_occurrences {
             value: checked_trees::CheckedStructuralValueHandle,
             calls: &'facts [checked_trees::FlowCallFact],
             minimum_call_ordinal: u32,
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
             structural: &mut Vec<&'facts checked_trees::FlowCallFact>,
         ) -> Option<()> {
             let mut pending = vec![value];
@@ -2859,6 +3774,7 @@ mod call_occurrences {
         }
     }
     mod traced {
+
         /*
             Discover each statement's call owners before composing its operation sequence.
             Flow inventory is in completion order, while occurrence ordinals identify
@@ -3370,7 +4286,7 @@ mod call_occurrences {
             calls: &'a [checked_trees::FlowCallFact],
             structural: &mut Vec<&'a checked_trees::FlowCallFact>,
             claimed: &mut usize,
-            consumed: &mut super::CallOccurrenceLedger,
+            consumed: &mut super::CallOccurrenceLedger<'_>,
             expands: &dyn Fn(&checked_trees::FlowCallFact) -> bool,
             trace: &LocalConstructionTrace,
         ) -> Option<()> {
@@ -3411,6 +4327,7 @@ mod call_occurrences {
             Some(())
         }
     }
+    pub(in crate::execution::terminal_unit) use selected_calls::SelectedInvocationAccounting;
 
     pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_computations;
     pub(in crate::execution::terminal_unit) use traced::outer_calls_in_prefix_traced;
@@ -4312,6 +5229,7 @@ mod checked_machine {
     }
 }
 mod construction_trace {
+
     /*
         Where the ordinary checked-machine builder stopped.
 
@@ -4335,6 +5253,7 @@ mod construction_trace {
         state: Cell<Option<SymbolHandle>>,
         statement_index: Cell<Option<u32>>,
         declined_step: Cell<Option<DeclinedStep>>,
+        result_custody: Cell<Option<ResultCustodyFailure>>,
     }
 
     /*
@@ -4345,6 +5264,18 @@ mod construction_trace {
     pub(crate) struct TraceMark {
         phase: &'static str,
         statement_index: Option<u32>,
+        result_custody: Option<ResultCustodyFailure>,
+    }
+
+    /// Counts from the actual failed result join, not a second custody analysis.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) struct ResultCustodyFailure {
+        pub(crate) binding: u32,
+        pub(crate) local: SymbolHandle,
+        pub(crate) producer_operation: usize,
+        /// Implicit exit, call, cleanup, construction, reference and view owners.
+        pub(crate) dispositions: [usize; 6],
+        pub(crate) normal_caller_completion: bool,
     }
 
     /* A declined attempt belongs to one complete authored trace position. */
@@ -4360,10 +5291,45 @@ mod construction_trace {
         phase: &'static str,
     }
 
+    /// Preserve a specific attempted plan's refusal if every alternative fails.
+    /// Successful alternatives explicitly discard the note; early refusal through
+    /// `?` keeps the original statement and owner instead of the last fallback.
+    pub(crate) struct DeferredFailure<'a> {
+        trace: &'a LocalConstructionTrace,
+        at: Option<DeclineMark>,
+    }
+
+    impl DeferredFailure<'_> {
+        pub(crate) fn retain(&mut self) {
+            self.at = Some(self.trace.decline_mark());
+        }
+
+        pub(crate) fn succeeded(&mut self) {
+            self.at = None;
+        }
+    }
+
+    impl Drop for DeferredFailure<'_> {
+        fn drop(&mut self) {
+            if let Some(at) = self.at {
+                self.trace.restore(&at.position);
+                self.trace.state.set(at.state);
+            }
+        }
+    }
+
     impl LocalConstructionTrace {
-        /* Enter a phase; the statement position resets with it. */
+        pub(crate) fn deferred_failure(&self) -> DeferredFailure<'_> {
+            DeferredFailure {
+                trace: self,
+                at: None,
+            }
+        }
+
+        /// Enter a phase; the statement position resets with it.
         pub(crate) fn phase(&self, phase: &'static str) {
             self.declined_step.set(None);
+            self.result_custody.set(None);
             self.phase.set(phase);
             self.statement_index.set(None);
         }
@@ -4373,6 +5339,7 @@ mod construction_trace {
             TraceMark {
                 phase: self.phase.get(),
                 statement_index: self.statement_index.get(),
+                result_custody: self.result_custody.get(),
             }
         }
 
@@ -4381,6 +5348,7 @@ mod construction_trace {
             self.declined_step.set(None);
             self.phase.set(mark.phase);
             self.statement_index.set(mark.statement_index);
+            self.result_custody.set(mark.result_custody);
         }
 
         pub(crate) fn decline_mark(&self) -> DeclineMark {
@@ -4407,6 +5375,7 @@ mod construction_trace {
         pub(crate) fn statement(&self, index: Option<u32>) {
             self.declined_step.set(None);
             self.statement_index.set(index);
+            self.result_custody.set(None);
         }
 
         /*
@@ -4417,6 +5386,11 @@ mod construction_trace {
         pub(crate) fn state(&self, state: Option<SymbolHandle>) {
             self.declined_step.set(None);
             self.state.set(state);
+            self.result_custody.set(None);
+        }
+
+        pub(crate) fn result_custody_failure(&self, failure: ResultCustodyFailure) {
+            self.result_custody.set(Some(failure));
         }
 
         /*
@@ -4446,6 +5420,20 @@ mod construction_trace {
                     ),
                     _ => std::borrow::Cow::Borrowed(self.phase.get()),
                 };
+            let phase = match self.result_custody.get() {
+                Some(failure) => {
+                    let [implicit, call, cleanup, construction, reference, view] =
+                        failure.dispositions;
+                    std::borrow::Cow::Owned(format!(
+                        "{phase}; result home {} local {:?}, producer operation {}, normal caller completion {}; dispositions: implicit={implicit}, call={call}, cleanup={cleanup}, construction={construction}, reference={reference}, view={view}",
+                        failure.binding,
+                        failure.local,
+                        failure.producer_operation,
+                        failure.normal_caller_completion,
+                    ))
+                }
+                None => phase,
+            };
             plan_gap(
                 program,
                 machine,
@@ -4658,6 +5646,205 @@ pub(in crate::execution::terminal_unit) mod scalar_arrays {
             validation::assignment_stored_value_type(program, machine, state, assignment)?,
         )?;
         validation::scalar_array_preserves_memberships(program, expected).then_some(expected)
+    }
+}
+pub(in crate::execution::terminal_unit) mod selected_copies {
+    //! Associate selected returns with their completed payload reads once. Both
+    //! scalar and structural consumers use the same checked target and copy list.
+
+    use super::CheckFacts;
+    use checked_trees::{CheckedScalarBranchDestination, CheckedScalarReturnCopies};
+    use std::collections::BTreeMap;
+    use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+
+    pub(in crate::execution::terminal_unit) struct SelectedCopies<'a> {
+        program: &'a dyn validation::CheckingInput,
+        state: &'a typed_trees::state::State,
+        outgoing:
+            BTreeMap<(usize, u32, u32), Option<Vec<checked_trees::CheckedSelectedPayloadCopy>>>,
+    }
+
+    impl<'a> SelectedCopies<'a> {
+        pub(in crate::execution::terminal_unit) fn new(
+            program: &'a dyn validation::CheckingInput,
+            facts: &'a CheckFacts,
+            machine: symbols::SymbolHandle,
+            state: &'a typed_trees::state::State,
+        ) -> Option<Self> {
+            let flow = super::super::types::state_flow(facts, machine, state.symbol)?;
+            let mut outgoing = BTreeMap::new();
+            for row in facts.flow.control.outgoing.span(flow.outgoing)? {
+                if row.machine_symbol != machine || row.state_symbol != state.symbol {
+                    return None;
+                }
+                let target = row.transition_target;
+                let mut values = Vec::new();
+                for copy in facts.flow.control.operands.span(row.copied_payloads)? {
+                    let checked_trees::FlowOperandCompletion::Copied { copy: identity, .. } =
+                        copy.completion
+                    else {
+                        return None;
+                    };
+                    if copy.state_symbol != state.symbol
+                        || copy.statement_index != row.statement_index
+                        || copy.evaluation
+                            != checked_trees::FlowPermissionEvaluation::TransitionTarget(target)
+                    {
+                        return None;
+                    }
+                    if program
+                        .primitive_type_reference(copy.type_reference)
+                        .is_some()
+                        && validation::reference_shell(program, copy.type_reference).is_none()
+                    {
+                        continue;
+                    }
+                    let root = facts.values.structural_values.root_for_captured_copy(
+                        state.symbol,
+                        u32::try_from(row.statement_index).ok()?,
+                        identity,
+                    )?;
+                    if root.machine != machine
+                        || root.state != state.symbol
+                        || root.type_reference != copy.type_reference
+                        || root.statement_ordinal as usize != row.statement_index
+                        || !validation::type_satisfies_declared_property(
+                            program,
+                            &[],
+                            root.type_reference,
+                            validation::DeclaredPropertyRequirement::Copy,
+                        )
+                        || !validation::has_contents(
+                            program,
+                            root.type_reference,
+                            &[],
+                            validation::ContentsRequirement::DescriptorCleanup,
+                        )
+                    {
+                        return None;
+                    }
+                    values.push(checked_trees::CheckedSelectedPayloadCopy {
+                        value: root.root,
+                        type_identity: validation::stored_structural_type_identity(
+                            program,
+                            root.type_reference,
+                            &[],
+                            &[],
+                        ),
+                    });
+                }
+                outgoing
+                    .entry((
+                        row.statement_index,
+                        target.arena_index(),
+                        target.generation(),
+                    ))
+                    .and_modify(|captured| *captured = None)
+                    .or_insert(Some(values));
+            }
+            Some(Self {
+                program,
+                state,
+                outgoing,
+            })
+        }
+
+        pub(in crate::execution::terminal_unit) fn into_rows(
+            self,
+        ) -> Option<Vec<checked_trees::CheckedSelectedPayloadCopies>> {
+            self.outgoing
+                .into_iter()
+                .map(|((statement, index, generation), values)| {
+                    Some(checked_trees::CheckedSelectedPayloadCopies {
+                        statement_ordinal: u32::try_from(statement).ok()?,
+                        transition_target: arena::Handle::from_parts(index, generation),
+                        values: values?,
+                    })
+                })
+                .collect()
+        }
+
+        /// Several decision paths may enter one authored return. Publish its birth
+        /// and cleanup coordinate once, in first-use order; disagreement refuses.
+        pub(in crate::execution::terminal_unit) fn for_destinations<'b>(
+            &self,
+            destinations: impl IntoIterator<Item = &'b CheckedScalarBranchDestination>,
+        ) -> Option<Vec<CheckedScalarReturnCopies>> {
+            let mut positions = BTreeMap::new();
+            let mut selected = Vec::new();
+            for destination in destinations {
+                let (_, row) = self.for_destination(destination)?;
+                let key = (row.statement_ordinal, row.is_continuation);
+                if let Some(&position) = positions.get(&key) {
+                    if selected.get(position) != Some(&row) {
+                        return None;
+                    }
+                } else {
+                    positions.insert(key, selected.len());
+                    selected.push(row);
+                }
+            }
+            Some(selected)
+        }
+
+        pub(in crate::execution::terminal_unit) fn for_destination(
+            &self,
+            destination: &CheckedScalarBranchDestination,
+        ) -> Option<(
+            typed_trees::expression::ExpressionHandle,
+            CheckedScalarReturnCopies,
+        )> {
+            let CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation,
+            } = destination
+            else {
+                return None;
+            };
+            let (expression, target, copied_payloads) = match self
+                .program
+                .statement_table
+                .statement_at(self.state, *statement_ordinal as usize)?
+            {
+                StatementNode::Expression(expression) if !is_continuation => {
+                    (*expression, Default::default(), Vec::new())
+                }
+                StatementNode::Transition(transition)
+                    if transition.exit == TransitionExit::Ordinary =>
+                {
+                    let target = if *is_continuation {
+                        transition.continuation
+                    } else {
+                        transition.target
+                    };
+                    let TransitionTargetNode::Value(expression) =
+                        self.program.statement_table.transition_target(target)
+                    else {
+                        return None;
+                    };
+                    let copies = self
+                        .outgoing
+                        .get(&(
+                            *statement_ordinal as usize,
+                            target.arena_index(),
+                            target.generation(),
+                        ))
+                        .cloned()
+                        .flatten()?;
+                    (*expression, target, copies)
+                }
+                _ => return None,
+            };
+            Some((
+                expression,
+                CheckedScalarReturnCopies {
+                    statement_ordinal: *statement_ordinal,
+                    is_continuation: *is_continuation,
+                    transition_target: target,
+                    copied_payloads,
+                },
+            ))
+        }
     }
 }
 #[path = "execution_terminal_unit_control_statement_sequence.rs"]
@@ -5721,14 +6908,14 @@ pub(crate) use boundary_machine::{
     build_boundary_machine, build_dynamic_slot_plans, build_static_boundary_requirements,
 };
 pub(super) use call_occurrences::{
-    call_owns_statement_computations, completion_expression, outer_calls_in_prefix_traced,
-    terminal_invocation,
+    SelectedInvocationAccounting, call_owns_statement_computations, completion_expression,
+    outer_calls_in_prefix_traced, terminal_invocation,
 };
 pub(crate) use call_results::{
     bind_scalar_call_result, bind_structural_call_result, checked_structural_result_type,
 };
 pub(crate) use checked_machine::build_checked_machine_residual_parts;
-pub(crate) use construction_trace::LocalConstructionTrace;
+pub(crate) use construction_trace::{LocalConstructionTrace, ResultCustodyFailure};
 
 use super::{
     CheckFacts, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,

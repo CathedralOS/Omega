@@ -2850,6 +2850,7 @@ mod initialized_locals {
     }
 }
 mod local_storage {
+
     /*
         Named storage and immutable production results have different lifetimes.
         A rebind transfers its RHS into a local home and retires that production
@@ -2939,7 +2940,7 @@ mod local_storage {
     ) -> Option<SourcePlan> {
         match operand {
             SourcePlan::StructuralLocal { symbol } => source(program, state, operations, *symbol),
-            SourcePlan::StructuralExpression { expression } => {
+            SourcePlan::StructuralExpression { expression, .. } => {
                 let mut matching = results.iter().filter(|(binding, root)| {
                     *root == facts::PlaceRoot::Expression(*expression)
                         && operations
@@ -3518,6 +3519,7 @@ pub(crate) mod scalar_return_expressions {
     }
 }
 mod scalar_targets {
+
     /*
         Ordinary scalar calls retain an existing body plan, never a fabricated one:
         the callee's scalar-result state graph or its ordinary scalar-result body.
@@ -3589,18 +3591,30 @@ mod scalar_targets {
             if !owns(&operations) {
                 let mut selected = None;
                 for arm in state.terminator.return_arms() {
-                    let dependencies = arm.operation_dependencies().collect::<Vec<_>>();
+                    for dependencies in arm.operation_scopes() {
+                        if owns(&dependencies) && selected.replace(dependencies).is_some() {
+                            return None;
+                        }
+                    }
+                }
+                if let checked_trees::CheckedComposedUnitControlTerminatorPlan::CompleteExpression {
+                completion,
+            } = &state.terminator
+            {
+                for operations in completion.expression.invocation_scopes() {
+                    let dependencies = operations.iter().collect::<Vec<_>>();
                     if owns(&dependencies) && selected.replace(dependencies).is_some() {
                         return None;
                     }
                 }
+            }
                 if let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
                     return_values,
                     ..
                 } = &state.terminator
                 {
                     for returned in return_values {
-                        let dependencies = vec![returned];
+                        let dependencies = vec![&returned.operation];
                         if owns(&dependencies) && selected.replace(dependencies).is_some() {
                             return None;
                         }
@@ -3928,6 +3942,7 @@ mod scalar_targets {
 #[path = "execution_terminal_unit_state_graph.rs"]
 pub(crate) mod state_graph;
 mod storage_transfers {
+
     /*
         Current custody follows the retained value graph into its receiving leaf.
         Possible transfers fence disposal of the original slot. Definite transfers
@@ -3960,6 +3975,7 @@ mod storage_transfers {
     use typed_trees::data::DataMember;
 
     mod completion {
+
         /*
             Keep referenced data alive through the last return or call argument using it.
             Read the body's prepared completion plan so cleanup follows its selected
@@ -3975,7 +3991,101 @@ mod storage_transfers {
         };
         use symbols::SymbolHandle;
 
+        mod expressions {
+            //! Normal alternatives retain their own invocation and the predicates that
+            //! precede them. An aborted alternative cannot justify normal cleanup.
+
+            use super::{Query, Transfers};
+            use checked_trees::{
+                CheckedUnitCompletionExpression, CheckedUnitCompletionKind,
+                CheckedUnitCompletionPlan,
+            };
+
+            impl Query<'_> {
+                pub(super) fn completion_expression(
+                    &self,
+                    plan: &CheckedUnitCompletionPlan,
+                ) -> Result<Transfers, &'static str> {
+                    self.completion_node(&plan.expression)?
+                        .ok_or("completion cleanup: expression has no normal transfer path")
+                }
+
+                fn completion_node(
+                    &self,
+                    node: &CheckedUnitCompletionExpression,
+                ) -> Result<Option<Transfers>, &'static str> {
+                    if !node.normal_continuation {
+                        return Ok(None);
+                    }
+                    if let CheckedUnitCompletionKind::Invocation(operations) = &node.kind {
+                        return self.operation_sequence(operations.iter()).map(Some);
+                    }
+                    let subject = node
+                        .subject()
+                        .ok_or("completion cleanup: selected subject is missing")?;
+                    let mut scope = self.clone();
+                    let mut subject_transfers = scope
+                        .dispatch_subject(&subject)
+                        .ok_or("completion cleanup: selected subject has incomplete transfers")?;
+                    match subject {
+                        checked_trees::CheckedDispatchSubject::Scalar(value) => {
+                            scope.completed_computations.push(value)
+                        }
+                        checked_trees::CheckedDispatchSubject::Structural { value, .. }
+                            if value.is_valid() =>
+                        {
+                            scope.established_values.push(value)
+                        }
+                        checked_trees::CheckedDispatchSubject::Structural { .. } => {}
+                    }
+                    let mut prefixes = Vec::new();
+                    for (pattern, _) in node.arms() {
+                        let mut transfers = Transfers::default();
+                        if let Some(computation) = pattern {
+                            transfers = scope.computation(computation).ok_or(
+                                "completion cleanup: selected pattern has incomplete transfers",
+                            )?;
+                            scope.completed_computations.push(computation);
+                        }
+                        prefixes.push((transfers, scope.completed_computations.len()));
+                    }
+                    let mut remaining = None;
+                    let mut possible = Vec::new();
+                    for ((_, child), (mut prefix, completed)) in
+                        node.arms().rev().zip(prefixes.into_iter().rev())
+                    {
+                        scope.completed_computations.truncate(completed);
+                        let mut child = scope.completion_node(child)?;
+                        // These are named possible destinations, not execution events.
+                        // Do not copy them repeatedly while joining definite paths.
+                        if let Some(child) = &mut child {
+                            possible.append(&mut child.possible);
+                        }
+                        let joined = match (child, remaining) {
+                            (Some(child), Some(fallback)) => {
+                                Some(Transfers::alternatives(vec![child, fallback]))
+                            }
+                            (child, fallback) => child.or(fallback),
+                        };
+                        remaining = if let Some(joined) = joined {
+                            possible.append(&mut prefix.possible);
+                            prefix.append(joined);
+                            Some(prefix)
+                        } else {
+                            None
+                        };
+                    }
+                    let remaining = remaining
+                        .ok_or("completion cleanup: normal dispatch has no normal alternative")?;
+                    possible.append(&mut subject_transfers.possible);
+                    subject_transfers.append(remaining);
+                    subject_transfers.possible = possible;
+                    Ok(Some(subject_transfers))
+                }
+            }
+        }
         mod plans {
+
             /*
                 Follow each selected branch in source order. Cleanup for one branch must
                 not include operands belonging to another.
@@ -4002,6 +4112,7 @@ mod storage_transfers {
             #[derive(Clone, Copy)]
             pub(super) enum CompletionOutcome<'a> {
                 Prefix,
+                Completion(&'a checked_trees::CheckedUnitCompletionPlan),
                 Scalar,
                 Structural(&'a CheckedUnitStructuralReturnPlan),
                 Operation(&'a CheckedUnitEffectOperationPlan),
@@ -4014,6 +4125,7 @@ mod storage_transfers {
                 pub(super) fn has_normal_completion(self) -> bool {
                     match self {
                         Self::NoNormal => false,
+                        Self::Completion(plan) => plan.expression.normal_continuation,
                         Self::Arm(arm) => arm.has_normal_continuation(),
                         Self::Successor(successor) => successor.has_normal_caller_completion(),
                         Self::Operation(operation) => operation.has_normal_continuation(),
@@ -4170,42 +4282,42 @@ mod storage_transfers {
                     program, facts, machine, state,
                 )?;
                 paths
-                    .iter()
-                    .map(|path| {
-                        let CheckedScalarBranchDestination::Return {
-                            statement_ordinal,
-                            is_continuation,
-                        } = path.destination
-                        else {
-                            return Err(
-                                "completion cleanup: a scalar return has no exact returning destination",
-                            );
-                        };
-                        let mut matching = exits.iter().filter(|exit| {
-                            exit.statement_index == statement_ordinal as usize
-                                && if is_continuation {
-                                    exit.kind == FlowClaimJoinExitKind::TransitionContinuation
-                                } else {
-                                    matches!(
-                                        exit.kind,
-                                        FlowClaimJoinExitKind::TransitionTarget
-                                            | FlowClaimJoinExitKind::FinalExpression
-                                    )
-                                }
-                        });
-                        let exit = *matching
-                            .next()
-                            .ok_or("completion cleanup: the scalar return has no checked source exit")?;
-                        if matching.next().is_some() {
-                            return Err("completion cleanup: the scalar return has ambiguous source exits");
+            .iter()
+            .map(|path| {
+                let CheckedScalarBranchDestination::Return {
+                    statement_ordinal,
+                    is_continuation,
+                } = path.destination
+                else {
+                    return Err(
+                        "completion cleanup: a scalar return has no exact returning destination",
+                    );
+                };
+                let mut matching = exits.iter().filter(|exit| {
+                    exit.statement_index == statement_ordinal as usize
+                        && if is_continuation {
+                            exit.kind == FlowClaimJoinExitKind::TransitionContinuation
+                        } else {
+                            matches!(
+                                exit.kind,
+                                FlowClaimJoinExitKind::TransitionTarget
+                                    | FlowClaimJoinExitKind::FinalExpression
+                            )
                         }
-                        Ok(CompletionPath {
-                            exit: Some(exit),
-                            guards: path.guard_ordinals().map(Guard::Role).collect(),
-                            outcome: CompletionOutcome::Scalar,
-                        })
-                    })
-                    .collect()
+                });
+                let exit = *matching
+                    .next()
+                    .ok_or("completion cleanup: the scalar return has no checked source exit")?;
+                if matching.next().is_some() {
+                    return Err("completion cleanup: the scalar return has ambiguous source exits");
+                }
+                Ok(CompletionPath {
+                    exit: Some(exit),
+                    guards: path.guard_ordinals().map(Guard::Role).collect(),
+                    outcome: CompletionOutcome::Scalar,
+                })
+            })
+            .collect()
             }
 
             impl<'a> ComposedCompletion<'a> {
@@ -4226,6 +4338,15 @@ mod storage_transfers {
                                 guards: Vec::new(),
                                 outcome: CompletionOutcome::NoNormal,
                             });
+                        }
+                        Terminator::CompleteExpression { completion } => {
+                            output = direct_paths(
+                                program,
+                                facts,
+                                machine,
+                                state,
+                                CompletionOutcome::Completion(completion),
+                            )?;
                         }
                         Terminator::ReturnUnit
                         | Terminator::ReturnScalar {
@@ -4331,14 +4452,14 @@ mod storage_transfers {
                                 output.push(self.scalar_destination(
                                     &arm.destination,
                                     &guards,
-                                    &return_values[index],
+                                    &return_values[index].operation,
                                 )?);
                             }
                             if let Some(fallback) = fallback {
                                 output.push(self.scalar_destination(
                                     fallback,
                                     &guards,
-                                    &return_values[arms.len()],
+                                    &return_values[arms.len()].operation,
                                 )?);
                             }
                         }
@@ -4751,6 +4872,7 @@ mod storage_transfers {
             ) -> Result<Transfers, &'static str> {
                 match path.outcome {
                     CompletionOutcome::Prefix => Ok(Transfers::default()),
+                    CompletionOutcome::Completion(plan) => self.completion_expression(plan),
                     CompletionOutcome::Structural(result) => {
                         let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
                             projection_evaluations: Default::default(),
@@ -4808,13 +4930,13 @@ mod storage_transfers {
                     .scalar_expressions
                     .bound_expression_at(state, statement, role);
                 match (roots.next(), pure) {
-                    (Some(root), None) if roots.next().is_none() => self
-                        .computation(root.root)
-                        .ok_or("completion cleanup: cannot follow the final expression's owned arguments"),
-                    (None, Some(_)) => Ok(Transfers::default()),
-                    (None, None) => Err("completion cleanup: final expression has no retained value"),
-                    _ => Err("completion cleanup: final expression has conflicting retained values"),
-                }
+                (Some(root), None) if roots.next().is_none() => self.computation(root.root).ok_or(
+                    "completion cleanup: cannot follow the final expression's owned arguments",
+                ),
+                (None, Some(_)) => Ok(Transfers::default()),
+                (None, None) => Err("completion cleanup: final expression has no retained value"),
+                _ => Err("completion cleanup: final expression has conflicting retained values"),
+            }
             }
 
             fn outgoing_argument(
@@ -4884,6 +5006,10 @@ mod storage_transfers {
                 use checked_trees::CheckedConditionalReturnArm as Arm;
                 match arm {
                     Arm::Unit { .. } => Ok(Transfers::default()),
+                    Arm::Completion(plan) => self.completion_expression(plan),
+                    Arm::EvaluateUnit { operations, .. } => {
+                        self.operation_sequence(operations.iter())
+                    }
                     Arm::Scalar {
                         statement_ordinal, ..
                     } => self.scalar_role(
@@ -5465,9 +5591,9 @@ mod storage_transfers {
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 *root == PlaceRoot::Symbol(*symbol)
             }
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                *root == PlaceRoot::Expression(*expression)
-            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression, ..
+            } => *root == PlaceRoot::Expression(*expression),
             _ => false,
         });
         let source_is_unrestricted = bindings.next().is_some_and(|(result, _)| {
@@ -5823,8 +5949,9 @@ mod storage_transfers {
             if self.belongs(argument) {
                 return Some(self.leaf(argument.path.clone(), receiver.destination(&[])));
             }
-            let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
-                argument.source
+            let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression, ..
+            } = argument.source
             else {
                 return Some(Transfers::default());
             };
@@ -7342,9 +7469,9 @@ pub(crate) fn build_checked_unit_effect_plans(
         })
         .flatten()
         .filter_map(|argument| match argument.as_place()?.source {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                Some(expression)
-            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression, ..
+            } => Some(expression),
             _ => None,
         })
         .flat_map(|expression| {

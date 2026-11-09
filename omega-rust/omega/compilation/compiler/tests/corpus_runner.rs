@@ -44,8 +44,9 @@
 //! `OMEGA_CORPUS_NATIVE=1` switches to the native leg for the host target:
 //! every pass and run fixture is built as a published native executable
 //! (status `built`), fail fixtures are skipped, and run fixtures and pass
-//! fixtures named `*_exit` or carrying `expected_native_exit.txt` (or this
-//! host's `expected_native_exit.<target>.txt`) are executed
+//! fixtures named `*_exit`, declaring an `Expected exit:` header, or carrying
+//! `expected_native_exit.txt` (or this host's
+//! `expected_native_exit.<target>.txt`) are executed
 //! in a fresh temporary directory with
 //! `input.txt` as stdin. `OMEGA_CORPUS_NATIVE_TARGET=<target>` builds for
 //! another catalogued target instead; its products execute only where this
@@ -57,7 +58,7 @@
 //! or `stderr:differs`; failed captures/oracle reads record `unavailable`.
 //!
 //! `OMEGA_CORPUS_INTERPRET=1` also executes each runnable fixture (the run
-//! tier, `*_exit` and explicit native-exit fixtures) through the admitted
+//! tier, `*_exit`, and authored exit or stream oracles) through the admitted
 //! Terminal program/instance core for the host target (or the first target the
 //! fixture's build binds). Exact entry/host provisions still missing produce
 //! named pre-effect capability diagnostics; no checked-tree fallback supplies
@@ -166,6 +167,8 @@ mod native_fixture_cohort;
 use native_fixture_cohort::retained_native_terminal;
 #[path = "support/output_oracles.rs"]
 mod output_oracles;
+#[path = "support/runtime_oracles.rs"]
+mod runtime_oracles;
 #[path = "support/terminal_execution.rs"]
 mod terminal_execution;
 #[path = "support/terminal_inspection.rs"]
@@ -1676,13 +1679,19 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         .to_string_lossy()
         .replace('\\', "/");
     let mut facts = Vec::new();
+    let exit_header = runtime_oracles::exit_oracle(main, None, false, None)
+        .ok()
+        .flatten()
+        .is_some();
     let terminal_target_oracle = fixture_dir.join(terminal_execution::TARGET_ORACLE).exists();
     // A host-specific oracle promises this host's physical presentation of
     // the exit status; it overrides the portable one in `tools/corpus_gate.py`.
     let runnable = tier == "run"
         || rel.ends_with("_exit")
+        || exit_header
         || terminal_target_oracle
         || fixture_dir.join("expected_native_exit.txt").is_file()
+        || fixture_dir.join("expected_interpreter_exit.txt").is_file()
         || fixture_dir.join("expected_stdout.txt").is_file()
         || fixture_dir.join("expected_stderr.txt").is_file()
         || target::TargetProfile::host_if_supported().is_some_and(|host| {

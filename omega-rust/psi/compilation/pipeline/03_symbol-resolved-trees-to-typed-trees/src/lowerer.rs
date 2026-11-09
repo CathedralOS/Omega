@@ -1624,7 +1624,12 @@ pub fn lower_symbol_resolved_trees(
 ) -> Result<TypedTrees, Diagnostic> {
     validate_resolved_semantics(symbol_resolved_trees)?;
     let mut lowerer = Lowerer {
-        typed_trees: TypedTrees::default(),
+        // Type arguments are classified while expressions are lowered, so the
+        // initial pass needs the resolved symbols from the start.
+        typed_trees: TypedTrees {
+            symbols: symbol_resolved_trees.symbols.clone(),
+            ..TypedTrees::default()
+        },
         source_trees: symbol_resolved_trees,
         equality_scope: None,
         type_reference_exposure:
@@ -2127,7 +2132,6 @@ impl Lowerer<'_> {
     }
 
     pub(crate) fn finish(mut self, cohort: &TypingCohort<'_>) -> Result<TypedTrees, Diagnostic> {
-        self.typed_trees.symbols = self.source_trees.symbols.clone();
         crate::lowerer::progress::normalize_trait_progress_premises(&mut self.typed_trees)?;
         self.typed_trees =
             rebuild_fresh_typed_trees(std::mem::take(&mut self.typed_trees), self.source_trees);

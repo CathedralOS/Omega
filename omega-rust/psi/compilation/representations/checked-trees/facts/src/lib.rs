@@ -119,6 +119,235 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn owned_qualification_batches_keep_prefix_and_complete_record_identity() {
+        use crate::{ContractFactKind, FloatPredicate, QualificationProvenance};
+        use numerics::literals::FloatFormat;
+        let mut plan = FactPlan::default();
+        let root = PlaceRoot::Symbol(SymbolHandle::from_parts(10, 1));
+        let mut place = |root, segments: &[PlaceSegment]| {
+            let mut span = HandleSpan::empty();
+            for segment in segments {
+                plan.place_segments.append_to_span(&mut span, *segment);
+            }
+            plan.places.append(crate::Place {
+                root,
+                segments: span,
+            })
+        };
+        let path = [PlaceSegment::FixedIndex { index: 3 }];
+        let first_place = place(root, &path);
+        let same_place = place(root, &path);
+        let sibling = place(root, &[PlaceSegment::FixedIndex { index: 4 }]);
+        let next_generation = place(PlaceRoot::Symbol(SymbolHandle::from_parts(10, 2)), &path);
+        let base = Fact {
+            place: FactPlace::Place(first_place),
+            payload: FactPayload::DomainMembership {
+                value: Default::default(),
+                domain: HandleSpan::empty(),
+                domain_symbol: SymbolHandle::from_parts(20, 1),
+                semantic_domain: Default::default(),
+            },
+            ..Default::default()
+        };
+        let mut same = base;
+        same.place = FactPlace::Place(same_place);
+        same.origin = FactOrigin::StatementTransfer;
+        same.point = ProgramPoint::Definition {
+            symbol: SymbolHandle::from_parts(30, 1),
+        };
+        // Different display/value fields and the contract tag are not part of
+        // duplicate identity. The selected domain and its identity still are.
+        let contract = Fact {
+            payload: FactPayload::ContractDomainMembership {
+                kind: ContractFactKind::default(),
+                fact: Default::default(),
+                value: typed_trees::expression::ExpressionHandle::from_parts(40, 1),
+                domain: HandleSpan::from_parts(arena::Handle::from_parts(50, 2), 1),
+                domain_symbol: SymbolHandle::from_parts(20, 1),
+                semantic_domain: Default::default(),
+            },
+            ..same
+        };
+        let mut evidence = same;
+        evidence.evidence.provenance = QualificationProvenance::Independent;
+        let mut issuer = same;
+        issuer.evidence.issuer = arena::Handle::from_parts(5, 2);
+        let mut domain = same;
+        domain.payload = FactPayload::DomainMembership {
+            value: Default::default(),
+            domain: HandleSpan::empty(),
+            domain_symbol: SymbolHandle::from_parts(20, 2),
+            semantic_domain: Default::default(),
+        };
+        let float = Fact {
+            payload: FactPayload::FloatPredicate {
+                predicate: FloatPredicate::non_nan(FloatFormat::F32),
+            },
+            ..same
+        };
+        let other_float = Fact {
+            payload: FactPayload::FloatPredicate {
+                predicate: FloatPredicate::non_nan(FloatFormat::F64),
+            },
+            ..same
+        };
+        let unsupported = Fact {
+            payload: FactPayload::default(),
+            ..same
+        };
+        let bound = Fact {
+            payload: FactPayload::FloatPredicate {
+                predicate: FloatPredicate::comparison(
+                    FloatFormat::F32,
+                    typed_trees::expression::BinaryOperator::Greater,
+                    &numerics::bignum::ExactFloat::from_f32(1.0),
+                )
+                .unwrap(),
+            },
+            ..same
+        };
+        let mut origin = same;
+        origin.evidence.origin = language_semantics::QualificationEvidenceOrigin::Propagated;
+        let mut source = same;
+        source.evidence.source_symbol = SymbolHandle::from_parts(30, 1);
+        let mut requirement = same;
+        requirement.evidence.requirement_symbol = SymbolHandle::from_parts(30, 1);
+        let mut identity = same;
+        identity.payload = FactPayload::DomainMembership {
+            value: Default::default(),
+            domain: HandleSpan::empty(),
+            domain_symbol: SymbolHandle::from_parts(20, 1),
+            semantic_domain: language_semantics::SemanticDomainTable::WRAPPING,
+        };
+        let rows = [
+            base,
+            base,
+            same,
+            contract,
+            evidence,
+            issuer,
+            domain,
+            Fact {
+                place: FactPlace::Place(sibling),
+                ..same
+            },
+            Fact {
+                place: FactPlace::Place(next_generation),
+                ..same
+            },
+            float,
+            float,
+            other_float,
+            unsupported,
+            unsupported,
+            bound,
+            origin,
+            source,
+            requirement,
+            identity,
+        ];
+        assert_ne!(first_place, same_place);
+        assert_eq!(
+            plan.fact_place_bucket_hash(base.place),
+            plan.fact_place_bucket_hash(same.place)
+        );
+        assert_eq!(
+            plan.first_owned_qualification_positions(&rows, 2),
+            [
+                0, 1, 0, 0, 4, 5, 6, 7, 8, 9, 9, 11, 12, 13, 14, 15, 16, 17, 18
+            ]
+        );
+        // A fresh batch must see changed input records rather than a retained
+        // duplicate decision from the previous call.
+        let mut changed = rows;
+        changed[2].evidence = evidence.evidence;
+        assert_eq!(plan.first_owned_qualification_positions(&changed, 2)[2], 2);
+    }
+
+    #[test]
+    fn owned_qualification_buckets_avoid_cross_place_comparisons() {
+        let mut plan = FactPlan::default();
+        let root = PlaceRoot::Symbol(SymbolHandle::from_parts(10, 1));
+        let mut prefix = Vec::new();
+        for index in 0..512 {
+            let mut segments = HandleSpan::empty();
+            plan.place_segments
+                .append_to_span(&mut segments, PlaceSegment::FixedIndex { index });
+            let place = plan.places.append(crate::Place { root, segments });
+            prefix.push(Fact {
+                place: FactPlace::Place(place),
+                payload: FactPayload::DomainMembership {
+                    value: Default::default(),
+                    domain: HandleSpan::empty(),
+                    domain_symbol: SymbolHandle::from_parts(20, 1),
+                    semantic_domain: Default::default(),
+                },
+                ..Default::default()
+            });
+        }
+        let mut rows = prefix.clone();
+        rows.extend_from_slice(&prefix);
+        rows.extend(prefix.iter().rev().copied());
+        let start = std::time::Instant::now();
+        let buckets = crate::places::PlaceBucketIndex::new(
+            rows.iter()
+                .map(|fact| plan.fact_place_bucket_hash(fact.place)),
+        );
+        let preparation = start.elapsed();
+        let collisions = crate::places::PlaceBucketIndex::new(rows.iter().map(|_| 0));
+        let mut direct_comparisons = 0;
+        let mut bucket_comparisons = 0;
+        let mut collision_comparisons = 0;
+        let mut expected: Vec<_> = (0..prefix.len()).collect();
+        // Every new row in this batch duplicates the original prefix. Count
+        // the actual first-match work, rather than all possible bucket pairs.
+        for position in prefix.len()..rows.len() {
+            let same_place =
+                |prior: usize| plan.fact_places_equal(rows[prior].place, rows[position].place);
+            let direct = (0..prefix.len())
+                .find(|prior| {
+                    direct_comparisons += 1;
+                    same_place(*prior)
+                })
+                .unwrap();
+            let prepared = buckets
+                .candidates(plan.fact_place_bucket_hash(rows[position].place))
+                .take_while(|prior| *prior < prefix.len())
+                .find(|prior| {
+                    bucket_comparisons += 1;
+                    same_place(*prior)
+                })
+                .unwrap();
+            let collided = collisions
+                .candidates(0)
+                .take_while(|prior| *prior < prefix.len())
+                .find(|prior| {
+                    collision_comparisons += 1;
+                    same_place(*prior)
+                })
+                .unwrap();
+            assert_eq!(direct, prepared);
+            assert_eq!(direct, collided);
+            expected.push(direct);
+        }
+        assert_eq!(
+            plan.first_owned_qualification_positions(&rows, prefix.len()),
+            expected
+        );
+        assert_eq!(bucket_comparisons, 1024);
+        assert_eq!(direct_comparisons, 262656);
+        assert_eq!(collision_comparisons, direct_comparisons);
+        println!(
+            "qualification batch: {} rows prepared in {:?}; direct {} comparisons; bucket {} comparisons; collision {} comparisons",
+            rows.len(),
+            preparation,
+            direct_comparisons,
+            bucket_comparisons,
+            collision_comparisons
+        );
+    }
+
+    #[test]
     fn clone_from_replaces_every_fact_root_with_the_source_snapshot() {
         let mut source = FactPlan::default();
         source.places.append(Default::default());
@@ -923,6 +1152,46 @@ pub struct FactPlan {
     pub symbol_sets: Arena<SymbolFactSet>,
 }
 
+/// Read one context's assignment records for a root in their original order.
+pub struct RootAssignmentFacts<'plan> {
+    plan: &'plan FactPlan,
+    root: PlaceRoot,
+    assignments: std::slice::Iter<'plan, AssignedFactRef>,
+    finished: bool,
+}
+
+impl<'plan> Iterator for RootAssignmentFacts<'plan> {
+    type Item = &'plan Fact;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+        for assignment in self.assignments.by_ref() {
+            if assignment.root.group_key() != self.root.group_key() {
+                self.finished = true;
+                return None;
+            }
+            if assignment.root == self.root {
+                return Some(self.plan.facts.get(assignment.fact));
+            }
+        }
+        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (
+            0,
+            Some(if self.finished {
+                0
+            } else {
+                self.assignments.len()
+            }),
+        )
+    }
+}
+
 macro_rules! fact_plan_root_impls {
     ($($root:ident),* $(,)?) => {
         impl Clone for FactPlan {
@@ -1301,15 +1570,16 @@ impl FactPlan {
         &self,
         context: &FactContext,
         root: PlaceRoot,
-    ) -> impl Iterator<Item = &Fact> {
+    ) -> RootAssignmentFacts<'_> {
         let assignments = self.assigned_refs.span_or_empty(context.assignments);
         let key = root.group_key();
         let start = assignments.partition_point(|assignment| assignment.root.group_key() < key);
-        assignments[start..]
-            .iter()
-            .take_while(move |assignment| assignment.root.group_key() == key)
-            .filter(move |assignment| assignment.root == root)
-            .map(|assignment| self.facts.get(assignment.fact))
+        RootAssignmentFacts {
+            plan: self,
+            root,
+            assignments: assignments[start..].iter(),
+            finished: false,
+        }
     }
 
     pub fn append_symbol_set(
@@ -1466,6 +1736,60 @@ impl FactPlan {
             FactPlace::TypeReference(reference) => reference.hash(&mut hash),
         }
         hash.finish()
+    }
+
+    /// Find the first occurrence of each transferred qualification in one batch.
+    /// Place hashes only narrow the search; evidence and payload retain their
+    /// full duplicate comparison. Distinct arena spans can name the same path.
+    /// The existing prefix is left untouched, including any duplicates in it.
+    /// Only supported membership and float payloads suppress a new occurrence.
+    pub fn first_owned_qualification_positions(
+        &self,
+        facts: &[Fact],
+        existing: usize,
+    ) -> Vec<usize> {
+        let buckets = places::PlaceBucketIndex::new(
+            facts
+                .iter()
+                .map(|fact| self.fact_place_bucket_hash(fact.place)),
+        );
+        let mut first: Vec<_> = (0..facts.len()).collect();
+        for position in existing..facts.len() {
+            let fact = &facts[position];
+            let previous = buckets
+                .candidates(self.fact_place_bucket_hash(fact.place))
+                .take_while(|prior| *prior < position)
+                .filter(|prior| *prior < existing || first[*prior] == *prior)
+                .find(|prior| {
+                    let prior = &facts[*prior];
+                    prior.evidence == fact.evidence
+                        && matches!((prior.place, fact.place),
+                    (FactPlace::Place(prior_place), FactPlace::Place(place))
+                    if self.places_equal(prior_place, place))
+                        && match (prior.payload, fact.payload) {
+                            (
+                                FactPayload::FloatPredicate { predicate: left },
+                                FactPayload::FloatPredicate { predicate: right },
+                            ) => left == right,
+                            (prior, transferred) => prior
+                                .domain_membership()
+                                .zip(transferred.domain_membership())
+                                .is_some_and(
+                                    |(
+                                        (_, _, left_symbol, left_identity),
+                                        (_, _, right_symbol, right_identity),
+                                    )| {
+                                        left_symbol == right_symbol
+                                            && left_identity == right_identity
+                                    },
+                                ),
+                        }
+                });
+            if let Some(previous) = previous {
+                first[position] = previous;
+            }
+        }
+        first
     }
 
     pub fn group_fact_refs_by_place(&self, references: HandleSpan<FactRef>) -> Vec<Vec<FactRef>> {

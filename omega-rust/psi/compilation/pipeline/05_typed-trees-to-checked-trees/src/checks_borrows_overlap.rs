@@ -1205,7 +1205,9 @@ mod premises {
     use validation::predicate_ordering_consequences;
 
     use super::indexes::{NormalizedBound, normalized_bound};
-    use crate::checks::contracts::prover::call_guarantees::{self, AvailableGuarantee};
+    use crate::checks::contracts::prover::call_guarantees::{
+        self, AvailableGuarantee, StateGuarantees,
+    };
     use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
     use crate::checks::ranges::requirements::state_requires_facts;
 
@@ -1918,17 +1920,18 @@ mod premises {
     /*
         Extend entry premises with completed immutable values and call guarantees
         at the exact statement entry. Later calls and invalidated captures cannot
-        license earlier loan formation or mutation.
+        license earlier loan formation or mutation. The state is the one
+        `guarantees` was made for, which keeps admissions across its statements.
     */
     pub(in crate::checks::borrows) fn append_statement_premises<'p>(
         program: &'p dyn ::validation::CheckingInput,
         facts: &CheckFacts,
-        state_flow: &FlowStateFact,
         statement: usize,
-        call_frames: Option<&CallFrameResolver<'_>>,
+        guarantees: &mut StateGuarantees<'_, 'p>,
         premises: &mut Vec<StatedOrderingPremise>,
         bound_lookup: &mut Option<ImmutableBoundLookup<'p>>,
     ) {
+        let state_flow = guarantees.caller();
         let Some(state) =
             find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
         else {
@@ -1949,16 +1952,9 @@ mod premises {
             .semantic_constraint_contexts(statement_flow.entry_constraints)
             .collect();
         stored_values::append(program, facts, state, statement, &contexts, premises);
-        let Some(frames) = call_frames else {
-            return;
-        };
-        for guarantee in call_guarantees::available(
-            program,
-            facts.view(),
-            state_flow,
+        for guarantee in guarantees.available(
             call_guarantees::GuaranteeUse::StatementEntry(statement),
             &contexts,
-            frames,
         ) {
             let (result, result_mutable) = guarantee
                 .result_binding(program, &facts.semantic, &contexts, state)

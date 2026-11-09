@@ -386,7 +386,7 @@ pub(crate) mod branch_states {
             Capture {
                 target: usize,
                 arguments: Vec<LoweredDirectExpression>,
-                source: semantic_vocabulary::PlaceId,
+                source: crate::emission::operation_emission::calls::StructuralValueSource,
                 path: Vec<
                     crate::emission::operation_emission::expressions::LoweredElementPathSegment,
                 >,
@@ -670,6 +670,16 @@ pub(crate) mod branch_states {
                 value: checked_trees::CheckedStructuralValueHandle,
                 structural_type: StructuralTypeId,
             },
+            /// Capture a checked existing subject before its ordered pattern operands.
+            CaptureDispatchSubject {
+                expression: checked_trees::expression::ExpressionHandle,
+                source: checked_trees::CheckedUnitStructuralArgumentPlan,
+                alias: checked_trees::expression::ExpressionHandle,
+                place: PlaceId,
+                statement: u32,
+            },
+            /// Publish another lexical name for an already completed value. This
+            /// creates no storage or ownership and never repeats its producer.
             BindCompletedValueAlias {
                 value: checked_trees::CheckedStructuralValueHandle,
                 alias: typed_trees::expression::ExpressionHandle,
@@ -743,6 +753,22 @@ pub(crate) mod branch_states {
                 target: usize,
                 expansion: &mut Expansion<'_>,
             ) -> Result<usize, LoweringError> {
+                let Some(effect) = self.snapshot_completion(checked)? else {
+                    return Ok(target);
+                };
+                Ok(expansion.push(LoweredScalarBranchState::jumping(
+                    target,
+                    Vec::new(),
+                    completed_types.to_vec(),
+                    completed_types,
+                    vec![effect],
+                )))
+            }
+
+            pub(crate) fn snapshot_completion(
+                self,
+                checked: &CheckedTrees,
+            ) -> Result<Option<LoweredScalarEffect>, LoweringError> {
                 let root = value_facts(checked)
                     .structural_values
                     .root_for_value(self.value)
@@ -765,17 +791,11 @@ pub(crate) mod branch_states {
                             && declaration.no_code_affine_cleanup
                     });
                 if self.captured || !intrinsic_copy {
-                    return Ok(target);
+                    return Ok(None);
                 }
-                Ok(expansion.push(LoweredScalarBranchState::jumping(
-                    target,
-                    Vec::new(),
-                    completed_types.to_vec(),
-                    completed_types,
-                    vec![LoweredScalarEffect::CompleteSnapshots {
-                        snapshots: vec![super::prepared::CompletedSnapshot::Produced(self.value)],
-                    }],
-                )))
+                Ok(Some(LoweredScalarEffect::CompleteSnapshots {
+                    snapshots: vec![super::prepared::CompletedSnapshot::Produced(self.value)],
+                }))
             }
 
             pub(crate) fn finish(
@@ -823,6 +843,34 @@ pub(crate) mod branch_states {
                     effects,
                 ))
             }
+        }
+
+        /// Psi 05 already admitted these exact private births and their disposal.
+        /// Realization joins their stored carriers to this target's type catalog.
+        pub(crate) fn selected_copies(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            checked: &CheckedTrees,
+            copies: &[checked_trees::CheckedSelectedPayloadCopy],
+            types: &[terminal_psi::StructuralTypeDeclaration],
+        ) -> Result<Vec<ValueRequest>, LoweringError> {
+            copies
+                .iter()
+                .map(|copy| {
+                    let declaration =
+                        crate::shared::terminal_identities::structural_declaration_by_identity(
+                            types,
+                            identities,
+                            checked,
+                            copy.type_identity,
+                            "selected copy has no realized carrier",
+                        )?;
+                    Ok(ValueRequest {
+                        value: copy.value,
+                        structural_type: declaration.id,
+                        captured: true,
+                    })
+                })
+                .collect()
         }
     }
 
@@ -2493,6 +2541,7 @@ pub(crate) mod contracts {
     }
 }
 pub(crate) mod effects {
+
     use super::{LoweringError, ValueDeclaration, emit_direct_expression, unsupported};
     use crate::emission::operation_emission::buffer::OperationBuffer;
     use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -2914,6 +2963,35 @@ pub(crate) mod effects {
                     );
                     std::mem::swap(&mut evaluation.blocks, blocks);
                     produced?;
+                }
+                LoweredScalarEffect::CaptureDispatchSubject {
+                    expression,
+                    source,
+                    alias,
+                    place,
+                    statement,
+                } => {
+                    evaluation.current = span.id;
+                    evaluation.operation_start = span.operation_start;
+                    std::mem::swap(&mut evaluation.parameters, &mut span.parameters);
+                    std::mem::swap(
+                        &mut evaluation.block_structural_parameters,
+                        &mut span.structural_parameters,
+                    );
+                    std::mem::swap(&mut evaluation.blocks, blocks);
+                    let captured = crate::unit::attached_unit::structural_values::emission::completed_projection::ProjectionEmission {
+                    statement: *statement, environment,
+                    calls, evaluation, values, next_value, next_block, next_edge, operations,
+                }.capture_subject(identities, *expression, source, *alias, *place);
+                    span.id = evaluation.current;
+                    span.operation_start = evaluation.operation_start;
+                    std::mem::swap(&mut evaluation.parameters, &mut span.parameters);
+                    std::mem::swap(
+                        &mut evaluation.block_structural_parameters,
+                        &mut span.structural_parameters,
+                    );
+                    std::mem::swap(&mut evaluation.blocks, blocks);
+                    captured?;
                 }
                 LoweredScalarEffect::BindCompletedValueAlias { value, alias } => {
                     evaluation.bind_completed_value_alias(*value, *alias, operations)?;

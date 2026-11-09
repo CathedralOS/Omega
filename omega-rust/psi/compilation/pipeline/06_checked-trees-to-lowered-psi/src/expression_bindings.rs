@@ -6,6 +6,7 @@ field custody for source-bound expressions during `expression_preparation`.
 pub(crate) use crate::expression_preparation::*;
 
 pub(crate) mod bindings {
+
     use super::{
         CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
         CheckedTrees, LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess,
@@ -2557,40 +2558,68 @@ pub(crate) mod bindings {
             }
         }
 
+        // Place loans already name admitted storage without a descriptor.
+        // Mark only their present local-name shell; later crossings stay intact.
+        pub(crate) fn retain_place_loan_presentation(
+            checked: &checked_trees::CheckedTrees,
+            loan: &checked_trees::CheckedPlaceLoanPlan,
+            argument: &mut checked_trees::CheckedUnitStructuralArgumentPlan,
+        ) {
+            use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
+
+            if let Source::StructuralLocal { symbol } = argument.source
+                && symbol == loan.symbol
+                && matches!(
+                    argument.path.first(),
+                    Some(CheckedUnitStructuralPathSegment::Referent)
+                )
+            {
+                argument.source = Source::StructuralLocalBorrow {
+                    symbol,
+                    root_type_identity:
+                        crate::shared::terminal_identities::stored_structural_identity(
+                            checked,
+                            loan.referee,
+                        ),
+                    root_reference_hops: 1,
+                };
+            }
+        }
+
         pub(crate) fn lower_structural_path(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             path: &[CheckedUnitStructuralPathSegment],
         ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
             path.iter()
-                .map(|segment| match segment {
-                    CheckedUnitStructuralPathSegment::AllElements => {
-                        unsupported("universal qualification is not an operand path")
-                    }
-                    CheckedUnitStructuralPathSegment::Case(_) => {
-                        unsupported("a case projection requires its exact source type during preparation")
-                    }
-                    CheckedUnitStructuralPathSegment::RepresentationView { .. } => unsupported(
-                        "a returned view origin requires its checked declaration and formation codec",
-                    ),
-                    CheckedUnitStructuralPathSegment::Referent => Ok(StructuralPathSegment::Referent),
-                    CheckedUnitStructuralPathSegment::Field(identity) => Ok(StructuralPathSegment::Field(
-                        identities.intern(&identity.spelling()),
-                    )),
-                    CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                        Ok(StructuralPathSegment::FixedIndex(*index))
-                    }
-                    CheckedUnitStructuralPathSegment::RuntimeIndex { .. }
-                    | CheckedUnitStructuralPathSegment::ComputedIndex(_) => unsupported(
-                        "a runtime-index projection is lowered by the emitter that evaluates its index",
-                    ),
-                    CheckedUnitStructuralPathSegment::FixedRange { start, end } => {
-                        Ok(StructuralPathSegment::FixedRange {
-                            start: *start,
-                            end: *end,
-                        })
-                    }
-                })
-                .collect()
+            .map(|segment| match segment {
+                CheckedUnitStructuralPathSegment::AllElements => {
+                    unsupported("universal qualification is not an operand path")
+                }
+                CheckedUnitStructuralPathSegment::Case(_) => unsupported(
+                    "a case projection requires its exact source type during preparation",
+                ),
+                CheckedUnitStructuralPathSegment::RepresentationView { .. } => unsupported(
+                    "a returned view origin requires its checked declaration and formation codec",
+                ),
+                CheckedUnitStructuralPathSegment::Referent => Ok(StructuralPathSegment::Referent),
+                CheckedUnitStructuralPathSegment::Field(identity) => Ok(
+                    StructuralPathSegment::Field(identities.intern(&identity.spelling())),
+                ),
+                CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                    Ok(StructuralPathSegment::FixedIndex(*index))
+                }
+                CheckedUnitStructuralPathSegment::RuntimeIndex { .. }
+                | CheckedUnitStructuralPathSegment::ComputedIndex(_) => unsupported(
+                    "a runtime-index projection is lowered by the emitter that evaluates its index",
+                ),
+                CheckedUnitStructuralPathSegment::FixedRange { start, end } => {
+                    Ok(StructuralPathSegment::FixedRange {
+                        start: *start,
+                        end: *end,
+                    })
+                }
+            })
+            .collect()
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2717,6 +2746,11 @@ pub(crate) mod bindings {
             },
         }
 
+        /// Join a logical loan root to its exact published selected carrier, preserving
+        /// any physical prefix retained by the binding's caller. Physical argument paths
+        /// use the strict walker unchanged; it must never implicitly dereference a
+        /// descriptor value or a nested reference field.
+        #[track_caller]
         pub(crate) fn prepare_structural_argument_path(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &checked_trees::CheckedTrees,
@@ -2735,6 +2769,10 @@ pub(crate) mod bindings {
             .map(|(path, _)| path)
         }
 
+        /// A final call addresses the completed value. Its range producer has already
+        /// consumed the original collection path; ordinary storage joins above still
+        /// require that path when they bind the original source.
+        #[track_caller]
         pub(crate) fn prepare_call_argument_path(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &checked_trees::CheckedTrees,
@@ -2761,6 +2799,10 @@ pub(crate) mod bindings {
             )
         }
 
+        /// Complete a checked projection in its producer's coordinate system. Physical
+        /// paths stay strict; logical loans retain their explicit carrier adaptation.
+        /// The endpoint is a declaration view, not a fabricated invocation operand.
+        #[track_caller]
         pub(crate) fn prepare_projection_path(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &checked_trees::CheckedTrees,
@@ -2889,6 +2931,7 @@ pub(crate) mod bindings {
             Ok(tip)
         }
 
+        #[track_caller]
         fn prepare_structural_argument_projection<'a>(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &checked_trees::CheckedTrees,
@@ -2913,7 +2956,21 @@ pub(crate) mod bindings {
                 root,
                 terminal_access(argument.access),
                 types,
-            )?;
+            )
+            .map_err(|error| match error {
+                LoweringError::InvalidArgumentProjection(mut failure) => {
+                    failure.source_root = argument.structural_storage_root();
+                    failure.source_parameter = argument.source_parameter_index();
+                    failure.source_result = argument.source_structural_result_binding_ordinal();
+                    failure.published_root = Some(published_root);
+                    failure.argument_type = Some(argument.type_identity);
+                    failure.logical_root = argument.borrowed_root_type_identity();
+                    failure.root_reference_hops = argument.borrowed_root_reference_hops();
+                    failure.access = Some(argument.access);
+                    LoweringError::InvalidArgumentProjection(failure)
+                }
+                error => error,
+            })?;
             if !projection.is_empty() {
                 retain_selector_evaluations(
                     projection,
@@ -2946,6 +3003,7 @@ pub(crate) mod bindings {
             }
         }
 
+        #[track_caller]
         fn prepare_root_projection<'a>(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &checked_trees::CheckedTrees,
@@ -3073,6 +3131,9 @@ pub(crate) mod bindings {
             Ok((prepared, tip))
         }
 
+        /// Resolve the path against its original source declaration. Only runtime
+        /// selector values and their bound obligations remain for the emitting call.
+        #[track_caller]
         pub(crate) fn prepare_argument_path(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             path: &[CheckedUnitStructuralPathSegment],
@@ -3082,6 +3143,10 @@ pub(crate) mod bindings {
             prepare_argument_projection(identities, path, root, types).map(|(path, _)| path)
         }
 
+        /// Resolve an indexed store's descriptor through the same typed projection
+        /// as executable arguments. The caller retains only a conservative proof
+        /// footprint; the indexed writer still evaluates the actual selector path.
+        #[track_caller]
         pub(crate) fn prepare_element_view_path(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             path: &[CheckedUnitStructuralPathSegment],
@@ -3097,6 +3162,7 @@ pub(crate) mod bindings {
             Ok(path)
         }
 
+        #[track_caller]
         fn prepare_argument_projection<'a>(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             path: &[CheckedUnitStructuralPathSegment],
@@ -3119,7 +3185,7 @@ pub(crate) mod bindings {
             let mut tip = Tip::Declaration(declaration(root)?);
             let mut selected_case: Option<&terminal_psi::StructuralCaseDeclaration> = None;
             let mut prepared = Vec::with_capacity(path.len());
-            for step in path {
+            for (step_index, step) in path.iter().enumerate() {
                 if selected_case.is_some()
                     && !matches!(step, CheckedUnitStructuralPathSegment::Field(_))
                 {
@@ -3167,7 +3233,56 @@ pub(crate) mod bindings {
                                 | StructuralTypeShape::Mixed { cases, .. },
                             ) => cases,
                             _ => {
-                                return unsupported("argument case requires its exact source sum");
+                                let (selected_type, selected_carrier) = match tip {
+                                    Tip::Declaration(declaration) => (
+                                        Some(declaration.id),
+                                        match &declaration.shape {
+                                            StructuralTypeShape::Reference { .. } => {
+                                                "reference descriptor"
+                                            }
+                                            StructuralTypeShape::PrimitiveScalar(_) => {
+                                                "primitive scalar"
+                                            }
+                                            StructuralTypeShape::ByteSequence(_) => "byte sequence",
+                                            StructuralTypeShape::ElementView { .. } => {
+                                                "element view"
+                                            }
+                                            StructuralTypeShape::Record { .. } => "record",
+                                            StructuralTypeShape::FixedArray { .. } => "fixed array",
+                                            StructuralTypeShape::Sum { .. } => "sum",
+                                            StructuralTypeShape::Mixed { .. } => {
+                                                "record with cases"
+                                            }
+                                            StructuralTypeShape::AtomicCell(_) => "atomic cell",
+                                        },
+                                    ),
+                                    Tip::Inline(_) => (None, "inline field"),
+                                    Tip::ByteElement => (None, "byte element"),
+                                    Tip::CollectionWindow => (None, "collection window"),
+                                };
+                                let site = std::panic::Location::caller();
+                                return Err(LoweringError::InvalidArgumentProjection(Box::new(
+                                    crate::shared::lowering_error::ArgumentProjectionFailure {
+                                        reason: "argument case requires its exact source sum",
+                                        machine: None,
+                                        root,
+                                        selected_type,
+                                        selected_carrier,
+                                        failed_step: step_index,
+                                        segments: path.iter().take(32).cloned().collect(),
+                                        segment_count: path.len(),
+                                        source_root: None,
+                                        source_parameter: None,
+                                        source_result: None,
+                                        published_root: None,
+                                        argument_type: None,
+                                        logical_root: None,
+                                        root_reference_hops: 0,
+                                        access: None,
+                                        operation_file: site.file(),
+                                        operation_line: site.line(),
+                                    },
+                                )));
                             }
                         };
                         let mut matches = cases.iter().filter(|case| {
@@ -3310,25 +3425,6 @@ pub(crate) mod bindings {
             Ok((prepared, tip))
         }
 
-        pub(crate) fn prepare_unscoped_path(
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            path: &[CheckedUnitStructuralPathSegment],
-        ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
-            path.iter()
-                .map(|segment| match segment {
-                    CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
-                        Ok(PreparedStructuralPathSegment::RuntimeIndex(index.clone()))
-                    }
-                    CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
-                        Ok(PreparedStructuralPathSegment::ComputedIndex(*root))
-                    }
-                    segment => Ok(PreparedStructuralPathSegment::Static(
-                        lower_structural_path(identities, std::slice::from_ref(segment))?.remove(0),
-                    )),
-                })
-                .collect()
-        }
-
         pub(crate) fn lower_static_argument_path(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             path: &[CheckedUnitStructuralPathSegment],
@@ -3469,21 +3565,6 @@ pub(crate) mod bindings {
         ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
             emit_argument_path(
                 &prepare_argument_path(identities, path, root, types)?,
-                caller_scalar_values,
-                selector_values,
-                calls,
-            )
-        }
-
-        pub(crate) fn lower_argument_path(
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            path: &[CheckedUnitStructuralPathSegment],
-            caller_scalar_values: Option<&[ValueDeclaration]>,
-            selector_values: &mut dyn Iterator<Item = ValueId>,
-            calls: Option<&mut CallEmissionContext<'_>>,
-        ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
-            emit_argument_path(
-                &prepare_unscoped_path(identities, path)?,
                 caller_scalar_values,
                 selector_values,
                 calls,
@@ -3922,6 +4003,58 @@ pub(crate) mod bindings {
             .then_some(carrier)
     }
 
+    pub(crate) struct ResolvedBorrowedArgument {
+        pub(crate) source: StructuralArgument,
+        pub(crate) argument: checked_trees::CheckedUnitStructuralArgumentPlan,
+        captured: Vec<PlaceId>,
+        pub(crate) root_type_identity: Option<typed_trees::type_identity::TypeIdentityId>,
+    }
+
+    impl ResolvedBorrowedArgument {
+        pub(crate) fn prepare_path(
+            &self,
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            checked: &checked_trees::CheckedTrees,
+            root: StructuralTypeId,
+            types: &[StructuralTypeDeclaration],
+        ) -> Result<Vec<structural_paths::PreparedStructuralPathSegment>, LoweringError> {
+            let mut path = structural_paths::prepare_structural_argument_path(
+                identities,
+                checked,
+                &self.argument,
+                root,
+                types,
+            )?;
+            self.retain_captured_coordinates(&mut path)?;
+            Ok(path)
+        }
+
+        pub(crate) fn retain_captured_coordinates(
+            &self,
+            path: &mut [structural_paths::PreparedStructuralPathSegment],
+        ) -> Result<(), LoweringError> {
+            let mut coordinates = self.captured.iter().copied();
+            for segment in path {
+                if matches!(
+                    segment,
+                    structural_paths::PreparedStructuralPathSegment::RuntimeIndex(_)
+                ) && let Some(place) = coordinates.next()
+                {
+                    *segment =
+                        structural_paths::PreparedStructuralPathSegment::CapturedIndex(place);
+                }
+            }
+            if coordinates.next().is_some() {
+                return unsupported("captured loan selectors exceed its checked prefix");
+            }
+            Ok(())
+        }
+
+        pub(crate) fn captured_coordinate(&self) -> Option<PlaceId> {
+            self.captured.first().copied()
+        }
+    }
+
     #[derive(Clone, Copy)]
     struct AuthoredScalarBinding {
         value_position: usize,
@@ -4011,7 +4144,7 @@ pub(crate) mod bindings {
                 .find(|row| row.0 == index)
         }
 
-        pub(crate) fn borrowed_structural_home(
+        fn published_borrowed_home(
             &self,
             argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
             parameters: &[checked_trees::signature::StateParameter],
@@ -4167,16 +4300,15 @@ pub(crate) mod bindings {
             })
         }
 
-        pub(crate) fn prepared_borrowed_argument(
+        pub(crate) fn resolve_borrowed_argument(
             &self,
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &checked_trees::CheckedTrees,
             argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
             parameters: &[checked_trees::signature::StateParameter],
-            types: &[StructuralTypeDeclaration],
-        ) -> Result<PreparedStructuralArgument, LoweringError> {
+        ) -> Result<ResolvedBorrowedArgument, LoweringError> {
             let mut argument = argument.clone();
             let mut captured = Vec::new();
+            let mut root_type_identity = None;
             let mut visited = Vec::new();
             while let Some(symbol) = argument
                 .structural_storage_root()
@@ -4191,6 +4323,11 @@ pub(crate) mod bindings {
                     return unsupported("place loan has duplicate or cyclic origin");
                 }
                 visited.push(symbol);
+                structural_paths::retain_place_loan_presentation(
+                    checked,
+                    &alias.loan,
+                    &mut argument,
+                );
                 if !structural_paths::structural_access_can_supply(
                     structural_paths::terminal_access(alias.loan.access),
                     structural_paths::terminal_access(argument.access),
@@ -4218,6 +4355,12 @@ pub(crate) mod bindings {
                 let mut coordinates = alias.selectors.clone();
                 coordinates.extend(captured);
                 captured = coordinates;
+                root_type_identity = Some(
+                    crate::shared::terminal_identities::stored_structural_identity(
+                        checked,
+                        alias.loan.root_type,
+                    ),
+                );
                 argument.source = match alias.loan.root {
                     checked_trees::CheckedPlaceLoanRoot::StructuralParameter { parameter_index } => {
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
@@ -4236,34 +4379,37 @@ pub(crate) mod bindings {
                     }
                 };
             }
-            let source = self.borrowed_structural_home(&argument, parameters)?;
+            let source = self.published_borrowed_home(&argument, parameters)?;
+            Ok(ResolvedBorrowedArgument {
+                source,
+                argument,
+                captured,
+                root_type_identity,
+            })
+        }
+
+        pub(crate) fn prepared_borrowed_argument(
+            &self,
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            checked: &checked_trees::CheckedTrees,
+            argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+            parameters: &[checked_trees::signature::StateParameter],
+            types: &[StructuralTypeDeclaration],
+        ) -> Result<PreparedStructuralArgument, LoweringError> {
+            let resolved = self.resolve_borrowed_argument(checked, argument, parameters)?;
+            let source = &resolved.source;
             let root = self
-                .structural_argument_type(&source)
+                .structural_argument_type(source)
                 .ok_or(LoweringError::Unsupported(
                     "borrowed source lost its published selected type",
                 ))?;
-            let mut path = source
+            let path = source
                 .path
-                .into_iter()
+                .iter()
+                .cloned()
                 .map(structural_paths::PreparedStructuralPathSegment::Static)
-                .chain(structural_paths::prepare_structural_argument_path(
-                    identities, checked, &argument, root, types,
-                )?)
-                .collect::<Vec<_>>();
-            let mut coordinates = captured.into_iter();
-            for segment in &mut path {
-                if matches!(
-                    segment,
-                    structural_paths::PreparedStructuralPathSegment::RuntimeIndex(_)
-                ) && let Some(place) = coordinates.next()
-                {
-                    *segment =
-                        structural_paths::PreparedStructuralPathSegment::CapturedIndex(place);
-                }
-            }
-            if coordinates.next().is_some() {
-                return unsupported("captured loan selectors exceed its checked prefix");
-            }
+                .chain(resolved.prepare_path(identities, checked, root, types)?)
+                .collect();
             Ok(PreparedStructuralArgument {
                 source: source.place.into(),
                 root_type: self.structural_place_type(source.place),
@@ -4416,19 +4562,15 @@ pub(crate) mod bindings {
                     self.structural_declarations(),
                 );
             }
-            let mut source = self.borrowed_structural_home(argument, parameters)?;
+            let resolved = self.resolve_borrowed_argument(checked, argument, parameters)?;
+            let mut source = resolved.source.clone();
             let root = self
                 .structural_argument_type(&source)
                 .ok_or(LoweringError::Unsupported(
                     "borrowed argument lost its published selected type",
                 ))?;
-            let prepared = structural_paths::prepare_structural_argument_path(
-                identities,
-                checked,
-                argument,
-                root,
-                self.structural_declarations(),
-            )?;
+            let prepared =
+                resolved.prepare_path(identities, checked, root, self.structural_declarations())?;
             source.path.extend(structural_paths::emit_argument_path(
                 &prepared,
                 None,
@@ -4444,6 +4586,7 @@ pub(crate) mod bindings {
             argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
             source: &StructuralArgument,
             case: &str,
+            captured_coordinate: Option<PlaceId>,
         ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
             let structural_type =
                 self.structural_argument_type(source)
@@ -4504,28 +4647,41 @@ pub(crate) mod bindings {
                     &static_path(&argument.path[selector_position + 1..])?,
                     &checked_trees::CheckedMemberIdentity::of_spelling(case),
                 )?;
-            let index = match selector {
-                checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
-                    self.runtime_index_storage(*symbol)?
+            let index = if let Some(place) = captured_coordinate {
+                // Formation normalizes and checks every selector snapshot as u64.
+                LoweredDirectExpression::PrimitiveRead {
+                    qualifications: Default::default(),
+                    source:
+                        crate::emission::operation_emission::expressions::PrimitiveReadSource::Place(
+                            place,
+                        ),
+                    path: Vec::new(),
+                    scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
                 }
-                checked_trees::CheckedRuntimeIndex::Parameter { position } => {
-                    self.runtime_index_parameter(*position)?
-                }
-                checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-                    structural_fields::resolve_typed(
-                        identities,
-                        &self.structural_fields,
-                        field.parameter_position,
-                        &field.path,
-                    )?
-                }
-                checked_trees::CheckedRuntimeIndex::Local { position } => {
-                    self.runtime_index_local(*position)?
-                }
-                _ => {
-                    return unsupported(
-                        "runtime case observation requires a bound scalar selector",
-                    );
+            } else {
+                match selector {
+                    checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
+                        self.runtime_index_storage(*symbol)?
+                    }
+                    checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+                        self.runtime_index_parameter(*position)?
+                    }
+                    checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                        structural_fields::resolve_typed(
+                            identities,
+                            &self.structural_fields,
+                            field.parameter_position,
+                            &field.path,
+                        )?
+                    }
+                    checked_trees::CheckedRuntimeIndex::Local { position } => {
+                        self.runtime_index_local(*position)?
+                    }
+                    _ => {
+                        return unsupported(
+                            "runtime case observation requires a bound scalar selector",
+                        );
+                    }
                 }
             };
             if !matches!(
@@ -4806,6 +4962,37 @@ pub(crate) mod bindings {
             self
         }
 
+        /// Bind geometry for a subject capture scheduled before this private
+        /// expansion. The emitting owner must establish this exact borrowed home
+        /// before any child executes; this row confers no ownership or facts.
+        pub(crate) fn with_dispatch_subject(
+            mut self,
+            alias: checked_trees::expression::ExpressionHandle,
+            place: PlaceId,
+            structural_type: StructuralTypeId,
+        ) -> Result<Self, LoweringError> {
+            retain_completed_structural_homes(
+                &mut self.structural_locals,
+                &[StructuralLocalBinding {
+                    result_binding_ordinal: None,
+                    root: facts::PlaceRoot::Expression(alias),
+                    argument: StructuralArgument::whole(place, StructuralAccess::SharedBorrow),
+                    structural_type,
+                }],
+            )?;
+            Ok(self)
+        }
+
+        /// Resolve the exact primitive endpoint of an already source-validated loan.
+        /// A local reference owns a carrier, not a new primitive home: its retained
+        /// `Referent` projection reaches the viewed type while the reference keeps
+        /// the original backing identity. The same catalog walk checks parameter
+        /// and local projections, including authority at every reference crossing.
+        /// Root ownership supplies a temporary loan; it is not the argument access.
+        /// Authored parameters resolve symbols absent from the completed local roster;
+        /// their source positions remain distinct from dense structural positions.
+        /// Keep that owner's home and cleanup, then attenuate at every descriptor
+        /// crossing so owning a record cannot widen a shared reference inside it.
         pub(crate) fn primitive_borrow(
             &self,
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,

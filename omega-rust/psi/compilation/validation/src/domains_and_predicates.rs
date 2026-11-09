@@ -4,6 +4,7 @@ domains, and scalar domain membership (`proof_contracts::{bound_expression_meani
 collection_predicates, default_domains, domains}`).
 */
 pub mod bound_expression_meaning {
+
     use crate::frozen_program::expression_table;
     use crate::value_custody::places::declared_place_type_raw;
     use language_core::OperatorSpelling;
@@ -1322,6 +1323,7 @@ pub mod bound_expression_meaning {
             ExpressionNode::Cast(cast) if cast.form.is_recast() => computed_result(),
             ExpressionNode::Cast(cast) => Some(cast.target_type),
             ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
+            // Unknown operands cannot borrow another operand's carrier.
             _ => None,
         }?;
         program
@@ -13138,14 +13140,9 @@ pub mod default_domains {
         Vec<(String, Option<symbolic_values::LiteralValue>)>,
         Vec<(String, symbolic_values::SymbolicValue)>,
     )> {
-        let machine = program.machine(target).or_else(|| {
-            program.machines().iter().find(|machine| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == target)
-            })
-        })?;
+        let machine = program
+            .machine(target)
+            .or_else(|| program.machine_containing_state(target))?;
         let state = program.machine_states(machine).first()?;
         let statements = program.statement_table.statements(state.statement_nodes);
         let expression = match statements {

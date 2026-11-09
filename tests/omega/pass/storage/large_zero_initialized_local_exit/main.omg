@@ -97,8 +97,10 @@ machine Main::round(main: &mut Main) {
     machine written_mark(main: &mut Main, table: &mut Table) {
         let written: Mark = table.marks[main.high];
         transition written {
-            Mark::Number { start as _, end as _, value, negative } -> written_payload(main, value, negative, written.start, written.end)
-            _ -> fail(main, 75)
+            Mark { start as _, end as _, case as operation } -> match operation {
+                Mark::Number { value, negative } -> written_payload(main, value, negative, written.start, written.end)
+                _ -> fail(main, 75)
+            }
         }
     }
 

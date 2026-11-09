@@ -186,6 +186,7 @@ pub mod const_integer {
     }
 }
 pub mod expression {
+
     use crate::AuthoredDeclarationSelectionOccurrenceId;
     use crate::name::Identifier;
     use crate::static_applications::{
@@ -1163,6 +1164,7 @@ pub mod expression {
         }
     }
     pub(crate) mod table_copies {
+
         use super::CompletedValueCapture;
         use super::ValueCaptureOwner;
         use crate::name::Identifier;
@@ -1496,6 +1498,15 @@ pub mod expression {
                 destination: ExpressionHandle,
                 source: ExpressionHandle,
             ) {
+                let component = if self.direct_pattern_component(destination)
+                    == Some(language_core::PatternComponent::Case)
+                    || self.direct_pattern_component(source)
+                        == Some(language_core::PatternComponent::Case)
+                {
+                    language_core::PatternComponent::Case
+                } else {
+                    language_core::PatternComponent::Fields
+                };
                 let node = self.expression(source).clone();
                 let authority = self.index_expression_authority(source).cloned();
                 let source_index = super::source_span_index(source);
@@ -1510,6 +1521,7 @@ pub mod expression {
                 };
                 let carrier = self.constructed_value_type_reference(source);
                 *self.expression_mut(destination) = node;
+                self.set_pattern_component(destination, component);
                 self.set_source_span(destination, source_span);
                 self.authored_selection_occurrences[destination_index] = occurrences;
                 self.materialization_sources[destination_index] = materialization_source;
@@ -1855,6 +1867,9 @@ pub mod expression {
                 }
                 let origin = source.table(self);
                 let source_span = origin.source_span(expression);
+                let component = origin
+                    .direct_pattern_component(expression)
+                    .expect("copied expression retains its component row");
                 let materialization_source = origin.materialization_source(expression);
                 let authority = origin.index_expression_authority(expression).cloned();
                 let domain_tests = origin.executable_domain_tests(expression).to_vec();
@@ -1921,6 +1936,7 @@ pub mod expression {
                                 copies,
                             );
                             self.insert(ExpressionNode::SavedSubject(super::TableSavedSubject {
+                                component: saved.component,
                                 capture,
                                 pattern_head,
                             }))
@@ -2161,6 +2177,7 @@ pub mod expression {
                     }
                     *self.index_expression_authority_mut(copied) = authority;
                 }
+                self.set_pattern_component(copied, component);
                 copies.expressions.push((expression, copied));
                 if materialization_source.is_valid() {
                     let authored = self.copy_subtree_with_occurrences(
@@ -2846,6 +2863,9 @@ pub mod expression {
         build_selection_requests: Arena<BuildSelectionRequest>,
         expression_roots: Arena<ExpressionHandle>,
         source_spans: Vec<SourceSpan>,
+        pattern_components: Vec<language_core::PatternComponent>,
+        /// Original checked computation of a materialized static value. This
+        /// provenance edge preserves invocation custody without executing it again.
         materialization_sources: Vec<ExpressionHandle>,
 
         constructed_value_types: Arena<crate::types::TypeReferenceHandle>,
@@ -3016,7 +3036,11 @@ pub mod expression {
                 && self.expression_is_valid(capture.subject)
                 && self.match_arms(dispatch.arms).iter().any(|arm| {
                     matches!(arm.pattern, MatchPattern::Destructure(pattern)
-                    if pattern.head == saved.pattern_head)
+                    if pattern.head == saved.pattern_head
+                    && (saved.component == language_core::PatternComponent::Fields
+                        || self.match_fields(pattern.fields).iter().any(|field|
+                            field.component == language_core::PatternComponent::Case
+                                && matches!(field.action, MatchFieldAction::Bind(_)))))
                 }))
             .then_some(capture.subject)
         }
@@ -3172,6 +3196,7 @@ pub mod expression {
                 build_selection_requests: Arena::default(),
                 expression_roots: Arena::with_capacity(capacity.expressions),
                 source_spans: Vec::with_capacity(capacity.expressions),
+                pattern_components: Vec::with_capacity(capacity.expressions),
                 materialization_sources: Vec::new(),
                 constructed_value_types: Arena::default(),
                 constructed_value_type_handles: Vec::new(),
@@ -3441,7 +3466,39 @@ pub mod expression {
             self.static_machine_arguments.span_mut_or_empty(arguments)
         }
 
+        pub fn direct_pattern_component(
+            &self,
+            expression: ExpressionHandle,
+        ) -> Option<language_core::PatternComponent> {
+            self.expression_is_valid(expression)
+                .then(|| {
+                    self.pattern_components
+                        .get(source_span_index(expression))
+                        .copied()
+                })
+                .flatten()
+        }
+
+        /// A component belongs to the produced occurrence, not the current node
+        /// shape. Replacing a name by its captured place must retain this view.
+        pub fn set_pattern_component(
+            &mut self,
+            expression: ExpressionHandle,
+            component: language_core::PatternComponent,
+        ) {
+            let slot = &mut self.pattern_components[source_span_index(expression)];
+            if *slot != component {
+                *slot = component;
+                // Role changes invalidate the same derived readers as node changes.
+                let _ = self.expressions.get_mut(expression);
+            }
+        }
+
         pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
+            let component = match &expression {
+                ExpressionNode::SavedSubject(saved) => saved.component,
+                _ => language_core::PatternComponent::Fields,
+            };
             let capture = match &expression {
                 ExpressionNode::Match(dispatch) => dispatch.capture,
                 _ => Handle::invalid(),
@@ -3465,6 +3522,7 @@ pub mod expression {
             }
             self.expression_roots.insert(handle);
             self.source_spans.push(SourceSpan::default());
+            self.pattern_components.push(component);
             self.materialization_sources
                 .push(ExpressionHandle::invalid());
             self.authored_selection_occurrences
@@ -3953,7 +4011,10 @@ pub mod expression {
             if a == b {
                 return true;
             }
-            if !a.is_valid() || !b.is_valid() {
+            if !a.is_valid()
+                || !b.is_valid()
+                || self.direct_pattern_component(a) != self.direct_pattern_component(b)
+            {
                 return false;
             }
             match (self.expression(a), self.expression(b)) {
@@ -3979,6 +4040,9 @@ pub mod expression {
                         })
                 }
                 (ExpressionNode::SavedSubject(left), ExpressionNode::SavedSubject(right)) => {
+                    if left.component != right.component {
+                        return false;
+                    }
                     left.capture == right.capture
                         && self
                             .expressions_structurally_equal(left.pattern_head, right.pattern_head)
@@ -4790,6 +4854,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableSavedSubject {
+        pub component: language_core::PatternComponent,
         pub capture: Handle<CompletedValueCapture>,
         pub pattern_head: ExpressionHandle,
     }
@@ -4822,6 +4887,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableMatchField {
+        pub component: language_core::PatternComponent,
         pub member: Identifier,
         pub field_symbol: SymbolHandle,
         pub action: MatchFieldAction,
@@ -4902,6 +4968,125 @@ pub mod expression {
             numerics::literals::FloatFormat::F64 => {
                 semantic_vocabulary::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
             }
+        }
+    }
+}
+mod pattern_components {
+    //! A case view keeps its decomposition contract when a reference aliases it.
+    //!
+    //! Carrier geometry does not turn that view into an owned copy of the whole
+    //! data. Locals retain the component established by their initializer, and
+    //! receiving checks enforce it on later writes. This is a binding contract,
+    //! not a claim that the initializer's contents or old referents remain live.
+    //! Ordinary loan and storage-version checks still authenticate each use.
+
+    use crate::expression::{ExpressionHandle, ExpressionNode};
+    use language_core::PatternComponent;
+    use std::collections::BTreeMap;
+
+    impl crate::TypedTrees {
+        pub fn pattern_component(&self, expression: ExpressionHandle) -> Option<PatternComponent> {
+            Query {
+                program: self,
+                visited: BTreeMap::new(),
+            }
+            .read(expression)
+        }
+    }
+
+    struct Query<'a> {
+        program: &'a crate::TypedTrees,
+        // Only actual transparent dependencies enter this request-local map.
+        // Full coordinates retain generations without allocating global ID gaps.
+        // The initial None also refuses cycles, and shared aliases are read once.
+        visited: BTreeMap<(u32, u32), Option<PatternComponent>>,
+    }
+
+    impl Query<'_> {
+        fn read(&mut self, expression: ExpressionHandle) -> Option<PatternComponent> {
+            let program = self.program;
+            let table = &program.expression_table;
+            if !table.expression_is_valid(expression) {
+                return None;
+            }
+            let node = table.expression(expression);
+            let direct = table.direct_pattern_component(expression)?;
+            if let ExpressionNode::SavedSubject(saved) = node {
+                self.program.saved_value_source(saved)?;
+                return Some(if direct == PatternComponent::Case {
+                    direct
+                } else {
+                    saved.component
+                });
+            }
+            if direct == PatternComponent::Case {
+                return Some(direct);
+            }
+            let source = match node {
+                ExpressionNode::Name(name) => {
+                    if table.names_reserved_result(expression) {
+                        return Some(PatternComponent::Fields);
+                    }
+                    let symbol = name.resolved_symbol()?;
+                    if self.program.symbols.get(symbol).kind != symbols::SymbolKind::Local {
+                        return Some(PatternComponent::Fields);
+                    }
+                    let local = self.program.unique_local_data_for_symbol(symbol)?;
+                    if !local.role.is_runtime_binding() {
+                        return None;
+                    }
+                    if !local.initial_value.is_valid() {
+                        return Some(PatternComponent::Fields);
+                    }
+                    Some(local.initial_value)
+                }
+                ExpressionNode::Borrow(borrow) => Some(borrow.target),
+                ExpressionNode::Cast(cast) => Some(cast.value),
+                ExpressionNode::Match(_) => None,
+                _ => return Some(PatternComponent::Fields),
+            };
+            if let Some(source) = source {
+                if !table.expression_is_valid(source) {
+                    return None;
+                }
+                let leaf = match table.expression(source) {
+                    ExpressionNode::Borrow(_)
+                    | ExpressionNode::Cast(_)
+                    | ExpressionNode::Match(_) => false,
+                    ExpressionNode::Name(name) => {
+                        name.resolved_symbol().is_none_or(|symbol| {
+                            self.program.symbols.get(symbol).kind != symbols::SymbolKind::Local
+                        }) || table.direct_pattern_component(source) == Some(PatternComponent::Case)
+                    }
+                    _ => true,
+                };
+                if leaf {
+                    return self.read(source);
+                }
+            }
+            let coordinate = (expression.arena_index(), expression.generation());
+            if let Some(component) = self.visited.get(&coordinate) {
+                return *component;
+            }
+            self.visited.insert(coordinate, None);
+            let result = if let Some(source) = source {
+                self.read(source)
+            } else {
+                let ExpressionNode::Match(dispatch) = node else {
+                    return None;
+                };
+                let mut selected = None;
+                for arm in table.match_arms(dispatch.arms) {
+                    let component = self.read(arm.value)?;
+                    if selected.is_some_and(|prior| prior != component) {
+                        return None;
+                    }
+                    selected = Some(component);
+                }
+                selected
+            };
+            self.visited.insert(coordinate, result);
+            result
         }
     }
 }

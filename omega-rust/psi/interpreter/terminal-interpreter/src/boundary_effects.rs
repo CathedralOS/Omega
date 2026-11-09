@@ -804,8 +804,15 @@ pub(crate) mod byte_buffers {
                     sources.arguments,
                     &self.values,
                     sources.provenance,
+                    &|argument_index, rows| {
+                        crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
+                            types,
+                            &self.values[argument_index],
+                            cases,
+                            rows,
+                        )
+                    },
                     types,
-                    cases,
                     account,
                 ),
                 None => bind_active_structural_arguments(

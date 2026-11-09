@@ -1134,6 +1134,7 @@ pub(crate) mod derived_declarations {
     }
 }
 pub(crate) mod identity_context {
+
     use super::LifetimeParameterIdentity;
     use crate::TypedTrees;
     use crate::expression::{ExpressionHandle, ExpressionNode};
@@ -1155,6 +1156,7 @@ pub(crate) mod identity_context {
     use symbols::SymbolHandle;
 
     pub(crate) mod match_dispatch {
+
         use super::{TypeIdentityContext, atom, bare, compound, normalize_index_expression};
         use crate::TypedTrees;
         use crate::expression::{
@@ -1221,12 +1223,26 @@ pub(crate) mod identity_context {
                         MatchPattern::Destructure(pattern) => {
                             let fields = table.match_fields(pattern.fields).iter().map(|field| {
                                 let action = match &field.action {
-                                    MatchFieldAction::Bind(_) => bare(FieldActionForm::Bind),
+                                    MatchFieldAction::Bind(_) => bare(
+                                        if field.component == language_core::PatternComponent::Case
+                                        {
+                                            FieldActionForm::BindCase
+                                        } else {
+                                            FieldActionForm::Bind
+                                        },
+                                    ),
                                     MatchFieldAction::Equal(value) => compound(
                                         FieldActionForm::Equal,
                                         [normalize_index_expression(program, *value, &nested)],
                                     ),
-                                    MatchFieldAction::Waive => bare(FieldActionForm::Waive),
+                                    MatchFieldAction::Waive => bare(
+                                        if field.component == language_core::PatternComponent::Case
+                                        {
+                                            FieldActionForm::WaiveCase
+                                        } else {
+                                            FieldActionForm::Waive
+                                        },
+                                    ),
                                 };
                                 compound(
                                     Label::Field,
@@ -1305,13 +1321,18 @@ pub(crate) mod identity_context {
             else {
                 return unavailable(context);
             };
-            compound(
+            let identity = compound(
                 IndexForm::SavedSubject,
                 [
                     atom(Label::Depth, &depth.to_string()),
                     normalize_index_expression(program, saved.pattern_head, context),
                 ],
-            )
+            );
+            if saved.component == language_core::PatternComponent::Case {
+                compound(IndexForm::CaseComponent, [identity])
+            } else {
+                identity
+            }
         }
     }
 
@@ -2526,10 +2547,17 @@ pub(crate) mod identity_context {
                 } else {
                     SymbolHandle::invalid()
                 };
-                if let Some(identity) = substitution::index(program, symbol, &fallback, context) {
-                    return identity;
+                let identity = substitution::index(program, symbol, &fallback, context)
+                    .unwrap_or_else(|| {
+                        substitution::index_name(program, symbol, fallback.as_str(), context)
+                    });
+                if program.pattern_component(expression)
+                    == Some(language_core::PatternComponent::Case)
+                {
+                    compound(IndexForm::CaseComponent, [identity])
+                } else {
+                    identity
                 }
-                substitution::index_name(program, symbol, fallback.as_str(), context)
             }
             ExpressionNode::Binary(binary) => {
                 if open_index_operation_selection(program, expression).is_none() {
@@ -4005,6 +4033,7 @@ pub(crate) mod package_policy_reading_tests {
         });
     }
     pub(crate) mod witnesses {
+
         use super::fixture::Fixture;
         use crate::expression::{
             BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, MatchPattern,
@@ -4569,6 +4598,7 @@ pub(crate) mod package_policy_reading_tests {
                 .insert_match_subject(subject);
             let head = fixture.name("Record");
             let saved = fixture.expression(ExpressionNode::SavedSubject(TableSavedSubject {
+                component: Default::default(),
                 capture,
                 pattern_head: head,
             }));
@@ -4581,16 +4611,19 @@ pub(crate) mod package_policy_reading_tests {
             );
             let fields = fixture.program.expression_table.insert_match_fields([
                 TableMatchField {
+                    component: Default::default(),
                     member: Identifier::generated("left"),
                     field_symbol: left,
                     action: MatchFieldAction::Bind(Identifier::generated("bound")),
                 },
                 TableMatchField {
+                    component: Default::default(),
                     member: Identifier::generated("right"),
                     field_symbol: right,
                     action: MatchFieldAction::Equal(wanted),
                 },
                 TableMatchField {
+                    component: Default::default(),
                     member: Identifier::generated("spare"),
                     field_symbol: spare,
                     action: MatchFieldAction::Waive,

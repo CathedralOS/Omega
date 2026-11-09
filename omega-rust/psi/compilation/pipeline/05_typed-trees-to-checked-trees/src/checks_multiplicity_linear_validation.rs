@@ -450,6 +450,7 @@ mod affine_cleanup {
     }
 }
 mod applied_events {
+
     /*
         Applying recorded state-entry, statement and borrow permission events to
         the linear places of one state. The recording pass
@@ -525,6 +526,7 @@ mod applied_events {
             statement_index,
             evaluation,
             &facts.operators,
+            &facts.flow.control,
         );
         let calls = facts
             .flow
@@ -2006,6 +2008,7 @@ pub(crate) mod loan_completions {
     }
 }
 mod permission_production {
+
     /*
         Permission production follows the shared source occurrence inventory.
         Operand moves, invocation completion and anonymous result establishment
@@ -2025,10 +2028,10 @@ mod permission_production {
         completed_receiving_values, completed_statement_values, written_linear_targets,
         written_owner_targets,
     };
-    use crate::checks::multiplicity::selected_evaluation::SelectedEvaluation;
     use crate::checks::multiplicity::selected_evaluation::place_bindings::{
-        SelectionSite, enter_produced,
+        SelectionEntry, SelectionSite, enter_produced,
     };
+    use crate::checks::multiplicity::selected_evaluation::{ExpressionRoutes, SelectedEvaluation};
     use crate::checks::multiplicity::{
         projected_affine, projected_replacements, temporary_results,
     };
@@ -2668,7 +2671,9 @@ mod permission_production {
         cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
         claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
         conservation_candidates: &[crate::checks::content::ConservationCandidate],
-    ) -> Result<Option<EvaluatedStorage>, diagnostics::Diagnostic> {
+    ) -> Result<Option<(EvaluatedStorage, ExpressionRoutes)>, diagnostics::Diagnostic> {
+        // Destructure coverage markers are proof-only reads synthesized by the
+        // parser; they neither transfer a value nor establish user storage.
         if matches!(statement, StatementNode::LocalData(local) if local.role == language_core::LocalBindingRole::ArmPattern)
         {
             return Ok(None);
@@ -2840,13 +2845,23 @@ mod permission_production {
             statement: statement_index,
             evaluation,
         };
+        let routes =
+            ExpressionRoutes::from_steps(program, occurrences, facts.flow.control, selection_site);
+        // Every produced occurrence leaves each departing scope through the same
+        // retirement route; the four occurrences (observe, arm-local move,
+        // complete, and the statement's own exit) each restated the same
+        // eleven-argument staging of it. The macro owns the tuple here, where the
+        // occurrences already are, so a site names only the branch route it keeps.
         macro_rules! retire_produced {
             ($route:expr) => {
                 enter_produced(
                     &mut selected,
                     $route,
                     &mut custody,
-                    selection_site,
+                    SelectionEntry {
+                        site: selection_site,
+                        routes: &routes,
+                    },
                     &mut facts.flow.ownership,
                     claim_identities,
                     |branch, current, ownership| {
@@ -3383,16 +3398,19 @@ mod permission_production {
         for event in &mut permission_events[event_start..] {
             event.evaluation = evaluation;
         }
-        Ok(Some(EvaluatedStorage {
-            binding_changes,
-            transfers,
-            observations,
-            event_start,
-            checked_through,
-            written_targets,
-            calls,
-            projected_scopes,
-        }))
+        Ok(Some((
+            EvaluatedStorage {
+                binding_changes,
+                transfers,
+                observations,
+                event_start,
+                checked_through,
+                written_targets,
+                calls,
+                projected_scopes,
+            },
+            routes,
+        )))
     }
 
     /*

@@ -357,6 +357,7 @@ pass/borrows/reference_cycle_projection_root_partition checked 2759ms @a92f16431
 pass/borrows/reference_parameter_field_store_exit built 2481ms exit:0 @a92f16431042
 pass/borrows/region_stored_reference_occurrences_exit built 4187ms exit:0 @a92f16431042
 pass/borrows/retained_envelope_refs checked 3887ms @a92f16431042
+pass/borrows/returned_case_descriptor_formation built 7151ms exit:0 @8f21571f2eb6
 pass/borrows/returned_owned_byte_field_snapshot_exit built 15809ms exit:70 @a92f16431042
 pass/borrows/returned_primitive_reference_assignment_capture_exit built 4698ms exit:0 @a92f16431042
 pass/borrows/returned_record_byte_field_store_exit built 19673ms exit:70 @a92f16431042
@@ -402,8 +403,7 @@ pass/borrows/runtime_copied_byte_distinct_epochs_exit built 2215ms exit:0 @a92f1
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 2747ms exit:0 @a92f16431042
 pass/borrows/runtime_copied_range_record_domains_exit built 2737ms exit:0 @a92f16431042
 pass/borrows/runtime_copyable_carrier_retirement_exit built 2067ms exit:0 @a92f16431042
-pass/borrows/runtime_cyclic_field_loan_release_exit rejected 6745ms regressed-from:built+exit:70 @a92f16431042
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(19)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/runtime_cyclic_field_loan_release_exit built 34730ms exit:70 @2627f0cca796
 pass/borrows/runtime_descriptor_replacement_exit built 2003ms exit:0 @a92f16431042
 pass/borrows/runtime_direct_immutable_scalar_loan_exit built 2366ms exit:0 @a92f16431042
 pass/borrows/runtime_discarded_reference_release_exit built 6471ms exit:70 @a92f16431042
@@ -6628,7 +6628,7 @@ pass/storage/runtime_parameter_slice_forward_exit built 6219ms exit:70 @a92f1643
 pass/storage/runtime_primitive_local_literal_composition_exit built 6291ms exit:70 @a92f16431042
 pass/structs/affine_record_state_clone built 6348ms exit:70 @a92f16431042
 pass/structs/affine_result_constructor built 6689ms exit:70 @a92f16431042
-pass/structs/case_field_type_store_shapes built 6053ms exit:70 @a92f16431042
+pass/structs/case_field_type_store_shapes built 29325ms exit:70 @44f3ff0c2918
 pass/structs/copied_array_field_shared_record built 6650ms exit:70 @a92f16431042
 pass/structs/deep_nested_write_paths_exit built 6011ms exit:70 @a92f16431042
 pass/structs/mutable_array_record_state_transfer built 6039ms exit:70 @a92f16431042
@@ -6639,7 +6639,7 @@ pass/structs/record_literal_array_field built 6029ms exit:0 @a92f16431042
 pass/structs/runtime_array_member_snapshot_exit built 5956ms exit:70 @a92f16431042
 pass/structs/runtime_case_array_payload_exit built 6010ms exit:70 @a92f16431042
 pass/structs/runtime_completed_array_elements_exit built 5955ms exit:70 @a92f16431042
-pass/structs/runtime_composed_case_payload_reads_exit built 6212ms exit:70 @a92f16431042
+pass/structs/runtime_composed_case_payload_reads_exit built 28865ms exit:70 @44f3ff0c2918
 pass/structs/runtime_declared_record_member_fill_exit built 5788ms exit:70 @a92f16431042
 pass/structs/runtime_local_array_snapshot_exit built 6833ms exit:70 @a92f16431042
 pass/structs/runtime_local_record_policy_exit built 7679ms exit:70 @a92f16431042

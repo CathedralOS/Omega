@@ -9698,6 +9698,33 @@ pub mod qualification_evidence {
 }
 
 pub mod relevance {
+    //! Runtime noninterference and fail-closed fences for occurrence-level
+    //! `[erased]` bindings: data fields, case payload fields, signature
+    //! parameters, and `let` locals.
+    //!
+    //! The executable slice supports transparent records and sums, including
+    //! constructors joined to their exact closed receiving application, and closed
+    //! plain data whose attached machines are ordinary checked bodies. The full
+    //! semantic tree remains intact for proofs and ownership; native lowering later strips erased literal fields from its
+    //! private runtime expression graph and attached-machine storage/topology.
+    //!
+    //! Every binding occurrence shares one contract
+    //! (wiki/spec/proofs/contracts.md#explicit-erased-bindings): the binding may
+    //! supply proof computation but cannot determine runtime data or control.
+    //! Contracts, invariants, and proof machines are `Context::Proof` and never
+    //! walk here as runtime reads. An erased binding's own initializer -- a
+    //! field initializer in a struct literal, a `let x [erased]` initializer, or
+    //! the argument supplied to an erased parameter position -- is
+    //! `Context::ErasedInitializer`: it may read erased bindings but cannot call
+    //! a runtime machine or perform an atomic operation, because nothing at
+    //! runtime will ever observe the result. Runtime reads of erased parameters
+    //! and locals are resolved by symbol against the current state's own
+    //! parameters and `let` statements; parameter positions align arguments with
+    //! the callee's non-`self` parameters. A statement call's receiver is its
+    //! callee's `self` operand -- a runtime place, not a proof position -- so a
+    //! runtime call through an erased binding or erased field projection rejects
+    //! with the same diagnostic as a direct read.
+
     use crate::CheckingInput;
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
@@ -10255,6 +10282,7 @@ pub mod relevance {
     use shape_admission::validate_erased_field_shapes;
 
     pub(crate) mod runtime_uses {
+
         use super::{
             Context, argument_position_context, call_targets_proof_machine, callee_parameters,
             erased_fields,
@@ -10455,8 +10483,19 @@ pub mod relevance {
                                 && constructor.state == state.symbol
                         })
                 });
+            // Receiving application custody establishes correspondence, not evidence
+            // or permission to read an erased field at runtime. Its selected fields
+            // still require explicit terms (including checked nullary elaboration),
+            // and those terms retain their ErasedInitializer context below.
+            let applied = program.closed_data_constructor_definition(
+                crate::value_custody::struct_literals::construction_application(
+                    program, expression,
+                ),
+                literal.type_symbol,
+            );
             let unsupported_bare_generic = !definition.type_parameters.is_empty()
                 && !erased_fields(program, definition).is_empty()
+                && applied.is_none()
                 && !checked_source_evidence;
             if unsupported_bare_generic {
                 diagnostics.push(Diagnostic::error(format!(
@@ -10464,9 +10503,13 @@ pub mod relevance {
             definition.name
         )));
             }
-            let declared_erased = literal_fields(program, definition, literal.case_name.as_ref())
-                .filter(|field| field.relevance.is_erased())
-                .collect::<Vec<_>>();
+            let declared_erased = literal_fields(
+                program,
+                applied.unwrap_or(definition),
+                literal.case_name.as_ref(),
+            )
+            .filter(|field| field.relevance.is_erased())
+            .collect::<Vec<_>>();
             let authored = expression_table(program).struct_fields(literal.fields);
             for erased in &declared_erased {
                 if !unsupported_bare_generic

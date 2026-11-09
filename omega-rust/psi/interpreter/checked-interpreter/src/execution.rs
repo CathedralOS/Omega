@@ -699,7 +699,6 @@ pub(crate) mod host_dispatch {
         DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall,
         Value, expression_table, statement_table, trap, unsupported,
     };
-    use typed_trees::state::state_by_symbol;
     use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
     use validation::checked_shape_data_declaration;
     use validation::exact_byte_read_result_type;
@@ -1144,11 +1143,10 @@ pub(crate) mod host_dispatch {
                     self.program,
                     target_symbol,
                 )?;
-            let realization = self.program.machines().iter().find(|machine| {
-                machine.attached_data_symbol == provider_symbol
-                    && state_by_symbol(self.program.machine_states(machine), target_symbol)
-                        .is_some()
-            })?;
+            let (realization, _) = self
+                .program
+                .machine_states_named(target_symbol)
+                .find(|(machine, _)| machine.attached_data_symbol == provider_symbol)?;
             let (provider_name, trait_name) = match realization.name.as_str() {
                 "ConsoleNativeProvider::read_byte"
                 | "ConsoleNativeProvider::write_byte"

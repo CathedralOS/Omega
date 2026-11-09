@@ -2476,12 +2476,14 @@ mod private_nested_calls {
 mod propositions {
     use arena::{Arena, HandleSpan};
     use symbol_resolved_trees::data::{TypeParameter, TypeParameterKind};
-    use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+    use symbol_resolved_trees::expression::{
+        ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern,
+    };
     use symbol_resolved_trees::proposition::PropositionBody;
     use symbol_resolved_trees::types::TypeReference;
     use symbols::{FixedCoreDeclaration, JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
-    use super::expressions::assign_struct_literal_symbols;
+    use super::expressions::{NameRole, assign_struct_literal_symbols};
     use super::lookup::child_symbol_by_kinds;
     use super::scoped_paths::{
         resolve_state_scoped_table_path, resolve_state_scoped_table_path_member_symbols,
@@ -2559,6 +2561,26 @@ mod propositions {
         local_type_parameters: &[TypeParameter],
         expression: ExpressionHandle,
     ) {
+        assign_expression_symbols_in_role(
+            expressions,
+            child_type_references,
+            symbols,
+            owner_symbol,
+            local_type_parameters,
+            expression,
+            NameRole::Value,
+        );
+    }
+
+    fn assign_expression_symbols_in_role(
+        expressions: &mut ExpressionTable,
+        child_type_references: &mut Arena<TypeReference>,
+        symbols: &SymbolTable,
+        owner_symbol: SymbolHandle,
+        local_type_parameters: &[TypeParameter],
+        expression: ExpressionHandle,
+        role: NameRole,
+    ) {
         macro_rules! recurse {
             ($expression:expr) => {
                 assign_expression_symbols(
@@ -2575,11 +2597,28 @@ mod propositions {
             ExpressionNode::Match(dispatch) => {
                 recurse!(dispatch.subject);
                 for arm in expressions.match_arms(dispatch.arms).to_vec() {
+                    let head = match arm.pattern {
+                        MatchPattern::Value(head) => head,
+                        MatchPattern::Destructure(pattern) => pattern.head,
+                        MatchPattern::Wildcard => ExpressionHandle::invalid(),
+                    };
                     for pattern in expressions
                         .match_pattern_dependencies(arm.pattern)
                         .collect::<Vec<_>>()
                     {
-                        recurse!(pattern);
+                        assign_expression_symbols_in_role(
+                            expressions,
+                            child_type_references,
+                            symbols,
+                            owner_symbol,
+                            local_type_parameters,
+                            pattern,
+                            if pattern == head {
+                                NameRole::PatternHead
+                            } else {
+                                NameRole::Value
+                            },
+                        );
                     }
                     recurse!(arm.value);
                 }
@@ -2693,7 +2732,26 @@ mod propositions {
                         None,
                     )
                 };
-                let member_symbols = if members.len() == 1 && head_symbol.is_valid() {
+                let member_count = members.len();
+                // Mathematical bodies and proof formulas construct the same case
+                // values as machine expressions. Resolve the lexical head first so
+                // a value binding cannot be reinterpreted as a constructor namespace.
+                if role == NameRole::Value
+                    && (!head_symbol.is_valid()
+                        || matches!(
+                            symbols.get(head_symbol).kind,
+                            SymbolKind::Data | SymbolKind::Module
+                        ))
+                    && super::expressions::normalize_qualified_case_value(
+                        symbols,
+                        expressions,
+                        &path,
+                        expression,
+                    )
+                {
+                    return;
+                }
+                let member_symbols = if member_count == 1 && head_symbol.is_valid() {
                     vec![head_symbol]
                 } else if head_symbol.is_valid() {
                     resolve_state_scoped_table_path_member_symbols(
@@ -2748,6 +2806,62 @@ mod propositions {
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::String(_) => {}
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::resolution::{ResolutionRequest, resolve};
+        use source_files_to_tokens::Lexer;
+        use symbol_resolved_trees::mathematical::MathematicalBody;
+
+        #[test]
+        fn mathematical_match_keeps_case_selector_separate_from_constructed_value() {
+            let text = r#"
+                data Choice { case First; case Other; }
+                let select(value: Choice): Choice = match value {
+                    Choice::First {} -> Choice::First
+                    _ -> Choice::Other
+                };
+            "#;
+            let mut sources = source::SourceMap::default();
+            let source_id = sources
+                .add("mathematical-match.omg".into(), text.into())
+                .source_id;
+            let tokens = Lexer::new(text).tokenize().unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+            let program = resolve(ResolutionRequest {
+                syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            })
+            .unwrap();
+            let MathematicalBody::Definition(body) = program.mathematical_definitions[0].body
+            else {
+                panic!("the mathematical match must retain its definition");
+            };
+            let expressions = &program.tables.bodies.expressions;
+            let ExpressionNode::Match(dispatch) = expressions.expression(body) else {
+                panic!("the mathematical body must retain its match");
+            };
+            let arm = &expressions.match_arms(dispatch.arms)[0];
+            let MatchPattern::Destructure(pattern) = arm.pattern else {
+                panic!("the case pattern must retain its destructure selector");
+            };
+            let ExpressionNode::Name(selector) = expressions.expression(pattern.head) else {
+                panic!("a pattern selector must retain declaration identity");
+            };
+            assert_eq!(
+                program.symbols.get(selector.symbol).kind,
+                SymbolKind::Variant
+            );
+            let ExpressionNode::StructLiteral(value) = expressions.expression(arm.value) else {
+                panic!("the arm result must construct its case value");
+            };
+            assert_eq!(value.case_symbol, Some(selector.symbol));
         }
     }
 }

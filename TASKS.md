@@ -33,10 +33,18 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Complete callable contracts, package openings, loans, envelopes, indirect lowering and codec migration on all hosts.
   Acceptance: migrated `traits/` and package controls pass `--both` on all hosts; replacement edges are checked.
 
+- **OWNING-SOME-PACKAGES.** Admit owned hidden state under `some` through uniform carriers ([design](wiki/drafts/designs/owning_some_packages.md)); after **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**.
+  - Inductive uniformity over fields and stored-callable parameters/results; opened witnesses as construction witnesses; linear packages with by-value consuming operations; one owner family in `alloc` as the first customer.
+  Acceptance: two factories into one container, wrong-pool return, captured borrow, restricted crossing, pending-settlement repack and bare-`S` result rejection pass `--both`.
+
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/**/target_body/main.omg`, `audio_playback`, and target fixtures.
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
   Acceptance: one portable call selects per-target implementations from one Terminal artifact under `omega run --both`.
+
+- **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
+  - Declare per-target realization entries (catalog intrinsic, checked machine, unsupported) and bind the public float operators to them; delete `configure_float_defaults`/`configure_directed_fma_defaults` and the `NativeFloats` selection route while keeping differential-evidence identities and the checked-software route; profile remaining `select_provider` cost inside this item.
+  Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions; an unsupported operation rejects naming operation and target; core's build program makes no float selections.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
   - Resolve product requirements, infer `ForeignBinding` const lengths, migrate all `via` sites, and delete `via` parsing.
@@ -70,7 +78,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.
-  - Add the crash row (public inference, requirement deferral, `crashes none` enforcement, per-cause routes) and the termination row (binder premises on authored `terminates`).
+  - Add the crash row (public omission means none, private inference, requirement deferral, `crashes none` enforcement, per-cause routes) and the termination row (binder premises on authored `terminates`).
   - Retire the bare `reaches` keyword in both parsers; sweep `tests/omega`, `samples`, `tests/psi/parser` and `tests/psi/resolver` to `reaches none` and re-record the touched golden rows.
   - Add the [result-relation row](wiki/spec/language/effects.md#callback-result-relations): opaque relation per checked call, authored `F::ensures(args, r)` claims discharged from it, selected relation substituted at specialization; immutable arguments first.
   Acceptance: `forward`/`compose`/`choose` fixtures across reach, suspends, blocks, crashes, terminates and carry pass `--both` with negative twins; a dependency survives export, import, binder forwarding and substitution; `for_each` over a crash-free callback publishes no route and over a trapping one publishes `Trap`; the draft's result-relation fixtures pass.

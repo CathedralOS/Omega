@@ -105,6 +105,7 @@ mod boolean_requirements {
         expression: ExpressionHandle,
         incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         call_frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
     ) -> bool {
         let proven = closed_boolean_value(program, &facts.operators, expression) == Some(true)
             || super::super::call_bounds::proves(
@@ -175,7 +176,14 @@ mod boolean_requirements {
                 call_frames,
             )
             || standing_domain_fact_proves_requirement(program, state_flow, call_flow, expression)
-            || proves_call(program, state_flow, call_flow, expression, call_frames);
+            || proves_call(
+                program,
+                state_flow,
+                call_flow,
+                expression,
+                call_frames,
+                completed,
+            );
         if proven {
             return true;
         }
@@ -193,6 +201,7 @@ mod boolean_requirements {
                     conjunct,
                     incoming_guards,
                     call_frames,
+                    &mut *completed,
                 )
             })
     }
@@ -229,13 +238,14 @@ mod captured_boolean {
     pub(super) fn judgment(
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
-        state: &FlowStateFact,
+        guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, '_>,
         call: &FlowCallFact,
         contexts: &[facts::FactContextHandle],
         requirement: &Fact,
         frames: Option<&validation::CallFrameResolver<'_>>,
         whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
     ) -> Option<bool> {
+        let state = guarantees.caller();
         let FactPayload::ContractBooleanExpression { expression, .. } = requirement.payload else {
             return None;
         };
@@ -266,7 +276,7 @@ mod captured_boolean {
                 if !captured_contract_proven(
                     program,
                     facts,
-                    state,
+                    guarantees,
                     call,
                     contexts,
                     contract,
@@ -369,7 +379,7 @@ mod captured_boolean {
     fn captured_contract_proven(
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
-        state: &FlowStateFact,
+        guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, '_>,
         call: &FlowCallFact,
         contexts: &[facts::FactContextHandle],
         contract: &checked_trees::ContractProofFact,
@@ -379,6 +389,7 @@ mod captured_boolean {
         frames: Option<&validation::CallFrameResolver<'_>>,
         whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
     ) -> bool {
+        let state = guarantees.caller();
         if let typed_trees::domain::ProofFact::Expression(required) =
             program.proof_facts.get(contract.fact)
         {
@@ -389,9 +400,14 @@ mod captured_boolean {
                 cached
             } else {
                 let result = super::super::prover::call_guarantees::proves(
-                    program, facts, state, call, contexts, *required, frames,
+                    program, facts, guarantees, call, contexts, *required, frames,
                 ) || super::super::current_values::proves_call(
-                    program, state, call, *required, frames,
+                    program,
+                    state,
+                    call,
+                    *required,
+                    frames,
+                    guarantees.completed_calls(),
                 ) || super::super::entailment::structural_call_requirement(
                     program,
                     facts,
@@ -2878,7 +2894,7 @@ struct WholeContractCache {
 pub(super) fn check_call_requires(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    state_flow: &FlowStateFact,
+    guarantees: &mut crate::checks::contracts::prover::call_guarantees::StateGuarantees<'_, '_>,
     call_flow: &FlowCallFact,
     nominal_requirements: &super::nominal_inputs::DeclaredFieldRequirements,
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
@@ -2888,6 +2904,7 @@ pub(super) fn check_call_requires(
     value_qualifications: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let state_flow = guarantees.caller();
     let entry_contexts: Vec<_> = facts
         .flow
         .state_call_entry_semantic_contexts(
@@ -2948,7 +2965,7 @@ pub(super) fn check_call_requires(
                 let captured_judgment = captured_boolean::judgment(
                     program,
                     facts,
-                    state_flow,
+                    guarantees,
                     call_flow,
                     requirement_contexts,
                     fact,
@@ -2968,6 +2985,7 @@ pub(super) fn check_call_requires(
                                     expression,
                                     incoming_guards,
                                     call_frames,
+                                    guarantees.completed_calls(),
                                 )
                             }
                             _ => {
@@ -3914,6 +3932,304 @@ fn qualified_argument_grants_domain(
         )
 }
 
+mod restoration_memberships {
+    use facts::{FactPayload, FactPlace};
+    use language_semantics::SemanticDomainId;
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    use symbols::SymbolHandle;
+    use validation::CanonicalPlace;
+
+    struct Membership {
+        place: CanonicalPlace,
+        domain: SymbolHandle,
+        instance: SemanticDomainId,
+    }
+
+    // Prepare the call's exit records once, so each lent field searches only its
+    // own records. These are candidates; the original exact predicate decides.
+    pub(super) struct Memberships {
+        rows: Vec<Membership>,
+        places: facts::places::PlaceBucketIndex,
+    }
+
+    fn key(place: &CanonicalPlace, domain: SymbolHandle) -> u64 {
+        let mut hash = DefaultHasher::new();
+        (place, domain).hash(&mut hash);
+        hash.finish()
+    }
+
+    fn ordinary(
+        place: FactPlace,
+        payload: FactPayload,
+    ) -> Option<(facts::PlaceHandle, SymbolHandle, SemanticDomainId)> {
+        match (place, payload) {
+            (
+                FactPlace::Place(place),
+                FactPayload::DomainMembership {
+                    domain_symbol,
+                    semantic_domain,
+                    ..
+                },
+            ) => Some((place, domain_symbol, semantic_domain)),
+            _ => None,
+        }
+    }
+
+    impl Memberships {
+        pub(super) fn prepare(
+            program: &dyn validation::CheckingInput,
+            semantic: &facts::FactPlan,
+            contexts: &[facts::FactContextHandle],
+        ) -> Self {
+            let mut rows = Vec::new();
+            for &handle in contexts {
+                let context = semantic.contexts.get(handle);
+                for fact in semantic.context_view(context).facts() {
+                    let Some((place, domain, instance)) = ordinary(fact.place, fact.payload) else {
+                        continue;
+                    };
+                    let Some(place) = crate::flow::canonical_place_from_semantic_place(
+                        program,
+                        semantic,
+                        semantic.places.get(place),
+                    ) else {
+                        continue;
+                    };
+                    rows.push(Membership {
+                        place,
+                        domain,
+                        instance,
+                    });
+                }
+            }
+            Self::from_rows(rows)
+        }
+
+        fn from_rows(rows: Vec<Membership>) -> Self {
+            let places = facts::places::PlaceBucketIndex::new(
+                rows.iter().map(|row| key(&row.place, row.domain)),
+            );
+            Self { rows, places }
+        }
+
+        fn candidates(
+            &self,
+            place: &CanonicalPlace,
+            domain: SymbolHandle,
+        ) -> impl Iterator<Item = &Membership> {
+            self.places
+                .candidates(key(place, domain))
+                .map(|position| &self.rows[position])
+        }
+
+        pub(super) fn contains(
+            &self,
+            place: &CanonicalPlace,
+            domain: SymbolHandle,
+            instance: SemanticDomainId,
+        ) -> bool {
+            self.candidates(place, domain).any(|row| {
+                row.domain == domain
+                    && (!instance.is_valid() || row.instance == instance)
+                    && row.place == *place
+            })
+        }
+    }
+
+    // The first declaration still supplies the obligation, even when another
+    // row names a different instance of the same domain for that field.
+    #[derive(Default)]
+    pub(super) struct Obligations {
+        seen: std::collections::HashSet<(CanonicalPlace, SymbolHandle)>,
+    }
+
+    impl Obligations {
+        pub(super) fn first(&mut self, place: &CanonicalPlace, domain: SymbolHandle) -> bool {
+            self.seen.insert((place.clone(), domain))
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{Membership, Memberships, Obligations, key, ordinary};
+        use facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
+        use language_semantics::SemanticDomainId;
+        use symbols::SymbolHandle;
+        use validation::CanonicalPlace;
+
+        #[test]
+        fn exact_restoration_candidates_preserve_instances_and_first_obligations() {
+            let domain = SymbolHandle::from_parts(7, 3);
+            let place = CanonicalPlace {
+                root: PlaceRoot::Symbol(SymbolHandle::from_parts(11, 2)),
+                segments: vec![
+                    PlaceSegment::Field {
+                        symbol: SymbolHandle::from_parts(19, 1),
+                    },
+                    PlaceSegment::FixedIndex { index: 4 },
+                ],
+            };
+            let other_field = CanonicalPlace {
+                segments: vec![PlaceSegment::Field {
+                    symbol: SymbolHandle::from_parts(20, 1),
+                }],
+                ..place.clone()
+            };
+            let other_root = CanonicalPlace {
+                root: PlaceRoot::Symbol(SymbolHandle::from_parts(11, 3)),
+                ..place.clone()
+            };
+            let other_domain = SymbolHandle::from_parts(7, 4);
+            let rows = (0..1024)
+                .map(|position| Membership {
+                    place: match position % 4 {
+                        0 => place.clone(),
+                        1 => other_field.clone(),
+                        2 => other_root.clone(),
+                        _ => place.clone(),
+                    },
+                    domain: if position % 4 == 3 {
+                        other_domain
+                    } else {
+                        domain
+                    },
+                    instance: if position % 7 == 0 {
+                        SemanticDomainId::NULL
+                    } else {
+                        SemanticDomainId((position % 5 + 1) as u32)
+                    },
+                })
+                .collect();
+            let prepared = Memberships::from_rows(rows);
+            let mut direct_scans = 0;
+            let mut indexed_scans = 0;
+            for requested in [&place, &other_field, &other_root] {
+                for selected_domain in [domain, other_domain, SymbolHandle::from_parts(30, 1)] {
+                    for instance in [
+                        SemanticDomainId::NULL,
+                        SemanticDomainId(1),
+                        SemanticDomainId(5),
+                        SemanticDomainId(99),
+                    ] {
+                        let matches = |row: &&Membership| {
+                            row.domain == selected_domain
+                                && (!instance.is_valid() || row.instance == instance)
+                                && row.place == *requested
+                        };
+                        let direct = prepared
+                            .rows
+                            .iter()
+                            .inspect(|_| direct_scans += 1)
+                            .find(matches);
+                        let indexed = prepared
+                            .candidates(requested, selected_domain)
+                            .inspect(|_| indexed_scans += 1)
+                            .find(matches);
+                        assert_eq!(
+                            direct.map(|row| (row.instance, &row.place)),
+                            indexed.map(|row| (row.instance, &row.place))
+                        );
+                        assert_eq!(
+                            prepared.contains(requested, selected_domain, instance),
+                            direct.is_some()
+                        );
+                    }
+                }
+            }
+            eprintln!(
+                "restoration membership table: {} prepared rows; direct {} visited rows; indexed {} visited rows",
+                prepared.rows.len(),
+                direct_scans,
+                indexed_scans
+            );
+            assert!(indexed_scans < direct_scans);
+            // Deliberately offer every row for each requested bucket. A root,
+            // field, domain-generation or instance mismatch must still refuse.
+            let absent_root = CanonicalPlace {
+                root: PlaceRoot::Symbol(SymbolHandle::from_parts(11, 9)),
+                ..place.clone()
+            };
+            let absent_field = CanonicalPlace {
+                segments: vec![
+                    PlaceSegment::Field {
+                        symbol: SymbolHandle::from_parts(19, 1),
+                    },
+                    PlaceSegment::FixedIndex { index: 5 },
+                ],
+                ..place.clone()
+            };
+            let mut collided = Memberships {
+                places: facts::places::PlaceBucketIndex::new(std::iter::empty()),
+                rows: prepared.rows,
+            };
+            for (requested, selected_domain, instance, expected) in [
+                (&place, domain, SemanticDomainId(1), true),
+                (&place, domain, SemanticDomainId::NULL, true),
+                (&place, domain, SemanticDomainId(99), false),
+                (&absent_root, domain, SemanticDomainId(1), false),
+                (&absent_field, domain, SemanticDomainId(1), false),
+                (
+                    &place,
+                    SymbolHandle::from_parts(7, 9),
+                    SemanticDomainId(1),
+                    false,
+                ),
+            ] {
+                collided.places = facts::places::PlaceBucketIndex::new(
+                    collided
+                        .rows
+                        .iter()
+                        .map(|_| key(requested, selected_domain)),
+                );
+                assert_eq!(
+                    collided.contains(requested, selected_domain, instance),
+                    expected
+                );
+            }
+            let mut direct = Vec::new();
+            let mut indexed = Obligations::default();
+            for (path, selected_domain, instance) in [
+                (&place, domain, 1),
+                (&place, domain, 2),
+                (&other_field, domain, 3),
+                (&place, other_domain, 4),
+                (&other_root, domain, 5),
+            ] {
+                let is_first = !direct.contains(&(path.clone(), selected_domain));
+                if is_first {
+                    direct.push((path.clone(), selected_domain));
+                }
+                assert_eq!(
+                    indexed.first(path, selected_domain),
+                    is_first,
+                    "instance {instance} changes no dedup key"
+                );
+            }
+            let raw_place = facts::PlaceHandle::from_parts(1, 1);
+            let payload = FactPayload::DomainMembership {
+                value: Default::default(),
+                domain: Default::default(),
+                domain_symbol: domain,
+                semantic_domain: SemanticDomainId(1),
+            };
+            assert_eq!(
+                ordinary(FactPlace::Place(raw_place), payload),
+                Some((raw_place, domain, SemanticDomainId(1)))
+            );
+            let contract = FactPayload::ContractDomainMembership {
+                kind: facts::ContractFactKind::Ensures,
+                fact: Default::default(),
+                value: Default::default(),
+                domain: Default::default(),
+                domain_symbol: domain,
+                semantic_domain: SemanticDomainId(1),
+            };
+            assert_eq!(ordinary(FactPlace::Place(raw_place), contract), None);
+            assert_eq!(ordinary(FactPlace::Unknown, payload), None);
+        }
+    }
+}
+
 /*
     A local declared with a domain qualification (`let mut bytes: [u8; 2] in Ascii`)
     retains that obligation across exclusive loans (`&mut`, `&write`).
@@ -3987,7 +4303,8 @@ fn check_lender_domain_restoration(
         }
     };
 
-    let mut checked_obligations = Vec::new();
+    let mut checked_obligations = restoration_memberships::Obligations::default();
+    let memberships = std::cell::OnceCell::new();
     for (position, parameter) in parameters.iter().enumerate() {
         if !validation::reference_shell(program, parameter.type_reference)
             .is_some_and(|shell| shell.access.is_exclusive())
@@ -4054,41 +4371,19 @@ fn check_lender_domain_restoration(
                         root: place.storage.root,
                         segments: row.path.clone(),
                     };
-                    if checked_obligations.contains(&(required_place.clone(), domain_symbol)) {
+                    if !checked_obligations.first(&required_place, domain_symbol) {
                         continue;
                     }
-                    checked_obligations.push((required_place.clone(), domain_symbol));
 
-                    let has_membership = exit_contexts.iter().any(|&context_handle| {
-                        let context = facts.semantic.contexts.get(context_handle);
-                        facts.semantic.context_view(context).facts().any(|fact| {
-                            let (
-                                FactPlace::Place(fact_place),
-                                FactPayload::DomainMembership {
-                                    domain_symbol: f_dom,
-                                    semantic_domain: f_id,
-                                    ..
-                                },
-                            ) = (fact.place, fact.payload)
-                            else {
-                                return false;
-                            };
-                            if f_dom != domain_symbol {
-                                return false;
-                            }
-                            if semantic_domain.is_valid() && f_id != semantic_domain {
-                                return false;
-                            }
-                            let fact_place = facts.semantic.places.get(fact_place);
-                            crate::flow::canonical_place_from_semantic_place(
+                    let has_membership = memberships
+                        .get_or_init(|| {
+                            restoration_memberships::Memberships::prepare(
                                 program,
                                 &facts.semantic,
-                                fact_place,
+                                &exit_contexts,
                             )
-                            .as_ref()
-                                == Some(&required_place)
                         })
-                    });
+                        .contains(&required_place, domain_symbol, semantic_domain);
                     let satisfied = has_membership
                         || if semantic_domain.is_valid() {
                             super::prover::prove_indexed_domain_at_place(

@@ -150,9 +150,9 @@ pub(crate) mod source_guards {
     }
 }
 
+pub use typed_trees::ClosedConformanceConstArgument;
 pub use typed_trees::byte_predicates;
 pub use typed_trees::ranking;
-pub use typed_trees::typed_trees::ClosedConformanceConstArgument;
 pub use typed_trees::{
     data, domain, expression, finite_family, identity, machine, name, proof_only, proposition,
     signature, state, trait_definition, types, wire,
@@ -660,6 +660,9 @@ pub use proof::{
 };
 pub use values::{
     CheckedArrayConstructionSource, CheckedBooleanExpression, CheckedByteSequenceOperand,
+    CheckedCompletionArm, CheckedCompletionComparison, CheckedCompletionExpression,
+    CheckedCompletionExpressionHandle, CheckedCompletionExpressionKind, CheckedCompletionPlans,
+    CheckedCompletionRefusal, CheckedCompletionRefusalReason, CheckedCompletionRoot,
     CheckedDispatchSubject, CheckedElementViewRegion, CheckedEntryIndexBound,
     CheckedEntryIndexSelector, CheckedErasedProofParameterPlan, CheckedIeeeFloatComparisonKind,
     CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,

@@ -119,6 +119,7 @@ pub(crate) mod proof_contracts {
 }
 
 pub(crate) mod value_custody {
+
     pub use crate::access_views_and_borrows::{
         access_atomic_observing_results, access_views, write_only_borrows,
     };
@@ -141,6 +142,51 @@ pub(crate) mod value_custody {
         structural_identity, transition_operand_moves, type_properties, type_shapes,
         visit_executable_value_occurrences, visit_statement_value_occurrences,
     };
+
+    pub(crate) mod pattern_components {
+        //! Receiving slots preserve a case view's component and reference carrier.
+
+        fn reference_alias_type(
+            program: &dyn crate::CheckingInput,
+            reference: typed_trees::types::TypeReferenceHandle,
+        ) -> bool {
+            reference.is_valid()
+                && matches!(
+                    program.type_reference_table.type_reference(
+                        program
+                            .type_reference_table
+                            .unconstrained_type_reference(reference)
+                    ),
+                    typed_trees::types::TypeReferenceNode::Reference { .. }
+                )
+        }
+
+        pub(crate) fn report_delivery(
+            program: &dyn crate::CheckingInput,
+            value: typed_trees::expression::ExpressionHandle,
+            destination: typed_trees::types::TypeReferenceHandle,
+            expected: Option<language_core::PatternComponent>,
+            owner: &str,
+            diagnostics: &mut Vec<diagnostics::Diagnostic>,
+        ) -> bool {
+            if !value.is_valid() {
+                return false;
+            }
+            let actual = program.pattern_component(value);
+            if actual.is_none()
+                || expected.is_none()
+                || actual != expected
+                || (actual == Some(language_core::PatternComponent::Case)
+                    && !reference_alias_type(program, destination))
+            {
+                diagnostics.push(diagnostics::Diagnostic::error(format!(
+            "{owner} cannot recover a whole data value or change the component of a case-only view"
+        )));
+                return true;
+            }
+            false
+        }
+    }
 }
 
 pub mod compiler_evaluation {
@@ -1555,8 +1601,8 @@ use typed_trees::types::TypeReferenceHandle;
 pub use value_custody::access_atomic_observing_results;
 pub use value_custody::byte_observations::{ByteObservationCarrier, comparable_byte_carrier_type};
 pub use value_custody::claim_frontier::{
-    ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
-    type_carries_linear_obligation,
+    ClaimFrontierClaim, DeclaredClaimFrontier, declared_claim_frontier, linear_claim_frontier,
+    owned_receiver_claims, type_carries_linear_obligation,
 };
 pub use value_custody::constants::validate_constant_literal_fields;
 pub use value_custody::content_classes::classify_program_content_classes;

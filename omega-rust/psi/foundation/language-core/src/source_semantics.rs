@@ -97,6 +97,18 @@ pub mod receiver_binding {
     }
 }
 
+/// A decomposition reads either ordinary fields or the case-only component
+/// of the same value. Selecting cases creates no storage or access authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
+pub enum PatternComponent {
+    #[default]
+    Fields,
+    Case,
+}
+
+/// The parser's purpose for a local, independent of its diagnostic name and
+/// relevance. Pattern markers retain coverage metadata but do not capture an
+/// owned runtime value; their per-field bindings are ordinary values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum LocalBindingRole {
     #[default]
@@ -105,18 +117,26 @@ pub enum LocalBindingRole {
     AtomicObservedResult, // Reserved immutable binding established by the associated atomic event.
     RecordPattern,
     ArmPattern,
+    /// A prepared private dispatch capture of existing storage.
+    DispatchObservation,
 }
 
 impl LocalBindingRole {
     pub const fn is_runtime_binding(self) -> bool {
         matches!(
             self,
-            Self::Value | Self::DispatchSubject | Self::AtomicObservedResult
+            Self::Value
+                | Self::DispatchSubject
+                | Self::DispatchObservation
+                | Self::AtomicObservedResult
         )
     }
 
     pub const fn has_ordinary_initializer(self) -> bool {
-        matches!(self, Self::Value | Self::DispatchSubject)
+        matches!(
+            self,
+            Self::Value | Self::DispatchSubject | Self::DispatchObservation
+        )
     }
 }
 

@@ -10,9 +10,10 @@ The source contracts are [machine values](../../spec/language/machine_values.md)
 and [some packages](../../spec/language/some_packages.md); the
 [Terminal contract](../../spec/terminal-psi/dynamic_dispatch.md) owns retained
 evidence and indirect realization. Baseline representation is indirect, with
-sized borrowed state and uniform field layouts. No global target/witness roster,
-implicit allocation, anonymous closure syntax or arbitrary owned erased state
-is required. Optimizer devirtualization remains optional.
+sized borrowed or owned state and uniform field layouts. No global target/witness
+roster, implicit allocation or anonymous closure syntax is required; owned hidden
+state follows [owning some packages](owning_some_packages.md). Optimizer
+devirtualization remains optional.
 
 ## Migration ownership
 

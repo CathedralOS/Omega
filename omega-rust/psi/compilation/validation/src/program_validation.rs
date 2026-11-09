@@ -1521,6 +1521,7 @@ pub(crate) mod statements {
         }
     }
     pub(crate) mod assignment_statements {
+
         use super::{StatementOutputs, StatementScope};
         use crate::value_custody::places::validate_assignment_target_handle;
         use crate::{
@@ -1717,11 +1718,12 @@ pub(crate) mod statements {
                         "place",
                         diagnostics,
                     );
-                    expression_types::report_delivered_type_mismatch(
+                    expression_types::report_delivered_type_mismatch_with_component(
                         program,
                         machine.symbol,
                         value,
                         target_type,
+                        program.pattern_component(assignment.target),
                         &owner,
                         diagnostics,
                     );
@@ -2591,6 +2593,7 @@ pub(crate) mod statements {
         }
     }
     pub(crate) mod local_data_statements {
+
         use super::{StatementOutputs, StatementScope};
         use crate::frozen_program::expression_table;
         use crate::value_custody::type_references::validate_type_reference_handle;
@@ -2860,11 +2863,12 @@ pub(crate) mod statements {
                         diagnostics,
                     );
                 if !access_refused {
-                    expression_types::report_delivered_type_mismatch(
+                    expression_types::report_delivered_type_mismatch_with_component(
                         program,
                         machine.symbol,
                         local_data.initial_value,
                         local_data.type_reference,
+                        program.pattern_component(local_data.initial_value),
                         &owner,
                         diagnostics,
                     );

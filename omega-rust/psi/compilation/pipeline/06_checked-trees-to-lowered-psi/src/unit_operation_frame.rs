@@ -842,7 +842,6 @@ pub(crate) mod attached_unit {
             use crate::emission::operation_emission::buffer::structural_result_declaration;
             use crate::emission::operation_emission::place_declarations::operation_result_place;
             use crate::emission::structural_byte_sequence_store as byte_store;
-            use crate::expression_preparation::bindings::structural_paths::lower_argument_path;
             use checked_trees::{
                 CheckedByteSequenceValue, CheckedUnitStructuralArgumentSourcePlan as Source,
             };
@@ -976,34 +975,20 @@ pub(crate) mod attached_unit {
                     }
                     let (_, state) =
                         crate::shared::declarations::state_declaration(self.checked, self.state)?;
-                    let home = bindings
-                        .borrowed_structural_home(source, self.checked.state_parameters(state))?;
+                    let prepared = bindings.prepared_borrowed_argument(
+                        identities,
+                        self.checked,
+                        source,
+                        self.checked.state_parameters(state),
+                        self.structural_types.declarations(),
+                    )?;
+                    let home =
+                        prepared.emit(self.values, self.calls, self.next_value, self.operations)?;
                     let place = home.place;
-                    if source.path.is_empty() && home.path.is_empty() {
+                    if home.path.is_empty() {
                         return Ok(place);
                     }
-                    let fields = crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
-                        &self.evaluation.structural_parameters,
-                        self.structural_types.declarations(),
-                    );
-                    let mut selectors = parameters::mint_runtime_index_selectors(
-                        identities,
-                        std::slice::from_ref(source),
-                        &fields,
-                        &self.evaluation.contextual_bindings(),
-                        self.values.as_slice(),
-                        self.next_value,
-                        self.operations,
-                    )?
-                    .into_iter();
-                    let mut path = home.path;
-                    path.extend(lower_argument_path(
-                        identities,
-                        &source.path,
-                        Some(self.values.as_slice()),
-                        &mut selectors,
-                        Some(&mut *self.calls),
-                    )?);
+                    let path = home.path;
                     let destination = place_id(allocate_dense(self.next_place)?);
                     let producer = self.operations.allocate();
                     self.operations.push(Operation::unsuspended(
@@ -1556,13 +1541,6 @@ pub(crate) mod attached_unit {
                     {
                         let register = matches!(self.results, StructuralResults::Dense(_));
                         let frontier = self.suspension_source_frontier(*coordinate)?;
-                        let reserved =
-                            crate::scalar_lowering::computations::call_views::reserved_place(
-                                checked,
-                                &self.evaluation.call_views,
-                                self.state,
-                                &call.coordinate,
-                            );
                         let declaration = ordinary_calls::emit_structural(
                             identities,
                             checked,
@@ -1576,7 +1554,6 @@ pub(crate) mod attached_unit {
                             &mut self.calls.claims,
                             register,
                             &frontier,
-                            reserved,
                             self.next_place,
                             self.operations,
                         )?;
@@ -4241,6 +4218,7 @@ pub(crate) mod attached_unit {
                                 self.checked,
                                 &mut arguments,
                                 &[declaration],
+                                &[],
                                 self.values,
                                 self.next_place,
                                 self.private_places,
@@ -4289,57 +4267,67 @@ pub(crate) mod attached_unit {
                         return unsupported("replacement value is not a whole owned result");
                     }
                     let repair = match value.source {
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal,
-                        } => {
-                            let repair = self
-                                .results
-                                .repair_value(binding_ordinal, self.operations)?;
-                            BorrowedWindowRepairValue {
-                                place: repair.place,
-                                structural_type: repair.structural_type,
-                            }
-                        }
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index,
-                        } => {
-                            let parameter = self.parameters.get(parameter_index as usize);
-                            let Some(parameter) = parameter else {
-                                return unsupported("borrowed-window repair value's parameter is not declared");
-                            };
-                            if parameter.access != terminal_psi::StructuralAccess::Owned {
-                                return unsupported("borrowed-window repair value is not an owned parameter");
-                            }
-                            BorrowedWindowRepairValue {
-                                place: parameter.place,
-                                structural_type: parameter.structural_type,
-                            }
-                        }
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                            let local = crate::expression_preparation::bindings::structural_local_by_root(
-                                &self.evaluation.structural_locals,
-                                facts::PlaceRoot::Symbol(symbol),
-                            );
-                            let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
-                                argument,
-                                structural_type,
-                                ..
-                            }) = local
-                            else {
-                                return unsupported("borrowed-window repair value's local is not established");
-                            };
-                            if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
-                                return unsupported("replacement value's local does not own the whole home");
-                            }
-                            BorrowedWindowRepairValue {
-                                place: argument.place,
-                                structural_type: *structural_type,
-                            }
-                        }
-                        _ => {
-                            return unsupported("borrowed-window repair value is not a whole owned result");
-                        }
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal,
+                } => {
+                    let repair = self
+                        .results
+                        .repair_value(binding_ordinal, self.operations)?;
+                    BorrowedWindowRepairValue {
+                        place: repair.place,
+                        structural_type: repair.structural_type,
+                    }
+                }
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                } => {
+                    let parameter = self.parameters.get(parameter_index as usize);
+                    let Some(parameter) = parameter else {
+                        return unsupported(
+                            "borrowed-window repair value's parameter is not declared",
+                        );
                     };
+                    if parameter.access != terminal_psi::StructuralAccess::Owned {
+                        return unsupported(
+                            "borrowed-window repair value is not an owned parameter",
+                        );
+                    }
+                    BorrowedWindowRepairValue {
+                        place: parameter.place,
+                        structural_type: parameter.structural_type,
+                    }
+                }
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol,
+                } => {
+                    let local = crate::expression_preparation::bindings::structural_local_by_root(
+                        &self.evaluation.structural_locals,
+                        facts::PlaceRoot::Symbol(symbol),
+                    );
+                    let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
+                        argument,
+                        structural_type,
+                        ..
+                    }) = local
+                    else {
+                        return unsupported(
+                            "borrowed-window repair value's local is not established",
+                        );
+                    };
+                    if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                        return unsupported(
+                            "replacement value's local does not own the whole home",
+                        );
+                    }
+                    BorrowedWindowRepairValue {
+                        place: argument.place,
+                        structural_type: *structural_type,
+                    }
+                }
+                _ => {
+                    return unsupported("borrowed-window repair value is not a whole owned result");
+                }
+            };
                     Ok(repair)
                 }
 
@@ -4469,18 +4457,21 @@ pub(crate) mod attached_unit {
                                                 ))?;
                                             let mut canonical = carrier.clone();
                                             let access = match &mut canonical.shape {
-                                            terminal_psi::StructuralTypeShape::ElementView {
-                                                access, ..
-                                            }
-                                            | terminal_psi::StructuralTypeShape::ByteSequence(
-                                                terminal_psi::ByteSequenceCarrier::BorrowedView { access },
-                                            ) => access,
-                                            _ => {
-                                                return unsupported(
-                                                    "shared rebind changes its descriptor family",
-                                                );
-                                            }
-                                        };
+                                        terminal_psi::StructuralTypeShape::ElementView {
+                                            access,
+                                            ..
+                                        }
+                                        | terminal_psi::StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                                access,
+                                            },
+                                        ) => access,
+                                        _ => {
+                                            return unsupported(
+                                                "shared rebind changes its descriptor family",
+                                            );
+                                        }
+                                    };
                                             if *access != Some(StructuralAccess::SharedBorrow) {
                                                 return unsupported(
                                                     "shared view rebind changes its access ceiling",
@@ -4516,7 +4507,9 @@ pub(crate) mod attached_unit {
                                         parameter.projected_qualifications.extend(
                                             parameter.qualifications.drain(..).map(|domain| {
                                                 terminal_psi::StructuralPathQualification {
-                                                    path: vec![terminal_psi::StructuralPathSegment::Referent],
+                                                    path: vec![
+                                                terminal_psi::StructuralPathSegment::Referent,
+                                            ],
                                                     domain,
                                                 }
                                             }),
@@ -7238,9 +7231,13 @@ pub(crate) mod attached_unit {
                     | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                         let (_, state) =
                             crate::shared::declarations::state_declaration(checked, node.state)?;
-                        let home = bindings
-                            .borrowed_structural_home(source, checked.state_parameters(state))?;
-                        let root_type = bindings.structural_argument_type(&home).ok_or(
+                        let resolved = bindings.resolve_borrowed_argument(
+                            checked,
+                            source,
+                            checked.state_parameters(state),
+                        )?;
+                        let home = &resolved.source;
+                        let root_type = bindings.structural_argument_type(home).ok_or(
                             LoweringError::Unsupported(
                                 "computed observation lost its original source carrier",
                             ),
@@ -7248,12 +7245,11 @@ pub(crate) mod attached_unit {
                         let access = home.access;
                         let mut path = home
                             .path
-                            .into_iter()
+                            .iter()
+                            .cloned()
                             .map(PreparedStructuralPathSegment::Static)
                             .collect::<Vec<_>>();
-                        path.extend(structural_paths::prepare_structural_argument_path(
-                            identities, checked, source, root_type, types,
-                        )?);
+                        path.extend(resolved.prepare_path(identities, checked, root_type, types)?);
                         Ok(ComputedValueObservation {
                             root_type,
                             path,

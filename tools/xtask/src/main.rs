@@ -25,6 +25,8 @@ mod producer;
 mod provenance;
 mod qualification;
 mod rules;
+#[path = "../../../omega-rust/omega/compilation/compiler/tests/support/runtime_oracles.rs"]
+mod runtime_oracles;
 mod samples;
 mod worktree;
 

@@ -1767,11 +1767,18 @@ pub mod mathematical_applications {
             program: &dyn crate::CheckingInput,
             call: &TableCallExpression,
         ) -> bool {
-            call.target_symbol.is_valid()
+            is_identity_declaration(program, call.target_symbol)
+        }
+
+        pub(super) fn is_identity_declaration(
+            program: &dyn crate::CheckingInput,
+            symbol: symbols::SymbolHandle,
+        ) -> bool {
+            symbol.is_valid()
                 && program
                     .symbols
                     .fixed_core_declaration_symbol(FixedCoreDeclaration::Identity)
-                    == Some(call.target_symbol)
+                    == Some(symbol)
         }
 
         pub fn identity_application(
@@ -3339,18 +3346,34 @@ pub mod mathematical_applications {
         program: &dyn crate::CheckingInput,
         call: &TableCallExpression,
     ) -> bool {
-        is_identity_call(program, call) || selected_definition(program, call).is_some()
+        is_mathematical_declaration(program, call.target_symbol)
+    }
+
+    /// These declarations have mathematical formation rules, not machine contracts.
+    pub fn is_mathematical_declaration(
+        program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+    ) -> bool {
+        identity::is_identity_declaration(program, symbol)
+            || selected_definition_by_symbol(program, symbol).is_some()
     }
 
     pub fn selected_definition<'program>(
         program: &'program dyn crate::CheckingInput,
         call: &TableCallExpression,
     ) -> Option<&'program MathematicalDefinition> {
-        call.target_symbol.is_valid().then_some(())?;
+        selected_definition_by_symbol(program, call.target_symbol)
+    }
+
+    fn selected_definition_by_symbol(
+        program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+    ) -> Option<&MathematicalDefinition> {
+        symbol.is_valid().then_some(())?;
         program
             .mathematical_definitions()
             .iter()
-            .find(|definition| definition.symbol == call.target_symbol)
+            .find(|definition| definition.symbol == symbol)
     }
 
     pub fn parameter_type_reference(

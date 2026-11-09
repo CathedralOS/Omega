@@ -769,13 +769,7 @@ mod disposition_events {
         let Some(target_state) = program.state_by_symbol(observation.target_symbol) else {
             return false;
         };
-        let Some(target_machine) = program.machines().iter().find(|machine| {
-            typed_trees::state::state_by_symbol(
-                program.machine_states(machine),
-                target_state.symbol,
-            )
-            .is_some()
-        }) else {
+        let Some(target_machine) = program.machine_containing_state(target_state.symbol) else {
             return false;
         };
         if target_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -941,13 +935,7 @@ mod disposition_events {
             let Some(target_state) = program.state_by_symbol(call.target_symbol) else {
                 continue;
             };
-            let Some(target_machine) = program.machines().iter().find(|machine| {
-                typed_trees::state::state_by_symbol(
-                    program.machine_states(machine),
-                    target_state.symbol,
-                )
-                .is_some()
-            }) else {
+            let Some(target_machine) = program.machine_containing_state(target_state.symbol) else {
                 continue;
             };
             if call.has_receiver && target_machine.attached_data_symbol != call.receiver_symbol {
@@ -1260,7 +1248,42 @@ mod formation_sources {
                         if descriptor_profile.immutable_image {
                             continue;
                         }
-                        return refusal("returned projection lost its actual borrowing source");
+                        let returned_state =
+                            program.state_by_symbol(state.state_symbol).ok_or_else(|| {
+                                vec![Diagnostic::error(
+                                    "returned projection has no checked state",
+                                )]
+                            })?;
+                        let sources =
+                            validation::reference_result_custody::invocation_borrow_sources(
+                                program,
+                                facts,
+                                returned_state,
+                                descriptor,
+                            )
+                            .ok_or_else(|| {
+                                vec![Diagnostic::error(
+                                    "returned projection lost its actual borrowing source",
+                                )]
+                            })?;
+                        for source in sources {
+                            selected |= validate_captured_source(
+                                program,
+                                facts,
+                                loan_occurrences,
+                                state,
+                                flow_state,
+                                invocation,
+                                row,
+                                CapturedBorrowSource {
+                                    operand: source.operand,
+                                    source_path: &source.source_path,
+                                    projection: &source.projection,
+                                    extent: source.extent,
+                                },
+                            )?;
+                        }
+                        continue;
                     }
                     for source in facts
                         .flow
@@ -1288,8 +1311,14 @@ mod formation_sources {
                     );
                 } else {
                     return refusal(&format!(
-                        "returned projection has no checked descriptor formation: state {:?}, statement {}, source {:?}, captured completion {:?}, selected path {path:?}, retained source {profile:?}",
+                        "returned projection has no checked descriptor formation: machine {:?}, state {:?} ({:?}), call target {:?}, statement {}, source {:?}, captured completion {:?}, selected path {path:?}, retained source {profile:?}",
+                        program.symbols.name(state.machine_symbol),
+                        program.symbols.name(state.state_symbol),
                         state.state_symbol,
+                        program
+                            .expression_table
+                            .call_node(row.formation_expression)
+                            .map(|call| program.symbols.name(call.target_symbol)),
                         row.statement_index,
                         row.formation_expression,
                         value.completion,
@@ -1302,6 +1331,13 @@ mod formation_sources {
             Ok(())
         }
 
+        struct CapturedBorrowSource<'source> {
+            operand: Handle<FlowOperandFact>,
+            source_path: &'source [facts::PlaceSegment],
+            projection: &'source [facts::PlaceSegment],
+            extent: semantic_vocabulary::ReferenceOriginExtent,
+        }
+
         fn validate_source(
             program: &dyn validation::CheckingInput,
             facts: &CheckFacts,
@@ -1312,17 +1348,48 @@ mod formation_sources {
             row: &BorrowLoanFact,
             source: &checked_trees::FlowOperandReborrowSource,
         ) -> Result<bool, Vec<Diagnostic>> {
-            let captured: &FlowOperandFact = facts.flow.control.operands.get(source.operand);
-            let source_path = facts
-                .flow
-                .control
-                .operand_retained_paths
-                .span_or_empty(source.source_path);
-            let projection = facts
-                .flow
-                .control
-                .operand_retained_paths
-                .span_or_empty(source.projection);
+            validate_captured_source(
+                program,
+                facts,
+                loan_occurrences,
+                state,
+                flow_state,
+                call,
+                row,
+                CapturedBorrowSource {
+                    operand: source.operand,
+                    source_path: facts
+                        .flow
+                        .control
+                        .operand_retained_paths
+                        .span_or_empty(source.source_path),
+                    projection: facts
+                        .flow
+                        .control
+                        .operand_retained_paths
+                        .span_or_empty(source.projection),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                },
+            )
+        }
+
+        fn validate_captured_source(
+            program: &dyn validation::CheckingInput,
+            facts: &CheckFacts,
+            loan_occurrences: &LoanOccurrences<'_>,
+            state: &checked_trees::StateBorrowFact,
+            flow_state: &checked_trees::FlowStateFact,
+            call: Handle<checked_trees::FlowCallFact>,
+            row: &BorrowLoanFact,
+            source: CapturedBorrowSource<'_>,
+        ) -> Result<bool, Vec<Diagnostic>> {
+            let CapturedBorrowSource {
+                operand,
+                source_path,
+                projection,
+                extent,
+            } = source;
+            let captured: &FlowOperandFact = facts.flow.control.operands.get(operand);
             let reference = validation::project_type_reference_from_segments(
                 program,
                 captured.type_reference,
@@ -1344,7 +1411,7 @@ mod formation_sources {
                 loan_occurrences,
                 flow_state,
                 call,
-                source.operand,
+                operand,
                 source_path,
                 &access,
             )
@@ -1360,6 +1427,18 @@ mod formation_sources {
                 place.segments.extend_from_slice(projection);
                 let Some(place) = physical_place(place) else {
                     return refusal("returned projection has no complete source projection");
+                };
+                let matches_place = |candidate: &checked_trees::CapturedPlace| {
+                    // A returned view can retain its enclosing collection. The output
+                    // must remain beneath that same captured backing.
+                    if extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion {
+                        candidate.incoming_reference == place.incoming_reference
+                            && candidate.incoming_owner_path == place.incoming_owner_path
+                            && candidate.root == place.root
+                            && candidate.segments.starts_with(&place.segments)
+                    } else {
+                        candidate == &place
+                    }
                 };
                 let parents = match supplier.source {
                     checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => {
@@ -1425,7 +1504,9 @@ mod formation_sources {
                             && candidate.storage_owner == row.storage_owner
                             && facts.borrow.loan_owner_path(candidate)
                                 == facts.borrow.loan_owner_path(row)
-                            && captured_place(&facts.borrow, candidate).as_ref() == Some(&place)
+                            && captured_place(&facts.borrow, candidate)
+                                .as_ref()
+                                .is_some_and(matches_place)
                     })
                     .collect::<Vec<_>>();
                 if parents.is_empty() {
@@ -1445,7 +1526,9 @@ mod formation_sources {
                 }) {
                     return refusal("returned view did not retain every input borrow it needs");
                 }
-                selected |= captured_place(&facts.borrow, row).as_ref() == Some(&place)
+                selected |= captured_place(&facts.borrow, row)
+                    .as_ref()
+                    .is_some_and(matches_place)
                     && match row.lineage {
                         BorrowLoanLineage::DirectRoot => parents.is_empty(),
                         BorrowLoanLineage::Reborrow { parent_loan } => {
@@ -3456,15 +3539,18 @@ mod permission_sources {
         ) else {
             return false;
         };
-        if validation::completed_storage::at_snapshot(
-            program,
-            &facts.flow.control,
-            capture.storage_snapshot,
-            &place,
-            validation::completed_storage::StoredObservation::Binding,
-        )
-        .is_some()
-        {
+        let Some(validation::completed_storage::StoredOperand::Incoming(selected)) =
+            validation::completed_storage::sources_at_snapshot(
+                program,
+                &facts.flow.control,
+                capture.storage_snapshot,
+                &place,
+                validation::completed_storage::StoredObservation::Binding,
+            )
+        else {
+            return false;
+        };
+        if selected != place {
             return false;
         }
         super::super::aliases::resolve_descriptor_places(
@@ -3689,6 +3775,22 @@ mod permission_sources {
                                 )
                         })
                 })
+        } else if let Some(complete) = collect_entry_invocation_accesses(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            call,
+            source,
+            capture,
+            projection,
+            output_access,
+            retained_by_store,
+            output,
+            parents,
+        ) {
+            rule = "the incoming descriptor has no complete invocation access";
+            complete
         } else if let Some(complete) = collect_completed_formations(
             program,
             facts,
@@ -4425,6 +4527,52 @@ mod permission_sources {
         Absent,
         Complete,
         Unavailable,
+    }
+
+    /*
+        A completed expression can name an earlier evaluation of the same entry
+        descriptor. Keep the actual argument's checked access before following
+        that earlier value, which need not itself be an invocation argument.
+        The captured snapshot must still select the exact incoming reference leaf;
+        the enclosing record's borrow cannot supply its stored pointer permission.
+    */
+    #[allow(clippy::too_many_arguments)]
+    fn collect_entry_invocation_accesses(
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        loan_occurrences: &LoanOccurrences<'_>,
+        state: &FlowStateFact,
+        call: Handle<FlowCallFact>,
+        source: Handle<FlowOperandFact>,
+        capture: &FlowOperandFact,
+        projection: &[facts::PlaceSegment],
+        output_access: &checked_trees::BorrowAccessKind,
+        retained_by_store: bool,
+        output: &mut Vec<PermissionSupplier>,
+        parents: &mut Arena<Handle<BorrowLoanFact>>,
+    ) -> Option<bool> {
+        if !projection.is_empty()
+            || !has_captured_entry_reference(program, facts, loan_occurrences, state, source)
+        {
+            return None;
+        }
+        match collect_invocation_accesses(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            call,
+            source,
+            capture,
+            output_access,
+            retained_by_store,
+            output,
+            parents,
+        ) {
+            InvocationAccessCoverage::Absent => None,
+            InvocationAccessCoverage::Complete => Some(true),
+            InvocationAccessCoverage::Unavailable => Some(false),
+        }
     }
 
     fn collect_invocation_accesses(
@@ -6783,7 +6931,7 @@ pub(in crate::checks::borrows) mod supplied_permissions {
                 &access,
             ).inspect_err(|reason| {
                 if ::validation::trace_flags::check_sites() {
-                    eprintln!("CHECKSITE completed-output-input-refused source={source:?} stored={stored:?} owner={owner:?} operand={operand:?} original_call={original:?} lending_call={lending_call:?} path={path:?} access={access:?} reason={reason}");
+                    eprintln!("CHECKSITE completed-output-input-refused source={source:?} stored={stored:?} owner={owner:?} operand={operand:?} original_call={original:?} lending_call={lending_call:?} path={path:?} access={access:?} reason={}", reason.describe(program));
                     let value = facts.flow.control.operands.get(operand);
                     if facts.flow.control.operand_retentions.is_valid(value.retention) {
                         let profile = facts.flow.control.operand_retentions.get(value.retention);

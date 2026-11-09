@@ -462,6 +462,7 @@ pub(crate) mod call_results {
 }
 
 pub(crate) mod capture_product_operands {
+
     use crate::tables::{resolved_expressions, type_constraints};
     use arena::{Handle, HandleSpan};
     use diagnostics::Diagnostic;
@@ -1089,6 +1090,7 @@ pub(crate) mod capture_product_operands {
                     }
                 }
                 Source::SavedSubject(value) => ProductExpressionKind::SavedSubject {
+                    component: value.component,
                     capture: self.capture_subject(value.capture)?,
                     pattern_head: self.expression(value.pattern_head)?,
                 },
@@ -1141,6 +1143,7 @@ pub(crate) mod capture_product_operands {
                         .iter()
                         .map(|field| {
                             Ok(ProductMatchField {
+                                component: field.component,
                                 member: self.name(&field.member, field.field_symbol),
                                 action: match &field.action {
                                     source_expression::MatchFieldAction::Bind(name) => {

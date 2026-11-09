@@ -9,8 +9,267 @@
     correspondence. A result binding is not new resource authority.
 */
 
+mod outcome_tables {
+    // A hypothesis changes each iteration. Prepare associations over its current
+    // rows without caching source, absence or coverage judgments.
+    use crate::checks::multiplicity::linear_obligations::CheckedClaimOutcomeEntry;
+    use facts::PlaceSegment;
+    use facts::places::PlaceBucketIndex;
+    use std::hash::{Hash, Hasher};
+
+    fn hash(value: impl Hash) -> u64 {
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        value.hash(&mut hash);
+        hash.finish()
+    }
+
+    pub(super) fn unique_entries(
+        rows: impl Iterator<Item = CheckedClaimOutcomeEntry>,
+    ) -> Vec<CheckedClaimOutcomeEntry> {
+        let rows = rows.collect::<Vec<_>>();
+        let positions = PlaceBucketIndex::new(rows.iter().map(hash));
+        let first = positions.group_equal_positions(|left, right| rows[left] == rows[right]);
+        rows.into_iter()
+            .enumerate()
+            .filter_map(|(position, row)| (first[position] == position).then_some(row))
+            .collect()
+    }
+
+    pub(super) struct Entries<'rows> {
+        rows: &'rows [CheckedClaimOutcomeEntry],
+        paths: PlaceBucketIndex,
+        sources: PlaceBucketIndex,
+    }
+
+    impl<'rows> Entries<'rows> {
+        pub(super) fn new(rows: &'rows [CheckedClaimOutcomeEntry]) -> Self {
+            Self {
+                rows,
+                paths: PlaceBucketIndex::new(rows.iter().map(|row| hash(&row.output_path))),
+                sources: PlaceBucketIndex::new(rows.iter().map(|row| hash(&row.source))),
+            }
+        }
+
+        pub(super) fn rows(&self) -> &'rows [CheckedClaimOutcomeEntry] {
+            self.rows
+        }
+
+        pub(super) fn at_path<'query>(
+            &'query self,
+            path: &'query [PlaceSegment],
+        ) -> impl Iterator<Item = &'rows CheckedClaimOutcomeEntry> + 'query {
+            self.paths
+                .candidates(hash(path))
+                .filter_map(move |position| {
+                    let row = &self.rows[position];
+                    (row.output_path == path).then_some(row)
+                })
+        }
+
+        pub(super) fn contains(&self, row: &CheckedClaimOutcomeEntry) -> bool {
+            self.at_path(&row.output_path)
+                .any(|candidate| candidate == row)
+        }
+
+        pub(super) fn source_candidates_after(
+            &self,
+            position: usize,
+        ) -> impl Iterator<Item = &'rows CheckedClaimOutcomeEntry> + '_ {
+            self.sources
+                .candidates(hash(&self.rows[position].source))
+                .filter(move |other| *other > position)
+                .map(|other| &self.rows[other])
+        }
+    }
+
+    pub(super) struct InactivePaths<'paths> {
+        rows: &'paths [Vec<PlaceSegment>],
+        paths: PlaceBucketIndex,
+    }
+
+    impl<'paths> InactivePaths<'paths> {
+        pub(super) fn new(rows: &'paths [Vec<PlaceSegment>]) -> Self {
+            Self {
+                rows,
+                paths: PlaceBucketIndex::new(rows.iter().map(hash)),
+            }
+        }
+        pub(super) fn rows(&self) -> &'paths [Vec<PlaceSegment>] {
+            self.rows
+        }
+        pub(super) fn contains(&self, path: &[PlaceSegment]) -> bool {
+            self.paths
+                .candidates(hash(path))
+                .any(|position| self.rows[position] == path)
+        }
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::{Entries, InactivePaths, hash, unique_entries};
+        use crate::checks::multiplicity::linear_obligations::{
+            CheckedClaimOutcomeEntry, CheckedClaimOutcomeSource,
+        };
+        use facts::{PlaceSegment, places::PlaceBucketIndex};
+        use symbols::SymbolHandle;
+
+        fn row(position: usize) -> CheckedClaimOutcomeEntry {
+            CheckedClaimOutcomeEntry {
+                output_path: vec![
+                    PlaceSegment::Field {
+                        symbol: SymbolHandle::from_parts(
+                            (position % 19 + 1) as u32,
+                            (position % 2 + 1) as u32,
+                        ),
+                    },
+                    PlaceSegment::FixedIndex {
+                        index: position % 11,
+                    },
+                ],
+                source: CheckedClaimOutcomeSource::Input {
+                    parameter_symbol: SymbolHandle::from_parts(
+                        (position % 13 + 1) as u32,
+                        (position % 3 + 1) as u32,
+                    ),
+                    path: vec![PlaceSegment::FixedIndex {
+                        index: position % 7,
+                    }],
+                },
+            }
+        }
+
+        #[test]
+        fn outcome_row_associations_match_ordered_scans_and_rebuilds() {
+            let mut rows = (0..512).map(row).collect::<Vec<_>>();
+            rows.extend([rows[3].clone(), rows[0].clone()]);
+            rows.push(CheckedClaimOutcomeEntry {
+                output_path: rows[3].output_path.clone(),
+                source: CheckedClaimOutcomeSource::Established {
+                    claim_identity: language_semantics::PermissionClaimIdentity::Unknown,
+                    provenance: language_semantics::PermissionProvenance::Unknown,
+                },
+            });
+            let mut direct_unique = Vec::new();
+            for row in &rows {
+                if !direct_unique.contains(row) {
+                    direct_unique.push(row.clone());
+                }
+            }
+            assert_eq!(unique_entries(rows.clone().into_iter()), direct_unique);
+            let entries = Entries::new(&rows);
+            for (position, row) in rows.iter().enumerate() {
+                assert_eq!(
+                    entries.at_path(&row.output_path).collect::<Vec<_>>(),
+                    rows.iter()
+                        .filter(|other| other.output_path == row.output_path)
+                        .collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    entries
+                        .source_candidates_after(position)
+                        .filter(|other| other.source == row.source)
+                        .collect::<Vec<_>>(),
+                    rows[position + 1..]
+                        .iter()
+                        .filter(|other| other.source == row.source)
+                        .collect::<Vec<_>>()
+                );
+                assert!(entries.contains(row));
+            }
+            let requested = &rows[3];
+            let collisions = Entries {
+                rows: &rows,
+                paths: PlaceBucketIndex::new(rows.iter().map(|_| hash(&requested.output_path))),
+                sources: PlaceBucketIndex::new(rows.iter().map(|_| hash(&requested.source))),
+            };
+            assert_eq!(
+                collisions
+                    .at_path(&requested.output_path)
+                    .collect::<Vec<_>>(),
+                entries.at_path(&requested.output_path).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                collisions
+                    .source_candidates_after(3)
+                    .filter(|other| other.source == requested.source)
+                    .collect::<Vec<_>>(),
+                entries
+                    .source_candidates_after(3)
+                    .filter(|other| other.source == requested.source)
+                    .collect::<Vec<_>>()
+            );
+            let paths = rows
+                .iter()
+                .map(|row| row.output_path.clone())
+                .collect::<Vec<_>>();
+            let inactive = InactivePaths::new(&paths);
+            assert_eq!(inactive.rows(), paths);
+            assert!(inactive.contains(&requested.output_path));
+            assert!(!inactive.contains(&[PlaceSegment::FixedIndex { index: 9000 }]));
+            let mut changed = rows.clone();
+            changed.remove(3);
+            changed[0].source = requested.source.clone();
+            let rebuilt = Entries::new(&changed);
+            assert_eq!(
+                rebuilt.at_path(&requested.output_path).collect::<Vec<_>>(),
+                changed
+                    .iter()
+                    .filter(|other| other.output_path == requested.output_path)
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                rebuilt
+                    .source_candidates_after(0)
+                    .filter(|other| other.source == changed[0].source)
+                    .collect::<Vec<_>>(),
+                changed[1..]
+                    .iter()
+                    .filter(|other| other.source == changed[0].source)
+                    .collect::<Vec<_>>()
+            );
+        }
+
+        #[test]
+        fn outcome_path_batches_visit_only_matching_candidates() {
+            let rows = (0..2048)
+                .map(|index| CheckedClaimOutcomeEntry {
+                    output_path: vec![PlaceSegment::FixedIndex { index }],
+                    source: CheckedClaimOutcomeSource::Input {
+                        parameter_symbol: SymbolHandle::from_parts(index as u32 + 1, 1),
+                        path: vec![],
+                    },
+                })
+                .collect::<Vec<_>>();
+            let start = std::time::Instant::now();
+            let entries = Entries::new(&rows);
+            let preparation_ns = start.elapsed().as_nanos();
+            let mut direct_rows = 0;
+            let mut prepared_rows = 0;
+            for row in &rows {
+                let direct = rows
+                    .iter()
+                    .filter(|other| {
+                        direct_rows += 1;
+                        other.output_path == row.output_path
+                    })
+                    .collect::<Vec<_>>();
+                prepared_rows += entries.paths.candidates(hash(&row.output_path)).count();
+                assert_eq!(
+                    entries.at_path(&row.output_path).collect::<Vec<_>>(),
+                    direct
+                );
+            }
+            assert_eq!(direct_rows, rows.len() * rows.len());
+            assert_eq!(prepared_rows, rows.len());
+            eprintln!(
+                "outcome-path rows={} direct_rows={direct_rows} prepared_candidates={prepared_rows} preparation_ns={preparation_ns}",
+                rows.len()
+            );
+        }
+    }
+}
+
 mod joins {
-    use super::PermissionEvents;
+    use super::{GlobalClaimEvents, OrderedOriginRewrites, PermissionEvents};
     /*
         Bind returned custody to an exact call occurrence, separately from lineage.
         A callee-local establishment needs this correspondence even with one exit:
@@ -31,7 +290,6 @@ mod joins {
     use crate::checks::multiplicity::linear_obligations::{
         CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
     };
-    use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
     use crate::shared::collections::push_unique;
     use checked_trees::{
         CheckFacts, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
@@ -314,6 +572,82 @@ mod joins {
         }
     }
 
+    struct ConsumedClaimPath {
+        path: Vec<PlaceSegment>,
+        source: ReturnedClaimSource,
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+    enum ConsumedCapture {
+        Outgoing(arena::Handle<checked_trees::FlowStateOutgoingFact>),
+        Argument {
+            consumer: ClaimConsumption,
+            operand: arena::Handle<checked_trees::FlowOperandFact>,
+        },
+    }
+
+    // Different fields can ask about the same consumed value. Check the whole
+    // value once in this unchanged receipt pass, then select its fields. Keep
+    // conditions inside their own arena; source binding and expansion still run
+    // for each request.
+    struct ConsumedCaptureReports<'snapshot> {
+        program: &'snapshot dyn validation::CheckingInput,
+        facts: checked_trees::CheckFactsRef<'snapshot>,
+        captures: symbols::SymbolKeyMap<ConsumedCapture, Vec<ConsumedClaimPath>>,
+    }
+
+    impl<'snapshot> ConsumedCaptureReports<'snapshot> {
+        fn new(
+            program: &'snapshot dyn validation::CheckingInput,
+            facts: checked_trees::CheckFactsRef<'snapshot>,
+        ) -> Self {
+            Self {
+                program,
+                facts,
+                captures: symbols::SymbolKeyMap::default(),
+            }
+        }
+
+        fn paths(
+            &mut self,
+            capture: ConsumedCapture,
+        ) -> Result<&[ConsumedClaimPath], &'static str> {
+            use std::collections::hash_map::Entry;
+            match self.captures.entry(capture) {
+                Entry::Occupied(entry) => Ok(entry.into_mut().as_slice()),
+                Entry::Vacant(entry) => {
+                    let mut conditions = crate::flow::SelectionConditions::new();
+                    let claims = match capture {
+                        ConsumedCapture::Outgoing(outgoing) => current_returned_claims(
+                            self.program,
+                            self.facts,
+                            self.facts.flow.control.outgoing.get(outgoing),
+                            &mut conditions,
+                        ),
+                        ConsumedCapture::Argument { consumer, operand } => consumed_operand_claims(
+                            self.program,
+                            self.facts,
+                            consumer,
+                            operand,
+                            &mut conditions,
+                        ),
+                    }?;
+                    Ok(entry
+                        .insert(
+                            claims
+                                .into_iter()
+                                .map(|claim| ConsumedClaimPath {
+                                    path: claim.path,
+                                    source: claim.source,
+                                })
+                                .collect(),
+                        )
+                        .as_slice())
+                }
+            }
+        }
+    }
+
     struct PreparedCalleeFrontier {
         state: SymbolHandle,
         path: Vec<PlaceSegment>,
@@ -575,6 +909,7 @@ mod joins {
         active: &mut Vec<SymbolHandle>,
         path: &[PlaceSegment],
         diagnostics: &mut ReturnFrontierDiagnostics,
+        consumed_captures: &mut ConsumedCaptureReports<'_>,
     ) -> Option<Vec<ExitFrontier>> {
         if active.contains(&state.symbol) {
             return None;
@@ -584,8 +919,11 @@ mod joins {
             let ownership = &facts.flow.ownership;
             let flow = facts.flow.control.state_by_symbol(state.symbol)?;
             let mut frontiers = Vec::new();
-            let mut conditions = crate::flow::SelectionConditions::new();
-            for outgoing in facts.flow.control.outgoing.span_or_empty(flow.outgoing) {
+            for (outgoing_handle, outgoing) in flow
+                .outgoing
+                .handles()
+                .zip(facts.flow.control.outgoing.span_or_empty(flow.outgoing))
+            {
                 if outgoing.cannot_return_normally {
                     continue;
                 }
@@ -638,6 +976,7 @@ mod joins {
                         active,
                         path,
                         diagnostics,
+                        consumed_captures,
                     )?;
                     for mut child in children {
                         for entry in &mut child.entries {
@@ -666,7 +1005,7 @@ mod joins {
                     continue;
                 }
                 let claims =
-                    match current_returned_claims(program, facts, outgoing, &mut conditions) {
+                    match consumed_captures.paths(ConsumedCapture::Outgoing(outgoing_handle)) {
                         Ok(claims) => claims,
                         Err(reason) => {
                             diagnostics.record(edge, reason);
@@ -832,6 +1171,7 @@ mod joins {
         target: &typed_trees::state::State,
         source: &CheckedClaimOutcomeSource,
         events: &PermissionEvents<'_>,
+        consumed_captures: &mut ConsumedCaptureReports<'_>,
     ) -> Result<Vec<BoundSource>, &'static str> {
         let CheckedClaimOutcomeSource::Input {
             parameter_symbol,
@@ -914,8 +1254,7 @@ mod joins {
                 target_symbol: captured.target_symbol,
             },
         };
-        let mut conditions = crate::flow::SelectionConditions::new();
-        let claims = consumed_operand_claims(program, facts, consumer, operand, &mut conditions)?;
+        let claims = consumed_captures.paths(ConsumedCapture::Argument { consumer, operand })?;
         let mut sources = Vec::new();
         for claim in claims.iter().filter(|claim| claim.path == *path) {
             let (source, identity) = match claim.source {
@@ -1020,15 +1359,6 @@ mod joins {
         Some(vec![frontier])
     }
 
-    pub(super) fn complete_whole_frontier(
-        program: &dyn ::validation::CheckingInput,
-        result_type: typed_trees::types::TypeReferenceHandle,
-        entries: &[CheckedClaimOutcomeEntry],
-        inactive_paths: &[Vec<PlaceSegment>],
-    ) -> bool {
-        validate_frontier(program, result_type, None, entries, inactive_paths)
-    }
-
     pub(super) fn complete_frontier(
         program: &dyn ::validation::CheckingInput,
         result_type: typed_trees::types::TypeReferenceHandle,
@@ -1052,33 +1382,51 @@ mod joins {
         entries: &[CheckedClaimOutcomeEntry],
         inactive_paths: &[Vec<PlaceSegment>],
     ) -> bool {
-        let expected = linear_claim_frontier(program, result_type)
-            .into_iter()
-            .filter(|claim| requested.is_none_or(|requested| claim.path == requested))
-            .collect::<Vec<_>>();
-        if expected.is_empty()
-            || entries.iter().any(|entry| {
-                !known_source(&entry.source)
-                    || !expected.iter().any(|claim| claim.path == entry.output_path)
-                    || inactive_paths.contains(&entry.output_path)
-            })
-            || inactive_paths
-                .iter()
-                .any(|path| !expected.iter().any(|claim| claim.path == *path))
+        let declared = validation::declared_claim_frontier(program, result_type);
+        complete_declared_frontier(
+            &declared,
+            requested,
+            &super::outcome_tables::Entries::new(entries),
+            &super::outcome_tables::InactivePaths::new(inactive_paths),
+        )
+    }
+
+    pub(super) fn complete_declared_frontier(
+        declared: &validation::DeclaredClaimFrontier,
+        requested: Option<&[PlaceSegment]>,
+        entries: &super::outcome_tables::Entries<'_>,
+        inactive_paths: &super::outcome_tables::InactivePaths<'_>,
+    ) -> bool {
+        let expected = |path: &[PlaceSegment]| {
+            requested.is_none_or(|requested| path == requested)
+                && declared.positions(path).next().is_some()
+        };
+        if requested.map_or_else(
+            || declared.claims().is_empty(),
+            |path| declared.positions(path).next().is_none(),
+        ) || entries.rows().iter().any(|entry| {
+            !known_source(&entry.source)
+                || !expected(&entry.output_path)
+                || inactive_paths.contains(&entry.output_path)
+        }) || inactive_paths.rows().iter().any(|path| !expected(path))
         {
             return false;
         }
-        for claim in expected {
-            let matching = entries
-                .iter()
-                .filter(|entry| entry.output_path == claim.path)
-                .count();
-            if matching != 1 && !(matching == 0 && inactive_paths.contains(&claim.path)) {
-                return false;
-            }
+        let complete = |claim: &validation::ClaimFrontierClaim| {
+            let matching = entries.at_path(&claim.path).count();
+            matching == 1 || (matching == 0 && inactive_paths.contains(&claim.path))
+        };
+        let complete = match requested {
+            Some(path) => declared
+                .positions(path)
+                .all(|position| complete(&declared.claims()[position])),
+            None => declared.claims().iter().all(complete),
+        };
+        if !complete {
+            return false;
         }
-        !entries.iter().enumerate().any(|(index, entry)| {
-            entries[index + 1..].iter().any(|other| {
+        !entries.rows().iter().enumerate().any(|(index, entry)| {
+            entries.source_candidates_after(index).any(|other| {
                 entry.source == other.source
                     && !claim_paths_are_case_alternatives(&entry.output_path, &other.output_path)
             })
@@ -1086,28 +1434,84 @@ mod joins {
     }
 
     /*
-        An absent conditional payload remains absent only while the exact storage
-        path is preserved through the entire consuming statement. Unknown identity
-        alone, and an inactive unguarded allocation, establish no such fact.
+        Check an absent field against the same state records and statement effects
+        throughout one complete value check. Recursive children share this owner;
+        a later check starts from its own immutable flow and borrow snapshot.
     */
-    #[allow(clippy::too_many_arguments)]
-    pub(in crate::checks::multiplicity) fn preserved_inactive_place<'a>(
-        program: &dyn ::validation::CheckingInput,
-        borrow: &checked_trees::BorrowFacts,
-        state: &typed_trees::state::State,
-        statement_index: usize,
-        place: &validation::CanonicalPlace,
-        ownership: &FlowOwnershipFacts,
-        events: impl IntoIterator<Item = &'a FlowPermissionEventFact>,
-    ) -> Option<usize> {
-        InactivePlaceWrites::prepare(program, borrow, state)?.preserved(
-            program,
-            state,
-            statement_index,
-            place,
-            ownership,
-            events,
-        )
+    pub(in crate::checks::multiplicity) struct InactiveClaimQueries<'snapshot> {
+        program: &'snapshot dyn ::validation::CheckingInput,
+        borrow: &'snapshot checked_trees::BorrowFacts,
+        ownership: &'snapshot FlowOwnershipFacts,
+        state: SymbolHandle,
+        prepared: std::cell::OnceCell<Option<InactiveStateQueries<'snapshot>>>,
+    }
+
+    struct InactiveStateQueries<'snapshot> {
+        writes: InactivePlaceWrites,
+        events: super::PermissionEvents<'snapshot>,
+    }
+
+    impl<'snapshot> InactiveClaimQueries<'snapshot> {
+        pub(in crate::checks::multiplicity) fn new(
+            program: &'snapshot dyn ::validation::CheckingInput,
+            facts: checked_trees::CheckFactsRef<'snapshot>,
+            state: SymbolHandle,
+        ) -> Self {
+            Self {
+                program,
+                borrow: facts.borrow,
+                ownership: facts.flow.ownership,
+                state,
+                prepared: std::cell::OnceCell::new(),
+            }
+        }
+
+        pub(in crate::checks::multiplicity) fn preserved(
+            &mut self,
+            state: &typed_trees::state::State,
+            statement_index: usize,
+            place: &validation::CanonicalPlace,
+        ) -> Option<usize> {
+            if state.symbol != self.state
+                || !place
+                    .segments
+                    .iter()
+                    .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
+            {
+                return None;
+            }
+            let prepared = self
+                .prepared
+                .get_or_init(|| {
+                    let writes = InactivePlaceWrites::prepare(self.program, self.borrow, state)?;
+                    // Filtering the original arena keeps its row order, including the
+                    // last occurrence when two establishments have the same position.
+                    let rows = self
+                        .ownership
+                        .permissions
+                        .iter()
+                        .filter(|(_, event)| event.state_symbol == state.symbol)
+                        .map(|(_, event)| event.clone())
+                        .collect();
+                    Some(InactiveStateQueries {
+                        writes,
+                        events: super::PermissionEvents::owned(rows, &self.ownership.segments),
+                    })
+                })
+                .as_ref()?;
+            prepared.writes.preserved(
+                self.program,
+                state,
+                statement_index,
+                place,
+                self.ownership,
+                prepared.events.at_place_across_statements(
+                    state.symbol,
+                    place.root,
+                    &place.segments,
+                ),
+            )
+        }
     }
 
     /*
@@ -1251,6 +1655,7 @@ mod joins {
         let events = &PermissionEvents::prepare(events, &ownership.segments);
         let mut receipts = Vec::new();
         let mut prepared_frontiers: Vec<PreparedCalleeFrontier> = Vec::new();
+        let mut consumed_captures = ConsumedCaptureReports::new(program, facts);
         for event in events.iter() {
             if event.kind != PermissionEventKind::Establish
                 || event.access != PermissionAccess::Owned
@@ -1334,6 +1739,7 @@ mod joins {
                         &mut Vec::new(),
                         received_path,
                         &mut diagnostics,
+                        &mut consumed_captures,
                     );
                     prepared_frontiers.push(PreparedCalleeFrontier {
                         state: target.symbol,
@@ -1395,6 +1801,7 @@ mod joins {
                     target,
                     &entry.source,
                     events,
+                    &mut consumed_captures,
                 ) {
                     Ok(sources) => sources,
                     Err(reason) => {
@@ -1501,6 +1908,36 @@ mod joins {
         }
     }
 
+    fn claim_join_rewrites(
+        receipts: &[Receipt],
+        events: &[FlowPermissionEventFact],
+    ) -> Vec<super::ClaimOriginRewrite> {
+        let mut targets = receipts
+            .iter()
+            .filter_map(|receipt| join_provenance(receipt).map(|provenance| (receipt, provenance)))
+            .peekable();
+        if targets.peek().is_none() {
+            return Vec::new();
+        }
+        // These identities can cross states. State-scoped origin queries cannot
+        // replace the original global scan, and keep their own narrower indexes.
+        let events = GlobalClaimEvents::prepare(events);
+        let mut rewrites = OrderedOriginRewrites::default();
+        for (receipt, provenance) in targets {
+            for event in events.at_identity(receipt.identity) {
+                if event.claim_identity == receipt.identity && event.provenance != provenance {
+                    rewrites.push_unique((
+                        event.provenance,
+                        event.claim_identity,
+                        provenance,
+                        receipt.identity,
+                    ));
+                }
+            }
+        }
+        rewrites.into_rows()
+    }
+
     pub(crate) fn publish_call_claim_joins(
         program: &dyn ::validation::CheckingInput,
         facts: &mut checked_trees::CheckFactsWalk<'_>,
@@ -1515,23 +1952,7 @@ mod joins {
         let mut converged = false;
         for _ in 0..=events.len() {
             let receipts = derive_receipts(program, facts.view(), &events, None)?;
-            let mut rewrites = Vec::new();
-            for receipt in &receipts {
-                let Some(provenance) = join_provenance(receipt) else {
-                    continue;
-                };
-                for event in &events {
-                    if event.claim_identity == receipt.identity && event.provenance != provenance {
-                        let rewrite = (
-                            event.provenance,
-                            event.claim_identity,
-                            provenance,
-                            receipt.identity,
-                        );
-                        push_unique(&mut rewrites, rewrite);
-                    }
-                }
-            }
+            let rewrites = claim_join_rewrites(&receipts, &events);
             if !super::apply_claim_origin_rewrites(&mut events, facts.flow.ownership, &rewrites) {
                 converged = true;
                 break;
@@ -1818,6 +2239,99 @@ mod event_queries {
         hasher.finish()
     }
 
+    // A join update follows one identity across every state. Keep this view
+    // separate from state-scoped queries so neither search visits unrelated rows.
+    pub(super) struct GlobalClaimEvents<'events> {
+        events: &'events [FlowPermissionEventFact],
+        identities: SortedRows,
+    }
+
+    impl<'events> GlobalClaimEvents<'events> {
+        pub(super) fn prepare(events: &'events [FlowPermissionEventFact]) -> Self {
+            Self {
+                events,
+                identities: SortedRows::new(
+                    events
+                        .iter()
+                        .enumerate()
+                        .map(|(ordinal, event)| (key_hash(event.claim_identity), ordinal)),
+                ),
+            }
+        }
+
+        pub(super) fn at_identity(&self, identity: PermissionClaimIdentity) -> EventCandidates<'_> {
+            EventCandidates {
+                events: self.events,
+                rows: Some(self.identities.matching(key_hash(identity))),
+                position: 0,
+            }
+        }
+    }
+
+    pub(super) type ClaimOriginRewrite = (
+        PermissionProvenance,
+        PermissionClaimIdentity,
+        PermissionProvenance,
+        PermissionClaimIdentity,
+    );
+
+    #[derive(Default)]
+    pub(super) struct OrderedOriginRewrites {
+        rows: Vec<ClaimOriginRewrite>,
+        seen: symbols::SymbolKeyMap<ClaimOriginRewrite, ()>,
+    }
+
+    impl OrderedOriginRewrites {
+        pub(super) fn push_unique(&mut self, rewrite: ClaimOriginRewrite) {
+            if let std::collections::hash_map::Entry::Vacant(entry) = self.seen.entry(rewrite) {
+                entry.insert(());
+                self.rows.push(rewrite);
+            }
+        }
+
+        pub(super) fn into_rows(self) -> Vec<ClaimOriginRewrite> {
+            self.rows
+        }
+    }
+
+    // One immutable rewrite list supplies every bounded chain walk. Candidate
+    // ordinals retain its first-match rule, including conflicting replacements.
+    pub(super) struct OriginRewrites<'rewrites> {
+        rows: &'rewrites [ClaimOriginRewrite],
+        sources: SortedRows,
+    }
+
+    impl<'rewrites> OriginRewrites<'rewrites> {
+        pub(super) fn prepare(rows: &'rewrites [ClaimOriginRewrite]) -> Self {
+            Self {
+                rows,
+                sources: SortedRows::new(
+                    rows.iter()
+                        .enumerate()
+                        .map(|(ordinal, row)| (key_hash((row.0, row.1)), ordinal)),
+                ),
+            }
+        }
+
+        pub(super) fn len(&self) -> usize {
+            self.rows.len()
+        }
+
+        pub(super) fn first_for_source(
+            &self,
+            provenance: PermissionProvenance,
+            identity: PermissionClaimIdentity,
+        ) -> Option<&ClaimOriginRewrite> {
+            self.sources
+                .matching(key_hash((provenance, identity)))
+                .iter()
+                .map(|(_, ordinal)| &self.rows[*ordinal])
+                .find(|(source_provenance, source_identity, _, _)| {
+                    *source_provenance == provenance && *source_identity == identity
+                })
+        }
+    }
+
     struct EventAssociations {
         statements: SortedRows,
         origins: SortedRows,
@@ -1827,21 +2341,35 @@ mod event_queries {
     }
 
     pub(super) struct PermissionEvents<'events> {
-        events: &'events [FlowPermissionEventFact],
+        events: std::borrow::Cow<'events, [FlowPermissionEventFact]>,
         associations: Option<EventAssociations>,
     }
 
     impl<'events> PermissionEvents<'events> {
         pub(super) fn recorded(events: &'events [FlowPermissionEventFact]) -> Self {
             Self {
-                events,
+                events: std::borrow::Cow::Borrowed(events),
                 associations: None,
             }
         }
 
         pub(super) fn prepare(
             events: &'events [FlowPermissionEventFact],
-            segments: &'events arena::PagedArenaSet<facts::PlaceSegment>,
+            segments: &arena::PagedArenaSet<facts::PlaceSegment>,
+        ) -> Self {
+            Self::with_rows(std::borrow::Cow::Borrowed(events), segments)
+        }
+
+        pub(super) fn owned(
+            events: Vec<FlowPermissionEventFact>,
+            segments: &arena::PagedArenaSet<facts::PlaceSegment>,
+        ) -> Self {
+            Self::with_rows(std::borrow::Cow::Owned(events), segments)
+        }
+
+        fn with_rows(
+            events: std::borrow::Cow<'events, [FlowPermissionEventFact]>,
+            segments: &arena::PagedArenaSet<facts::PlaceSegment>,
         ) -> Self {
             let statements =
                 SortedRows::new(events.iter().enumerate().filter_map(|(ordinal, event)| {
@@ -1896,7 +2424,7 @@ mod event_queries {
             }
         }
 
-        pub(super) fn iter(&self) -> std::slice::Iter<'events, FlowPermissionEventFact> {
+        pub(super) fn iter(&self) -> std::slice::Iter<'_, FlowPermissionEventFact> {
             self.events.iter()
         }
 
@@ -1970,7 +2498,7 @@ mod event_queries {
             rows: Option<&'query [(u64, usize)]>,
         ) -> EventCandidates<'query> {
             EventCandidates {
-                events: self.events,
+                events: &self.events,
                 rows,
                 position: 0,
             }
@@ -2002,7 +2530,10 @@ mod event_queries {
 
     #[cfg(test)]
     mod tests {
-        use super::{PermissionEvents, SortedRows, key_hash, permission_event_statement_index};
+        use super::{
+            ClaimOriginRewrite, GlobalClaimEvents, OrderedOriginRewrites, OriginRewrites,
+            PermissionEvents, SortedRows, key_hash, permission_event_statement_index,
+        };
         use checked_trees::FlowPermissionEventFact;
         use language_semantics::{
             PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
@@ -2104,6 +2635,12 @@ mod event_queries {
             let preparation_start = std::time::Instant::now();
             let prepared = PermissionEvents::prepare(events, segments);
             let preparation_elapsed = preparation_start.elapsed();
+            let owned = PermissionEvents::owned(events.to_vec(), segments);
+            assert_eq!(
+                owned.iter().collect::<Vec<_>>(),
+                events.iter().collect::<Vec<_>>()
+            );
+            let owned_absence_scans = Cell::new(0);
             let indexed_rows = prepared.associations.as_ref().map_or(0, |rows| {
                 rows.statements.rows.len()
                     + rows.origins.rows.len()
@@ -2197,6 +2734,12 @@ mod event_queries {
                     .filter(inactive)
                     .max_by_key(latest);
                 assert_eq!(indexed, direct);
+                let from_owned = owned
+                    .at_place_across_statements(event.state_symbol, event.root, path)
+                    .inspect(|_| owned_absence_scans.set(owned_absence_scans.get() + 1))
+                    .filter(inactive)
+                    .max_by_key(latest);
+                assert_eq!(from_owned, direct);
                 matched.set(matched.get() + usize::from(direct.is_some()));
                 let same_origin = |candidate: &&FlowPermissionEventFact| {
                     candidate.state_symbol == event.state_symbol
@@ -2265,6 +2808,10 @@ mod event_queries {
                 identity_direct.get(),
                 identity_prepared.get(),
                 identity_matches.get()
+            );
+            eprintln!(
+                "owned absence snapshot: {} candidate rows across the same query batch",
+                owned_absence_scans.get()
             );
             (direct_scans.get(), prepared_scans.get(), matched.get())
         }
@@ -2538,6 +3085,186 @@ mod event_queries {
         }
 
         #[test]
+        fn global_identity_updates_keep_order_and_bounded_first_match_chains() {
+            let (mut events, _) = rows(4096);
+            let identity = |ordinal| PermissionClaimIdentity::Established {
+                machine_symbol: SymbolHandle::from_parts(1, 1),
+                state_symbol: SymbolHandle::from_parts(2, 1),
+                source: PermissionEventSource::StateEntry,
+                ordinal,
+            };
+            for (ordinal, event) in events.iter_mut().enumerate() {
+                event.claim_identity = identity((ordinal % 512) as u32);
+                // An identity deliberately survives across event states, kinds,
+                // access modes and live flags. Collection excludes none of them.
+                event.state_symbol = SymbolHandle::from_parts((ordinal / 512 + 1) as u32, 2);
+            }
+            let started = std::time::Instant::now();
+            let indexed = GlobalClaimEvents::prepare(&events);
+            let preparation = started.elapsed();
+            let mut direct_rows = 0;
+            let mut indexed_rows = 0;
+            for ordinal in 0..512 {
+                let wanted = identity(ordinal);
+                let direct = events
+                    .iter()
+                    .filter(|event| {
+                        direct_rows += 1;
+                        event.claim_identity == wanted
+                    })
+                    .map(|event| event.expression)
+                    .collect::<Vec<_>>();
+                let prepared = indexed
+                    .at_identity(wanted)
+                    .filter(|event| {
+                        indexed_rows += 1;
+                        event.claim_identity == wanted
+                    })
+                    .map(|event| event.expression)
+                    .collect::<Vec<_>>();
+                assert_eq!(direct.len(), 8);
+                assert_eq!(prepared, direct);
+            }
+            assert_eq!(direct_rows, 4096 * 512);
+            assert!(indexed_rows < direct_rows / 8);
+            let wanted = identity(7);
+            let colliding = GlobalClaimEvents {
+                events: &events,
+                identities: SortedRows::new(
+                    (0..events.len()).map(|ordinal| (key_hash(wanted), ordinal)),
+                ),
+            };
+            assert_eq!(
+                colliding
+                    .at_identity(wanted)
+                    .filter(|event| event.claim_identity == wanted)
+                    .map(|event| event.expression)
+                    .collect::<Vec<_>>(),
+                indexed
+                    .at_identity(wanted)
+                    .filter(|event| event.claim_identity == wanted)
+                    .map(|event| event.expression)
+                    .collect::<Vec<_>>(),
+            );
+            let mut changed = events.clone();
+            changed[7].claim_identity = PermissionClaimIdentity::Unknown;
+            let next = GlobalClaimEvents::prepare(&changed);
+            assert_eq!(
+                next.at_identity(wanted)
+                    .filter(|event| event.claim_identity == wanted)
+                    .count(),
+                7
+            );
+            assert_eq!(
+                indexed
+                    .at_identity(wanted)
+                    .filter(|event| event.claim_identity == wanted)
+                    .count(),
+                8
+            );
+            eprintln!(
+                "global identity updates: {} rows prepared in {:?}; direct {} visited rows; prepared {} visited rows",
+                events.len(),
+                preparation,
+                direct_rows,
+                indexed_rows
+            );
+
+            let a = PermissionProvenance::Established {
+                machine_symbol: SymbolHandle::from_parts(1, 1),
+                state_symbol: SymbolHandle::from_parts(2, 1),
+                source: PermissionEventSource::StateEntry,
+            };
+            let b = PermissionProvenance::Established {
+                state_symbol: SymbolHandle::from_parts(2, 2),
+                machine_symbol: SymbolHandle::from_parts(1, 1),
+                source: PermissionEventSource::StateEntry,
+            };
+            let c = PermissionProvenance::Unknown;
+            let ia = identity(1);
+            let ib = identity(2);
+            let ic = identity(3);
+            let first = (a, ia, b, ib);
+            let conflict = (a, ia, c, ic);
+            let tail = (b, ib, c, ic);
+            let mut ordered = OrderedOriginRewrites::default();
+            let mut direct = Vec::new();
+            for row in [first, first, conflict, tail, conflict, tail] {
+                ordered.push_unique(row);
+                if !direct.contains(&row) {
+                    direct.push(row);
+                }
+            }
+            let ordered = ordered.into_rows();
+            assert_eq!(ordered, direct);
+            assert_eq!(ordered, [first, conflict, tail]);
+
+            fn direct_apply(
+                mut provenance: PermissionProvenance,
+                mut identity: PermissionClaimIdentity,
+                rows: &[ClaimOriginRewrite],
+            ) -> (PermissionProvenance, PermissionClaimIdentity, bool) {
+                let previous = (provenance, identity);
+                for _ in 0..rows.len() {
+                    let Some((_, _, next_provenance, next_identity)) = rows
+                        .iter()
+                        .find(|row| row.0 == provenance && row.1 == identity)
+                    else {
+                        break;
+                    };
+                    if *next_provenance == provenance && *next_identity == identity {
+                        break;
+                    }
+                    provenance = *next_provenance;
+                    identity = *next_identity;
+                }
+                (provenance, identity, previous != (provenance, identity))
+            }
+            let cases: Vec<Vec<ClaimOriginRewrite>> = vec![
+                vec![],
+                ordered.clone(),
+                vec![conflict, first, tail],
+                vec![(a, ia, a, ia), first],
+                vec![first, (b, ib, a, ia)],
+                // The third conflicting row changes the original chain bound:
+                // three steps end at b, not a; distinct sources must not be counted.
+                vec![first, (b, ib, a, ia), conflict],
+                vec![(b, ia, c, ic), (a, ib, c, ic), first],
+            ];
+            for rows in cases {
+                let prepared = OriginRewrites::prepare(&rows);
+                let collided = OriginRewrites {
+                    rows: &rows,
+                    sources: SortedRows::new(
+                        (0..rows.len()).map(|ordinal| (key_hash((a, ia)), ordinal)),
+                    ),
+                };
+                assert_eq!(prepared.len(), rows.len());
+                assert_eq!(
+                    prepared.first_for_source(a, ia),
+                    rows.iter().find(|row| row.0 == a && row.1 == ia)
+                );
+                assert_eq!(
+                    collided.first_for_source(a, ia),
+                    prepared.first_for_source(a, ia)
+                );
+                for (provenance, identity) in [(a, ia), (b, ib), (c, ic)] {
+                    let expected = direct_apply(provenance, identity, &rows);
+                    let (mut actual_provenance, mut actual_identity) = (provenance, identity);
+                    let changed = super::super::rewrite_claim_origin(
+                        &mut actual_provenance,
+                        &mut actual_identity,
+                        &prepared,
+                    );
+                    assert_eq!((actual_provenance, actual_identity, changed), expected);
+                }
+            }
+            let current_rows = [conflict];
+            let current = OriginRewrites::prepare(&current_rows);
+            assert_eq!(current.first_for_source(a, ia), Some(&conflict));
+        }
+
+        #[test]
         fn colliding_event_keys_keep_original_order_and_exact_filtering() {
             let (mut events, segments) = rows(80);
             let mut duplicate = events[18].clone();
@@ -2624,19 +3351,21 @@ mod event_queries {
         }
     }
 }
-use event_queries::PermissionEvents;
+use event_queries::{
+    ClaimOriginRewrite, GlobalClaimEvents, OrderedOriginRewrites, OriginRewrites, PermissionEvents,
+};
 
 use crate::flow::literal_expression_projections;
 use crate::shared::collections::push_unique;
 use crate::shared::collections::unique_in_order;
-pub(super) use joins::preserved_inactive_place;
+pub(super) use joins::InactiveClaimQueries;
 pub(crate) use joins::{CallClaimJoinFailure, publish_call_claim_joins, validate_call_claim_joins};
 
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
 };
 use crate::checks::multiplicity::linear_validation::{
-    established_provenance, linear_claim_frontier, permission_event_statement_index,
+    established_provenance, permission_event_statement_index,
 };
 use crate::checks::multiplicity::type_multiplicity::data_field_name;
 use crate::flow::expressions;
@@ -2858,11 +3587,8 @@ pub(crate) fn derive_checked_claim_outcome_maps(
                 .machine_states(machine)
                 .iter()
                 .filter_map(move |state| {
-                    let expected_paths = linear_claim_frontier(program, state.return_type)
-                        .into_iter()
-                        .map(|claim| claim.path)
-                        .collect::<Vec<_>>();
-                    (!expected_paths.is_empty()).then_some((machine.symbol, state, expected_paths))
+                    let declared = validation::declared_claim_frontier(program, state.return_type);
+                    (!declared.claims().is_empty()).then_some((machine.symbol, state, declared))
                 })
         })
         .collect::<Vec<_>>();
@@ -2874,13 +3600,13 @@ pub(crate) fn derive_checked_claim_outcome_maps(
     let derive = |maps: &[CheckedClaimOutcomeMap]| {
         candidate_states
             .iter()
-            .filter_map(|(machine_symbol, state, expected_paths)| {
+            .filter_map(|(machine_symbol, state, declared)| {
                 derive_claim_outcome_hypothesis(
                     program,
                     borrow,
                     *machine_symbol,
                     state,
-                    expected_paths.clone(),
+                    declared,
                     ownership,
                     permission_events,
                     maps,
@@ -2942,13 +3668,13 @@ fn derive_claim_outcome_hypothesis(
     borrow: &checked_trees::BorrowFacts,
     machine_symbol: SymbolHandle,
     state: &typed_trees::state::State,
-    expected_paths: Vec<Vec<facts::PlaceSegment>>,
+    declared: &validation::DeclaredClaimFrontier,
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &PermissionEvents<'_>,
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> Option<ClaimOutcomeHypothesis> {
     let segments = &ownership.segments;
-    if expected_paths.is_empty() {
+    if declared.claims().is_empty() {
         return None;
     }
     let absence = ClaimAbsence {
@@ -2994,48 +3720,49 @@ fn derive_claim_outcome_hypothesis(
             },
         ))
         .collect::<Vec<_>>();
-    let mut entries = unique_in_order(return_entries.iter().flatten().cloned());
-    entries.retain(|entry| expected_paths.contains(&entry.output_path));
-    for path in &expected_paths {
-        let sources = unique_in_order(
-            entries
-                .iter()
-                .filter(|entry| entry.output_path == *path)
-                .map(|entry| &entry.source),
-        );
-        if sources.len() != 1 {
-            if sources.is_empty()
-                && claim_path_is_statically_inactive(
-                    &absence,
-                    path,
-                    &result_expressions,
-                    &named_transitions,
-                )
-            {
-                continue;
+    let mut entries = outcome_tables::unique_entries(return_entries.iter().flatten().cloned());
+    entries.retain(|entry| declared.positions(&entry.output_path).next().is_some());
+    {
+        let current = outcome_tables::Entries::new(&entries);
+        for claim in declared.claims() {
+            let path = &claim.path;
+            let mut sources = current.at_path(path).map(|entry| &entry.source);
+            match sources.next() {
+                Some(first) if sources.any(|other| other != first) => return None,
+                Some(_) => {}
+                None => {
+                    if !claim_path_is_statically_inactive(
+                        &absence,
+                        path,
+                        &result_expressions,
+                        &named_transitions,
+                    ) {
+                        return None;
+                    }
+                }
             }
-            return None;
         }
     }
-    entries.retain(|entry| {
-        expected_paths
-            .iter()
-            .filter(|path| **path == entry.output_path)
-            .count()
-            == 1
-    });
+    entries.retain(|entry| declared.positions(&entry.output_path).count() == 1);
     entries.sort_by_key(|entry| {
-        expected_paths
-            .iter()
-            .position(|path| *path == entry.output_path)
+        declared
+            .positions(&entry.output_path)
+            .next()
             .unwrap_or(usize::MAX)
     });
-    let inactive_paths = expected_paths
+    let current = outcome_tables::Entries::new(&entries);
+    let inactive_paths = declared
+        .claims()
         .iter()
-        .filter(|path| !entries.iter().any(|entry| entry.output_path == **path))
-        .cloned()
+        .filter(|claim| current.at_path(&claim.path).next().is_none())
+        .map(|claim| claim.path.clone())
         .collect::<Vec<_>>();
-    if !joins::complete_whole_frontier(program, state.return_type, &entries, &inactive_paths) {
+    if !joins::complete_declared_frontier(
+        declared,
+        None,
+        &current,
+        &outcome_tables::InactivePaths::new(&inactive_paths),
+    ) {
         return None;
     }
     let all_returns_covered = !return_entries.is_empty()
@@ -3055,21 +3782,27 @@ fn derive_claim_outcome_hypothesis(
                         &named_transitions[transition_index..transition_index + 1],
                     )
                 };
-                let absent = expected_paths
+                let returned = outcome_tables::Entries::new(returned);
+                let absent = declared
+                    .claims()
                     .iter()
-                    .filter(|path| {
-                        !returned.iter().any(|entry| entry.output_path == **path)
+                    .filter(|claim| {
+                        returned.at_path(&claim.path).next().is_none()
                             && claim_path_is_statically_inactive(
                                 &absence,
-                                path,
+                                &claim.path,
                                 expressions,
                                 transitions,
                             )
                     })
-                    .cloned()
+                    .map(|claim| claim.path.clone())
                     .collect::<Vec<_>>();
-                joins::complete_whole_frontier(program, state.return_type, returned, &absent)
-                    && returned.iter().all(|entry| entries.contains(entry))
+                joins::complete_declared_frontier(
+                    declared,
+                    None,
+                    &returned,
+                    &outcome_tables::InactivePaths::new(&absent),
+                ) && returned.rows().iter().all(|entry| current.contains(entry))
             });
     Some(ClaimOutcomeHypothesis {
         map: CheckedClaimOutcomeMap {
@@ -4184,6 +4917,7 @@ pub(crate) fn apply_claim_origin_rewrites(
         PermissionClaimIdentity,
     )],
 ) -> bool {
+    let rewrites = &OriginRewrites::prepare(rewrites);
     let mut changed = false;
     for event in permission_events
         .iter_mut()
@@ -4210,21 +4944,12 @@ pub(crate) fn apply_claim_origin_rewrites(
 fn rewrite_claim_origin(
     provenance: &mut PermissionProvenance,
     claim_identity: &mut PermissionClaimIdentity,
-    rewrites: &[(
-        PermissionProvenance,
-        PermissionClaimIdentity,
-        PermissionProvenance,
-        PermissionClaimIdentity,
-    )],
+    rewrites: &OriginRewrites<'_>,
 ) -> bool {
     let previous = (*provenance, *claim_identity);
     for _ in 0..rewrites.len() {
         let Some((_, _, replacement_provenance, replacement_identity)) =
-            rewrites
-                .iter()
-                .find(|(source_provenance, source_identity, _, _)| {
-                    *source_provenance == *provenance && *source_identity == *claim_identity
-                })
+            rewrites.first_for_source(*provenance, *claim_identity)
         else {
             break;
         };

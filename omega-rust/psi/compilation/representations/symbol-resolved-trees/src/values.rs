@@ -4,6 +4,7 @@ member projections, and symbol/table subtree copying in `SymbolResolvedTrees`.
 */
 
 pub mod expression {
+
     pub(crate) mod display {
         use diagnostics::{bracketed_display_names, comma_join_display};
 
@@ -1133,6 +1134,7 @@ pub mod expression {
         }
     }
     pub(crate) mod table_copies {
+
         use crate::name::DiagnosticName;
         use crate::values::expression::{
             ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern, TableAtomicExpression,
@@ -1267,6 +1269,7 @@ pub mod expression {
                             let capture = self.copy_match_subject(source, saved.capture, copies);
                             let pattern_head = self.copy_graph(source, saved.pattern_head, copies);
                             self.insert(ExpressionNode::SavedSubject(super::TableSavedSubject {
+                                component: saved.component,
                                 capture,
                                 pattern_head,
                             }))
@@ -3271,6 +3274,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableSavedSubject {
+        pub component: language_core::PatternComponent,
         pub capture: Handle<MatchSubjectCapture>,
         pub pattern_head: ExpressionHandle,
     }
@@ -3303,6 +3307,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableMatchField {
+        pub component: language_core::PatternComponent,
         pub member: DiagnosticName,
         pub field_symbol: SymbolHandle,
         pub action: MatchFieldAction,

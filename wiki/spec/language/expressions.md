@@ -268,11 +268,12 @@ a recognized spelling or a package opting in. One declaration has one authorized
 supply; a catalog realization and a separate source body cannot compete. A
 compiler primitive such as the canonical `Float::meaning32` is automatic and
 requires no build selection. It keeps its proof/runtime eligibility restrictions.
-Canonical `f32 + f32`, in contrast, is a boundary-trait requirement: target defaults
-choose its implementation, with an explicit admitted override available under
-the existing provider rules. Build selection cannot redefine its arithmetic
-contract. Merely naming a declaration `Float::meaning32` grants no primitive
-implementation or proof authority.
+Canonical `f32 + f32` is likewise compiler-owned: the selected target's declared
+realization supplies it as a catalog intrinsic or a checked machine, with no
+build selection and no override, under
+[target-realized float arithmetic](numeric_values.md#target-realization-and-control-state).
+No realization can redefine its arithmetic contract. Merely naming a declaration
+`Float::meaning32` grants no primitive implementation or proof authority.
 
 ### Operator families
 

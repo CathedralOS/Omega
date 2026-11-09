@@ -451,6 +451,7 @@ pub mod declaration_index {
         DomainDeclarationScope, OperatorSpellingIndex, OperatorSpellingScope,
     };
     pub(crate) mod relationships {
+
         use super::roster_marker;
         use crate::{data::DataMember, signature::StateParameter, statement::StatementNode};
         use symbols::SymbolHandle;
@@ -677,6 +678,28 @@ pub mod declaration_index {
                 self.with_state_declarations(|index| index.locals.get(symbol).to_vec())
             }
 
+            /// One exact local declaration, without copying its indexed position roster.
+            /// A duplicate binder cannot choose a component contract for another local.
+            pub fn unique_local_data_for_symbol(
+                &self,
+                symbol: SymbolHandle,
+            ) -> Option<&crate::statement::TableLocalData> {
+                let (machine, state, statement) = self.with_state_declarations(|index| {
+                    let [position] = index.locals.get(symbol) else {
+                        return None;
+                    };
+                    Some(*position)
+                })?;
+                let machine = self.machines().get(machine as usize)?;
+                let state = self.machine_states(machine).get(state as usize)?;
+                self.statement_table
+                    .statements(state.statement_nodes)
+                    .get(statement as usize)?
+                    .as_local_data()
+            }
+
+            /// The first state with this exact binder sequence. Empty spans and forged
+            /// duplicate symbols retain the same first-match rule as a source roster.
             pub fn state_position_for_parameter_symbols(
                 &self,
                 parameters: &[StateParameter],
@@ -1669,6 +1692,31 @@ pub mod declaration_index {
             self.with_state_positions_for_symbol(symbol, |positions| positions.to_vec())
         }
 
+        /// The first machine, in table order, that declares a state named
+        /// `state`: the answer a scan of every machine's states would give,
+        /// read from the state index instead. Index rows keep table order.
+        pub fn machine_containing_state(&self, state: SymbolHandle) -> Option<&machine::Machine> {
+            let position = self.with_state_position_index(|index| {
+                index
+                    .first(state)
+                    .map(|(machine_position, _)| *machine_position)
+            })?;
+            Some(&self.machines()[position as usize])
+        }
+
+        /// Every machine declared as `symbol`, in table order. A symbol can
+        /// name several rows (a template and its requirement, say), so callers
+        /// that also test supply mode or parameters filter this instead of
+        /// scanning the whole table.
+        pub fn machines_with_symbol(
+            &self,
+            symbol: SymbolHandle,
+        ) -> impl Iterator<Item = &machine::Machine> + '_ {
+            self.machine_positions_for_symbol(symbol)
+                .into_iter()
+                .map(|position| &self.machines()[position as usize])
+        }
+
         pub fn machine_by_own_or_state_symbol(
             &self,
             symbol: SymbolHandle,
@@ -2594,11 +2642,7 @@ pub(crate) mod declaration_tables {
         ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
             let mut visited = Vec::new();
             loop {
-                let machine = self.machines().iter().find(|machine| {
-                    self.machine_states(machine)
-                        .iter()
-                        .any(|state| state.symbol == entry)
-                })?;
+                let machine = self.machine_containing_state(entry)?;
                 if visited.iter().any(|(symbol, _)| *symbol == machine.symbol) {
                     return None;
                 }

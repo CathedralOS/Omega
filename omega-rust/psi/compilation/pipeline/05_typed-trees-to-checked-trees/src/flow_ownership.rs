@@ -1142,12 +1142,7 @@ mod moves {
         let Some(state) = program.state_by_symbol(state_symbol) else {
             return false;
         };
-        let Some(machine) = program.machines().iter().find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-        }) else {
+        let Some(machine) = program.machine_containing_state(state.symbol) else {
             return false;
         };
         let (receiver_symbol, receiver_path) =

@@ -22,20 +22,26 @@ machine repeated<'loan>(cell: &'loan Cell) -> Pair<'loan, 'loan> {
 }
 machine observe_one(cell: &Cell) -> u64 {
     transition returned(cell) {
-        Message::Missing { stamp, .. } -> stamp
-        Message::Received { stamp, .. } -> stamp
+        Message { stamp, case as operation } -> match operation {
+            Message::Missing -> stamp
+            Message::Received { .. } -> stamp
+        }
     }
 }
 machine observe_permuted(left: &Cell, right: &Cell) -> u64 {
     transition permuted(left, right) {
-        Pair::Missing { stamp, .. } -> stamp
-        Pair::Received { stamp, .. } -> stamp
+        Pair { stamp, case as operation } -> match operation {
+            Pair::Missing -> stamp
+            Pair::Received { .. } -> stamp
+        }
     }
 }
 machine observe_repeated(cell: &Cell) -> u64 {
     transition repeated(cell) {
-        Pair::Missing { stamp, .. } -> stamp
-        Pair::Received { stamp, .. } -> stamp
+        Pair { stamp, case as operation } -> match operation {
+            Pair::Missing -> stamp
+            Pair::Received { .. } -> stamp
+        }
     }
 }
 machine main() crashes Trap {

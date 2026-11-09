@@ -1590,6 +1590,18 @@ pub(crate) mod attached_unit {
                 }
             }
             pub(crate) mod emission {
+                //! Emit a composed-control machine: `emit` allocates the state block
+                //! namespaces and the invocation entry, walks every authored state through
+                //! `StateGraphEmission::emit_state`, then assembles the machine from the
+                //! blocks, ranks and places that walk accumulated.
+                //!
+                //! Source requirements are obligations of Psi checking, not a second language
+                //! limited to this emitter's scalar vocabulary. A checked state retains both
+                //! its closed projections and its unprojected authored expressions. The latter
+                //! can cross an internal header only when every actual incoming edge carries
+                //! the exact completed source-arrival decision. Closed declaration/runtime
+                //! requirements remain in the emitted invariant; an unprojected expression
+                //! never becomes Truth, an opaque certified atom, or an optimizer premise.
                 use super::super::super::super::{
                     MachineId, StructuralArgument, StructuralParameterDeclaration, block_id,
                 };
@@ -2401,7 +2413,457 @@ pub(crate) mod attached_unit {
                         }
                     }
                 }
-                pub(crate) mod conditional_return {
+                pub(crate) mod completion_expressions {
+                    //! A Unit expression selects ordinary invocation completions. The subject is
+                    //! evaluated once; only selected predicates and the selected call execute.
+                    //! Unit never acquires a scalar slot or structural result home.
+
+                    use super::StateGraphEmission;
+                    use crate::emission::operation_emission::buffer::{
+                        OperationBuffer, scalar_result_declaration,
+                    };
+                    use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
+                    use crate::emission::value_successor;
+                    use crate::shared::lowering_error::LoweringError;
+                    use crate::shared::terminal_identities::{
+                        allocate_dense, block_id, edge_id, value_id,
+                    };
+                    use crate::unit::attached_unit::argument_evaluation::Evaluation;
+                    use crate::unit::attached_unit::composed_control::emission::{
+                        FrameValues, OperationSequence, StateFrame,
+                    };
+                    use checked_trees::{
+                        CheckedScalarExpressionRole as Role, CheckedUnitCompletionExpression,
+                        CheckedUnitCompletionKind as Kind,
+                        CheckedUnitCompletionSelection as Selection,
+                        CheckedUnitScalarCompletionCondition as Condition,
+                    };
+                    use terminal_psi::{
+                        Block, StructuralParameterDeclaration, SuccessorEdge, Terminator,
+                        ValueDeclaration,
+                    };
+
+                    #[derive(Clone, Copy)]
+                    enum Arm<'a> {
+                        Scalar(&'a checked_trees::CheckedUnitScalarCompletionArm, usize),
+                        Structural(&'a checked_trees::CheckedUnitStructuralCompletionArm),
+                    }
+
+                    impl Arm<'_> {
+                        fn computation(
+                            &self,
+                        ) -> Option<checked_trees::CheckedScalarComputationHandle>
+                        {
+                            match self {
+                                Self::Scalar(arm, _) => arm.condition.computation(),
+                                Self::Structural(arm) => arm.predicate,
+                            }
+                        }
+                        fn completion(&self) -> &CheckedUnitCompletionExpression {
+                            match self {
+                                Self::Scalar(arm, _) => &arm.completion,
+                                Self::Structural(arm) => &arm.completion,
+                            }
+                        }
+                    }
+
+                    impl StateGraphEmission<'_, '_> {
+                        #[allow(clippy::too_many_arguments)]
+                        pub(super) fn completion_expression(
+                            &mut self,
+                            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                            position: usize,
+                            parameters: &[StructuralParameterDeclaration],
+                            values: Vec<ValueDeclaration>,
+                            established: &[crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload],
+                            payload_parameters: &[ValueDeclaration],
+                            discards: &[semantic_vocabulary::PlaceId],
+                            plan: &checked_trees::CheckedUnitCompletionPlan,
+                            evaluation: &mut Evaluation,
+                            next_value: &mut u64,
+                            next_block: &mut u64,
+                            next_edge: &mut u64,
+                            operations: &mut OperationBuffer,
+                            sequence: &OperationSequence,
+                        ) -> Result<SuccessorEdge, LoweringError> {
+                            self.completion_node(
+                                identities,
+                                position,
+                                parameters,
+                                values,
+                                established,
+                                payload_parameters,
+                                discards,
+                                plan,
+                                &plan.expression,
+                                evaluation,
+                                next_value,
+                                next_block,
+                                next_edge,
+                                operations,
+                                sequence,
+                            )
+                        }
+
+                        #[allow(clippy::too_many_arguments)]
+                        fn completion_node(
+                            &mut self,
+                            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                            position: usize,
+                            parameters: &[StructuralParameterDeclaration],
+                            mut values: Vec<ValueDeclaration>,
+                            established: &[crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload],
+                            payload_parameters: &[ValueDeclaration],
+                            discards: &[semantic_vocabulary::PlaceId],
+                            plan: &checked_trees::CheckedUnitCompletionPlan,
+                            node: &CheckedUnitCompletionExpression,
+                            evaluation: &mut Evaluation,
+                            next_value: &mut u64,
+                            next_block: &mut u64,
+                            next_edge: &mut u64,
+                            operations: &mut OperationBuffer,
+                            sequence: &OperationSequence,
+                        ) -> Result<SuccessorEdge, LoweringError> {
+                            let checked = self.checked;
+                            let dispatch = match &node.kind {
+                                Kind::Invocation(invocation) => {
+                                    return self.conditional_return_arm(
+                                        identities,
+                                        position,
+                                        parameters,
+                                        values,
+                                        established,
+                                        payload_parameters,
+                                        discards,
+                                        &checked_trees::CheckedConditionalReturnArm::EvaluateUnit {
+                                            statement_ordinal: plan.statement_ordinal,
+                                            operations: invocation.clone(),
+                                        },
+                                        evaluation,
+                                        next_value,
+                                        next_block,
+                                        next_edge,
+                                        operations,
+                                        sequence,
+                                    );
+                                }
+                                Kind::Selection(selection) => selection,
+                            };
+                            let state = &self.plan.states[position];
+                            let owner = self.admitted.authored[position].0.symbol;
+                            let entry = block_id(allocate_dense(next_block)?);
+                            let mut current = evaluation.branch(entry, operations.len());
+                            crate::expression_preparation::bindings::structural_fields::establish_case_payloads(
+                &mut current.structural_fields,
+                established,
+            );
+                            current.parameters = payload_parameters.to_vec();
+                            let mut sequence = sequence.branch();
+                            let source_count = values.len();
+                            let (scalar, structural) = match dispatch {
+                                Selection::Scalar { subject, arms } => {
+                                    let completed = self.completion_scalar(
+                                        identities,
+                                        position,
+                                        parameters,
+                                        plan.statement_ordinal,
+                                        Role::StructuralValueSubject {
+                                            expression: node.expression,
+                                        },
+                                        *subject,
+                                        &mut current,
+                                        &mut values,
+                                        next_value,
+                                        next_block,
+                                        next_edge,
+                                        operations,
+                                        &mut sequence,
+                                    )?;
+                                    values.push(completed);
+                                    (Some(arms.as_slice()), None)
+                                }
+                                Selection::Structural {
+                                    expression: subject_expression,
+                                    value,
+                                    alias,
+                                    place,
+                                    arms,
+                                } => {
+                                    let request = value.is_valid().then(|| crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
+                    identities, checked, *value, &self.catalogs.structural_types,
+                )).transpose()?;
+                                    StateFrame::new(checked, owner, state, &self.state_erased[position]).evaluate(
+                    self.catalogs,
+                    parameters,
+                    &mut sequence,
+                    FrameValues {
+                        source_value_count: values.len(),
+                        evaluation: &mut current,
+                        values: &mut values,
+                        next_value,
+                        next_block,
+                        next_edge,
+                        operations,
+                    },
+                    |frame| {
+                        let (mut environment, emission) = frame.split();
+                        if let Some(request) = request {
+                            environment.produce_value(
+                                identities, *value, request.structural_type,
+                                emission.evaluation, emission.values, emission.next_value,
+                                emission.next_block, emission.next_edge, emission.calls, emission.operations,
+                            )
+                        } else {
+                            let captured = crate::shared::terminal_identities::place_id(allocate_dense(environment.next_place)?);
+                            crate::unit::attached_unit::structural_values::emission::completed_projection::ProjectionEmission {
+                                statement: plan.statement_ordinal,
+                                environment: &mut environment, calls: emission.calls,
+                                evaluation: emission.evaluation, values: emission.values,
+                                next_value: emission.next_value, next_block: emission.next_block,
+                                next_edge: emission.next_edge, operations: emission.operations,
+                            }.capture_subject(identities, *subject_expression, place, *alias, captured)
+                        }
+                    },
+                )?;
+                                    if value.is_valid()
+                                        && operations.invocation_completion.is_none()
+                                    {
+                                        current.bind_completed_value_alias(
+                                            *value, *alias, operations,
+                                        )?;
+                                        current.completed_operand_scope.push(*value);
+                                    }
+                                    (None, Some(arms.as_slice()))
+                                }
+                            };
+                            if let Some(terminator) =
+                                operations.take_invocation_completion(next_edge)?
+                            {
+                                finish(&mut current, operations, terminator);
+                                evaluation.blocks.extend(current.blocks);
+                                return Ok(value_successor(
+                                    edge_id(allocate_dense(next_edge)?),
+                                    entry,
+                                ));
+                            }
+                            let arms = scalar
+                                .into_iter()
+                                .flatten()
+                                .map(|arm| Arm::Scalar(arm, source_count))
+                                .chain(structural.into_iter().flatten().map(Arm::Structural));
+                            let arm_count =
+                                scalar.map_or(0, <[_]>::len) + structural.map_or(0, <[_]>::len);
+                            for (ordinal, arm) in arms.enumerate() {
+                                let pattern = arm.computation();
+                                let condition = if let Some(pattern) = pattern {
+                                    let pattern = self.completion_scalar(
+                                        identities,
+                                        position,
+                                        parameters,
+                                        plan.statement_ordinal,
+                                        Role::StructuralValuePattern {
+                                            source_arm: match arm {
+                                                Arm::Scalar(arm, _) => arm.source_arm,
+                                                Arm::Structural(arm) => arm.source_arm,
+                                            },
+                                        },
+                                        pattern,
+                                        &mut current,
+                                        &mut values,
+                                        next_value,
+                                        next_block,
+                                        next_edge,
+                                        operations,
+                                        &mut sequence,
+                                    )?;
+                                    let kind = match arm {
+                                        Arm::Scalar(arm, subject) => match arm.condition {
+                                            Condition::Boolean(_) => {
+                                                Some(terminal_psi::OperationKind::BooleanEqual {
+                                                    left: values[subject].id,
+                                                    right: pattern.id,
+                                                })
+                                            }
+                                            Condition::Integer(_) => Some(
+                                                LoweredIntegerComparisonKind::Equal
+                                                    .operation(values[subject].id, pattern.id),
+                                            ),
+                                            Condition::Predicate(_) | Condition::Default => None,
+                                        },
+                                        Arm::Structural(_) => None,
+                                    };
+                                    if let Some(kind) = kind {
+                                        let condition = value_id(allocate_dense(next_value)?);
+                                        let id = operations.allocate();
+                                        operations.push(terminal_psi::Operation::unsuspended(
+                                            id,
+                                            scalar_result_declaration(
+                                                condition,
+                                                semantic_vocabulary::ScalarType::Boolean,
+                                            ),
+                                            kind,
+                                        ));
+                                        Some(condition)
+                                    } else {
+                                        Some(pattern.id)
+                                    }
+                                } else {
+                                    None
+                                };
+                                if let Some(terminator) =
+                                    operations.take_invocation_completion(next_edge)?
+                                {
+                                    finish(&mut current, operations, terminator);
+                                    break;
+                                }
+                                let observations = operations.storage_observations.clone();
+                                let decision_end = operations.len();
+                                let mut selected_values = values.clone();
+                                selected_values.truncate(source_count);
+                                let selected = self.completion_node(
+                                    identities,
+                                    position,
+                                    parameters,
+                                    selected_values,
+                                    &[],
+                                    &[],
+                                    discards,
+                                    plan,
+                                    arm.completion(),
+                                    &mut current,
+                                    next_value,
+                                    next_block,
+                                    next_edge,
+                                    operations,
+                                    &sequence,
+                                )?;
+                                operations.storage_observations = observations;
+                                let condition = match condition {
+                                    Some(condition) if ordinal + 1 < arm_count => condition,
+                                    _ => {
+                                        finish_at(
+                                            &mut current,
+                                            operations,
+                                            decision_end,
+                                            jump(selected),
+                                        );
+                                        break;
+                                    }
+                                };
+                                let fallback = block_id(allocate_dense(next_block)?);
+                                finish_at(
+                                    &mut current,
+                                    operations,
+                                    decision_end,
+                                    Terminator::Conditional {
+                                        condition,
+                                        when_true: selected,
+                                        when_false: value_successor(
+                                            edge_id(allocate_dense(next_edge)?),
+                                            fallback,
+                                        ),
+                                    },
+                                );
+                                current.current = fallback;
+                                current.operation_start = operations.len();
+                                current.parameters.clear();
+                                current.block_structural_parameters.clear();
+                                operations.storage_observations.clear();
+                            }
+                            evaluation.blocks.extend(current.blocks);
+                            Ok(value_successor(edge_id(allocate_dense(next_edge)?), entry))
+                        }
+
+                        #[allow(clippy::too_many_arguments)]
+                        fn completion_scalar(
+                            &mut self,
+                            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                            position: usize,
+                            parameters: &[StructuralParameterDeclaration],
+                            statement: u32,
+                            role: Role,
+                            computation: checked_trees::CheckedScalarComputationHandle,
+                            evaluation: &mut Evaluation,
+                            values: &mut Vec<ValueDeclaration>,
+                            next_value: &mut u64,
+                            next_block: &mut u64,
+                            next_edge: &mut u64,
+                            operations: &mut OperationBuffer,
+                            sequence: &mut OperationSequence,
+                        ) -> Result<ValueDeclaration, LoweringError> {
+                            StateFrame::new(
+                                self.checked,
+                                self.admitted.authored[position].0.symbol,
+                                &self.plan.states[position],
+                                &self.state_erased[position],
+                            )
+                            .evaluate(
+                                self.catalogs,
+                                parameters,
+                                sequence,
+                                FrameValues {
+                                    source_value_count: values.len(),
+                                    evaluation,
+                                    values,
+                                    next_value,
+                                    next_block,
+                                    next_edge,
+                                    operations,
+                                },
+                                |mut frame| {
+                                    frame.source_value(
+                                        identities,
+                                        statement,
+                                        role,
+                                        &checked_trees::CheckedCallScalarArgument::Computation(
+                                            computation,
+                                        ),
+                                    )
+                                },
+                            )
+                        }
+                    }
+
+                    fn finish(
+                        evaluation: &mut Evaluation,
+                        operations: &OperationBuffer,
+                        terminator: Terminator,
+                    ) {
+                        finish_at(evaluation, operations, operations.len(), terminator)
+                    }
+
+                    fn finish_at(
+                        evaluation: &mut Evaluation,
+                        operations: &OperationBuffer,
+                        end: usize,
+                        terminator: Terminator,
+                    ) {
+                        evaluation.blocks.push(Block {
+                            id: evaluation.current,
+                            parameters: std::mem::take(&mut evaluation.parameters),
+                            structural_parameters: std::mem::take(
+                                &mut evaluation.block_structural_parameters,
+                            ),
+                            erased_scalar_formals: Vec::new(),
+                            erased_proof_formals: Vec::new(),
+                            operations: operations[evaluation.operation_start..end].to_vec(),
+                            terminator,
+                        });
+                    }
+
+                    fn jump(edge: SuccessorEdge) -> Terminator {
+                        Terminator::Jump {
+                            edge: edge.edge,
+                            target: edge.target,
+                            arguments: edge.arguments,
+                            structural_arguments: edge.structural_arguments,
+                            erased_arguments: edge.erased_arguments,
+                            erased_proof_arguments: edge.erased_proof_arguments,
+                            cleanup_actions: edge.cleanup_actions,
+                        }
+                    }
+                }
+                mod conditional_return {
 
                     use super::super::super::super::super::{
                         StructuralParameterDeclaration, SuccessorEdge, block_id,
@@ -2428,6 +2890,29 @@ pub(crate) mod attached_unit {
                         Structural(StructuralBinding),
                     }
 
+                    #[derive(Clone, Copy)]
+                    enum OrdinaryArm<'a> {
+                        EvaluateNoNormal {
+                            operations: &'a checked_trees::CheckedOperandSequence,
+                        },
+                        EvaluateUnit {
+                            operations: &'a checked_trees::CheckedOperandSequence,
+                        },
+                        Crash {
+                            statement_ordinal: &'a u32,
+                        },
+                        Unit,
+                        Structural(&'a checked_trees::CheckedUnitEffectOperationPlan),
+                        Scalar {
+                            statement_ordinal: &'a u32,
+                        },
+                        Call {
+                            operands: &'a checked_trees::CheckedOperandSequence,
+                            operation: &'a checked_trees::CheckedUnitEffectOperationPlan,
+                            completions: &'a checked_trees::CheckedOperandSequence,
+                        },
+                    }
+
                     impl StateGraphEmission<'_, '_> {
                         pub(crate) fn conditional_return_arm(
                             &mut self,
@@ -2446,6 +2931,56 @@ pub(crate) mod attached_unit {
                             operations: &mut OperationBuffer,
                             sequence: &crate::unit::attached_unit::composed_control::emission::OperationSequence,
                         ) -> Result<SuccessorEdge, LoweringError> {
+                            let ordinary = match return_arm {
+                                checked_trees::CheckedConditionalReturnArm::Completion(plan) => {
+                                    return self.completion_expression(
+                                        identities,
+                                        position,
+                                        state_parameters,
+                                        arm_namespace,
+                                        established,
+                                        payload_parameters,
+                                        dispatch_discards,
+                                        plan,
+                                        evaluation,
+                                        next_value,
+                                        next_block,
+                                        next_edge,
+                                        operations,
+                                        sequence,
+                                    );
+                                }
+                                checked_trees::CheckedConditionalReturnArm::EvaluateNoNormal {
+                                    operations,
+                                    ..
+                                } => OrdinaryArm::EvaluateNoNormal { operations },
+                                checked_trees::CheckedConditionalReturnArm::EvaluateUnit {
+                                    operations,
+                                    ..
+                                } => OrdinaryArm::EvaluateUnit { operations },
+                                checked_trees::CheckedConditionalReturnArm::Crash {
+                                    statement_ordinal,
+                                } => OrdinaryArm::Crash { statement_ordinal },
+                                checked_trees::CheckedConditionalReturnArm::Unit { .. } => {
+                                    OrdinaryArm::Unit
+                                }
+                                checked_trees::CheckedConditionalReturnArm::Structural(
+                                    operation,
+                                ) => OrdinaryArm::Structural(operation),
+                                checked_trees::CheckedConditionalReturnArm::Scalar {
+                                    statement_ordinal,
+                                    ..
+                                } => OrdinaryArm::Scalar { statement_ordinal },
+                                checked_trees::CheckedConditionalReturnArm::Call {
+                                    operands,
+                                    operation,
+                                    completions,
+                                } => OrdinaryArm::Call {
+                                    operands,
+                                    operation,
+                                    completions,
+                                },
+                            };
                             let checked = self.checked;
                             let plan = self.plan;
                             let state = &plan.states[position];
@@ -2494,8 +3029,12 @@ pub(crate) mod attached_unit {
                                 .retain(|(_, value)| decided.contains(value));
                             operations.storage_observations.field_bytes.clear();
                             operations.storage_observations.cases.clear();
-                            let completion = match return_arm {
-                                checked_trees::CheckedConditionalReturnArm::EvaluateNoNormal {
+                            let completion = match ordinary {
+                                OrdinaryArm::EvaluateNoNormal {
+                                    operations: selected,
+                                    ..
+                                }
+                                | OrdinaryArm::EvaluateUnit {
                                     operations: selected,
                                     ..
                                 } => {
@@ -2517,31 +3056,37 @@ pub(crate) mod attached_unit {
                                         operations,
                                         &mut sequence,
                                     )?;
-                                    PreparedArmCompletion::Edge(
-                                        operations.take_invocation_completion(next_edge)?.ok_or(
-                                            LoweringError::Unsupported(
-                                                "stopped return operand lost its exact invocation",
-                                            ),
-                                        )?,
-                                    )
+                                    let terminator = if let Some(terminator) =
+                                        operations.take_invocation_completion(next_edge)?
+                                    {
+                                        terminator
+                                    } else if matches!(ordinary, OrdinaryArm::EvaluateUnit { .. }) {
+                                        Terminator::ReturnUnit {
+                                            edge: edge_id(allocate_dense(next_edge)?),
+                                            cleanup_actions: Vec::new(),
+                                        }
+                                    } else {
+                                        return unsupported(
+                                            "stopped return operand lost its exact invocation",
+                                        );
+                                    };
+                                    PreparedArmCompletion::Edge(terminator)
                                 }
-                                checked_trees::CheckedConditionalReturnArm::Crash {
-                                    statement_ordinal,
-                                } => PreparedArmCompletion::Edge(self.crash_completion(
-                                    identities,
-                                    position,
-                                    *statement_ordinal,
-                                    next_edge,
-                                )?),
-                                checked_trees::CheckedConditionalReturnArm::Unit { .. } => {
+                                OrdinaryArm::Crash { statement_ordinal } => {
+                                    PreparedArmCompletion::Edge(self.crash_completion(
+                                        identities,
+                                        position,
+                                        *statement_ordinal,
+                                        next_edge,
+                                    )?)
+                                }
+                                OrdinaryArm::Unit => {
                                     PreparedArmCompletion::Edge(Terminator::ReturnUnit {
                                         edge: edge_id(allocate_dense(next_edge)?),
                                         cleanup_actions: Vec::new(),
                                     })
                                 }
-                                checked_trees::CheckedConditionalReturnArm::Structural(
-                                    operation,
-                                ) => {
+                                OrdinaryArm::Structural(operation) => {
                                     super::super::super::emission::emit_call_operations(
                                         identities,
                                         checked,
@@ -2571,7 +3116,10 @@ pub(crate) mod attached_unit {
                                         )
                                     }
                                 }
-                                checked_trees::CheckedConditionalReturnArm::Call {
+                                // The selected arm evaluates its operands and invokes its call
+                                // once. Ordinary completion then forwards the exact result the
+                                // call bound, with cleanup appropriate to that result's custody.
+                                OrdinaryArm::Call {
                                     operands,
                                     operation,
                                     completions,
@@ -2650,29 +3198,30 @@ pub(crate) mod attached_unit {
                                         }
                                     }
                                 }
-                                checked_trees::CheckedConditionalReturnArm::Scalar {
-                                    statement_ordinal,
-                                    ..
+                                // The arm alone evaluates the value checking retained under its
+                                // `Return` role, then disposes the roots a scalar return does.
+                                OrdinaryArm::Scalar {
+                                    statement_ordinal, ..
                                 } => {
                                     let role = CheckedScalarExpressionRole::Return;
                                     let retained = match checked.facts.values.scalar_expressions.expression_at(
-                                        state.state,
-                                        *statement_ordinal,
-                                        role,
-                                    ) {
-                                        Some(expression) => {
-                                            checked_trees::CheckedCallScalarArgument::Pure(expression.clone())
-                                        }
-                                        None => checked_trees::CheckedCallScalarArgument::Computation(
-                                            value_facts(checked)
-                                                .scalar_computations
-                                                .root_at(state.state, *statement_ordinal, role)
-                                                .ok_or(LoweringError::Unsupported(
-                                                    "Unit graph scalar return arm lost its retained value",
-                                                ))?
-                                                .root,
-                                        ),
-                                    };
+                        state.state,
+                        *statement_ordinal,
+                        role,
+                    ) {
+                        Some(expression) => {
+                            checked_trees::CheckedCallScalarArgument::Pure(expression.clone())
+                        }
+                        None => checked_trees::CheckedCallScalarArgument::Computation(
+                            value_facts(checked)
+                                .scalar_computations
+                                .root_at(state.state, *statement_ordinal, role)
+                                .ok_or(LoweringError::Unsupported(
+                                    "Unit graph scalar return arm lost its retained value",
+                                ))?
+                                .root,
+                        ),
+                    };
                                     let value = StateFrame::new(
                                         checked,
                                         owner,
@@ -2765,11 +3314,15 @@ pub(crate) mod attached_unit {
                                     let temporary_discards = dispatch_discards
                                         .iter()
                                         .copied()
-                                        .filter(|place| !regions.iter().any(|region| region.action.place() == *place))
+                                        .filter(|place| {
+                                            !regions
+                                                .iter()
+                                                .any(|region| region.action.place() == *place)
+                                        })
                                         .map(|place| {
                                             crate::unit::unit_cleanup::CleanupRegion::unconditional(
-                                                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
-                                            )
+                                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
+                            )
                                         })
                                         .collect::<Vec<_>>();
                                     regions.splice(0..0, temporary_discards);
@@ -2872,20 +3425,149 @@ pub(crate) mod attached_unit {
                     }
                 }
                 pub(crate) mod dispatch_copies {
+                    //! Materialize the selected arm's checked payload values before its operands.
+                    //! They use the ordinary copied-value producer and expression-root namespace;
+                    //! no live storage read may substitute the former source after sibling effects.
 
+                    use super::super::super::{CheckedTrees, catalogs};
+                    use super::super::CheckedComposedUnitControlStatePlan;
                     use super::StateGraphEmission;
                     use crate::emission::operation_emission::buffer::OperationBuffer;
-                    use crate::shared::checked_facts::{flow_facts, value_facts};
                     use crate::shared::lowering_error::{LoweringError, unsupported};
-                    use crate::shared::terminal_identities::stored_structural_identity;
                     use crate::unit::attached_unit::argument_evaluation::Evaluation;
                     use crate::unit::attached_unit::composed_control::emission::{
                         FrameValues, StateFrame,
                     };
                     use terminal_psi::{StructuralParameterDeclaration, ValueDeclaration};
 
+                    /// One private copy born on this selected target. Its exact value handle
+                    /// distinguishes the saved owner from every authored by-value read.
                     pub(crate) struct CompletedCopy {
                         binding: crate::emission::operation_emission::buffer::ComputedValueBinding,
+                    }
+
+                    /// Selected edges share one payload producer, after their decision and before
+                    /// their operands. The exact outgoing target keeps sibling captures separate.
+                    pub(in crate::unit_composed_control::attached_unit::composed_control::state_graph)
+                    struct DispatchCopies
+                    <'a, 'c> {
+                        checked: &'a CheckedTrees,
+                        state: &'a CheckedComposedUnitControlStatePlan,
+                        owner: symbols::SymbolHandle,
+                        catalogs: &'a mut catalogs::ComposedCatalogs<'c>,
+                        erased_parameters: &'a [ValueDeclaration],
+                    }
+
+                    impl<'a, 'c> DispatchCopies<'a, 'c> {
+                        pub(in crate::unit_composed_control::attached_unit::composed_control::state_graph) fn new(
+                            checked: &'a CheckedTrees,
+                            state: &'a CheckedComposedUnitControlStatePlan,
+                            owner: symbols::SymbolHandle,
+                            catalogs: &'a mut catalogs::ComposedCatalogs<'c>,
+                            erased_parameters: &'a [ValueDeclaration],
+                        ) -> Self {
+                            Self {
+                                checked,
+                                state,
+                                owner,
+                                catalogs,
+                                erased_parameters,
+                            }
+                        }
+
+                        pub(in crate::unit_composed_control::attached_unit::composed_control::state_graph) fn capture(
+                            &mut self,
+                            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                            copied_payloads: &[checked_trees::CheckedSelectedPayloadCopy],
+                            parameters: &[StructuralParameterDeclaration],
+                            frame: FrameValues<'_>,
+                            sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
+                        ) -> Result<Vec<CompletedCopy>, LoweringError> {
+                            let checked = self.checked;
+                            let state = self.state;
+                            let owner = self.owner;
+                            let FrameValues {
+                                evaluation,
+                                values,
+                                next_value,
+                                next_block,
+                                next_edge,
+                                operations,
+                                ..
+                            } = frame;
+                            let copies = crate::scalar_lowering::branch_states::structural_values::selected_copies(
+                identities,
+                checked,
+                copied_payloads,
+                &self.catalogs.structural_types,
+            )?;
+                            let mut completed = Vec::new();
+                            for copy in copies {
+                                let structural_type = copy.structural_type;
+                                StateFrame::new(checked, owner, state, self.erased_parameters)
+                                    .evaluate(
+                                        self.catalogs,
+                                        parameters,
+                                        sequence,
+                                        FrameValues {
+                                            source_value_count: values.len(),
+                                            evaluation,
+                                            values,
+                                            next_value,
+                                            next_block,
+                                            next_edge,
+                                            operations,
+                                        },
+                                        |frame| {
+                                            let (mut environment, emission) = frame.split();
+                                            environment.produce_value(
+                                                identities,
+                                                copy.value,
+                                                structural_type,
+                                                emission.evaluation,
+                                                emission.values,
+                                                emission.next_value,
+                                                emission.next_block,
+                                                emission.next_edge,
+                                                emission.calls,
+                                                emission.operations,
+                                            )
+                                        },
+                                    )?;
+                                let binding = evaluation
+                                    .saved_value_binding(copy.value, operations)?
+                                    .clone();
+                                if binding.structural_type != structural_type {
+                                    return unsupported(
+                                        "selected copy has a different realized carrier",
+                                    );
+                                }
+                                completed.push(CompletedCopy { binding });
+                            }
+                            Ok(completed)
+                        }
+                    }
+
+                    /// Copy and DescriptorCleanup authorize only this private value's death.
+                    pub(in crate::unit_composed_control::attached_unit::composed_control::state_graph) fn complete_dispatch_copies(
+                        copies: &[CompletedCopy],
+                        evaluation: &Evaluation,
+                        operations: &OperationBuffer,
+                        types: &[terminal_psi::StructuralTypeDeclaration],
+                    ) -> Result<Vec<crate::unit::unit_cleanup::CleanupRegion>, LoweringError>
+                    {
+                        let mut regions = Vec::new();
+                        for copy in copies.iter().rev() {
+                            // Ordinary cleanup tracks the physical carrier's multiplicity and
+                            // selected residuals. Source Copy never grants disposal of another
+                            // root, a nominal hook, or a borrowed pointee.
+                            regions.extend(evaluation.normal_discard_regions(
+                                copy.binding.argument.place,
+                                types,
+                                operations,
+                            )?);
+                        }
+                        Ok(regions)
                     }
 
                     impl StateGraphEmission<'_, '_> {
@@ -2904,148 +3586,56 @@ pub(crate) mod attached_unit {
                             operations: &mut OperationBuffer,
                             sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
                         ) -> Result<Vec<CompletedCopy>, LoweringError> {
-                            let checked = self.checked;
                             let state = &self.plan.states[position];
-                            let owner = self.admitted.authored[position].0.symbol;
-                            let Some(transition) = checked
+                            let Some(transition) = self
+                                .checked
                                 .facts
                                 .executable_bindings
                                 .transition(state.state, statement_ordinal as usize)
                             else {
                                 return Ok(Vec::new());
                             };
-                            let Some(flow_state) =
-                                checked.facts.flow.control.unique_state(owner, state.state)
-                            else {
-                                return Ok(Vec::new());
-                            };
-                            let mut outgoing_rows = flow_facts(checked)
-                                .control
-                                .outgoing
-                                .span_or_empty(flow_state.outgoing)
-                                .iter()
-                                .filter(|outgoing| {
-                                    outgoing.statement_index == statement_ordinal as usize
-                                        && outgoing.transition_target == transition.primary
-                                });
-                            let Some(outgoing) = outgoing_rows.next() else {
-                                return Ok(Vec::new());
-                            };
-                            if outgoing_rows.next().is_some() {
-                                return unsupported(
-                                    "selected payload entry has ambiguous completed flow",
-                                );
-                            }
-                            let copies = flow_facts(checked)
-                                .control
-                                .operands
-                                .span_or_empty(outgoing.copied_payloads);
-                            let mut completed = Vec::new();
-                            for copy in copies {
-                                if checked
-                                    .primitive_type_reference(copy.type_reference)
-                                    .is_some()
-                                    && validation::reference_shell(
-                                        &checked.typed,
-                                        copy.type_reference,
+                            let key = (
+                                statement_ordinal,
+                                transition.primary.arena_index(),
+                                transition.primary.generation(),
+                            );
+                            let selected = state
+                                .selected_copies
+                                .binary_search_by_key(&key, |row| {
+                                    (
+                                        row.statement_ordinal,
+                                        row.transition_target.arena_index(),
+                                        row.transition_target.generation(),
                                     )
-                                    .is_none()
-                                {
-                                    continue;
-                                }
-                                let root = value_facts(checked)
-                                    .structural_values
-                                    .root_for_captured_copy(
-                                        state.state,
-                                        statement_ordinal,
-                                        match copy.completion {
-                                            checked_trees::FlowOperandCompletion::Copied { copy, .. } => copy,
-                                            _ => {
-                                                return unsupported(
-                                                    "selected payload lost its completed copy identity",
-                                                );
-                                            }
-                                        },
-                                    )
-                                    .ok_or(LoweringError::Unsupported(
-                                        "selected structural payload has no checked copied-value root",
-                                    ))?;
-                                if !validation::type_satisfies_declared_property(
-                                    &checked.typed,
-                                    &[],
-                                    root.type_reference,
-                                    validation::DeclaredPropertyRequirement::Copy,
-                                ) || !validation::has_contents(
-                                    &checked.typed,
-                                    root.type_reference,
-                                    &[],
-                                    validation::ContentsRequirement::DescriptorCleanup,
-                                ) {
-                                    return unsupported(
-                                        "selected copied value lost its independent copy/discard capability",
-                                    );
-                                }
-                                let structural_type =
-                                    crate::shared::terminal_identities::lookup_type_id(
-                                        &self.catalogs.type_ids,
-                                        &stored_structural_identity(checked, root.type_reference),
-                                    )?;
-                                StateFrame::new(
-                                    checked,
-                                    owner,
-                                    state,
-                                    &self.state_erased[position],
-                                )
-                                .evaluate(
-                                    self.catalogs,
-                                    parameters,
-                                    sequence,
-                                    FrameValues {
-                                        source_value_count: values.len(),
-                                        evaluation,
-                                        values,
-                                        next_value,
-                                        next_block,
-                                        next_edge,
-                                        operations,
-                                    },
-                                    |frame| {
-                                        let (mut environment, emission) = frame.split();
-                                        environment.produce_value(
-                                            identities,
-                                            root.root,
-                                            structural_type,
-                                            emission.evaluation,
-                                            emission.values,
-                                            emission.next_value,
-                                            emission.next_block,
-                                            emission.next_edge,
-                                            emission.calls,
-                                            emission.operations,
-                                        )
-                                    },
-                                )?;
-                                let binding = operations
-                                    .computed_values
-                                    .iter()
-                                    .rev()
-                                    .find(|(value, _)| *value == root.root)
-                                    .map(|(_, binding)| binding.clone())
-                                    .ok_or(LoweringError::Unsupported(
-                                        "selected copy producer did not publish its completed home",
-                                    ))?;
-                                if binding.structural_type != structural_type
-                                    || !binding.argument.path.is_empty()
-                                    || binding.argument.access
-                                        != terminal_psi::StructuralAccess::Owned
-                                {
-                                    return unsupported(
-                                        "selected copied value did not establish its own whole home",
-                                    );
-                                }
-                                completed.push(CompletedCopy { binding });
-                            }
-                            Ok(completed)
+                                })
+                                .ok()
+                                .and_then(|index| state.selected_copies.get(index))
+                                .ok_or(LoweringError::Unsupported(
+                                    "selected edge lost its checked payload births",
+                                ))?;
+                            DispatchCopies::new(
+                                self.checked,
+                                state,
+                                self.admitted.authored[position].0.symbol,
+                                self.catalogs,
+                                &self.state_erased[position],
+                            )
+                            .capture(
+                                identities,
+                                &selected.values,
+                                parameters,
+                                FrameValues {
+                                    source_value_count: values.len(),
+                                    evaluation,
+                                    values,
+                                    next_value,
+                                    next_block,
+                                    next_edge,
+                                    operations,
+                                },
+                                sequence,
+                            )
                         }
 
                         pub(crate) fn complete_dispatch_copies(
@@ -3055,15 +3645,12 @@ pub(crate) mod attached_unit {
                             operations: &OperationBuffer,
                         ) -> Result<Vec<crate::unit::unit_cleanup::CleanupRegion>, LoweringError>
                         {
-                            let mut regions = Vec::new();
-                            for copy in copies.iter().rev() {
-                                regions.extend(evaluation.normal_discard_regions(
-                                    copy.binding.argument.place,
-                                    &self.catalogs.structural_types,
-                                    operations,
-                                )?);
-                            }
-                            Ok(regions)
+                            complete_dispatch_copies(
+                                copies,
+                                evaluation,
+                                operations,
+                                &self.catalogs.structural_types,
+                            )
                         }
                     }
                 }
@@ -6259,107 +6846,100 @@ pub(crate) mod attached_unit {
                                 })
                                 .collect::<Vec<_>>();
                             let mut operations = OperationBuffer::new(
-                                self.catalogs.next_operation - 1,
-                                self.catalogs.next_place,
-                                std::sync::Arc::new(
-                                    crate::emission::reference_formations::ReferenceFormations::prepare(
-                                        checked,
-                                        state.state,
-                                        state
-                                            .operation_dependencies()
-                                            .flat_map(|operation| operation.with_value_calls()),
-                                        state.successors().into_iter(),
-                                    )?,
-                                ),
-                                std::sync::Arc::clone(&self.dynamic_dispatch),
-                            );
+                self.catalogs.next_operation - 1,
+                self.catalogs.next_place,
+                std::sync::Arc::new(
+                    crate::emission::reference_formations::ReferenceFormations::prepare(
+                        checked,
+                        state.state,
+                        state
+                            .operation_dependencies()
+                            .flat_map(|operation| operation.with_value_calls()),
+                        state.successors().into_iter(),
+                    )?,
+                ),
+                std::sync::Arc::clone(&self.dynamic_dispatch),
+            );
                             let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
-                                scalar_applications: std::sync::Arc::clone(self.catalogs.scalar_applications),
-                                completed_operand_scope: Vec::new(),
-                                current_claims: Default::default(),
-                                shared_qualifications: self
-                                    .catalogs
-                                    .prepared_scalar_qualifications
-                                    .cloned()
-                                    .unwrap_or_else(PreparedScalarQualifications::empty),
-                                machine: Some(self.terminal_machine),
-                                qualification_coercions: Vec::new(),
-                                structural_types: std::sync::Arc::from([]),
-                                structural_value_owners: Vec::new(),
-                                selection_cleanups: Vec::new(),
-                                computation_address_roots: Vec::new(),
-                                structural_locals: Vec::new(),
-                                completed_cleanup_homes: Vec::new(),
-                                retired_structural_bindings: Vec::new(),
-                                retired_structural_homes: Default::default(),
-                                view_locals: Vec::new(),
-                                element_views: std::collections::BTreeMap::new(),
-                                place_observations:
-                                    crate::scalar_lowering::computations::fields::prepare_place_observations(
-                                        identities,
-                                        checked,
-                                        plan.machine,
-                                        state.state,
-                                        &self.catalogs.structural_types,
-                                    ),
-                                record_fields: self.record_fields.clone(),
-                                literals: crate::scalar_lowering::computations::literals::prepare(
-                                    identities,
-                                    checked,
-                                    plan.machine,
-                                    &self.catalogs.structural_types,
-                                    &mut self.catalogs.next_place,
-                                )?,
-                                produced_values: self.produced_values.clone(),
-                                observations: prepare(checked, &self.owners, &mut self.catalogs.next_place)?,
-                                call_views: crate::scalar_lowering::computations::call_views::prepare(
-                                    identities,
-                                    checked,
-                                    &self.owners,
-                                    &self.catalogs.structural_types,
-                                    &mut self.catalogs.next_place,
-                                )?,
-                                subslices: crate::scalar_lowering::computations::subslices::prepare(
-                                    identities,
-                                    checked,
-                                    &self.owners,
-                                    &self.catalogs.structural_types,
-                                    &mut self.catalogs.next_place,
-                                )?,
-                                cases: crate::scalar_lowering::computations::cases::prepare(
-                                    identities,
-                                    checked,
-                                    &self.owners,
-                                    &self.catalogs.structural_types,
-                                    &mut self.catalogs.next_place,
-                                )?,
-                                primitive_storage: Vec::new(),
-                                parameter_storage: Vec::new(),
-                                scalar_bindings: ScalarBindings::new(std::iter::empty()),
-                                structural_fields: Default::default(),
-                                structural_cases: Vec::new(),
-                                previous_parameter_homes: Vec::new(),
-                                enclosing_structural_arrivals: Vec::new(),
-                                structural_parameters: state
-                                    .structural_parameters
-                                    .iter()
-                                    .zip(&state_parameters)
-                                    .map(|(source, parameter)| (source.position, parameter.clone()))
-                                    .collect(),
-                                erased_scalar_formals: self.state_erased[position].clone(),
-                                erased_proof_formals: state.erased_proof_parameters.clone(),
-                                completion_proof_formals: Vec::new(),
-                                entry: self.state_ids[position],
-                                block_structural_parameters: Vec::new(),
-                                current: self.state_ids[position],
-                                parameters: if position == 0 && !self.entry_reentered {
-                                    Vec::new()
-                                } else {
-                                    self.state_values[position].clone()
-                                },
-                                operation_start: 0,
-                                blocks: Vec::new(),
-                            };
+                scalar_applications: std::sync::Arc::clone(self.catalogs.scalar_applications),
+                completed_operand_scope: Vec::new(),
+                current_claims: Default::default(),
+                shared_qualifications: self
+                    .catalogs
+                    .prepared_scalar_qualifications
+                    .cloned()
+                    .unwrap_or_else(PreparedScalarQualifications::empty),
+                machine: Some(self.terminal_machine),
+                qualification_coercions: Vec::new(),
+                structural_types: std::sync::Arc::from([]),
+                structural_value_owners: Vec::new(),
+                selection_cleanups: Vec::new(),
+                computation_address_roots: Vec::new(),
+                structural_locals: Vec::new(),
+                completed_cleanup_homes: Vec::new(),
+                retired_structural_bindings: Vec::new(),
+                retired_structural_homes: Default::default(),
+                view_locals: Vec::new(),
+                element_views: std::collections::BTreeMap::new(),
+                place_observations:
+                    crate::scalar_lowering::computations::fields::prepare_place_observations(
+                        identities,
+                        checked,
+                        plan.machine,
+                        state.state,
+                        &self.catalogs.structural_types,
+                    ),
+                record_fields: self.record_fields.clone(),
+                literals: crate::scalar_lowering::computations::literals::prepare(
+                    identities,
+                    checked,
+                    plan.machine,
+                    &self.catalogs.structural_types,
+                    &mut self.catalogs.next_place,
+                )?,
+                produced_values: self.produced_values.clone(),
+                observations: prepare(checked, &self.owners, &mut self.catalogs.next_place)?,
+                subslices: crate::scalar_lowering::computations::subslices::prepare(
+                    identities,
+                    checked,
+                    &self.owners,
+                    &self.catalogs.structural_types,
+                    &mut self.catalogs.next_place,
+                )?,
+                cases: crate::scalar_lowering::computations::cases::prepare(
+                    identities,
+                    checked,
+                    &self.owners,
+                    &self.catalogs.structural_types,
+                    &mut self.catalogs.next_place,
+                )?,
+                primitive_storage: Vec::new(),
+                parameter_storage: Vec::new(),
+                scalar_bindings: ScalarBindings::new(std::iter::empty()),
+                structural_fields: Default::default(),
+                structural_cases: Vec::new(),
+                previous_parameter_homes: Vec::new(),
+                enclosing_structural_arrivals: Vec::new(),
+                structural_parameters: state
+                    .structural_parameters
+                    .iter()
+                    .zip(&state_parameters)
+                    .map(|(source, parameter)| (source.position, parameter.clone()))
+                    .collect(),
+                erased_scalar_formals: self.state_erased[position].clone(),
+                erased_proof_formals: state.erased_proof_parameters.clone(),
+                completion_proof_formals: Vec::new(),
+                entry: self.state_ids[position],
+                block_structural_parameters: Vec::new(),
+                current: self.state_ids[position],
+                parameters: if position == 0 && !self.entry_reentered {
+                    Vec::new()
+                } else {
+                    self.state_values[position].clone()
+                },
+                operation_start: 0,
+                blocks: Vec::new(),
+            };
                             let mut entry_names = self.claims.entry_claims.clone();
                             entry_names.extend(self.block_entry_claims.iter().cloned());
                             evaluation.current_claims.ingress(
@@ -6377,28 +6957,28 @@ pub(crate) mod attached_unit {
                                 &entry_names,
                             )?;
                             evaluation.primitive_storage =
-                                crate::unit::attached_unit::parameters::primitive_reference_storage(
-                                    checked,
-                                    state.state,
-                                    &state.structural_parameters,
-                                    &evaluation.structural_parameters,
-                                )?;
+                crate::unit::attached_unit::parameters::primitive_reference_storage(
+                    checked,
+                    state.state,
+                    &state.structural_parameters,
+                    &evaluation.structural_parameters,
+                )?;
                             let mut values = self.state_values[position].clone();
                             let parameter_storage =
-                                super::super::super::super::primitive_locals::establish_parameter_storage(
-                                    &state.parameter_storage,
-                                    &state.scalar_parameters,
-                                    &values,
-                                    &self.catalogs.type_ids,
-                                    super::super::super::super::primitive_locals::PrimitiveStorageCatalog {
-                                        types: &self.catalogs.structural_types,
-                                        domains: self.catalogs.domain_declarations,
-                                        scalars: self.catalogs.scalar_calls.scalar_qualifications(),
-                                    },
-                                    &mut self.catalogs.next_place,
-                                    &mut self.catalogs.scalar_calls.next_call_obligation,
-                                    &mut operations,
-                                )?;
+                super::super::super::super::primitive_locals::establish_parameter_storage(
+                    &state.parameter_storage,
+                    &state.scalar_parameters,
+                    &values,
+                    &self.catalogs.type_ids,
+                    super::super::super::super::primitive_locals::PrimitiveStorageCatalog {
+                        types: &self.catalogs.structural_types,
+                        domains: self.catalogs.domain_declarations,
+                        scalars: self.catalogs.scalar_calls.scalar_qualifications(),
+                    },
+                    &mut self.catalogs.next_place,
+                    &mut self.catalogs.scalar_calls.next_call_obligation,
+                    &mut operations,
+                )?;
                             for storage in &parameter_storage {
                                 self.catalogs
                                     .temporary_places
@@ -6420,16 +7000,16 @@ pub(crate) mod attached_unit {
                                 &evaluation.place_observations,
                             );
                             super::super::super::super::primitive_locals::register_mut_formal_storage_homes(
-                                &mut evaluation,
-                                &parameter_storage,
-                            )?;
+                &mut evaluation,
+                &parameter_storage,
+            )?;
                             evaluation.structural_types =
                                 self.catalogs.structural_types.as_ref().into();
                             evaluation.structural_fields =
-                                crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
-                                    &evaluation.structural_parameters,
-                                    &self.catalogs.structural_types,
-                                );
+                crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
+                    &evaluation.structural_parameters,
+                    &self.catalogs.structural_types,
+                );
                             evaluation.structural_cases =
                                 crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding::collect(
                                     &evaluation.structural_parameters,
@@ -6440,84 +7020,83 @@ pub(crate) mod attached_unit {
                                     &evaluation.structural_parameters,
                                     &self.catalogs.structural_types,
                                 );
-                            let current_rank = if let Some(roots) =
-                                ranking::observations(checked, plan, state)?
-                            {
-                                let scalar_slots = values
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(position, value)| (position, value.scalar_type))
-                                    .collect::<Vec<_>>();
-                                let structural_actuals = state_parameters
-                                    .iter()
-                                    .map(|parameter| {
-                                        (
-                                            terminal_psi::StructuralArgument {
-                                                place: parameter.place,
-                                                path: Vec::new(),
-                                                access: parameter.access,
-                                            },
-                                            parameter.structural_type,
-                                        )
-                                    })
-                                    .collect::<Vec<_>>();
-                                let bindings = ranking::formal_bindings(
-                                    checked,
-                                    state,
-                                    &evaluation.scalar_bindings,
-                                    &scalar_slots,
-                                    &structural_actuals,
-                                )?;
-                                if roots.len() != self.rank_parameters[position].len() {
-                                    return unsupported(
-                                        "ranked header lost an ordered component parameter",
-                                    );
-                                }
-                                let ranks = roots
-                                    .iter()
-                                    .zip(&self.rank_parameters[position])
-                                    .map(|(root, parameter)| {
-                                        let rank_type =
-                                            crate::scalar_lowering::computations::computation_value_type(
-                                                identities,
-                                                checked,
-                                                &evaluation.shared_qualifications,
-                                                root.root,
-                                                &bindings,
-                                                &values
-                                                    .iter()
-                                                    .map(|value| value.value_type())
-                                                    .collect::<Vec<_>>(),
-                                            )?;
-                                        if rank_type.scalar_type.as_integer().is_none() {
-                                            return unsupported(
-                                                "Unit graph rank observation lost its integer carrier",
-                                            );
-                                        }
-                                        Ok(ValueDeclaration {
-                                            id: *parameter,
-                                            scalar_type: rank_type.scalar_type,
-                                            qualifications: rank_type.qualifications,
+                            let current_rank =
+                                if let Some(roots) = ranking::observations(checked, plan, state)? {
+                                    let scalar_slots = values
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(position, value)| (position, value.scalar_type))
+                                        .collect::<Vec<_>>();
+                                    let structural_actuals = state_parameters
+                                        .iter()
+                                        .map(|parameter| {
+                                            (
+                                                terminal_psi::StructuralArgument {
+                                                    place: parameter.place,
+                                                    path: Vec::new(),
+                                                    access: parameter.access,
+                                                },
+                                                parameter.structural_type,
+                                            )
                                         })
-                                    })
-                                    .collect::<Result<Vec<_>, LoweringError>>()?;
-                                evaluation.parameters.extend(ranks.iter().copied());
-                                if position == 0 {
-                                    self.initialize_invocation_rank(
-                                        identities,
-                                        &roots,
-                                        &evaluation,
-                                        &ranks,
-                                        &mut operations,
-                                        &mut next_value,
-                                        &mut next_block,
-                                        &mut next_edge,
+                                        .collect::<Vec<_>>();
+                                    let bindings = ranking::formal_bindings(
+                                        checked,
+                                        state,
+                                        &evaluation.scalar_bindings,
+                                        &scalar_slots,
+                                        &structural_actuals,
                                     )?;
-                                }
-                                Some(ranks.iter().map(|rank| rank.id).collect::<Vec<_>>())
-                            } else {
-                                None
-                            };
+                                    if roots.len() != self.rank_parameters[position].len() {
+                                        return unsupported(
+                                            "ranked header lost an ordered component parameter",
+                                        );
+                                    }
+                                    let ranks = roots
+                    .iter()
+                    .zip(&self.rank_parameters[position])
+                    .map(|(root, parameter)| {
+                        let rank_type =
+                            crate::scalar_lowering::computations::computation_value_type(
+                                identities,
+                                checked,
+                                &evaluation.shared_qualifications,
+                                root.root,
+                                &bindings,
+                                &values
+                                    .iter()
+                                    .map(|value| value.value_type())
+                                    .collect::<Vec<_>>(),
+                            )?;
+                        if rank_type.scalar_type.as_integer().is_none() {
+                            return unsupported(
+                                "Unit graph rank observation lost its integer carrier",
+                            );
+                        }
+                        Ok(ValueDeclaration {
+                            id: *parameter,
+                            scalar_type: rank_type.scalar_type,
+                            qualifications: rank_type.qualifications,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                                    evaluation.parameters.extend(ranks.iter().copied());
+                                    if position == 0 {
+                                        self.initialize_invocation_rank(
+                                            identities,
+                                            &roots,
+                                            &evaluation,
+                                            &ranks,
+                                            &mut operations,
+                                            &mut next_value,
+                                            &mut next_block,
+                                            &mut next_edge,
+                                        )?;
+                                    }
+                                    Some(ranks.iter().map(|rank| rank.id).collect::<Vec<_>>())
+                                } else {
+                                    None
+                                };
                             super::super::super::emission::emit_call_operations(
                                 identities,
                                 checked,
@@ -6568,27 +7147,27 @@ pub(crate) mod attached_unit {
                             let bindings = evaluation.contextual_bindings();
                             let mut branch_guard = None;
                             let conditional_true_ordinal = match &state.terminator {
-                                CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } => {
-                                    Some(when_true.statement_ordinal)
-                                }
-                                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-                                    jump,
-                                    return_arm,
-                                    return_when_true,
-                                    ..
-                                } => {
-                                    if *return_when_true {
-                                        return_arm.statement_ordinal()
-                                    } else {
-                                        Some(jump.statement_ordinal)
-                                    }
-                                }
-                                CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
-                                    when_true,
-                                    ..
-                                } => when_true.statement_ordinal(),
-                                _ => None,
-                            };
+                CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } => {
+                    Some(when_true.statement_ordinal)
+                }
+                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                    jump,
+                    return_arm,
+                    return_when_true,
+                    ..
+                } => {
+                    if *return_when_true {
+                        return_arm.statement_ordinal()
+                    } else {
+                        Some(jump.statement_ordinal)
+                    }
+                }
+                CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                    when_true,
+                    ..
+                } => when_true.statement_ordinal(),
+                _ => None,
+            };
                             let capture_boundary = match conditional_true_ordinal {
                                 Some(statement) => statement,
                                 None => state.statement_count,
@@ -6607,26 +7186,26 @@ pub(crate) mod attached_unit {
                                 &mut self.catalogs.temporary_places,
                             )?;
                             let first_successor_reads_payloads = match &state.terminator {
-                                CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } => {
-                                    successor_may_read_payloads(when_true)
-                                }
-                                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-                                    jump,
-                                    return_when_true: false,
-                                    ..
-                                } => successor_may_read_payloads(jump),
-                                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-                                    return_arm, ..
-                                }
-                                | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
-                                    when_true: return_arm,
-                                    ..
-                                } => return_may_read_payloads(return_arm),
-                                CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
-                                    arms.first().is_some_and(guarded_arm_may_read_payloads)
-                                }
-                                _ => false,
-                            };
+                CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } => {
+                    successor_may_read_payloads(when_true)
+                }
+                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                    jump,
+                    return_when_true: false,
+                    ..
+                } => successor_may_read_payloads(jump),
+                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                    return_arm, ..
+                }
+                | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                    when_true: return_arm,
+                    ..
+                } => return_may_read_payloads(return_arm),
+                CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
+                    arms.first().is_some_and(guarded_arm_may_read_payloads)
+                }
+                _ => false,
+            };
                             let entry_guard_ordinal = match conditional_true_ordinal {
                                 Some(true_ordinal) => Some(true_ordinal),
                                 None => match &state.terminator {
@@ -6688,11 +7267,18 @@ pub(crate) mod attached_unit {
                                 None
                             };
                             let body_end = operations.len();
+                            let case_bindings =
+                                evaluation.completed_bindings(&operations, std::iter::empty());
+                            let case_sources = case_emission::SourceContext {
+                                checked,
+                                state,
+                                parameters: state_parameters,
+                                bindings: &case_bindings,
+                            };
                             let prepared_cases = case_emission::prepare(
                                 identities,
-                                state,
+                                &case_sources,
                                 self.catalogs,
-                                state_parameters,
                                 &operations,
                                 &mut next_value,
                             )?;
@@ -6830,169 +7416,171 @@ pub(crate) mod attached_unit {
                                     (Vec::new(), Vec::new(), Vec::new())
                                 };
                             let mut conditional_return_edge =
-                                if let CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-                                    return_arm,
-                                    return_when_true,
-                                    ..
-                                } = &state.terminator
-                                {
-                                    let arm_namespace = match &planned_guard {
-                                        Some((_, namespace)) if *return_when_true => namespace.clone(),
-                                        _ => values.clone(),
-                                    };
-                                    Some(self.conditional_return_arm(
-                                        identities,
-                                        position,
-                                        state_parameters,
-                                        arm_namespace,
-                                        match &planned_guard {
-                                            Some((planned, _)) if *return_when_true => {
-                                                planned.established.as_slice()
-                                            }
-                                            _ => &[],
-                                        },
-                                        &[],
-                                        &[],
-                                        return_arm,
-                                        &mut evaluation,
-                                        &mut next_value,
-                                        &mut next_block,
-                                        &mut next_edge,
-                                        &mut operations,
-                                        &sequence,
-                                    )?)
-                                } else {
-                                    None
-                                };
+                if let CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                    return_arm,
+                    return_when_true,
+                    ..
+                } = &state.terminator
+                {
+                    let arm_namespace = match &planned_guard {
+                        Some((_, namespace)) if *return_when_true => namespace.clone(),
+                        _ => values.clone(),
+                    };
+                    Some(self.conditional_return_arm(
+                        identities,
+                        position,
+                        state_parameters,
+                        arm_namespace,
+                        match &planned_guard {
+                            Some((planned, _)) if *return_when_true => {
+                                planned.established.as_slice()
+                            }
+                            _ => &[],
+                        },
+                        &[],
+                        &[],
+                        return_arm,
+                        &mut evaluation,
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                        &sequence,
+                    )?)
+                } else {
+                    None
+                };
                             let mut completion_edges =
-                                if let CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
-                                    when_true,
-                                    when_false,
-                                    ..
-                                } = &state.terminator
-                                {
-                                    let true_namespace = match &planned_guard {
-                                        Some((_, namespace)) => namespace.clone(),
-                                        None => values.clone(),
-                                    };
-                                    let true_edge = self.conditional_return_arm(
-                                        identities,
-                                        position,
-                                        state_parameters,
-                                        true_namespace,
-                                        planned_guard
-                                            .as_ref()
-                                            .map_or(&[], |(guard, _)| guard.established.as_slice()),
-                                        &[],
-                                        &[],
-                                        when_true,
-                                        &mut evaluation,
-                                        &mut next_value,
-                                        &mut next_block,
-                                        &mut next_edge,
-                                        &mut operations,
-                                        &sequence,
-                                    )?;
-                                    let false_edge = self.conditional_return_arm(
-                                        identities,
-                                        position,
-                                        state_parameters,
-                                        values.clone(),
-                                        &[],
-                                        &[],
-                                        &[],
-                                        when_false,
-                                        &mut evaluation,
-                                        &mut next_value,
-                                        &mut next_block,
-                                        &mut next_edge,
-                                        &mut operations,
-                                        &sequence,
-                                    )?;
-                                    Some((true_edge, false_edge))
-                                } else {
-                                    None
-                                };
+                if let CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                    when_true,
+                    when_false,
+                    ..
+                } = &state.terminator
+                {
+                    let true_namespace = match &planned_guard {
+                        Some((_, namespace)) => namespace.clone(),
+                        None => values.clone(),
+                    };
+                    let true_edge = self.conditional_return_arm(
+                        identities,
+                        position,
+                        state_parameters,
+                        true_namespace,
+                        planned_guard
+                            .as_ref()
+                            .map_or(&[], |(guard, _)| guard.established.as_slice()),
+                        &[],
+                        &[],
+                        when_true,
+                        &mut evaluation,
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                        &sequence,
+                    )?;
+                    let false_edge = self.conditional_return_arm(
+                        identities,
+                        position,
+                        state_parameters,
+                        values.clone(),
+                        &[],
+                        &[],
+                        &[],
+                        when_false,
+                        &mut evaluation,
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                        &sequence,
+                    )?;
+                    Some((true_edge, false_edge))
+                } else {
+                    None
+                };
                             let mut shared_return_blocks = Vec::new();
                             let closed_return_edges = if let Some(prepared) = &prepared_cases {
                                 prepared
                                     .cases
                                     .iter()
-                                    .map(|case| match &case.outcome {
-                                        checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm)
-                                            if case.values.is_empty()
-                                                && shared_return_blocks.iter().any(|(ordinal, _)| {
-                                                    *ordinal == return_arm.statement_ordinal()
-                                                }) =>
-                                        {
-                                            let (_, target) = shared_return_blocks
-                                                .iter()
-                                                .find(|(ordinal, _)| *ordinal == return_arm.statement_ordinal())
-                                                .ok_or(LoweringError::Unsupported(
-                                                    "Unit graph shared return arm lost its block",
-                                                ))?;
-                                            let staged = block_id(allocate_dense(&mut next_block)?);
-                                            evaluation.blocks.push(Block::plain(
-                                                staged,
-                                                Vec::new(),
-                                                Terminator::Jump {
-                                                    edge: edge_id(allocate_dense(&mut next_edge)?),
-                                                    target: *target,
-                                                    arguments: Vec::new(),
-                                                    erased_arguments: Vec::new(),
-                                                    erased_proof_arguments: Vec::new(),
-                                                    structural_arguments: Vec::new(),
-                                                    cleanup_actions: Vec::new(),
-                                                },
-                                            ));
-                                            Ok(Some(value_successor(
-                                                edge_id(allocate_dense(&mut next_edge)?),
-                                                staged,
-                                            )))
-                                        }
-                                        checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm) => {
-                                            let payload_parameters = case
-                                                .values
-                                                .iter()
-                                                .map(|(_, value)| *value)
-                                                .collect::<Vec<_>>();
-                                            let mut namespace = values.clone();
-                                            namespace.extend(&payload_parameters);
-                                            let established = case
-                                                .fields
-                                                .iter()
-                                                .enumerate()
-                                                .map(|(ordinal, field)| EstablishedCasePayload {
-                                                    source: prepared.source,
-                                                    path: prepared.path.clone(),
-                                                    case: case.identity,
-                                                    field: *field,
-                                                    position: values.len() + ordinal,
-                                                })
-                                                .collect::<Vec<_>>();
-                                            let edge = self.conditional_return_arm(
-                                                identities,
-                                                position,
-                                                state_parameters,
-                                                namespace,
-                                                &established,
-                                                &payload_parameters,
-                                                &[],
-                                                return_arm,
-                                                &mut evaluation,
-                                                &mut next_value,
-                                                &mut next_block,
-                                                &mut next_edge,
-                                                &mut operations,
-                                                &sequence,
-                                            )?;
-                                            if case.values.is_empty() {
-                                                shared_return_blocks
-                                                    .push((return_arm.statement_ordinal(), edge.target));
-                                            }
-                                            Ok(Some(edge))
-                                        }
-                                        checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(_) => Ok(None),
+                                    .map(|case| {
+                                        match &case.outcome {
+                        checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm)
+                            if case.values.is_empty()
+                                && shared_return_blocks.iter().any(|(ordinal, _)| {
+                                    *ordinal == return_arm.statement_ordinal()
+                                }) =>
+                        {
+                            let (_, target) = shared_return_blocks
+                                .iter()
+                                .find(|(ordinal, _)| *ordinal == return_arm.statement_ordinal())
+                                .ok_or(LoweringError::Unsupported(
+                                    "Unit graph shared return arm lost its block",
+                                ))?;
+                            let staged = block_id(allocate_dense(&mut next_block)?);
+                            evaluation.blocks.push(Block::plain(
+                                staged,
+                                Vec::new(),
+                                Terminator::Jump {
+                                    edge: edge_id(allocate_dense(&mut next_edge)?),
+                                    target: *target,
+                                    arguments: Vec::new(),
+                                    erased_arguments: Vec::new(),
+                                    erased_proof_arguments: Vec::new(),
+                                    structural_arguments: Vec::new(),
+                                    cleanup_actions: Vec::new(),
+                                },
+                            ));
+                            Ok(Some(value_successor(
+                                edge_id(allocate_dense(&mut next_edge)?),
+                                staged,
+                            )))
+                        }
+                        checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm) => {
+                            let payload_parameters = case
+                                .values
+                                .iter()
+                                .map(|(_, value)| *value)
+                                .collect::<Vec<_>>();
+                            let mut namespace = values.clone();
+                            namespace.extend(&payload_parameters);
+                            let established = case
+                                .fields
+                                .iter()
+                                .enumerate()
+                                .map(|(ordinal, field)| EstablishedCasePayload {
+                                    source: prepared.source,
+                                    path: prepared.path.clone(),
+                                    case: case.identity,
+                                    field: *field,
+                                    position: values.len() + ordinal,
+                                })
+                                .collect::<Vec<_>>();
+                            let edge = self.conditional_return_arm(
+                                identities,
+                                position,
+                                state_parameters,
+                                namespace,
+                                &established,
+                                &payload_parameters,
+                                &[],
+                                return_arm,
+                                &mut evaluation,
+                                &mut next_value,
+                                &mut next_block,
+                                &mut next_edge,
+                                &mut operations,
+                                &sequence,
+                            )?;
+                            if case.values.is_empty() {
+                                shared_return_blocks
+                                    .push((return_arm.statement_ordinal(), edge.target));
+                            }
+                            Ok(Some(edge))
+                        }
+                        checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(_) => Ok(None),
+                    }
                                     })
                                     .collect::<Result<Vec<_>, LoweringError>>()?
                             } else {
@@ -7188,40 +7776,69 @@ pub(crate) mod attached_unit {
                                 sequence: &sequence,
                             };
                             let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
-                                                 payload_values: &[(u32, ValueDeclaration)],
-                                                 case_edge: bool,
-                                                 values: &[ValueDeclaration],
-                                                 established: &[EstablishedCasePayload]|
-                             -> Result<SuccessorEdge, LoweringError> {
-                                self.successor_edge(
-                                    identities,
-                                    &frame,
-                                    &mut super::successor_edge::EmittedState {
-                                        operations: &mut operations,
-                                        evaluation: &mut evaluation,
-                                        next_value: &mut next_value,
-                                        next_block: &mut next_block,
-                                        next_edge: &mut next_edge,
-                                        edge_blocks: &mut edge_blocks,
-                                    },
-                                    edge,
-                                    payload_values,
-                                    case_edge,
-                                    values,
-                                    established,
-                                )
-                            };
+                                 payload_values: &[(u32, ValueDeclaration)],
+                                 case_edge: bool,
+                                 values: &[ValueDeclaration],
+                                 established: &[EstablishedCasePayload]|
+             -> Result<SuccessorEdge, LoweringError> {
+                self.successor_edge(
+                    identities,
+                    &frame,
+                    &mut super::successor_edge::EmittedState {
+                        operations: &mut operations,
+                        evaluation: &mut evaluation,
+                        next_value: &mut next_value,
+                        next_block: &mut next_block,
+                        next_edge: &mut next_edge,
+                        edge_blocks: &mut edge_blocks,
+                    },
+                    edge,
+                    payload_values,
+                    case_edge,
+                    values,
+                    established,
+                )
+            };
                             let terminator = match &state.terminator {
-                                CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { .. }
-                                | CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal => {
-                                    return unsupported("nonreturning state lost its evaluated invocation");
-                                }
+                CheckedComposedUnitControlTerminatorPlan::CompleteExpression { completion } => {
+                    // This branch owns emission; no optional staged edge is joined
+                    // back to its source terminator after preparation.
+                    let edge = self.completion_expression(
+                        identities,
+                        position,
+                        state_parameters,
+                        values.clone(),
+                        &[],
+                        &[],
+                        &[],
+                        completion,
+                        &mut evaluation,
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                        &sequence,
+                    )?;
+                    Terminator::Jump {
+                        edge: edge.edge,
+                        target: edge.target,
+                        arguments: edge.arguments,
+                        structural_arguments: edge.structural_arguments,
+                        erased_arguments: edge.erased_arguments,
+                        erased_proof_arguments: edge.erased_proof_arguments,
+                        cleanup_actions: edge.cleanup_actions,
+                    }
+                }
+                CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { .. }
+                | CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal => {
+                    return unsupported("nonreturning state lost its evaluated invocation");
+                }
 
-                                CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => guarded_return.ok_or(
-                                    LoweringError::Unsupported("guarded structural emission absent"),
-                                )?,
-                                CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
-                                    let source = match result.source {
+                CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => guarded_return.ok_or(
+                    LoweringError::Unsupported("guarded structural emission absent"),
+                )?,
+                CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
+                    let source = match result.source {
                                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                             binding_ordinal,
                                         } => case_emission::result(state, binding_ordinal, &operations)?.place(),
@@ -7237,335 +7854,338 @@ pub(crate) mod attached_unit {
                                         }
                                         _ => return unsupported("structural graph return needs a whole owned value"),
                                     };
-                                    let source = terminal_psi::StructuralArgument {
-                                        place: source,
-                                        path: Vec::new(),
-                                        access: terminal_psi::StructuralAccess::Owned,
-                                    };
-                                    let returned_claims = crate::unit::attached_unit::claims::lower_return_claims(
-                                        identities,
-                                        checked,
-                                        owner,
-                                        state.state,
-                                        result,
-                                        &source,
-                                        &operations,
-                                        &evaluation.current_claims,
-                                        &self.claims.source_claims,
-                                        lookup_type_id(&self.catalogs.type_ids, &result.type_identity)?,
-                                        &self.catalogs.structural_types,
-                                    )?;
-                                    // Each return uses its own checked correspondence. A proof on
-                                    // another arm cannot supply this arm's missing guarantee.
-                                    let identity_parameters = self.state_contract_rosters[position]
-                                        .iter()
-                                        .map(|(_, parameter)| parameter.clone())
-                                        .collect::<Vec<_>>();
-                                    let state_identities =
-                                        crate::unit::attached_unit::claims::lower_result_identity(
-                                            checked,
-                                            owner,
-                                            state.state,
-                                            &state.structural_parameters,
-                                            &identity_parameters,
-                                            &self.machine_result,
-                                            &self.claims.source_claims,
-                                        )?;
-                                    if let Some(entry) = self.content_entry_claims.iter().find(|entry| {
-                                        returned_claims
-                                            .iter()
-                                            .any(|binding| binding.claim == entry.claim)
-                                            && !state_identities.iter().any(|identity| {
-                                                identity.claim == entry.claim
-                                                    && identity.input == entry.input
-                                                    && identity.projections == entry.projections
-                                            })
-                                    }) {
-                                        let reason = if state_identities.is_empty() {
-                                            "structural return lost its checked content identity guarantee: returning state has no checked content rows"
-                                        } else if !state_identities.iter().any(|identity| identity.claim == entry.claim) {
-                                            "structural return lost its checked content identity guarantee: no checked row names the returned claim"
-                                        } else if !state_identities.iter().any(|identity| identity.claim == entry.claim && identity.input == entry.input) {
-                                            "structural return lost its checked content identity guarantee: checked row names another input place"
-                                        } else {
-                                            "structural return lost its checked content identity guarantee: checked projections disagree"
-                                        };
-                                        return unsupported(reason);
-                                    }
-                                    let invocation_identities = state_identities
-                                        .into_iter()
-                                        .filter(|identity| {
-                                            self.content_entry_claims.iter().any(|entry| {
-                                                identity.claim == entry.claim
-                                                    && identity.input == entry.input
-                                                    && identity.projections == entry.projections
-                                            })
-                                        })
-                                        .collect::<Vec<_>>();
-                                    if let Some(common) = &mut self.content_identity_reshuffles {
-                                        let keys = invocation_identities
-                                            .iter()
-                                            .map(|identity| {
-                                                (
-                                                    identity.claim,
-                                                    &identity.input,
-                                                    &identity.output,
-                                                    &identity.projections,
-                                                )
-                                            })
-                                            .collect::<std::collections::BTreeSet<_>>();
-                                        common.retain(|identity| {
-                                            keys.contains(&(
-                                                identity.claim,
-                                                &identity.input,
-                                                &identity.output,
-                                                &identity.projections,
-                                            ))
-                                        });
-                                    } else {
-                                        self.content_identity_reshuffles = Some(invocation_identities);
-                                    }
-                                    Terminator::ReturnStructural {
-                                        edge: edge_id(allocate_dense(&mut next_edge)?),
-                                        source: source.place,
-                                        returned_claims,
-                                        cleanup_actions: Vec::new(),
-                                    }
+                    let source = terminal_psi::StructuralArgument {
+                        place: source,
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    };
+                    let returned_claims = crate::unit::attached_unit::claims::lower_return_claims(
+                        identities,
+                        checked,
+                        owner,
+                        state.state,
+                        result,
+                        &source,
+                        &operations,
+                        &evaluation.current_claims,
+                        &self.claims.source_claims,
+                        lookup_type_id(&self.catalogs.type_ids, &result.type_identity)?,
+                        &self.catalogs.structural_types,
+                    )?;
+                    let identity_parameters = self.state_contract_rosters[position]
+                        .iter()
+                        .map(|(_, parameter)| parameter.clone())
+                        .collect::<Vec<_>>();
+                    let state_identities = crate::unit::attached_unit::claims::lower_result_identity(
+                        checked,
+                        owner,
+                        state.state,
+                        &state.structural_parameters,
+                        &identity_parameters,
+                        &self.machine_result,
+                        &self.claims.source_claims,
+                    )?;
+                    if let Some(entry) = self.content_entry_claims.iter().find(|entry| {
+                        returned_claims
+                            .iter()
+                            .any(|binding| binding.claim == entry.claim)
+                            && !state_identities.iter().any(|identity| {
+                                identity.claim == entry.claim
+                                    && identity.input == entry.input
+                                    && identity.projections == entry.projections
+                            })
+                    }) {
+                        let reason = if state_identities.is_empty() {
+                            "structural return lost its checked content identity guarantee: returning state has no checked content rows"
+                        } else if !state_identities
+                            .iter()
+                            .any(|identity| identity.claim == entry.claim)
+                        {
+                            "structural return lost its checked content identity guarantee: no checked row names the returned claim"
+                        } else if !state_identities
+                            .iter()
+                            .any(|identity| identity.claim == entry.claim && identity.input == entry.input)
+                        {
+                            "structural return lost its checked content identity guarantee: checked row names another input place"
+                        } else {
+                            "structural return lost its checked content identity guarantee: checked projections disagree"
+                        };
+                        return unsupported(reason);
+                    }
+                    let invocation_identities = state_identities
+                        .into_iter()
+                        .filter(|identity| {
+                            self.content_entry_claims.iter().any(|entry| {
+                                identity.claim == entry.claim
+                                    && identity.input == entry.input
+                                    && identity.projections == entry.projections
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    if let Some(common) = &mut self.content_identity_reshuffles {
+                        let keys = invocation_identities
+                            .iter()
+                            .map(|identity| {
+                                (
+                                    identity.claim,
+                                    &identity.input,
+                                    &identity.output,
+                                    &identity.projections,
+                                )
+                            })
+                            .collect::<std::collections::BTreeSet<_>>();
+                        common.retain(|identity| {
+                            keys.contains(&(
+                                identity.claim,
+                                &identity.input,
+                                &identity.output,
+                                &identity.projections,
+                            ))
+                        });
+                    } else {
+                        self.content_identity_reshuffles = Some(invocation_identities);
+                    }
+                    Terminator::ReturnStructural {
+                        edge: edge_id(allocate_dense(&mut next_edge)?),
+                        source: source.place,
+                        returned_claims,
+                        cleanup_actions: Vec::new(),
+                    }
+                }
+                CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
+                    let cleanup_actions =
+                        ordinary_return_cleanup
+                            .take()
+                            .ok_or(LoweringError::Unsupported(
+                                "ordinary return lost its selected cleanup actions",
+                            ))?;
+                    let edge = edge_id(allocate_dense(&mut next_edge)?);
+                    match (&state.terminator, scalar_return) {
+                        (
+                            CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. },
+                            Some(value),
+                        ) => Terminator::Return {
+                            edge,
+                            value: value.id,
+                            cleanup_actions,
+                        },
+                        (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, None) => {
+                            Terminator::ReturnUnit {
+                                edge,
+                                cleanup_actions,
+                            }
+                        }
+                        _ => return unsupported("Unit graph return lost its scalar value"),
+                    }
+                }
+                CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal } => {
+                    self.crash_completion(identities, position, *statement_ordinal, &mut next_edge)?
+                }
+                CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {
+                    let edge = successor(edge, &[], false, &values, &[])?;
+                    Terminator::Jump {
+                        edge: edge.edge,
+                        target: edge.target,
+                        arguments: edge.arguments,
+                        erased_arguments: edge.erased_arguments,
+                        erased_proof_arguments: edge.erased_proof_arguments,
+                        structural_arguments: edge.structural_arguments,
+                        cleanup_actions: edge.cleanup_actions,
+                    }
+                }
+                CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+                | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
+                | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => {
+                    let (when_true, when_false) = match &state.terminator {
+                        CheckedComposedUnitControlTerminatorPlan::Conditional {
+                            when_true,
+                            when_false,
+                            ..
+                        } => (
+                            match &planned_guard {
+                                Some((planned, namespace)) => successor(
+                                    when_true,
+                                    &[],
+                                    false,
+                                    namespace,
+                                    &planned.established,
+                                )?,
+                                None => successor(when_true, &[], false, &values, &[])?,
+                            },
+                            successor(when_false, &[], false, &values, &[])?,
+                        ),
+                        CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                            jump,
+                            return_when_true,
+                            ..
+                        } => {
+                            let jump_edge = match &planned_guard {
+                                Some((planned, namespace)) if !*return_when_true => {
+                                    successor(jump, &[], false, namespace, &planned.established)?
                                 }
-                                CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-                                | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
-                                    let cleanup_actions =
-                                        ordinary_return_cleanup
-                                            .take()
-                                            .ok_or(LoweringError::Unsupported(
-                                                "ordinary return lost its selected cleanup actions",
-                                            ))?;
-                                    let edge = edge_id(allocate_dense(&mut next_edge)?);
-                                    match (&state.terminator, scalar_return) {
-                                        (
-                                            CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. },
-                                            Some(value),
-                                        ) => Terminator::Return {
-                                            edge,
-                                            value: value.id,
-                                            cleanup_actions,
-                                        },
-                                        (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, None) => {
-                                            Terminator::ReturnUnit {
-                                                edge,
-                                                cleanup_actions,
-                                            }
-                                        }
-                                        _ => return unsupported("Unit graph return lost its scalar value"),
-                                    }
-                                }
-                                CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal } => {
-                                    self.crash_completion(identities, position, *statement_ordinal, &mut next_edge)?
-                                }
-                                CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {
-                                    let edge = successor(edge, &[], false, &values, &[])?;
-                                    Terminator::Jump {
-                                        edge: edge.edge,
-                                        target: edge.target,
-                                        arguments: edge.arguments,
-                                        erased_arguments: edge.erased_arguments,
-                                        erased_proof_arguments: edge.erased_proof_arguments,
-                                        structural_arguments: edge.structural_arguments,
-                                        cleanup_actions: edge.cleanup_actions,
-                                    }
-                                }
-                                CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
-                                | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
-                                | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => {
-                                    let (when_true, when_false) = match &state.terminator {
-                                        CheckedComposedUnitControlTerminatorPlan::Conditional {
-                                            when_true,
-                                            when_false,
-                                            ..
-                                        } => (
-                                            match &planned_guard {
-                                                Some((planned, namespace)) => successor(
-                                                    when_true,
-                                                    &[],
-                                                    false,
-                                                    namespace,
-                                                    &planned.established,
-                                                )?,
-                                                None => successor(when_true, &[], false, &values, &[])?,
-                                            },
-                                            successor(when_false, &[], false, &values, &[])?,
-                                        ),
-                                        CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-                                            jump,
-                                            return_when_true,
-                                            ..
-                                        } => {
-                                            let jump_edge = match &planned_guard {
-                                                Some((planned, namespace)) if !*return_when_true => {
-                                                    successor(jump, &[], false, namespace, &planned.established)?
-                                                }
-                                                _ => successor(jump, &[], false, &values, &[])?,
-                                            };
-                                            let return_edge = conditional_return_edge.take().ok_or(
-                                                LoweringError::Unsupported(
-                                                    "Unit graph conditional return lost its staged edge",
-                                                ),
-                                            )?;
-                                            if *return_when_true {
-                                                (return_edge, jump_edge)
-                                            } else {
-                                                (jump_edge, return_edge)
-                                            }
-                                        }
-                                        CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
-                                            ..
-                                        } => completion_edges.take().ok_or(LoweringError::Unsupported(
-                                            "Unit graph conditional completion lost its staged edges",
-                                        ))?,
-                                        _ => unreachable!(),
-                                    };
-                                    if let Some((planned, guard_values)) = &planned_guard {
-                                        short_circuit!(planned, guard_values, [when_true, when_false])
-                                    } else {
-                                        Terminator::Conditional {
-                                            condition: condition.ok_or(LoweringError::Unsupported(
-                                                "Unit graph conditional lost its guard",
-                                            ))?,
-                                            when_true,
-                                            when_false,
-                                        }
-                                    }
-                                }
-                                CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
-                                    let mut selected = Vec::with_capacity(arms.len());
-                                    for (index, arm) in arms.iter().enumerate() {
-                                        let plan = match arm {
-                                            checked_trees::CheckedGuardedJumpArmPlan::Jump(plan) => plan,
-                                            checked_trees::CheckedGuardedJumpArmPlan::Return(_) => {
-                                                selected.push(guarded_arm_return_edges[index].take().ok_or(
-                                                    LoweringError::Unsupported(
-                                                        "guarded jump arm lost its staged return edge",
-                                                    ),
-                                                )?);
-                                                continue;
-                                            }
-                                        };
-                                        let planned = if index == 0 {
-                                            planned_guard.as_ref()
-                                        } else {
-                                            match &guarded_drafts[index - 1].4 {
-                                                ChainGuard::Decision(planned) => Some(planned),
-                                                ChainGuard::Value(_) => None,
-                                            }
-                                        };
-                                        selected.push(match planned {
-                                            Some((planned, namespace)) => successor(
-                                                &plan.successor,
-                                                &[],
-                                                false,
-                                                namespace,
-                                                &planned.established,
-                                            )?,
-                                            None => {
-                                                let namespace = if index == 0 {
-                                                    guarded_first_namespace.as_slice()
-                                                } else {
-                                                    guarded_drafts[index - 1].5.as_slice()
-                                                };
-                                                successor(&plan.successor, &[], false, namespace, &[])?
-                                            }
-                                        });
-                                    }
-                                    let mut selected = selected.into_iter();
-                                    let first = selected.next().ok_or(LoweringError::Unsupported(
-                                        "guarded jump chain lost its first successor",
-                                    ))?;
-                                    let mut fallback_edge = Some(match fallback {
-                                        checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) => {
-                                            successor(fallback, &[], false, &values, &[])?
-                                        }
-                                        checked_trees::CheckedGuardedJumpFallbackPlan::Return(_) => {
-                                            guarded_return_edge
-                                                .take()
-                                                .ok_or(LoweringError::Unsupported(
-                                                    "Unit graph guarded return lost its staged edge",
-                                                ))?
-                                        }
-                                    });
-                                    let draft_count = guarded_drafts.len();
-                                    for (
-                                        index,
-                                        (id, parameters, structural_parameters, operations_draft, guard, _),
-                                    ) in guarded_drafts.into_iter().enumerate()
-                                    {
-                                        let when_false = if index + 1 == draft_count {
-                                            fallback_edge.take().ok_or(LoweringError::Unsupported(
-                                                "guarded jump chain lost its fallback edge",
-                                            ))?
-                                        } else {
-                                            decision_edge(
-                                                guarded_decisions[index + 1],
-                                                self.state_erased_proof[position].len(),
-                                                current_rank.as_deref(),
-                                                &mut self.rank_edges,
-                                                &mut next_edge,
-                                            )?
-                                        };
-                                        let when_true = selected.next().ok_or(LoweringError::Unsupported(
-                                            "guarded jump chain lost an ordered successor",
-                                        ))?;
-                                        let terminator = match guard {
-                                            ChainGuard::Value(condition) => Terminator::Conditional {
-                                                condition,
-                                                when_true,
-                                                when_false,
-                                            },
-                                            ChainGuard::Decision((planned, namespace)) => {
-                                                short_circuit!(&planned, &namespace, [when_true, when_false])
-                                            }
-                                        };
-                                        if let Some(rank) = current_rank.as_ref() {
-                                            self.block_ranks.insert(id, rank.clone());
-                                        }
-                                        edge_blocks.push(Block {
-                                            id,
-                                            parameters,
-                                            erased_scalar_formals: self.state_erased[position].clone(),
-                                            erased_proof_formals: erased_proof_formal_declarations(
-                                                identities,
-                                                self.checked,
-                                                &self.state_erased_proof[position],
-                                            ),
-                                            structural_parameters,
-                                            operations: operations_draft,
-                                            terminator,
-                                        });
-                                    }
-                                    let first_false = decision_edge(
-                                        guarded_decisions[0],
-                                        self.state_erased_proof[position].len(),
-                                        current_rank.as_deref(),
-                                        &mut self.rank_edges,
-                                        &mut next_edge,
-                                    )?;
-                                    match &planned_guard {
-                                        Some((planned, namespace)) => {
-                                            short_circuit!(planned, namespace, [first, first_false])
-                                        }
-                                        None => Terminator::Conditional {
-                                            condition: condition.ok_or(LoweringError::Unsupported(
-                                                "guarded jump chain lost its first guard",
-                                            ))?,
-                                            when_true: first,
-                                            when_false: first_false,
-                                        },
-                                    }
-                                }
-                                CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. } => {
-                                    let prepared = prepared_cases.as_ref().ok_or(LoweringError::Unsupported(
-                                        "Unit graph case terminator lost its prepared payloads",
-                                    ))?;
-                                    let cases = prepared
+                                _ => successor(jump, &[], false, &values, &[])?,
+                            };
+                            let return_edge = conditional_return_edge.take().ok_or(
+                                LoweringError::Unsupported(
+                                    "Unit graph conditional return lost its staged edge",
+                                ),
+                            )?;
+                            if *return_when_true {
+                                (return_edge, jump_edge)
+                            } else {
+                                (jump_edge, return_edge)
+                            }
+                        }
+                        CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                            ..
+                        } => completion_edges.take().ok_or(LoweringError::Unsupported(
+                            "Unit graph conditional completion lost its staged edges",
+                        ))?,
+                        _ => unreachable!(),
+                    };
+                    if let Some((planned, guard_values)) = &planned_guard {
+                        short_circuit!(planned, guard_values, [when_true, when_false])
+                    } else {
+                        Terminator::Conditional {
+                            condition: condition.ok_or(LoweringError::Unsupported(
+                                "Unit graph conditional lost its guard",
+                            ))?,
+                            when_true,
+                            when_false,
+                        }
+                    }
+                }
+                CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
+                    let mut selected = Vec::with_capacity(arms.len());
+                    for (index, arm) in arms.iter().enumerate() {
+                        let plan = match arm {
+                            checked_trees::CheckedGuardedJumpArmPlan::Jump(plan) => plan,
+                            checked_trees::CheckedGuardedJumpArmPlan::Return(_) => {
+                                selected.push(guarded_arm_return_edges[index].take().ok_or(
+                                    LoweringError::Unsupported(
+                                        "guarded jump arm lost its staged return edge",
+                                    ),
+                                )?);
+                                continue;
+                            }
+                        };
+                        let planned = if index == 0 {
+                            planned_guard.as_ref()
+                        } else {
+                            match &guarded_drafts[index - 1].4 {
+                                ChainGuard::Decision(planned) => Some(planned),
+                                ChainGuard::Value(_) => None,
+                            }
+                        };
+                        selected.push(match planned {
+                            Some((planned, namespace)) => successor(
+                                &plan.successor,
+                                &[],
+                                false,
+                                namespace,
+                                &planned.established,
+                            )?,
+                            None => {
+                                let namespace = if index == 0 {
+                                    guarded_first_namespace.as_slice()
+                                } else {
+                                    guarded_drafts[index - 1].5.as_slice()
+                                };
+                                successor(&plan.successor, &[], false, namespace, &[])?
+                            }
+                        });
+                    }
+                    let mut selected = selected.into_iter();
+                    let first = selected.next().ok_or(LoweringError::Unsupported(
+                        "guarded jump chain lost its first successor",
+                    ))?;
+                    let mut fallback_edge = Some(match fallback {
+                        checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) => {
+                            successor(fallback, &[], false, &values, &[])?
+                        }
+                        checked_trees::CheckedGuardedJumpFallbackPlan::Return(_) => {
+                            guarded_return_edge
+                                .take()
+                                .ok_or(LoweringError::Unsupported(
+                                    "Unit graph guarded return lost its staged edge",
+                                ))?
+                        }
+                    });
+                    let draft_count = guarded_drafts.len();
+                    for (
+                        index,
+                        (id, parameters, structural_parameters, operations_draft, guard, _),
+                    ) in guarded_drafts.into_iter().enumerate()
+                    {
+                        let when_false = if index + 1 == draft_count {
+                            fallback_edge.take().ok_or(LoweringError::Unsupported(
+                                "guarded jump chain lost its fallback edge",
+                            ))?
+                        } else {
+                            decision_edge(
+                                guarded_decisions[index + 1],
+                                self.state_erased_proof[position].len(),
+                                current_rank.as_deref(),
+                                &mut self.rank_edges,
+                                &mut next_edge,
+                            )?
+                        };
+                        let when_true = selected.next().ok_or(LoweringError::Unsupported(
+                            "guarded jump chain lost an ordered successor",
+                        ))?;
+                        let terminator = match guard {
+                            ChainGuard::Value(condition) => Terminator::Conditional {
+                                condition,
+                                when_true,
+                                when_false,
+                            },
+                            ChainGuard::Decision((planned, namespace)) => {
+                                short_circuit!(&planned, &namespace, [when_true, when_false])
+                            }
+                        };
+                        if let Some(rank) = current_rank.as_ref() {
+                            self.block_ranks.insert(id, rank.clone());
+                        }
+                        edge_blocks.push(Block {
+                            id,
+                            parameters,
+                            erased_scalar_formals: self.state_erased[position].clone(),
+                            erased_proof_formals: erased_proof_formal_declarations(
+                                identities,
+                                self.checked,
+                                &self.state_erased_proof[position],
+                            ),
+                            structural_parameters,
+                            operations: operations_draft,
+                            terminator,
+                        });
+                    }
+                    let first_false = decision_edge(
+                        guarded_decisions[0],
+                        self.state_erased_proof[position].len(),
+                        current_rank.as_deref(),
+                        &mut self.rank_edges,
+                        &mut next_edge,
+                    )?;
+                    match &planned_guard {
+                        Some((planned, namespace)) => {
+                            short_circuit!(planned, namespace, [first, first_false])
+                        }
+                        None => Terminator::Conditional {
+                            condition: condition.ok_or(LoweringError::Unsupported(
+                                "guarded jump chain lost its first guard",
+                            ))?,
+                            when_true: first,
+                            when_false: first_false,
+                        },
+                    }
+                }
+                CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. } => {
+                    let prepared = prepared_cases.as_ref().ok_or(LoweringError::Unsupported(
+                        "Unit graph case terminator lost its prepared payloads",
+                    ))?;
+                    let cases = prepared
                                         .cases
                                         .iter()
                                         .zip(closed_return_edges)
@@ -7613,13 +8233,13 @@ pub(crate) mod attached_unit {
                                             })
                                         })
                                         .collect::<Result<Vec<_>, LoweringError>>()?;
-                                    Terminator::StructuralCase {
-                                        source: prepared.source,
-                                        path: prepared.path.clone(),
-                                        cases,
-                                    }
-                                }
-                            };
+                    Terminator::StructuralCase {
+                        source: prepared.source,
+                        path: prepared.path.clone(),
+                        cases,
+                    }
+                }
+            };
                             if let Terminator::Return { edge, .. } = terminator {
                                 operations.source_returns.push(SourceScalarReturn {
                                     edge,
@@ -7629,7 +8249,11 @@ pub(crate) mod attached_unit {
                             sequence.finish_state(checked, state)?;
                             let dispatches = condition.is_some()
                                 || branch_guard.is_some()
-                                || prepared_cases.is_some();
+                                || prepared_cases.is_some()
+                                || matches!(
+                                    state.terminator,
+                                    CheckedComposedUnitControlTerminatorPlan::CompleteExpression { .. }
+                                );
                             self.seal_state(
                                 identities,
                                 position,
@@ -7655,8 +8279,8 @@ pub(crate) mod attached_unit {
                         successor: &checked_trees::CheckedStructuralControlSuccessorPlan,
                     ) -> bool {
                         successor.scalar_arguments.iter().any(|argument| {
-                            argument.source == checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
-                        })
+            argument.source == checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+        })
                     }
 
                     pub(crate) fn guarded_arm_may_read_payloads(
@@ -8020,6 +8644,8 @@ pub(crate) mod attached_unit {
                                 operations,
                                 &mut sequence,
                             )?;
+                            let case_bindings =
+                                edge_evaluation.completed_bindings(operations, std::iter::empty());
                             let mut arguments = Vec::new();
                             let mut structural_arguments = Vec::new();
                             let mut retiring_loan_carriers = Vec::new();
@@ -8456,23 +9082,20 @@ pub(crate) mod attached_unit {
                                             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                                                 ref subject, ref case_identity, ref field_identity, ref path,
                                             } => {
-                                                let (source, root_type) = match subject.source {
-                                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                                                        let parameter = state_parameters.get(parameter_index as usize).ok_or(
-                                                            LoweringError::Unsupported("Unit graph case-payload subject descriptor disappeared"),
-                                                        )?;
-                                                        (parameter.place, parameter.structural_type)
-                                                    }
-                                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                                                        let produced = case_emission::result(state, binding_ordinal, operations)?;
-                                                        (produced.place(), produced.structural_type())
-                                                    }
-                                                    _ => {
-                                                        return unsupported(
-                                                            "Unit graph case-payload subject source unsupported",
-                                                        );
-                                                    }
+                                                let context = case_emission::SourceContext {
+                                                    checked,
+                                                    state,
+                                                    parameters: state_parameters,
+                                                    bindings: &case_bindings,
                                                 };
+                                                let source = case_emission::source(
+                                                    identities, &context, self.catalogs, subject, operations,
+                                                )?;
+                                                let (source, root_type, subject_type) = (
+                                                    source.argument,
+                                                    source.root_type,
+                                                    source.declaration.id,
+                                                );
                                                 if matches!(subject.access, checked_trees::CheckedStructuralAccess::WriteOnlyBorrow) {
                                                     return unsupported(
                                                         "Unit graph case-payload subject is write-only",
@@ -8484,9 +9107,10 @@ pub(crate) mod attached_unit {
                                                     identities,
                                                     &self.catalogs.structural_types,
                                                     state_parameters,
-                                                    source,
+                                                    source.place,
                                                     root_type,
-                                                    &subject.path,
+                                                    subject_type,
+                                                    &source.path,
                                                     case_identity,
                                                     field_identity,
                                                     path,
@@ -8666,16 +9290,22 @@ pub(crate) mod attached_unit {
                                             }),
                                         };
                                         if let Some(index) = parameter
-                                            && state.structural_parameters.get(index as usize).is_some_and(
-                                                |parameter| {
-                                                    parameter.access == checked_trees::CheckedStructuralAccess::Owned
-                                                },
-                                            )
+                                            && state
+                                                .structural_parameters
+                                                .get(index as usize)
+                                                .is_some_and(|parameter| {
+                                                    parameter.access
+                                        == checked_trees::CheckedStructuralAccess::Owned
+                                                })
                                         {
                                             let home = state_parameters
                                                 .get(index as usize)
                                                 .map_or(place, |param| param.place);
-                                            self.loan_chains.lend(target, target_index as u32, home)?;
+                                            self.loan_chains.lend(
+                                                target,
+                                                target_index as u32,
+                                                home,
+                                            )?;
                                         }
                                         let lender = if let Some(home) = loan_backing_home.as_ref()
                                         {
@@ -8705,18 +9335,18 @@ pub(crate) mod attached_unit {
                                         };
                                         if let Some(result) = lender {
                                             if !result.claims().is_empty()
-                                                || !result.path().is_empty()
-                                                || (chain_arrival
-                                                    == Some(super::loan_chains::ChainArrival::Transferred)
-                                                    && !captured_backing
-                                                        .as_ref()
-                                                        .map_or(&argument_path, |(_, path)| path)
-                                                        .is_empty())
-                                            {
-                                                return unsupported(
-                                                    "Unit graph state loan chain home is not plain whole storage",
-                                                );
-                                            }
+                                || !result.path().is_empty()
+                                || (chain_arrival
+                                    == Some(super::loan_chains::ChainArrival::Transferred)
+                                    && !captured_backing
+                                        .as_ref()
+                                        .map_or(&argument_path, |(_, path)| path)
+                                        .is_empty())
+                            {
+                                return unsupported(
+                                    "Unit graph state loan chain home is not plain whole storage",
+                                );
+                            }
                                             self.loan_chains.lend(
                                                 target,
                                                 target_index as u32,
@@ -8729,11 +9359,10 @@ pub(crate) mod attached_unit {
                                     if chain_arrival.is_none()
                                         && transfer.incoming_loan_resources.is_empty()
                                         && matches!(
-                                            target_parameter.access,
-                                            checked_trees::CheckedStructuralAccess::MutableBorrow
-                                                | checked_trees::CheckedStructuralAccess::SharedBorrow
-                                        )
-                                    {
+                            target_parameter.access,
+                            checked_trees::CheckedStructuralAccess::MutableBorrow
+                                | checked_trees::CheckedStructuralAccess::SharedBorrow
+                        ) {
                                         let loaned_binding = loan_backing.map(|backing| backing.binding).or_else(|| match &transfer.source {
                                             checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => Some(*binding_ordinal),
                                             checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { .. }
@@ -8754,23 +9383,33 @@ pub(crate) mod attached_unit {
                                             _ => None,
                                         });
                                         if let Some(binding_ordinal) = loaned_binding {
-                                            let result = case_emission::result(state, binding_ordinal, operations)?;
-                                            let backing = super::super::result_custody::local_loan_backing(
-                                                checked,
+                                            let result = case_emission::result(
                                                 state,
                                                 binding_ordinal,
-                                            )
-                                            .map(|backing| {
-                                                case_emission::result(state, backing, operations)
+                                                operations,
+                                            )?;
+                                            let backing =
+                                                super::super::result_custody::local_loan_backing(
+                                                    checked,
+                                                    state,
+                                                    binding_ordinal,
+                                                )
+                                                .map(|backing| {
+                                                    case_emission::result(
+                                                        state, backing, operations,
+                                                    )
                                                     .map(|home| (backing, home))
-                                            })
-                                            .transpose()?
-                                            .filter(|(_, home)| home.multiplicity() == StructuralMultiplicity::Affine);
+                                                })
+                                                .transpose()?
+                                                .filter(|(_, home)| {
+                                                    home.multiplicity()
+                                                        == StructuralMultiplicity::Affine
+                                                });
                                             let needs_home = matches!(
-                                                target_parameter.access,
-                                                checked_trees::CheckedStructuralAccess::MutableBorrow
-                                                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-                                            ) || result.multiplicity()
+                                target_parameter.access,
+                                checked_trees::CheckedStructuralAccess::MutableBorrow
+                                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                            ) || result.multiplicity()
                                                 == StructuralMultiplicity::Affine
                                                 || backing.is_some();
                                             let subslice_view = matches!(
@@ -8787,7 +9426,8 @@ pub(crate) mod attached_unit {
                                                     .map_or(place, |(backing, _)| *backing)
                                             };
                                             let unrestricted_subslice = subslice_view
-                                                && result.multiplicity() != StructuralMultiplicity::Affine
+                                                && result.multiplicity()
+                                                    != StructuralMultiplicity::Affine
                                                 && backing.is_none();
                                             if needs_home
                                                 && !unrestricted_subslice
@@ -8797,12 +9437,16 @@ pub(crate) mod attached_unit {
                                                     "Unit graph local loan requires an activation entry home",
                                                 );
                                             }
-                                            let homes = (result.multiplicity() == StructuralMultiplicity::Affine)
+                                            let homes = (result.multiplicity()
+                                                == StructuralMultiplicity::Affine)
                                                 .then_some((binding_ordinal, lent_home))
                                                 .into_iter()
-                                                .chain(backing.map(|(backing, home)| (backing, home.place())));
+                                                .chain(backing.map(|(backing, home)| {
+                                                    (backing, home.place())
+                                                }));
                                             for (binding, home) in homes {
-                                                if let Some(previous) = self.loaned_local_homes.insert(binding, home)
+                                                if let Some(previous) =
+                                                    self.loaned_local_homes.insert(binding, home)
                                                     && previous != home
                                                 {
                                                     return unsupported(
@@ -8816,9 +9460,10 @@ pub(crate) mod attached_unit {
                                         == Some(super::loan_chains::ChainArrival::Transferred)
                                         && let Some(backing) = loan_backing
                                     {
-                                        let carrier = backing.retiring_carrier.ok_or(LoweringError::Unsupported(
-                                            "Unit graph transferred loan still requires its captured address",
-                                        ))?;
+                                        let carrier =
+                            backing.retiring_carrier.ok_or(LoweringError::Unsupported(
+                                "Unit graph transferred loan still requires its captured address",
+                            ))?;
                                         let descriptor =
                                             case_emission::result(state, carrier, operations)?;
                                         if descriptor.place() != place
@@ -8832,10 +9477,10 @@ pub(crate) mod attached_unit {
                                         }
                                         retiring_loan_carriers.push(place);
                                         let home = loan_backing_home
-                                            .as_ref()
-                                            .ok_or(LoweringError::Unsupported(
-                                                "Unit graph transferred loan lost its independent owned backing",
-                                            ))?;
+                            .as_ref()
+                            .ok_or(LoweringError::Unsupported(
+                                "Unit graph transferred loan lost its independent owned backing",
+                            ))?;
                                         place = home.place();
                                         argument_path.clear();
                                     }
@@ -8868,54 +9513,56 @@ pub(crate) mod attached_unit {
                                     let endpoint = capture.structural_type;
                                     capture_parameters.push(capture);
                                     let mut argument = StructuralArgument {
-                                        place,
-                                        path: argument_path,
-                                        access: match target_parameter.access {
-                                            _ if chain_arrival
-                                                == Some(super::loan_chains::ChainArrival::Transferred) =>
-                                            {
-                                                StructuralAccess::Owned
-                                            }
-                                            _ if self
-                                                .admitted
-                                                .exclusive_handoffs
-                                                .get(target)
-                                                .is_some_and(|promoted| promoted.contains(&(target_index as u32))) =>
-                                            {
-                                                StructuralAccess::MutableBorrow
-                                            }
-                                            checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                                            checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                                                StructuralAccess::MutableBorrow
-                                            }
-                                            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-                                                StructuralAccess::WriteOnlyBorrow
-                                            }
-                                            checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                                                StructuralAccess::SharedBorrow
-                                            }
-                                        },
-                                    };
+                        place,
+                        path: argument_path,
+                        access: match target_parameter.access {
+                            _ if chain_arrival
+                                == Some(super::loan_chains::ChainArrival::Transferred) =>
+                            {
+                                StructuralAccess::Owned
+                            }
+                            _ if self.admitted.exclusive_handoffs.get(target).is_some_and(
+                                |promoted| promoted.contains(&(target_index as u32)),
+                            ) =>
+                            {
+                                StructuralAccess::MutableBorrow
+                            }
+                            checked_trees::CheckedStructuralAccess::Owned => {
+                                StructuralAccess::Owned
+                            }
+                            checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                                StructuralAccess::MutableBorrow
+                            }
+                            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                                StructuralAccess::WriteOnlyBorrow
+                            }
+                            checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                                StructuralAccess::SharedBorrow
+                            }
+                        },
+                    };
                                     if argument.access != StructuralAccess::Owned {
                                         let root = edge_evaluation
-                                            .structural_root_parameters()
-                                            .find(|parameter| parameter.place == place)
-                                            .map(|parameter| parameter.structural_type)
-                                            .or_else(|| {
-                                                operations
-                                                    .structural_result_contract(place)
-                                                    .map(|result| result.structural_type)
-                                            })
-                                            .or_else(|| {
-                                                self.structural_places
-                                                    .iter()
-                                                    .chain(&self.catalogs.temporary_places)
-                                                    .find(|declaration| declaration.id == place)
-                                                    .and_then(|declaration| declaration.kind.produced_structural_type())
-                                            })
-                                            .ok_or(LoweringError::Unsupported(
-                                                "state argument lost its published source declaration",
-                                            ))?;
+                            .structural_root_parameters()
+                            .find(|parameter| parameter.place == place)
+                            .map(|parameter| parameter.structural_type)
+                            .or_else(|| {
+                                operations
+                                    .structural_result_contract(place)
+                                    .map(|result| result.structural_type)
+                            })
+                            .or_else(|| {
+                                self.structural_places
+                                    .iter()
+                                    .chain(&self.catalogs.temporary_places)
+                                    .find(|declaration| declaration.id == place)
+                                    .and_then(|declaration| {
+                                        declaration.kind.produced_structural_type()
+                                    })
+                            })
+                            .ok_or(LoweringError::Unsupported(
+                                "state argument lost its published source declaration",
+                            ))?;
                                         crate::expression_preparation::bindings::structural_paths::complete_emitted_argument_path(
                                             root, &mut argument.path, endpoint, argument.access,
                                             &self.catalogs.structural_types,
@@ -8947,51 +9594,51 @@ pub(crate) mod attached_unit {
                                         "Unit graph successor argument position missing",
                                     ))?;
                                 let expression = match transfer.source {
-                                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
-                                        bindings.expression(
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                        index,
+                    } => bindings.expression(
+                        identities,
+                        &checked.facts.proven_scalar_indexes,
+                        &CheckedScalarExpression::Parameter {
+                            position: index as usize,
+                            primitive_type: transfer.primitive_type,
+                        },
+                    )?,
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
+                        let value = scalars::successor_value(checked, state, edge, transfer)?;
+                        let value =
+                            StateFrame::new(checked, owner, state, &self.state_erased[position])
+                                .evaluate(
+                                    self.catalogs,
+                                    state_parameters,
+                                    &mut sequence,
+                                    FrameValues {
+                                        source_value_count: edge_values.len(),
+                                        evaluation: &mut edge_evaluation,
+                                        values: &mut edge_values,
+                                        next_value,
+                                        next_block,
+                                        next_edge,
+                                        operations,
+                                    },
+                                    |mut frame| {
+                                        frame.source_value(
                                             identities,
-                                            &checked.facts.proven_scalar_indexes,
-                                            &CheckedScalarExpression::Parameter {
-                                                position: index as usize,
-                                                primitive_type: transfer.primitive_type,
+                                            edge.statement_ordinal,
+                                            CheckedScalarExpressionRole::TransitionArgument {
+                                                argument_ordinal: transfer.argument_ordinal,
                                             },
-                                        )?
-                                    }
-                                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
-                                        let value = scalars::successor_value(checked, state, edge, transfer)?;
-                                        let value =
-                                            StateFrame::new(checked, owner, state, &self.state_erased[position])
-                                                .evaluate(
-                                                    self.catalogs,
-                                                    state_parameters,
-                                                    &mut sequence,
-                                                    FrameValues {
-                                                        source_value_count: edge_values.len(),
-                                                        evaluation: &mut edge_evaluation,
-                                                        values: &mut edge_values,
-                                                        next_value,
-                                                        next_block,
-                                                        next_edge,
-                                                        operations,
-                                                    },
-                                                    |mut frame| {
-                                                        frame.source_value(
-                                                            identities,
-                                                            edge.statement_ordinal,
-                                                            CheckedScalarExpressionRole::TransitionArgument {
-                                                                argument_ordinal: transfer.argument_ordinal,
-                                                            },
-                                                            &value,
-                                                        )
-                                                    },
-                                                )?;
-                                        if value.scalar_type != terminal_scalar_type(transfer.primitive_type)? {
-                                            return unsupported("Unit graph successor value has the wrong carrier");
-                                        }
-                                        arguments.push(value.id);
-                                        continue;
-                                    }
-                                };
+                                            &value,
+                                        )
+                                    },
+                                )?;
+                        if value.scalar_type != terminal_scalar_type(transfer.primitive_type)? {
+                            return unsupported("Unit graph successor value has the wrong carrier");
+                        }
+                        arguments.push(value.id);
+                        continue;
+                    }
+                };
                                 if expression.scalar_type()
                                     != terminal_scalar_type(transfer.primitive_type)?
                                     || direct_expression_contains_short_circuit(&expression)
@@ -9120,34 +9767,34 @@ pub(crate) mod attached_unit {
                                 }
                                 let mut emitted = structural_arguments.iter();
                                 let structural_actuals = target_state
-                                    .structural_parameters
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(dense, formal)| {
-                                        let argument = if let Some(entry) =
-                                            self.admitted.entry_aliases[target].get(&(dense as u32))
-                                        {
-                                            let retained = self.parameters.get(*entry as usize).ok_or(
-                                                LoweringError::Unsupported(
-                                                    "Unit graph observation lost its retained entry alias",
-                                                ),
-                                            )?;
-                                            StructuralArgument {
-                                                place: retained.place,
-                                                path: Vec::new(),
-                                                access: retained.access,
-                                            }
-                                        } else {
-                                            emitted.next().cloned().ok_or(LoweringError::Unsupported(
-                                                "Unit graph observation lost its completed structural actual",
-                                            ))?
-                                        };
-                                        Ok((
-                                            argument,
-                                            lookup_type_id(&self.catalogs.type_ids, &formal.type_identity)?,
-                                        ))
-                                    })
-                                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                    .structural_parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(dense, formal)| {
+                        let argument = if let Some(entry) =
+                            self.admitted.entry_aliases[target].get(&(dense as u32))
+                        {
+                            let retained = self.parameters.get(*entry as usize).ok_or(
+                                LoweringError::Unsupported(
+                                    "Unit graph observation lost its retained entry alias",
+                                ),
+                            )?;
+                            StructuralArgument {
+                                place: retained.place,
+                                path: Vec::new(),
+                                access: retained.access,
+                            }
+                        } else {
+                            emitted.next().cloned().ok_or(LoweringError::Unsupported(
+                                "Unit graph observation lost its completed structural actual",
+                            ))?
+                        };
+                        Ok((
+                            argument,
+                            lookup_type_id(&self.catalogs.type_ids, &formal.type_identity)?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
                                 if emitted.next().is_some()
                                     || arguments.len() != target_state.scalar_parameters.len()
                                 {
@@ -9267,6 +9914,7 @@ pub(crate) mod attached_unit {
                                     self.checked,
                                     &mut structural_arguments,
                                     &capture_parameters,
+                                    &cleanup_regions,
                                     &mut edge_values,
                                     &mut self.catalogs.next_place,
                                     &mut self.catalogs.temporary_places,
@@ -9294,20 +9942,20 @@ pub(crate) mod attached_unit {
                             )?;
                             for carrier in retiring_loan_carriers {
                                 if structural_arguments
-                                    .iter()
-                                    .any(|argument| argument.place == carrier)
-                                    || !cleanup_actions.iter().any(|action| {
-                                        matches!(action,
-                                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
-                                                | terminal_psi::TerminalAffineCleanupAction::RetireHome(place)
-                                                if *place == carrier
-                                        )
-                                    })
-                                {
-                                    return unsupported(
-                                        "Unit graph owned loan arrival lacks its selected carrier retirement",
-                                    );
-                                }
+                    .iter()
+                    .any(|argument| argument.place == carrier)
+                    || !cleanup_actions.iter().any(|action| {
+                        matches!(action,
+                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                                | terminal_psi::TerminalAffineCleanupAction::RetireHome(place)
+                                if *place == carrier
+                        )
+                    })
+                {
+                    return unsupported(
+                        "Unit graph owned loan arrival lacks its selected carrier retirement",
+                    );
+                }
                             }
                             if case_edge
                                 || !established.is_empty()
@@ -9351,27 +9999,27 @@ pub(crate) mod attached_unit {
                                 }
                                 edge_blocks.extend(edge_evaluation.blocks);
                                 edge_blocks.push(Block {
-                                    id: edge_evaluation.current,
-                                    parameters: edge_evaluation.parameters,
-                                    erased_scalar_formals: self.state_erased[position].clone(),
-                                    erased_proof_formals:
-                                        crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                                            identities,
-                                            self.checked,
-                                            &self.state_erased_proof[position],
-                                        ),
-                                    structural_parameters: edge_evaluation.block_structural_parameters,
-                                    operations: operations[edge_evaluation.operation_start..].to_vec(),
-                                    terminator: Terminator::Jump {
-                                        edge: backedge,
-                                        target,
-                                        arguments,
-                                        structural_arguments,
-                                        erased_arguments,
-                                        erased_proof_arguments,
-                                        cleanup_actions,
-                                    },
-                                });
+                    id: edge_evaluation.current,
+                    parameters: edge_evaluation.parameters,
+                    erased_scalar_formals: self.state_erased[position].clone(),
+                    erased_proof_formals:
+                        crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                            identities,
+                            self.checked,
+                            &self.state_erased_proof[position],
+                        ),
+                    structural_parameters: edge_evaluation.block_structural_parameters,
+                    operations: operations[edge_evaluation.operation_start..].to_vec(),
+                    terminator: Terminator::Jump {
+                        edge: backedge,
+                        target,
+                        arguments,
+                        structural_arguments,
+                        erased_arguments,
+                        erased_proof_arguments,
+                        cleanup_actions,
+                    },
+                });
                                 Ok(SuccessorEdge {
                                     edge: selection_edge,
                                     target: staged,
@@ -9417,14 +10065,14 @@ pub(crate) mod attached_unit {
 
                     #[derive(Clone, Copy)]
                     pub(crate) struct SuccessorFrame<'f> {
-                        pub(crate) position: usize,
-                        pub(crate) state_parameters: &'f [StructuralParameterDeclaration],
-                        pub(crate) bindings: &'f ScalarBindings,
-                        pub(crate) current_rank: Option<&'f [ValueId]>,
-                        pub(crate) inherited_lengths: &'f StorageObservations,
-                        pub(crate) sequence:
-                            &'f crate::unit::attached_unit::composed_control::emission::OperationSequence,
-                    }
+        pub(crate) position: usize,
+        pub(crate) state_parameters: &'f [StructuralParameterDeclaration],
+        pub(crate) bindings: &'f ScalarBindings,
+        pub(crate) current_rank: Option<&'f [ValueId]>,
+        pub(crate) inherited_lengths: &'f StorageObservations,
+        pub(crate) sequence:
+            &'f crate::unit::attached_unit::composed_control::emission::OperationSequence,
+    }
 
                     pub(crate) struct EmittedState<'e> {
                         pub(crate) operations: &'e mut OperationBuffer,
@@ -9437,9 +10085,14 @@ pub(crate) mod attached_unit {
                     }
                 }
 
+                /// One composed-control machine's emission in flight: the checked plan and
+                /// admitted graph, the shared catalogs and their identity counters, the per
+                /// state block namespaces, and the blocks, ranks and occurrences accumulated
+                /// so far. `emit_state` (in `emission/state.rs`) emits one authored state.
                 pub(crate) struct StateGraphEmission<'a, 'c> {
                     checked: &'a CheckedTrees,
                     plan: &'a CheckedComposedUnitControlMachinePlan,
+                    /// Fused source states emit into this one Terminal machine namespace.
                     terminal_machine: MachineId,
                     admitted: AdmittedGraph<'a>,
                     parameters: Vec<StructuralParameterDeclaration>,
@@ -9448,8 +10101,6 @@ pub(crate) mod attached_unit {
                     machine_result: TerminalMachineResult,
                     claims: LoweredUnitClaims,
                     content_entry_claims: Vec<terminal_psi::ContentEntryClaim>,
-                    /// Common rows across every emitted normal structural return. No row is
-                    /// published before a return has supplied its checked correspondence.
                     content_identity_reshuffles:
                         Option<Vec<terminal_psi::ContentIdentityReshuffle>>,
                     loan_completions: Vec<terminal_psi::LoanCompletion>,
@@ -9462,9 +10113,17 @@ pub(crate) mod attached_unit {
                     state_views: Vec<Vec<StructuralParameterDeclaration>>,
                     state_contract_rosters: &'a [Vec<(u32, StructuralParameterDeclaration)>],
                     state_values: Vec<Vec<ValueDeclaration>>,
+                    /// Each emitted state's erased-formal roster: the machine contract
+                    /// formals for a plain entry, fresh block-level declarations otherwise.
                     state_erased: Vec<Vec<ValueDeclaration>>,
+                    /// Each emitted state's erased-proof roster in checked order — the same
+                    /// positions the state's own blocks declare and its edges forward.
                     state_erased_proof: Vec<Vec<CheckedErasedProofParameterPlan>>,
+                    /// Jump and Conditional edge identities emitted so far, keyed by their
+                    /// target block — the exact roster a header invariant must cite.
                     arrival_edges: BTreeMap<BlockId, Vec<EdgeId>>,
+                    /// Arrival edges whose source transition checking proved the target's
+                    /// whole `requires` contract for (`CheckFacts::call_requires_decided`).
                     decided_arrival_edges: std::collections::BTreeSet<EdgeId>,
                     structural_places: Vec<StructuralPlaceDeclaration>,
                     blocks: Vec<Block>,
@@ -9473,6 +10132,7 @@ pub(crate) mod attached_unit {
                     loaned_local_homes: BTreeMap<u32, semantic_vocabulary::PlaceId>,
                     retained_loan_parents:
                         Vec<(semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId)>,
+                    /// Exclusive loan chains a later state's local backs.
                     loan_chains: loan_chains::LoanChains,
                     captured_loans: captured_loans::CapturedLoans,
                     occurrences: super::super::ComposedOccurrences,
@@ -9538,11 +10198,17 @@ pub(crate) mod attached_unit {
                         &parameters,
                         &catalogs.structural_types,
                     )?;
+                    // A fused graph retains states authored by sibling machines. Its namespace
+                    // reserves only those states' authenticated establishments and completions,
+                    // under each declaration's owner. Reservation creates no live custody;
+                    // the actual producer establishes it when the retained state executes.
                     let state_owners = plan
                         .states
                         .iter()
                         .map(|state| Ok((state.state, super::owner(checked, state.state)?)))
                         .collect::<Result<Vec<_>, LoweringError>>()?;
+                    // Every composed state borrows this fixed table. Moved-local rows retain
+                    // their source identity and resolve its existing binding during emission.
                     let mut next_claim = u64::try_from(claims.entry_claims.len())
                         .map_err(|_| {
                             LoweringError::Unsupported("Unit entry claim count exceeds u64")
@@ -9551,6 +10217,9 @@ pub(crate) mod attached_unit {
                         .ok_or(LoweringError::Unsupported(
                             "Unit claim identities exhaust their namespace",
                         ))?;
+                    // Reserve destination names before expression/call emission borrows the
+                    // namespace. Reservation is not establishment: each block arrival must
+                    // bind these names to the claims captured from its outgoing arguments.
                     for (position, state) in plan.states.iter().enumerate() {
                         if !admitted.live[position] {
                             continue;
@@ -9649,6 +10318,11 @@ pub(crate) mod attached_unit {
                                 .push((binding.destination.claim_identity, claim));
                         }
                     }
+                    // A structural call result establishes the claims it carries when the
+                    // call completes. A received result keeps the receiving local's identity
+                    // (or an input's, returned on every exit); a result no place receives is
+                    // named by its call and path alone. A state's invocation-storage alias
+                    // handed back as a result keeps its invocation binding, joined below.
                     let invocation_alias =
                         |identity: language_semantics::PermissionClaimIdentity| {
                             admitted
@@ -9658,6 +10332,9 @@ pub(crate) mod attached_unit {
                                 .any(|(successor, _)| *successor == identity)
                         };
                     for (state, (_, owner)) in plan.states.iter().zip(&state_owners) {
+                        // Scalar operands retain structural producers in the computation graph,
+                        // outside the statement operation list. Reserve both dependency lanes
+                        // in this exact state's namespace before either lane emits.
                         let computed_operations =
                             value_call_operations(checked, *owner, Some(state.state))?;
                         for operation in state
@@ -9703,6 +10380,8 @@ pub(crate) mod attached_unit {
                             }
                         }
                     }
+                    // Private result joins share the published namespace of ordinary calls.
+                    // Reserving a typed path is not establishment; arrivals transport actual IDs.
                     let mut structural_node_handles = Vec::new();
                     for &state in &unique_states {
                         value_facts(checked)
@@ -9736,6 +10415,7 @@ pub(crate) mod attached_unit {
                             });
                         }
                     }
+                    // Proven invocation storage aliases have no block argument or new name.
                     for (successor, root) in &admitted.claim_transport.aliases {
                         let claim = lookup_claim_id(&claims.source_claims, *root)?;
                         claims.source_claims.push((*successor, claim));
@@ -9760,6 +10440,8 @@ pub(crate) mod attached_unit {
                         .filter_map(|(state, live)| live.then_some(state))
                         .flat_map(successors)
                         .any(|successor| plan.successor_position(successor) == Some(0));
+                    // Invocation parameters are immutable. Reentering the authored entry
+                    // therefore uses an ordinary parameterized block behind a one-shot jump.
                     let entry_ranked =
                         ranking::observations(checked, plan, &plan.states[0])?.is_some();
                     let invocation_entry = if entry_reentered || entry_ranked {
@@ -9776,6 +10458,7 @@ pub(crate) mod attached_unit {
                     for (position, state) in plan.states.iter().enumerate() {
                         state_ids.push(block_id(allocate_dense(&mut catalogs.next_block)?));
                         if !admitted.live[position] {
+                            // Dead positions keep roster alignment but own no emitted block.
                             state_views.push(Vec::new());
                             state_contract_rosters.push(Vec::new());
                             state_values.push(Vec::new());
@@ -9799,6 +10482,8 @@ pub(crate) mod attached_unit {
                                     .get(position)
                                     .and_then(|aliased| aliased.get(&(dense as u32)))
                                 {
+                                    // A forwarded whole entry parameter keeps the entry
+                                    // parameter's place; the block does not re-declare it.
                                     parameter.place = parameters
                                         .get(*root as usize)
                                         .ok_or(LoweringError::Unsupported(
@@ -9806,6 +10491,12 @@ pub(crate) mod attached_unit {
                                         ))?
                                         .place;
                                 } else {
+                                    // Exclusive plain storage crosses an edge by address.
+                                    // Retain write-only access on the arriving name: moving
+                                    // the loan cannot grant observation of its referent.
+                                    // Entry aliases are not block parameters. Only
+                                    // transferred structural values occupy its dense
+                                    // namespace.
                                     parameter.position = block_position;
                                     block_position = block_position.checked_add(1).ok_or(
                                         LoweringError::Unsupported(
@@ -9831,6 +10522,9 @@ pub(crate) mod attached_unit {
                                         },
                                     }),
                             );
+                            // A retained `requires` resolves member operands through the
+                            // block's structural decls; `seal` drains this roster into the
+                            // block, so the contract namespace keeps its own copy.
                             state_contract_rosters.push(
                                 state
                                     .structural_parameters
@@ -9867,11 +10561,15 @@ pub(crate) mod attached_unit {
                             );
                             state_views.push(parameters.clone());
                             state_values.push(scalar_parameters.clone());
+                            // A plain entry shares the machine contract formals; the block
+                            // does not redeclare them.
                             state_erased.push(entry_erased_formals.clone());
                             state_erased_proof.push(state.erased_proof_parameters.clone());
                         }
                     }
                     let mut block_entry_claims = Vec::new();
+                    // Rank values arrive alongside the source telescope, not by reading a
+                    // later SSA completion backward through its own observation control.
                     let rank_parameters = plan
                         .states
                         .iter()
@@ -9942,6 +10640,8 @@ pub(crate) mod attached_unit {
                                     .filter(|_| entry_reentered)
                                     .map(|parameter| parameter.id)
                                     .collect(),
+                                // A reentered entry forwards the machine's proof-only
+                                // formals into the authored block's own erased declarations.
                                 erased_arguments: entry_erased_formals
                                     .iter()
                                     .filter(|_| entry_reentered)
@@ -9949,6 +10649,8 @@ pub(crate) mod attached_unit {
                                         ScalarTerm::value(parameter.id, parameter.scalar_type)
                                     })
                                     .collect(),
+                                // The machine proof roster forwards positionally into the
+                                // entry block's identical declaration.
                                 erased_proof_arguments: (0..plan.states[0]
                                     .erased_proof_parameters
                                     .len())
@@ -9977,38 +10679,42 @@ pub(crate) mod attached_unit {
                             },
                         });
                     }
+                    // A lender's stored view keeps its declared access ceiling, while a member
+                    // parameter names the canonical view of the same pointer and count. The
+                    // chain carries that one descriptor, so it presents the member when the
+                    // geometry is unchanged and the ceiling supplies the member's access.
                     let presents =
-                        |stored: typed_trees::type_identity::TypeIdentityId,
-                         member: &checked_trees::CheckedUnitStructuralParameterPlan| {
-                            if stored == member.type_identity {
-                                return true;
-                            }
-                            let (Ok(stored), Ok(formal)) = (
-                                lookup_type_id(&catalogs.type_ids, &stored),
-                                lookup_type_id(&catalogs.type_ids, &member.type_identity),
-                            ) else {
-                                return false;
-                            };
-                            let requested = terminal_access(member.access);
-                            terminal_semantics::borrowed_referent_presentation(
-                                catalogs.structural_types.iter(),
-                                stored,
-                                formal,
-                            ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
-                                && terminal_psi::find_structural_type(
-                                    catalogs.structural_types.as_ref(),
-                                    stored,
-                                )
-                                .is_some_and(|declaration| match declaration.shape {
-                                    terminal_psi::StructuralTypeShape::ElementView { access, .. }
-                                    | terminal_psi::StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView { access }
-                                        | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
-                                    ) => access
-                                        .is_none_or(|access| structural_access_can_supply(access, requested)),
-                                    _ => false,
-                                })
-                        };
+            |stored: typed_trees::type_identity::TypeIdentityId,
+             member: &checked_trees::CheckedUnitStructuralParameterPlan| {
+                if stored == member.type_identity {
+                    return true;
+                }
+                let (Ok(stored), Ok(formal)) = (
+                    lookup_type_id(&catalogs.type_ids, &stored),
+                    lookup_type_id(&catalogs.type_ids, &member.type_identity),
+                ) else {
+                    return false;
+                };
+                let requested = terminal_access(member.access);
+                terminal_semantics::borrowed_referent_presentation(
+                    catalogs.structural_types.iter(),
+                    stored,
+                    formal,
+                ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+                    && terminal_psi::find_structural_type(
+                        catalogs.structural_types.as_ref(),
+                        stored,
+                    )
+                    .is_some_and(|declaration| match declaration.shape {
+                        terminal_psi::StructuralTypeShape::ElementView { access, .. }
+                        | terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+                        ) => access
+                            .is_none_or(|access| structural_access_can_supply(access, requested)),
+                        _ => false,
+                    })
+            };
                     let loan_chains = loan_chains::LoanChains::plan(
                         checked,
                         plan,
@@ -10236,6 +10942,10 @@ pub(crate) mod attached_unit {
                                     | checked_trees::CheckedStateContractRequirement::SourceFact(_)
                             )
                         });
+                        // Source checking owns the complete authored contract, including
+                        // predicates outside this scalar vocabulary. Consume its exact call
+                        // decision at every actual arrival; never replace an unrepresented
+                        // requirement with Truth or infer its discharge from its spelling.
                         if requires_source_decision
                             && (incoming_edges.is_empty()
                                 || incoming_edges
@@ -10249,31 +10959,41 @@ pub(crate) mod attached_unit {
                         let projected_requires = state
                             .requires
                             .iter()
-                            .filter_map(|requirement| match requirement {
-                                checked_trees::CheckedStateContractRequirement::Closed(clause) => {
-                                    Some(Some(clause.clone()))
-                                }
-                                checked_trees::CheckedStateContractRequirement::SourceExpression(_)
-                                | checked_trees::CheckedStateContractRequirement::SourceFact(_) => None,
+                            .filter_map(|requirement| {
+                                match requirement {
+                    checked_trees::CheckedStateContractRequirement::Closed(clause) => {
+                        Some(Some(clause.clone()))
+                    }
+                    checked_trees::CheckedStateContractRequirement::SourceExpression(_)
+                    | checked_trees::CheckedStateContractRequirement::SourceFact(_) => None,
+                }
                             })
                             .collect::<Vec<_>>();
+                        // A state's `requires` cites its own parameter positions; the roster
+                        // pairs them with the terminal places each block view carried at
+                        // seal (the receiver entry points at the original invocation
+                        // storage).
                         let view_roster = &state_contract_rosters[position];
                         let Some(predicate) = crate::scalar_lowering::contracts::clauses(
-                            identities,
-                            &projected_requires,
-                            &state_values[position],
-                            &state_erased[position],
-                            &crate::scalar_lowering::contracts::ContractViewNamespace {
-                                scalar_applications: catalogs.scalar_applications,
-                                constant_values: &checked.typed.constant_recipe_closure.values,
-                                result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
-                                parameters: view_roster,
-                                structural_types: &catalogs.structural_types,
-                            },
-                        )?
-                        else {
-                            continue;
-                        };
+                identities,
+                &projected_requires,
+                &state_values[position],
+                &state_erased[position],
+                &crate::scalar_lowering::contracts::ContractViewNamespace {
+                    scalar_applications: catalogs.scalar_applications,
+                    constant_values: &checked.typed.constant_recipe_closure.values,
+                    result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
+                    parameters: view_roster,
+                    structural_types: &catalogs.structural_types,
+                },
+            )?
+            else {
+                continue;
+            };
+                        // An arrival whose transition checking discharged in full needs no
+                        // certificate, provided every row is a plain clause the call check
+                        // judged; a float range rides its own catalog and keeps the search.
+                        // The invocation-entry arrival has no transition and never qualifies.
                         let checked_rows = projected_requires.iter().all(|row| {
                             matches!(
                                 row,
@@ -10335,9 +11055,9 @@ pub(crate) mod attached_unit {
                     structural_places.extend(catalogs.result_places.drain(result_places_start..));
                     retain_block_parameters(blocks.iter(), &mut structural_places)?;
                     crate::emission::operation_emission::place_declarations::retain_operation_results(
-                        blocks.iter().flat_map(|block| &block.operations),
-                        &mut structural_places,
-                    )?;
+            blocks.iter().flat_map(|block| &block.operations),
+            &mut structural_places,
+        )?;
                     structural_places.sort_by_key(|place| place.id);
                     crate::emission::claim_bindings::seal_block_entry_claims(
                         &mut block_entry_claims,
@@ -10502,6 +11222,11 @@ pub(crate) mod attached_unit {
                             }
                         }
                     }
+                    // Authored entry/local cleanup already belongs to the composed emitter.
+                    // Complete checked no-code carrier frontiers after private loans and their
+                    // continuations have reached their final emitted graph. Plain owned type
+                    // capability is independent of scheduled source death rows; descriptors
+                    // keep their existing loan-continuation custody.
                     crate::emission::affine_cleanup::complete(
                         &[],
                         &machine.structural_parameters,
@@ -10514,6 +11239,11 @@ pub(crate) mod attached_unit {
                         &mut machine.blocks,
                         &catalogs.structural_types,
                     )?;
+                    // Crash ceilings live in the invocation signature, independent of the
+                    // state's block-local value roster. Predicate parameters retain authored
+                    // structural positions and scalar formals retain their dense coordinates.
+                    // Publishing the graph must use that complete namespace just as ordinary
+                    // machine emission does.
                     let signature = find(&catalogs.signatures, plan.machine)?;
                     machine.contract.crash_routes = if signature.predicate_parameters.is_empty() {
                         lower_checked_crash_route_buckets(
@@ -11423,21 +12153,33 @@ pub(crate) mod attached_unit {
                     pub cases: Vec<PreparedCase<'a>>,
                 }
 
-                pub(crate) fn prepare<'a>(
+                pub(crate) struct SourceContext<'a> {
+                    pub checked: &'a checked_trees::CheckedTrees,
+                    pub state: &'a CheckedComposedUnitControlStatePlan,
+                    pub parameters: &'a [StructuralParameterDeclaration],
+                    pub bindings: &'a crate::expression_preparation::bindings::ScalarBindings,
+                }
+
+                pub(crate) struct CaseSource<'a> {
+                    pub argument: terminal_psi::StructuralArgument,
+                    pub root_type: semantic_vocabulary::StructuralTypeId,
+                    pub declaration: &'a terminal_psi::StructuralTypeDeclaration,
+                }
+
+                pub(crate) fn source<'a>(
                     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-                    state: &'a CheckedComposedUnitControlStatePlan,
-                    catalogs: &catalogs::ComposedCatalogs,
-                    parameters: &[StructuralParameterDeclaration],
+                    context: &SourceContext<'_>,
+                    catalogs: &'a catalogs::ComposedCatalogs,
+                    subject: &checked_trees::CheckedUnitStructuralArgumentPlan,
                     operations: &OperationBuffer,
-                    next_value: &mut u64,
-                ) -> Result<Option<PreparedCases<'a>>, LoweringError> {
-                    let CheckedComposedUnitControlTerminatorPlan::ClosedSum {
-                        subject, cases, ..
-                    } = &state.terminator
-                    else {
-                        return Ok(None);
-                    };
-                    let (place, structural_type) = match subject.source {
+                ) -> Result<CaseSource<'a>, LoweringError> {
+                    let SourceContext {
+                        checked,
+                        state,
+                        parameters,
+                        bindings,
+                    } = context;
+                    let published = match subject.source {
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                             let parameter =
                                 parameters
@@ -11445,38 +12187,88 @@ pub(crate) mod attached_unit {
                                     .ok_or(LoweringError::Unsupported(
                                         "Unit graph case parameter missing",
                                     ))?;
-                            (parameter.place, parameter.structural_type)
+                            Some((parameter.place, parameter.structural_type))
                         }
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal,
                         } => {
                             let produced = result(state, binding_ordinal, operations)?;
-                            (produced.place(), produced.structural_type())
+                            Some((produced.place(), produced.structural_type()))
                         }
-                        _ => return unsupported("Unit graph case subject source unsupported"),
+                        _ => None,
                     };
-                    let prepared_path =
-                        crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
-                            identities,
-                            &subject.path,
-                            structural_type,
-                            &catalogs.structural_types,
-                        )?;
-                    let path = prepared_path
+                    let (argument, root_type) = if let Some((place, structural_type)) = published {
+                        let prepared_path =
+                            crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+                                identities,
+                                &subject.path,
+                                structural_type,
+                                &catalogs.structural_types,
+                            )?;
+                        let path = prepared_path
                         .into_iter()
                         .map(|segment| match segment {
                             crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static(segment) => Ok(segment),
                             _ => unsupported("case dispatch runtime projection requires a selector evidence owner"),
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
+                        (
+                            terminal_psi::StructuralArgument {
+                                place,
+                                path,
+                                access: crate::expression_preparation::bindings::structural_paths::terminal_access(
+                                    subject.access,
+                                ),
+                            },
+                            structural_type,
+                        )
+                    } else {
+                        let (_, authored) =
+                            crate::shared::declarations::state_declaration(checked, state.state)?;
+                        let argument = bindings.borrowed_structural_argument(
+                            identities,
+                            checked,
+                            subject,
+                            checked.state_parameters(authored),
+                        )?;
+                        let root_type = bindings.structural_place_type(argument.place).ok_or(
+                            LoweringError::Unsupported(
+                                "Unit graph case subject source unsupported",
+                            ),
+                        )?;
+                        (argument, root_type)
+                    };
                     let declaration = terminal_semantics::runtime_structural_path_tip(
                         catalogs.structural_types.iter(),
-                        structural_type,
-                        &path,
+                        root_type,
+                        &argument.path,
                     )
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph case projection has no exact declared carrier",
                     ))?;
+                    Ok(CaseSource {
+                        argument,
+                        root_type,
+                        declaration,
+                    })
+                }
+
+                pub(crate) fn prepare<'a>(
+                    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                    context: &SourceContext<'a>,
+                    catalogs: &catalogs::ComposedCatalogs,
+                    operations: &OperationBuffer,
+                    next_value: &mut u64,
+                ) -> Result<Option<PreparedCases<'a>>, LoweringError> {
+                    let state = context.state;
+                    let CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+                        subject, cases, ..
+                    } = &state.terminator
+                    else {
+                        return Ok(None);
+                    };
+                    let resolved = source(identities, context, catalogs, subject, operations)?;
+                    let declaration = resolved.declaration;
                     let Some(declared) = declaration.shape.sum_cases() else {
                         return unsupported("Unit graph case subject is not a sum");
                     };
@@ -11558,8 +12350,8 @@ pub(crate) mod attached_unit {
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     Ok(Some(PreparedCases {
-                        source: place,
-                        path,
+                        source: resolved.argument.place,
+                        path: resolved.argument.path,
                         cases,
                     }))
                 }
@@ -11641,7 +12433,8 @@ pub(crate) mod attached_unit {
                     parameters: &[terminal_psi::StructuralParameterDeclaration],
                     source: PlaceId,
                     root_type: StructuralTypeId,
-                    subject_path: &[CheckedUnitStructuralPathSegment],
+                    subject_type: StructuralTypeId,
+                    subject_path: &[terminal_psi::StructuralPathSegment],
                     case_identity: &CheckedMemberIdentity,
                     field_identity: &CheckedMemberIdentity,
                     payload_path: &[CheckedUnitStructuralPathSegment],
@@ -11649,8 +12442,7 @@ pub(crate) mod attached_unit {
                     destination: PlaceId,
                     operations: &mut OperationBuffer,
                 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-                    let mut path = Vec::with_capacity(subject_path.len() + payload_path.len() + 2);
-                    path.extend_from_slice(subject_path);
+                    let mut path = Vec::with_capacity(payload_path.len() + 2);
                     path.push(CheckedUnitStructuralPathSegment::Case(
                         case_identity.clone(),
                     ));
@@ -11659,13 +12451,23 @@ pub(crate) mod attached_unit {
                     ));
                     path.extend_from_slice(payload_path);
                     let selected = structural_observations::stored_value_path(
-                        identities, root_type, &path, types,
+                        identities,
+                        subject_type,
+                        &path,
+                        types,
                     )?;
-                    let canonical = selected.static_observation_path().ok_or(
-                        LoweringError::Unsupported(
-                            "Unit graph case-payload copy requires static observation coordinates",
-                        ),
-                    )?;
+                    let canonical = terminal_semantics::canonical_static_projection(
+                        types.iter(),
+                        root_type,
+                        subject_path,
+                    )
+                    .and_then(|(mut prefix, _)| {
+                        prefix.extend(selected.static_observation_path()?);
+                        Some(prefix)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph case-payload copy requires static observation coordinates",
+                    ))?;
                     let leaf = selected.field_type()?.as_structural().ok_or(
                         LoweringError::Unsupported(
                             "Unit graph case payload is not a structural leaf",
@@ -12160,6 +12962,7 @@ pub(crate) mod attached_unit {
                 }
             }
             pub(crate) mod guarded {
+
                 use super::super::super::super::{
                     CheckedComposedUnitControlTerminatorPlan, StructuralParameterDeclaration,
                     SuccessorEdge, block_id,
@@ -12170,6 +12973,9 @@ pub(crate) mod attached_unit {
                 };
                 use super::super::{CheckedTrees, LoweringError, catalogs};
                 use super::CheckedComposedUnitControlStatePlan;
+                use super::emission::dispatch_copies::{
+                    CompletedCopy, DispatchCopies, complete_dispatch_copies,
+                };
                 use crate::emission::operation_emission::buffer::{
                     OperationBuffer, StructuralBinding,
                 };
@@ -12339,7 +13145,7 @@ pub(crate) mod attached_unit {
                     checked: &CheckedTrees,
                     state: &CheckedComposedUnitControlStatePlan,
                     destination: &checked_trees::CheckedScalarBranchDestination,
-                    operation: &CheckedUnitEffectOperationPlan,
+                    returned: &checked_trees::CheckedGuardedReturnValue,
                     catalogs: &mut catalogs::ComposedCatalogs,
                     parameters: &[StructuralParameterDeclaration],
                     claims: crate::emission::claim_bindings::PublishedClaims<'_>,
@@ -12353,6 +13159,24 @@ pub(crate) mod attached_unit {
                     owner: symbols::SymbolHandle,
                     sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
                 ) -> Result<Terminator, LoweringError> {
+                    let operation = &returned.operation;
+                    let copied_values =
+                        DispatchCopies::new(checked, state, owner, catalogs, erased_parameters)
+                            .capture(
+                                identities,
+                                &returned.copied_payloads,
+                                parameters,
+                                FrameValues {
+                                    source_value_count: values.len(),
+                                    evaluation,
+                                    values,
+                                    next_value,
+                                    next_block,
+                                    next_edge,
+                                    operations,
+                                },
+                                sequence,
+                            )?;
                     super::super::emission::emit_call_operations(
                         identities,
                         checked,
@@ -12386,8 +13210,21 @@ pub(crate) mod attached_unit {
                     let exit =
                         super::cleanup::destination(catalogs.cleanup_control, state, destination)?;
                     complete_structural_return(
-                        identities, claims, checked, state, exit, operation, catalogs, parameters,
-                        evaluation, values, next_value, next_block, next_edge, operations,
+                        identities,
+                        claims,
+                        checked,
+                        state,
+                        exit,
+                        operation,
+                        catalogs,
+                        parameters,
+                        evaluation,
+                        values,
+                        next_value,
+                        next_block,
+                        next_edge,
+                        operations,
+                        &copied_values,
                     )
                 }
 
@@ -12407,6 +13244,7 @@ pub(crate) mod attached_unit {
                     next_block: &mut u64,
                     next_edge: &mut u64,
                     operations: &mut OperationBuffer,
+                    copied_values: &[CompletedCopy],
                 ) -> Result<Terminator, LoweringError> {
                     let binding = return_binding(operation, operations)?;
                     let mut regions = super::cleanup::for_exit_regions(
@@ -12420,6 +13258,15 @@ pub(crate) mod attached_unit {
                         operations,
                         &mut regions,
                     )?;
+                    regions.splice(
+                        0..0,
+                        complete_dispatch_copies(
+                            copied_values,
+                            evaluation,
+                            operations,
+                            &catalogs.structural_types,
+                        )?,
+                    );
                     emit_return_binding(
                         identities, checked, binding, regions, catalogs, evaluation, values,
                         next_value, next_block, next_edge, operations,

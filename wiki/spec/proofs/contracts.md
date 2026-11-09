@@ -469,6 +469,32 @@ requiring exact identity use a shared canonical expression or transparent alias,
 or parameterize their declarations by the common index and state the required
 relationships in contracts. Value admission can then consume evidence.
 
+One generic conformance relates two index forms for a trait. Its telescope
+takes both indices and the selected base evidence, and a
+[`requires` clause](../language/state_contracts.md#requirement-clauses) on the
+declaration admits the application; under that premise the members forward
+arguments and results to the base through proved compatibility with no
+conversion:
+
+```omega
+Reindexed<const A: u64, const B: u64, Base satisfies Ranked<Buffer<A>>>
+satisfies Ranked<Buffer<B>>
+requires A == B;
+{
+    machine before(left: &Buffer<B>, right: &Buffer<B>) -> bool {
+        Base::before(left, right)
+    }
+}
+```
+
+Each remaining row forwards the same way. The adapter's members are new
+declarations, so laws stated on the trait are obligations on them; they follow
+from the base conformance's laws under the same equality, and a law observing
+exact type identity may stay unproved, in which case the adapter rejects.
+Selection stays explicit: a generic body under `requires A == B` selects
+`Reindexed<A, B, Order>` by name, and no compatibility proof admits `Order` at
+`Ranked<Buffer<B>>` on its own.
+
 Different symbolic forms may create separate specializations. Fully closed
 indices can still evaluate to the same canonical value and share a key.
 Semantics-preserving code deduplication is a separate optimization, not a

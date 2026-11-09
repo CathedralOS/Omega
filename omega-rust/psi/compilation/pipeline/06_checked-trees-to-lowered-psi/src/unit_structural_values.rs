@@ -283,6 +283,7 @@ pub(crate) mod attached_unit {
             }
         }
         pub(crate) mod emission {
+
             use super::super::super::{
                 BlockId, ScalarType, StructuralAccess, StructuralArgument,
                 StructuralParameterDeclaration, StructuralTypeDeclaration, SuccessorEdge, ValueId,
@@ -327,73 +328,103 @@ pub(crate) mod attached_unit {
             };
 
             pub(crate) mod completed_projection {
+                //! Complete an authenticated place in its original descriptor/selector order.
+                //! Value reads and dispatch captures share this evaluator; the caller decides
+                //! whether to consume the endpoint immediately or retain its address.
 
-                use super::{Emission, LoweringError, StructuralAccess, StructuralArgument};
                 use crate::emission::completed_place::Frontier;
+                use crate::emission::operation_emission::buffer::OperationBuffer;
+                use crate::emission::operation_emission::calls::CallEmissionContext;
                 use crate::expression_preparation::bindings::structural_paths::{
                     PreparedStructuralPathSegment, emit_captured_argument_path,
                 };
                 use crate::shared::checked_facts::value_facts;
+                use crate::shared::lowering_error::LoweringError;
+                use crate::unit::attached_unit::argument_evaluation::Evaluation;
+                use crate::unit::attached_unit::operation_frame::OperationEnvironment;
                 use crate::unit::attached_unit::operation_frame::completed_arguments::selected_memberships;
                 use semantic_vocabulary::PlaceId;
+                use terminal_psi::{StructuralAccess, StructuralArgument, ValueDeclaration};
 
                 pub(crate) struct CompletedProjection {
-                    pub(crate) expression: typed_trees::expression::ExpressionHandle,
+                    pub(crate) expression: checked_trees::expression::ExpressionHandle,
                     pub(crate) argument: StructuralArgument,
                     pub(crate) source_root: PlaceId,
                 }
 
-                impl Emission<'_, '_, '_> {
-                    pub(crate) fn complete_projection_source(
+                pub(crate) struct ProjectionEmission<'a, 'b, 'calls> {
+                    pub(crate) statement: u32,
+                    pub(crate) environment: &'b mut OperationEnvironment<'a>,
+                    pub(crate) calls: &'b mut CallEmissionContext<'calls>,
+                    pub(crate) evaluation: &'b mut Evaluation,
+                    pub(crate) values: &'b mut Vec<ValueDeclaration>,
+                    pub(crate) next_value: &'b mut u64,
+                    pub(crate) next_block: &'b mut u64,
+                    pub(crate) next_edge: &'b mut u64,
+                    pub(crate) operations: &'b mut OperationBuffer,
+                }
+
+                impl ProjectionEmission<'_, '_, '_> {
+                    /// Retain the completed subject address before any pattern operand runs.
+                    /// The alias names this actual borrowed continuation, never a fresh owner.
+                    pub(crate) fn capture_subject(
                         &mut self,
                         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
                         expression: checked_trees::expression::ExpressionHandle,
-                        source: &super::ProjectionSource,
-                        evaluations: arena::HandleSpan<
-                            checked_trees::CheckedScalarComputationHandle,
-                        >,
-                        endpoint: typed_trees::type_identity::TypeIdentityId,
-                        access: StructuralAccess,
-                    ) -> Result<StructuralArgument, LoweringError> {
-                        let root =
-                            super::lookup_type_id(self.type_ids, &source.root_type_identity)?;
-                        let mut suffix =
-                            crate::expression_preparation::bindings::structural_paths::prepare_projection_path(
-                                identities,
-                                self.checked,
-                                &source.path,
-                                if source.logical_root_type_identity.is_valid() {
-                                    crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Borrowed {
-                                        published: root,
-                                        logical: source.logical_root_type_identity,
-                                        spelled_reference_hops: 0,
-                                    }
-                                } else {
-                                    crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Published(root)
-                                },
-                                endpoint,
-                                access,
-                                self.structural_types,
-                            )?;
-                        crate::expression_preparation::bindings::structural_paths::retain_selector_evaluations(
-                            &source.path,
-                            evaluations,
-                            &self.checked.facts.values.scalar_computations.operands,
-                            &mut suffix,
+                        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+                        alias: checked_trees::expression::ExpressionHandle,
+                        place: PlaceId,
+                    ) -> Result<(), LoweringError> {
+                        let completed =
+                            self.readable_place_argument(identities, expression, source)?;
+                        let argument = completed.argument;
+                        let expected = crate::shared::terminal_identities::lookup_type_id(
+                            self.environment.type_ids,
+                            &source.type_identity,
                         )?;
-                        let mut prepared = source
-                            .root_path
-                            .iter()
-                            .cloned()
-                            .map(PreparedStructuralPathSegment::Static)
-                            .collect::<Vec<_>>();
-                        prepared.extend(suffix);
-                        self.complete_projection(
-                            identities,
-                            expression,
-                            source.root,
-                            prepared,
-                            access,
+                        let (qualifications, projected, additional) = selected_memberships(
+                            &argument,
+                            &self.environment.parameters,
+                            self.evaluation,
+                            self.operations,
+                        )?;
+                        let (structural_type, qualifications, projected, additional) =
+                            crate::emission::completed_place::present_capture(
+                                &crate::emission::completed_place::Capture::Address(expected),
+                                argument.access,
+                                self.environment.structural_types,
+                                self.calls.domain_declarations,
+                                qualifications,
+                                projected,
+                                additional,
+                            )?;
+                        crate::emission::completed_address::capture_into(
+                            argument.place,
+                            argument.path,
+                            structural_type,
+                            argument.access,
+                            qualifications,
+                            projected,
+                            additional,
+                            place,
+                            self.evaluation,
+                            self.values,
+                            self.next_value,
+                            self.next_block,
+                            self.next_edge,
+                            self.environment.private_places,
+                            self.operations,
+                        )?;
+                        crate::expression_preparation::bindings::retain_completed_structural_homes(
+                            &mut self.evaluation.structural_locals,
+                            &[
+                                crate::expression_preparation::bindings::StructuralLocalBinding {
+                                    result_binding_ordinal: None,
+                                    root: facts::PlaceRoot::Expression(alias),
+                                    argument: StructuralArgument::whole(place, argument.access),
+                                    structural_type,
+                                },
+                            ],
                         )
                     }
 
@@ -404,11 +435,11 @@ pub(crate) mod attached_unit {
                         mut place: PlaceId,
                         mut prepared: Vec<PreparedStructuralPathSegment>,
                         access: StructuralAccess,
-                    ) -> Result<StructuralArgument, LoweringError> {
+                    ) -> Result<CompletedProjection, LoweringError> {
                         let source_root = place;
                         let root = self.projection_root_type(place)?;
                         let frontiers = crate::emission::completed_place::plan(
-                            self.structural_types,
+                            self.environment.structural_types,
                             root,
                             &prepared,
                             false,
@@ -477,8 +508,8 @@ pub(crate) mod attached_unit {
                                         crate::emission::completed_place::present_capture(
                                             &capture,
                                             access,
-                                            self.structural_types,
-                                            self.domain_declarations,
+                                            self.environment.structural_types,
+                                            self.calls.domain_declarations,
                                             qualifications,
                                             projected,
                                             additional,
@@ -505,7 +536,7 @@ pub(crate) mod attached_unit {
                                     consumed += selector_count;
                                 }
                                 Frontier::Value { .. } => {
-                                    return super::unsupported(
+                                    return crate::shared::lowering_error::unsupported(
                                         "projection address evaluation cannot manufacture a value copy",
                                     );
                                 }
@@ -528,18 +559,21 @@ pub(crate) mod attached_unit {
                             path,
                             access,
                         };
-                        self.completed_projections.push(CompletedProjection {
+                        Ok(CompletedProjection {
                             expression,
-                            argument: argument.clone(),
+                            argument,
                             source_root,
-                        });
-                        Ok(argument)
+                        })
                     }
 
+                    /// Geometry comes from established source homes and producer declarations,
+                    /// including private places that have no operation-result declaration.
+                    /// This lookup grants neither storage liveness nor projection permission.
                     pub(crate) fn projection_root_type(
                         &self,
                         place: PlaceId,
-                    ) -> Result<super::StructuralTypeId, LoweringError> {
+                    ) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError>
+                    {
                         self.evaluation
                             .structural_root_parameters()
                             .find(|row| row.place == place)
@@ -570,28 +604,45 @@ pub(crate) mod attached_unit {
                                 computation,
                                 ..
                             } => {
-                                let mut roles = value_facts(self.checked)
+                                let mut roles = value_facts(self.environment.checked)
                                     .scalar_computations
-                                    .roots_for_statement(self.state, self.statement)
+                                    .roots_for_statement(self.environment.state, self.statement)
                                     .into_iter()
                                     .filter_map(|root| {
                                         matches!(root.role,
-                                            checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
-                                                expression: owner, ..
-                                            } if owner == expression && root.root == *computation
-                                        )
-                                        .then_some(root.role)
+                            checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                                expression: owner, ..
+                            } if owner == expression && root.root == *computation
+                        )
+                        .then_some(root.role)
                                     });
                                 let role = roles.next().ok_or(LoweringError::Unsupported(
                                     "projection selector lost its exact authored computation root",
                                 ))?;
                                 if roles.next().is_some() {
-                                    return super::unsupported(
+                                    return crate::shared::lowering_error::unsupported(
                                         "projection selector has multiple authored roots",
                                     );
                                 }
-                                let value =
-                                    self.scalar(identities, role, *computation, source_count)?;
+                                let value = self.evaluation.source_value(
+                                    identities,
+                                    self.environment.checked,
+                                    self.environment.machine,
+                                    self.environment.state,
+                                    self.statement,
+                                    role,
+                                    &checked_trees::CheckedCallScalarArgument::Computation(
+                                        *computation,
+                                    ),
+                                    source_count,
+                                    self.values,
+                                    self.next_value,
+                                    self.next_block,
+                                    self.next_edge,
+                                    self.operations,
+                                    self.calls,
+                                    self.environment,
+                                )?;
                                 self.values.push(value);
                             }
                             PreparedStructuralPathSegment::RuntimeIndex(
@@ -611,7 +662,7 @@ pub(crate) mod attached_unit {
                                 if !matches!(observation.scalar_type(), semantic_vocabulary::ScalarType::Integer(integer)
                                     if !integer.is_address())
                                 {
-                                    return super::unsupported(
+                                    return crate::shared::lowering_error::unsupported(
                                         "projection selector is not an integer read",
                                     );
                                 }
@@ -637,7 +688,7 @@ pub(crate) mod attached_unit {
                                 self.values.push(value);
                             }
                             _ => {
-                                return super::unsupported(
+                                return crate::shared::lowering_error::unsupported(
                                     "projection frontier has no executable selector",
                                 );
                             }
@@ -656,6 +707,113 @@ pub(crate) mod attached_unit {
                                     | checked_trees::CheckedRuntimeIndex::StorageRead { .. }
                             )
                     )
+                }
+
+                impl<'source, 'frame, 'calls> super::Emission<'source, 'frame, 'calls> {
+                    pub(super) fn complete_projection_source(
+                        &mut self,
+                        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                        expression: checked_trees::expression::ExpressionHandle,
+                        source: &super::ProjectionSource,
+                        evaluations: arena::HandleSpan<
+                            checked_trees::CheckedScalarComputationHandle,
+                        >,
+                        endpoint: typed_trees::type_identity::TypeIdentityId,
+                        access: StructuralAccess,
+                    ) -> Result<StructuralArgument, LoweringError> {
+                        let root = crate::shared::terminal_identities::lookup_type_id(
+                            self.type_ids,
+                            &source.root_type_identity,
+                        )?;
+                        // The checked producer owns the root coordinate. A stored reference
+                        // can present logical backing without granting ownership of it; a
+                        // whole descriptor or saved physical projection stays Published.
+                        // Leaf copy/move and endpoint completion remain separate judgments.
+                        let mut suffix =
+                crate::expression_preparation::bindings::structural_paths::prepare_projection_path(
+                    identities,
+                    self.checked,
+                    &source.path,
+                    if source.logical_root_type_identity.is_valid() {
+                        crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Borrowed {
+                        published: root,
+                        logical: source.logical_root_type_identity,
+                        // projected_argument_path deliberately omits root-shell
+                        // steps for symbol-rooted logical storage projections.
+                        spelled_reference_hops: 0,
+                    }
+                    } else {
+                        crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Published(root)
+                    },
+                    endpoint,
+                    access,
+                    self.structural_types,
+                )?;
+                        crate::expression_preparation::bindings::structural_paths::retain_selector_evaluations(
+                &source.path,
+                evaluations,
+                &self.checked.facts.values.scalar_computations.operands,
+                &mut suffix,
+            )?;
+                        let mut prepared = source
+                            .root_path
+                            .iter()
+                            .cloned()
+                            .map(PreparedStructuralPathSegment::Static)
+                            .collect::<Vec<_>>();
+                        prepared.extend(suffix);
+                        self.complete_projection(
+                            identities,
+                            expression,
+                            source.root,
+                            prepared,
+                            access,
+                        )
+                    }
+
+    pub(super) fn projection_emission(
+        &mut self,
+    ) -> crate::unit::attached_unit::structural_values::emission::completed_projection::ProjectionEmission<
+        'source,
+        '_,
+        'calls,
+                    >{
+                        crate::unit::attached_unit::structural_values::emission::completed_projection::ProjectionEmission {
+            statement: self.statement,
+            environment: self.environment,
+            calls: self.calls,
+            evaluation: self.evaluation,
+            values: self.values,
+            next_value: self.next_value,
+            next_block: self.next_block,
+            next_edge: self.next_edge,
+            operations: self.operations,
+        }
+                    }
+
+                    pub(super) fn complete_projection(
+                        &mut self,
+                        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                        expression: checked_trees::expression::ExpressionHandle,
+                        place: PlaceId,
+                        prepared: Vec<PreparedStructuralPathSegment>,
+                        access: StructuralAccess,
+                    ) -> Result<StructuralArgument, LoweringError> {
+                        let completed = self
+                            .projection_emission()
+                            .complete_projection(identities, expression, place, prepared, access)?;
+                        let argument = completed.argument.clone();
+                        self.completed_projections.push(completed);
+                        Ok(argument)
+                    }
+
+                    pub(super) fn projection_root_type(
+                        &mut self,
+                        place: PlaceId,
+                    ) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError>
+                    {
+                        self.projection_emission().projection_root_type(place)
+                    }
                 }
             }
             pub(crate) mod completed_storage {
@@ -2541,47 +2699,12 @@ pub(crate) mod attached_unit {
                         expression: checked_trees::expression::ExpressionHandle,
                         source: &CheckedUnitStructuralArgumentPlan,
                     ) -> Result<StructuralArgument, LoweringError> {
-                        if !matches!(
-                            source.access,
-                            checked_trees::CheckedStructuralAccess::SharedBorrow
-                                | checked_trees::CheckedStructuralAccess::MutableBorrow
-                        ) {
-                            return super::unsupported(
-                                "storage projection requires readable source custody",
-                            );
-                        }
-                        let authored = crate::shared::declarations::state_declaration(
-                            self.checked,
-                            self.state,
-                        )?;
-                        let bindings = self.structural_bindings();
-                        let parameters = self.checked.state_parameters(authored.1);
-                        let home = bindings.borrowed_structural_home(source, parameters)?;
-                        let root = bindings.structural_argument_type(&home).ok_or(
-                            LoweringError::Unsupported(
-                                "readable projection lost its published root type",
-                            ),
-                        )?;
-                        let prepared =
-                            crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
-                                identities,
-                                self.checked,
-                                source,
-                                root,
-                                bindings.structural_declarations(),
-                            )?;
-                        let prepared = home.path.into_iter().map(
-                            crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
-                        ).chain(prepared).collect::<Vec<_>>();
-                        self.complete_projection(
-                            identities,
-                            expression,
-                            home.place,
-                            prepared,
-                            crate::expression_preparation::bindings::structural_paths::terminal_access(
-                                source.access,
-                            ),
-                        )
+                        let completed = self
+                            .projection_emission()
+                            .readable_place_argument(identities, expression, source)?;
+                        let argument = completed.argument.clone();
+                        self.completed_projections.push(completed);
+                        Ok(argument)
                     }
 
                     pub(crate) fn copied_place_path(
@@ -2636,6 +2759,68 @@ pub(crate) mod attached_unit {
                             self.operations,
                         );
                         Ok(path)
+                    }
+                }
+
+                impl super::completed_projection::ProjectionEmission<'_, '_, '_> {
+                    pub(crate) fn readable_place_argument(
+                        &mut self,
+                        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                        expression: checked_trees::expression::ExpressionHandle,
+                        source: &CheckedUnitStructuralArgumentPlan,
+                    ) -> Result<super::completed_projection::CompletedProjection, LoweringError>
+                    {
+                        if !matches!(
+                            source.access,
+                            checked_trees::CheckedStructuralAccess::SharedBorrow
+                                | checked_trees::CheckedStructuralAccess::MutableBorrow
+                        ) {
+                            return crate::shared::lowering_error::unsupported(
+                                "storage projection requires readable source custody",
+                            );
+                        }
+                        let authored = crate::shared::declarations::state_declaration(
+                            self.environment.checked,
+                            self.environment.state,
+                        )?;
+                        let bindings =
+                            crate::expression_preparation::bindings::ScalarBindings::new(
+                                self.values.iter().map(|value| value.scalar_type),
+                            )
+                            .with_structural_parameters(&self.evaluation.structural_parameters)
+                            .with_structural_locals(&self.evaluation.structural_locals)
+                            .with_structural_observations(self.environment.structural_types)
+                            .with_place_observations(&self.evaluation.place_observations);
+                        let parameters = self.environment.checked.state_parameters(authored.1);
+                        let resolved = bindings.resolve_borrowed_argument(
+                            self.environment.checked,
+                            source,
+                            parameters,
+                        )?;
+                        let home = &resolved.source;
+                        let root = bindings.structural_argument_type(home).ok_or(
+                            LoweringError::Unsupported(
+                                "readable projection lost its published root type",
+                            ),
+                        )?;
+                        let prepared = resolved.prepare_path(
+                            identities,
+                            self.environment.checked,
+                            root,
+                            bindings.structural_declarations(),
+                        )?;
+                        let prepared = home.path.iter().cloned().map(
+                            crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
+                        ).chain(prepared).collect::<Vec<_>>();
+                        self.complete_projection(
+                identities,
+                expression,
+                home.place,
+                prepared,
+                crate::expression_preparation::bindings::structural_paths::terminal_access(
+                    source.access,
+                ),
+            )
                     }
                 }
             }
@@ -3316,32 +3501,49 @@ pub(crate) mod attached_unit {
                                 self.values.push(value);
                             }
                             checked_trees::CheckedDispatchSubject::Structural {
+                                expression: subject_expression,
                                 value,
                                 alias,
-                                ..
+                                place,
                             } => {
-                                let request = crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(identities, self.checked, value, self.structural_types)?;
-                                self.environment.produce_value(
-                                    identities,
-                                    value,
-                                    request.structural_type,
-                                    self.evaluation,
-                                    self.values,
-                                    self.next_value,
-                                    self.next_block,
-                                    self.next_edge,
-                                    self.calls,
-                                    self.operations,
-                                )?;
-                                if self.operations.invocation_completion.is_some() {
-                                    return Ok(ValueOutcome::NoNormal);
+                                if !value.is_valid() {
+                                    let captured = super::place_id(super::allocate_dense(
+                                        self.environment.next_place,
+                                    )?);
+                                    self.projection_emission().capture_subject(
+                                        identities,
+                                        subject_expression,
+                                        &place,
+                                        alias,
+                                        captured,
+                                    )?;
+                                } else {
+                                    let request = crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(identities, self.checked, value, self.structural_types)?;
+                                    self.environment.produce_value(
+                                        identities,
+                                        value,
+                                        request.structural_type,
+                                        self.evaluation,
+                                        self.values,
+                                        self.next_value,
+                                        self.next_block,
+                                        self.next_edge,
+                                        self.calls,
+                                        self.operations,
+                                    )?;
+                                    if self.operations.invocation_completion.is_some() {
+                                        return Ok(ValueOutcome::NoNormal);
+                                    }
+                                    self.evaluation.bind_completed_value_alias(
+                                        value,
+                                        alias,
+                                        self.operations,
+                                    )?;
+                                    // The actual producer above dominates every predicate and
+                                    // selected arm. Carry that dependency into their fresh scalar
+                                    // expansions, not every historical entry in computed_values.
+                                    self.evaluation.completed_operand_scope.push(value);
                                 }
-                                self.evaluation.bind_completed_value_alias(
-                                    value,
-                                    alias,
-                                    self.operations,
-                                )?;
-                                self.evaluation.completed_operand_scope.push(value);
                             }
                         }
                         let mut owned_continuation;
@@ -4087,29 +4289,46 @@ pub(crate) mod attached_unit {
                                 self.type_ids,
                                 &stored_structural_identity(self.checked, node.type_reference),
                             )?;
-                            let ValueOutcome::Normal(completed) = self.child_constructor_operand(
-                                identities,
-                                root_type,
-                                source_value,
-                                node.type_reference,
-                            )?
-                            else {
-                                return Ok(ValueOutcome::NoNormal);
-                            };
                             let root = source.structural_storage_root().ok_or(
                                 LoweringError::Unsupported(
                                     "computed reference backing has no storage identity",
                                 ),
                             )?;
-                            crate::expression_preparation::bindings::retain_completed_structural_homes(
-                                &mut self.evaluation.structural_locals,
-                                &[StructuralLocalBinding {
-                                    result_binding_ordinal: None,
+                            if self
+                                .evaluation
+                                .completed_source_binding(
+                                    source_value,
                                     root,
-                                    argument: completed.argument.clone(),
-                                    structural_type: root_type,
-                                }],
-                            )?;
+                                    root_type,
+                                    self.operations,
+                                )?
+                                .is_none()
+                            {
+                                // A genuinely unproduced backing completes through its own
+                                // occurrence and publishes its claims before the loan forms.
+                                let ValueOutcome::Normal(completed) = self
+                                    .child_constructor_operand(
+                                        identities,
+                                        root_type,
+                                        source_value,
+                                        node.type_reference,
+                                    )?
+                                else {
+                                    return Ok(ValueOutcome::NoNormal);
+                                };
+                                crate::expression_preparation::bindings::retain_completed_structural_homes(
+                        &mut self.evaluation.structural_locals,
+                        &[StructuralLocalBinding {
+                            result_binding_ordinal: None,
+                            root,
+                            argument: completed.argument,
+                            structural_type: root_type,
+                        }],
+                    )?;
+                            }
+                            // Cached reuse already proved the exact current root, argument
+                            // and type. Publishing that same binding with no result alias
+                            // would be an exact no-op; only a fresh producer publishes here.
                         }
                         let evaluations = value_facts(self.checked)
                             .scalar_computations
@@ -4137,51 +4356,51 @@ pub(crate) mod attached_unit {
                             )
                             .with_structural_observations(self.structural_types);
                         let mut argument = match referent.shape {
-                            StructuralTypeShape::PrimitiveScalar(_)
-                                if matches!(
-                                    source.source,
-                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
-                                ) =>
-                            {
-                                bindings.scalar_parameter_borrow(
-                                    identities,
-                                    self.checked,
-                                    source,
-                                    self.structural_types,
-                                )?
-                            }
-                            StructuralTypeShape::PrimitiveScalar(scalar_type)
-                                if matches!(
-                                    source.source,
-                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-                                ) =>
-                            {
-                                bindings.primitive_borrow(
-                                    identities,
-                                    self.checked,
-                                    source,
-                                    scalar_type,
-                                    self.structural_types,
-                                    self.checked.state_parameters(state),
-                                )?
-                            }
-                            _ => {
-                                let argument = bindings.prepared_borrowed_argument(
-                                    identities,
-                                    self.checked,
-                                    source,
-                                    self.checked.state_parameters(state),
-                                    self.structural_types,
-                                )?;
-                                self.complete_projection(
-                                    identities,
-                                    formation.expression,
-                                    argument.source.known_place()?,
-                                    argument.path,
-                                    argument.access,
-                                )?
-                            }
-                        };
+                StructuralTypeShape::PrimitiveScalar(_)
+                    if matches!(
+                        source.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+                    ) =>
+                {
+                    bindings.scalar_parameter_borrow(
+                        identities,
+                        self.checked,
+                        source,
+                        self.structural_types,
+                    )?
+                }
+                StructuralTypeShape::PrimitiveScalar(scalar_type)
+                    if matches!(
+                        source.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+                    ) =>
+                {
+                    bindings.primitive_borrow(
+                        identities,
+                        self.checked,
+                        source,
+                        scalar_type,
+                        self.structural_types,
+                        self.checked.state_parameters(state),
+                    )?
+                }
+                _ => {
+                    let argument = bindings.prepared_borrowed_argument(
+                        identities,
+                        self.checked,
+                        source,
+                        self.checked.state_parameters(state),
+                        self.structural_types,
+                    )?;
+                    self.complete_projection(
+                        identities,
+                        formation.expression,
+                        argument.source.known_place()?,
+                        argument.path,
+                        argument.access,
+                    )?
+                }
+            };
                         let same_representation = self.structural_type == referent_type
                             || terminal_semantics::borrowed_referent_presentation(
                                 self.structural_types.iter(),
@@ -4683,10 +4902,10 @@ pub(crate) mod attached_unit {
                             .filter(|(_, source)| source.retains_storage)
                             .map(|(ordinal, source)| {
                                 let source_ordinal = u32::try_from(ordinal).map_err(|_| {
-                                    LoweringError::Unsupported(
-                                        "selected source ordinal exceeds its checked representation",
-                                    )
-                                })?;
+                            LoweringError::Unsupported(
+                                "selected source ordinal exceeds its checked representation",
+                            )
+                        })?;
                                 if let Some(local) = structural_local_by_root(
                                     &evaluation.structural_locals,
                                     facts::PlaceRoot::Symbol(source.symbol),
@@ -4990,13 +5209,13 @@ pub(crate) mod attached_unit {
                         })
                         .collect();
                     let alias =
-                        crate::emission::operation_emission::buffer::StructuralBinding::ProjectedAlias {
-                            place: projected.root,
-                            path: alias_path,
-                            structural_type,
-                            multiplicity,
-                            claims: selected_claims,
-                        };
+                crate::emission::operation_emission::buffer::StructuralBinding::ProjectedAlias {
+                    place: projected.root,
+                    path: alias_path,
+                    structural_type,
+                    multiplicity,
+                    claims: selected_claims,
+                };
                     Some(alias)
                 } else {
                     None
@@ -5232,29 +5451,28 @@ pub(crate) mod attached_unit {
                     let entry = source_parameters
                         .iter()
                         .any(|parameter| parameter.symbol == symbol);
-                    let has_conflicting_selection =
-                        flow_facts(checked)
-                            .ownership
-                            .with_state_owned_selections(state, |handles| {
-                                handles.iter().copied().any(|handle| {
-                                    let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
-                                    receipt.machine == machine
-                                        && receipt.state == state
-                                        && matches!(
-                                            receipt.evaluation,
-                                            checked_trees::FlowPermissionEvaluation::Statement
-                                                | checked_trees::FlowPermissionEvaluation::TransitionGuard
-                                        )
-                                        && (entry || receipt.statement_ordinal > formation)
-                                        && receipt.statement_ordinal < statement
-                                        && flow_facts(checked)
-                                            .ownership
-                                            .selection_sources
-                                            .span_or_empty(receipt.sources)
-                                            .iter()
-                                            .any(|source| source.symbol == symbol)
-                                })
-                            });
+                    let has_conflicting_selection = flow_facts(checked)
+                        .ownership
+                        .with_state_owned_selections(state, |handles| {
+                            handles.iter().copied().any(|handle| {
+                                let receipt =
+                                    checked.facts.flow.ownership.owned_selections.get(handle);
+                                receipt.machine == machine
+                                    && receipt.state == state
+                                    && matches!(
+                                receipt.evaluation,
+                                checked_trees::FlowPermissionEvaluation::Statement
+                                    | checked_trees::FlowPermissionEvaluation::TransitionGuard
+                            ) && (entry || receipt.statement_ordinal > formation)
+                                    && receipt.statement_ordinal < statement
+                                    && flow_facts(checked)
+                                        .ownership
+                                        .selection_sources
+                                        .span_or_empty(receipt.sources)
+                                        .iter()
+                                        .any(|source| source.symbol == symbol)
+                            })
+                        });
                     if has_conflicting_selection {
                         return Ok(false);
                     }
@@ -5403,12 +5621,12 @@ pub(crate) mod attached_unit {
                         return unsupported("selection survivor requires whole owned custody");
                     }
                     let value = operations
-                        .iter()
-                        .filter_map(|operation| operation.result.structural())
-                        .find(|result| result.place == argument.place)
-                        .ok_or(LoweringError::Unsupported(
-                            "selection survivor requires an exact emitted operation-result frontier",
-                        ))?;
+                .iter()
+                .filter_map(|operation| operation.result.structural())
+                .find(|result| result.place == argument.place)
+                .ok_or(LoweringError::Unsupported(
+                    "selection survivor requires an exact emitted operation-result frontier",
+                ))?;
                     if value.multiplicity
                         != crate::shared::terminal_identities::structural_multiplicity(
                             checked.type_multiplicity(local.declared_type),
@@ -6287,14 +6505,14 @@ pub(crate) mod attached_unit {
                             let place = place_id(allocate_dense(self.environment.next_place)?);
                             let operation = self.operations.allocate();
                             self.operations.push(terminal_psi::Operation::unsuspended(
-                                operation,
-                                crate::emission::operation_emission::buffer::structural_result_declaration(
-                                    place,
-                                    self.structural_type,
-                                    self.multiplicity,
-                                ),
-                                OperationKind::EstablishNativeCodeLayout { machine },
-                            ));
+                        operation,
+                        crate::emission::operation_emission::buffer::structural_result_declaration(
+                            place,
+                            self.structural_type,
+                            self.multiplicity,
+                        ),
+                        OperationKind::EstablishNativeCodeLayout { machine },
+                    ));
                             self.environment.private_places.push(operation_result_place(
                                 place,
                                 operation,

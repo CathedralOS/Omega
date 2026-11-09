@@ -1295,6 +1295,7 @@ pub(crate) mod dynamic_requirement {
     }
 }
 pub(crate) mod expression_scanning {
+
     use super::{
         call_carrier_matcher, free_machine_entry_state, machine_state_by_symbol,
         register_read_mnemonic, selected_float_operation_retains_argument_policy,
@@ -1972,13 +1973,7 @@ pub(crate) mod expression_scanning {
                 return;
             }
             if let Some(query) = &call.native_code_layout {
-                let selected = program.machines().iter().find(|machine| {
-                    machine.symbol == query.operand.symbol
-                        || program
-                            .machine_states(machine)
-                            .iter()
-                            .any(|state| state.symbol == query.operand.symbol)
-                });
+                let selected = program.machine_by_own_or_state_symbol(query.operand.symbol);
                 if let Some(machine) = selected {
                     if crate::proof_only_classification(program)
                         .is_proof_machine(program.typed_program(), machine)
@@ -2093,6 +2088,7 @@ pub(crate) mod expression_scanning {
         }
     }
     pub(crate) mod traversal {
+
         use super::{CallExpressionUse, validate_expression_call_bounds};
         use crate::declarations::symbols::TopLevelSymbols;
         use crate::frozen_program::expression_table;
@@ -2195,11 +2191,11 @@ pub(crate) mod expression_scanning {
                     .is_some()
                 {
                     diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` uses a static path through runtime binding `{name}`; \
+                    "machine `{}` state `{}` uses a static path through runtime binding `{name}`; \
                  use `.` to select a field or callable through a value",
-                machine.name.as_str(),
-                state.name.as_str(),
-            )));
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                )));
                 }
             }
             if let Some(path) = expression_table(program).name_path_node(expression)
@@ -2260,7 +2256,16 @@ pub(crate) mod expression_scanning {
                 StatementNode::Expression(expression) => {
                     context.scan_at(
                         *expression,
-                        CallExpressionUse::Statement,
+                        if super::super::unit_returns::unit_return_call_is_admitted(
+                            program,
+                            machine,
+                            state,
+                            *expression,
+                        ) {
+                            CallExpressionUse::TerminalResult
+                        } else {
+                            CallExpressionUse::Statement
+                        },
                         value_environment,
                         executes,
                     );
@@ -2349,11 +2354,11 @@ pub(crate) mod expression_scanning {
                 )
             {
                 reports.push(format!(
-            "machine `{}` state `{}` reads a nested member `{member}`, but data `{container}` \
+                "machine `{}` state `{}` reads a nested member `{member}`, but data `{container}` \
              has no field `{member}` (check the spelling of the field name)",
-            machine.name.as_str(),
-            state.name.as_str(),
-        ));
+                machine.name.as_str(),
+                state.name.as_str(),
+            ));
             }
             reports
         }
@@ -2419,6 +2424,8 @@ pub(crate) mod expression_scanning {
                 }
             }
 
+            /// Selected result arms retain a terminal completion. Subjects, patterns
+            /// and ordinary operands remain value uses even when handles are shared.
             fn scan_at(
                 &mut self,
                 expression: ExpressionHandle,
@@ -2443,12 +2450,12 @@ pub(crate) mod expression_scanning {
                     && !data_declares_field(program, data, field_name)
                 {
                     self.diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` reads `self.{field_name}`, but data `{}` has no field \
+                    "machine `{}` state `{}` reads `self.{field_name}`, but data `{}` has no field \
              `{field_name}` (check the spelling of the field name)",
-                machine.name.as_str(),
-                state.name.as_str(),
-                data.name.as_str()
-            )));
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                    data.name.as_str()
+                )));
                 }
                 if matches!(
                     expression_table(program).expression(expression),
@@ -2496,12 +2503,12 @@ pub(crate) mod expression_scanning {
                         None => "an index".to_owned(),
                     };
                     self.diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive \
+                    "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive \
              scalar has no members or elements",
-                machine.name.as_str(),
-                state.name.as_str(),
-                primitive.name(),
-            )));
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                    primitive.name(),
+                )));
                 }
                 report_unresolved_name_use(
                     program,
@@ -2595,8 +2602,13 @@ pub(crate) mod expression_scanning {
                         }
                                 }
                             };
-                            self.scan(
+                            self.scan_at(
                                 arm.value,
+                                if matches!(expression_use, CallExpressionUse::TerminalResult) {
+                                    CallExpressionUse::TerminalResult
+                                } else {
+                                    CallExpressionUse::Value
+                                },
                                 environment,
                                 remaining_executes && selected != Some(false),
                             );
@@ -2781,12 +2793,12 @@ pub(crate) mod expression_scanning {
                         match unary.operator {
                             typed_trees::expression::UnaryOperator::BitwiseNot => {
                                 crate::value_custody::expression_types::report_non_integer_bitwise_not(
-                            program,
-                            machine,
-                            Some(state),
-                            unary.operand,
-                            self.diagnostics,
-                        );
+                                program,
+                                machine,
+                                Some(state),
+                                unary.operand,
+                                self.diagnostics,
+                            );
                             }
                             typed_trees::expression::UnaryOperator::LogicalNot => {
                                 crate::value_custody::expression_types::report_non_bool_logical_not(
@@ -3004,6 +3016,7 @@ pub(crate) mod expression_scanning {
         }
     }
 
+    /// Selected result arms keep terminal use; evaluated operands remain values.
     #[derive(Clone, Copy)]
     pub(crate) enum CallExpressionUse {
         Value,
@@ -6171,6 +6184,7 @@ pub(crate) mod signature_queries {
     }
 }
 pub(crate) mod unit_returns {
+
     use super::{ExpressionHandle, Machine, State, TypeReferenceHandle, TypeReferenceNode};
     use crate::CheckingInput;
     use crate::frozen_program::expression_table;
@@ -6192,6 +6206,49 @@ pub(crate) mod unit_returns {
         {
             return true;
         }
+        let Some((position, terminal_arm)) = statement_occurrence(program, state, expression)
+        else {
+            return false;
+        };
+        if terminal_arm {
+            // The selected result completes this caller. Match subjects, patterns
+            // and call arguments still have ordinary value-formation obligations.
+            return unit_type(program, state.return_type)
+                && completion_returns_unit(program, machine, expression);
+        }
+        if position + 1
+            == program
+                .statement_table
+                .statements(state.statement_nodes)
+                .len()
+        {
+            return call_completes_unit_state(program, machine, state, expression);
+        }
+        call_returns_unit(program, machine, expression)
+    }
+
+    pub fn unit_return_call_is_admitted(
+        program: &dyn CheckingInput,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> bool {
+        statement_occurrence(program, state, expression).is_some_and(|(position, terminal_arm)| {
+            !terminal_arm
+                && position + 1
+                    == program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .len()
+        }) && call_completes_unit_state(program, machine, state, expression)
+    }
+
+    /// One exact statement root owns completion; reused operands do not inherit it.
+    fn statement_occurrence(
+        program: &dyn CheckingInput,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> Option<(usize, bool)> {
         let statements = program.statement_table.statements(state.statement_nodes);
         let mut occurrences = statements
             .iter()
@@ -6210,33 +6267,12 @@ pub(crate) mod unit_returns {
                 }
                 _ => None,
             });
-        let Some((position, terminal_arm)) = occurrences.next() else {
-            return false;
-        };
-        if occurrences.next().is_some() {
-            return false;
-        }
-        if terminal_arm {
-            return unit_type(program, state.return_type)
-                && call_returns_unit(program, machine, expression);
-        }
-        if position + 1 == statements.len() {
-            return unit_return_call_is_admitted(program, machine, state, expression);
-        }
-        call_returns_unit(program, machine, expression)
+        let occurrence = occurrences.next()?;
+        occurrences.next().is_none().then_some(occurrence)
     }
 
-    pub fn unit_return_call_is_admitted(
-        program: &dyn CheckingInput,
-        machine: &Machine,
-        state: &State,
-        expression: ExpressionHandle,
-    ) -> bool {
-        matches!(program.statement_table.statements(state.statement_nodes).last(),
-        Some(typed_trees::statement::StatementNode::Expression(tail)) if *tail == expression)
-            && call_completes_unit_state(program, machine, state, expression)
-    }
-
+    /// Result compatibility for a Unit completion. Only selected result arms
+    /// inherit completion; their subjects and operands receive no such position.
     pub(crate) fn call_completes_unit_state(
         program: &dyn CheckingInput,
         machine: &Machine,
@@ -6245,7 +6281,69 @@ pub(crate) mod unit_returns {
     ) -> bool {
         unit_type(program, state.return_type)
             && expression_table(program).expression_is_valid(expression)
-            && call_returns_unit(program, machine, expression)
+            && completion_returns_unit(program, machine, expression)
+    }
+
+    /// The result leaves of one completion, without walking evaluated operands.
+    /// Full coordinates avoid revisiting shared match nodes without allocating
+    /// scratch for unrelated expressions in the program's arena.
+    fn completion_calls_all(
+        program: &dyn CheckingInput,
+        expression: ExpressionHandle,
+        mut accepts: impl FnMut(ExpressionHandle) -> bool,
+    ) -> bool {
+        let table = expression_table(program);
+        if table.call_node(expression).is_some() {
+            return accepts(expression);
+        }
+        let mut pending = vec![(expression, false)];
+        let mut active = std::collections::BTreeMap::new();
+        let mut saw_call = false;
+        while let Some((expression, completed)) = pending.pop() {
+            if !table.expression_is_valid(expression) {
+                return false;
+            }
+            let coordinate = (expression.arena_index(), expression.generation());
+            if completed {
+                active.insert(coordinate, false);
+                continue;
+            }
+            match active.get(&coordinate) {
+                Some(true) => return false,
+                Some(false) => continue,
+                None => {}
+            }
+            active.insert(coordinate, true);
+            match table.expression(expression) {
+                typed_trees::expression::ExpressionNode::Match(dispatch) => {
+                    let arms = table.match_arms(dispatch.arms);
+                    if arms.is_empty() {
+                        return false;
+                    }
+                    pending.push((expression, true));
+                    pending.extend(arms.iter().rev().map(|arm| (arm.value, false)));
+                }
+                typed_trees::expression::ExpressionNode::Call(_) => {
+                    if !accepts(expression) {
+                        return false;
+                    }
+                    saw_call = true;
+                    active.insert(coordinate, false);
+                }
+                _ => return false,
+            }
+        }
+        saw_call
+    }
+
+    fn completion_returns_unit(
+        program: &dyn CheckingInput,
+        machine: &Machine,
+        expression: ExpressionHandle,
+    ) -> bool {
+        completion_calls_all(program, expression, |leaf| {
+            call_returns_unit(program, machine, leaf)
+        })
     }
 
     pub(crate) enum DeclaredCallResult<'program> {
@@ -6408,18 +6506,26 @@ pub(crate) mod unit_returns {
                         else {
                             continue;
                         };
-                        match declared_call_result(program, machine, *expression) {
-                            Some(DeclaredCallResult::IntrinsicUnit) => {}
-                            Some(DeclaredCallResult::Signature(reference))
-                                if unit_type(program, reference) => {}
-                            Some(DeclaredCallResult::Source { machine, state })
-                                if unit_type(program, state.return_type) =>
-                            {
-                                if !state.return_type.is_valid() {
-                                    pending.push(machine);
+                        if !completion_calls_all(program, *expression, |expression| {
+                            match declared_call_result(program, machine, expression) {
+                                Some(DeclaredCallResult::IntrinsicUnit) => true,
+                                Some(DeclaredCallResult::Signature(reference))
+                                    if unit_type(program, reference) =>
+                                {
+                                    true
                                 }
+                                Some(DeclaredCallResult::Source { machine, state })
+                                    if unit_type(program, state.return_type) =>
+                                {
+                                    if !state.return_type.is_valid() {
+                                        pending.push(machine);
+                                    }
+                                    true
+                                }
+                                _ => false,
                             }
-                            _ => return true,
+                        }) {
+                            return true;
                         }
                     }
                 }
@@ -6706,6 +6812,7 @@ pub(crate) mod write_frames {
         }
     }
     pub(crate) mod alias_origins {
+
         use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
         use crate::machine_calls::calls::write_frames::call_trees::stable_alias_index_expression_preserves_origin;
         use crate::machine_calls::calls::write_frames::inference::FrameInference;
@@ -7244,7 +7351,9 @@ pub(crate) mod write_frames {
                 .collect()
         }
 
-        fn projected_member_origins(
+        /// A member projection keeps an exact origin's path and re-projects its
+        /// source; a coarse origin carries the new source only.
+        pub(super) fn projected_member_origins(
             program: &dyn crate::CheckingInput,
             origins: Vec<FramePlaceOrigin>,
             expression: ExpressionHandle,
@@ -12425,6 +12534,7 @@ pub(crate) mod write_frames {
         }
         pub(crate) use read_backing::CapturedStorageReadBacking;
         pub(crate) mod call_origins {
+
             use super::super::caller_aliases::{
                 CallOriginContext, CallWriteOrigins, CallerWriteSite, LocalWriteOrigin,
                 LocalWriteSource, caller_statement_owner, prefix_reference_origins,
@@ -12441,6 +12551,21 @@ pub(crate) mod write_frames {
                     machine: &'program Machine,
                     expression: ExpressionHandle,
                     reference: typed_trees::types::TypeReferenceHandle,
+                ) -> Option<Vec<LocalWriteSource>> {
+                    self.reference_operand_write_sources_with_captures(
+                        machine,
+                        expression,
+                        reference,
+                        &mut Vec::new(),
+                    )
+                }
+
+                fn reference_operand_write_sources_with_captures(
+                    &self,
+                    machine: &'program Machine,
+                    expression: ExpressionHandle,
+                    reference: typed_trees::types::TypeReferenceHandle,
+                    active_captures: &mut Vec<ExpressionHandle>,
                 ) -> Option<Vec<LocalWriteSource>> {
                     crate::reference_shell(self.program, reference)?;
                     let site = CallerWriteSite::Expression(expression);
@@ -12462,6 +12587,7 @@ pub(crate) mod write_frames {
                                 &[expression],
                                 &[reference],
                                 preceding_effect,
+                                active_captures,
                             )?
                             .pop()?
                         },
@@ -12550,6 +12676,7 @@ pub(crate) mod write_frames {
                                     &arguments,
                                     parameter_types,
                                     preceding_effect,
+                                    &mut Vec::new(),
                                 )?,
                             })
                         },
@@ -12565,44 +12692,45 @@ pub(crate) mod write_frames {
                     let machine_symbols = self.machine_symbols(machine)?;
                     let (state, statement, _) = caller_statement_owner(program, machine, site)?;
                     let (target, name, receiver_expression, receiver_members, arguments) = match site {
-            CallerWriteSite::Call(call) => (
-                crate::machine_calls::calls::CallSite::Statement(call).target_symbol(program),
-                call.target.as_str(),
-                ExpressionHandle::invalid(),
-                crate::machine_calls::calls::signature_queries::call_receiver_member_names(
-                    program, call,
-                ),
-                program.statement_table.expression_handles(call.arguments),
-            ),
-            CallerWriteSite::Expression(expression) => {
-                let call = expression_table(program).call_node(expression)?;
-                let target = typed_trees::operator::resolve_named_expression_call(program, call)
-                    .map_or(call.target_symbol, |operator| operator.symbol);
-                (
-                    target,
+                CallerWriteSite::Call(call) => (
+                    crate::machine_calls::calls::CallSite::Statement(call).target_symbol(program),
                     call.target.as_str(),
-                    call.receiver,
-                    frames::receiver_member_chain(program, call.receiver).unwrap_or_default(),
-                    expression_table(program).expression_handles(call.arguments),
-                )
-            }
-            CallerWriteSite::Transition(target) => {
-                let typed_trees::statement::TransitionTargetNode::Named {
-                    path, arguments, ..
-                } = program.statement_table.transition_target(target)
-                else {
-                    return None;
-                };
-                (
-                    path.symbol,
-                    "",
                     ExpressionHandle::invalid(),
-                    Vec::new(),
-                    program.statement_table.expression_handles(*arguments),
-                )
-            }
-            _ => return None,
+                    crate::machine_calls::calls::signature_queries::call_receiver_member_names(
+                        program, call,
+                    ),
+                    program.statement_table.expression_handles(call.arguments),
+                ),
+                CallerWriteSite::Expression(expression) => {
+                    let call = expression_table(program).call_node(expression)?;
+                    let target =
+                        typed_trees::operator::resolve_named_expression_call(program, call)
+                            .map_or(call.target_symbol, |operator| operator.symbol);
+                    (
+                        target,
+                        call.target.as_str(),
+                        call.receiver,
+                        frames::receiver_member_chain(program, call.receiver).unwrap_or_default(),
+                        expression_table(program).expression_handles(call.arguments),
+                    )
+                }
+                CallerWriteSite::Transition(target) => {
+                    let typed_trees::statement::TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } = program.statement_table.transition_target(target)
+                    else {
+                        return None;
                     };
+                    (
+                        path.symbol,
+                        "",
+                        ExpressionHandle::invalid(),
+                        Vec::new(),
+                        program.statement_table.expression_handles(*arguments),
+                    )
+                }
+                _ => return None,
+            };
                     let argument_types = if matches!(site, CallerWriteSite::Transition(_)) {
                         let entry = frames::machine_state_by_symbol(program, target)
                             .map(|(_, state)| state)
@@ -12723,6 +12851,7 @@ pub(crate) mod write_frames {
                                 arguments,
                                 &argument_types,
                                 preceding_effect,
+                                &mut Vec::new(),
                             )?;
                             result.references = prefix.and_then(|prefix| {
                                 self.capture_reference_origins(
@@ -12771,6 +12900,7 @@ pub(crate) mod write_frames {
                     arguments: &[ExpressionHandle],
                     argument_types: &[typed_trees::types::TypeReferenceHandle],
                     mut preceding_effect: bool,
+                    active_captures: &mut Vec<ExpressionHandle>,
                 ) -> Option<Vec<Option<Vec<LocalWriteSource>>>> {
                     let program = self.program;
                     let machine_symbols = self.machine_symbols(machine)?;
@@ -12806,6 +12936,19 @@ pub(crate) mod write_frames {
                                         &reference.into_iter().collect::<Vec<_>>(),
                                     )
                                     .and_then(|mut origins| origins.pop().flatten())
+                                    .or_else(|| {
+                                        reference?;
+                                        frames::reference_subjects::validate_operand_selectors(
+                                            program, machine, *argument,
+                                        )?;
+                                        self.saved_reference_operand_origins(
+                                            machine,
+                                            *argument,
+                                            reference,
+                                            prefix,
+                                            active_captures,
+                                        )
+                                    })
                                     .map(|origins| {
                                         origins.into_iter().map(LocalWriteSource::from).collect()
                                     })
@@ -12815,6 +12958,133 @@ pub(crate) mod write_frames {
                         preceding_effect |= changes_origins;
                     }
                     Some(result)
+                }
+
+                /// A saved reference owns the descriptor completed by its original producer.
+                /// Its synthetic value anchor is not a new declaration or the storage behind
+                /// the reference. Resolve that producer at its own cut, then load only newly
+                /// selected inner descriptors from the consuming prefix.
+                ///
+                /// The caller has already refused every preceding/operand origin-changing
+                /// effect. This supplies provenance only; ordinary formation, access, loans
+                /// and normal-exit restoration remain independent obligations.
+                fn saved_reference_operand_origins(
+                    &self,
+                    machine: &'program Machine,
+                    expression: ExpressionHandle,
+                    receiving: Option<typed_trees::types::TypeReferenceHandle>,
+                    prefix: &CallOriginContext<'_>,
+                    active_captures: &mut Vec<ExpressionHandle>,
+                ) -> Option<Vec<frames::FramePlaceOrigin>> {
+                    use typed_trees::expression::{ExpressionNode, ValueCaptureOwner};
+                    let program = self.program;
+                    match expression_table(program).expression(expression) {
+                        ExpressionNode::Borrow(borrow) => {
+                            if crate::value_custody::expression_types::borrow_selects_reference_storage(
+                        program,
+                        borrow.target,
+                        receiving?,
+                        &[],
+                    ) {
+                        // Replacing the descriptor cell is not writing its captured
+                        // referent. The existing cell-address route owns that case.
+                        return None;
+                    }
+                            self.saved_reference_operand_origins(
+                                machine,
+                                borrow.target,
+                                receiving,
+                                prefix,
+                                active_captures,
+                            )
+                        }
+                        ExpressionNode::Member(member) => {
+                            let receivers = self.saved_reference_operand_origins(
+                                machine,
+                                member.receiver,
+                                receiving,
+                                prefix,
+                                active_captures,
+                            )?;
+                            let mut origins = Vec::new();
+                            for receiver in receivers {
+                                let projected = frames::alias_origins::projected_member_origins(
+                                    program,
+                                    vec![receiver.clone()],
+                                    expression,
+                                    member,
+                                );
+                                for projected in projected {
+                                    for origin in
+                                frames::stored_origins::captured_reference_projection_origins(
+                                    program,
+                                    &receiver,
+                                    &projected,
+                                    prefix.stored,
+                                )
+                            {
+                                frames::place_paths::push_unique_origin(&mut origins, origin?);
+                            }
+                                }
+                            }
+                            (!origins.is_empty()).then_some(origins)
+                        }
+                        ExpressionNode::SavedSubject(saved) => {
+                            let production = program.saved_value_source(saved)?;
+                            let capture = expression_table(program).value_capture(saved.capture);
+                            if !expression_table(program).expression_is_valid(capture.value_anchor)
+                                || active_captures.len() >= 64
+                                || active_captures.contains(&capture.value_anchor)
+                            {
+                                return None;
+                            }
+                            let (state, _, index) = caller_statement_owner(
+                                program,
+                                machine,
+                                CallerWriteSite::Expression(expression),
+                            )?;
+                            // Every authenticated capture owner identifies its own
+                            // producing operation. Argument aliases retain the original
+                            // actual's ordered cut, not the call's completed inventory.
+                            let producer_site = match capture.owner {
+                                ValueCaptureOwner::Match => {
+                                    CallerWriteSite::Expression(capture.definition)
+                                }
+                                ValueCaptureOwner::ExpressionArgument { call, .. } => {
+                                    CallerWriteSite::Expression(call)
+                                }
+                                ValueCaptureOwner::StatementArgument { call, .. } => {
+                                    CallerWriteSite::Call(
+                                        program.statement_table.statement(call).as_call()?,
+                                    )
+                                }
+                            };
+                            let (owner, _, producer_index) =
+                                caller_statement_owner(program, machine, producer_site)?;
+                            if state.symbol != owner.symbol || index != producer_index {
+                                return None;
+                            }
+                            let reference = crate::expression_result_type_reference(
+                                program, machine, state, production,
+                            )?;
+                            // A copied aggregate keeps its own captured value. Only an
+                            // actual reference descriptor can supply a captured referent.
+                            crate::reference_shell(program, reference)?;
+                            active_captures.push(capture.value_anchor);
+                            let sources = self.reference_operand_write_sources_with_captures(
+                                machine,
+                                production,
+                                reference,
+                                active_captures,
+                            );
+                            active_captures.pop();
+                            sources.map(|sources| {
+                                sources.iter().map(LocalWriteSource::frame_origin).collect()
+                            })
+                        }
+                        // No computed/indexed/cast source is reconstructed from its spelling.
+                        _ => None,
+                    }
                 }
 
                 fn prefix_may_change_origins(
@@ -18805,16 +19075,27 @@ pub(crate) mod write_frames {
                         leaves.cases.push(selected);
                         continue;
                     }
+                    if !include_shared
+                        && crate::reference_shell(program, reference)
+                            .is_some_and(|shell| !shell.access.is_exclusive())
+                    {
+                        continue;
+                    }
+                    // Carry a call's complete result into its receiving field. A
+                    // formed view can retain several possible backing places.
                     if !matches!(
                         program.expression_table.expression(expression),
                         ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
                     ) && program.primitive_type_reference(reference).is_none()
-                        && matches!(
+                        && (matches!(
+                            program.expression_table.expression(expression),
+                            ExpressionNode::Call(_)
+                        ) || matches!(
                             program.type_reference_table.type_reference(reference),
                             TypeReferenceNode::Named { .. }
                                 | TypeReferenceNode::Generic { .. }
                                 | TypeReferenceNode::FixedArray { .. }
-                        )
+                        ))
                     {
                         let moved = aggregate_value(
                             program,
@@ -18877,9 +19158,6 @@ pub(crate) mod write_frames {
                             ));
                         }
                         TypeReferenceNode::Reference { access, .. } => {
-                            if !access.is_exclusive() && !include_shared {
-                                continue;
-                            }
                             let origins = inputs.reference(expression, reference, false, inference);
                             let Some(origins) = origins else {
                                 leaves.references.push(ReferenceLeaf {
@@ -21000,6 +21278,7 @@ pub(crate) mod write_frames {
         }
     }
     pub(crate) mod reference_subjects {
+
         use super::place_paths::{push_unique_origin, single_place_origin};
         use super::{
             ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
@@ -21824,6 +22103,20 @@ pub(crate) mod write_frames {
             }
         }
 
+        /// Authenticate the retained member selectors before resolving a saved
+        /// descriptor's origin. This supplies no backing or access permission.
+        pub(super) fn validate_operand_selectors(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            expression: ExpressionHandle,
+        ) -> Option<()> {
+            projections::validate_selectors(program, machine, expression)
+        }
+
+        /// Taking an owned storage address does not load a frozen reference binding.
+        /// Earlier descriptor writes may change contents but cannot relocate this home.
+        /// Reference-rooted paths still require chronological origin evidence; selectors,
+        /// representation and loan admission are not inferred from a write footprint.
         pub(crate) fn owned_borrow_origin(
             program: &dyn crate::CheckingInput,
             current_machine: &Machine,
@@ -43101,25 +43394,42 @@ pub(crate) use argument_correspondence::{
     call_binding_correspondence, captured_argument_position, executable_parameters,
 };
 pub(crate) mod occurrences {
+
     use super::topology::find_state_in_machine;
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
     use symbols::SymbolHandle;
+    use typed_trees::StaticRequirementDispatch;
     use typed_trees::expression::ExpressionHandle;
     use typed_trees::name::Identifier;
     use typed_trees::statement::StatementNode;
-    use typed_trees::typed_trees::StaticRequirementDispatch;
     pub(crate) mod traversal {
         pub(crate) mod context {
+            //! Call ordinals and their owning target lanes come from one traversal.
+
+            enum CollectedCalls<'program, 'query> {
+                Sites(&'query mut Vec<super::super::CallSite<'program>>),
+                Occurrences(&'query mut Vec<super::super::StatementCallOccurrence<'program>>),
+            }
+
+            // Callers select one statement before entering traversal. Ordinals belong to
+            // that walk; source statement coordinates remain on the authored call facts.
             pub(crate) struct CallSiteTraversal<'program, 'ordinal> {
                 pub(crate) program: &'program dyn crate::CheckingInput,
                 pub(crate) machine: &'program typed_trees::machine::Machine,
                 pub(crate) state: &'program typed_trees::state::State,
                 pub(crate) target_call_ordinal: usize,
                 pub(crate) current_ordinal: usize,
+                /// When set, every reached call site is pushed in ordinal order instead
+                /// of stopping at `target_call_ordinal` — one statement walk binds all of
+                /// a statement's call sites at once.
+                /// Selection ancestry does not change call ordinals or lookup membership.
                 conditional: bool,
                 pub(crate) matched_conditionally: bool,
-                pub(crate) collected: Option<&'ordinal mut Vec<super::super::CallSite<'program>>>,
-                expressions: Vec<typed_trees::expression::ExpressionHandle>,
+                collected: Option<CollectedCalls<'program, 'ordinal>>,
+                transition_target: typed_trees::statement::TransitionTargetHandle,
+                /// Normalization preserves a DAG's authored expression handles. A second
+                /// edge to one call is not a second authored invocation or ordinal.
+                expressions: std::collections::BTreeSet<(u32, u32)>,
             }
 
             impl<'program> CallSiteTraversal<'program, '_> {
@@ -43136,9 +43446,10 @@ pub(crate) mod occurrences {
                         target_call_ordinal,
                         current_ordinal: 0,
                         collected: None,
+                        transition_target: Default::default(),
                         conditional: false,
                         matched_conditionally: false,
-                        expressions: Vec::new(),
+                        expressions: Default::default(),
                     }
                 }
 
@@ -43154,25 +43465,48 @@ pub(crate) mod occurrences {
                         state,
                         target_call_ordinal: usize::MAX,
                         current_ordinal: 0,
-                        collected: Some(collected),
+                        collected: Some(CollectedCalls::Sites(collected)),
+                        transition_target: Default::default(),
                         conditional: false,
                         matched_conditionally: false,
-                        expressions: Vec::new(),
+                        expressions: Default::default(),
                     }
                 }
 
+                pub(in crate::calls::occurrences) fn collecting_occurrences<'ordinal>(
+                    program: &'program dyn crate::CheckingInput,
+                    machine: &'program typed_trees::machine::Machine,
+                    state: &'program typed_trees::state::State,
+                    collected: &'ordinal mut Vec<super::super::StatementCallOccurrence<'program>>,
+                ) -> CallSiteTraversal<'program, 'ordinal> {
+                    let mut traversal = Self::new(program, machine, state, usize::MAX);
+                    traversal.collected = Some(CollectedCalls::Occurrences(collected));
+                    traversal
+                }
+
+                /// Site admission shared by every traversal arm: collect mode records the
+                /// site and keeps walking; match mode returns it once the ordinal lines up.
                 pub(crate) fn visit(
                     &mut self,
                     site: super::super::CallSite<'program>,
                 ) -> Option<super::super::CallSite<'program>> {
-                    if let super::super::CallSite::Expression { expression, .. } = site {
-                        if self.expressions.contains(&expression) {
-                            return None;
-                        }
-                        self.expressions.push(expression);
+                    if let super::super::CallSite::Expression { expression, .. } = site
+                        && !self
+                            .expressions
+                            .insert((expression.arena_index(), expression.generation()))
+                    {
+                        return None;
                     }
-                    if let Some(collected) = self.collected.as_deref_mut() {
-                        collected.push(site);
+                    if let Some(collected) = self.collected.as_mut() {
+                        match collected {
+                            CollectedCalls::Sites(collected) => collected.push(site),
+                            CollectedCalls::Occurrences(collected) => {
+                                collected.push(super::super::StatementCallOccurrence {
+                                    site,
+                                    transition_target: self.transition_target,
+                                })
+                            }
+                        }
                         self.advance_call_ordinal();
                         return None;
                     }
@@ -43195,7 +43529,19 @@ pub(crate) mod occurrences {
                     result
                 }
 
-                pub(crate) fn is_target_call_site(&self) -> bool {
+                pub(crate) fn selected_target(
+                    &mut self,
+                    target: typed_trees::statement::TransitionTargetHandle,
+                    visit: impl FnOnce(&mut Self) -> Option<super::super::CallSite<'program>>,
+                ) -> Option<super::super::CallSite<'program>> {
+                    let enclosing = self.transition_target;
+                    self.transition_target = target;
+                    let result = self.selected(visit);
+                    self.transition_target = enclosing;
+                    result
+                }
+
+                pub(super) fn is_target_call_site(&self) -> bool {
                     self.current_ordinal == self.target_call_ordinal
                 }
 
@@ -43393,6 +43739,7 @@ pub(crate) mod occurrences {
             }
         }
         pub(crate) mod statement {
+
             use super::expression;
             use crate::machine_calls::calls::occurrences::CallSite;
             use crate::machine_calls::calls::occurrences::CallSiteTraversal;
@@ -43460,19 +43807,24 @@ pub(crate) mod occurrences {
                             return Some(call_site);
                         }
 
-                        if let Some(call_site) = traversal.selected(|traversal| {
-                            find_call_site_in_transition_target(traversal, transition.target)
-                        }) {
+                        if let Some(call_site) =
+                            traversal.selected_target(transition.target, |traversal| {
+                                find_call_site_in_transition_target(traversal, transition.target)
+                            })
+                        {
                             return Some(call_site);
                         }
 
                         if transition.continuation.is_valid() {
-                            return traversal.selected(|traversal| {
-                                find_call_site_in_transition_target(
-                                    traversal,
-                                    transition.continuation,
-                                )
-                            });
+                            return traversal.selected_target(
+                                transition.continuation,
+                                |traversal| {
+                                    find_call_site_in_transition_target(
+                                        traversal,
+                                        transition.continuation,
+                                    )
+                                },
+                            );
                         }
 
                         None
@@ -43563,6 +43915,13 @@ pub(crate) mod occurrences {
         },
     }
 
+    /// One source call and the transition operand lane which owns its ordinal.
+    /// Guard and ordinary statement calls retain the empty target.
+    pub(crate) struct StatementCallOccurrence<'program> {
+        pub(crate) site: CallSite<'program>,
+        pub(crate) transition_target: typed_trees::statement::TransitionTargetHandle,
+    }
+
     impl<'program> CallSite<'program> {
         pub fn authored_application(
             &self,
@@ -43584,8 +43943,7 @@ pub(crate) mod occurrences {
         pub fn argument_evaluation_order(
             &self,
             program: &dyn crate::CheckingInput,
-        ) -> Result<typed_trees::typed_trees::calls::CallArgumentEvaluationOrder, &'static str>
-        {
+        ) -> Result<typed_trees::calls::CallArgumentEvaluationOrder, &'static str> {
             let application = self.authored_application();
             program.call_argument_evaluation_order(
                 application,
@@ -43748,6 +44106,26 @@ pub(crate) mod occurrences {
         collected
     }
 
+    /// Retain call/target association during the same ordinal-producing walk.
+    /// Queries that inspect a complete statement must not rediscover its lane by
+    /// walking the statement again for each call.
+    pub(crate) fn collect_statement_call_occurrences<'program>(
+        program: &'program dyn crate::CheckingInput,
+        machine: &'program typed_trees::machine::Machine,
+        state: &'program typed_trees::state::State,
+        statement_index: usize,
+    ) -> Vec<StatementCallOccurrence<'program>> {
+        let mut collected = Vec::new();
+        if let Some(statement) = program.statement_table.statement_at(state, statement_index) {
+            let mut traversal =
+                CallSiteTraversal::collecting_occurrences(program, machine, state, &mut collected);
+            let _ = find_call_site_in_statement(&mut traversal, statement);
+        }
+        collected
+    }
+
+    /// Reuse call-ordinal traversal to distinguish guard evaluation from the two
+    /// mutually exclusive target operands of a transition.
     pub fn transition_call_target(
         program: &dyn crate::CheckingInput,
         machine: &typed_trees::machine::Machine,
@@ -43829,6 +44207,7 @@ pub use argument_correspondence::{
     SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters,
     selected_call_arguments, selected_call_result_domain_matches,
 };
+pub(crate) use occurrences::collect_statement_call_occurrences;
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state,

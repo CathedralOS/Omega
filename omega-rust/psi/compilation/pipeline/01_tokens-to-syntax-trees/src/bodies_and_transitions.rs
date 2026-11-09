@@ -309,6 +309,7 @@ pub(crate) mod bodies {
     }
     pub(crate) mod transitions {
         pub(crate) mod guards {
+
             use crate::diagnostics::parse_error::ParseError;
             use crate::grammar::expressions::parse_expression::parse_expression_handle_without_struct_literals;
             use crate::storage::tables::{exprs, exprs_of};
@@ -784,7 +785,7 @@ pub(crate) mod bodies {
                             MatchFieldAction::Bind(binding) => Some(binding.clone()),
                             _ => None,
                         };
-                        (field.member.clone(), binding)
+                        (field.member.clone(), binding, field.component)
                     })
                     .collect::<Vec<_>>();
                 let has_rest = parsed_fields.has_rest;
@@ -793,14 +794,16 @@ pub(crate) mod bodies {
                 let capture = exprs(syntax_trees).insert_transition_subject(subject);
                 let saved = exprs(syntax_trees).insert(ExpressionNode::SavedSubject(
                     syntax_trees::expression::TableSavedSubject {
+                        component: Default::default(),
                         capture,
                         pattern_head: head,
                     },
                 ));
                 let fields = fields
                     .into_iter()
-                    .filter_map(|(member, binding)| {
+                    .filter_map(|(member, binding, component)| {
                         binding.map(|binding| DestructureBinding {
+                            component,
                             binding,
                             member,
                             case_variant: None,

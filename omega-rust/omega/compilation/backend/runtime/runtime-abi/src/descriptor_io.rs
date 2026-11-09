@@ -4,10 +4,9 @@ We recognize exact native descriptor I/O entry identities (`DescriptorAbi`,
 
 Symbol text alone is insufficient: we match the normalized target profile,
 library/object identity (`libSystem.B.dylib`, `msvcrt.dll`, versioned
-`libc.so.6`), or Linux syscall number. `descriptor_import` excludes `LinuxLibc`
-`Read` until the private-output adapter supplies its input/errno model, while
-`descriptor_import_identity` still recognizes the entry so other execution
-routes cannot misclassify it.
+`libc.so.6`), or Linux syscall number. The modeled adapter separately requires
+finite input or buffered output. Recognizing an entry supplies no environment
+or permission to execute it through an unmodeled worker.
 */
 
 use target::{ForeignLocatorCandidate, NormalizedForeignLocator, TargetProfile};
@@ -29,8 +28,10 @@ pub enum DescriptorAbi {
 pub fn descriptor_import(
     locator: &NormalizedForeignLocator,
 ) -> Option<(DescriptorAbi, DescriptorOperation)> {
-    let identity = descriptor_import_identity(locator)?;
-    (identity != (DescriptorAbi::LinuxLibc, DescriptorOperation::Read)).then_some(identity)
+    // The modeled adapter separately requires the operation's finite input
+    // or buffered output capability. Recognition supplies no environment or
+    // permission to execute the same locator through an unmodeled worker.
+    descriptor_import_identity(locator)
 }
 
 pub fn descriptor_import_identity(
@@ -132,7 +133,7 @@ mod tests {
             );
             assert_eq!(
                 descriptor_import(&libc(target, b"libc.so.6", b"read", version)),
-                None
+                Some((DescriptorAbi::LinuxLibc, DescriptorOperation::Read))
             );
             assert_eq!(
                 descriptor_import_identity(&libc(target, b"libc.so.6", b"read", version)),
@@ -143,6 +144,15 @@ mod tests {
 
     #[test]
     fn a_lookalike_export_or_other_libc_version_is_not_an_offer() {
+        assert_eq!(
+            descriptor_import(&libc(
+                TargetProfile::LinuxX64,
+                b"libc.so.6",
+                b"read",
+                b"GLIBC_2.17"
+            )),
+            None
+        );
         for (object, symbol, version) in [
             (
                 b"other.so.6".as_slice(),

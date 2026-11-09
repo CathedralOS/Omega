@@ -115,6 +115,9 @@ must meet the trait's contracts, including laws that relate the operations.
 A generic conformance puts parameters on its name, such as
 `SequenceEncoding<Element, Message> satisfies WireEncodable<Vec<Element>, Message>`.
 Select a concrete application such as `SequenceEncoding<u8, PlayerMessage>`.
+A `requires` clause on the declaration constrains which applications are
+admitted; [chapter 13](chapter_13_generics.md#relating-two-index-forms-once)
+uses one to relate two spellings of an index.
 See [conformance declarations](../spec/language/conformances.md#declaration-and-selection)
 for lifetime parameters and complete member matching.
 
@@ -506,6 +509,31 @@ Store the state behind a borrow so every `Reader` has a uniform representation.
 You can return a complete reader, but its unknown state type stays inside the
 package. Replacing a reader also ends the validity of projections from its old
 state. See [some packages](../spec/language/some_packages.md).
+
+### Owning the state
+
+A borrowed package leaves the real owner elsewhere, so a factory cannot return
+one. To own the hidden state, store it through a carrier whose layout does not
+depend on the type. A qualified extent names the type only in its custody
+index, so every `Job` below has the same representation while each one owns a
+different state:
+
+```omega
+data Job<P, R, some S> [linear] {
+    state: Extent in Granted & Resident<P, S>;
+    run: machine(state: Extent in Granted & Resident<P, S>) -> R;
+}
+```
+
+The producer establishes the resident with its allocator, selects `run` over
+the concrete state and constructs the record; packing allocates nothing. A
+queue of such jobs holds owners of many state types and never learns any of
+them. The consumer opens a job and moves `state` into `run`, which knows the
+concrete owner and returns the storage to its provider. The package is linear,
+so a job cannot be dropped: it is run, cancelled through another consuming
+operation the producer supplied, or moved onward. Inline `state: S` stays out
+because no single layout represents it. See
+[owned state](../spec/language/some_packages.md#owned-state-through-uniform-carriers).
 
 <a id="dynamic-surface"></a>
 

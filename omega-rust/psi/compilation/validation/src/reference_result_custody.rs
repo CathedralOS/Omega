@@ -23,6 +23,7 @@ use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) mod stored_carrier_sources {
+
     use checked_trees::CheckedMemberIdentity;
     use checked_trees::{
         CheckFacts, CheckedStructuralValueHandle, CheckedStructuralValueKind,
@@ -125,7 +126,7 @@ pub(crate) mod stored_carrier_sources {
                     value,
                     source: CheckedUnitStructuralArgumentPlan {
                         projection_evaluations: Default::default(),
-                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression: child.expression },
+                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { value_dependency: None, expression: child.expression, logical_root_type_identity: None },
                         path: Vec::new(),
                         type_identity: crate::stored_structural_type_identity(program, child.type_reference, &[], &[]),
                         access: match access {
@@ -565,6 +566,7 @@ pub(crate) mod call_reception {
 }
 pub use call_reception::{RecordCallReception, record_call_reception};
 pub(crate) mod captured_returns {
+
     pub(crate) mod completion_calls {
         use arena::Handle;
         use checked_trees::{FlowCallFact, FlowControlFacts, FlowOperandFact};
@@ -816,6 +818,7 @@ pub(crate) mod captured_returns {
         }
     }
     pub(crate) mod completions {
+
         use arena::Handle;
         use checked_trees::{FlowControlFacts, FlowOperandCompletion, FlowOperandFact};
         use std::collections::BTreeMap;
@@ -862,6 +865,20 @@ pub(crate) mod captured_returns {
                 }
                 builder.graph.root = builder.push(Coverage::All(required));
                 Some(builder.graph)
+            }
+
+            /// A selected body supplies completion, while the relation owner still
+            /// validates every body equation and retains every possible origin.
+            pub(super) fn alternatives(
+                states: impl IntoIterator<Item = SymbolHandle>,
+            ) -> Option<Self> {
+                let mut nodes: Vec<_> = states.into_iter().map(Coverage::Call).collect();
+                if nodes.is_empty() {
+                    return None;
+                }
+                let root = nodes.len();
+                nodes.push(Coverage::Any((0..root).collect()));
+                Some(Self { nodes, root })
             }
 
             pub(crate) fn dependencies(&self) -> impl Iterator<Item = SymbolHandle> + '_ {
@@ -1373,6 +1390,84 @@ pub(crate) mod captured_returns {
                     }
                 }
                 (!sources.is_empty()).then_some(sources)
+            }
+        }
+    }
+    mod family_returns {
+        //! A portable interface returns through its complete retained body roster.
+        //! The interface owns no flow captures. Each body's equation supplies actual
+        //! origins in the common telescope, and every body remains a dependency.
+
+        use super::{Captures, CheckedReturnedReferencePlan, State, completions::ReturnCoverage};
+
+        /// None inside Some means an ordinary state. A missing or incompatible family
+        /// is unavailable data, never an empty list of returned descriptors.
+        pub(super) fn entries<'a>(
+            program: &'a dyn crate::CheckingInput,
+            state: &State,
+        ) -> Option<Option<Vec<&'a State>>> {
+            let machine = program.machine_holding_state(state.symbol)?;
+            if !machine.target_family_interface {
+                return Some(None);
+            }
+            if program.machine_states(machine).first()?.symbol != state.symbol {
+                return None;
+            }
+            let parameters = program.state_parameters(state);
+            let mut entries = Vec::new();
+            for member in crate::target_family_members(program, machine)? {
+                let body = program.machine(member.machine)?;
+                if !body.body_is_present || !body.supply_mode.is_checked_body() {
+                    return None;
+                }
+                let entry = program.machine_states(body).first()?;
+                let actual = program.state_parameters(entry);
+                if program.normalized_type_identity(entry.return_type)
+                    != program.normalized_type_identity(state.return_type)
+                    || actual.len() != parameters.len()
+                    || actual.iter().zip(parameters).any(|(actual, expected)| {
+                        actual.is_const != expected.is_const
+                            || actual.is_mutable != expected.is_mutable
+                            || actual.relevance != expected.relevance
+                            || program.normalized_type_identity(actual.type_reference)
+                                != program.normalized_type_identity(expected.type_reference)
+                    })
+                {
+                    return None;
+                }
+                entries.push(entry);
+            }
+            Some(Some(entries))
+        }
+
+        impl Captures<'_> {
+            pub(super) fn family_return(
+                &mut self,
+                entries: &[&State],
+            ) -> Option<Vec<CheckedReturnedReferencePlan>> {
+                let relations = self.relations?;
+                let observed = self.observed.as_deref_mut()?;
+                let mut output = Vec::new();
+                let mut returning = false;
+                for entry in entries {
+                    returning |= crate::normal_completion_possible(self.program, entry)?;
+                    for source in relations.approximation(entry.symbol, observed) {
+                        if !output.contains(&source) {
+                            output.push(source);
+                            if output.len() > super::super::MAX_REFERENCE_ORIGIN_LEAVES {
+                                return None;
+                            }
+                        }
+                    }
+                }
+                if returning {
+                    observed.completed(ReturnCoverage::alternatives(
+                        entries.iter().map(|entry| entry.symbol),
+                    )?);
+                } else {
+                    observed.nonreturning();
+                }
+                Some(output)
             }
         }
     }
@@ -1996,7 +2091,102 @@ pub(crate) mod captured_returns {
         };
         use semantic_vocabulary::ReferenceOriginExtent;
 
+        struct CapturedInvocationInput {
+            operand: Handle<FlowOperandFact>,
+            reference: typed_trees::types::TypeReferenceHandle,
+            source: crate::LocalWriteSource,
+            presentation: CapturedReturnPresentation,
+        }
+
         impl<'capture> Captures<'capture> {
+            pub(super) fn invocation_borrow_sources(
+                &mut self,
+                state: &typed_trees::state::State,
+                descriptor: &FlowOperandFact,
+            ) -> Option<(bool, Vec<super::CapturedInvocationBorrowSource>)> {
+                let FlowOperandCompletion::InvocationResult { invocation, .. } =
+                    descriptor.completion
+                else {
+                    return None;
+                };
+                let call =
+                    self.calls
+                        .invocation(&self.facts.flow.control, state.symbol, invocation)?;
+                if !crate::call_target_has_checked_body_contract(self.program, call.target_symbol) {
+                    return None;
+                }
+                let shell = crate::reference_shell(self.program, descriptor.type_reference)?;
+                let referee = self.program.normalized_type_identity(shell.referee);
+                let relative = crate::LocalWriteSource {
+                    invocation_output: None,
+                    invocation_result: None,
+                    is_image_storage: false,
+                    recasts: Vec::new(),
+                    representation: None,
+                    path: String::new(),
+                    collection_coarse: false,
+                    root: SymbolHandle::invalid(),
+                    segments: Vec::new(),
+                };
+                let presentation = CapturedReturnPresentation {
+                    path: Vec::new(),
+                    source_type: referee,
+                    endpoint_type: referee,
+                    result_type: referee,
+                    extent: ReferenceOriginExtent::Projected,
+                };
+                let (origins, inputs) = self.invocation_argument_sources_with_inputs(
+                    state,
+                    descriptor.type_reference,
+                    descriptor,
+                    &relative,
+                    &presentation,
+                    &mut Vec::new(),
+                    &mut Vec::new(),
+                    true,
+                )?;
+                let mut output = Vec::new();
+                for input in inputs {
+                    if !input.presentation.path.is_empty() {
+                        return None;
+                    }
+                    let outer_reference =
+                        crate::reference_shell(self.program, input.reference).is_some();
+                    let (source_path, projection) = if let Some(boundary) =
+                        super::input_descriptor_boundary(
+                            self.program,
+                            input.reference,
+                            &input.source.segments,
+                        )? {
+                        let actual = self.facts.flow.control.operands.get(input.operand);
+                        (
+                            super::super::loan_place_segments(
+                                self.program,
+                                actual.type_reference,
+                                &boundary.path,
+                            )?,
+                            input
+                                .source
+                                .segments
+                                .strip_prefix(boundary.prefix.as_slice())?
+                                .to_vec(),
+                        )
+                    } else {
+                        if !outer_reference {
+                            return None;
+                        }
+                        (Vec::new(), input.source.segments)
+                    };
+                    output.push(super::CapturedInvocationBorrowSource {
+                        operand: input.operand,
+                        source_path,
+                        projection,
+                        extent: input.presentation.extent,
+                    });
+                }
+                Some((!origins.is_empty(), output))
+            }
+
             #[allow(clippy::too_many_arguments)]
             pub(crate) fn invocation_argument_sources(
                 &mut self,
@@ -2008,6 +2198,31 @@ pub(crate) mod captured_returns {
                 active: &mut Vec<SymbolHandle>,
                 visiting: &mut Vec<Handle<FlowOperandFact>>,
             ) -> Option<Vec<CapturedArgumentOrigin>> {
+                self.invocation_argument_sources_with_inputs(
+                    state,
+                    reference,
+                    descriptor,
+                    relative,
+                    presentation,
+                    active,
+                    visiting,
+                    false,
+                )
+                .map(|(sources, _)| sources)
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            fn invocation_argument_sources_with_inputs(
+                &mut self,
+                state: &typed_trees::state::State,
+                reference: typed_trees::types::TypeReferenceHandle,
+                descriptor: &FlowOperandFact,
+                relative: &crate::LocalWriteSource,
+                presentation: &CapturedReturnPresentation,
+                active: &mut Vec<SymbolHandle>,
+                visiting: &mut Vec<Handle<FlowOperandFact>>,
+                retain_inputs: bool,
+            ) -> Option<(Vec<CapturedArgumentOrigin>, Vec<CapturedInvocationInput>)> {
                 let FlowOperandCompletion::InvocationResult {
                     invocation,
                     result_type,
@@ -2112,6 +2327,7 @@ pub(crate) mod captured_returns {
                         .target_sources(call.target_symbol, active)
                         .ok_or("returned invocation has no checked origin relation")?;
                     let mut output = Vec::new();
+                    let mut captured_inputs = Vec::new();
                     for candidate in sources {
                         if super::loan_place_segments(self.program, declared, &candidate.path)
                             .ok_or("returned invocation origin has no result path")?
@@ -2167,6 +2383,14 @@ pub(crate) mod captured_returns {
                                 visiting,
                             )
                             .ok_or("returned invocation input has no complete captured origins")?;
+                        if retain_inputs {
+                            captured_inputs.push(CapturedInvocationInput {
+                                operand: input,
+                                reference: parameter.type_reference,
+                                source,
+                                presentation: composed.clone(),
+                            });
+                        }
                         for mut input in inputs {
                             if composed.extent == ReferenceOriginExtent::WithinRegion {
                                 input.extent = ReferenceOriginExtent::WithinRegion;
@@ -2179,7 +2403,7 @@ pub(crate) mod captured_returns {
                             }
                         }
                     }
-                    Ok(output)
+                    Ok((output, captured_inputs))
                 })();
                 if let Err(reason) = &result
                     && crate::trace_flags::check_sites()
@@ -2194,9 +2418,7 @@ pub(crate) mod captured_returns {
         }
     }
     pub(crate) mod invocation_returns {
-        use super::super::{
-            MAX_REFERENCE_ORIGIN_LEAVES, declared_carrier_references, origin_place_segments,
-        };
+        use super::super::MAX_REFERENCE_ORIGIN_LEAVES;
         use super::{
             CapturedReturnOrigin, CapturedReturnPresentation, Captures,
             CheckedReferenceOriginProjection, CheckedReturnedReferencePlan,
@@ -2636,31 +2858,11 @@ pub(crate) mod captured_returns {
                 let outer_reference = crate::reference_shell(self.program, reference).is_some();
                 let carrier =
                     super::super::input_carrier_type(self.program, reference).unwrap_or(reference);
-                let mut boundary = None;
-                for leaf in declared_carrier_references(self.program, carrier)? {
-                    let segments =
-                        origin_place_segments(self.program, carrier, leaf.path.iter().cloned())?;
-                    if outer_reference && segments.is_empty() {
-                        continue;
-                    }
-                    if relative.segments.starts_with(&segments) {
-                        if boundary.is_some() {
-                            return None;
-                        }
-                        boundary = Some((leaf, segments));
-                    }
-                }
-                if let Some((leaf, segments)) = boundary {
-                    let path = leaf
-                        .path
-                        .iter()
-                        .map(|projection| match projection {
-                            CheckedReferenceOriginProjection::Exact(segment) => {
-                                Some(segment.clone())
-                            }
-                            CheckedReferenceOriginProjection::Element => None,
-                        })
-                        .collect::<Option<Vec<_>>>()?;
+                if let Some(boundary) =
+                    super::input_descriptor_boundary(self.program, reference, &relative.segments)?
+                {
+                    let path = boundary.path;
+                    let segments = boundary.prefix;
                     if !self.expression_leaf_present(
                         state,
                         operand.statement_index,
@@ -3430,6 +3632,7 @@ pub(crate) mod captured_returns {
         }
     }
     pub(crate) mod relations {
+
         use super::{
             Captures, CheckedReturnedReferencePlan, SymbolHandle, completions::ReturnCoverage,
         };
@@ -3808,6 +4011,20 @@ pub(crate) mod captured_returns {
             state: SymbolHandle,
         ) -> Option<Vec<CheckedReturnedReferencePlan>> {
             let state = program.state_by_symbol(state)?;
+            if let Some(entries) = super::family_returns::entries(program, state)? {
+                let mut output = Vec::new();
+                for entry in entries {
+                    for candidate in candidates(program, facts, entry.symbol)? {
+                        if !output.contains(&candidate) {
+                            output.push(candidate);
+                            if output.len() > super::super::MAX_REFERENCE_ORIGIN_LEAVES {
+                                return None;
+                            }
+                        }
+                    }
+                }
+                return Some(output);
+            }
             if !crate::normal_completion_possible(program, state)? {
                 return Some(Vec::new());
             }
@@ -3954,6 +4171,68 @@ pub(crate) mod captured_returns {
         })
     }
 
+    struct CapturedInputDescriptor {
+        path: Vec<CheckedUnitStructuralPathSegment>,
+        prefix: Vec<facts::PlaceSegment>,
+    }
+
+    fn input_descriptor_boundary(
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        segments: &[facts::PlaceSegment],
+    ) -> Option<Option<CapturedInputDescriptor>> {
+        let outer_reference = crate::reference_shell(program, reference).is_some();
+        let carrier = super::input_carrier_type(program, reference).unwrap_or(reference);
+        let mut boundary = None;
+        for leaf in super::declared_carrier_references(program, carrier)? {
+            let prefix = super::origin_place_segments(program, carrier, leaf.path.iter().cloned())?;
+            if outer_reference && prefix.is_empty() {
+                continue;
+            }
+            if segments.starts_with(&prefix) {
+                if boundary.is_some() {
+                    return None;
+                }
+                boundary = Some((leaf, prefix));
+            }
+        }
+        let Some((leaf, prefix)) = boundary else {
+            return Some(None);
+        };
+        Some(Some(CapturedInputDescriptor {
+            path: leaf
+                .path
+                .into_iter()
+                .map(|projection| match projection {
+                    CheckedReferenceOriginProjection::Exact(segment) => Some(segment),
+                    CheckedReferenceOriginProjection::Element => None,
+                })
+                .collect::<Option<Vec<_>>>()?,
+            prefix,
+        }))
+    }
+
+    // Keep the captured input and its projection together. The borrowing checker
+    // still checks the input's permission and retained parents.
+    pub struct CapturedInvocationBorrowSource {
+        pub operand: arena::Handle<checked_trees::FlowOperandFact>,
+        pub source_path: Vec<facts::PlaceSegment>,
+        pub projection: Vec<facts::PlaceSegment>,
+        pub extent: ReferenceOriginExtent,
+    }
+
+    pub fn invocation_borrow_sources(
+        program: &dyn crate::CheckingInput,
+        facts: &CheckFacts,
+        state: &State,
+        descriptor: &checked_trees::FlowOperandFact,
+    ) -> Option<Vec<CapturedInvocationBorrowSource>> {
+        let (established, sources) = relations::complete(program, facts, |captures| {
+            captures.invocation_borrow_sources(state, descriptor)
+        })?;
+        (established && !sources.is_empty()).then_some(sources)
+    }
+
     pub(crate) fn terminal_call_sources(
         program: &dyn crate::CheckingInput,
         facts: &CheckFacts,
@@ -4083,6 +4362,9 @@ pub(crate) mod captured_returns {
             }
             if active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
                 return None;
+            }
+            if let Some(entries) = family_returns::entries(self.program, state)? {
+                return self.family_return(&entries);
             }
             if !crate::normal_completion_possible(self.program, state)? {
                 if let Some(observed) = self.observed.as_deref_mut() {
@@ -6553,6 +6835,7 @@ pub(crate) mod source_paths {
 }
 pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
+pub use captured_returns::{CapturedInvocationBorrowSource, invocation_borrow_sources};
 pub use declared_returns::{
     installed_context_sources, returned_sources as declared_return_sources,
 };
@@ -6926,7 +7209,9 @@ pub fn borrowed_initializer_source(
                 owner_type = loop {
                     match program.type_reference_table.type_reference(owner_type) {
                         TypeReferenceNode::Constrained { base_type, .. } => owner_type = *base_type,
-                        TypeReferenceNode::FixedArray { element_type, .. } => break *element_type,
+                        TypeReferenceNode::FixedArray { element_type, .. } => {
+                            break *element_type;
+                        }
                         _ => return None,
                     }
                 };
@@ -7876,7 +8161,6 @@ pub fn storage_place_loans(
     record_leaf_loan_groups(
         program, facts, reference, owner, &captured, selection, homes,
     )
-    .ok_or("the activated storage loans have no complete typed leaf grouping")
 }
 
 pub fn initial_reference_establishment(
@@ -8049,40 +8333,49 @@ fn record_leaf_loan_groups(
     loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
     homes: crate::completed_storage::InstalledLoanHomes<'_>,
-) -> Option<Vec<RecordLeafLoans>> {
+) -> Result<Vec<RecordLeafLoans>, &'static str> {
     let source = match owner {
         facts::PlaceRoot::Symbol(symbol) => {
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
         }
         facts::PlaceRoot::Expression(expression) => {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency: None,
+                expression,
+                logical_root_type_identity: None,
+            }
         }
-        _ => return None,
+        _ => return Err("stored reference owner has no executable source form"),
     };
-    let sources = record_carrier_sources(program, reference, source)?;
+    let sources = record_carrier_sources(program, reference, source)
+        .ok_or("stored reference type has no complete descriptor frontier")?;
     let mut grouped_count = 0usize;
     let mut output = Vec::with_capacity(sources.len());
     for source in sources
         .into_iter()
         .filter(|source| source.path.starts_with(selection))
     {
-        let owner_path = crate::corresponding_loan_owner_path(
-            program,
-            reference,
-            &loan_owner_path(program, reference, &source.path)?,
-        )?;
-        let access = source.source.access.borrow_access_kind()?;
+        let declared_path = loan_owner_path(program, reference, &source.path)
+            .ok_or("stored reference leaf has no typed owner path")?;
+        let owner_path = crate::corresponding_loan_owner_path(program, reference, &declared_path)
+            .ok_or("stored reference leaf does not fit its carrier")?;
+        let access = source
+            .source
+            .access
+            .borrow_access_kind()
+            .ok_or("stored reference leaf has no borrowing access")?;
         let mut group = arena::HandleSpan::empty();
         let mut formation = None;
         let mut has_pointer = false;
         for handle in loans.iter().copied() {
             let loan = facts.borrow.loans.get(handle);
-            if crate::corresponding_loan_owner_path(
+            let captured_path = crate::corresponding_loan_owner_path(
                 program,
                 reference,
                 homes.owner_path(program, loan).as_ref(),
-            )? != owner_path
-            {
+            )
+            .ok_or("captured loan owner path does not fit its carrier")?;
+            if captured_path != owner_path {
                 continue;
             }
             let dependency = loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency;
@@ -8091,7 +8384,7 @@ fn record_leaf_loan_groups(
                 || formation.is_some_and(|statement| statement != loan.statement_index)
                 || (!group.is_empty() && !group.is_followed_by(handle))
             {
-                return None;
+                return Err("stored reference loans disagree on owner, access or formation group");
             }
             has_pointer |= !dependency;
             formation = Some(loan.statement_index);
@@ -8100,18 +8393,32 @@ fn record_leaf_loan_groups(
             } else {
                 group.start()
             };
-            group = arena::HandleSpan::from_parts(start, group.count().checked_add(1)?);
-            grouped_count = grouped_count.checked_add(1)?;
+            group = arena::HandleSpan::from_parts(
+                start,
+                group
+                    .count()
+                    .checked_add(1)
+                    .ok_or("stored reference loan group exceeds its count representation")?,
+            );
+            grouped_count = grouped_count
+                .checked_add(1)
+                .ok_or("stored reference loan accounting exceeds usize")?;
         }
         if group.is_empty() {
             continue;
         }
         if !has_pointer {
-            return None;
+            // Signature lifetime dependencies remain in the borrow facts.
+            // They describe retained inputs, not an executable descriptor
+            // to install in this value's storage.
+            continue;
         }
         output.push((source, group));
     }
-    (grouped_count == loans.len()).then_some(output)
+    if grouped_count != loans.len() {
+        return Err("activated storage loan has no corresponding typed reference leaf");
+    }
+    Ok(output)
 }
 
 pub fn loan_place_segments(
@@ -8412,6 +8719,7 @@ fn active_record_loans(
             state: state.symbol,
         },
     )
+    .ok()
 }
 
 fn reference_record_call_sources<'program>(
@@ -8459,7 +8767,9 @@ pub fn transient_call_record_loans(
             .all(|source| {
                 let parameter_index = match source.source.root {
                     checked_trees::CheckedReferenceOriginRoot::Parameter { index } => index,
-                    checked_trees::CheckedReferenceOriginRoot::Invocation { .. } => return true,
+                    checked_trees::CheckedReferenceOriginRoot::Invocation { .. } => {
+                        return true;
+                    }
                 };
                 let Some(parameter) = parameters
                     .iter()

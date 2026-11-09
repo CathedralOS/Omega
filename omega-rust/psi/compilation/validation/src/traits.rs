@@ -737,11 +737,14 @@ pub(crate) mod conformance {
             formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
         ) {
             for conformance in program.machine_trait_conformances(machine) {
-                if let Some(requirement) = program.machines().iter().find(|requirement| {
-                    requirement.symbol == conformance.symbol
-                        && requirement.supply_mode
-                            == language_semantics::MachineSupplyMode::TopLevelRequirement
-                }) {
+                if let Some(requirement) =
+                    program
+                        .machines_with_symbol(conformance.symbol)
+                        .find(|requirement| {
+                            requirement.supply_mode
+                                == language_semantics::MachineSupplyMode::TopLevelRequirement
+                        })
+                {
                     validate_machine_top_level_requirement_conformance(
                         program,
                         service_reaches,
@@ -2158,14 +2161,15 @@ pub(crate) mod conformance {
             let Some(application) = applications.next() else {
                 return Ok(machine);
             };
-            let template = program.machines().iter().find(|template| {
-                template.symbol == application.template
-                    && template.symbol != machine.symbol
-                    && template.type_parameters == application.template_parameters
-                    && !program.machine_type_parameters(template).is_empty()
-                    && program.machine_trait_conformances(template)
-                        == program.machine_trait_conformances(machine)
-            });
+            let template = program
+                .machines_with_symbol(application.template)
+                .find(|template| {
+                    template.symbol != machine.symbol
+                        && template.type_parameters == application.template_parameters
+                        && !program.machine_type_parameters(template).is_empty()
+                        && program.machine_trait_conformances(template)
+                            == program.machine_trait_conformances(machine)
+                });
             template
         .filter(|_| applications.next().is_none())
         .ok_or_else(|| {
@@ -6885,11 +6889,14 @@ pub(crate) mod provider_applications {
                 if conformance.symbol != conformance.requirement_symbol {
                     continue;
                 }
-                let Some(template) = program.machines().iter().find(|candidate| {
-                    candidate.symbol == conformance.symbol
-                        && candidate.supply_mode == MachineSupplyMode::TopLevelRequirement
-                        && !program.machine_type_parameters(candidate).is_empty()
-                }) else {
+                let Some(template) =
+                    program
+                        .machines_with_symbol(conformance.symbol)
+                        .find(|candidate| {
+                            candidate.supply_mode == MachineSupplyMode::TopLevelRequirement
+                                && !program.machine_type_parameters(candidate).is_empty()
+                        })
+                else {
                     continue;
                 };
                 if let Ok(closed) =

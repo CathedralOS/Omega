@@ -2423,13 +2423,13 @@ mod linear_obligations {
         pub(crate) entries: Vec<CheckedClaimOutcomeEntry>,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub(crate) struct CheckedClaimOutcomeEntry {
         pub(crate) output_path: Vec<facts::PlaceSegment>,
         pub(crate) source: CheckedClaimOutcomeSource,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub(crate) enum CheckedClaimOutcomeSource {
         Input {
             parameter_symbol: SymbolHandle,
@@ -5751,8 +5751,8 @@ mod returned_claims {
         them. Ordinary affine storage moves are checked separately: they neither
         create linear resources nor prove that a case payload is absent.
     */
+    use super::claim_outcomes::InactiveClaimQueries;
     use super::claim_outcomes::claim_paths_are_case_alternatives;
-    use super::claim_outcomes::preserved_inactive_place;
     use super::linear_obligations::LinearPlace;
     use super::linear_validation::permission_event_statement_index;
     use crate::flow::{CapturedValueChoice, SelectionCondition, SelectionConditions};
@@ -5790,7 +5790,7 @@ mod returned_claims {
         One authentic consumer occurrence. The completed operand has its own
         evaluation prefix; the enclosing exit or invocation only names its owner.
     */
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub(crate) struct ClaimConsumption {
         pub machine: symbols::SymbolHandle,
         pub state: symbols::SymbolHandle,
@@ -5880,6 +5880,7 @@ mod returned_claims {
             operand,
             ClaimObservation::Consumed,
             None,
+            &mut InactiveClaimQueries::new(program, facts, consumer.state),
             conditions,
         )
     }
@@ -5905,6 +5906,7 @@ mod returned_claims {
             operand,
             ClaimObservation::Consumed,
             None,
+            &mut InactiveClaimQueries::new(program, facts, consumer.state),
             conditions,
         )
     }
@@ -5981,6 +5983,7 @@ mod returned_claims {
                 parent: Default::default(),
             },
             destination.as_ref(),
+            &mut InactiveClaimQueries::new(program, facts, consumer.state),
             conditions,
         )
     }
@@ -6029,6 +6032,7 @@ mod returned_claims {
         operand: &FlowOperandFact,
         observation: ClaimObservation<'_>,
         receiving: Option<&validation::CanonicalPlace>,
+        inactive: &mut InactiveClaimQueries<'_>,
         conditions: &mut SelectionConditions,
     ) -> Result<Vec<ReturnedClaim>, &'static str> {
         if !operand.type_reference.is_valid() || operand.state_symbol != consumer.state {
@@ -6072,6 +6076,7 @@ mod returned_claims {
                     facts.flow.control.operands.get(alternative.value),
                     observation,
                     receiving,
+                    inactive,
                     conditions,
                 )? {
                     claim.condition = conditions.all(choice, claim.condition);
@@ -6296,6 +6301,7 @@ mod returned_claims {
                     child_operand,
                     observation.for_child(operand.expression),
                     None,
+                    inactive,
                     conditions,
                 )? {
                     let mut path = destination.to_vec();
@@ -6360,21 +6366,9 @@ mod returned_claims {
                 && let Some(state) = program.state_by_symbol(operand.state_symbol)
             {
                 place.segments.extend_from_slice(&expected.path);
-                if preserved_inactive_place(
-                    program,
-                    facts.borrow,
-                    state,
-                    operand.statement_index,
-                    &place,
-                    facts.flow.ownership,
-                    facts
-                        .flow
-                        .ownership
-                        .permissions
-                        .iter()
-                        .map(|(_, event)| event),
-                )
-                .is_some()
+                if inactive
+                    .preserved(state, operand.statement_index, &place)
+                    .is_some()
                 {
                     represented_paths.insert(expected.path.clone());
                     claims.push(ReturnedClaim {
@@ -6395,6 +6389,7 @@ mod returned_claims {
                     source_place.as_ref(),
                     has_carrier_transfer,
                     evaluation,
+                    inactive,
                     conditions,
                 )?
             {
@@ -6422,6 +6417,7 @@ mod returned_claims {
         source_place: Option<&validation::CanonicalPlace>,
         has_carrier_transfer: bool,
         evaluation: FlowPermissionEvaluation,
+        inactive: &mut InactiveClaimQueries<'_>,
         conditions: &mut SelectionConditions,
     ) -> Result<Option<Vec<ReturnedClaim>>, &'static str> {
         let Some(mut source) = source_place.cloned() else {
@@ -6514,6 +6510,7 @@ mod returned_claims {
                         saved,
                         ClaimObservation::Consumed,
                         None,
+                        inactive,
                         conditions,
                     )?;
                     let mut selected = Vec::new();
@@ -7739,6 +7736,7 @@ mod selected_cleanup {
     }
 }
 mod selected_evaluation {
+
     /*
         Scratch custody follows the expression occurrence schedule. Each decision
         keeps one entry and one completed sibling; reconvergence joins immediately,
@@ -7757,7 +7755,236 @@ mod selected_evaluation {
     use language_semantics::{Multiplicity, PermissionEventSource};
     use typed_trees::expression::ExpressionHandle;
 
+    mod owned_cases {
+        //! Keep branch cleanup tied to the source value and storage version selected.
+
+        use super::place_bindings::SelectionSite;
+        use crate::checks::multiplicity::cleanup_dispositions::RemainingCustody;
+        use crate::checks::ownership_occurrences::{EvaluationBranch, StatementOccurrence};
+        use arena::HandleSpan;
+        use checked_trees::{FlowControlFacts, FlowOwnedCaseSelection};
+        use std::collections::{BTreeMap, BTreeSet};
+        use std::sync::Arc;
+
+        type ArmKey = (u32, u32, u32, u32);
+
+        struct PreparedCases {
+            paths: Vec<(symbols::SymbolHandle, validation::CanonicalPlace)>,
+            by_variant: BTreeMap<(u32, u32), usize>,
+        }
+
+        struct PreparedOwner {
+            root: facts::PlaceRoot,
+            path: HandleSpan<facts::PlaceSegment>,
+            cases: Arc<PreparedCases>,
+        }
+
+        struct Selection {
+            row: FlowOwnedCaseSelection,
+            cases: Arc<PreparedCases>,
+            selected: usize,
+        }
+
+        pub(super) struct OwnedCaseSelections {
+            arms: BTreeMap<ArmKey, Option<Selection>>,
+        }
+
+        impl OwnedCaseSelections {
+            pub(super) fn new(
+                program: &dyn validation::CheckingInput,
+                control: &FlowControlFacts,
+                site: SelectionSite,
+                occurrences: &[StatementOccurrence],
+            ) -> Self {
+                let mut arms = BTreeMap::new();
+                let Some(state) = control
+                    .unique_state_by_symbol(site.state)
+                    .filter(|state| state.machine_symbol == site.machine)
+                else {
+                    return Self { arms };
+                };
+                let Some(statements) = control.statements.span(state.statements) else {
+                    return Self { arms };
+                };
+                // The state records execution order, not source ordinals. Locate the
+                // unique original statement before reading its published selections.
+                let mut matching = state
+                    .statements
+                    .handles()
+                    .zip(statements)
+                    .filter(|(_, statement)| statement.statement_index == site.statement);
+                let Some((statement_handle, statement)) = matching.next() else {
+                    return Self { arms };
+                };
+                if matching.next().is_some() {
+                    return Self { arms };
+                }
+                let Some(selections) = control
+                    .owned_case_selections
+                    .span(statement.owned_case_selections)
+                else {
+                    return Self { arms };
+                };
+                let visited = occurrences
+                    .iter()
+                    .flat_map(|occurrence| &occurrence.route)
+                    .filter(|branch| {
+                        branch.expression().is_valid() && branch.source_arm().is_valid()
+                    })
+                    .map(|branch| {
+                        let expression = branch.expression();
+                        (expression.arena_index(), expression.generation())
+                    })
+                    .collect::<BTreeSet<_>>();
+                // Group only this statement's actual rows once. The stable sort keeps
+                // their producing order within each expression, as the old grouping did.
+                let mut rows = statement
+                    .owned_case_selections
+                    .handles()
+                    .zip(selections)
+                    .filter_map(|(handle, row)| {
+                        (row.statement == statement_handle
+                            && visited.contains(&(
+                                row.expression.arena_index(),
+                                row.expression.generation(),
+                            )))
+                        .then_some(handle)
+                    })
+                    .collect::<Vec<_>>();
+                rows.sort_by_key(|handle| {
+                    let row = control.owned_case_selections.get(*handle);
+                    (row.expression.arena_index(), row.expression.generation())
+                });
+                let mut owner: Option<PreparedOwner> = None;
+                let mut current_expression = None;
+                for handle in rows {
+                    let row = *control.owned_case_selections.get(handle);
+                    if row.machine_symbol != site.machine
+                        || row.state_symbol != site.state
+                        || row.statement_index != site.statement
+                        || row.evaluation != site.evaluation
+                    {
+                        continue;
+                    }
+                    let expression = row.expression;
+                    let expression_key = (expression.arena_index(), expression.generation());
+                    if current_expression != Some(expression_key) {
+                        owner = None;
+                        current_expression = Some(expression_key);
+                    }
+                    let key = (
+                        expression.arena_index(),
+                        expression.generation(),
+                        row.source_arm.arena_index(),
+                        row.source_arm.generation(),
+                    );
+                    let selected = (|| {
+                        if !control.operands.is_valid(row.subject)
+                            || !control.storage_snapshots.is_valid(row.captured_storage)
+                            || !control.storage_snapshots.is_valid(row.selected_storage)
+                        {
+                            return None;
+                        }
+                        let subject = control.operands.get(row.subject);
+                        if subject.state_symbol != site.state
+                            || subject.statement_index != site.statement
+                            || subject.evaluation != site.evaluation
+                        {
+                            return None;
+                        }
+                        let cases = match &owner {
+                            Some(prepared)
+                                if prepared.root == row.root && prepared.path == row.path =>
+                            {
+                                Arc::clone(&prepared.cases)
+                            }
+                            _ => {
+                                let path = control.operand_referent_segments.span(row.path)?;
+                                let place = validation::CanonicalPlace {
+                                    root: row.root,
+                                    segments: path.to_vec(),
+                                };
+                                let paths = RemainingCustody::owned_case_paths(
+                                    program,
+                                    site.state,
+                                    site.statement,
+                                    &place,
+                                )?;
+                                let by_variant = paths
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(ordinal, (variant, _))| {
+                                        ((variant.arena_index(), variant.generation()), ordinal)
+                                    })
+                                    .collect();
+                                let cases = Arc::new(PreparedCases { paths, by_variant });
+                                owner = Some(PreparedOwner {
+                                    root: row.root,
+                                    path: row.path,
+                                    cases: Arc::clone(&cases),
+                                });
+                                cases
+                            }
+                        };
+                        let selected = *cases
+                            .by_variant
+                            .get(&(row.variant.arena_index(), row.variant.generation()))?;
+                        Some(Selection {
+                            row,
+                            cases,
+                            selected,
+                        })
+                    })();
+                    arms.entry(key)
+                        .and_modify(|previous: &mut Option<Selection>| {
+                            let identical = previous.as_ref().zip(selected.as_ref()).is_some_and(
+                                |(left, right)| {
+                                    left.row == right.row
+                                        && left.selected == right.selected
+                                        && Arc::ptr_eq(&left.cases, &right.cases)
+                                },
+                            );
+                            if !identical {
+                                *previous = None;
+                            }
+                        })
+                        .or_insert(selected);
+                }
+                Self { arms }
+            }
+
+            pub(super) fn observe(
+                &self,
+                branch: EvaluationBranch,
+                remaining: &mut RemainingCustody,
+            ) {
+                let expression = branch.expression();
+                let arm = branch.source_arm();
+                let key = (
+                    expression.arena_index(),
+                    expression.generation(),
+                    arm.arena_index(),
+                    arm.generation(),
+                );
+                let Some(Some(selection)) = self.arms.get(&key) else {
+                    return;
+                };
+                if branch.selected() {
+                    for (ordinal, (_, path)) in selection.cases.paths.iter().enumerate() {
+                        if ordinal != selection.selected {
+                            remaining.exclude_absent_case(path);
+                        }
+                    }
+                } else if selection.row.miss_excludes_case {
+                    // Only a total case test can show that this payload is absent.
+                    // A failed guard still leaves that case's cleanup obligations live.
+                    remaining.exclude_absent_case(&selection.cases.paths[selection.selected].1);
+                }
+            }
+        }
+    }
     pub(super) mod place_bindings {
+
         /*
             A selected mutation leaves live storage, independently of the expression's
             returned value. Bind that storage's arriving obligations by exact place.
@@ -7786,6 +8013,12 @@ mod selected_evaluation {
             pub state: SymbolHandle,
             pub statement: usize,
             pub evaluation: FlowPermissionEvaluation,
+        }
+
+        #[derive(Clone, Copy)]
+        pub(in crate::checks::multiplicity) struct SelectionEntry<'routes> {
+            pub site: SelectionSite,
+            pub routes: &'routes super::ExpressionRoutes,
         }
 
         fn arrival(place: &LinearPlace) -> Result<FlowSelectionPlaceArrival, Diagnostic> {
@@ -7827,7 +8060,7 @@ mod selected_evaluation {
             selected: &mut SelectedEvaluation<(Vec<LinearPlace>, RemainingCustody)>,
             route: &[EvaluationBranch],
             current: &mut (Vec<LinearPlace>, RemainingCustody),
-            site: SelectionSite,
+            entry: SelectionEntry<'_>,
             ownership: &mut FlowOwnershipFacts,
             identities: &mut ClaimIdentityAllocator,
             mut leave: impl FnMut(
@@ -7836,10 +8069,18 @@ mod selected_evaluation {
                 &mut FlowOwnershipFacts,
             ) -> Result<(), Diagnostic>,
         ) -> Result<(), Diagnostic> {
+            let site = entry.site;
+            // Cleanup may use ownership's segment arena at each departing scope.
+            // Stage join bindings until that ordered walk completes so both
+            // operations have one visible mutable owner rather than aliased callbacks.
             let mut bindings = Vec::new();
-            selected.enter(
+            selected.enter_with(
                 route,
                 current,
+                |branch, current| {
+                    entry.routes.observe_owned_case(branch, &mut current.1);
+                    Ok(())
+                },
                 |branch, current| leave(branch, current, ownership),
                 |branch, current, sibling| {
                     join_places(&mut current.0, &sibling.0, |place, other| {
@@ -7990,12 +8231,18 @@ mod selected_evaluation {
         }
     }
 
-    pub(super) struct ExpressionRoutes {
+    pub(crate) struct ExpressionRoutes {
         completed: Vec<(ExpressionHandle, Vec<EvaluationBranch>)>,
+        owned_cases: owned_cases::OwnedCaseSelections,
     }
 
     impl ExpressionRoutes {
-        pub(super) fn from_steps(occurrences: &[StatementOccurrence]) -> Self {
+        pub(super) fn from_steps(
+            program: &dyn validation::CheckingInput,
+            occurrences: &[StatementOccurrence],
+            control: &checked_trees::FlowControlFacts,
+            site: place_bindings::SelectionSite,
+        ) -> Self {
             let completed = occurrences
                 .iter()
                 .filter_map(|occurrence| match occurrence.step {
@@ -8005,7 +8252,15 @@ mod selected_evaluation {
                     _ => None,
                 })
                 .collect();
-            Self { completed }
+            Self {
+                completed,
+                owned_cases: owned_cases::OwnedCaseSelections::new(
+                    program,
+                    control,
+                    site,
+                    occurrences,
+                ),
+            }
         }
 
         pub(super) fn new(
@@ -8015,6 +8270,7 @@ mod selected_evaluation {
             statement_index: usize,
             evaluation: FlowPermissionEvaluation,
             operators: &CheckedOperatorFacts,
+            control: &checked_trees::FlowControlFacts,
         ) -> Self {
             let statement =
                 &program.statement_table.statements(state.statement_nodes)[statement_index];
@@ -8028,7 +8284,25 @@ mod selected_evaluation {
                 operators,
                 Some(evaluation),
             );
-            Self::from_steps(&occurrences)
+            Self::from_steps(
+                program,
+                &occurrences,
+                control,
+                place_bindings::SelectionSite {
+                    machine: machine.symbol,
+                    state: state.symbol,
+                    statement: statement_index,
+                    evaluation,
+                },
+            )
+        }
+
+        pub(super) fn observe_owned_case(
+            &self,
+            branch: EvaluationBranch,
+            remaining: &mut super::cleanup_dispositions::RemainingCustody,
+        ) {
+            self.owned_cases.observe(branch, remaining);
         }
 
         pub(super) fn expression(&self, expression: ExpressionHandle) -> &[EvaluationBranch] {

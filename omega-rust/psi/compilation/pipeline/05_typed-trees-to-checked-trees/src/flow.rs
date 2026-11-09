@@ -4902,6 +4902,7 @@ mod state {
     }
 }
 mod statements {
+
     /*
         Statement facts for one state. Per statement, `append_state_statement_flow_facts`
         records entry contexts, runs a transition's arms (`exits`) or its calls
@@ -5011,6 +5012,7 @@ mod statements {
                 storage_snapshot,
                 value_observations: HandleSpan::empty(),
                 operator_invocations: HandleSpan::empty(),
+                owned_case_selections: HandleSpan::empty(),
                 stored_value: Handle::invalid(),
                 store_target: Handle::invalid(),
                 stored_destination: Handle::invalid(),
@@ -7529,6 +7531,7 @@ mod jump_loans {
     }
 }
 mod receiver_reads {
+
     /*
         The storage a call or local state jump may read through its data binding.
 
@@ -7782,12 +7785,13 @@ mod receiver_reads {
             }
             let mut reads = Vec::new();
             if complete {
-                DirectReads {
+                complete = DirectReads {
                     program,
                     owner: &owner,
                     statement_index: 0,
                     delegated: &delegated,
                     reads: &mut reads,
+                    complete: true,
                 }
                 .collect();
             }
@@ -7968,10 +7972,11 @@ mod receiver_reads {
         statement_index: usize,
         delegated: &'walk DelegatedReceivers,
         reads: &'walk mut Vec<CanonicalPlace>,
+        complete: bool,
     }
 
     impl DirectReads<'_, '_> {
-        fn collect(&mut self) {
+        fn collect(&mut self) -> bool {
             let program = self.program;
             for (statement_index, statement) in
                 crate::flow::state_statements(program, self.owner.state.statement_nodes)
@@ -8010,6 +8015,7 @@ mod receiver_reads {
                     }
                 }
             }
+            self.complete
         }
 
         fn record(&mut self, place: CanonicalPlace) {
@@ -8095,21 +8101,32 @@ mod receiver_reads {
             if !expression.is_valid() {
                 return;
             }
-            if let Some(place) = place_at(
+            let captured_home = match place_at(
                 self.program,
                 self.owner.state.symbol,
                 self.statement_index,
                 expression,
-            )
-            .filter(|place| matches!(place.root, facts::PlaceRoot::Symbol(_)))
-            {
-                if named {
-                    self.record(place);
+            ) {
+                Some(place) if matches!(place.root, facts::PlaceRoot::Symbol(_)) => {
+                    if named {
+                        self.record(place);
+                    }
+                    self.selectors(expression);
+                    return;
                 }
-                self.selectors(expression);
-                return;
-            }
+                Some(CanonicalPlace {
+                    root: facts::PlaceRoot::Expression(_),
+                    ..
+                }) => true,
+                _ => false,
+            };
+            // A computed base: its own operands are ordinary reads.
             match self.program.expression_table.expression(expression) {
+                // A saved value reads its already established home. Its source and
+                // selectors were evaluated at the capture, not again at this alias.
+                // An unauthenticated home leaves the footprint unknown, so callers
+                // conservatively observe their whole receiver.
+                ExpressionNode::SavedSubject(_) => self.complete &= captured_home,
                 ExpressionNode::Member(member) => self.place(member.receiver, named),
                 ExpressionNode::Indexed(indexed) => {
                     self.place(indexed.collection, named);
@@ -9720,10 +9737,10 @@ mod carried_semantic_dependencies {
         let Some(root_symbol) = root.as_symbol() else {
             return Exposure::PrivateImplementation;
         };
-        let Some(machine) = program.machines().iter().find(|machine| {
-            machine.symbol == machine_symbol
-                && (machine.is_public || machine.supply_mode.is_boundary_declaration())
-        }) else {
+        let Some(machine) = program
+            .machines_with_symbol(machine_symbol)
+            .find(|machine| machine.is_public || machine.supply_mode.is_boundary_declaration())
+        else {
             return Exposure::PrivateImplementation;
         };
         let Some(entry) = program.machine_states(machine).first() else {
@@ -9859,6 +9876,7 @@ mod carried_semantic_dependencies {
     }
 }
 mod cleanup_case_evidence {
+
     /*
         Case membership at one checked cleanup occurrence.
 
@@ -9879,6 +9897,381 @@ mod cleanup_case_evidence {
     use std::cell::OnceCell;
     use symbols::SymbolHandle;
     use typed_trees::data::DataMember;
+    mod completed_results {
+        //! Normal result branches retain the value that completed each selected arm.
+        //! Operand dependencies are not result branches and never select a death edge.
+
+        use super::OccurrenceContexts;
+        use arena::Handle;
+        use checked_trees::{CheckFacts, ContextualCleanupDisposition};
+        use checked_trees::{
+            FlowClaimJoinExit, FlowOperandCompletion, FlowOperandFact, FlowOwnedCaseSelection,
+        };
+        use std::collections::{BTreeMap, BTreeSet};
+        use std::rc::Rc;
+        use symbols::SymbolHandle;
+        use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchArm};
+        use validation::{CanonicalPlace, CheckingInput};
+
+        pub(crate) struct CaseSelections<'a> {
+            facts: &'a CheckFacts,
+            by_arm: BTreeMap<(u32, u32, u32, u32), Vec<Handle<FlowOwnedCaseSelection>>>,
+            by_variant: BTreeMap<(u32, u32, u32, u32), Vec<Handle<FlowOwnedCaseSelection>>>,
+        }
+
+        impl<'a> CaseSelections<'a> {
+            pub(crate) fn new(
+                facts: &'a CheckFacts,
+                machine: SymbolHandle,
+                state: SymbolHandle,
+            ) -> Option<Rc<Self>> {
+                let control = &facts.flow.control;
+                let state = control.state(machine, state)?;
+                let mut by_arm = BTreeMap::<_, Vec<_>>::new();
+                let mut by_variant = BTreeMap::<_, Vec<_>>::new();
+                for statement in control.statements.span(state.statements)? {
+                    for handle in statement.owned_case_selections.handles() {
+                        if !control.owned_case_selections.is_valid(handle) {
+                            return None;
+                        }
+                        let row = control.owned_case_selections.get(handle);
+                        by_arm
+                            .entry((
+                                row.expression.arena_index(),
+                                row.expression.generation(),
+                                row.source_arm.arena_index(),
+                                row.source_arm.generation(),
+                            ))
+                            .or_default()
+                            .push(handle);
+                        if row.miss_excludes_case {
+                            by_variant
+                                .entry((
+                                    row.expression.arena_index(),
+                                    row.expression.generation(),
+                                    row.variant.arena_index(),
+                                    row.variant.generation(),
+                                ))
+                                .or_default()
+                                .push(handle);
+                        }
+                    }
+                }
+                Some(Rc::new(Self {
+                    facts,
+                    by_arm,
+                    by_variant,
+                }))
+            }
+        }
+
+        fn operand(
+            control: &checked_trees::FlowControlFacts,
+            handle: Handle<FlowOperandFact>,
+        ) -> Option<&FlowOperandFact> {
+            control
+                .operands
+                .is_valid(handle)
+                .then(|| control.operands.get(handle))
+        }
+
+        #[derive(Clone)]
+        struct SelectionRoute {
+            parent: Option<Rc<SelectionRoute>>,
+            expression: ExpressionHandle,
+            arm: Handle<TableMatchArm>,
+        }
+
+        pub(crate) struct CompletedResult<'a> {
+            program: &'a dyn CheckingInput,
+            facts: &'a CheckFacts,
+            captures: Vec<Handle<FlowOperandFact>>,
+            route: Option<Rc<SelectionRoute>>,
+            cases: Rc<CaseSelections<'a>>,
+            contexts: std::cell::OnceCell<Option<OccurrenceContexts>>,
+        }
+
+        /// Group only actual returned alternatives. Shared parents retain one route
+        /// node; the walk neither expands independent operands nor copies each prefix.
+        pub(crate) struct CompletedResultNode<'a> {
+            pub(crate) expression: ExpressionHandle,
+            pub(crate) result: CompletedResult<'a>,
+            pub(crate) branches: BTreeMap<(u32, u32), usize>,
+        }
+
+        pub(crate) struct CompletedResults<'a> {
+            pub(crate) nodes: Vec<CompletedResultNode<'a>>,
+        }
+
+        pub(crate) fn selected_results<'a>(
+            program: &'a dyn CheckingInput,
+            facts: &'a CheckFacts,
+            exit: FlowClaimJoinExit,
+            values: Vec<Handle<FlowOperandFact>>,
+            cases: Rc<CaseSelections<'a>>,
+        ) -> Option<CompletedResults<'a>> {
+            if values.is_empty() || !std::ptr::eq(cases.facts, facts) {
+                return None;
+            }
+            let control = &facts.flow.control;
+            let mut pending = vec![(values, None::<Rc<SelectionRoute>>, 0usize)];
+            let mut results = vec![None];
+            let mut remaining = control
+                .operands
+                .len()
+                .checked_add(control.operand_alternatives.len())?
+                .checked_add(1)?;
+            while let Some((captures, route, position)) = pending.pop() {
+                remaining = remaining.checked_sub(1)?;
+                let first = operand(control, *captures.first()?)?;
+                let expression = first.expression;
+                // Saved subjects and stored scalar aliases retain completed selected
+                // contents. Only their actual Match occurrence produces new control.
+                let selected = matches!(first.completion, FlowOperandCompletion::Selected(_))
+                    && expression.is_valid()
+                    && matches!(
+                        program.expression_table.expression(expression),
+                        ExpressionNode::Match(_)
+                    );
+                let mut branches = BTreeMap::<
+                    (u32, u32),
+                    (Handle<TableMatchArm>, Vec<Handle<FlowOperandFact>>),
+                >::new();
+                for capture in &captures {
+                    let value = operand(control, *capture)?;
+                    if value.expression != expression
+                        || value.state_symbol != exit.state_symbol
+                        || value.statement_index != exit.statement_index
+                        || value.evaluation != first.evaluation
+                        || value.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
+                    {
+                        return None;
+                    }
+                    if !selected {
+                        continue;
+                    }
+                    let FlowOperandCompletion::Selected(alternatives) = value.completion else {
+                        return None;
+                    };
+                    let ExpressionNode::Match(dispatch) =
+                        program.expression_table.expression(expression)
+                    else {
+                        return None;
+                    };
+                    let alternatives = control.operand_alternatives.span(alternatives)?;
+                    if alternatives.is_empty() {
+                        return None;
+                    }
+                    let mut seen = BTreeSet::new();
+                    for alternative in alternatives {
+                        let arm = alternative.source_arm;
+                        let ordinal = arm
+                            .arena_index()
+                            .checked_sub(dispatch.arms.start().arena_index())?;
+                        if dispatch.arms.handles().nth(ordinal as usize) != Some(arm)
+                            || !seen.insert((arm.arena_index(), arm.generation()))
+                        {
+                            return None;
+                        }
+                        let authored = program
+                            .expression_table
+                            .match_arms(dispatch.arms)
+                            .get(ordinal as usize)?;
+                        let completed = operand(control, alternative.value)?;
+                        if completed.expression != authored.value {
+                            return None;
+                        }
+                        let values = &mut branches
+                            .entry((arm.arena_index(), arm.generation()))
+                            .or_insert_with(|| (arm, Vec::new()))
+                            .1;
+                        values.push(alternative.value);
+                    }
+                }
+                let mut children = BTreeMap::new();
+                if selected {
+                    for (_, (arm, mut captures)) in branches.into_iter().rev() {
+                        captures.sort_unstable_by_key(|value| {
+                            (value.arena_index(), value.generation())
+                        });
+                        captures.dedup();
+                        let child = results.len();
+                        results.push(None);
+                        children.insert((arm.arena_index(), arm.generation()), child);
+                        pending.push((
+                            captures,
+                            Some(Rc::new(SelectionRoute {
+                                parent: route.clone(),
+                                expression,
+                                arm,
+                            })),
+                            child,
+                        ));
+                    }
+                }
+                results[position] = Some(CompletedResultNode {
+                    expression,
+                    result: CompletedResult {
+                        program,
+                        facts,
+                        captures,
+                        route,
+                        cases: cases.clone(),
+                        contexts: std::cell::OnceCell::new(),
+                    },
+                    branches: children,
+                });
+            }
+            Some(CompletedResults {
+                nodes: results.into_iter().collect::<Option<Vec<_>>>()?,
+            })
+        }
+
+        impl CompletedResult<'_> {
+            pub(super) fn contexts(&self) -> &Option<OccurrenceContexts> {
+                let facts = self.facts;
+                self.contexts.get_or_init(|| {
+                    self.captures
+                        .iter()
+                        .map(|capture| {
+                            let value = operand(&facts.flow.control, *capture)?;
+                            Some((
+                                value.statement_index,
+                                facts
+                                    .flow
+                                    .semantic_constraint_contexts(value.constraints)
+                                    .collect(),
+                            ))
+                        })
+                        .collect()
+                })
+            }
+
+            pub(super) fn belongs_to(
+                &self,
+                program: &dyn CheckingInput,
+                facts: checked_trees::CheckFactsRef<'_>,
+            ) -> bool {
+                // Result proofs read these immutable plans. A borrowed view must name
+                // those same plans; the temporary view's own address has no identity.
+                std::ptr::eq(self.program, program)
+                    && std::ptr::eq(&self.facts.semantic, facts.semantic)
+                    && std::ptr::eq(&self.facts.flow.control, facts.flow.control)
+                    && std::ptr::eq(&self.facts.flow.contexts, facts.flow.contexts)
+            }
+
+            pub(super) fn proves_case(
+                &self,
+                disposition: &ContextualCleanupDisposition,
+                subject: &CanonicalPlace,
+                variant: SymbolHandle,
+                required: bool,
+            ) -> bool {
+                let program = self.program;
+                let facts = self.facts;
+                let Some(contexts) = self.contexts().as_ref() else {
+                    return false;
+                };
+                self.captures
+                    .iter()
+                    .zip(contexts)
+                    .all(|(capture, (_, contexts))| {
+                        let Some(value) = operand(&facts.flow.control, *capture) else {
+                            return false;
+                        };
+                        if super::super::place_case_has_value(
+                            program,
+                            &facts.semantic,
+                            contexts,
+                            disposition.machine,
+                            disposition.state,
+                            value.statement_index,
+                            subject,
+                            variant,
+                            required,
+                        ) {
+                            return true;
+                        }
+                        let mut route = self.route.as_deref();
+                        while let Some(selection) = route {
+                            let ExpressionNode::Match(dispatch) =
+                                program.expression_table.expression(selection.expression)
+                            else {
+                                return false;
+                            };
+                            let expression = (
+                                selection.expression.arena_index(),
+                                selection.expression.generation(),
+                            );
+                            let current = self.cases.by_arm.get(&(
+                                expression.0,
+                                expression.1,
+                                selection.arm.arena_index(),
+                                selection.arm.generation(),
+                            ));
+                            let prior = self.cases.by_variant.get(&(
+                                expression.0,
+                                expression.1,
+                                variant.arena_index(),
+                                variant.generation(),
+                            ));
+                            for handle in current
+                                .into_iter()
+                                .flatten()
+                                .chain(prior.into_iter().flatten())
+                            {
+                                let row = facts.flow.control.owned_case_selections.get(*handle);
+                                if row.machine_symbol != disposition.machine
+                                    || row.state_symbol != disposition.state
+                                    || row.statement_index != disposition.exit.statement_index
+                                    || row.evaluation != value.evaluation
+                                    || row.expression != selection.expression
+                                    || row.root != subject.root
+                                    || facts.flow.control.operand_referent_segments.span(row.path)
+                                        != Some(subject.segments.as_slice())
+                                {
+                                    continue;
+                                }
+                                let current = row.source_arm == selection.arm;
+                                let prior = row.source_arm.generation()
+                                    == selection.arm.generation()
+                                    && row.source_arm.arena_index() < selection.arm.arena_index()
+                                    && row.source_arm.arena_index()
+                                        >= dispatch.arms.start().arena_index()
+                                    && row.miss_excludes_case;
+                                let proves = if current {
+                                    (row.variant == variant && required)
+                                        || (row.variant != variant
+                                            && !required
+                                            && program.symbols.get(row.variant).parent
+                                                == program.symbols.get(variant).parent)
+                                } else {
+                                    prior && row.variant == variant && !required
+                                };
+                                if proves
+                            && validation::completed_storage::contents_preserved_from(
+                                program,
+                                &facts.flow.control,
+                                value.storage_snapshot,
+                                subject,
+                                &[row.selected_storage],
+                                validation::completed_storage::StoredObservation::InlineContents,
+                            )
+                        {
+                            return true;
+                        }
+                            }
+                            route = selection.parent.as_deref();
+                        }
+                        false
+                    })
+            }
+        }
+    }
+    pub(crate) use completed_results::{
+        CaseSelections, CompletedResult, CompletedResults, selected_results,
+    };
+
     use validation::{
         CanonicalPlace, CheckingInput, CleanupCaseReachability, canonical_place_type_reference,
         unwrapped_type_reference,
@@ -9894,6 +10287,7 @@ mod cleanup_case_evidence {
         inactive: Vec<&'a [PlaceSegment]>,
         definite: Vec<&'a [PlaceSegment]>,
         contexts: OnceCell<Option<OccurrenceContexts>>,
+        completed_result: Option<&'a CompletedResult<'a>>,
     }
 
     impl<'a> CleanupCaseEvidence<'a> {
@@ -9948,18 +10342,31 @@ mod cleanup_case_evidence {
                 inactive,
                 definite,
                 contexts: OnceCell::new(),
+                completed_result: None,
             })
         }
 
-        /*
-            Producer custody proves a real transfer on every edge where this
-            case exists; an unknown exit tag alone supplies no such evidence.
-        */
+        pub(crate) fn at_completed_result(
+            mut self,
+            result: &'a CompletedResult<'a>,
+        ) -> Option<Self> {
+            if !result.belongs_to(self.program, self.facts) {
+                return None;
+            }
+            self.completed_result = Some(result);
+            Some(self)
+        }
+
+        /// Producer custody proves a real transfer on every edge where this
+        /// case exists; an unknown exit tag alone supplies no such evidence.
         pub(crate) fn definitely_transferred(&self, path: &[PlaceSegment]) -> bool {
             self.definite.contains(&path)
         }
 
         pub(crate) fn contexts(&self) -> &Option<OccurrenceContexts> {
+            if let Some(completed) = self.completed_result {
+                return completed.contexts();
+            }
             self.contexts.get_or_init(|| {
                 self.facts
                     .flow
@@ -9983,6 +10390,9 @@ mod cleanup_case_evidence {
             variant: SymbolHandle,
             required: bool,
         ) -> bool {
+            if let Some(completed) = self.completed_result {
+                return completed.proves_case(self.disposition, subject, variant, required);
+            }
             self.contexts()
                 .as_ref()
                 .filter(|points| !points.is_empty())
@@ -10055,6 +10465,9 @@ mod cleanup_case_evidence {
                     root: self.disposition.root,
                     segments: path[..position].to_vec(),
                 };
+                if self.proves_case(&subject, *variant, false) {
+                    return Some(CleanupCaseReachability::Inactive);
+                }
                 if self.proves_case(&subject, *variant, true) {
                     continue;
                 }
@@ -10099,8 +10512,13 @@ mod cleanup_case_evidence {
         }
     }
 }
-pub(crate) use cleanup_case_evidence::CleanupCaseEvidence;
+pub(crate) use cleanup_case_evidence::{
+    CaseSelections as CleanupCaseSelections, CleanupCaseEvidence,
+    CompletedResult as CompletedCleanupResult, CompletedResults as CompletedCleanupResults,
+    selected_results as cleanup_result_selections,
+};
 mod cleanup_effect_dependencies {
+
     /*
         Project selected cleanup dispositions into the ordinary effect graph.
 
@@ -10180,6 +10598,16 @@ mod cleanup_effect_dependencies {
         facts: &CheckFacts,
         disposition: &ContextualCleanupDisposition,
     ) -> Option<Vec<CleanupLeaf>> {
+        let evidence = super::CleanupCaseEvidence::new(program, facts.view(), disposition)?;
+        selected_cleanup_leaves_in(program, facts, disposition, &evidence)
+    }
+
+    pub(crate) fn selected_cleanup_leaves_in(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        disposition: &ContextualCleanupDisposition,
+        case_evidence: &super::CleanupCaseEvidence<'_>,
+    ) -> Option<Vec<CleanupLeaf>> {
         let dispositions = &facts.contextual_cleanup;
         let path = facts.flow.ownership.segments.span(disposition.path)?;
         let removed = dispositions
@@ -10188,7 +10616,6 @@ mod cleanup_effect_dependencies {
             .iter()
             .map(|place| dispositions.segments.span(place.segments))
             .collect::<Option<Vec<_>>>()?;
-        let case_evidence = super::CleanupCaseEvidence::new(program, facts.view(), disposition)?;
         if removed.iter().any(|removed| path.starts_with(removed)) {
             return Some(Vec::new());
         }
@@ -11270,7 +11697,8 @@ pub(crate) mod dynamic_effect_dependencies {
 }
 pub(crate) use cleanup_effect_dependencies::{
     CleanupLeaf, cleanup_path_order, concrete_cleanup_paths, derive_cleanup_effect_dependencies,
-    residual_cleanup_is_eligible, selected_cleanup_leaves, whole_cleanup_is_eligible,
+    residual_cleanup_is_eligible, selected_cleanup_leaves, selected_cleanup_leaves_in,
+    whole_cleanup_is_eligible,
 };
 
 pub(crate) use reference_places::{
@@ -11395,10 +11823,10 @@ pub(crate) use place::{
     canonical_place_segments_may_overlap, canonical_places_agree, case_tag_segments_may_overlap,
     compose_captured_view_segments, fixed_selection_segment, literal_argument_access_places,
     literal_expression_projections, literal_value_path_is_inactive, literal_value_projections,
-    narrow_pinned_index_segments, place_case_has_value, place_case_path_is_inactive,
-    place_cases_are_selected, place_cases_are_selected_after, place_segment_has_static_identity,
-    place_segment_has_unresolved_identity, projected_leaf_place, reference_source_place,
-    segments_cover_subject, source_independent_place, stable_case_subject,
+    narrow_pinned_index_segments, narrow_pinned_index_segments_with_values, place_case_has_value,
+    place_case_path_is_inactive, place_cases_are_selected, place_cases_are_selected_after,
+    place_segment_has_static_identity, place_segment_has_unresolved_identity, projected_leaf_place,
+    reference_source_place, segments_cover_subject, source_independent_place, stable_case_subject,
     static_place_segment_pair_equal,
 };
 pub(crate) use reach::attach_reach_summaries;

@@ -171,6 +171,7 @@ mod affine_locals {
     }
 }
 mod argument_paths {
+
     /*
         Checked scalar arguments and projected argument paths: field and index
         paths and exactly retained argument carriers.
@@ -720,12 +721,34 @@ mod argument_paths {
         )
     }
 
-    /*
-        `projected_selected_path` for a case observation, which reads the case
-        value's storage rather than a descriptor. A retained local descriptor is
-        crossed here; a borrowed parameter already denotes its referee's storage.
-        A view is itself the indexed carrier, not a Reference to that carrier.
-    */
+    /// Physical crossings before a projection enters a stored root's contents.
+    /// A parameter's referent presentation is a different coordinate and does not
+    /// call this operation. The caller retains its own access and endpoint debt.
+    pub(crate) fn stored_reference_prefix(
+        program: &dyn ::validation::CheckingInput,
+        mut reference: TypeReferenceHandle,
+        mut can_cross: impl FnMut(ReferenceAccess) -> bool,
+    ) -> Option<Vec<PathSegment>> {
+        let mut prefix = Vec::new();
+        let mut remaining = program.type_reference_table.type_reference_count();
+        while let Some(shell) = reference_shell(program, reference) {
+            if !can_cross(shell.access) {
+                return None;
+            }
+            if !stores_reference_shape(program, reference, &[]) {
+                break;
+            }
+            remaining = remaining.checked_sub(1)?;
+            prefix.push(PathSegment::Referent);
+            reference = shell.referee;
+        }
+        Some(prefix)
+    }
+
+    /// `projected_selected_path` for a case observation, which reads the case
+    /// value's storage rather than a descriptor. A retained local descriptor is
+    /// crossed here; a borrowed parameter already denotes its referee's storage.
+    /// A view is itself the indexed carrier, not a Reference to that carrier.
     pub(crate) fn projected_observed_path(
         program: &dyn ::validation::CheckingInput,
         machine: SymbolHandle,
@@ -748,23 +771,30 @@ mod argument_paths {
             place,
             local_selector,
         )?;
-        if let PlaceRoot::Symbol(root) = place.root
-            && let Some(state) = program.state_by_symbol(state_symbol)
-            && let Some((ordinal, local)) = program.state_local_declaration(state, root)
-            && ordinal < statement_index
-        {
-            let mut reference = local.type_reference;
-            let mut crossings = Vec::new();
-            while let Some(shell) = reference_shell(program, reference) {
-                if shell.access == ReferenceAccess::WriteOnly {
-                    return None;
-                }
-                if !stores_reference_shape(program, reference, &[]) {
-                    break;
-                }
-                crossings.push(PathSegment::Referent);
-                reference = shell.referee;
-            }
+        // Locals and completed values own stored descriptors. Parameters already
+        // denote their supplied backing and keep the existing root presentation.
+        // This is geometry only; the consumer still requires the completed home
+        // and its exact read permission before executing the observation.
+        let stored_root = match place.root {
+            PlaceRoot::Symbol(root) => program
+                .state_by_symbol(state_symbol)
+                .and_then(|state| program.state_local_declaration(state, root))
+                .filter(|(ordinal, _)| *ordinal < statement_index)
+                .map(|(_, local)| local.type_reference),
+            PlaceRoot::Expression(_) => Some(canonical_place_type_reference(
+                program,
+                state_symbol,
+                statement_index,
+                &CanonicalPlace {
+                    root: place.root,
+                    segments: Vec::new(),
+                },
+            )?),
+            _ => None,
+        };
+        if let Some(reference) = stored_root {
+            let mut crossings =
+                stored_reference_prefix(program, reference, |access| access.is_readable())?;
             crossings.append(&mut path);
             path = crossings;
         }
@@ -2615,6 +2645,7 @@ mod call_targets {
 }
 pub(super) use call_targets::{ResolvedCallTarget, resolve_call_target};
 mod computation_arguments {
+
     /*
         Structural homes, projected borrowed operands, and primitive referents
         in scalar computations. Whole owned operands use the same storage contract
@@ -2821,6 +2852,15 @@ mod computation_arguments {
                 if named != expression {
                     return None;
                 }
+                // Noncopy saved subjects observe an existing owner. Its exact
+                // captured backing, rather than the alias used for value facts,
+                // supplies the subtree transferred by this argument.
+                let place = validation::ownership_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    call.statement_index,
+                    expression,
+                )?;
                 return storage_argument(
                     program,
                     shapes,
@@ -3023,7 +3063,18 @@ mod computation_arguments {
             )?;
             (
                 reference,
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    value_dependency: None,
+                    expression,
+                    // ProjectedArgumentPath omits only the inherited root shells.
+                    // Keep that checked logical root beside the completed owner;
+                    // nested descriptor hops remain explicit in the suffix.
+                    logical_root_type_identity: if place.segments.is_empty() {
+                        None
+                    } else {
+                        Some(shapes.add_logical_type(reference, &[], &[])?)
+                    },
+                },
             )
         } else {
             let symbol = place.root.as_symbol()?;
@@ -6222,6 +6273,7 @@ mod signatures {
     }
 }
 pub(crate) mod structural_arguments {
+
     /*
         Structural call arguments: their custody, restored reborrow aliases,
         exact borrow access and the claim transfers a call performs.
@@ -6601,7 +6653,9 @@ pub(crate) mod structural_arguments {
                 output.push(ArgumentPlan {
                     projection_evaluations,
                     source: SourcePlan::StructuralExpression {
+                        value_dependency: None,
                         expression: owner_expression,
+                        logical_root_type_identity: None,
                     },
                     path,
                     type_identity: if descriptor.is_some() {
@@ -7619,7 +7673,7 @@ pub(crate) mod structural_arguments {
                 continue;
             }
             let root = match argument.source {
-                SourcePlan::StructuralExpression { expression } => {
+                SourcePlan::StructuralExpression { expression, .. } => {
                     facts::PlaceRoot::Expression(expression)
                 }
                 _ => place_at(program, state, call.statement_index, *expression)?.root,
@@ -9363,6 +9417,7 @@ pub(crate) use argument_paths::{
     ProjectedArgumentPath, borrowed_argument_endpoint, borrowed_index_segment,
     byte_sequence_literal_argument, projected_argument_path, projected_borrowed_path,
     projected_observed_path, projected_selected_path, retain_local_reference_source,
+    stored_reference_prefix,
 };
 pub(crate) use boundary_admission::{
     boundary_authority_refusal, boundary_trait_receiver_is_namespace,

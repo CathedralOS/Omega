@@ -2309,6 +2309,7 @@ pub(crate) mod body_cloning {
 }
 
 pub(crate) mod body_rewriting {
+
     use crate::tables::{expressions_of, expressions_of_mut};
     use typed_trees::static_applications::StaticMachineBindingValue;
     use validation::collect_statement_expression_trees;
@@ -2900,13 +2901,7 @@ pub(crate) mod body_rewriting {
                 .iter()
                 .filter_map(|(parameter, target, _)| {
                     let declarations = source.unwrap_or(program);
-                    let machine = declarations.machines().iter().find(|machine| {
-                        typed_trees::state::state_by_symbol(
-                            declarations.machine_states(machine),
-                            *target,
-                        )
-                        .is_some()
-                    })?;
+                    let machine = declarations.machine_containing_state(*target)?;
                     if !machine.attached_data_symbol.is_valid() {
                         return None;
                     }
@@ -5278,6 +5273,7 @@ pub(crate) mod body_rewriting {
                     expressions_of_mut(program).insert_call_operand_capture(source, owner);
                 let receiver = expressions_of_mut(program).insert(ExpressionNode::SavedSubject(
                     TableSavedSubject {
+                        component: Default::default(),
                         capture,
                         pattern_head: ExpressionHandle::invalid(),
                     },

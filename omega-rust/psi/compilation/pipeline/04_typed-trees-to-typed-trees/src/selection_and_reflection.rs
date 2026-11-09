@@ -266,12 +266,7 @@ pub(crate) mod selection {
                     actual_state.return_type,
                     proposals,
                 );
-                let provider = program.machines().iter().find(|machine| {
-                    program
-                        .machine_states(machine)
-                        .iter()
-                        .any(|state| state.symbol == selected.symbol)
-                });
+                let provider = program.machine_containing_state(selected.symbol);
                 if let Some(provider) = provider {
                     let provider_binders: Vec<_> = program
                         .machine_type_parameters(provider)
@@ -3088,6 +3083,7 @@ pub(crate) mod result_locals {
     use crate::tables::expressions_of;
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
+    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
     use typed_trees::references::DeclarationSelection;
     use typed_trees::statement::{StatementNode, TableLocalData};
     use typed_trees::type_identity::TypeIdentityRequest;
@@ -3096,6 +3092,7 @@ pub(crate) mod result_locals {
     use validation::expression_result_type_reference;
 
     pub(crate) mod dispatch_subjects {
+
         use crate::tables::{expressions_of, expressions_of_mut};
         use arena::HandleSpan;
         use language_core::{LocalBindingRole, Multiplicity, ReferenceAccess};
@@ -3158,8 +3155,14 @@ pub(crate) mod result_locals {
                             local.initial_value,
                         )
                         .is_some_and(|place| place.root.as_symbol().is_some());
+                        let case_storage = program.pattern_component(local.initial_value)
+                            == Some(language_core::PatternComponent::Case)
+                            && validation::reference_shell(program, actual).is_none();
+                        // A case view observes the same home even when the containing
+                        // data is copyable. An existing reference keeps its descriptor.
                         let noncopy_storage = storage
-                            && program.type_multiplicity(actual) != Multiplicity::Unrestricted;
+                            && (program.type_multiplicity(actual) != Multiplicity::Unrestricted
+                                || case_storage);
                         let (mathematical, logical_machine) = if noncopy_storage {
                             let classification = proof_only
                                 .get_or_insert_with(|| typed_trees::proof_only::classify(program));
@@ -3277,7 +3280,11 @@ pub(crate) mod result_locals {
                 else {
                     unreachable!()
                 };
-                local.role = LocalBindingRole::Value;
+                local.role = if observed.is_some() {
+                    LocalBindingRole::DispatchObservation
+                } else {
+                    LocalBindingRole::Value
+                };
                 if let Some((expression, reference)) = observed {
                     local.initial_value = expression;
                     local.type_reference = reference;
@@ -3416,6 +3423,14 @@ pub(crate) mod result_locals {
             path: TableNamePath,
             source: ExpressionHandle,
         ) {
+            // The place substitution preserves this occurrence's component, including
+            // a reference-local alias whose declaration already retained a case view.
+            let Some(component) = program.pattern_component(expression) else {
+                return;
+            };
+            // Reuse the ordinary graph copier, then compose projections on that exact
+            // captured source. Index operands remain typed occurrences; no index is
+            // encoded in a generated name or evaluated again while adding the suffix.
             let mut source = if path.members.count() > 1 {
                 expressions_of_mut(program).insert_copy(source)
             } else {
@@ -3443,6 +3458,7 @@ pub(crate) mod result_locals {
             }
             expressions_of_mut(program).attach_authored_selection_occurrences(source, occurrences);
             expressions_of_mut(program).replace_with_existing(expression, source);
+            expressions_of_mut(program).set_pattern_component(expression, component);
         }
 
         pub(crate) fn require_complete(
@@ -3457,13 +3473,15 @@ pub(crate) mod result_locals {
                         };
                         if local.role == LocalBindingRole::DispatchSubject {
                             errors.push(
-                        diagnostics::Diagnostic::error(format!(
-                            "cannot determine the dispatch subject storage type in `{}::{}`",
-                            machine.name.as_str(),
-                            state.name.as_str(),
-                        ))
-                        .with_source_span(expressions_of(program).source_span(local.initial_value)),
-                    );
+                            diagnostics::Diagnostic::error(format!(
+                                "cannot determine the dispatch subject storage type in `{}::{}`",
+                                machine.name.as_str(),
+                                state.name.as_str(),
+                            ))
+                            .with_source_span(
+                                expressions_of(program).source_span(local.initial_value),
+                            ),
+                        );
                         }
                     }
                 }
@@ -4138,15 +4156,105 @@ pub(crate) mod result_locals {
                     {
                         continue;
                     }
-                    updates.push(InferredUpdate {
-                        owner: machine.symbol,
-                        body: state.statement_nodes,
-                        offset,
-                        type_reference,
-                    });
+                    let receivers = if is_call {
+                        Vec::new()
+                    } else {
+                        receiver_application_bindings(program, machine, state, local.initial_value)
+                    };
+                    updates.push((
+                        InferredUpdate {
+                            owner: machine.symbol,
+                            body: state.statement_nodes,
+                            offset,
+                            type_reference,
+                        },
+                        receivers,
+                    ));
                 }
             }
         }
+        // A field's declared type is written in its data declaration's binders.
+        // Read through `binding: Binding<Actors>`, `binding.source` has type
+        // `Source<Actors>` in the reader's binders: substitution follows
+        // declaration identity through field types, const and value arguments
+        // included (spec/language/generics.md, closed applications). Instantiate
+        // from the innermost receiver outward. `instantiate` writes new rows only
+        // where a binder changes, so no declaration's own field type is rewritten;
+        // a binder it cannot express (a const array length) keeps the declared type.
+        let updates = updates
+            .into_iter()
+            .map(|(mut update, receivers)| {
+                for bindings in receivers {
+                    update.type_reference = program
+                        .type_reference_table
+                        .instantiate(update.type_reference, &bindings)
+                        .unwrap_or(update.type_reference);
+                }
+                update
+            })
+            .collect();
         Ok(apply_updates(program, updates))
+    }
+
+    /// For a field read `receiver.field` (possibly nested), each receiver's data
+    /// application bindings, innermost receiver first: its data's type, const
+    /// and value binders paired with the receiver type's arguments.
+    fn receiver_application_bindings(
+        program: &TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        expression: ExpressionHandle,
+    ) -> Vec<Vec<(SymbolHandle, TypeReferenceHandle)>> {
+        let mut chain = Vec::new();
+        let mut current = expression;
+        while let ExpressionNode::Member(member) = expressions_of(program).expression(current) {
+            let receiver = member.receiver;
+            let Some(receiver_type) =
+                expression_result_type_reference(program, machine, state, receiver)
+            else {
+                break;
+            };
+            chain.push(data_application_bindings(program, receiver_type));
+            current = receiver;
+        }
+        chain
+    }
+
+    fn data_application_bindings(
+        program: &TypedTrees,
+        receiver: TypeReferenceHandle,
+    ) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
+        let receiver = program.type_reference_table.peeled_type_reference(receiver);
+        let typed_trees::types::TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = program.type_reference_table.type_reference(receiver)
+        else {
+            return Vec::new();
+        };
+        let Some(data) = validation::unique_data_definition_by_symbol(program, *base_symbol) else {
+            return Vec::new();
+        };
+        let parameters = program.data_type_parameters(data);
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        if parameters.len() != arguments.len() {
+            return Vec::new();
+        }
+        parameters
+            .iter()
+            .zip(arguments)
+            .filter(|(parameter, _)| {
+                matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Type
+                        | typed_trees::data::TypeParameterKind::Const { .. }
+                        | typed_trees::data::TypeParameterKind::Value { .. }
+                )
+            })
+            .map(|(parameter, argument)| (parameter.symbol, *argument))
+            .collect()
     }
 }

@@ -616,6 +616,7 @@ mod grammar {
     }
 }
 mod index {
+
     use super::grammar::{self, compound};
     use super::vocabulary::{
         ArrayLengthForm, FieldActionForm, IndexForm, Label, PatternForm, RegionForm, TypeForm,
@@ -656,6 +657,7 @@ mod index {
             IndexForm::BitwiseNot
             | IndexForm::LogicalNot
             | IndexForm::Borrow
+            | IndexForm::CaseComponent
             | IndexForm::MutableBorrow
             | IndexForm::WriteOnlyBorrow => compound(reader, visitor, expression),
             IndexForm::Add
@@ -872,7 +874,10 @@ mod index {
             grammar::name_atom(reader, Label::Name, visitor)?;
             reader.expect(b',')?;
             match reader.production::<FieldActionForm>()? {
-                FieldActionForm::Bind | FieldActionForm::Waive => scoped(visitor, |_| Ok(())),
+                FieldActionForm::Bind
+                | FieldActionForm::Waive
+                | FieldActionForm::BindCase
+                | FieldActionForm::WaiveCase => scoped(visitor, |_| Ok(())),
                 FieldActionForm::Equal => compound(reader, visitor, expression),
             }
         })
@@ -974,6 +979,7 @@ mod lifetime_partition {
     }
 }
 pub mod vocabulary {
+
     pub trait Spelled: Copy {
         fn spelling(self) -> &'static str;
     }
@@ -1150,6 +1156,10 @@ pub mod vocabulary {
             Atomic = "atomic",
             Match = "match",
             SavedSubject = "saved-subject",
+            /// `case-component(<index>)`: the case view of the same saved value.
+            CaseComponent = "case-component",
+            /// `static-application(<index>,<argument or lifetime(<text>)>*)`: a
+            /// selected declaration with its static operands.
             StaticApplication = "static-application",
             UnsupportedConstSubstitution = "unsupported-const-substitution",
             UnboundMatchSubject = "unbound-match-subject",
@@ -1168,8 +1178,11 @@ pub mod vocabulary {
 
         FieldActionForm {
             Bind = "bind",
+            BindCase = "bind-case",
+            /// `equal(<index>)`
             Equal = "equal",
             Waive = "waive",
+            WaiveCase = "waive-case",
         }
 
         Label {

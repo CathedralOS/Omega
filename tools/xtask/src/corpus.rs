@@ -428,6 +428,7 @@ pub fn observe(
     native_target: Option<&str>,
     interpret: bool,
     checked_interpreter: bool,
+    check_sites: bool,
     evidence: &Path,
 ) -> Result<String, String> {
     if filter.trim().is_empty() {
@@ -464,11 +465,54 @@ pub fn observe(
     if checked_interpreter {
         command.env("OMEGA_CORPUS_CHECKED_INTERPRETER", "1");
     }
+    if check_sites {
+        command.env("OMEGA_COMPILER_CHECK_SITES", "1");
+    }
     let status = execution::run(&mut command, evidence, "runner")?;
     if !status.success() {
         return Err(format!("runner exited {status}; original output retained"));
     }
     fs::read_to_string(records_path).map_err(|e| format!("read original runner records: {e}"))
+}
+
+fn validate_runtime_oracles(
+    root: &Path,
+    records: &[CorpusRecord],
+    target: &str,
+    native: bool,
+    interpret: bool,
+) -> Result<(), String> {
+    for row in records {
+        if row.tier == "fail" || !matches!(row.status.as_str(), "built" | "checked") {
+            continue;
+        }
+        let main = root.join("tests/omega").join(&row.fixture).join("main.omg");
+        let expected_native = if native {
+            crate::runtime_oracles::exit_oracle(&main, Some(target), false, Some(&row.facts))
+                .map_err(|error| format!("{}: {error}", row.fixture))?
+        } else {
+            None
+        };
+        let expected_interpreted = if interpret {
+            crate::runtime_oracles::exit_oracle(&main, Some(target), true, Some(&row.facts))
+                .map_err(|error| format!("{}: {error}", row.fixture))?
+        } else {
+            None
+        };
+        if native && interpret && (expected_native.is_some() || expected_interpreted.is_some()) {
+            let native_completed = row.facts.iter().any(|(key, _)| key == "exit");
+            let interpreted_completed = row.facts.iter().any(|(key, value)| {
+                key == "interpreter-exit" || (key == "interpreter" && value == "trapped")
+            });
+            if !native_completed || !interpreted_completed {
+                return Err(format!(
+                    "{}: both native and interpreter outcomes are required",
+                    row.fixture
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
@@ -635,6 +679,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         native.then_some(target),
         interpret,
         checked_interpreter,
+        false,
         &evidence,
     )
     .map_err(|e| {
@@ -649,6 +694,11 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let mut observed = parse_records(&records_text).map_err(|e| {
         eprintln!("corpus: unreadable runner records: {e}");
         4u8
+    })?;
+
+    validate_runtime_oracles(&root, &observed, target, native, interpret).map_err(|error| {
+        eprintln!("corpus: {error}; original observations retained, golden unchanged");
+        3u8
     })?;
 
     let golden_text = fs::read_to_string(&golden_path).unwrap_or_default();
@@ -739,6 +789,186 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn header_only_and_trap_oracles_guard_recording_without_changing_raw_rows() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-corpus-exit-oracles-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        ));
+        let directory = root.join("tests/omega/pass/borrows/header_only");
+        fs::create_dir_all(&directory).unwrap();
+        let main = directory.join("main.omg");
+        fs::write(&main, "// Expected exit: 0.\n").unwrap();
+        assert_eq!(
+            crate::runtime_oracles::exit_oracle(&main, None, false, None).unwrap(),
+            Some("0".to_owned())
+        );
+        let rows = |facts: &str| {
+            let text = format!("pass/borrows/header_only built 1ms {facts}");
+            parse_records(text.trim_end()).unwrap()
+        };
+        let wrong = rows("exit:1 interpreter-exit:1 interpreter:agrees");
+        let original = wrong.clone();
+        assert!(validate_runtime_oracles(&root, &wrong, "linux_x86_64", true, true).is_err());
+        assert_eq!(wrong, original);
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:0 interpreter-exit:0 interpreter:agrees"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_ok()
+        );
+        assert!(validate_runtime_oracles(&root, &rows(""), "linux_x86_64", true, true).is_err());
+        assert!(
+            validate_runtime_oracles(&root, &rows("exit:0 exit:1"), "linux_x86_64", true, false)
+                .is_err()
+        );
+        let refused = parse_records(
+            "pass/borrows/header_only rejected 1ms expected native-rejection:match\n\tauthored publication refusal\n",
+        ).unwrap();
+        assert!(validate_runtime_oracles(&root, &refused, "linux_x86_64", true, true).is_ok());
+        fs::write(&main, "machine main() {}\n").unwrap();
+        fs::write(directory.join("expected_interpreter_exit.txt"), "0\n").unwrap();
+        assert!(
+            crate::runtime_oracles::exit_oracle(&main, None, false, None)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("interpreter-exit:0"),
+                "linux_x86_64",
+                false,
+                true
+            )
+            .is_ok()
+        );
+        assert!(validate_runtime_oracles(&root, &rows(""), "linux_x86_64", false, true).is_err());
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:1 interpreter-exit:0 interpreter:disagrees"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_err()
+        );
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("interpreter-exit:0"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_err()
+        );
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:0 interpreter-exit:0 interpreter:agrees"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_ok()
+        );
+        fs::write(directory.join("expected_interpreter_exit.txt"), "trap\n").unwrap();
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:signal signal:4 interpreter:trapped"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_ok()
+        );
+        fs::remove_file(directory.join("expected_interpreter_exit.txt")).unwrap();
+        fs::write(&main, "// Expected exit: 0.\n").unwrap();
+        fs::write(directory.join("expected_native_exit.txt"), "trap\n").unwrap();
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:signal signal:4 interpreter:trapped"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:signal signal:11 interpreter:trapped"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_err()
+        );
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:signal signal:4 interpreter:declined"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_err()
+        );
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:signal signal:5 interpreter:trapped"),
+                "linux_arm64",
+                true,
+                true
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:-1073741795 interpreter:trapped"),
+                "windows_x86_64",
+                true,
+                true
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:1 interpreter:trapped"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_err()
+        );
+        assert!(
+            validate_runtime_oracles(
+                &root,
+                &rows("exit:signal signal:4 interpreter:trapped interpreter-engine:checked-tree"),
+                "linux_x86_64",
+                true,
+                true
+            )
+            .is_ok()
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn selection_stops_at_fixture_roots_like_the_harness() {

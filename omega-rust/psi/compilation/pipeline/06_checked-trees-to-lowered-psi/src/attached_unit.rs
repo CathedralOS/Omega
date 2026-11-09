@@ -7,6 +7,7 @@ emission, and scalar/structural completions.
 pub(crate) use crate::unit::*;
 
 pub(crate) mod inner {
+
     pub(crate) use super::{
         Block, BoundaryMachineDeclaration, BoundaryMachineResult,
         BoundaryStructuralResultDeclaration, CheckedBoundaryMachinePlan,
@@ -2021,6 +2022,7 @@ pub(crate) mod inner {
             }
         }
         pub(crate) mod place_types {
+
             use super::*;
             use crate::expression_preparation::computation_graph::reachable_nodes;
             use crate::expression_preparation::computation_graph::reachable_structural_values;
@@ -2047,6 +2049,7 @@ pub(crate) mod inner {
                         machine.machine,
                         machine.state,
                         &machine.structural_parameters,
+                        &machine.place_loans,
                         &machine.operations,
                         None,
                         roots,
@@ -2059,6 +2062,7 @@ pub(crate) mod inner {
                                 state_declaration(checked, state.state)?.0.symbol,
                                 state.state,
                                 &state.structural_parameters,
+                                &state.place_loans,
                                 &state.operations,
                                 Some(state),
                                 roots,
@@ -2075,6 +2079,7 @@ pub(crate) mod inner {
                 machine: symbols::SymbolHandle,
                 state: symbols::SymbolHandle,
                 parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+                place_loans: &[checked_trees::CheckedPlaceLoanPlan],
                 operations: &'plans [CheckedUnitEffectOperationPlan],
                 control: Option<&'plans checked_trees::CheckedComposedUnitControlStatePlan>,
                 roots: &mut Vec<TypeIdentityId>,
@@ -2085,6 +2090,7 @@ pub(crate) mod inner {
                     machine,
                     state,
                     parameters,
+                    place_loans,
                     roots,
                 };
                 let mut namespace = Vec::new();
@@ -2096,13 +2102,21 @@ pub(crate) mod inner {
                     };
                     if let Terminator::Guarded { return_values, .. } = &control.terminator {
                         for operation in return_values {
-                            collector
-                                .operations(std::iter::once(operation), &mut namespace.clone())?;
+                            collector.operations(
+                                std::iter::once(&operation.operation),
+                                &mut namespace.clone(),
+                            )?;
+                        }
+                    }
+                    if let Terminator::CompleteExpression { completion } = &control.terminator {
+                        for operations in completion.expression.invocation_scopes() {
+                            collector.operations(operations.iter(), &mut namespace.clone())?;
                         }
                     }
                     for arm in control.terminator.return_arms() {
-                        collector
-                            .operations(arm.operation_dependencies(), &mut namespace.clone())?;
+                        for scope in arm.operation_scopes() {
+                            collector.operations(scope.into_iter(), &mut namespace.clone())?;
+                        }
                     }
                     for successor in control.successors() {
                         for transfer in &successor.transfers {
@@ -2245,6 +2259,7 @@ pub(crate) mod inner {
                 machine: symbols::SymbolHandle,
                 state: symbols::SymbolHandle,
                 parameters: &'checked [checked_trees::CheckedUnitStructuralParameterPlan],
+                place_loans: &'checked [checked_trees::CheckedPlaceLoanPlan],
                 roots: &'output mut Vec<TypeIdentityId>,
             }
 
@@ -2312,12 +2327,12 @@ pub(crate) mod inner {
                                 checked_trees::CheckedStoreValue::Bytes(value) => {
                                     for (_, node) in value.nodes.iter() {
                                         if let checked_trees::CheckedByteSequenceValue::Descriptor {
-                                            source,
-                                            ..
-                                        } = node
-                                        {
-                                            self.argument(Some(store.statement_index), source, namespace)?;
-                                        }
+                                    source,
+                                    ..
+                                } = node
+                                {
+                                    self.argument(Some(store.statement_index), source, namespace)?;
+                                }
                                     }
                                 }
                                 _ => {}
@@ -2398,6 +2413,18 @@ pub(crate) mod inner {
                     if !argument.path.contains(&Segment::Referent) {
                         return Ok(());
                     }
+                    let mut presented = argument.clone();
+                    if let Source::StructuralLocal { symbol } = argument.source
+                        && let Some(alias) =
+                            self.place_loans.iter().find(|loan| loan.symbol == symbol)
+                    {
+                        crate::expression_preparation::bindings::structural_paths::retain_place_loan_presentation(
+                            self.checked,
+                            alias,
+                            &mut presented,
+                        );
+                    }
+                    let argument = &presented;
                     let root = source_type(
                         self.checked,
                         self.state,
@@ -2405,7 +2432,8 @@ pub(crate) mod inner {
                         self.parameters,
                         namespace,
                         argument,
-                    )?;
+                    )
+                    .map_err(|error| self.at_statement(statement, error))?;
                     let mut path = argument.path.as_slice();
                     if let Source::StructuralLocalBorrow {
                         root_reference_hops,
@@ -2464,7 +2492,28 @@ pub(crate) mod inner {
                                 .map(|result| result.type_identity)
                         })
                     }
-                    Source::StructuralExpression { expression } => statement
+                    Source::StructuralExpression {
+                        expression,
+                        value_dependency: Some(value),
+                        ..
+                    } => value_facts(checked)
+                        .structural_values
+                        .root_for_value_home(value, expression)
+                        .filter(|root| {
+                            root.state == state && statement == Some(root.statement_ordinal)
+                        })
+                        .map(|root| stored_structural_identity(checked, root.type_reference)),
+                    Source::StructuralExpression {
+                        value_dependency: None,
+                        logical_root_type_identity: Some(identity),
+                        ..
+                    } => Some(identity),
+                    Source::StructuralExpression {
+                        expression,
+                        value_dependency: None,
+                        logical_root_type_identity: None,
+                        ..
+                    } => statement
                         .and_then(|statement| {
                             value_facts(checked)
                                 .structural_values
@@ -2507,17 +2556,18 @@ pub(crate) mod inner {
             ) -> Result<(), LoweringError> {
                 let mut payload = None;
                 for (position, segment) in path.iter().enumerate() {
-                    let declaration = selected_declaration(plans, identity).map_err(|error| match error {
-                        LoweringError::MissingUnitStructuralType(_) => {
-                            LoweringError::MissingUnitStructuralType(format!(
-                                "{identity:?} ({}) at storage path segment {position}: {path:?}",
-                                checked
-                                    .type_identity_text(identity)
-                                    .unwrap_or_else(|| "unresolved identity".to_owned())
-                            ))
-                        }
-                        error => error,
-                    })?;
+                    let declaration =
+                selected_declaration(plans, identity).map_err(|error| match error {
+                    LoweringError::MissingUnitStructuralType(_) => {
+                        LoweringError::MissingUnitStructuralType(format!(
+                            "{identity:?} ({}) at storage path segment {position}: {path:?}",
+                            checked
+                                .type_identity_text(identity)
+                                .unwrap_or_else(|| "unresolved identity".to_owned())
+                        ))
+                    }
+                    error => error,
+                })?;
                     match segment {
                         Segment::RepresentationView { type_identity, .. } => {
                             identity = *type_identity;
@@ -5248,12 +5298,12 @@ pub(crate) mod inner {
         }
     }
     pub(crate) mod completion_cleanup {
+
         use super::{CheckedTrees, LoweringError};
         use crate::emission::operation_emission::buffer::OperationBuffer;
         use crate::unit::attached_unit::argument_evaluation::{
             Evaluation, ScalarReturnCleanup, StructuralValueStorage,
         };
-        use crate::unit::attached_unit::scalar_completion::control::returning_destinations;
         use crate::unit::unit_cleanup::CleanupRegion;
         use crate::unit::unit_cleanup::bind_consumed_claims;
         pub(crate) mod owner_order {
@@ -5662,6 +5712,24 @@ pub(crate) mod inner {
             coordinate(source, *statement_ordinal as usize, *is_continuation)
         }
 
+        /// Keep each authored scalar return's cleanup before its private result join.
+        /// Preparing action identities does not discharge their prerequisites; complete
+        /// graph proof production observes the selected path and outgoing call effects.
+        /// Working state for the exact source-published normal result tree.
+        pub(crate) enum NormalResultCleanup {
+            NoNormal {
+                computation: checked_trees::CheckedScalarComputationHandle,
+            },
+            Value {
+                computation: checked_trees::CheckedScalarComputationHandle,
+                actions: Vec<CleanupRegion>,
+            },
+            Dispatch {
+                computation: checked_trees::CheckedScalarComputationHandle,
+                arms: Vec<(checked_trees::CheckedScalarDispatchArm, NormalResultCleanup)>,
+            },
+        }
+
         pub(crate) fn scalar_returns(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             claims: &[(
@@ -5681,26 +5749,66 @@ pub(crate) mod inner {
                     "scalar return has no source cleanup coordinates",
                 ));
             }
-            let destinations = returning_destinations(checked, control)?;
-            destinations
-                .into_iter()
-                .map(|destination| {
+            // Source admission retains all authored exits. Only the checked control
+            // plan selects runtime returns; preparing dead cleanup rows would allocate
+            // orphan completion blocks and their obligations. Every selected return
+            // still requires its unique, exact source-owned cleanup coordinate.
+            control
+                .selected_copies
+                .iter()
+                .map(|row| {
+                    let destination = CheckedScalarBranchDestination::Return {
+                        statement_ordinal: row.statement_ordinal,
+                        is_continuation: row.is_continuation,
+                    };
                     let exit = self::destination(source, &destination)?;
-                    let mut actions = for_exit_regions(
-                        identities, claims, checked, source, exit, catalog, parameters, evaluation,
-                        operations,
-                    )?;
-                    selection(
-                        exit.state_symbol,
-                        source.operations,
-                        evaluation,
-                        operations,
-                        &mut actions,
-                    )?;
+                    let plan = plan_for_exit(source, exit)?;
+                    let (actions, result) = if plan.result_completion.is_valid() {
+                        (
+                            Vec::new(),
+                            Some(normal_result_cleanup(
+                                identities,
+                                claims,
+                                checked,
+                                source,
+                                exit,
+                                plan,
+                                plan.result_completion,
+                                catalog,
+                                parameters,
+                                evaluation,
+                                operations,
+                            )?),
+                        )
+                    } else {
+                        let mut actions = for_planned_actions(
+                            identities,
+                            claims,
+                            checked,
+                            source,
+                            exit,
+                            plan,
+                            catalog.control.actions.span_or_empty(plan.actions),
+                            catalog,
+                            parameters,
+                            evaluation,
+                            operations,
+                        )?;
+                        selection(
+                            exit.state_symbol,
+                            source.operations,
+                            evaluation,
+                            operations,
+                            &mut actions,
+                        )?;
+                        (actions, None)
+                    };
                     Ok(ScalarReturnCleanup {
                         exit,
                         destination,
                         actions,
+                        result,
+                        copied_payloads: row.copied_payloads.clone(),
                     })
                 })
                 .collect()
@@ -5750,6 +5858,22 @@ pub(crate) mod inner {
         }
 
         #[allow(clippy::too_many_arguments)]
+        fn plan_for_exit<'a>(
+            source: NormalExitSource<'a>,
+            exit: FlowClaimJoinExit,
+        ) -> Result<&'a checked_trees::CheckedNormalExitCleanupPlan, LoweringError> {
+            let mut selected = source.cleanups.iter().filter(|plan| plan.exit == exit);
+            let selected_exit = selected.next().ok_or(LoweringError::Unsupported(
+                "normal return is missing its exact cleanup plan",
+            ))?;
+            if selected.next().is_some() {
+                return Err(LoweringError::Unsupported(
+                    "normal cleanup repeats its selected exit",
+                ));
+            }
+            Ok(selected_exit)
+        }
+
         pub(crate) fn for_exit_regions(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             claims: &[(
@@ -5764,18 +5888,42 @@ pub(crate) mod inner {
             evaluation: &Evaluation,
             operations: &OperationBuffer,
         ) -> Result<Vec<CleanupRegion>, LoweringError> {
-            let mut selected = source.cleanups.iter().filter(|plan| plan.exit == exit);
-            let selected_exit = selected.next().ok_or(LoweringError::Unsupported(
-                "normal return is missing its exact cleanup plan",
-            ))?;
-            if selected.next().is_some() {
-                return Err(LoweringError::Unsupported(
-                    "normal cleanup repeats its selected exit",
-                ));
-            }
+            let plan = plan_for_exit(source, exit)?;
+            for_planned_actions(
+                identities,
+                claims,
+                checked,
+                source,
+                exit,
+                plan,
+                catalog.control.actions.span_or_empty(plan.actions),
+                catalog,
+                parameters,
+                evaluation,
+                operations,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn for_planned_actions(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            claims: &[(
+                language_semantics::PermissionClaimIdentity,
+                semantic_vocabulary::ClaimId,
+            )],
+            checked: &CheckedTrees,
+            source: NormalExitSource<'_>,
+            exit: FlowClaimJoinExit,
+            selected_exit: &checked_trees::CheckedNormalExitCleanupPlan,
+            selected_actions: &[checked_trees::CheckedNormalCleanupAction],
+            catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
+            parameters: &[StructuralParameterDeclaration],
+            evaluation: &Evaluation,
+            operations: &OperationBuffer,
+        ) -> Result<Vec<CleanupRegion>, LoweringError> {
             let cleanup_control = catalog.control;
             let planned = crate::unit::unit_cleanup::outstanding_actions(
-                cleanup_control.actions.span_or_empty(selected_exit.actions),
+                selected_actions,
                 source.operations,
                 source.parameters,
                 cleanup_control,
@@ -5851,6 +5999,85 @@ pub(crate) mod inner {
                 )
             }));
             Ok(regions)
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn normal_result_cleanup(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            claims: &[(
+                language_semantics::PermissionClaimIdentity,
+                semantic_vocabulary::ClaimId,
+            )],
+            checked: &CheckedTrees,
+            source: NormalExitSource<'_>,
+            exit: FlowClaimJoinExit,
+            plan: &checked_trees::CheckedNormalExitCleanupPlan,
+            result: arena::Handle<checked_trees::CheckedNormalResultCompletion>,
+            catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
+            parameters: &[StructuralParameterDeclaration],
+            evaluation: &Evaluation,
+            operations: &OperationBuffer,
+        ) -> Result<NormalResultCleanup, LoweringError> {
+            let control = catalog.control;
+            Ok(match control.normal_result_completions.get(result) {
+                checked_trees::CheckedNormalResultCompletion::NoNormal { computation } => {
+                    NormalResultCleanup::NoNormal {
+                        computation: *computation,
+                    }
+                }
+                checked_trees::CheckedNormalResultCompletion::Value {
+                    computation,
+                    actions,
+                } => {
+                    let mut actions = for_planned_actions(
+                        identities,
+                        claims,
+                        checked,
+                        source,
+                        exit,
+                        plan,
+                        control.actions.span_or_empty(*actions),
+                        catalog,
+                        parameters,
+                        evaluation,
+                        operations,
+                    )?;
+                    selection(
+                        exit.state_symbol,
+                        source.operations,
+                        evaluation,
+                        operations,
+                        &mut actions,
+                    )?;
+                    NormalResultCleanup::Value {
+                        computation: *computation,
+                        actions,
+                    }
+                }
+                checked_trees::CheckedNormalResultCompletion::Dispatch { computation, arms } => {
+                    let mut results = Vec::new();
+                    for arm in control.normal_result_arms.span_or_empty(*arms) {
+                        let child = normal_result_cleanup(
+                            identities, claims, checked, source, exit, plan, arm.result, catalog,
+                            parameters, evaluation, operations,
+                        )?;
+                        results.push((
+                            checked
+                                .facts
+                                .values
+                                .scalar_computations
+                                .dispatch_arms
+                                .get(arm.arm)
+                                .clone(),
+                            child,
+                        ));
+                    }
+                    NormalResultCleanup::Dispatch {
+                        computation: *computation,
+                        arms: results,
+                    }
+                }
+            })
         }
 
         fn result_storage(
@@ -6793,11 +7020,13 @@ pub(crate) mod inner {
                     signature,
                 },
                 [] => {
-                    match checked.typed.machines().iter().find(|machine| {
-                        machine.symbol == boundary_symbol
-                            && machine.supply_mode
+                    match checked
+                        .typed
+                        .machines_with_symbol(boundary_symbol)
+                        .find(|machine| {
+                            machine.supply_mode
                                 == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    }) {
+                        }) {
                         Some(requirement) => CatalogRequirement::TopLevel(requirement),
                         None => match checked.typed.operators().iter().find(|operator| {
                             operator.is_boundary && operator.symbol == boundary_symbol
@@ -9465,6 +9694,7 @@ pub(crate) mod inner {
     }
 
     pub(crate) mod bodies {
+
         use super::{
             CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
             SemanticDomainId, ServiceReachSummary, unsupported,
@@ -9782,7 +10012,7 @@ pub(crate) mod inner {
                                 | Source::StructuralLocalBorrow { symbol, .. } => {
                                     Some(facts::PlaceRoot::Symbol(symbol))
                                 }
-                                Source::StructuralExpression { expression } => {
+                                Source::StructuralExpression { expression, .. } => {
                                     Some(facts::PlaceRoot::Expression(expression))
                                 }
                                 Source::ScalarParameter { parameter_index } => scalar_parameters
@@ -10370,13 +10600,6 @@ pub(crate) mod inner {
             evaluation.observations = crate::scalar_lowering::computations::observations::prepare(
                 checked,
                 &[plan.machine],
-                &mut next_place,
-            )?;
-            evaluation.call_views = crate::scalar_lowering::computations::call_views::prepare(
-                identities,
-                checked,
-                &[plan.machine],
-                structural_types,
                 &mut next_place,
             )?;
             evaluation.subslices = crate::scalar_lowering::computations::subslices::prepare(
@@ -12625,6 +12848,7 @@ pub(crate) mod inner {
         }
     }
     pub(crate) mod ordinary_calls {
+
         use super::super::{
             BTreeMap, MachineId, ObligationId, Proposition, ScalarTerm, StructuralArgument,
             StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -13119,7 +13343,6 @@ pub(crate) mod inner {
             claim_bindings: &mut crate::emission::claim_bindings::ClaimBindings<'_>,
             register_binding: bool,
             frontier_before_call: &lowered_psi::LoweredSourceFrontierBindings,
-            reserved_place: Option<PlaceId>,
             next_place: &mut u64,
             operations: &mut OperationBuffer,
         ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -13131,10 +13354,7 @@ pub(crate) mod inner {
                 return unsupported("structural call emission requires an owned result call");
             };
             let coordinate = &call.coordinate;
-            let place = match reserved_place {
-                Some(place) => place,
-                None => place_id(allocate_dense(next_place)?),
-            };
+            let place = place_id(allocate_dense(next_place)?);
             let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
             let returned = super::call_results::prepare(
                 identities,
@@ -15846,24 +16066,33 @@ pub(crate) mod inner {
                 declarations: &[terminal_psi::StructuralTypeDeclaration],
             ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
                 let (_, authored) = crate::shared::declarations::state_declaration(checked, state)?;
-                let argument = &self.source;
-                let source = bindings
-                    .borrowed_structural_home(argument, checked.state_parameters(authored))?;
-                let root = bindings.structural_argument_type(&source).ok_or(
-                    LoweringError::Unsupported("range source lost its published storage type"),
+                let resolved = bindings.resolve_borrowed_argument(
+                    checked,
+                    &self.source,
+                    checked.state_parameters(authored),
                 )?;
+                let argument = &resolved.argument;
+                let source = &resolved.source;
+                let root =
+                    bindings
+                        .structural_argument_type(source)
+                        .ok_or(LoweringError::Unsupported(
+                            "range source lost its published storage type",
+                        ))?;
                 let mut prepared = prepare_projection_path(
                     identities,
                     checked,
                     &argument.path,
                     crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Borrowed {
                         published: root,
-                        logical: argument.subslice_root_type_identity().ok_or(
+                        logical: resolved.root_type_identity
+                            .or_else(|| self.source.subslice_root_type_identity())
+                            .ok_or(
                             LoweringError::Unsupported("range source lost its logical root"),
                         )?,
                         spelled_reference_hops: 0,
                     },
-                    argument
+                    self.source
                         .subslice_storage_type_identity()
                         .ok_or(LoweringError::Unsupported(
                             "range source lost its collection declaration",
@@ -15877,9 +16106,11 @@ pub(crate) mod inner {
                     &checked.facts.values.scalar_computations.operands,
                     &mut prepared,
                 )?;
+                resolved.retain_captured_coordinates(&mut prepared)?;
                 let path = source
                     .path
-                    .into_iter()
+                    .iter()
+                    .cloned()
                     .map(LoweredElementPathSegment::Static)
                     .chain(collection_path(
                         identities,
@@ -15933,7 +16164,21 @@ pub(crate) mod inner {
             let mut runtime_indices = 0;
             let mut dynamic_extent = false;
             path.into_iter()
-                .map(|segment| match segment {
+                .map(|segment| {
+                    if matches!(
+                        &segment,
+                        PreparedStructuralPathSegment::RuntimeIndex(_)
+                            | PreparedStructuralPathSegment::CapturedIndex(_)
+                    ) {
+                        dynamic_extent = false;
+                        runtime_indices += 1;
+                        if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {
+                            return unsupported(
+                                "collection view exceeds the runtime selector namespace",
+                            );
+                        }
+                    }
+                    match segment {
                     PreparedStructuralPathSegment::Static(segment) => {
                         if dynamic_extent
                             && let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment
@@ -15965,18 +16210,24 @@ pub(crate) mod inner {
                         Ok(LoweredElementPathSegment::ViewExtent { source, bytes })
                     }
                     PreparedStructuralPathSegment::ComputedIndex(_)
-                    | PreparedStructuralPathSegment::EvaluatedFixedIndex { .. }
-                    | PreparedStructuralPathSegment::CapturedIndex(_) => {
+                    | PreparedStructuralPathSegment::EvaluatedFixedIndex { .. } => {
                         unsupported("computed view selector requires its owning operand evaluation")
                     }
+                    PreparedStructuralPathSegment::CapturedIndex(place) => {
+                        Ok(LoweredElementPathSegment::RuntimeIndex {
+                            selector: LoweredDirectExpression::PrimitiveRead {
+                                qualifications: Default::default(),
+                                source: crate::emission::operation_emission::expressions::PrimitiveReadSource::Place(place),
+                                path: Vec::new(),
+                                scalar_type: terminal_scalar_type(
+                                    checked_trees::types::PrimitiveType::U64,
+                                )?,
+                            },
+                            extent: None,
+                            bound_decided: false,
+                        })
+                    }
                     PreparedStructuralPathSegment::RuntimeIndex(index) => {
-                        dynamic_extent = false;
-                        runtime_indices += 1;
-                        if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {
-                            return unsupported(
-                                "collection view exceeds the runtime selector namespace",
-                            );
-                        }
                         let selector = match index {
                             checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
                                 bindings.runtime_index_storage(symbol)?
@@ -16001,6 +16252,7 @@ pub(crate) mod inner {
                             extent: None,
                             bound_decided: false,
                         })
+                    }
                     }
                 })
                 .collect()
@@ -16356,6 +16608,7 @@ pub(crate) mod inner {
         use super::{CheckedTrees, LoweringError};
 
         pub(crate) mod control {
+
             use super::{CheckedTrees, LoweringError};
             use crate::shared::checked_facts::flow_facts;
             use checked_trees::CheckedScalarBranchDestination;
@@ -16370,24 +16623,6 @@ pub(crate) mod inner {
                     .guarded_exits
                     .returning_exits(arms, fallback)
                     .map_err(LoweringError::Unsupported)
-            }
-
-            pub(crate) fn returning_destinations(
-                checked: &CheckedTrees,
-                control: &checked_trees::CheckedUnitScalarControlPlan,
-            ) -> Result<Vec<CheckedScalarBranchDestination>, LoweringError> {
-                let paths = control
-                    .terminator
-                    .returning_paths(&flow_facts(checked).guarded_exits)
-                    .map_err(LoweringError::Unsupported)?;
-                let mut selected = Vec::new();
-                for path in paths {
-                    let destination = path.destination;
-                    if !selected.contains(&destination) {
-                        selected.push(destination);
-                    }
-                }
-                Ok(selected)
             }
         }
     }
@@ -16748,6 +16983,12 @@ pub(crate) mod inner {
                     reason,
                     gap: None,
                 },
+                LoweringError::InvalidArgumentProjection(mut failure) => {
+                    failure
+                        .machine
+                        .get_or_insert_with(|| checked.symbols.display_path(plan.machine, "::"));
+                    LoweringError::InvalidArgumentProjection(failure)
+                }
                 error => error,
             };
             let parameters = &signature.parameters;

@@ -5,6 +5,7 @@ identity and rebasing source-text pages across forests.
 */
 
 pub(crate) mod body_copies {
+
     use crate::SyntaxTrees;
     use crate::expression::{
         ExpressionHandle, ExpressionNode, MatchPattern, MatchSubjectCapture, StaticMachineArgument,
@@ -672,6 +673,7 @@ pub(crate) mod body_copies {
                 .match_fields(pattern.fields)
                 .iter()
                 .map(|field| TableMatchField {
+                    component: field.component,
                     member: field.member.clone(),
                     action: match &field.action {
                         MatchFieldAction::Bind(binding) => MatchFieldAction::Bind(binding.clone()),
@@ -757,6 +759,7 @@ pub(crate) mod body_copies {
                 }
                 ExpressionNode::SavedSubject(saved) => {
                     ExpressionNode::SavedSubject(TableSavedSubject {
+                        component: saved.component,
                         capture: self.copy_match_subject(other, saved.capture),
                         pattern_head: self.copy_expression_handle(other, saved.pattern_head),
                     })

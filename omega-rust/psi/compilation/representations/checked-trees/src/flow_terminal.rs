@@ -6,6 +6,7 @@ result bindings, scalar states, and structural types/arguments/control in
 */
 
 pub(crate) mod affine_cleanup_plans {
+
     use super::CheckedUnitEffectOperationPlan::ReleaseReference;
     use crate::CheckedMemberIdentity;
     use crate::flow::terminal::{
@@ -21,6 +22,8 @@ pub(crate) mod affine_cleanup_plans {
         pub conditions: arena::Arena<CheckedCleanupCaseCondition>,
         pub paths: arena::Arena<CheckedUnitStructuralPathSegment>,
         pub normal_exit_rows: arena::Arena<CheckedNormalExitCleanupPlan>,
+        pub normal_result_completions: arena::Arena<CheckedNormalResultCompletion>,
+        pub normal_result_arms: arena::Arena<CheckedNormalResultArm>,
         pub value_completions: arena::Arena<CheckedValueCompletionPlan>,
         pub actions: arena::Arena<CheckedNormalCleanupAction>,
         pub normal_exit_regions: arena::Arena<super::CheckedUnitStructuralArgumentPlan>,
@@ -69,9 +72,51 @@ pub(crate) mod affine_cleanup_plans {
             &self,
             rows: CheckedNormalExitCleanups,
         ) -> impl Iterator<Item = &CheckedNormalCleanupAction> {
-            self.normal_exits(rows)
-                .iter()
-                .flat_map(|row| self.actions.span_or_empty(row.actions))
+            self.normal_exits(rows).iter().flat_map(|row| {
+                self.actions
+                    .span_or_empty(row.actions)
+                    .iter()
+                    .chain(self.result_actions(row.result_completion))
+            })
+        }
+
+        pub fn result_actions(
+            &self,
+            result: arena::Handle<CheckedNormalResultCompletion>,
+        ) -> impl Iterator<Item = &CheckedNormalCleanupAction> {
+            let mut pending = if result.is_valid() {
+                vec![result]
+            } else {
+                Vec::new()
+            };
+            let mut actions = self
+                .actions
+                .span_or_empty(arena::HandleSpan::empty())
+                .iter();
+            std::iter::from_fn(move || {
+                loop {
+                    if let Some(action) = actions.next() {
+                        return Some(action);
+                    }
+                    match self.normal_result_completions.get(pending.pop()?) {
+                        CheckedNormalResultCompletion::NoNormal { .. } => {}
+                        CheckedNormalResultCompletion::Value {
+                            actions: selected, ..
+                        } => {
+                            actions = self.actions.span_or_empty(*selected).iter();
+                        }
+                        CheckedNormalResultCompletion::Dispatch { arms, .. } => {
+                            pending.extend(
+                                self.normal_result_arms
+                                    .span_or_empty(*arms)
+                                    .iter()
+                                    .rev()
+                                    .map(|arm| arm.result),
+                            );
+                        }
+                    }
+                }
+            })
         }
 
         pub fn value_completion(
@@ -119,7 +164,9 @@ pub(crate) mod affine_cleanup_plans {
         fn default() -> Self {
             Self {
                 source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    value_dependency: None,
                     expression: arena::Handle::invalid(),
+                    logical_root_type_identity: None,
                 },
                 path: Vec::new(),
                 type_identity: TypeIdentityId::default(),
@@ -303,6 +350,42 @@ pub(crate) mod affine_cleanup_plans {
         pub selected_regions: arena::HandleSpan<super::CheckedUnitStructuralArgumentPlan>,
         pub exit: crate::FlowClaimJoinExit,
         pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
+        /// A selected scalar result completes its admitted transaction before the
+        /// private result join. Zero retains the ordinary single-edge actions.
+        pub result_completion: arena::Handle<CheckedNormalResultCompletion>,
+    }
+
+    /// Source-owned scalar result control with normal disposal at completed leaves.
+    /// Subjects, patterns and operand computations remain in their ordinary plans.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub enum CheckedNormalResultCompletion {
+        /// The evaluated prefix remains executable but has no normal disposal edge.
+        NoNormal {
+            computation: crate::CheckedScalarComputationHandle,
+        },
+        Value {
+            computation: crate::CheckedScalarComputationHandle,
+            actions: arena::HandleSpan<CheckedNormalCleanupAction>,
+        },
+        Dispatch {
+            computation: crate::CheckedScalarComputationHandle,
+            arms: arena::HandleSpan<CheckedNormalResultArm>,
+        },
+    }
+
+    impl Default for CheckedNormalResultCompletion {
+        fn default() -> Self {
+            Self::Value {
+                computation: Default::default(),
+                actions: Default::default(),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CheckedNormalResultArm {
+        pub arm: arena::Handle<crate::CheckedScalarDispatchArm>,
+        pub result: arena::Handle<CheckedNormalResultCompletion>,
     }
 }
 pub(crate) mod atomic_plans {
@@ -958,6 +1041,7 @@ pub(crate) mod scalar_state_plans {
     }
 }
 pub(crate) mod structural_argument_plans {
+
     use crate::flow::terminal::{CheckedStructuralAccess, CheckedUnitStructuralPathSegment};
     use crate::{CheckedScalarExpression, CheckedStorageRoot};
     use language_semantics::CarryPolicy;
@@ -1068,18 +1152,40 @@ pub(crate) mod structural_argument_plans {
             root_type_identity: TypeIdentityId,
             root_reference_hops: u32,
         },
+        /// An already evaluated structural expression. The enclosing operation
+        /// sequence establishes its storage before a consumer observes it; this
+        /// identity never authorizes evaluating the expression again.
         StructuralExpression {
+            /// Exact completed value retained by the producing owner. `None`
+            /// names already established storage, not a request to discover or
+            /// evaluate a producer from the expression home.
+            value_dependency: Option<crate::CheckedStructuralValueHandle>,
             expression: ExpressionHandle,
+            /// A projection of this completed owner can start at its checked
+            /// logical referent rather than the stored descriptor. This identity
+            /// comes from the value producer; it never authorizes an owned move.
+            logical_root_type_identity: Option<TypeIdentityId>,
         },
+        /// Dense declaration ordinal in the caller's checked trivial-affine-local
+        /// table. This source is always the exact whole local.
         TrivialAffineLocal {
             declaration_ordinal: u32,
         },
+        /// Exact binding ordinal of an earlier whole structural call result.
         StructuralResult {
             binding_ordinal: u32,
         },
+        /// Exact byte sequence passed directly to a bodyless boundary.
         ByteSequenceLiteral {
             bytes: Vec<u8>,
         },
+        /// Exclusive range over one established immutable byte view: a whole
+        /// byte-view parameter (dense, state-local structural index) or an
+        /// earlier byte-view local. Missing endpoints mean zero and the source
+        /// length, not absent runtime values. Present endpoints retain the unique
+        /// scalar operand under `SubsliceStart`/`SubsliceEnd` at the enclosing
+        /// statement and this range's `CheckedSubsliceSite`. Calls remain computed
+        /// operands, evaluated once in start/end order before narrowing the view.
         ByteSequenceSubslice {
             root: CheckedStorageRoot,
             root_type_identity: TypeIdentityId,
@@ -1312,9 +1418,10 @@ pub(crate) mod structural_argument_plans {
                 | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                     symbol, ..
                 } => Some(facts::PlaceRoot::Symbol(symbol)),
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                    Some(facts::PlaceRoot::Expression(expression))
-                }
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    expression,
+                    ..
+                } => Some(facts::PlaceRoot::Expression(expression)),
                 _ => None,
             }
         }
@@ -1386,12 +1493,18 @@ pub(crate) mod structural_argument_plans {
             }
         }
 
+        /// The logical root before a borrowed projection of a local or completed
+        /// expression, distinct from its final type and published descriptor.
         pub fn borrowed_root_type_identity(&self) -> Option<TypeIdentityId> {
             match &self.source {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                     root_type_identity,
                     ..
                 } => Some(*root_type_identity),
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    logical_root_type_identity,
+                    ..
+                } => *logical_root_type_identity,
                 _ => None,
             }
         }
@@ -1401,6 +1514,27 @@ pub(crate) mod structural_argument_plans {
                 CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => {
                     Some(bytes)
                 }
+                _ => None,
+            }
+        }
+    }
+
+    impl CheckedUnitStructuralArgumentSourcePlan {
+        /// The completed producer selected by this argument's checking owner.
+        /// An existing storage capture has no new producer dependency.
+        pub fn structural_value_dependency(&self) -> Option<crate::CheckedStructuralValueHandle> {
+            match self {
+                Self::StructuralExpression {
+                    value_dependency, ..
+                } => *value_dependency,
+                _ => None,
+            }
+        }
+
+        /// Exact completed-expression namespace, independent of projection presentation.
+        pub fn structural_expression(&self) -> Option<ExpressionHandle> {
+            match self {
+                Self::StructuralExpression { expression, .. } => Some(*expression),
                 _ => None,
             }
         }
@@ -2300,12 +2434,13 @@ pub use affine_cleanup_plans::{
     CheckedCleanupCaseCondition, CheckedCleanupControlPlans,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
     CheckedNormalCleanupAction, CheckedNormalCompletion, CheckedNormalExitCleanupPlan,
-    CheckedNormalExitCleanups, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupPlans, CheckedReferenceOwnerCleanup,
-    CheckedStructuralCallCustodyPlan, CheckedStructuralResultClaimPlan,
-    CheckedUnitClaimTransferPlan, CheckedUnitNominalAffineCallerRequirementPlan,
-    CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedValueCompletionPlan,
+    CheckedNormalExitCleanups, CheckedNormalResultArm, CheckedNormalResultCompletion,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
+    CheckedReferenceOwnerCleanup, CheckedStructuralCallCustodyPlan,
+    CheckedStructuralResultClaimPlan, CheckedUnitClaimTransferPlan,
+    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
+    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedValueCompletionPlan,
 };
 pub use atomic_plans::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
 pub use boundary_machine_plans::{
@@ -2320,9 +2455,12 @@ pub use composed_unit_control_plans::{
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
     CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedGuardedJumpArmPlan,
     CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan,
-    CheckedIntegerRankObservation, CheckedNaturalRankFunction, CheckedNaturalRankMeasure,
-    CheckedRankEdgeCoordinate, CheckedScalarCaseFieldPlan, CheckedScalarReturnPlan,
-    CheckedStateContractRequirement, CheckedStateNaturalRank,
+    CheckedGuardedReturnValue, CheckedIntegerRankObservation, CheckedNaturalRankFunction,
+    CheckedNaturalRankMeasure, CheckedRankEdgeCoordinate, CheckedScalarCaseFieldPlan,
+    CheckedScalarReturnPlan, CheckedStateContractRequirement, CheckedStateNaturalRank,
+    CheckedUnitCompletionExpression, CheckedUnitCompletionKind, CheckedUnitCompletionPlan,
+    CheckedUnitCompletionSelection, CheckedUnitScalarCompletionArm,
+    CheckedUnitScalarCompletionCondition, CheckedUnitStructuralCompletionArm,
 };
 pub use dynamic_slot_plans::{CheckedDynamicClaimPath, CheckedDynamicSlotPlan};
 pub use place_loan_plans::{CheckedPlaceLoanPlan, CheckedPlaceLoanRoot};
@@ -2373,7 +2511,8 @@ pub use unit_call_plans::{
     CheckedUnitCallTarget, CheckedUnitCallTransfers,
 };
 pub use unit_effect_plans::{
-    CheckedLayoutObservation, CheckedOperandSequence, CheckedStructuralInvocation,
+    CheckedLayoutObservation, CheckedOperandSequence, CheckedScalarReturnCopies,
+    CheckedSelectedPayloadCopies, CheckedSelectedPayloadCopy, CheckedStructuralInvocation,
     CheckedStructuralLocalInitialization, CheckedStructuralValueCall, CheckedUnitCallableEntry,
     CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEffectPlans, CheckedUnitLocalBindingPlan, CheckedUnitParameterStoragePlan,

@@ -5,6 +5,7 @@ compiler phase inspection without exposing raw arena handles.
 
 pub mod snapshot {
     pub(crate) mod expression_and_type_snapshots {
+
         use crate::SyntaxTrees;
         use crate::expression::{
             BinaryOperator, ExpressionNode, MatchFieldAction, MatchPattern, TableCallExpression,
@@ -140,6 +141,8 @@ pub mod snapshot {
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
         pub struct MatchFieldSnapshot {
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub component: Option<&'static str>,
             pub member: IdentifierSnapshot,
             pub action: MatchFieldActionSnapshot,
         }
@@ -162,6 +165,8 @@ pub mod snapshot {
                 arms: Vec<MatchArmSnapshot>,
             },
             SavedSubject {
+                #[serde(skip_serializing_if = "Option::is_none")]
+                component: Option<&'static str>,
                 capture: (u32, u32),
                 pattern_head: Box<ExpressionSnapshot>,
             },
@@ -423,6 +428,8 @@ pub mod snapshot {
                         .collect(),
                 },
                 ExpressionNode::SavedSubject(saved) => ExpressionSnapshot::SavedSubject {
+                    component: (saved.component == language_core::PatternComponent::Case)
+                        .then_some("case"),
                     capture: (saved.capture.arena_index(), saved.capture.generation()),
                     pattern_head: Box::new(snapshot_expression_handle(
                         syntax_trees,
@@ -733,6 +740,8 @@ pub mod snapshot {
                         .match_fields(pattern.fields)
                         .iter()
                         .map(|field| MatchFieldSnapshot {
+                            component: (field.component == language_core::PatternComponent::Case)
+                                .then_some("case"),
                             member: snapshot_identifier(syntax_trees, &field.member),
                             action: match &field.action {
                                 MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {

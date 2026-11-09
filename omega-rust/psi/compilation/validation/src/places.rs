@@ -6505,6 +6505,7 @@ pub use contextual_projection::{
     contextual_canonical_place_from_expression, resolve_member_symbol_from_place,
 };
 pub(crate) mod member_resolution {
+
     use super::declared_symbols::{data_member_symbol_by_name, first_valid_name_path_symbol};
     use crate::frozen_program::expression_table;
     use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -7096,6 +7097,9 @@ pub(crate) mod member_resolution {
         receiver_position: Option<MemberPosition>,
         member: &typed_trees::expression::TableMemberExpression,
     ) -> SymbolHandle {
+        if program.pattern_component(receiver) != Some(language_core::PatternComponent::Fields) {
+            return SymbolHandle::invalid();
+        }
         if let ExpressionNode::SavedSubject(saved) = expression_table(program).expression(receiver)
         {
             return saved_subject_member_symbol(program, saved, receiver_position, member)
@@ -7203,7 +7207,7 @@ pub(crate) mod member_resolution {
             .data_members(data)
             .iter()
             .flat_map(|entry| match entry {
-                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Field(field) if !selected.is_valid() => std::slice::from_ref(field),
                 DataMember::Variant(variant) if variant.symbol == selected => {
                     program.data_payload_fields(variant)
                 }

@@ -4,11 +4,11 @@ Start a task when work should run in another activation. Keep its handle, do
 other work, then finish it to obtain the outcome:
 
 ```omega
-let task: Task<WorkResult> = runtime.start<Worker::run>(move job);
+let task: Task<WorkResult> = TaskRuntime::start<WorkResult, Job, Worker::run>(move job);
 
 do_other_work();
 
-transition suspend block Task::finish(move task) {
+transition suspend block TaskLifecycle::finish(move task) {
     TaskOutcome::Returned { value } -> use_result(value)
     TaskOutcome::Cancelled -> handle_cancellation()
     TaskOutcome::Failed { receipt } -> handle_provider_failure(receipt)
@@ -18,7 +18,9 @@ transition suspend block Task::finish(move task) {
 This protocol sketch assumes a runtime whose `start` returns immediately and
 whose `finish` permits suspension and blocking. The application supplies the
 worker, job and outcome handlers. A direct `Worker::run(job)` call instead runs
-in the current activation.
+in the current activation. `TaskRuntime` and `TaskLifecycle` are boundary traits
+from `omega::core`, called by path like `Console::write_line`; the build selects
+the provider behind them, and a library that starts tasks never chooses it.
 
 ## Start a task
 
@@ -26,7 +28,7 @@ The selected runtime provides task creation. `start<M>` requires enough
 resources to start `M`; `try_start<M>` can report a dynamic refusal:
 
 ```omega
-transition runtime.try_start<Worker::run>(move job) {
+transition TaskRuntime::try_start<WorkResult, Job, Worker::run>(move job) {
     StartOutcome::Started { task } -> keep(move task)
     StartOutcome::Rejected { arguments, reason } -> recover(move arguments, reason)
 }
@@ -49,7 +51,7 @@ data WorkerState {
 ```
 
 Moving the handle into `Running` transfers the obligation. Overwriting or
-discarding it would lose that obligation and rejects. `Task::finish(move task)`
+discarding it would lose that obligation and rejects. `TaskLifecycle::finish(move task)`
 consumes the handle and returns the lifecycle outcome shown above. A worker's
 own recoverable errors belong in `WorkResult`.
 
@@ -222,6 +224,47 @@ occupy slots. Size it for live activations, including parked ones. The runtime
 must guarantee usable backing for each full stack plan throughout its lifetime;
 the provider chooses reservation and physical commitment policy underneath
 that guarantee. See [task storage](../spec/build/task_runtime.md#activation-description-and-stack).
+
+Where the number comes from depends on what the call reaches. Checked Omega
+code, your own or a library's, contributes a demand the compiler derives from
+the final machine code, so changing that code changes the plan on the next
+build and nothing has to stay stable. A separately compiled component publishes
+its demand in its description, and changing it is a contract change. A foreign
+leaf declares `stack N bytes` on its requirement, an admitted claim the
+compiler cannot check. Whether the plan's pages are resident up front or arrive
+on first touch is the provider's policy underneath the guarantee; the bound
+does not move either way.
+
+### Decide what scales with what
+
+A task per activity is the simplest shape and the right one whenever the
+population and its stack plans fit the budget. When they do not, ask what is
+actually large, because the fix differs:
+
+| What dominates | Structure |
+| --- | --- |
+| Nothing; the plans fit | One task per activity, ordinary suspending calls |
+| A big temporary buffer used by few activities at once | Ordinary tasks that lease a workspace from a bounded pool around the expensive phase |
+| One phase with deep call frames | Ordinary tasks that hand that phase to a separately provisioned worker and park while awaiting it |
+| Too many incomplete activities to park each one | Persistent operation records advanced by bounded workers, as in the next section |
+
+The first two fixes keep the connection as an ordinary suspending task and
+move only the large thing out of its stack plan. With a pool of `K` workspaces
+of size `E`, `N` connections of reduced plan `S` and persistent state `P` cost
+about `N(S + P) + KE`. The bound is on outstanding leases, so release the
+workspace before a long wait; a suspended operation that keeps one keeps its
+lease. Acquiring may wait or fail, and the pool says which.
+
+A library that must serve both the task-per-activity and the bounded-worker
+shapes implements its protocol once as an incremental operation: a record that
+owns the persistent state, buffers and pending I/O claims, plus an `advance`
+that reports waiting or finished. A direct-style driver advances it and
+suspends; a worker loop advances it and returns to the queue. The protocol
+logic is written once and the storage profile is the driver's choice. The
+boundary is real, though: a driver cannot turn an opaque suspending call into
+an incremental operation, and an application callback that suspends on its own
+still needs an activation or its own place in the operation record. Libraries
+that never need the bounded-worker shape keep ordinary suspending interfaces.
 
 ### Many waiting connections, bounded workers
 

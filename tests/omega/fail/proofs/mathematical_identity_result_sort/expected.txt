@@ -1,0 +1,2 @@
+mathematical declaration `identity_as_strict` fails kernel checking
+TypeMismatch

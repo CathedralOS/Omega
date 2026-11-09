@@ -2666,6 +2666,7 @@ mod direct {
         target_state: &(impl ContractTargetParameters + ?Sized),
         target_state_symbol: SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
+        assignments: &mut crate::values::RootAssignmentObservations<'_>,
     ) -> bool {
         let semantic = &facts.semantic;
         let parameters = target_state.contract_parameters(program);
@@ -2713,6 +2714,7 @@ mod direct {
             call_site,
             target_state,
             expression,
+            assignments,
         ) {
             return true;
         }
@@ -2794,6 +2796,7 @@ mod direct {
         call_site: &validation::CallSite<'_>,
         target: &(impl ContractTargetParameters + ?Sized),
         expression: typed_trees::expression::ExpressionHandle,
+        assignments: &mut crate::values::RootAssignmentObservations<'_>,
     ) -> bool {
         use super::prover::{ScalarValue, evaluate_scalar};
         use typed_trees::expression::ExpressionNode;
@@ -2827,6 +2830,7 @@ mod direct {
                             parameters,
                             arguments,
                             formal,
+                            assignments,
                         );
                     }
                 };
@@ -2838,8 +2842,6 @@ mod direct {
                             place_at(program, caller_state_symbol, statement_index, leaf)
                             && let Some(value) = scalar_value_at_observation(
                                 program,
-                                semantic,
-                                contexts,
                                 caller_state_symbol,
                                 statement_index,
                                 validation::expression_result_type_reference(
@@ -2849,6 +2851,7 @@ mod direct {
                                     leaf,
                                 )?,
                                 &place,
+                                assignments,
                             )
                         {
                             return Some(value);
@@ -2894,6 +2897,7 @@ mod direct {
         parameters: &[typed_trees::signature::StateParameter],
         arguments: &[typed_trees::expression::ExpressionHandle],
         leaf: typed_trees::expression::ExpressionHandle,
+        assignments: &mut crate::values::RootAssignmentObservations<'_>,
     ) -> Option<facts::ScalarValue> {
         let semantic = &facts.semantic;
         let length_receiver = expressions(program)
@@ -2929,8 +2933,6 @@ mod direct {
             };
             let Some(facts::ScalarValue::Integer(value)) = scalar_value_at_observation(
                 program,
-                semantic,
-                contexts,
                 caller_state_symbol,
                 statement_index,
                 validation::expression_result_type_reference(
@@ -2940,6 +2942,7 @@ mod direct {
                     expression,
                 )?,
                 &selector,
+                assignments,
             ) else {
                 continue;
             };
@@ -2990,12 +2993,11 @@ mod direct {
         }
         scalar_value_at_observation(
             program,
-            semantic,
-            contexts,
             caller_state_symbol,
             statement_index,
             observed_type,
             &actual,
+            assignments,
         )
     }
 
@@ -3006,33 +3008,24 @@ mod direct {
     */
     fn scalar_value_at_observation(
         program: &dyn ::validation::CheckingInput,
-        semantic: &facts::FactPlan,
-        contexts: &[facts::FactContextHandle],
         state: SymbolHandle,
         statement_index: usize,
         observed_type: typed_trees::types::TypeReferenceHandle,
         place: &validation::CanonicalPlace,
+        assignments: &mut crate::values::RootAssignmentObservations<'_>,
     ) -> Option<facts::ScalarValue> {
         if !observation_carriers_agree(program, state, statement_index, observed_type, place) {
             return None;
         }
         let mut place = place.clone();
-        crate::flow::narrow_pinned_index_segments(
+        crate::flow::narrow_pinned_index_segments_with_values(
             program,
-            semantic,
             state,
             statement_index,
-            contexts,
             &mut place.segments,
+            |selector| assignments.scalar_value(selector),
         );
-        super::prover::scalar_value_at_place(
-            program,
-            semantic,
-            contexts
-                .iter()
-                .map(|context| semantic.contexts.get(*context)),
-            &place,
-        )
+        assignments.scalar_value(&place)
     }
 
     /*
@@ -3078,27 +3071,21 @@ mod domains {
         expression: typed_trees::expression::ExpressionHandle,
     ) -> bool {
         let candidate_label = program.expression_table.display_name(expression);
-
-        context_domain_proves_label(
-            program,
-            semantic,
-            context,
-            contexts,
-            point,
-            &candidate_label,
-        )
+        let availability = CasePremiseAvailability::new(program, semantic, contexts, point);
+        context_domain_proves_label(program, semantic, context, &candidate_label, &availability)
     }
 
-    pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membership(
-        program: &dyn ::validation::CheckingInput,
-        semantic: &facts::FactPlan,
+    pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membership<'premises>(
+        program: &'premises dyn ::validation::CheckingInput,
+        semantic: &'premises facts::FactPlan,
         context: &facts::FactContext,
-        contexts: &[facts::FactContextHandle],
+        contexts: &'premises [facts::FactContextHandle],
         caller_state_symbol: SymbolHandle,
         statement_index: usize,
         call_site: &validation::CallSite<'_>,
         target_state: &(impl ContractTargetParameters + ?Sized),
         expression: typed_trees::expression::ExpressionHandle,
+        availability: &std::cell::OnceCell<Option<CasePremiseAvailability<'premises>>>,
     ) -> bool {
         let candidate_label = instantiate_call_contract_expression_label(
             program,
@@ -3109,21 +3096,25 @@ mod domains {
             expression,
         );
 
-        let Some(machine) = program.machine_holding_state(caller_state_symbol) else {
+        let Some(availability) = availability
+            .get_or_init(|| {
+                let machine = program.machine_holding_state(caller_state_symbol)?;
+                Some(CasePremiseAvailability::new(
+                    program,
+                    semantic,
+                    contexts,
+                    facts::ProgramPoint::Statement {
+                        machine_symbol: machine.symbol,
+                        state_symbol: caller_state_symbol,
+                        statement_index,
+                    },
+                ))
+            })
+            .as_ref()
+        else {
             return false;
         };
-        context_domain_proves_label(
-            program,
-            semantic,
-            context,
-            contexts,
-            facts::ProgramPoint::Statement {
-                machine_symbol: machine.symbol,
-                state_symbol: caller_state_symbol,
-                statement_index,
-            },
-            &candidate_label,
-        )
+        context_domain_proves_label(program, semantic, context, &candidate_label, availability)
     }
 
     /*
@@ -3135,11 +3126,9 @@ mod domains {
         program: &dyn ::validation::CheckingInput,
         semantic: &facts::FactPlan,
         context: &facts::FactContext,
-        contexts: &[facts::FactContextHandle],
-        point: facts::ProgramPoint,
         candidate_label: &str,
+        availability: &CasePremiseAvailability<'_>,
     ) -> bool {
-        let availability = CasePremiseAvailability::new(program, semantic, contexts, point);
         semantic.context_view(context).facts().any(|fact| {
             let (domain_symbol, value, place) = match fact.payload {
                 FactPayload::DomainMembership {
@@ -8689,6 +8678,7 @@ mod current_values {
         call: &checked_trees::FlowCallFact,
         expression: ExpressionHandle,
         frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
     ) -> bool {
         let Some((machine, state)) =
             program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
@@ -8721,13 +8711,15 @@ mod current_values {
         )
         .filter(|target| target.is_valid() && site.completes_transition(program, *target))
         .unwrap_or_else(TransitionTargetHandle::invalid);
-        let Some(mut values) = CurrentScalarValues::at(
+        let Some(mut values) = CurrentScalarValues::at_completing(
             program,
             machine,
             state,
             call.statement_index,
             target,
             frames,
+            &[],
+            completed,
         ) else {
             return false;
         };
@@ -11699,6 +11691,13 @@ pub(super) fn check_flow_call_contracts(
                 let mut state_value_qualifications = arena::Arena::default();
                 let mut state_diagnostics = Vec::new();
                 let caller_is_proof = struct_trace && is_proof_machine(state_flow.machine_symbol);
+                let mut guarantees =
+                    crate::checks::contracts::prover::call_guarantees::StateGuarantees::new(
+                        program,
+                        facts.view(),
+                        state_flow,
+                        call_frames,
+                    );
                 for call_flow in facts.flow.control.calls.span_or_empty(state_flow.calls) {
                     if struct_trace {
                         eprintln!(
@@ -11725,7 +11724,7 @@ pub(super) fn check_flow_call_contracts(
                     check_call_requires(
                         program,
                         facts,
-                        state_flow,
+                        &mut guarantees,
                         call_flow,
                         &nominal_requirements,
                         incoming_guards.for_machine(state_flow.machine_symbol),

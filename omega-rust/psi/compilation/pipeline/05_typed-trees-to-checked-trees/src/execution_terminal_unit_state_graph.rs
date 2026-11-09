@@ -39,6 +39,7 @@ use crate::values::lower_state_domain_predicate;
 use crate::values::lower_state_scalar_contract_predicate;
 
 mod closed_sum {
+
     /*
         Case terminators inspect exact sums. Each selected arm transfers or disposes
         owned custody through normal-edge cleanup; a shared or mutable loan is read in place.
@@ -91,6 +92,7 @@ mod closed_sum {
         state_index: usize,
         signatures: &[Signature],
         edge_calls: EdgeCalls<'_>,
+        place_loans: &[checked_trees::CheckedPlaceLoanPlan],
         result: &checked_trees::CheckedControlResultPlan,
         next_scalar_binding: usize,
         operations: &mut Vec<OperationPlan>,
@@ -145,101 +147,149 @@ mod closed_sum {
                 transition_start,
             )?),
         };
-        let (mut subject, mut type_reference) =
-            if let DispatchSubject::Computed(subject_expression) = dispatch {
-                trace.phase("state graph: terminator: case subject call");
-                trace.statement(u32::try_from(transition_start).ok());
-                let (result, type_reference) = subject_call(
-                    program,
-                    facts,
-                    scalar_callees,
-                    shapes,
-                    machine,
-                    state,
-                    structural,
-                    entry_claims,
-                    operations,
-                    transition_start,
-                    subject_expression,
-                    trace,
-                )?;
-                (
-                    ArgumentPlan::structural_result(
-                        result.binding_ordinal,
-                        result.type_identity,
-                        StructuralAccess::Owned,
-                    ),
-                    type_reference,
-                )
-            } else if let Some((index, parameter)) = program
-                .state_parameters(state)
+        let (mut subject, mut type_reference) = if let DispatchSubject::Computed(
+            subject_expression,
+        ) = dispatch
+        {
+            trace.phase("state graph: terminator: case subject call");
+            trace.statement(u32::try_from(transition_start).ok());
+            let (result, type_reference) = subject_call(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural,
+                entry_claims,
+                operations,
+                transition_start,
+                subject_expression,
+                trace,
+            )?;
+            (
+                ArgumentPlan::structural_result(
+                    result.binding_ordinal,
+                    result.type_identity,
+                    StructuralAccess::Owned,
+                ),
+                type_reference,
+            )
+        } else if let Some(loan) = place_loans
+            .iter()
+            .find(|loan| dispatch.is_symbol(loan.symbol))
+        {
+            if loan.access != StructuralAccess::SharedBorrow
+                || place_loans
+                    .iter()
+                    .filter(|candidate| candidate.symbol == loan.symbol)
+                    .count()
+                    != 1
+            {
+                return None;
+            }
+            let (formation, local) = program.state_local_declaration(state, loan.symbol)?;
+            if crate::execution::terminal_unit::control::statement_sequence::dispatch_observation(
+                program,
+                facts,
+                machine,
+                state,
+                structural,
+                u32::try_from(formation).ok()?,
+                local,
+            )
+            .as_ref()
+                != Some(loan)
+            {
+                return None;
+            }
+            let source = match loan.root {
+                checked_trees::CheckedPlaceLoanRoot::StructuralParameter { parameter_index } => {
+                    SourcePlan::Parameter { parameter_index }
+                }
+                checked_trees::CheckedPlaceLoanRoot::Local { symbol } => {
+                    SourcePlan::StructuralLocal { symbol }
+                }
+                checked_trees::CheckedPlaceLoanRoot::ScalarParameter { .. } => return None,
+            };
+            (
+                ArgumentPlan {
+                    projection_evaluations: Default::default(),
+                    source,
+                    path: loan.path.clone(),
+                    type_identity: shapes.add_type(loan.referee, &[], &[])?,
+                    access: loan.access,
+                },
+                loan.referee,
+            )
+        } else if let Some((index, parameter)) = program
+            .state_parameters(state)
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| dispatch.is_symbol(parameter.symbol))
+        {
+            let (position, retained) = structural
                 .iter()
                 .enumerate()
-                .find(|(_, parameter)| dispatch.is_symbol(parameter.symbol))
+                .find(|(_, retained)| retained.position as usize == index)?;
+            let inspected = match retained.access {
+                StructuralAccess::Owned => parameter.type_reference,
+                checked_trees::checked_borrowed_access_pair_pattern!() => {
+                    let TypeReferenceNode::Reference { referee, .. } = program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    else {
+                        return None;
+                    };
+                    *referee
+                }
+                StructuralAccess::WriteOnlyBorrow => return None,
+            };
+            if !matches!(
+                retained.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            ) || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
+                || !retained.qualifications.is_empty()
+                || retained.primitive_referent.is_some()
             {
-                let (position, retained) = structural
-                    .iter()
-                    .enumerate()
-                    .find(|(_, retained)| retained.position as usize == index)?;
-                let inspected = match retained.access {
-                    StructuralAccess::Owned => parameter.type_reference,
-                    checked_trees::checked_borrowed_access_pair_pattern!() => {
-                        let TypeReferenceNode::Reference { referee, .. } = program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference)
-                        else {
-                            return None;
-                        };
-                        *referee
-                    }
-                    StructuralAccess::WriteOnlyBorrow => return None,
-                };
-                if !matches!(
-                    retained.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                ) || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
-                    || !retained.qualifications.is_empty()
-                    || retained.primitive_referent.is_some()
-                {
-                    return None;
-                }
-                (
-                    ArgumentPlan {
-                        projection_evaluations: Default::default(),
-                        source: SourcePlan::Parameter {
-                            parameter_index: u32::try_from(position).ok()?,
-                        },
-                        path: Vec::new(),
-                        type_identity: retained.type_identity,
-                        access: retained.access,
+                return None;
+            }
+            (
+                ArgumentPlan {
+                    projection_evaluations: Default::default(),
+                    source: SourcePlan::Parameter {
+                        parameter_index: u32::try_from(position).ok()?,
                     },
-                    inspected,
+                    path: Vec::new(),
+                    type_identity: retained.type_identity,
+                    access: retained.access,
+                },
+                inspected,
+            )
+        } else {
+            let mut matching = operations
+                .iter()
+                .filter_map(super::retained_structural_result)
+                .filter_map(|result| {
+                    let local = statements
+                        .get(result.statement_index as usize)?
+                        .as_local_data()?;
+                    (dispatch.is_symbol(local.symbol)
+                        && !local.is_mutable
+                        && result.statement_index < transition_start as u32)
+                        .then_some((result, local))
+                });
+            let (result, local) = matching.next()?;
+            if matching.next().is_some()
+                || !matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
                 )
-            } else {
-                let mut matching = operations
-                    .iter()
-                    .filter_map(super::retained_structural_result)
-                    .filter_map(|result| {
-                        let local = statements
-                            .get(result.statement_index as usize)?
-                            .as_local_data()?;
-                        (dispatch.is_symbol(local.symbol)
-                            && !local.is_mutable
-                            && result.statement_index < transition_start as u32)
-                            .then_some((result, local))
-                    });
-                let (result, local) = matching.next()?;
-                if matching.next().is_some()
-                    || !matches!(
-                        result.multiplicity,
-                        Multiplicity::Affine | Multiplicity::Unrestricted
-                    )
-                {
-                    return None;
-                }
-                let (subject, inspected) = if let Some(shell) =
-                    validation::reference_shell(program, local.type_reference)
-                {
+            {
+                return None;
+            }
+            let (subject, inspected) =
+                if let Some(shell) = validation::reference_shell(program, local.type_reference) {
                     if result.multiplicity != Multiplicity::Affine
                         || shell.access == language_semantics::ReferenceAccess::WriteOnly
                     {
@@ -271,8 +321,8 @@ mod closed_sum {
                         local.type_reference,
                     )
                 };
-                (subject, inspected)
-            };
+            (subject, inspected)
+        };
         let mut established_results = local_results.to_vec();
         if let DispatchSubject::Computed(expression) = dispatch {
             let SourcePlan::StructuralResult { binding_ordinal } = subject.source else {
@@ -437,6 +487,24 @@ mod closed_sum {
                                 statement_ordinal: ordinal,
                                 primitive_type: *primitive_type,
                             }
+                        } else if *result == checked_trees::CheckedControlResultPlan::Unit {
+                            checked_trees::CheckedConditionalReturnArm::Completion(
+                                super::unit_completions::build(
+                                    program,
+                                    facts,
+                                    scalar_callees,
+                                    shapes,
+                                    machine,
+                                    state,
+                                    structural,
+                                    entry_claims,
+                                    edge_calls.local_results,
+                                    operations,
+                                    ordinal,
+                                    *expression,
+                                    trace,
+                                )?,
+                            )
                         } else {
                             let (operation, operand_calls) = returns::return_value_operation(
                                 program,
@@ -860,9 +928,9 @@ mod fused {
     /*
         The fused-state roster a composed control graph plans over.
 
-        `fused_states` fuses the recursive component, not every transitively
-        reachable callee: mutually recursive tail transfers must stay in one
-        graph to retain their shared rank and constant-stack execution. The rest
+        `fused_states` keeps recursive components and shared activation custody
+        in one graph, rather than fusing every reachable callee. Recursive tail
+        transfers retain their shared rank and constant-stack execution. The rest
         of this module's machinery — signatures, entry claims, successors — reads
         this roster through `FusedStates`, each state keeping its authored owner
         for signatures and proof facts.
@@ -881,11 +949,11 @@ mod fused {
     )>;
 
     /*
-        Fuse the recursive component, not every transitively reachable callee.
-        Mutually recursive tail transfers must stay in one graph to retain their
-        shared rank and constant-stack execution. Acyclic calls keep the ordinary
-        call plan, including operand preparation and completion cleanup. Each
-        fused state retains its authored owner for signatures and proof facts.
+        Keep recursive tail transfers in one graph so their rank and stack use
+        remain shared. A tail transfer also stays here when it carries activation
+        custody or overlapping borrowed storage. Other acyclic calls keep their
+        ordinary operand preparation and completion cleanup. Each fused state
+        retains its authored owner for signatures and proof facts.
     */
     pub(in crate::execution::terminal_unit) fn fused_states<'program>(
         program: &'program dyn ::validation::CheckingInput,
@@ -928,7 +996,7 @@ mod fused {
         if owners.len() <= 1 {
             return fused;
         }
-        let mut predecessors = Vec::new();
+        let mut predecessors = vec![Vec::new(); owners.len()];
         for (owner, state) in &fused {
             let Some(source_index) = owners.iter().position(|symbol| *symbol == owner.symbol)
             else {
@@ -941,31 +1009,26 @@ mod fused {
                 let target_owner = fused[target_index].0.symbol;
                 if let Some(target_index) = owners.iter().position(|symbol| *symbol == target_owner)
                 {
-                    predecessors.push((target_index, source_index));
+                    predecessors[target_index].push(source_index);
                 }
             }
         }
-        predecessors.sort_unstable();
-        predecessors.dedup();
+        for incoming in &mut predecessors {
+            incoming.sort_unstable();
+            incoming.dedup();
+        }
+        let components = crate::checks::termination::strongly_connected_components(&predecessors);
+        let mut component_of = vec![0; owners.len()];
+        for (index, component) in components.iter().enumerate() {
+            for &owner in component {
+                component_of[owner] = index;
+            }
+        }
         let mut retained = vec![false; owners.len()];
         let mut ready = Vec::new();
-        if let Some(root) = retained.first_mut() {
-            *root = true;
-            ready.push(0);
-        }
-        let mut cursor = 0;
-        while let Some(&target) = ready.get(cursor) {
-            cursor += 1;
-            let first = predecessors.partition_point(|(candidate, _)| *candidate < target);
-            for &(_, source) in predecessors[first..]
-                .iter()
-                .take_while(|(candidate, _)| *candidate == target)
-            {
-                if !retained[source] {
-                    retained[source] = true;
-                    ready.push(source);
-                }
-            }
+        for &owner in &components[component_of[0]] {
+            retained[owner] = true;
+            ready.push(owner);
         }
         let mut cursor = 0;
         while let Some(&source) = ready.get(cursor) {
@@ -975,8 +1038,8 @@ mod fused {
                 .filter(|(owner, _)| owner.symbol == owners[source])
                 .map(|(_, state)| *state);
             for state in source_states {
-                for target_symbol in completing_transition_targets(program, state) {
-                    let Some(target_index) = fused_target_index(program, &fused, target_symbol)
+                for (statement_index, transfer) in completing_transition_transfers(program, state) {
+                    let Some(target_index) = fused_target_index(program, &fused, transfer.target)
                     else {
                         continue;
                     };
@@ -987,9 +1050,16 @@ mod fused {
                     else {
                         continue;
                     };
-                    if !retained[target] && moves_activation_claim(program, target_state) {
-                        retained[target] = true;
-                        ready.push(target);
+                    if !retained[target]
+                        && (moves_activation_claim(program, target_state)
+                            || shares_borrowed_storage(program, state, statement_index, &transfer))
+                    {
+                        for &owner in &components[component_of[target]] {
+                            if !retained[owner] {
+                                retained[owner] = true;
+                                ready.push(owner);
+                            }
+                        }
                     }
                 }
             }
@@ -1025,15 +1095,61 @@ mod fused {
         program: &'a dyn ::validation::CheckingInput,
         state: &'a typed_trees::state::State,
     ) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
+        completing_transition_transfers(program, state).map(|(_, transfer)| transfer.target)
+    }
+
+    fn completing_transition_transfers<'a>(
+        program: &'a dyn ::validation::CheckingInput,
+        state: &'a typed_trees::state::State,
+    ) -> impl Iterator<Item = (usize, validation::CompletingTransfer<'a>)> + 'a {
         crate::flow::state_statements(program, state.statement_nodes)
             .iter()
-            .filter_map(|statement| match statement {
-                StatementNode::Transition(transition) => Some(transition),
+            .enumerate()
+            .filter_map(|(index, statement)| match statement {
+                StatementNode::Transition(transition) => Some((index, transition)),
                 _ => None,
             })
-            .flat_map(|transition| transition.targets())
-            .filter_map(|target| validation::completing_transition_transfer(program, target))
-            .map(|transfer| transfer.target)
+            .flat_map(move |(index, transition)| {
+                transition.targets().filter_map(move |target| {
+                    validation::completing_transition_transfer(program, target)
+                        .map(|transfer| (index, transfer))
+                })
+            })
+    }
+
+    // Keep suspended storage and its child loan in the same activation. This
+    // selects the graph only; ordinary successor planning still checks every
+    // argument, captured selector, invocation contract and cleanup obligation.
+    fn shares_borrowed_storage(
+        program: &dyn ::validation::CheckingInput,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        transfer: &validation::CompletingTransfer<'_>,
+    ) -> bool {
+        let borrowed = transfer
+            .arguments
+            .iter()
+            .zip(program.state_parameters(transfer.state))
+            .filter_map(|(argument, parameter)| {
+                let shell = validation::reference_shell(program, parameter.type_reference)?;
+                let place = crate::published::places::place_at(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    *argument,
+                )?;
+                Some((place, shell.access))
+            })
+            .collect::<Vec<_>>();
+        borrowed.iter().enumerate().any(|(index, (left, access))| {
+            borrowed[index + 1..].iter().any(|(right, other_access)| {
+                (*access != language_semantics::ReferenceAccess::Shared
+                    || *other_access != language_semantics::ReferenceAccess::Shared)
+                    && left.root == right.root
+                    && (left.segments.starts_with(&right.segments)
+                        || right.segments.starts_with(&left.segments))
+            })
+        })
     }
 
     /*
@@ -4064,6 +4180,7 @@ mod ranking {
     }
 }
 mod result_custody {
+
     /*
         Result custody accounting for one composed Unit state.
 
@@ -4171,7 +4288,9 @@ mod result_custody {
         let guarded_return_construction_uses = match terminator {
             TerminatorPlan::Guarded { return_values, .. } => return_values
                 .iter()
-                .map(|value| construction_local_uses(facts, state.symbol, std::iter::once(value)))
+                .map(|value| {
+                    construction_local_uses(facts, state.symbol, std::iter::once(&value.operation))
+                })
                 .collect::<Option<Vec<_>>>()?,
             _ => Vec::new(),
         };
@@ -4712,9 +4831,10 @@ mod result_custody {
                         operation,
                         terminal_local,
                     ) == 1
-                    || uses
-                        .iter()
-                        .any(|(_, argument)| construction_owns_result(argument, operations.len()))
+                    || (!matches!(arm, ReturnArm::Completion(_))
+                        && uses.iter().any(|(_, argument)| {
+                            construction_owns_result(argument, operations.len())
+                        }))
                     || permits_disposal(arm.statement_ordinal(), false)
             };
             let has_normal_exit = successors
@@ -4770,7 +4890,7 @@ mod result_custody {
                             return None;
                         };
                         let transfers = prefix_transfers
-                            + value.definite_call_transfers(
+                            + value.operation.definite_call_transfers(
                                 &facts.values,
                                 call_schedules,
                                 operation,
@@ -4809,6 +4929,18 @@ mod result_custody {
                             };
                             completion_owns(*transfers, *statement_ordinal, *is_continuation)
                         })
+                }
+                TerminatorPlan::CompleteExpression { completion } => {
+                    // A selection that cannot return supplies no normal disposal.
+                    // Earlier transfers and releases keep their own counts.
+                    completion.expression.normal_continuation
+                        && (completion.definite_call_transfers(
+                            &facts.values,
+                            call_schedules,
+                            operation,
+                            terminal_local,
+                        ) == 1
+                            || permits_disposal(Some(completion.statement_ordinal), false))
                 }
                 TerminatorPlan::ReturnUnit | TerminatorPlan::ReturnScalar { .. } => {
                     permits_disposal(None, false)
@@ -4852,6 +4984,10 @@ mod result_custody {
                 TerminatorPlan::ClosedSum { cases, .. } => {
                     let selected_case_exhausted =
                         |case: &checked_trees::CheckedClosedSumCasePlan, arm: &ReturnArm| {
+                            // A union of alternative moves cannot exhaust one selected case.
+                            if matches!(arm, ReturnArm::Completion(_)) {
+                                return false;
+                            }
                             let no_nominal_cleanup = shapes
                                 .types
                                 .get(&result.type_identity)
@@ -5024,6 +5160,20 @@ mod result_custody {
                     "state graph: structural result has duplicate dispositions"
                 });
                 trace.statement(Some(result.statement_index));
+                trace.result_custody_failure(control::ResultCustodyFailure {
+                    binding: result.binding_ordinal,
+                    local: result_local,
+                    producer_operation: producer_index,
+                    dispositions: [
+                        usize::from(implicit_disposition),
+                        call_transfers,
+                        cleanup_discards,
+                        construction_transfers,
+                        reference_releases,
+                        independent_view_releases,
+                    ],
+                    normal_caller_completion: has_normal_caller_completion,
+                });
                 return None;
             }
             if returning_view_disposal {
@@ -5602,6 +5752,7 @@ mod result_custody {
 pub(crate) use ranking::natural_rank_plans;
 use ranking::natural_rank_plans_for_fused;
 pub(super) mod returns {
+
     /*
         Normal graph results through the shared structural value producer. A
         primitive scalar result completes each returning state with the same
@@ -5615,7 +5766,7 @@ pub(super) mod returns {
     use super::{
         CheckFacts, CheckedComposedUnitControlTerminatorPlan,
         CheckedUnitEffectOperationPlan as OperationPlan, CheckedUnitStructuralParameterPlan,
-        Multiplicity, StatementNode, TransitionExit, TransitionTargetNode, control,
+        Multiplicity, StatementNode, control,
     };
     use crate::execution::terminal_unit::ScalarCalleeClosure;
     use crate::execution::terminal_unit::types::{
@@ -5717,6 +5868,8 @@ pub(super) mod returns {
         if arms.first()?.guard_statement_ordinal as usize != start {
             return None;
         }
+        let selected_copies =
+            control::selected_copies::SelectedCopies::new(program, facts, machine.symbol, state)?;
         let mut count = next_result_ordinal(operations)?;
         let mut return_values = Vec::new();
         let mut preamble = Vec::new();
@@ -5732,27 +5885,7 @@ pub(super) mod returns {
             else {
                 return None;
             };
-            let expression = match crate::flow::state_statements(program, state.statement_nodes)
-                .get(*statement_ordinal as usize)?
-            {
-                StatementNode::Expression(expression) if !is_continuation => *expression,
-                StatementNode::Transition(transition)
-                    if transition.exit == TransitionExit::Ordinary =>
-                {
-                    let target = if *is_continuation {
-                        transition.continuation
-                    } else {
-                        transition.target
-                    };
-                    let TransitionTargetNode::Value(expression) =
-                        program.statement_table.transition_target(target)
-                    else {
-                        return None;
-                    };
-                    *expression
-                }
-                _ => return None,
-            };
+            let (expression, copies) = selected_copies.for_destination(destination)?;
             if validation::completing_call_transfer(program, expression).is_some_and(|transfer| {
                 fused_target_index(program, fused, transfer.target).is_some()
             }) {
@@ -5773,7 +5906,13 @@ pub(super) mod returns {
                 expression,
                 trace,
             )?;
-            return_values.push(operation);
+            return_values.push(checked_trees::CheckedGuardedReturnValue {
+                statement_ordinal: *statement_ordinal,
+                is_continuation: *is_continuation,
+                transition_target: copies.transition_target,
+                operation,
+                copied_payloads: copies.copied_payloads,
+            });
             preamble.extend(operand_calls);
         }
         Some((
@@ -7439,6 +7578,7 @@ mod successors {
     }
 }
 mod terminal_calls {
+
     /*
         Terminal machine calls in transition arms
         ([state contracts](../../../../../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)).
@@ -7639,6 +7779,88 @@ mod terminal_calls {
         let target = invoked_callable(program, machine, transition)?;
         trace.phase("state graph: terminator: terminal call arm: completion");
         trace.statement(Some(statement_ordinal));
+        // Bind the receiving result, including its checked qualifications. The
+        // ordinary call builder checks the callee's carrier/access/multiplicity;
+        // completed-call guarantees, not syntactic qualified-type equality,
+        // justify the stronger receiving facts and exact returned claims.
+        trace.phase("state graph: terminator: terminal call arm: occurrence");
+        trace.statement(Some(statement_ordinal));
+        let flow = state_flow(facts, machine.symbol, state.symbol)?;
+        let calls = facts.flow.control.calls.span_or_empty(flow.calls);
+        let mut occurrences = calls.iter().filter(|call| {
+            call.statement_index == statement_ordinal as usize
+                && !facts.flow.control.is_retired(state.symbol, call)
+                && validation::find_call_site(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                .is_some_and(|site| site.completes_transition(program, transition.target))
+                && validation::transition_call_target(
+                    program,
+                    machine,
+                    state,
+                    call.statement_index,
+                    call.call_ordinal,
+                ) == Some(transition.target)
+        });
+        let call = occurrences.next()?;
+        if occurrences.next().is_some()
+            || validation::terminal_callable_target(program, machine, call.target_symbol)
+                .is_none_or(|(selected, _)| selected != target)
+        {
+            return None;
+        }
+        plan_call_arm(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            state,
+            structural,
+            entry_claims,
+            local_results,
+            preamble,
+            result,
+            next_scalar_binding,
+            calls,
+            None,
+            call,
+            target,
+            statement_ordinal,
+            trace,
+        )
+    }
+
+    /// The exact captured invocation owns ordinary operand preparation, result
+    /// delivery and loan completion, whether selected by a statement or a Match.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn plan_call_arm(
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        scalar_callees: ScalarCalleeClosure,
+        shapes: &mut ShapeCollector<'_>,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        structural: &[CheckedUnitStructuralParameterPlan],
+        entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+        local_results: &[(
+            checked_trees::CheckedUnitStructuralResultBindingPlan,
+            facts::PlaceRoot,
+        )],
+        preamble: &[CheckedUnitEffectOperationPlan],
+        result: &checked_trees::CheckedControlResultPlan,
+        next_scalar_binding: usize,
+        calls: &[checked_trees::FlowCallFact],
+        mut selected: Option<&mut control::SelectedInvocationAccounting>,
+        call: &checked_trees::FlowCallFact,
+        target: symbols::SymbolHandle,
+        statement_ordinal: u32,
+        trace: &control::LocalConstructionTrace,
+    ) -> Option<checked_trees::CheckedConditionalReturnArm> {
         let no_normal = validation::call_target_state(program, target).is_some_and(|state| {
             validation::normal_completion_possible(program, state) == Some(false)
         });
@@ -7671,36 +7893,6 @@ mod terminal_calls {
                 }
             }
         };
-        trace.phase("state graph: terminator: terminal call arm: occurrence");
-        trace.statement(Some(statement_ordinal));
-        let flow = state_flow(facts, machine.symbol, state.symbol)?;
-        let calls = facts.flow.control.calls.span_or_empty(flow.calls);
-        let mut occurrences = calls.iter().filter(|call| {
-            call.statement_index == statement_ordinal as usize
-                && !facts.flow.control.is_retired(state.symbol, call)
-                && validation::find_call_site(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    call.statement_index,
-                    call.call_ordinal,
-                )
-                .is_some_and(|site| site.completes_transition(program, transition.target))
-                && validation::transition_call_target(
-                    program,
-                    machine,
-                    state,
-                    call.statement_index,
-                    call.call_ordinal,
-                ) == Some(transition.target)
-        });
-        let call = occurrences.next()?;
-        if occurrences.next().is_some()
-            || validation::terminal_callable_target(program, machine, call.target_symbol)
-                .is_none_or(|(selected, _)| selected != target)
-        {
-            return None;
-        }
         trace.phase("state graph: terminator: terminal call arm: operands");
         let mut structural_results = local_results.to_vec();
         let mut preparation = preamble.to_vec();
@@ -7724,6 +7916,9 @@ mod terminal_calls {
             &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
         )?;
         if completion == checked_trees::CheckedValueCompletion::NoNormal {
+            if let Some(selected) = selected.as_deref_mut() {
+                selected.stopped_prefix(facts, call, &preparation[predecessor_count..])?;
+            }
             return Some(
                 checked_trees::CheckedConditionalReturnArm::EvaluateNoNormal {
                     statement_ordinal,
@@ -7747,6 +7942,7 @@ mod terminal_calls {
             call,
             calls,
             &preparation,
+            selected,
         )?;
         trace.phase("state graph: terminator: terminal call arm: call operation");
         trace.statement(Some(statement_ordinal));
@@ -7830,6 +8026,7 @@ mod terminal_calls {
     }
 }
 mod terminator {
+
     /*
         The terminator of one state in a composed Unit control graph.
 
@@ -7896,6 +8093,7 @@ mod terminator {
         signatures: &[Signature],
         entry_claims: &[CheckedUnitEntryClaimPlan],
         local_results: &[(CheckedUnitStructuralResultBindingPlan, PlaceRoot)],
+        place_loans: &[checked_trees::CheckedPlaceLoanPlan],
         scalar_result: Option<&CheckedUnitScalarResultBindingPlan>,
         structural_result: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
         next_scalar_binding: usize,
@@ -8070,9 +8268,53 @@ mod terminator {
                 trace,
             )?;
             return Some((
-                complete_selected_return(program, transition, arm, operations)?,
+                complete_selected_return(
+                    program, facts, machine, state, transition, arm, operations,
+                )?,
                 Some(selected_exit),
             ));
+        }
+        let mut unit_completion_failure = trace.deferred_failure();
+        if result == CheckedControlResultPlan::Unit {
+            // A completed statement prefix has no expression left. Its empty
+            // tail still reaches the ordinary implicit Unit return below.
+            let expression = match statements.get(terminator_index..)?.first() {
+                Some(StatementNode::Expression(expression)) => Some(*expression),
+                Some(StatementNode::Transition(transition))
+                    if transition.guard == TransitionGuardNode::Always
+                        && transition.exit == TransitionExit::Ordinary
+                        && !transition.continuation.is_valid() =>
+                {
+                    match program.statement_table.transition_target(transition.target) {
+                        TransitionTargetNode::Value(expression) => Some(*expression),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            let before_unit_completion = trace.mark();
+            if let Some(completion) = expression.and_then(|expression| {
+                super::unit_completions::build(
+                    program,
+                    facts,
+                    scalar_callees,
+                    shapes,
+                    machine,
+                    state,
+                    structural,
+                    entry_claims,
+                    local_results,
+                    operations,
+                    ordinal,
+                    expression,
+                    trace,
+                )
+            }) {
+                return Some((TerminatorPlan::CompleteExpression { completion }, None));
+            }
+            if trace.mark() != before_unit_completion {
+                unit_completion_failure.retain();
+            }
         }
         let before_closed_sum = trace.mark();
         let closed_sum = closed_sum::build(
@@ -8085,6 +8327,7 @@ mod terminator {
             state_index,
             signatures,
             edge_calls,
+            place_loans,
             &result,
             next_scalar_binding,
             operations,
@@ -8239,6 +8482,7 @@ mod terminator {
                         && transition_on_erased_dispatch_subject(program, state, when_true)
                         && transition_on_erased_dispatch_subject(program, state, when_false)
                     {
+                        unit_completion_failure.succeeded();
                         return Some(erased_proof_completion(state, statements, terminator_index));
                     }
                     trace
@@ -8464,6 +8708,7 @@ mod terminator {
                             })
                         })
                     {
+                        unit_completion_failure.succeeded();
                         return Some(erased_proof_completion(state, statements, terminator_index));
                     }
                     trace.phase("state graph: terminator: guarded jump successors: roster");
@@ -8676,6 +8921,7 @@ mod terminator {
                 }
             }
         };
+        unit_completion_failure.succeeded();
         Some((terminator, None))
     }
 
@@ -8789,6 +9035,24 @@ mod terminator {
             TransitionTargetNode::Value(expression) => *expression,
             _ => return None,
         };
+        if *result == CheckedControlResultPlan::Unit {
+            return super::unit_completions::build(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural,
+                entry_claims,
+                local_results,
+                operations,
+                statement_ordinal,
+                expression,
+                trace,
+            )
+            .map(checked_trees::CheckedConditionalReturnArm::Completion);
+        }
         if let CheckedControlResultPlan::Scalar { primitive_type } = result {
             let role = CheckedScalarExpressionRole::Return;
             let retained = facts
@@ -8882,6 +9146,9 @@ mod terminator {
     */
     fn complete_selected_return(
         program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
         transition: &TableTransition,
         arm: checked_trees::CheckedConditionalReturnArm,
         operations: &mut Vec<OperationPlan>,
@@ -8898,7 +9165,14 @@ mod terminator {
                 operations.extend(prefix.iter().cloned());
                 TerminatorPlan::EvaluateNoNormal
             }
+            Arm::EvaluateUnit {
+                operations: prefix, ..
+            } => {
+                operations.extend(prefix.iter().cloned());
+                TerminatorPlan::ReturnUnit
+            }
             Arm::Crash { statement_ordinal } => TerminatorPlan::Crash { statement_ordinal },
+            Arm::Completion(completion) => TerminatorPlan::CompleteExpression { completion },
             Arm::Unit { .. } => TerminatorPlan::ReturnUnit,
             Arm::Scalar {
                 statement_ordinal,
@@ -8907,6 +9181,19 @@ mod terminator {
                 completion: CheckedScalarReturnPlan::Exits(CheckedUnitScalarControlPlan {
                     primitive_type,
                     terminator: CheckedScalarStateTerminator::Return { statement_ordinal },
+                    selected_copies: vec![
+                        control::selected_copies::SelectedCopies::new(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state,
+                        )?
+                        .for_destination(&checked_trees::CheckedScalarBranchDestination::Return {
+                            statement_ordinal,
+                            is_continuation: false,
+                        })?
+                        .1,
+                    ],
                 }),
             },
             Arm::Structural(operation) => {
@@ -9020,6 +9307,280 @@ mod terminator {
             }
         }
         false
+    }
+}
+mod unit_completions {
+    //! Unit completion retains a selected invocation graph without result storage.
+    //! Every leaf uses the same ordinary call transaction as a transition arm.
+
+    use super::{CheckFacts, ScalarCalleeClosure, ShapeCollector, control};
+    use checked_trees::{
+        CheckedCompletionExpressionKind as Kind, CheckedConditionalReturnArm as Arm,
+        CheckedControlResultPlan, CheckedUnitCompletionExpression, CheckedUnitCompletionKind,
+        CheckedUnitCompletionPlan, CheckedUnitCompletionSelection, CheckedUnitEffectOperationPlan,
+        CheckedUnitScalarCompletionArm, CheckedUnitScalarCompletionCondition,
+        CheckedUnitStructuralCompletionArm, CheckedUnitStructuralParameterPlan,
+    };
+    use std::collections::BTreeSet;
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn build(
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        scalar_callees: ScalarCalleeClosure,
+        shapes: &mut ShapeCollector<'_>,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        structural: &[CheckedUnitStructuralParameterPlan],
+        entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+        local_results: &[(
+            checked_trees::CheckedUnitStructuralResultBindingPlan,
+            facts::PlaceRoot,
+        )],
+        preamble: &[CheckedUnitEffectOperationPlan],
+        statement: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+        trace: &control::LocalConstructionTrace,
+    ) -> Option<CheckedUnitCompletionPlan> {
+        let plans = &facts.values.completions;
+        let root = plans.root_at(machine.symbol, state.symbol, statement, expression)?;
+        if let Some(refusal) = root.refusal {
+            trace.phase(refusal.reason.phase());
+            trace.statement(Some(statement));
+            return None;
+        }
+        trace.phase("Unit completion: checked dispatch root");
+        trace.statement(Some(statement));
+        if !matches!(plans.nodes.get(root.root).kind, Kind::Dispatch { .. }) {
+            return None;
+        }
+        let flow = super::super::types::state_flow(facts, machine.symbol, state.symbol)?;
+        let call_roster = facts.flow.control.calls.span_or_empty(flow.calls);
+        trace.phase("Unit completion: shared occurrence prefix");
+        trace.statement(Some(statement));
+        let mut selected =
+            control::SelectedInvocationAccounting::new(program, facts, root, preamble)?;
+        let mut bind_call =
+            |node: &checked_trees::CheckedCompletionExpression,
+             source_call: arena::Handle<checked_trees::FlowCallFact>| {
+                trace.phase("Unit completion: exact selected call occurrence");
+                trace.statement(Some(statement));
+                let offset = source_call
+                    .arena_index()
+                    .checked_sub(flow.calls.start().arena_index())?;
+                if flow.calls.handles().nth(offset as usize) != Some(source_call) {
+                    return None;
+                }
+                let call = facts.flow.control.calls.get(source_call);
+                if call.statement_index != statement as usize
+                    || call.authored_expression != node.expression
+                {
+                    return None;
+                }
+                let arm = super::terminal_calls::plan_call_arm(
+                    program,
+                    facts,
+                    scalar_callees,
+                    shapes,
+                    machine,
+                    state,
+                    structural,
+                    entry_claims,
+                    local_results,
+                    preamble,
+                    &CheckedControlResultPlan::Unit,
+                    0,
+                    call_roster,
+                    Some(&mut selected),
+                    call,
+                    call.target_symbol,
+                    statement,
+                    trace,
+                )?;
+                let operations = match arm {
+                    Arm::EvaluateNoNormal { operations, .. } => operations,
+                    Arm::Call {
+                        operands,
+                        operation,
+                        completions,
+                    } => {
+                        if !matches!(
+                            operation.call()?.result(),
+                            checked_trees::CheckedUnitCallResult::Unit
+                                | checked_trees::CheckedUnitCallResult::NoNormal
+                        ) {
+                            return None;
+                        }
+                        checked_trees::CheckedOperandSequence::new(
+                            operands
+                                .iter()
+                                .chain(std::iter::once(&operation))
+                                .chain(completions.iter())
+                                .cloned(),
+                        )
+                    }
+                    _ => return None,
+                };
+                Some(operations)
+            };
+        let expression = bind_expression(
+            plans,
+            root.root,
+            &mut BTreeSet::new(),
+            &mut bind_call,
+            trace,
+            statement,
+        )?;
+        trace.phase("Unit completion: complete occurrence inventory");
+        trace.statement(Some(statement));
+        selected.finish(program, facts, preamble)?;
+        Some(CheckedUnitCompletionPlan {
+            statement_ordinal: statement,
+            expression,
+            // A union of leaf outcomes supplies no abandonment proof for earlier
+            // subject or pattern execution. Each call retains its exact outcome.
+            abandons_custody: false,
+        })
+    }
+
+    fn bind_expression(
+        plans: &checked_trees::CheckedCompletionPlans,
+        handle: checked_trees::CheckedCompletionExpressionHandle,
+        active: &mut BTreeSet<(u32, u32)>,
+        bind_call: &mut impl FnMut(
+            &checked_trees::CheckedCompletionExpression,
+            arena::Handle<checked_trees::FlowCallFact>,
+        ) -> Option<checked_trees::CheckedOperandSequence>,
+        trace: &control::LocalConstructionTrace,
+        statement: u32,
+    ) -> Option<CheckedUnitCompletionExpression> {
+        trace.phase("Unit completion: selected expression binding");
+        trace.statement(Some(statement));
+        let key = (handle.arena_index(), handle.generation());
+        if !handle.is_valid() || !active.insert(key) {
+            return None;
+        }
+        let node = plans.nodes.get(handle);
+        let kind = match &node.kind {
+            Kind::Missing => return None,
+            Kind::Invocation { source_call } => {
+                CheckedUnitCompletionKind::Invocation(bind_call(node, *source_call)?)
+            }
+            Kind::Dispatch { subject, arms } => {
+                let arms = plans.arms.span(*arms)?;
+                if arms.is_empty() {
+                    return None;
+                }
+                match subject {
+                    checked_trees::CheckedDispatchSubject::Scalar(subject) => {
+                        let mut selected = Vec::with_capacity(arms.len());
+                        for arm in arms {
+                            use checked_trees::{
+                                CheckedCompletionComparison as Comparison,
+                                CheckedScalarDispatchPattern as Pattern,
+                            };
+                            let condition = match (&arm.pattern, arm.comparison) {
+                                (Pattern::Value(value), Comparison::Boolean) => {
+                                    CheckedUnitScalarCompletionCondition::Boolean(*value)
+                                }
+                                (Pattern::Value(value), Comparison::Integer) => {
+                                    CheckedUnitScalarCompletionCondition::Integer(*value)
+                                }
+                                (Pattern::Predicate(value), Comparison::Predicate) => {
+                                    CheckedUnitScalarCompletionCondition::Predicate(*value)
+                                }
+                                (Pattern::Wildcard, Comparison::Predicate) => {
+                                    CheckedUnitScalarCompletionCondition::Default
+                                }
+                                _ => return None,
+                            };
+                            selected.push(CheckedUnitScalarCompletionArm {
+                                source_arm: arm.source_arm,
+                                condition,
+                                completion: bind_expression(
+                                    plans,
+                                    arm.completion,
+                                    active,
+                                    bind_call,
+                                    trace,
+                                    statement,
+                                )?,
+                            });
+                        }
+                        CheckedUnitCompletionKind::Selection(
+                            CheckedUnitCompletionSelection::Scalar {
+                                subject: *subject,
+                                arms: selected,
+                            },
+                        )
+                    }
+                    checked_trees::CheckedDispatchSubject::Structural {
+                        expression,
+                        value,
+                        place,
+                        alias,
+                    } => {
+                        let mut selected = Vec::with_capacity(arms.len());
+                        for arm in arms {
+                            let predicate = match (&arm.pattern, arm.comparison) {
+                                (
+                                    checked_trees::CheckedScalarDispatchPattern::Predicate(value),
+                                    checked_trees::CheckedCompletionComparison::Predicate,
+                                ) => Some(*value),
+                                (
+                                    checked_trees::CheckedScalarDispatchPattern::Wildcard,
+                                    checked_trees::CheckedCompletionComparison::Predicate,
+                                ) => None,
+                                _ => return None,
+                            };
+                            selected.push(CheckedUnitStructuralCompletionArm {
+                                source_arm: arm.source_arm,
+                                predicate,
+                                completion: bind_expression(
+                                    plans,
+                                    arm.completion,
+                                    active,
+                                    bind_call,
+                                    trace,
+                                    statement,
+                                )?,
+                            });
+                        }
+                        CheckedUnitCompletionKind::Selection(
+                            CheckedUnitCompletionSelection::Structural {
+                                expression: *expression,
+                                value: *value,
+                                place: place.clone(),
+                                alias: *alias,
+                                arms: selected,
+                            },
+                        )
+                    }
+                }
+            }
+        };
+        // Operand execution can stop before a normally returning callee. That
+        // checked transaction must not donate a normal arrival to its parent.
+        let normal_continuation = node.normal_continuation
+            && match &kind {
+                CheckedUnitCompletionKind::Invocation(operations) => operations
+                    .iter()
+                    .all(|operation| operation.has_normal_continuation()),
+                CheckedUnitCompletionKind::Selection(CheckedUnitCompletionSelection::Scalar {
+                    arms,
+                    ..
+                }) => arms.iter().any(|arm| arm.completion.normal_continuation),
+                CheckedUnitCompletionKind::Selection(
+                    CheckedUnitCompletionSelection::Structural { arms, .. },
+                ) => arms.iter().any(|arm| arm.completion.normal_continuation),
+            };
+        active.remove(&key);
+        Some(CheckedUnitCompletionExpression {
+            source: handle,
+            expression: node.expression,
+            normal_continuation,
+            kind,
+        })
     }
 }
 
@@ -9310,6 +9871,7 @@ pub(super) fn build_traced(
             &signatures,
             &state_entry_claims[state_index],
             &sequence.structural_results,
+            &sequence.place_loans,
             sequence.scalar_result.as_ref(),
             sequence.structural_result.as_ref(),
             sequence.next_scalar_binding,
@@ -9398,6 +9960,13 @@ pub(super) fn build_traced(
             trace,
         )?;
         planned.push(CheckedComposedUnitControlStatePlan {
+            selected_copies: control::selected_copies::SelectedCopies::new(
+                program,
+                facts,
+                owner.symbol,
+                state,
+            )?
+            .into_rows()?,
             normal_exit_cleanups: checked_trees::CheckedNormalExitCleanups {
                 completion,
                 ..Default::default()
