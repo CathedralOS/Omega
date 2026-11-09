@@ -19066,16 +19066,27 @@ pub(crate) mod write_frames {
                         leaves.cases.push(selected);
                         continue;
                     }
+                    if !include_shared
+                        && crate::reference_shell(program, reference)
+                            .is_some_and(|shell| !shell.access.is_exclusive())
+                    {
+                        continue;
+                    }
+                    // Carry a call's complete result into its receiving field. A
+                    // formed view can retain several possible backing places.
                     if !matches!(
                         program.expression_table.expression(expression),
                         ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
                     ) && program.primitive_type_reference(reference).is_none()
-                        && matches!(
+                        && (matches!(
+                            program.expression_table.expression(expression),
+                            ExpressionNode::Call(_)
+                        ) || matches!(
                             program.type_reference_table.type_reference(reference),
                             TypeReferenceNode::Named { .. }
                                 | TypeReferenceNode::Generic { .. }
                                 | TypeReferenceNode::FixedArray { .. }
-                        )
+                        ))
                     {
                         let moved = aggregate_value(
                             program,
@@ -19138,9 +19149,6 @@ pub(crate) mod write_frames {
                             ));
                         }
                         TypeReferenceNode::Reference { access, .. } => {
-                            if !access.is_exclusive() && !include_shared {
-                                continue;
-                            }
                             let origins = inputs.reference(expression, reference, false, inference);
                             let Some(origins) = origins else {
                                 leaves.references.push(ReferenceLeaf {
