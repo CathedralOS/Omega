@@ -1,12 +1,15 @@
-# Unoffered descriptor operation
+# Libc descriptor read through a Build binding
 
-This Linux runtime-admission control calls the exact libc `read` operation
-through an ordinary boundary trait. Native execution reads the supplied `A`.
-Terminal execution must decline because its descriptor adapter deliberately
-does not offer Linux libc input. It must not run that operation against the
-generic native worker's null stdin and fabricate exhaustion of the supplied
-stream. The trait's own service reach does not identify an input implementation.
+This Linux runtime-admission control reads one byte from descriptor 0 through
+the libc `read` import. It checks that an import bound only through
+`Build::bind<Probe::read>` reaches the real supplied input rather than a
+fabricated stream, so that each engine either reads the supplied `A` or traps on
+exhaustion.
 
-`tools/ci/compiler_retained_foreign.py` requires the actual native zero exit
-and the explicit Terminal I/O-capability refusal. This is an intentional
-unavailable comparison, not a positive native/Terminal agreement witness.
+The program declares `Probe::read` as an ordinary one-member boundary trait.
+`build.omg` binds it to the exact versioned glibc `read` on each Linux target;
+the source carries no target-prefixed leaf or `via` clause.
+
+Observed 2026-11-09 on `linux_x86_64` with `omega run --both`: with `input.txt`
+on stdin both engines exit 0; with empty stdin both trap (`native signal 4`,
+`interp crash: Trap`). The engines agree on both inputs.

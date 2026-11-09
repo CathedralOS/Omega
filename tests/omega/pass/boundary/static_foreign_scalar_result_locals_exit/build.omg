@@ -1,8 +1,18 @@
-// Darwin-only canary: `macos_perf_counter` is a macos_arm64 foreign leaf, so
-// only that target selects the entry.
+use omega::language::core::external_binding;
+// Darwin binds `ElapsedClock::now` directly to its scalar foreign leaf; Linux
+// selects the checked timespec adapter and binds only its raw read.
 machine build(builder: &mut Build) {
     Build::application(builder, "static_foreign_scalar_result_locals_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind<ElapsedClock::now>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
+        } });
+    Build::select_provider<ElapsedClock, LinuxElapsedClock>(builder, linux_x86_64);
+    Build::bind<ElapsedClockRead::read>(builder, linux_x86_64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
+        } });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }
