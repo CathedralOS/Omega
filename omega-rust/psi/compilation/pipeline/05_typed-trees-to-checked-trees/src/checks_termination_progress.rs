@@ -1376,6 +1376,85 @@ mod machine_summaries {
         pub(crate) guarantee: &'a TerminationGuarantee,
     }
 
+    pub(crate) fn missing_call_guarantee_context(
+        program: &dyn ::validation::CheckingInput,
+        flow: &FlowFacts,
+        cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
+        machine: &typed_trees::machine::Machine,
+        summaries: &[CheckedProgressSummary],
+    ) -> String {
+        let summaries = ProgressSummaries::new(summaries, &[], &[]);
+        for state in flow.control.machine_states(machine.symbol) {
+            for call in flow.control.calls.span_or_empty(state.calls) {
+                if local_state_transition_target(program, machine, state, call).is_some() {
+                    continue;
+                }
+                let guarantee = selected_call_summary(program, call.target_symbol, &summaries)
+                    .map(|selected| selected.guarantee);
+                if matches!(guarantee, Some(TerminationGuarantee::Terminates { .. })) {
+                    continue;
+                }
+                let name = |symbol: SymbolHandle| {
+                    if symbol.is_valid() {
+                        program.symbols.display_path(symbol, "::")
+                    } else {
+                        "<none>".to_owned()
+                    }
+                };
+                let public = find_call_site(
+                    program,
+                    machine.symbol,
+                    state.state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                .map(|site| {
+                    let target = name(site.target_symbol(program));
+                    let contract = site
+                        .static_requirement_dispatch()
+                        .map(|dispatch| name(dispatch.contract_symbol()))
+                        .unwrap_or_else(|| "<none>".to_owned());
+                    match validation::resolve_requirement_contract(program, machine.symbol, &site) {
+                        Ok((declaration, signature)) => format!(
+                            "source target `{target}`, selected contract `{contract}`, public requirement `{}::{}` {:?}",
+                            declaration.name, signature.name, signature.termination_guarantee,
+                        ),
+                        Err(reason) => format!(
+                            "source target `{target}`, selected contract `{contract}`: {reason}"
+                        ),
+                    }
+                })
+                .unwrap_or_else(|| "the source call occurrence is unavailable".to_owned());
+                return format!(
+                    "state `{}` statement {} call {} targets `{}` through `{}`, summary {guarantee:?}; {public}",
+                    name(state.state_symbol),
+                    call.statement_index,
+                    call.call_ordinal,
+                    name(call.target_symbol),
+                    name(call.receiver_symbol),
+                );
+            }
+        }
+        for (_, dependency) in cleanup_dependencies
+            .iter()
+            .filter(|(_, dependency)| dependency.caller_machine == machine.symbol)
+        {
+            let guarantee = selected_call_summary(program, dependency.target_machine, &summaries)
+                .map(|selected| selected.guarantee);
+            if !matches!(guarantee,
+                Some(TerminationGuarantee::Terminates { premises }) if premises.is_empty())
+            {
+                return format!(
+                    "cleanup target `{}` has summary {guarantee:?}",
+                    program
+                        .symbols
+                        .display_path(dependency.target_machine, "::"),
+                );
+            }
+        }
+        "the missing guarantee is not attached to a nonlocal flow call".to_owned()
+    }
+
     static CLOSED_VALUE_TERMINATION: TerminationGuarantee = TerminationGuarantee::Terminates {
         premises: Vec::new(),
     };
@@ -4228,9 +4307,16 @@ pub(crate) fn analyze_checked_progress(
             premises: checked_premises,
         } = &checked.guarantee
         else {
+            let context = machine_summaries::missing_call_guarantee_context(
+                program,
+                flow,
+                cleanup_dependencies,
+                machine,
+                &summaries,
+            );
             diagnostics.push(Diagnostic::error(format!(
-                "cannot prove published termination for machine `{}`: its checked body reaches an operation without a usable termination guarantee",
-                machine.name
+                "cannot prove published termination for machine `{}`: its checked body reaches an operation without a usable termination guarantee; {context}",
+                machine.name,
             )));
             continue;
         };
