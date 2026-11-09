@@ -81195,6 +81195,48 @@ pub(crate) mod structural_judgment {
             {
                 return self.completed_match_subject(saved);
             }
+            // A substituted formal still names its actual's completed storage.
+            // Read the exact scalar path before projecting a reference descriptor,
+            // whose payload deliberately carries no referent-content observation.
+            let completed_parameter_read = (|| {
+                let (machine, state, _) = scope?;
+                let read = super::observed_projections::scalar_storage_read(
+                    self.program,
+                    machine,
+                    state,
+                    expression,
+                )?;
+                self.ordinary_storage_path(Some((machine, state)), expression)
+                    .then_some(())?;
+                let place = crate::canonical_place_from_expression(self.program, expression)?;
+                let parameter = self
+                    .program
+                    .state_parameter_by_symbol(state, place.root.as_symbol()?)?;
+                let mut actuals = environment
+                    .iter()
+                    .filter(|(name, _)| name == parameter.name.as_str());
+                let (_, actual) = actuals.next()?;
+                if actuals.next().is_some()
+                    || !super::structural_terms::scalar_operand_is_observed(
+                        self.program,
+                        parameter.type_reference,
+                        actual,
+                    )
+                {
+                    return None;
+                }
+                self.captured_scalar_read(actual, &place.segments)
+                    .filter(|value| {
+                        super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            read.reference,
+                            value,
+                        )
+                    })
+            })();
+            if let Some(value) = completed_parameter_read {
+                return Some(value);
+            }
             if let Some(value) = self.completed_descriptor_place(scope, expression, environment) {
                 return Some(value);
             }
