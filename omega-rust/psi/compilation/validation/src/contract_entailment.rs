@@ -36045,9 +36045,7 @@ pub(crate) mod scoped_arithmetic {
                 let result_owner = result_declaration_owner(&owner);
                 let reference =
                     crate::proof_contracts::contract_entailment::specification_calls::owner_return_type(&owner);
-                if crate::reference_shell(program, reference).is_some()
-                    || program.primitive_type_reference(reference).is_some()
-                {
+                if program.primitive_type_reference(reference).is_some() {
                     return None;
                 }
                 let guarantees = owner_contracts(program, &owner)
@@ -36096,15 +36094,18 @@ pub(crate) mod scoped_arithmetic {
                             &place.segments,
                         )
                     {
-                        let requires_backing = geometry.projections.iter().any(|step| {
-                            matches!(
-                                step,
-                                crate::ScalarCoordinateProjection::Element { extent: None, .. }
-                                    | crate::ScalarCoordinateProjection::Storage(
-                                        checked_trees::CheckedUnitStructuralPathSegment::Referent
-                                    )
-                            )
-                        });
+                        // A directly returned reference still reads live backing storage.
+                        // Retain that dependency alongside reference crossings in its path.
+                        let requires_backing = crate::reference_shell(program, reference).is_some()
+                            || geometry.projections.iter().any(|step| {
+                                matches!(
+                                    step,
+                                    crate::ScalarCoordinateProjection::Element { extent: None, .. }
+                                        | crate::ScalarCoordinateProjection::Storage(
+                                            checked_trees::CheckedUnitStructuralPathSegment::Referent
+                                        )
+                                )
+                            });
                         let value = coordinates
                             .iter()
                             .find(|existing| existing.observation.path == place.segments)
