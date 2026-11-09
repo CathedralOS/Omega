@@ -420,6 +420,17 @@ mod contracts {
                 }
             }
             ExpressionNode::Call(call) => {
+                if call.requirement_application.is_valid() {
+                    super::type_references::reassign_type_reference_symbols_and_values(
+                        symbols,
+                        machine,
+                        parameters,
+                        state_symbol,
+                        expression_table,
+                        child_type_references,
+                        call.requirement_application,
+                    );
+                }
                 assign_calls!(call.receiver);
                 let arguments = expression_table.expression_handles(call.arguments).to_vec();
                 for argument in arguments {

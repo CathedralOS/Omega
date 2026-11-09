@@ -6971,13 +6971,23 @@ impl CallableApplication {
                 std::sync::atomic::AtomicUsize::new(0);
             if REPORTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
                 eprintln!(
-                    "REFINEMENT_REGION reference={reference:?} node={:?} slot={slot} name={original:?} retained_owner={:?} region_scope={:?} preceding_frames={preceding_frames} argument_owner={:?} frame_count={}",
+                    "REFINEMENT_REGION reference={reference:?} node={:?} slot={slot} name={original:?} retained_owner={:?} retained_path={} region_scope={:?} region_path={} preceding_frames={preceding_frames} argument_owner={:?} argument_path={} frame_count={}",
                     program.type_reference_node(reference),
                     program
                         .type_reference_table
                         .operand_lifetime_owner(reference),
+                    program.symbols.display_path(
+                        program
+                            .type_reference_table
+                            .operand_lifetime_owner(reference),
+                        "::"
+                    ),
                     self.region_scope,
+                    program.symbols.display_path(self.region_scope, "::"),
                     environment.argument_owner(),
+                    program
+                        .symbols
+                        .display_path(environment.argument_owner(), "::"),
                     environment.frame_count(),
                 );
             }
