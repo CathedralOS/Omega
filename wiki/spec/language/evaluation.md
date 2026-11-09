@@ -78,8 +78,10 @@ may instead use admitted model providers under their separate runner contract.
 
 A direct token-bearing machine evaluates its declaration-owned checked body
 through the ordinary machine evaluator. Compiler-catalog semantic primitives
-retain their exact catalog execution; boundary operators retain the admitted
-selected provider contract. Token spelling alone chooses none of these routes.
+retain their exact catalog execution, canonical float operations evaluate
+through the selected target's declared realization, and boundary operators
+retain the admitted selected provider contract. Token spelling alone chooses
+none of these routes.
 
 Admission is invocation-sensitive. A trap-capable division can evaluate at
 `divide(10, 2)` after proving the denominator nonzero. `divide(10, 0)` rejects
