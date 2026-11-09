@@ -428,6 +428,7 @@ pub fn observe(
     native_target: Option<&str>,
     interpret: bool,
     checked_interpreter: bool,
+    check_sites: bool,
     evidence: &Path,
 ) -> Result<String, String> {
     if filter.trim().is_empty() {
@@ -463,6 +464,9 @@ pub fn observe(
     }
     if checked_interpreter {
         command.env("OMEGA_CORPUS_CHECKED_INTERPRETER", "1");
+    }
+    if check_sites {
+        command.env("OMEGA_COMPILER_CHECK_SITES", "1");
     }
     let status = execution::run(&mut command, evidence, "runner")?;
     if !status.success() {
@@ -675,6 +679,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         native.then_some(target),
         interpret,
         checked_interpreter,
+        false,
         &evidence,
     )
     .map_err(|e| {

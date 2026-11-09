@@ -247,6 +247,7 @@ fn execute(
                 runtime.then_some(target),
                 runtime,
                 false,
+                true, // Retain the location of a failed compiler check.
                 &directory.join(label),
             )?;
             let rows = corpus::parse_records(&text)?;
