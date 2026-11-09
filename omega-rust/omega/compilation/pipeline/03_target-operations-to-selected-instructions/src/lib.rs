@@ -702,7 +702,8 @@ mod selection_views_and_bytes;
 mod structural_inputs;
 
 pub use structural_inputs::structural_reference_input::{
-    PointerSlot, ReferenceSourceGeometry, RuntimeElement, reference_formation_geometry,
+    PointerSlot, ProjectedByteField, ReferenceSourceGeometry, RuntimeElement, projected_byte_field,
+    reference_formation_geometry,
 };
 
 pub(crate) use legalization::{
