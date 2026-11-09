@@ -65837,48 +65837,23 @@ pub(crate) mod structural_judgment {
                     ) {
                         return None;
                     }
-                    return Some(
-                        if program
-                            .primitive_type_reference(subject.type_reference)
-                            .is_some()
-                        {
-                            StructuralTerm::ObservedValue {
-                                observed_type: subject.type_reference,
-                                descriptor: None,
-                                value: Box::new(value),
-                            }
-                        } else {
-                            value
-                        },
-                    );
+                    return self.reference_subject_observation(subject.type_reference, value);
                 };
                 if let Some(value) = self
                     .captured_reference_subject(subject, scope.1)
                     .and_then(|coordinate| self.current_storage_value(&coordinate))
                 {
-                    return Some(
-                        if program
-                            .primitive_type_reference(subject.type_reference)
-                            .is_some()
-                        {
-                            StructuralTerm::ObservedValue {
-                            observed_type: subject.type_reference,
-                            descriptor: None,
-                            value: Box::new(match &scalar {
-                                Some(scalar) if !scalar.preserves_scalar_value => {
-                                    super::super::structural_terms::normalize_scalar_representation(
-                                        scalar.source_primitive,
-                                        scalar.view_primitive,
-                                        value,
-                                    )
-                                }
-                                _ => value,
-                            }),
+                    let value = match &scalar {
+                        Some(scalar) if !scalar.preserves_scalar_value => {
+                            super::super::structural_terms::normalize_scalar_representation(
+                                scalar.source_primitive,
+                                scalar.view_primitive,
+                                value,
+                            )
                         }
-                        } else {
-                            value
-                        },
-                    );
+                        _ => value,
+                    };
+                    return self.reference_subject_observation(subject.type_reference, value);
                 }
                 let place = scalar
                     .as_ref()
@@ -65944,17 +65919,25 @@ pub(crate) mod structural_judgment {
                     }
                     _ => value,
                 };
-                if program
-                    .primitive_type_reference(subject.type_reference)
-                    .is_some()
-                {
+                self.reference_subject_observation(subject.type_reference, value)
+            }
+
+            fn reference_subject_observation(
+                &self,
+                reference: TypeReferenceHandle,
+                value: StructuralTerm,
+            ) -> Option<StructuralTerm> {
+                if self.program.primitive_type_reference(reference).is_some() {
                     Some(StructuralTerm::ObservedValue {
-                        observed_type: subject.type_reference,
+                        observed_type: reference,
                         descriptor: None,
                         value: Box::new(value),
                     })
                 } else {
-                    Some(value)
+                    // The completed referent keeps its carrier just as an owned
+                    // argument does. Returning a raw aggregate here would give its
+                    // symbolic fields a different meaning from the entry predicate.
+                    self.owned_argument_observation(reference, &value)
                 }
             }
 
