@@ -1224,12 +1224,43 @@ pub mod product_operand {
 
     pub use language_semantics::declaration_selection::ProductOperandRole as ProductOperandKind;
 
-    pub fn is_declaration_operand(argument: &StaticMachineArgument) -> bool {
-        !argument.type_reference.is_valid()
-            && argument.application.is_none()
+    /*
+        A Build selection operand names a declaration by a bare path, such as
+        `NativeConsole`. It is never an applied type, a conformance application,
+        a value or an evidence projection. An authored type operand has no path,
+        so it never qualifies.
+
+        A type reference beside a path is not authored syntax. It is the record
+        `retain_static_argument_contexts` keeps of an implementation operand's
+        source scope. Reading that record as an authored type refused
+        `select_provider<Console, NativeConsole>` and every program that selects
+        a named provider.
+
+        The record may accompany a bare path only when it names that same
+        declaration with no arguments. Any other type reference still fails, so
+        a record that drifted from its path cannot pass as bare.
+    */
+    pub fn is_declaration_operand(typed: &TypedTrees, argument: &StaticMachineArgument) -> bool {
+        argument.application.is_none()
             && argument.const_literal.is_none()
             && argument.evidence_projection.is_none()
             && !argument.path.is_empty()
+            && (!argument.type_reference.is_valid()
+                || retained_source_names_same_declaration(typed, argument))
+    }
+
+    fn retained_source_names_same_declaration(
+        typed: &TypedTrees,
+        argument: &StaticMachineArgument,
+    ) -> bool {
+        argument.symbol.is_valid()
+            && typed
+                .type_reference_table
+                .contains_type_reference(argument.type_reference)
+            && matches!(
+                typed.type_reference_table.type_reference(argument.type_reference),
+                crate::types::TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol
+            )
     }
 
     pub fn resolve_product_operand(
@@ -1238,7 +1269,7 @@ pub mod product_operand {
         occurrence: source::SourceSpan,
         kind: ProductOperandKind,
     ) -> Option<symbols::SymbolHandle> {
-        if !is_declaration_operand(argument) {
+        if !is_declaration_operand(typed, argument) {
             return None;
         }
         resolve_product_path(typed, &argument.path.joined_path(), occurrence, kind)
