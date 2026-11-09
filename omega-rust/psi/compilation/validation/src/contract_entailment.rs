@@ -59510,39 +59510,41 @@ pub(crate) mod structural_judgment {
                     let program = self.program;
                     let node = expression_table(program).expression(expression);
                     let mut judge = self;
-                    let completed_reference =
-                        if reference_contents.is_some() || scalar_read_completed {
-                            let declared =
-                                judge.scalar_reference_read_type(scope.0, scope.1, expression)?;
-                            Some(judge.capture_completed_scalar_read(
+                    let read_completed = reference_contents.is_some() || scalar_read_completed;
+                    let declared = (read_completed || !receiver_changed)
+                        .then(|| judge.scalar_reference_read_type(scope.0, scope.1, expression))
+                        .flatten();
+                    let contents = reference_contents.or_else(|| {
+                        if receiver_changed {
+                            return None;
+                        }
+                        let reference = declared?;
+                        judge
+                            .stored_value_observation(
+                                Some((scope.0, scope.1)),
                                 expression,
-                                declared,
-                                scope,
-                                reference_contents,
-                            )?)
-                        } else if !receiver_changed
-                            && let Some(reference) =
-                                judge.scalar_reference_read_type(scope.0, scope.1, expression)
-                        {
-                            judge
-                                .stored_value_observation(
-                                    Some((scope.0, scope.1)),
-                                    expression,
-                                    |selector| {
-                                        inputs
-                                            .iter()
-                                            .find(|(input, _)| *input == selector)
-                                            .and_then(|(_, input)| input.observed_value().cloned())
-                                    },
+                                |selector| {
+                                    inputs
+                                        .iter()
+                                        .find(|(input, _)| *input == selector)
+                                        .and_then(|(_, input)| input.observed_value().cloned())
+                                },
+                            )
+                            .filter(|value| {
+                                structural_terms::scalar_operand_is_observed(
+                                    program, reference, value,
                                 )
-                                .filter(|value| {
-                                    structural_terms::scalar_operand_is_observed(
-                                        program, reference, value,
-                                    )
-                                })
-                        } else {
-                            None
-                        };
+                            })
+                    });
+                    let completed_reference = if read_completed {
+                        // Completing a copy must retain the current value it read.
+                        // Its source observation still owns backing and cut checks.
+                        Some(judge.capture_completed_scalar_read(
+                            expression, declared?, scope, contents,
+                        )?)
+                    } else {
+                        contents
+                    };
                     let stable_descriptor = (!receiver_changed)
                         .then(|| {
                             judge.completed_descriptor_place(Some(scope), expression, environment)
