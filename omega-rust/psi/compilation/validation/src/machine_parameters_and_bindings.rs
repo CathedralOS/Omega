@@ -6174,13 +6174,13 @@ pub mod static_arguments {
                     return;
                 }
             };
-            let arguments = ordinary_arguments(program, call);
+            let arguments = call.arguments(program);
             crate::value_custody::const_expressions::validate_argument_recipes(
                 program,
                 caller,
                 state,
-                parameters,
-                &arguments,
+                &parameters,
+                arguments,
                 &mut diagnostics,
                 formation_obligations,
             );
@@ -6342,7 +6342,13 @@ pub mod static_arguments {
     fn source_telescope<'program>(
         program: &'program dyn CheckingInput,
         call: StaticArgumentCall<'_>,
-    ) -> Result<Option<(&'program str, &'program [typed_trees::data::TypeParameter])>, String> {
+    ) -> Result<
+        Option<(
+            &'program str,
+            std::borrow::Cow<'program, [typed_trees::data::TypeParameter]>,
+        )>,
+        String,
+    > {
         let target = call.registration_operation(program);
         if let Some(machine) = program
             .machine_by_symbol(target)
@@ -6350,7 +6356,7 @@ pub mod static_arguments {
         {
             return Ok(Some((
                 machine.name.as_str(),
-                program.machine_type_parameters(machine),
+                std::borrow::Cow::Owned(program.machine_callable_parameters(machine)),
             )));
         }
         let Some((_, source, scope)) = source_requirement(program, call)? else {
@@ -6373,7 +6379,9 @@ pub mod static_arguments {
     };
         Ok(Some((
             requirement.name.as_str(),
-            program.state_signature_type_parameters(requirement),
+            std::borrow::Cow::Borrowed(
+                program.requirement_invocation_contract_parameters(requirement),
+            ),
         )))
     }
 
@@ -6406,57 +6414,6 @@ pub mod static_arguments {
             requirement.signature,
             Some(requirement.application),
         )))
-    }
-
-    fn ordinary_arguments<'program>(
-        program: &'program dyn CheckingInput,
-        call: StaticArgumentCall<'program>,
-    ) -> std::borrow::Cow<'program, [StaticMachineArgument]> {
-        let arguments = call.arguments(program);
-        let handle = call.application();
-        if !handle.is_valid() {
-            return std::borrow::Cow::Borrowed(arguments);
-        }
-        let application = expression_table(program).static_machine_application(handle);
-        let Some(machine) = program.machine_by_symbol(application.binding_declaration) else {
-            return std::borrow::Cow::Borrowed(arguments);
-        };
-        if !program
-            .machine_by_symbol(call.registration_operation(program))
-            .or_else(|| program.machine_holding_state(call.registration_operation(program)))
-            .is_some_and(|source| source.symbol == machine.symbol)
-        {
-            return std::borrow::Cow::Borrowed(arguments);
-        }
-        if machine.conformance_bounds.is_empty() {
-            return std::borrow::Cow::Borrowed(arguments);
-        }
-        let bindings = expression_table(program).static_machine_application_bindings(handle);
-        let mut consumed = vec![false; bindings.len()];
-        std::borrow::Cow::Owned(
-        arguments
-            .iter()
-            .filter(|argument| {
-                let evidence = bindings.iter().enumerate().position(|(index, binding)| {
-                    !consumed[index]
-                        && machine.conformance_bounds.iter().any(|bound| {
-                            bound.binder == binding.parameter
-                                && bindings.iter().filter(|other| other.parameter == bound.binder).count() == 1
-                        })
-                        && matches!(&binding.value,
-                            typed_trees::static_applications::StaticMachineBindingValue::Conformance(actual)
-                            if actual == *argument)
-                });
-                if let Some(index) = evidence {
-                    consumed[index] = true;
-                    false
-                } else {
-                    true
-                }
-            })
-            .cloned()
-            .collect(),
-    )
     }
 
     fn expression_call_states(
@@ -6590,12 +6547,11 @@ pub mod static_arguments {
             && !parameters.is_empty()
         {
             let state = call_state(call, context, expression_states);
-            let ordinary = ordinary_arguments(program, call);
             if let Err(error) = validate_arguments(
                 program,
                 name,
-                parameters,
-                &ordinary,
+                &parameters,
+                arguments,
                 ArgumentScope::Caller(state),
             ) {
                 diagnostics.push(error);
@@ -6607,8 +6563,8 @@ pub mod static_arguments {
                     program,
                     machine,
                     state,
-                    parameters,
-                    &ordinary,
+                    &parameters,
+                    arguments,
                     diagnostics,
                     formation_obligations,
                 );
@@ -6637,7 +6593,17 @@ pub mod static_arguments {
         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
         for argument in arguments {
-            if argument.type_reference.is_valid()
+            if argument.names_implementation(&program.symbols) {
+                if let Err(error) =
+                    crate::conformance_applications::validate_conformance_lifetime_arguments(
+                        program,
+                        argument,
+                        source_call.lexical_owner(program),
+                    )
+                {
+                    diagnostics.push(error);
+                }
+            } else if argument.type_reference.is_valid()
                 && const_expression_argument(program, argument).is_none()
                 && !is_runtime_value_expression(program, argument)
             {
@@ -6825,6 +6791,25 @@ pub mod static_arguments {
                     ));
                 }
                 continue;
+            }
+            // A retained source type describes an implementation operand; it
+            // does not change that operand into a stored data type.
+            if parameter
+                .is_some_and(|parameter| parameter.kind == TypeParameterKind::Implementation)
+            {
+                if !argument.names_implementation(&program.symbols) {
+                    return Err(Diagnostic::error(format!(
+                        "machine `{name}` static argument {} requires a named implementation",
+                        ordinal + 1,
+                    )));
+                }
+                continue;
+            }
+            if argument.names_implementation(&program.symbols) {
+                return Err(Diagnostic::error(format!(
+                    "machine `{name}` static argument {} requires its declared binder kind, not an implementation",
+                    ordinal + 1,
+                )));
             }
             if let Some(parameter) = parameter
                 && matches!(parameter.kind, TypeParameterKind::Const { .. })
