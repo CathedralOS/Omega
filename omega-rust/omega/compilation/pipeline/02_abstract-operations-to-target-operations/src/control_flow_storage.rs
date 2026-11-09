@@ -2505,7 +2505,7 @@ pub(crate) mod observations {
         };
         match scalar_type {
             ScalarType::IeeeFloat(_) | ScalarType::Boolean => {
-                live.scalar_homes.insert(result, home);
+                std::sync::Arc::make_mut(&mut live.scalar_homes).insert(result, home);
             }
             ScalarType::Integer(_) => {
                 live.integers.insert(result, KnownUnitInteger::Home(home));
@@ -2602,7 +2602,7 @@ pub(crate) mod observations {
         for (value, (_, immediate)) in &live.booleans {
             values.insert(*value, KnownScalar::Boolean(*immediate));
         }
-        for (value, home) in &live.scalar_homes {
+        for (value, home) in live.scalar_homes.iter() {
             if home.scalar_type == ScalarType::Boolean {
                 values.insert(
                     *value,

@@ -614,9 +614,7 @@ pub(crate) mod operations {
                     shape: crate::scalar_abi::fixed_native_scalar_shape(scalar_type)
                         .ok_or(LoweringError::ValueTypeMismatch(*result))?,
                 };
-                if site
-                    .live
-                    .scalar_homes
+                if std::sync::Arc::make_mut(&mut site.live.scalar_homes)
                     .insert(*result, result_home)
                     .is_some()
                 {
@@ -653,7 +651,7 @@ pub(crate) mod operations {
                     scalar_type: ScalarType::Boolean,
                     shape: ValueShape::integer(1, 1),
                 };
-                site.live.scalar_homes.insert(*result, result_home);
+                std::sync::Arc::make_mut(&mut site.live.scalar_homes).insert(*result, result_home);
                 site.provenance.operations.push(*psi_operation);
                 site.operations.push(TargetUnitOperation::IeeeFloatCompare {
                     result_home,
@@ -1333,6 +1331,11 @@ pub(crate) mod scalar_sources {
         TargetStructuralRuntimeIndex, TargetUnitScalarArgumentSource,
         TargetUnitScalarHomeRequirement,
     };
+
+    // Saved block states share unchanged homes. An insertion copies the map only
+    // when another state still needs its previous contents.
+    pub(crate) type ScalarHomes =
+        std::sync::Arc<BTreeMap<ValueId, TargetUnitScalarHomeRequirement>>;
 
     #[derive(Clone, Copy)]
     pub(crate) struct ScalarSources<'a> {
