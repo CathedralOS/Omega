@@ -357,6 +357,7 @@ pass/borrows/reference_cycle_projection_root_partition checked 2759ms @a92f16431
 pass/borrows/reference_parameter_field_store_exit built 2481ms exit:0 @a92f16431042
 pass/borrows/region_stored_reference_occurrences_exit built 4187ms exit:0 @a92f16431042
 pass/borrows/retained_envelope_refs checked 3887ms @a92f16431042
+pass/borrows/returned_case_descriptor_formation built 7151ms exit:0 @8f21571f2eb6
 pass/borrows/returned_owned_byte_field_snapshot_exit built 15809ms exit:70 @a92f16431042
 pass/borrows/returned_primitive_reference_assignment_capture_exit built 4698ms exit:0 @a92f16431042
 pass/borrows/returned_record_byte_field_store_exit built 19673ms exit:70 @a92f16431042
