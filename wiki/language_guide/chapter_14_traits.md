@@ -115,6 +115,9 @@ must meet the trait's contracts, including laws that relate the operations.
 A generic conformance puts parameters on its name, such as
 `SequenceEncoding<Element, Message> satisfies WireEncodable<Vec<Element>, Message>`.
 Select a concrete application such as `SequenceEncoding<u8, PlayerMessage>`.
+A `requires` clause on the declaration constrains which applications are
+admitted; [chapter 13](chapter_13_generics.md#relating-two-index-forms-once)
+uses one to relate two spellings of an index.
 See [conformance declarations](../spec/language/conformances.md#declaration-and-selection)
 for lifetime parameters and complete member matching.
 

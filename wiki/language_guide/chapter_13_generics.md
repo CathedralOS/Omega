@@ -633,6 +633,47 @@ a key. The rules are in
 [proved compatibility](../spec/proofs/contracts.md#proved-index-compatibility),
 and [Build proof-work policy](../spec/build/configuration.md#proof-work-policy).
 
+### Relating two index forms once
+
+When one library selected `Order satisfies Ranked<Buffer<A>>` and another
+requires `Ranked<Buffer<B>>`, with `A` and `B` provably equal but spelled
+differently, write the adapter once for the trait. A `requires` clause on the
+conformance declaration admits the application; inside its members the
+equality is a fact, so arguments pass to the base with no conversion:
+
+```omega
+Reindexed<const A: u64, const B: u64, Base satisfies Ranked<Buffer<A>>>
+satisfies Ranked<Buffer<B>>
+requires A == B;
+{
+    machine before(left: &Buffer<B>, right: &Buffer<B>) -> bool {
+        Base::before(left, right)
+    }
+
+    machine rank_value(buffer: &Buffer<B>) -> u32 {
+        Base::rank_value(buffer)
+    }
+}
+
+machine bridge<
+    const A: u64,
+    const B: u64,
+    Order satisfies Ranked<Buffer<A>>
+>(
+    items: &mut [Buffer<B>]
+)
+requires A == B
+{
+    sort<Buffer<B>, Reindexed<A, B, Order>>(items);
+}
+```
+
+`bridge` checks as a generic body: `A` and `B` stay symbolic there, and its own
+`requires` supplies the adapter's premise. The adapter's members are new
+declarations, so any laws `Ranked` states are obligations on them; they follow
+from `Base`'s laws under the same equality. Nothing selects `Order` at
+`Ranked<Buffer<B>>` by itself, and no proof budget changes which ordering runs.
+
 ## Advanced machine arguments
 
 A trait can retain a machine's identity without granting permission to call it:
