@@ -81289,15 +81289,35 @@ pub(crate) mod structural_judgment {
             if !self.specification_terms {
                 return false;
             }
-            // Named and abstract selections use the same public value contract.
-            // A provider body cannot supply a missing guarantee on that view.
-            if let Some(super::specification_calls::SelectedCallContract::Signature(signature)) =
-                super::specification_calls::selected_call_contract(
+            // Predicate admission uses the selected public operation's denotation.
+            // A direct member still owns its declared call contract; choosing that
+            // contract must not replace this operation with a private body question.
+            let lexical_owner = self
+                .program
+                .machine_holding_state(lexical_owner)
+                .map_or(lexical_owner, |machine| machine.symbol);
+            let signature = crate::requirement_contract_signature(
+                self.program,
+                lexical_owner,
+                &crate::CallSite::Expression {
+                    expression: Default::default(),
+                    call,
+                },
+            )
+            .map(|(_, signature)| signature)
+            .or_else(|| {
+                match super::specification_calls::selected_call_contract(
                     self.program,
                     lexical_owner,
                     call,
-                )
-            {
+                ) {
+                    Some(super::specification_calls::SelectedCallContract::Signature(
+                        signature,
+                    )) => Some(signature),
+                    _ => None,
+                }
+            });
+            if let Some(signature) = signature {
                 return crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
                     self.program, signature,
                 );
