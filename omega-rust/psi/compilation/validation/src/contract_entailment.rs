@@ -61369,14 +61369,18 @@ pub(crate) mod structural_judgment {
                                 scope,
                                 &writes,
                             )
-                            && let Some(guarantees) = judge.selected_guarantees(
+                            && let Ok(machine_bindings) =
+                                application.contract_machine_bindings(program, &owner)
+                            && let Some(prepared) = judge.prepare_selected_guarantees(
                                 &owner,
                                 &captured.entry_bindings,
                                 &captured.bindings,
                                 &application.types,
-                                None,
+                                &machine_bindings,
                                 0,
                             )
+                            && let Some(guarantees) =
+                                judge.complete_selected_guarantees(&prepared, None, 0)
                         {
                             judge.intake_normal_call_equations(
                                 guarantees
