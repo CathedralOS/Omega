@@ -21049,11 +21049,17 @@ pub(crate) mod observed_projections {
         reference: TypeReferenceHandle,
         value: StructuralTerm,
     ) -> Option<(TypeReferenceHandle, StructuralTerm)> {
-        if let Some(observed) = super::structural_terms::owned_observation_type(program, &value)
-            && let Some(shell) = crate::reference_shell(program, reference)
-            && shell.access.is_readable()
-            && crate::declared_carriers_match(program, shell.referee, observed)
-        {
+        if let Some(observed) = super::structural_terms::owned_observation_type(program, &value) {
+            let receiving = match crate::reference_shell(program, reference) {
+                Some(shell) => {
+                    shell.access.is_readable().then_some(())?;
+                    shell.referee
+                }
+                None => reference,
+            };
+            crate::declared_carriers_match(program, receiving, observed).then_some(())?;
+            // Project with the source carrier retained by the completed value.
+            // Its exact constructor schema also owns each subsequent field join.
             return Some((observed, value));
         }
         let Some(observed) =
