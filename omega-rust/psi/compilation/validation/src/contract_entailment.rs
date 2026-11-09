@@ -47791,6 +47791,74 @@ pub(crate) mod structural_judgment {
                     .is_some_and(|machine| machine.name.as_str() == "selected_decode")
         }
 
+        pub(super) type TraceTypes = Vec<(
+            usize,
+            &'static str,
+            typed_trees::types::TypeReferenceHandle,
+            bool,
+        )>;
+
+        pub(super) fn term_types(value: &StructuralTerm) -> TraceTypes {
+            let mut types = Vec::new();
+            let mut pending = vec![(0, value)];
+            for _ in 0..32 {
+                let Some((depth, value)) = pending.pop() else {
+                    break;
+                };
+                match value {
+                    StructuralTerm::ObservedValue {
+                        observed_type,
+                        descriptor,
+                        ..
+                    } => {
+                        types.push((depth, "observation", *observed_type, descriptor.is_some()));
+                    }
+                    StructuralTerm::CapturedValue { result_type, .. } => {
+                        types.push((depth, "capture", *result_type, false));
+                    }
+                    StructuralTerm::Constructor {
+                        identity: super::ConstructorIdentity::Nominal { reference, .. },
+                        ..
+                    } => {
+                        types.push((depth, "constructor", *reference, false));
+                    }
+                    StructuralTerm::Application { result_type, .. }
+                    | StructuralTerm::CallProjection { result_type, .. } => {
+                        types.push((depth, "application", *result_type, false));
+                    }
+                    StructuralTerm::IndexedValue { element_type, .. } => {
+                        types.push((depth, "element", *element_type, false));
+                    }
+                    _ => {}
+                }
+                value.for_each_child(|child| pending.push((depth + 1, child)));
+            }
+            types
+        }
+
+        pub(super) fn condition_types(condition: &ObservedCondition) -> TraceTypes {
+            let mut types = Vec::new();
+            let mut pending = vec![condition];
+            for _ in 0..32 {
+                let Some(condition) = pending.pop() else {
+                    break;
+                };
+                match condition {
+                    ObservedCondition::Case { subject, .. }
+                    | ObservedCondition::Predicate(subject) => types.extend(term_types(subject)),
+                    ObservedCondition::Equal(left, right) => {
+                        types.extend(term_types(left));
+                        types.extend(term_types(right));
+                    }
+                    ObservedCondition::Connective { left, right, .. } => {
+                        pending.push(left);
+                        pending.push(right);
+                    }
+                }
+            }
+            types
+        }
+
         #[derive(Clone, Debug)]
         pub(crate) enum ObservedCondition {
             Case {
@@ -47992,8 +48060,9 @@ pub(crate) mod structural_judgment {
                             if receiving_trace(self) {
                                 static GUARDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
                                 if GUARDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 48 {
-                                    eprintln!("CHECKSITE decoder-conditional-guard ordinal={ordinal} condition={condition:?} holds={holds} judgment={judgment:?} storage={:?} rewrites={:?}",
-                                        self.storage_version, self.rewrites.iter().take(8).collect::<Vec<_>>());
+                                    eprintln!("CHECKSITE decoder-conditional-guard ordinal={ordinal} condition={condition:?} condition_types={:?} holds={holds} judgment={judgment:?} storage={:?} rewrites={:?} rewrite_types={:?}",
+                                        condition_types(condition), self.storage_version, self.rewrites.iter().take(8).collect::<Vec<_>>(),
+                                        self.rewrites.iter().take(8).map(|(left, right)| (term_types(left), term_types(right))).collect::<Vec<_>>());
                                 }
                             }
                             matches!(
@@ -59082,8 +59151,12 @@ pub(crate) mod structural_judgment {
                             std::sync::atomic::AtomicUsize::new(0);
                         if COMPLETIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8 {
                             eprintln!(
-                                "CHECKSITE decoder-conditional-completion expression={expression:?} callable={callable:?} result={captured:?} conditional={:?}",
-                                guarantees.conditional
+                                "CHECKSITE decoder-conditional-completion expression={expression:?} callable={callable:?} result={captured:?} result_types={:?} conditional={:?} condition_types={:?}",
+                                captured.as_ref().map(super::super::conditional_guarantees::term_types), guarantees.conditional,
+                                guarantees.conditional.iter().map(|guarantee| (
+                                    guarantee.conditions.iter().map(|(condition, _)| super::super::conditional_guarantees::condition_types(condition)).collect::<Vec<_>>(),
+                                    guarantee.conclusions.iter().map(|(condition, _)| super::super::conditional_guarantees::condition_types(condition)).collect::<Vec<_>>()
+                                )).collect::<Vec<_>>()
                             );
                         }
                     }
@@ -70801,7 +70874,19 @@ pub(crate) mod structural_judgment {
                         .filter(|binary| binary.operator == BinaryOperator::CaseMembership)
                         .and_then(|binary| crate::reserved_result_owner(program, binary.left));
                     eprintln!(
-                        "CHECKSITE decoder-conditional-comparison scope={scope:?} callable={callable:?} expression={expression:?} binary={comparison:?} references={comparison_references:?} source_types={source_types:?} result_owner={result_owner:?} bindings={bindings:?} types={type_bindings:?} result={result:?}"
+                        "CHECKSITE decoder-conditional-comparison scope={scope:?} callable={callable:?} expression={expression:?} binary={comparison:?} references={comparison_references:?} source_types={source_types:?} result_owner={result_owner:?} bindings={bindings:?} receiving_types={:?} binding_types={:?} types={type_bindings:?} result={result:?} result_types={:?}",
+                        parameters
+                            .iter()
+                            .map(|parameter| (parameter.symbol, parameter.type_reference))
+                            .collect::<Vec<_>>(),
+                        bindings
+                            .iter()
+                            .map(|(symbol, value)| (
+                                *symbol,
+                                super::conditional_guarantees::term_types(value)
+                            ))
+                            .collect::<Vec<_>>(),
+                        result.map(super::conditional_guarantees::term_types)
                     );
                 }
             }
@@ -70836,7 +70921,17 @@ pub(crate) mod structural_judgment {
                         std::sync::atomic::AtomicUsize::new(0);
                     if CONDITIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
                         eprintln!(
-                            "CHECKSITE decoder-conditional-conditions scope={scope:?} expression={expression:?} conditions={conditions:?}"
+                            "CHECKSITE decoder-conditional-conditions scope={scope:?} expression={expression:?} conditions={conditions:?} condition_types={:?}",
+                            (
+                                conditions
+                                    .0
+                                    .as_ref()
+                                    .map(super::conditional_guarantees::condition_types),
+                                conditions
+                                    .1
+                                    .as_ref()
+                                    .map(super::conditional_guarantees::condition_types)
+                            )
                         );
                     }
                 }
