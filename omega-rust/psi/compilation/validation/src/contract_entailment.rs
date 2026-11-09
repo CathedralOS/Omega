@@ -38488,7 +38488,9 @@ pub(crate) mod specification_calls {
                                 row.requirement,
                             )
                             .ok()?;
-                            self.retain_operation(
+                            self.retain_requirement_operation(
+                                program,
+                                dispatch.evidence_parameter,
                                 row.requirement,
                                 signature.return_type,
                                 StaticMachineArgument {
@@ -38546,7 +38548,9 @@ pub(crate) mod specification_calls {
                                 requirement.signature.symbol,
                             )
                             .ok()?;
-                            self.retain_operation(
+                            self.retain_requirement_operation(
+                                program,
+                                receiver,
                                 requirement.signature.symbol,
                                 signature.return_type,
                                 StaticMachineArgument {
@@ -38557,6 +38561,46 @@ pub(crate) mod specification_calls {
                                     ..Default::default()
                                 },
                             )?;
+                        }
+                    }
+                    Some(())
+                }
+
+                fn retain_requirement_operation(
+                    &mut self,
+                    program: &dyn crate::CheckingInput,
+                    receiver: symbols::SymbolHandle,
+                    requirement: symbols::SymbolHandle,
+                    result_type: typed_trees::types::TypeReferenceHandle,
+                    selected: StaticMachineArgument,
+                ) -> Option<()> {
+                    self.retain_operation(requirement, result_type, selected.clone())?;
+                    if !receiver.is_valid()
+                        || program.symbols.get(receiver).kind
+                            != symbols::SymbolKind::ConformanceParameter
+                    {
+                        return Some(());
+                    }
+                    let source_owner = program.symbols.get(receiver).parent;
+                    let (declaration, _) = program.trait_machine_signature(requirement)?;
+                    // Contract copies may retain the exact bound child rather
+                    // than its base row. Both name this authenticated selection.
+                    for child in program
+                        .symbols
+                        .child_handles(receiver)
+                        .into_iter()
+                        .flatten()
+                    {
+                        if program.symbols.get(child).kind != symbols::SymbolKind::State {
+                            continue;
+                        }
+                        let bound = program
+                            .evidence_bound_requirement(source_owner, receiver, child)
+                            .ok()??;
+                        if bound.signature.symbol == requirement
+                            && bound.application.declaration.symbol == declaration.symbol
+                        {
+                            self.retain_operation(child, result_type, selected.clone())?;
                         }
                     }
                     Some(())
