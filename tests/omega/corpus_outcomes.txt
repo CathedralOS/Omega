@@ -1299,6 +1299,8 @@ fail/borrows/empty_array_snapshot_requires_read_authority rejected 325ms expecte
 	machine `snapshot` state `entry` reads through index projection of write-only parameter `rows`; `&write` permits admitted fixed-array element replacement but never observation
 fail/borrows/erased_cast_borrow_overlaps_mutable_borrow rejected 5526ms expected @f2672d675498
 	state `both` receives `t` as both mutable and read-only
+fail/borrows/erased_input_before_returned_reference_live_source_write rejected 3104ms expected @5668ab971d7c
+	statement 1 mutates `one` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 2406ms expected @ccdb99ca2214
 	statement 3 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/exclusive_reference_array_copy rejected 1965ms expected @ccdb99ca2214
@@ -19509,6 +19511,7 @@ pass/borrows/data_copy_property checked 3567ms @ccdb99ca2214
 pass/borrows/disjoint_branch_closure_with_grandchild checked 3747ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/dynamic_window_return_custody_exit checked 3289ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/enum_selected_view_reference_exit checked 16593ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/erased_input_before_returned_reference_exit checked 3651ms check-target:macos_arm64 @5668ab971d7c
 pass/borrows/exclusive_array_parameter_shared_lend_exit checked 16453ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/explicit_lifetime_select checked 3214ms @ccdb99ca2214
 pass/borrows/fixed_array_reference_backing_exit checked 3715ms check-target:macos_arm64 @ccdb99ca2214
