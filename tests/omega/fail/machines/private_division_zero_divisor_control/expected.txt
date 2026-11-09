@@ -1,1 +1,1 @@
-the divisor must be proven nonzero
+the divisor is provably zero
