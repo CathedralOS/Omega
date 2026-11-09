@@ -208,14 +208,6 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Owner, Origi
             )
         })
         .collect::<Vec<_>>();
-    if std::env::var_os("OMEGA_DEBUG_FLOAT_REALIZATION").is_some() {
-        eprintln!("[float-realization] target {} candidates {}", selected_target.target_name(), candidates.len());
-        for candidate in &candidates {
-            if candidate.plan.provider_type.contains("Float") || candidate.slot.1.contains("Float::") {
-                eprintln!("[float-realization]   slot {:?} provider {:?} map {:?} realized {:?}", candidate.slot.1, candidate.plan.provider_type, candidate.float_realization.is_some(), candidate.float_realization);
-            }
-        }
-    }
     let prepared_defaults = defaults
         .iter()
         .map(NativeDeclaration::new)

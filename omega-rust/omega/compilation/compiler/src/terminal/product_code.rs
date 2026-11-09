@@ -182,6 +182,13 @@ impl<'a> ProductCodeSource<'a> {
                 .flat_map(|row| &row.selections)
                 .chain(&self.build.config.provider_selections),
         )?;
+        // Canonical float requirements are realized by the target's table
+        // rather than selected, so they are boundary roots on their own.
+        roots.extend(
+            checked_trees::typed_trees::float_providers::catalog_realization_requirements(typed)
+                .into_iter()
+                .filter(|symbol| context.contains(*symbol)),
+        );
         for relationship in &self.build.config.assumed_bindings {
             roots.extend([relationship.required, relationship.supplied]);
         }
