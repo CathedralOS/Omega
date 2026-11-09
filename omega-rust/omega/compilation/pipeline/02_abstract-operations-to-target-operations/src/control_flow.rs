@@ -26,8 +26,7 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
-    BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TargetUnitScalarHomeRequirement,
-    TerminalPsiProvenance,
+    BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TerminalPsiProvenance,
 };
 use terminal_psi::{StructuralAccess, StructuralPathSegment, TerminalAffineCleanupAction};
 #[path = "control_flow_operations.rs"]
