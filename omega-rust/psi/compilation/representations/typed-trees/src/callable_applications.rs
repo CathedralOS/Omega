@@ -6593,8 +6593,7 @@ pub(crate) mod trait_scopes {
                     let actual = match &mut binding.value {
                         StaticMachineBindingValue::Type(reference)
                         | StaticMachineBindingValue::Const(reference) => *reference,
-                        StaticMachineBindingValue::Machine(argument)
-                        | StaticMachineBindingValue::Conformance(argument) => {
+                        StaticMachineBindingValue::Machine(argument) => {
                             if !argument.type_reference.is_valid() {
                                 argument.type_reference = self
                                     .static_operand_type_reference_in_scope(
@@ -6602,6 +6601,14 @@ pub(crate) mod trait_scopes {
                                         record.lexical_owner,
                                     )?;
                                 retained_types = true;
+                            }
+                            argument.type_reference
+                        }
+                        StaticMachineBindingValue::Conformance(argument) => {
+                            if !argument.type_reference.is_valid() {
+                                return Err(
+                                    "refinement invocation lost its retained implementation operand",
+                                );
                             }
                             argument.type_reference
                         }
