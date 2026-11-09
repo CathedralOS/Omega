@@ -36045,9 +36045,7 @@ pub(crate) mod scoped_arithmetic {
                 let result_owner = result_declaration_owner(&owner);
                 let reference =
                     crate::proof_contracts::contract_entailment::specification_calls::owner_return_type(&owner);
-                if crate::reference_shell(program, reference).is_some()
-                    || program.primitive_type_reference(reference).is_some()
-                {
+                if program.primitive_type_reference(reference).is_some() {
                     return None;
                 }
                 let guarantees = owner_contracts(program, &owner)
@@ -36096,15 +36094,18 @@ pub(crate) mod scoped_arithmetic {
                             &place.segments,
                         )
                     {
-                        let requires_backing = geometry.projections.iter().any(|step| {
-                            matches!(
-                                step,
-                                crate::ScalarCoordinateProjection::Element { extent: None, .. }
-                                    | crate::ScalarCoordinateProjection::Storage(
-                                        checked_trees::CheckedUnitStructuralPathSegment::Referent
-                                    )
-                            )
-                        });
+                        // A directly returned reference still reads live backing storage.
+                        // Retain that dependency alongside reference crossings in its path.
+                        let requires_backing = crate::reference_shell(program, reference).is_some()
+                            || geometry.projections.iter().any(|step| {
+                                matches!(
+                                    step,
+                                    crate::ScalarCoordinateProjection::Element { extent: None, .. }
+                                        | crate::ScalarCoordinateProjection::Storage(
+                                            checked_trees::CheckedUnitStructuralPathSegment::Referent
+                                        )
+                                )
+                            });
                         let value = coordinates
                             .iter()
                             .find(|existing| existing.observation.path == place.segments)
@@ -58189,8 +58190,10 @@ pub(crate) mod structural_judgment {
                         }
                         post_storage.push(PostCallStorage {
                             coordinate,
+                            value_type: subject.entry.type_reference,
                             value,
                             backing: None,
+                            result_source: None,
                             representation: (!restores_stored_domain)
                                 .then(|| {
                                     scalar.filter(|scalar| !scalar.preserves_scalar_value).map(
@@ -62351,8 +62354,11 @@ pub(crate) mod structural_judgment {
         #[derive(Clone)]
         pub(crate) struct PostCallStorage {
             pub(crate) coordinate: super::storage_effects::CapturedStorageCoordinate,
+            pub(crate) value_type: TypeReferenceHandle,
             pub(crate) value: StructuralTerm,
             pub(crate) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
+            pub(crate) result_source:
+                Option<super::storage_effects::read_backing::CapturedResultReadSource>,
             pub(crate) representation: Option<(
                 typed_trees::types::PrimitiveType,
                 typed_trees::types::PrimitiveType,
@@ -72233,10 +72239,17 @@ pub(crate) mod structural_judgment {
             use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 
             #[derive(Clone, PartialEq)]
+            pub(crate) struct CapturedResultReadSource {
+                capture: super::super::StructuralTerm,
+                path: Vec<facts::PlaceSegment>,
+            }
+
+            #[derive(Clone, PartialEq)]
             pub(crate) struct CapturedScalarReadBacking {
                 dependencies: CapturedStorageReadBacking,
                 identity: Option<(CapturedStorageCoordinate, PrimitiveType)>,
                 representation: Option<(CapturedStorageCoordinate, PrimitiveType, PrimitiveType)>,
+                result_source: Option<CapturedResultReadSource>,
             }
 
             impl StructuralJudge<'_> {
@@ -72318,56 +72331,54 @@ pub(crate) mod structural_judgment {
                         ) else {
                             continue;
                         };
-                        let mut value = Some(captured.clone());
-                        let mut current_type = reference;
-                        for segment in &observation.path {
-                            let Some(projected) = crate::project_type_reference_from_segments(
-                                self.program,
-                                current_type,
-                                std::slice::from_ref(segment),
-                            ) else {
-                                value = None;
-                                break;
-                            };
-                            value = value.and_then(|value| match segment {
-                                facts::PlaceSegment::Field { symbol } => {
-                                    super::super::super::observed_projections::project_field(
-                                        value,
-                                        self.program.symbols.name(*symbol),
-                                    )
-                                }
-                                facts::PlaceSegment::Case { .. } => Some(value),
-                                facts::PlaceSegment::FixedIndex { index } => {
-                                    Some(super::super::StructuralTerm::IndexedValue {
-                                        element_type: projected,
-                                        element_identity: self
-                                            .program
-                                            .normalized_type_identity(projected),
-                                        collection: Box::new(value),
-                                        index: Box::new(super::super::StructuralTerm::Integer(
-                                            numerics::bignum::BigInt::from_u64(
-                                                u64::try_from(*index).ok()?,
-                                            ),
-                                        )),
-                                    })
-                                }
-                                _ => None,
-                            });
-                            current_type = projected;
-                        }
-                        let Some(value) = value else {
+                        let Some(scalar_type) = crate::value_custody::expression_types::readable_observation_type_reference(
+                            self.program,
+                            geometry.result_type_reference,
+                        ) else {
                             continue;
+                        };
+                        if crate::reference_shell(self.program, scalar_type).is_some()
+                            || self.program.primitive_type_reference(scalar_type)
+                                != Some(geometry.primitive_type)
+                        {
+                            continue;
+                        }
+                        if !matches!(
+                            captured,
+                            super::super::StructuralTerm::CapturedValue {
+                                expression: source,
+                                ..
+                            } if *source == expression
+                        ) {
+                            continue;
+                        }
+                        // The checked read observes a scalar value, separately from
+                        // the returned descriptor that supplies its live backing.
+                        self.capture_sequence += 1;
+                        let value = super::super::StructuralTerm::CapturedValue {
+                            statement: arena::Handle::invalid(),
+                            expression,
+                            callable: symbols::SymbolHandle::invalid(),
+                            occurrence: self.capture_sequence,
+                            result_type: scalar_type,
+                            integer_range: None,
                         };
                         let value =
                             super::super::super::structural_terms::owned_projection_observation(
                                 self.program,
-                                geometry.result_type_reference,
+                                scalar_type,
                                 value,
                             );
+                        let result_source = CapturedResultReadSource {
+                            capture: captured.clone(),
+                            path: observation.path,
+                        };
                         staged.push(super::super::normal_returns::PostCallStorage {
                             coordinate: coordinate.clone(),
+                            value_type: scalar_type,
                             value: value.clone(),
                             backing: Some(backing.clone()),
+                            result_source: Some(result_source.clone()),
                             representation: None,
                         });
                         self.retain_storage_value(coordinate.clone(), value, false);
@@ -72378,6 +72389,7 @@ pub(crate) mod structural_judgment {
                                 dependencies: backing,
                                 identity: None,
                                 representation: None,
+                                result_source: Some(result_source),
                             });
                         }
                     }
@@ -72469,9 +72481,11 @@ pub(crate) mod structural_judgment {
                     state: &State,
                     storage: super::super::normal_returns::PostCallStorage,
                 ) {
-                    let backing = storage
-                        .backing
-                        .map(|backing| self.freeze_scalar_read_backing(state, backing));
+                    let backing = storage.backing.map(|backing| {
+                        let mut backing = self.freeze_scalar_read_backing(state, backing);
+                        backing.result_source = storage.result_source;
+                        backing
+                    });
                     let value = match storage.representation {
                         Some((source, target)) => {
                             super::super::super::structural_terms::normalize_scalar_representation(
@@ -72482,6 +72496,37 @@ pub(crate) mod structural_judgment {
                         }
                         None => storage.value,
                     };
+                    if let Some(version) = self.storage_version
+                        && version.state == state.symbol
+                        && version.snapshot.is_valid()
+                        && let Some((coordinate, primitive)) = backing
+                            .as_ref()
+                            .and_then(|backing| backing.identity.as_ref())
+                        && crate::reference_shell(self.program, storage.value_type).is_none()
+                        && self.program.primitive_type_reference(storage.value_type)
+                            == Some(*primitive)
+                        && let Some(current) =
+                            self.current_storage_value_at(coordinate, Some(version))
+                        && super::super::super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            storage.value_type,
+                            &value,
+                        )
+                        && super::super::super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            storage.value_type,
+                            &current,
+                        )
+                        && !current.same_resolution_payload(&value)
+                    {
+                        // Both observations describe this scalar at the completed call.
+                        // Join their facts before later reads select either stored view.
+                        self.assume_completed_value_equation(
+                            storage.value_type,
+                            value.clone(),
+                            current,
+                        );
+                    }
                     if let Some(reference) = storage.coordinate.root.as_symbol().and_then(|root| {
                         storage.coordinate.segments.iter().try_fold(
                             crate::value_custody::places::assignment_value_type(
@@ -72545,12 +72590,22 @@ pub(crate) mod structural_judgment {
                         .stored_values
                         .values_at(&coordinate)
                         .find_map(|stored| {
-                            stored.backing.as_ref()?;
+                            let backing = stored.backing.as_ref()?;
                             if !self.storage_value_transfer_is_current(stored, self.storage_version)
                             {
                                 return None;
                             }
                             let current = stored.current.as_ref()?;
+                            if let Some(source) = &backing.result_source {
+                                return (source.path == prefix
+                                    && source.capture.same_resolution_payload(&captured)
+                                    && super::super::super::structural_terms::scalar_operand_is_observed(
+                                        self.program,
+                                        geometry.result_type_reference,
+                                        current,
+                                    ))
+                                .then(|| current.clone());
+                            }
                             let mut root = current.semantic_value();
                             loop {
                                 root = match root {
@@ -72833,6 +72888,7 @@ pub(crate) mod structural_judgment {
                         dependencies,
                         identity,
                         representation,
+                        result_source: None,
                     }
                 }
 

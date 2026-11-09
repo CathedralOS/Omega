@@ -17037,6 +17037,8 @@ fail/proofs/result_index_shadowed_result rejected 3384ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from wrong at statement 0: result.items[0].code == 7
 fail/proofs/returned_field_embedded_sum_wrong_guarantee rejected 10897ms expected @089c0a150e63
 	cannot prove ensures contract for exit from reset at statement 4: embed(result.remaining) == embed(lower.length) + embed(upper.length) + embed(strategy.tail.length) + 1
+fail/proofs/returned_reference_guarantee_after_write rejected 13488ms expected @dfa4806d53e9
+	cannot prove ensures contract for exit from invalid at statement 2: result == 11
 fail/proofs/returned_reference_unproven_result_guarantee rejected 1795ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from borrow at statement 0: result.identity == 19
 	cannot prove ensures contract for exit from wrap_scalar at statement 1: result.value == 19
@@ -26705,9 +26707,7 @@ pass/proofs/completed_guard_two_call_identities checked 3022ms check-target:maco
 pass/proofs/completed_qualified_membership_exit checked 3545ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/completed_store_address_and_result_exit checked 3331ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/constant_boolean_return_join_exit checked 3250ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/constructor_aggregate_guarantees_follow_evaluation_exit rejected 3243ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call demand from main: restored.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call demand from main: reordered.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/proofs/constructor_aggregate_guarantees_follow_evaluation_exit checked 15947ms check-target:macos_arm64 @dfa4806d53e9
 pass/proofs/copied_descriptor_keeps_capture_extent checked 2816ms @ccdb99ca2214
 pass/proofs/core_identity_ieee_reflexivity_exit checked 16415ms check-target:macos_arm64 identity-formation-controls:match terminal-inspections:match @245a25f49fe9
 pass/proofs/declaration_call_requires rejected 31ms regressed-from:checked @911f6617ba9e
