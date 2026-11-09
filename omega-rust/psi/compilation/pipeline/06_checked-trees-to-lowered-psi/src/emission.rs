@@ -5945,6 +5945,8 @@ pub(crate) mod runtime_elements {
 }
 pub(crate) mod selected_continuations {
 
+    use std::sync::Arc;
+
     use crate::shared::lowering_error::{LoweringError, unsupported};
     use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralPlaceKind, StructuralTypeId};
     use terminal_psi::{
@@ -5977,7 +5979,8 @@ pub(crate) mod selected_continuations {
     pub(crate) enum RegionState {
         Absent,
         Live,
-        Partial(Vec<Vec<StructuralPathSegment>>),
+        // State copies share unchanged paths; each state still owns its list.
+        Partial(Vec<Arc<[StructuralPathSegment]>>),
     }
 
     #[derive(Clone, Debug)]
@@ -6313,7 +6316,7 @@ pub(crate) mod selected_continuations {
             let region = &tracked.region;
             if region.place == extraction.place && *state != RegionState::Absent {
                 *state = if region.path.is_empty() {
-                    RegionState::Partial(vec![Vec::new()])
+                    RegionState::Partial(vec![Arc::from([])])
                 } else {
                     RegionState::Absent
                 };
@@ -6352,11 +6355,11 @@ pub(crate) mod selected_continuations {
         } else if terminal_semantics::structural_paths_may_overlap(&region.path, path) {
             match state {
                 RegionState::Absent => {}
-                RegionState::Live => *state = RegionState::Partial(vec![path.to_vec()]),
+                RegionState::Live => *state = RegionState::Partial(vec![Arc::from(path)]),
                 RegionState::Partial(missing) => {
                     if !missing.iter().any(|prior| contains_path(prior, path)) {
                         missing.retain(|prior| !contains_path(path, prior));
-                        missing.push(path.to_vec());
+                        missing.push(Arc::from(path));
                         missing.sort();
                     }
                 }
@@ -6399,7 +6402,7 @@ pub(crate) mod selected_continuations {
 
     fn transfers_complete_custody(
         region: &StructuralArgument,
-        missing: &[Vec<StructuralPathSegment>],
+        missing: &[Arc<[StructuralPathSegment]>],
         parameters: &[StructuralParameterDeclaration],
         places: &[StructuralPlaceDeclaration],
         blocks: &[Block],
@@ -6423,7 +6426,7 @@ pub(crate) mod selected_continuations {
             return Ok(false);
         }
         let root = root_type(region.place, parameters, places, blocks)?;
-        let moved = missing.iter().cloned().collect();
+        let moved = missing.iter().map(|path| path.to_vec()).collect();
         Ok(
             terminal_semantics::partial_affine_residuals(types, root, &moved, 1)
                 .is_some_and(|residuals| residuals.is_empty()),
@@ -6574,6 +6577,53 @@ pub(crate) mod selected_continuations {
         use semantic_vocabulary::{ObligationId, ScalarType, StructuralCaseId, ValueId};
 
         #[test]
+        fn copied_partial_states_share_paths_and_keep_independent_lists() {
+            let place = PlaceId::new(1).unwrap();
+            let field = StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1));
+            let first: Arc<[StructuralPathSegment]> =
+                Arc::from([field.clone(), StructuralPathSegment::FixedIndex(1)]);
+            let last: Arc<[StructuralPathSegment]> =
+                Arc::from([field.clone(), StructuralPathSegment::FixedIndex(3)]);
+            let incoming = vec![RegionState::Partial(vec![first.clone(), last.clone()])];
+            let mut snapshots = vec![incoming.clone(); 64];
+            for snapshot in &snapshots {
+                let RegionState::Partial(paths) = &snapshot[0] else {
+                    panic!("partial state lost its paths");
+                };
+                assert!(Arc::ptr_eq(&paths[0], &first));
+                assert!(Arc::ptr_eq(&paths[1], &last));
+            }
+            let tracked = [TrackedRegion {
+                region: StructuralArgument {
+                    place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+                requirement: CleanupRequirement::WholeValue,
+            }];
+            let middle = [field.clone(), StructuralPathSegment::FixedIndex(2)];
+            for _ in 0..2 {
+                consume(&tracked, &mut snapshots[0], place, &middle);
+            }
+            let RegionState::Partial(paths) = &snapshots[0][0] else {
+                panic!("partial update lost its paths");
+            };
+            assert_eq!(paths.len(), 3);
+            assert!(Arc::ptr_eq(&paths[0], &first));
+            assert_eq!(&*paths[1], &middle);
+            assert!(Arc::ptr_eq(&paths[2], &last));
+            assert_eq!(snapshots[1], incoming);
+            restore(&tracked, &mut snapshots[0], place, &middle);
+            assert_eq!(snapshots[0], incoming);
+            restore(&tracked, &mut snapshots[0], place, &[field]);
+            assert_eq!(snapshots[0], vec![RegionState::Live]);
+            assert_eq!(snapshots[1], incoming);
+            eprintln!(
+                "64 copied states retain 2 shared path rows; independent list updates preserve the other snapshots"
+            );
+        }
+
+        #[test]
         fn block_positions_preserve_lazy_missing_and_duplicate_queries() {
             let id = |value| BlockId::new(value).unwrap();
             let blocks = [id(1), id(2), id(4), id(2)];
@@ -6641,18 +6691,18 @@ pub(crate) mod selected_continuations {
                 vec![RegionState::Absent],
                 vec![RegionState::Live],
                 vec![RegionState::Partial(Vec::new())],
-                vec![RegionState::Partial(vec![Vec::new()])],
+                vec![RegionState::Partial(vec![Arc::from([])])],
                 vec![RegionState::Absent, RegionState::Live],
                 vec![RegionState::Live, RegionState::Absent],
-                vec![RegionState::Partial(vec![segments.clone()])],
+                vec![RegionState::Partial(vec![segments.clone().into()])],
                 vec![RegionState::Partial(vec![
-                    segments.iter().rev().cloned().collect(),
+                    segments.iter().rev().cloned().collect::<Vec<_>>().into(),
                 ])],
             ];
             states.extend(
                 segments
                     .into_iter()
-                    .map(|segment| vec![RegionState::Partial(vec![vec![segment]])]),
+                    .map(|segment| vec![RegionState::Partial(vec![Arc::from([segment])])]),
             );
             let mut index = ContinuationCandidates::new(2);
             let mut continuations: Vec<Continuation> = Vec::new();
