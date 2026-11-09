@@ -3064,7 +3064,9 @@ mod scalar_fields {
         A stored value is captured before invalidation. Later reads use that value,
         never the field initializer or a new observation of overwritten storage.
     */
-    use super::{Binding, CurrentScalarValues, ScopedOccurrence, integer_carrier};
+    use super::{
+        Binding, CallArgumentProjection, CurrentScalarValues, ScopedOccurrence, integer_carrier,
+    };
     mod collection_values {
         /*
             Finite collection observations travel with their captured values. Array
