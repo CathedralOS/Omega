@@ -1474,6 +1474,7 @@ pub use value_custody::partial_affine_residuals::{
 };
 pub use value_custody::places::binding_observations::{
     place_has_immutable_denotation, stable_slice_descriptor_place,
+    value_reads_have_immutable_denotation,
 };
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;

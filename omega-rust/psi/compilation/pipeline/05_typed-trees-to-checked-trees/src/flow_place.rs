@@ -1194,6 +1194,7 @@ mod case_access {
         statement_index: usize,
         subject: &CanonicalPlace,
     ) -> bool {
+        let scalar_values = std::cell::OnceCell::new();
         let stable_root = match subject.root {
             PlaceRoot::Symbol(symbol) => symbol.is_valid(),
             PlaceRoot::Expression(expression) => expression.is_valid(),
@@ -1211,7 +1212,13 @@ mod case_access {
                     || matches!(segment, PlaceSegment::Index { expression }
                     if validation::place_has_immutable_denotation(
                         program, machine, state, statement_index, *expression,
-                    ))
+                    ) || scalar_values.get_or_init(|| {
+                        crate::checks::current_scalar_values::CurrentScalarValues::at(
+                            program, machine, state, statement_index, Default::default(), None,
+                        )
+                    }).as_ref().is_some_and(|values| {
+                        values.selector_has_immutable_denotation(*expression)
+                    }))
             })
     }
 }

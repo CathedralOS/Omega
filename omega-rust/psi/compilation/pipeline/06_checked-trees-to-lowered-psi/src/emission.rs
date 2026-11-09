@@ -6055,6 +6055,10 @@ pub(crate) mod selected_continuations {
             incoming: initial,
             successors: Vec::new(),
         }];
+        // Only continuations of the same original block can share an incoming
+        // state. Keep their discovery order and compare the complete state.
+        let mut candidates_by_block = vec![Vec::new(); blocks.len()];
+        candidates_by_block[entry].push(0);
         let mut position = 0;
         while position < continuations.len() {
             let block = &blocks[continuations[position].original_block];
@@ -6162,11 +6166,10 @@ pub(crate) mod selected_continuations {
                     }
                 }
                 let original_block = block_position(blocks, target)?;
-                let successor = continuations
+                let successor = candidates_by_block[original_block]
                     .iter()
-                    .position(|candidate| {
-                        candidate.original_block == original_block && candidate.incoming == outgoing
-                    })
+                    .copied()
+                    .find(|&candidate| continuations[candidate].incoming == outgoing)
                     .unwrap_or_else(|| {
                         let successor = continuations.len();
                         continuations.push(Continuation {
@@ -6174,6 +6177,7 @@ pub(crate) mod selected_continuations {
                             incoming: outgoing,
                             successors: Vec::new(),
                         });
+                        candidates_by_block[original_block].push(successor);
                         successor
                     });
                 successors.push((edge, successor));

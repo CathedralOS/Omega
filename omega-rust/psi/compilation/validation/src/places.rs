@@ -254,6 +254,82 @@ pub(crate) mod binding_observations {
         if !crate::place_has_builtin_coordinates(program, machine, Some(state), expression) {
             return false;
         }
+        if !immutable_read_place(program, state, before, expression) {
+            return false;
+        }
+        let mut nodes = Vec::new();
+        crate::queries::expression_traversal::collect_expression_tree(
+            program, expression, &mut nodes,
+        );
+        nodes
+            .into_iter()
+            .all(|node| match expression_table(program).expression(node) {
+                ExpressionNode::Name(path) => {
+                    immutable_binding(program, state, before, path.head_symbol)
+                }
+                ExpressionNode::Member(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Integer(_) => true,
+                _ => false,
+            })
+    }
+
+    // Check the storage read by a value recipe. Its caller must separately
+    // authenticate the operations; unchanged inputs alone do not make a call pure.
+    pub fn value_reads_have_immutable_denotation(
+        program: &dyn CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &State,
+        before: usize,
+        expression: ExpressionHandle,
+    ) -> bool {
+        let mut nodes = Vec::new();
+        crate::queries::expression_traversal::collect_expression_tree(
+            program, expression, &mut nodes,
+        );
+        nodes
+            .into_iter()
+            .all(|node| match expression_table(program).expression(node) {
+                ExpressionNode::Name(path) => {
+                    crate::place_has_builtin_coordinates(program, machine, Some(state), node)
+                        && immutable_read_place(program, state, before, node)
+                        && immutable_binding(program, state, before, path.head_symbol)
+                }
+                ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                    crate::place_has_builtin_coordinates(program, machine, Some(state), node)
+                        && immutable_read_place(program, state, before, node)
+                }
+                _ => true,
+            })
+    }
+
+    fn immutable_binding(
+        program: &dyn CheckingInput,
+        state: &State,
+        before: usize,
+        symbol: SymbolHandle,
+    ) -> bool {
+        let reference = if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
+            (!parameter.is_mutable).then_some(parameter.type_reference)
+        } else {
+            program
+                .state_local_declaration(state, symbol)
+                .and_then(|(position, local)| {
+                    (position < before && !local.is_mutable).then_some(local.type_reference)
+                })
+        };
+        reference.is_some_and(|reference| {
+            crate::reference_shell(program, reference).is_none()
+                && binding_is_unchanged_value(program, state, symbol)
+        })
+    }
+
+    fn immutable_read_place(
+        program: &dyn CheckingInput,
+        state: &State,
+        before: usize,
+        expression: ExpressionHandle,
+    ) -> bool {
         let Some(place) = crate::canonical_place_from_expression_in_state(
             program,
             state.symbol,
@@ -278,36 +354,7 @@ pub(crate) mod binding_observations {
         {
             return false;
         }
-        let mut nodes = Vec::new();
-        crate::queries::expression_traversal::collect_expression_tree(
-            program, expression, &mut nodes,
-        );
-        nodes
-            .into_iter()
-            .all(|node| match expression_table(program).expression(node) {
-                ExpressionNode::Name(path) => {
-                    let symbol = path.head_symbol;
-                    let reference =
-                        if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
-                            (!parameter.is_mutable).then_some(parameter.type_reference)
-                        } else {
-                            program.state_local_declaration(state, symbol).and_then(
-                                |(position, local)| {
-                                    (position < before && !local.is_mutable)
-                                        .then_some(local.type_reference)
-                                },
-                            )
-                        };
-                    reference.is_some_and(|reference| {
-                        crate::reference_shell(program, reference).is_none()
-                            && binding_is_unchanged_value(program, state, symbol)
-                    })
-                }
-                ExpressionNode::Member(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Integer(_) => true,
-                _ => false,
-            })
+        true
     }
 
     pub(crate) fn immutable_value_origin(

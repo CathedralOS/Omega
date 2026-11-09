@@ -6373,6 +6373,28 @@ struct ScopedOccurrence<'roster, 'tree> {
 }
 
 impl<'program> CurrentScalarValues<'program> {
+    // A composed index keeps its meaning only when both its typed operations
+    // and every storage read remain valid at this observation point.
+    pub(crate) fn selector_has_immutable_denotation(&self, expression: ExpressionHandle) -> bool {
+        validation::value_reads_have_immutable_denotation(
+            self.program,
+            self.machine,
+            self.state,
+            self.statement_index,
+            expression,
+        ) && validation::expression_traversal::inert_value_tree_with_operations(
+            self.program,
+            expression,
+            |operation| admitted(self.occurrence(), operation, &self.current, &self.fields, 0),
+        ) && scalar_fields::coordinates::selector_value(
+            self.occurrence(),
+            expression,
+            &self.current,
+            &self.fields,
+        )
+        .is_some()
+    }
+
     fn occurrence(&self) -> ScopedOccurrence<'_, 'program> {
         ScopedOccurrence {
             program: self.program,
