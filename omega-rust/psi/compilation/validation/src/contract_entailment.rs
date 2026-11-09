@@ -60292,6 +60292,20 @@ pub(crate) mod structural_judgment {
                                 value.clone(),
                             );
                         }
+                    } else if read_completed
+                        && !receiver_changed
+                        && judge.requires_value_preservation()
+                        && declared.is_some_and(|reference| {
+                            structural_terms::scalar_operand_is_observed(program, reference, &value)
+                        })
+                    {
+                        // Keep the completed read at its source location as well as in its copy.
+                        judge.observe_completed_storage_read(
+                            scope.0,
+                            scope.1,
+                            expression,
+                            value.clone(),
+                        );
                     }
                     if matches!(node, ExpressionNode::Name(_) | ExpressionNode::Member(_))
                         && let Some(reference) = crate::expression_result_type_reference(
