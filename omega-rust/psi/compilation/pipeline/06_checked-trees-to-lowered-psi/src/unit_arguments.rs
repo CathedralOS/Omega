@@ -931,7 +931,7 @@ pub(crate) mod attached_unit {
                 fn completed_partition_edge(
                     &mut self,
                     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-                    place: PlaceId,
+                    place: semantic_vocabulary::PlaceId,
                     path: &[terminal_psi::StructuralPathSegment],
                     kind: crate::emission::selected_continuations::CompletedCleanupKind,
                     values: &mut Vec<ValueDeclaration>,
@@ -1096,7 +1096,7 @@ pub(crate) mod attached_unit {
                 fn partition_cases(
                     &mut self,
                     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-                    place: PlaceId,
+                    place: semantic_vocabulary::PlaceId,
                     path: &[terminal_psi::StructuralPathSegment],
                     structural_type: semantic_vocabulary::StructuralTypeId,
                     arms: &[crate::unit::unit_cleanup::CleanupPartitionArm],

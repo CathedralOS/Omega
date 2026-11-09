@@ -8214,6 +8214,7 @@ pub(crate) mod attached_unit {
                             },
                         ),
                         control.actions.span_or_empty(owner.actions),
+                        owner.partitions,
                         std::slice::from_ref(&owner.owner),
                     )?;
                 }
