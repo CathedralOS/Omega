@@ -38072,7 +38072,432 @@ pub(crate) mod specification_calls {
             use crate::frozen_program::expression_table;
             use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
 
+            fn operation_identity(
+                program: &dyn crate::CheckingInput,
+                selected: &StaticMachineArgument,
+                owner: symbols::SymbolHandle,
+                requirement: symbols::SymbolHandle,
+            ) -> Result<String, &'static str> {
+                let supplier = program.static_operand_region_supplier(selected, owner)?;
+                let identity = typed_trees::type_identity::portable_applied_index_identity(
+                    program.typed_program(),
+                    typed_trees::type_identity::IndexIdentityArgument::StaticArgument(selected),
+                    supplier,
+                    &[],
+                )
+                .and_then(|identity| program.type_identity_text(identity))
+                .ok_or("predicate implementation has no complete selected identity")?;
+                let requirement = program
+                    .closed_requirement_application(requirement)
+                    .map_or(requirement, |application| application.template);
+                let (declaration, signature) = program
+                    .trait_machine_signature(requirement)
+                    .ok_or("predicate implementation lost its source requirement identity")?;
+                let operation =
+                    program.trait_requirement_callable_identity_text(declaration, signature);
+                Ok(format!("\0selected-operation:{identity}:{operation}"))
+            }
+
+            fn selected_operation(
+                program: &dyn crate::CheckingInput,
+                binder: symbols::SymbolHandle,
+                source: symbols::SymbolHandle,
+                selected: &StaticMachineArgument,
+                owner: symbols::SymbolHandle,
+            ) -> Result<
+                (
+                    typed_trees::types::TypeReferenceHandle,
+                    StaticMachineArgument,
+                ),
+                &'static str,
+            > {
+                use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+                let requirement = program
+                    .evidence_bound_requirement(program.symbols.get(binder).parent, binder, source)
+                    .map_err(|_| "predicate implementation lost its source evidence bound")?
+                    .ok_or("predicate implementation lost its exact source operation")?;
+                let (target, result_type) = if let Some(conformance) =
+                    program.conformance_by_symbol(selected.symbol)
+                {
+                    let supplier = program.static_operand_region_supplier(selected, owner)?;
+                    let application = selected.application.as_deref();
+                    if application.is_some_and(|application| application.member.is_valid()) {
+                        return Err("predicate implementation selected a member instead of a map");
+                    }
+                    let arguments = application
+                        .map_or(&[][..], |application| application.arguments.as_ref())
+                        .iter()
+                        .map(|argument| {
+                            program.static_operand_type_reference_in_scope(argument, supplier)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let public = AppliedTraitScope::from_conformance_application(
+                        program.typed_program(),
+                        conformance,
+                        TraitApplicationArguments {
+                            lexical_owner: supplier,
+                            enclosing_data_applications: &[],
+                            arguments: &arguments,
+                            lifetimes: application
+                                .map_or(&[], |application| application.lifetime_arguments.as_ref()),
+                        },
+                    )
+                    .and_then(|scope| {
+                        scope.declaring_scope(
+                            program.typed_program(),
+                            requirement.application.declaration.symbol,
+                        )
+                    })
+                    .ok_or("predicate implementation lost its complete public application")?;
+                    let mut rows = conformance.rows.iter().filter(|row| {
+                        row.requirement == requirement.signature.symbol
+                            && row.declaring_trait == public.declaration.symbol
+                    });
+                    let row = rows
+                        .next()
+                        .ok_or("predicate implementation has no exact selected row")?;
+                    if rows.next().is_some() {
+                        return Err("predicate implementation has ambiguous selected rows");
+                    }
+                    let machine = program
+                        .machine_by_symbol(row.realization_machine)
+                        .ok_or("predicate implementation lost its selected callable")?;
+                    let state = program
+                        .state_in_machine(machine, row.realization_state)
+                        .ok_or("predicate implementation lost its selected entry")?;
+                    let signature = program
+                        .applied_callable_signature(&public, row.requirement)
+                        .or_else(|| {
+                            (public.substitutions.is_empty()
+                                && public.declaration.lifetime_parameters.is_empty())
+                            .then(|| {
+                                program.trait_machine_signature_by_symbol(
+                                    public.declaration,
+                                    row.requirement,
+                                )
+                            })
+                            .flatten()
+                        })
+                        .ok_or("predicate implementation lost its applied public result")?;
+                    (state.symbol, signature.return_type)
+                } else {
+                    let symbols =
+                        program.selected_implementation_namespace_symbols(binder, selected)?;
+                    let target = symbols
+                        .iter()
+                        .find(|(known, _)| *known == source)
+                        .map(|(_, target)| *target)
+                        .ok_or(
+                            "predicate implementation lost its exact selected requirement child",
+                        )?;
+                    let (_, signature) = crate::selected_requirement_signature(program, target)
+                        .ok_or("predicate forwarded implementation lost its public signature")?;
+                    (target, signature.return_type)
+                };
+                Ok((
+                    result_type,
+                    StaticMachineArgument {
+                        symbol: target,
+                        path: Box::from([typed_trees::name::Identifier::generated(
+                            operation_identity(
+                                program,
+                                selected,
+                                owner,
+                                requirement.signature.symbol,
+                            )?,
+                        )]),
+                        ..Default::default()
+                    },
+                ))
+            }
+
+            fn selected_application_operand(
+                application: &typed_trees::ClosedConformanceApplication,
+            ) -> StaticMachineArgument {
+                StaticMachineArgument {
+                    symbol: application.declaration,
+                    application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                        lifetime_arguments: application
+                            .lifetime_arguments
+                            .iter()
+                            .map(typed_trees::name::Identifier::generated)
+                            .collect(),
+                        arguments: application.arguments.clone(),
+                        member: Default::default(),
+                    })),
+                    ..Default::default()
+                }
+            }
+
+            pub(crate) fn selected_call_operation_identity(
+                program: &dyn crate::CheckingInput,
+                owner: symbols::SymbolHandle,
+                call: &typed_trees::expression::TableCallExpression,
+            ) -> Result<Option<String>, &'static str> {
+                if let Some(dispatch) = &call.static_requirement_dispatch {
+                    let owner = if dispatch.selection_application.is_valid() {
+                        program
+                            .static_machine_application(dispatch.selection_application)
+                            .lexical_owner
+                    } else {
+                        owner
+                    };
+                    crate::machine_calls::calls::closed_dispatch::validate_closed_requirement_dispatch(
+                        program, owner, call.target_symbol, dispatch,
+                    )?;
+                    let applications = program.selected_conformance_applications(
+                        owner,
+                        dispatch.selection_application,
+                        dispatch.evidence_parameter,
+                        dispatch.requirement,
+                        dispatch.application_report_fingerprint,
+                        dispatch.application_commitment,
+                    );
+                    let [application] = applications.as_slice() else {
+                        return Err("predicate call has no unique selected application");
+                    };
+                    let supplier = application
+                        .trait_scope
+                        .scope(program.typed_program())
+                        .ok_or("predicate call lost its selected supplying scope")?
+                        .argument_owner;
+                    return operation_identity(
+                        program,
+                        &selected_application_operand(application),
+                        supplier,
+                        dispatch.requirement,
+                    )
+                    .map(Some);
+                }
+                let Some(receiver) = program
+                    .expression_table
+                    .name_path_node(call.receiver)
+                    .filter(|receiver| {
+                        receiver.symbol.is_valid()
+                            && program.symbols.get(receiver.symbol).kind
+                                == symbols::SymbolKind::ConformanceParameter
+                    })
+                else {
+                    return Ok(None);
+                };
+                let requirement = program
+                    .evidence_bound_requirement(
+                        program.symbols.get(receiver.symbol).parent,
+                        receiver.symbol,
+                        call.target_symbol,
+                    )
+                    .map_err(|_| "predicate call lost its exact evidence operation")?
+                    .ok_or("predicate call lost its evidence requirement")?;
+                operation_identity(
+                    program,
+                    &StaticMachineArgument {
+                        symbol: receiver.symbol,
+                        ..Default::default()
+                    },
+                    program.symbols.get(receiver.symbol).parent,
+                    requirement.signature.symbol,
+                )
+                .map(Some)
+            }
+
             impl AppliedProofBindings {
+                fn retain_requirement_operations(
+                    &mut self,
+                    program: &dyn crate::CheckingInput,
+                    caller: symbols::SymbolHandle,
+                    site: crate::CallSite<'_>,
+                ) -> Option<()> {
+                    let receiver = match site {
+                        crate::CallSite::Expression { call, .. } => program
+                            .expression_table
+                            .name_path_node(call.receiver)
+                            .map(|receiver| receiver.symbol),
+                        crate::CallSite::Statement(call) => Some(call.receiver_symbol),
+                        crate::CallSite::TransitionNamed { .. } => None,
+                    }
+                    .filter(|receiver| {
+                        receiver.is_valid()
+                            && program.symbols.get(*receiver).kind
+                                == symbols::SymbolKind::ConformanceParameter
+                    });
+                    if let Some(dispatch) = site.static_requirement_dispatch() {
+                        crate::machine_calls::calls::closed_dispatch::validate_closed_requirement_dispatch(
+                            program, caller, site.target_symbol(program), dispatch,
+                        ).ok()?;
+                        let applications = program.selected_conformance_applications(
+                            caller,
+                            dispatch.selection_application,
+                            dispatch.evidence_parameter,
+                            dispatch.requirement,
+                            dispatch.application_report_fingerprint,
+                            dispatch.application_commitment,
+                        );
+                        let [application] = applications.as_slice() else {
+                            return None;
+                        };
+                        let public = program
+                            .selected_requirement_contract_scope(caller, dispatch)
+                            .ok()?;
+                        let supplier = application
+                            .trait_scope
+                            .scope(program.typed_program())?
+                            .argument_owner;
+                        let selected = program.conformance_by_symbol(application.declaration)?;
+                        for row in &selected.rows {
+                            let Some(scope) = public
+                                .declaring_scope(program.typed_program(), row.declaring_trait)
+                            else {
+                                continue;
+                            };
+                            let signature = program
+                                .applied_callable_signature(&scope, row.requirement)
+                                .or_else(|| {
+                                    (scope.substitutions.is_empty()
+                                        && scope.declaration.lifetime_parameters.is_empty())
+                                    .then(|| {
+                                        program.trait_machine_signature_by_symbol(
+                                            scope.declaration,
+                                            row.requirement,
+                                        )
+                                    })
+                                    .flatten()
+                                })?;
+                            let identity = operation_identity(
+                                program,
+                                &selected_application_operand(application),
+                                supplier,
+                                row.requirement,
+                            )
+                            .ok()?;
+                            self.retain_operation(
+                                row.requirement,
+                                signature.return_type,
+                                StaticMachineArgument {
+                                    symbol: row.realization_state,
+                                    path: Box::from([typed_trees::name::Identifier::generated(
+                                        &identity,
+                                    )]),
+                                    ..Default::default()
+                                },
+                            )?;
+                        }
+                    } else if let Some(receiver) = receiver {
+                        let source_owner = program.symbols.get(receiver).parent;
+                        // Authenticate the called member before mapping its public siblings.
+                        program
+                            .evidence_bound_requirement(
+                                source_owner,
+                                receiver,
+                                site.target_symbol(program),
+                            )
+                            .ok()??;
+                        for child in program
+                            .symbols
+                            .child_handles(receiver)
+                            .into_iter()
+                            .flatten()
+                        {
+                            if program.symbols.get(child).kind != symbols::SymbolKind::State {
+                                continue;
+                            }
+                            let requirement = program
+                                .evidence_bound_requirement(source_owner, receiver, child)
+                                .ok()??;
+                            let signature = program
+                                .applied_callable_signature(
+                                    &requirement.application,
+                                    requirement.signature.symbol,
+                                )
+                                .or_else(|| {
+                                    (requirement.application.substitutions.is_empty()
+                                        && requirement
+                                            .application
+                                            .declaration
+                                            .lifetime_parameters
+                                            .is_empty())
+                                    .then_some(requirement.signature)
+                                })?;
+                            let identity = operation_identity(
+                                program,
+                                &StaticMachineArgument {
+                                    symbol: receiver,
+                                    ..Default::default()
+                                },
+                                source_owner,
+                                requirement.signature.symbol,
+                            )
+                            .ok()?;
+                            self.retain_operation(
+                                requirement.signature.symbol,
+                                signature.return_type,
+                                StaticMachineArgument {
+                                    symbol: child,
+                                    path: Box::from([typed_trees::name::Identifier::generated(
+                                        &identity,
+                                    )]),
+                                    ..Default::default()
+                                },
+                            )?;
+                        }
+                    }
+                    Some(())
+                }
+
+                fn retain_operation(
+                    &mut self,
+                    source: symbols::SymbolHandle,
+                    result_type: typed_trees::types::TypeReferenceHandle,
+                    selected: StaticMachineArgument,
+                ) -> Option<()> {
+                    if let Some((_, old_type, old_selected)) =
+                        self.machines.iter().find(|(known, _, _)| *known == source)
+                    {
+                        return (*old_type == result_type && old_selected == &selected)
+                            .then_some(());
+                    }
+                    self.machines.push((source, result_type, selected));
+                    Some(())
+                }
+
+                pub fn contract_machine_bindings(
+                    &self,
+                    program: &dyn crate::CheckingInput,
+                    owner: &super::super::SelectedCallContract<'_>,
+                ) -> Result<MachineBindings, &'static str> {
+                    let parameters = super::super::owner_parameters(program, owner);
+                    let callable = match owner {
+                        super::super::SelectedCallContract::Concrete(machine, _) => machine.symbol,
+                        _ => super::super::owner_symbol(owner),
+                    };
+                    let mut bindings = self.machines.clone();
+                    for contract in super::super::owner_contracts(program, owner) {
+                        for fact in program.proof_facts.span_or_empty(contract.facts) {
+                            let Some(expression) = fact.as_expression() else {
+                                continue;
+                            };
+                            for binding in self.predicate_machine_bindings(
+                                program,
+                                callable,
+                                parameters,
+                                *expression,
+                            )? {
+                                if let Some(existing) =
+                                    bindings.iter().find(|(source, _, _)| *source == binding.0)
+                                {
+                                    if existing != &binding {
+                                        return Err(
+                                            "call contract has conflicting selected operation bindings",
+                                        );
+                                    }
+                                } else {
+                                    bindings.push(binding);
+                                }
+                            }
+                        }
+                    }
+                    Ok(bindings)
+                }
+
                 pub fn predicate_machine_bindings(
                     &self,
                     program: &dyn crate::CheckingInput,
@@ -38111,89 +38536,14 @@ pub(crate) mod specification_calls {
                         if result.iter().any(|(known, _, _)| *known == source) {
                             continue;
                         }
-                        let symbols =
-                            program.selected_implementation_namespace_symbols(binder, selected)?;
-                        let target = symbols
-                .iter()
-                .find(|(known, _)| *known == source)
-                .map(|(_, target)| *target)
-                .ok_or("predicate implementation lost its exact selected requirement child")?;
-                        let (target, result_type, name) = if let Some(conformance) =
-                            program.conformance_by_symbol(selected.symbol)
-                        {
-                            let mut rows = conformance
-                                .rows
-                                .iter()
-                                .filter(|row| row.requirement == target);
-                            let row = rows.next().ok_or(
-                                "predicate implementation has no selected requirement row",
-                            )?;
-                            if rows.next().is_some() {
-                                return Err(
-                                    "predicate implementation has ambiguous selected requirement rows",
-                                );
-                            }
-                            let machine = program
-                                .machine_by_symbol(row.realization_machine)
-                                .ok_or("predicate implementation lost its selected callable")?;
-                            let state = program
-                                .state_in_machine(machine, row.realization_state)
-                                .ok_or("predicate implementation lost its selected entry")?;
-                            let public =
-                                typed_trees::trait_definition::AppliedTraitScope::from_conformance(
-                                    program.typed_program(),
-                                    conformance,
-                                )
-                                .and_then(|scope| {
-                                    scope.declaring_scope(
-                                        program.typed_program(),
-                                        row.declaring_trait,
-                                    )
-                                })
-                                .ok_or(
-                                    "predicate implementation lost its complete public application",
-                                )?;
-                            let signature = program
-                                .applied_callable_signature(&public, row.requirement)
-                                .or_else(|| {
-                                    (public.substitutions.is_empty()
-                                        && public.declaration.lifetime_parameters.is_empty())
-                                    .then(|| {
-                                        program.trait_machine_signature_by_symbol(
-                                            public.declaration,
-                                            row.requirement,
-                                        )
-                                    })
-                                    .flatten()
-                                })
-                                .ok_or("predicate implementation lost its applied public result")?;
-                            (
-                                state.symbol,
-                                signature.return_type,
-                                row.requirement_name.clone(),
-                            )
-                        } else {
-                            let (_, signature) =
-                                crate::selected_requirement_signature(program, target).ok_or(
-                                    "predicate forwarded implementation lost its public signature",
-                                )?;
-                            (target, signature.return_type, signature.name.clone())
-                        };
-                        if super::super::super::struct_trace() {
-                            eprintln!(
-                                "STRUCT predicate-operation source={:?} selected={:?} target={target:?} result={result_type:?}",
-                                source, selected.symbol
-                            );
-                        }
-                        result.push((
+                        let (result_type, selected) = selected_operation(
+                            program,
+                            binder,
                             source,
-                            result_type,
-                            StaticMachineArgument {
-                                symbol: target,
-                                path: Box::from([name]),
-                                ..StaticMachineArgument::default()
-                            },
-                        ));
+                            selected,
+                            self.implementation_owner,
+                        )?;
+                        result.push((source, result_type, selected));
                     }
                     Ok(result)
                 }
@@ -38260,11 +38610,12 @@ pub(crate) mod specification_calls {
             reference
         }
 
-        pub(crate) type MachineBindings = Vec<(
+        pub(crate) type PredicateMachineBinding = (
             SymbolHandle,
             TypeReferenceHandle,
             typed_trees::expression::StaticMachineArgument,
-        )>;
+        );
+        pub(crate) type MachineBindings = Vec<PredicateMachineBinding>;
 
         #[derive(Default)]
         pub(crate) struct AppliedProofBindings {
@@ -38274,6 +38625,7 @@ pub(crate) mod specification_calls {
             pub machines: MachineBindings,
             pub implementations:
                 Vec<(SymbolHandle, typed_trees::expression::StaticMachineArgument)>,
+            implementation_owner: SymbolHandle,
         }
 
         pub(crate) struct AppliedResultPresentation<'scope> {
@@ -38483,6 +38835,17 @@ pub(crate) mod specification_calls {
             }
 
             pub fn for_call_site(
+                program: &dyn crate::CheckingInput,
+                caller: SymbolHandle,
+                owner: &SelectedCallContract<'_>,
+                site: crate::CallSite<'_>,
+            ) -> Option<Self> {
+                let mut bindings = Self::for_retained_call_site(program, caller, owner, site)?;
+                bindings.retain_requirement_operations(program, caller, site)?;
+                Some(bindings)
+            }
+
+            fn for_retained_call_site(
                 program: &dyn crate::CheckingInput,
                 caller: SymbolHandle,
                 owner: &SelectedCallContract<'_>,
@@ -38959,6 +39322,7 @@ pub(crate) mod specification_calls {
                     .collect::<Option<Vec<_>>>()?;
                 let mut result = Self {
                     types,
+                    implementation_owner: application.lexical_owner,
                     ..Self::default()
                 };
                 let applied_arguments = parameters
@@ -39646,12 +40010,16 @@ pub(crate) mod specification_calls {
             actual: &typed_trees::expression::StaticMachineArgument,
         ) -> Option<typed_trees::expression::StaticMachineArgument> {
             if !actual.symbol.is_valid()
-                || actual.type_reference.is_valid()
                 || actual.const_literal.is_some()
                 || actual.evidence_projection.is_some()
             {
                 return None;
             }
+            // A retained reference is the exact selected operand and its
+            // supplying context, not a change from evidence to a data type.
+            program
+                .static_operand_region_supplier(actual, lexical_owner)
+                .ok()?;
             let named = program.conformance_by_symbol(actual.symbol).is_some();
             let forwarded = program
                 .machine_by_symbol(lexical_owner)
@@ -58632,11 +59000,16 @@ pub(crate) mod structural_judgment {
                     &'call self,
                     prepared: &'call PreparedNormalCall<'_, '_>,
                 ) -> Option<PreparedSelectedGuarantees<'call>> {
+                    let machine_bindings = prepared
+                        .application
+                        .contract_machine_bindings(self.program, &prepared.owner)
+                        .ok()?;
                     self.prepare_selected_guarantees(
                         &prepared.owner,
                         &prepared.bindings.entry_bindings,
                         &prepared.bindings.bindings,
                         &prepared.application.types,
+                        &machine_bindings,
                         0,
                     )
                 }
@@ -67342,6 +67715,9 @@ pub(crate) mod structural_judgment {
         }
     }
     pub(crate) mod selected_contracts {
+        use super::super::specification_calls::applied_bindings::{
+            MachineBindings, PredicateMachineBinding,
+        };
         use super::super::specification_calls::{
             SelectedCallContract, owner_contracts, owner_name, owner_parameters, owner_return_type,
             owner_symbol, selected_call_contract, selected_call_contract_for_parameters,
@@ -67369,6 +67745,7 @@ pub(crate) mod structural_judgment {
                 entry_bindings: Cow<'call, [(SymbolHandle, StructuralTerm)]>,
                 bindings: Cow<'call, [(SymbolHandle, StructuralTerm)]>,
                 type_bindings: Cow<'call, [(SymbolHandle, TypeReferenceHandle)]>,
+                machine_bindings: MachineBindings,
                 evidence: EntryEvidence,
             }
 
@@ -67384,6 +67761,7 @@ pub(crate) mod structural_judgment {
                     entry_bindings: &'call [(SymbolHandle, StructuralTerm)],
                     bindings: &'call [(SymbolHandle, StructuralTerm)],
                     type_bindings: &'call [(SymbolHandle, TypeReferenceHandle)],
+                    machine_bindings: &[PredicateMachineBinding],
                     depth: usize,
                 ) -> Option<PreparedSelectedGuarantees<'call>> {
                     let program = self.program;
@@ -67486,6 +67864,7 @@ pub(crate) mod structural_judgment {
                                 &owner,
                                 &entry_bindings,
                                 &member_type_bindings,
+                                machine_bindings,
                                 depth,
                             )?;
                             prepared.push(PreparedDeclaredGuarantees {
@@ -67493,19 +67872,26 @@ pub(crate) mod structural_judgment {
                                 entry_bindings: std::borrow::Cow::Owned(entry_bindings),
                                 bindings: std::borrow::Cow::Owned(bindings),
                                 type_bindings: std::borrow::Cow::Owned(member_type_bindings),
+                                machine_bindings: machine_bindings.to_vec(),
                                 evidence,
                             });
                         }
                         return Some(PreparedSelectedGuarantees { members: prepared });
                     }
-                    let evidence =
-                        self.prepare_declared_entry(owner, entry_bindings, type_bindings, depth)?;
+                    let evidence = self.prepare_declared_entry(
+                        owner,
+                        entry_bindings,
+                        type_bindings,
+                        machine_bindings,
+                        depth,
+                    )?;
                     Some(PreparedSelectedGuarantees {
                         members: vec![PreparedDeclaredGuarantees {
                             owner: *owner,
                             entry_bindings: std::borrow::Cow::Borrowed(entry_bindings),
                             bindings: std::borrow::Cow::Borrowed(bindings),
                             type_bindings: std::borrow::Cow::Borrowed(type_bindings),
+                            machine_bindings: machine_bindings.to_vec(),
                             evidence,
                         }],
                     })
@@ -67516,6 +67902,7 @@ pub(crate) mod structural_judgment {
                     owner: &SelectedCallContract<'_>,
                     entry_bindings: &[(SymbolHandle, StructuralTerm)],
                     type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+                    machine_bindings: &[PredicateMachineBinding],
                     depth: usize,
                 ) -> Option<EntryEvidence> {
                     if depth >= 32 {
@@ -67539,6 +67926,7 @@ pub(crate) mod structural_judgment {
                                     parameters,
                                     entry_bindings,
                                     type_bindings,
+                                    machine_bindings,
                                     depth + 1,
                                 ),
                                 ProofFact::Membership(required) => self
@@ -67580,6 +67968,7 @@ pub(crate) mod structural_judgment {
                                 &member.entry_bindings,
                                 &member.bindings,
                                 &member.type_bindings,
+                                &member.machine_bindings,
                                 result,
                                 depth,
                             )?,
@@ -67640,6 +68029,7 @@ pub(crate) mod structural_judgment {
                     entry_bindings: &[(SymbolHandle, StructuralTerm)],
                     bindings: &[(SymbolHandle, StructuralTerm)],
                     type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+                    machine_bindings: &[PredicateMachineBinding],
                     result: Option<&StructuralTerm>,
                     depth: usize,
                 ) -> Option<SelectedGuarantees> {
@@ -67721,6 +68111,7 @@ pub(crate) mod structural_judgment {
                                     callable,
                                     bindings,
                                     type_bindings,
+                                    machine_bindings,
                                     result,
                                     &mut equations,
                                     &mut data_identities,
@@ -67770,7 +68161,9 @@ pub(crate) mod structural_judgment {
         pub(crate) mod matches {
             use super::super::conditional_guarantees::{ConditionalGuarantees, ObservedCondition};
             use super::super::normal_returns::CapturedResultEquation;
-            use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
+            use super::{
+                PredicateMachineBinding, StructuralJudge, StructuralJudgment, StructuralTerm,
+            };
             use symbols::SymbolHandle;
             use typed_trees::expression::{ExpressionHandle, MatchPattern, TableMatchExpression};
             use typed_trees::signature::StateParameter;
@@ -67900,6 +68293,7 @@ pub(crate) mod structural_judgment {
                     callable: SymbolHandle,
                     bindings: &[(SymbolHandle, StructuralTerm)],
                     type_bindings: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+                    machine_bindings: &[PredicateMachineBinding],
                     result: Option<&StructuralTerm>,
                     established_equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
                     established_identities: &mut Vec<(StructuralTerm, StructuralTerm)>,
@@ -67910,7 +68304,9 @@ pub(crate) mod structural_judgment {
                         return None;
                     }
                     let mut operand = |judge: &Self, operand| {
-                        judge.bound_contract_term(
+                        super::bound_contract_operation_term(
+                            judge,
+                            machine_bindings,
                             operand,
                             scope,
                             parameters,
@@ -67961,6 +68357,7 @@ pub(crate) mod structural_judgment {
                             callable,
                             bindings,
                             type_bindings,
+                            machine_bindings,
                             result,
                             &mut equations,
                             &mut identities,
@@ -68538,16 +68935,12 @@ pub(crate) mod structural_judgment {
                                         Some((scope, parameters)),
                                     )
                                 }),
-                                selections: if realization.is_some() {
-                                    Vec::new()
-                                } else {
-                                    call.machine_arguments.to_vec()
-                                },
-                                machine: structural_terms::structural_call_machine_name(
-                                    call.target.as_str(),
-                                    &call.machine_arguments,
-                                    &[],
+                                selections: structural_terms::structural_predicate_call_selections(
+                                    program, call,
                                 ),
+                                machine: structural_terms::structural_predicate_call_machine_name(
+                                    program, scope, call,
+                                )?,
                                 arguments,
                             })
                         }
@@ -68881,6 +69274,7 @@ pub(crate) mod structural_judgment {
                     parameters,
                     &bindings,
                     &[],
+                    &[],
                     0,
                 )
             }
@@ -69130,6 +69524,7 @@ pub(crate) mod structural_judgment {
                     entry_bindings,
                     bindings,
                     type_bindings,
+                    &[],
                     depth,
                 )?;
                 self.complete_selected_guarantees(&prepared, result, depth)
@@ -69512,6 +69907,34 @@ pub(crate) mod structural_judgment {
             }
         }
 
+        #[allow(clippy::too_many_arguments)]
+        fn bound_contract_operation_term(
+            judge: &StructuralJudge<'_>,
+            machine_bindings: &[PredicateMachineBinding],
+            expression: ExpressionHandle,
+            scope: SymbolHandle,
+            parameters: &[typed_trees::signature::StateParameter],
+            callable: SymbolHandle,
+            bindings: &[(SymbolHandle, StructuralTerm)],
+            type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+            result: Option<&StructuralTerm>,
+            depth: usize,
+        ) -> Option<StructuralTerm> {
+            judge
+                .bound_contract_term(
+                    expression,
+                    scope,
+                    parameters,
+                    callable,
+                    bindings,
+                    type_bindings,
+                    result,
+                    depth,
+                )
+                .map(|term| StructuralJudge::substitute_call_term(&term, &[], machine_bindings))
+        }
+
+        #[allow(clippy::too_many_arguments)]
         pub(crate) fn selected_requirement_judgment(
             judge: &StructuralJudge<'_>,
             expression: ExpressionHandle,
@@ -69519,6 +69942,7 @@ pub(crate) mod structural_judgment {
             parameters: &[typed_trees::signature::StateParameter],
             bindings: &[(SymbolHandle, StructuralTerm)],
             type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+            machine_bindings: &[PredicateMachineBinding],
             depth: usize,
         ) -> StructuralJudgment {
             selected_contract_predicate_judgment(
@@ -69528,6 +69952,7 @@ pub(crate) mod structural_judgment {
                 parameters,
                 bindings,
                 type_bindings,
+                machine_bindings,
                 None,
                 depth,
             )
@@ -69541,6 +69966,7 @@ pub(crate) mod structural_judgment {
             parameters: &[typed_trees::signature::StateParameter],
             bindings: &[(SymbolHandle, StructuralTerm)],
             type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+            machine_bindings: &[PredicateMachineBinding],
             result: Option<&StructuralTerm>,
             depth: usize,
         ) -> StructuralJudgment {
@@ -69551,7 +69977,9 @@ pub(crate) mod structural_judgment {
             if let Some(binary) = program.expression_table.binary_node(expression)
                 && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
             {
-                if let Some(required) = judge.bound_contract_term(
+                if let Some(required) = bound_contract_operation_term(
+                    judge,
+                    machine_bindings,
                     expression,
                     callable,
                     parameters,
@@ -69575,6 +70003,7 @@ pub(crate) mod structural_judgment {
                         parameters,
                         bindings,
                         type_bindings,
+                        machine_bindings,
                         result,
                         depth + 1,
                     ),
@@ -69585,6 +70014,7 @@ pub(crate) mod structural_judgment {
                         parameters,
                         bindings,
                         type_bindings,
+                        machine_bindings,
                         result,
                         depth + 1,
                     ),
@@ -69606,7 +70036,13 @@ pub(crate) mod structural_judgment {
                 if let Some(result) = result {
                     map.push((super::super::RESULT_BINDER.to_owned(), result.clone()));
                 }
-                return judge.instantiated_case_judgment(callable, parameters, expression, &map);
+                return judge.instantiated_selected_case_judgment(
+                    callable,
+                    parameters,
+                    expression,
+                    &map,
+                    machine_bindings,
+                );
             }
             if let Some(references) =
                 super::super::structural_terms::builtin_identity_operand_references(
@@ -69617,7 +70053,9 @@ pub(crate) mod structural_judgment {
                     return StructuralJudgment::Unknown;
                 };
                 let terms = [binary.left, binary.right].map(|operand| {
-                    judge.bound_contract_term(
+                    bound_contract_operation_term(
+                        judge,
+                        machine_bindings,
                         operand,
                         callable,
                         parameters,
@@ -69681,7 +70119,9 @@ pub(crate) mod structural_judgment {
                     judgment
                 };
             }
-            let Some(required) = judge.bound_contract_term(
+            let Some(required) = bound_contract_operation_term(
+                judge,
+                machine_bindings,
                 expression,
                 callable,
                 parameters,
@@ -69722,6 +70162,7 @@ pub(crate) mod structural_judgment {
             callable: SymbolHandle,
             bindings: &[(SymbolHandle, StructuralTerm)],
             type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+            machine_bindings: &[PredicateMachineBinding],
             result: Option<&StructuralTerm>,
             equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
             data_identities: &mut Vec<(StructuralTerm, StructuralTerm)>,
@@ -69742,6 +70183,7 @@ pub(crate) mod structural_judgment {
                     callable,
                     bindings,
                     type_bindings,
+                    machine_bindings,
                     result,
                     equations,
                     data_identities,
@@ -69762,6 +70204,7 @@ pub(crate) mod structural_judgment {
                     callable,
                     bindings,
                     type_bindings,
+                    machine_bindings,
                     result,
                     equations,
                     data_identities,
@@ -69776,6 +70219,7 @@ pub(crate) mod structural_judgment {
                     callable,
                     bindings,
                     type_bindings,
+                    machine_bindings,
                     result,
                     equations,
                     data_identities,
@@ -69804,6 +70248,7 @@ pub(crate) mod structural_judgment {
                             parameters,
                             bindings,
                             type_bindings,
+                            machine_bindings,
                             result,
                             depth + 1,
                         ),
@@ -69817,6 +70262,7 @@ pub(crate) mod structural_judgment {
                             callable,
                             bindings,
                             type_bindings,
+                            machine_bindings,
                             result,
                             equations,
                             data_identities,
@@ -69852,7 +70298,9 @@ pub(crate) mod structural_judgment {
                 && binary.operator == BinaryOperator::Equal
                 && (builtin_identity_references.is_some() || has_identity_equality())
                 && let (Some(left), Some(right)) = (
-                    judge.bound_contract_term(
+                    bound_contract_operation_term(
+                        judge,
+                        machine_bindings,
                         binary.left,
                         scope,
                         parameters,
@@ -69862,7 +70310,9 @@ pub(crate) mod structural_judgment {
                         result,
                         0,
                     ),
-                    judge.bound_contract_term(
+                    bound_contract_operation_term(
+                        judge,
+                        machine_bindings,
                         binary.right,
                         scope,
                         parameters,
@@ -69900,7 +70350,9 @@ pub(crate) mod structural_judgment {
                     return;
                 }
             }
-            let Some(predicate) = judge.bound_contract_term(
+            let Some(predicate) = bound_contract_operation_term(
+                judge,
+                machine_bindings,
                 expression,
                 scope,
                 parameters,
@@ -81031,7 +81483,11 @@ pub(crate) mod structural_judgment {
                     }
                     if changed && !selections.is_empty() {
                         *machine = structural_call_machine_name(
-                            machine.split('<').next().unwrap_or(machine),
+                            if selected.is_some() {
+                                machine.as_str()
+                            } else {
+                                machine.split('<').next().unwrap_or(machine)
+                            },
                             selections,
                             &[],
                         );
@@ -86850,6 +87306,41 @@ pub(crate) mod structural_terms {
         format!("{target}<{}>", selected.join(","))
     }
 
+    pub(crate) fn structural_predicate_call_selections(
+        program: &dyn crate::CheckingInput,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Vec<StaticMachineArgument> {
+        call.static_requirement_dispatch
+            .as_ref()
+            .and_then(|dispatch| program.closed_requirement_application(dispatch.contract_symbol()))
+            .map(|application| {
+                program
+                    .static_machine_application_arguments(application.application)
+                    .to_vec()
+            })
+            .unwrap_or_else(|| call.machine_arguments.to_vec())
+    }
+
+    pub(crate) fn structural_predicate_call_machine_name(
+        program: &dyn crate::CheckingInput,
+        owner: symbols::SymbolHandle,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Option<String> {
+        // Selected predicates keep the complete typed map identity, including
+        // its supplying regions, rather than a flattened namespace spelling.
+        super::specification_calls::applied_bindings::operations::selected_call_operation_identity(
+            program, owner, call,
+        )
+        .ok()
+        .map(|selected| {
+            structural_call_machine_name(
+                selected.as_deref().unwrap_or(call.target.as_str()),
+                &structural_predicate_call_selections(program, call),
+                &[],
+            )
+        })
+    }
+
     pub(crate) fn structural_call_target(
         program: &dyn crate::CheckingInput,
         caller: symbols::SymbolHandle,
@@ -87251,16 +87742,20 @@ pub(crate) mod structural_terms {
                         return Some(StructuralTerm::Application {
                             result_type,
                             target,
-                            selections: if realization.is_some() {
-                                Vec::new()
-                            } else {
-                                call.machine_arguments.to_vec()
-                            },
-                            machine: structural_call_machine_name(
-                                call.target.as_str(),
-                                &call.machine_arguments,
-                                &[],
-                            ),
+                            selections: structural_predicate_call_selections(program, call),
+                            machine: structural_predicate_call_machine_name(
+                                program,
+                                frame.map_or_else(
+                                    || {
+                                        scope.map_or(
+                                            symbols::SymbolHandle::invalid(),
+                                            |(machine, _, _)| machine.symbol,
+                                        )
+                                    },
+                                    |(owner, _)| owner,
+                                ),
+                                call,
+                            )?,
                             arguments,
                         });
                     }
