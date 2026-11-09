@@ -3078,27 +3078,21 @@ mod domains {
         expression: typed_trees::expression::ExpressionHandle,
     ) -> bool {
         let candidate_label = program.expression_table.display_name(expression);
-
-        context_domain_proves_label(
-            program,
-            semantic,
-            context,
-            contexts,
-            point,
-            &candidate_label,
-        )
+        let availability = CasePremiseAvailability::new(program, semantic, contexts, point);
+        context_domain_proves_label(program, semantic, context, &candidate_label, &availability)
     }
 
-    pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membership(
-        program: &dyn ::validation::CheckingInput,
-        semantic: &facts::FactPlan,
+    pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membership<'premises>(
+        program: &'premises dyn ::validation::CheckingInput,
+        semantic: &'premises facts::FactPlan,
         context: &facts::FactContext,
-        contexts: &[facts::FactContextHandle],
+        contexts: &'premises [facts::FactContextHandle],
         caller_state_symbol: SymbolHandle,
         statement_index: usize,
         call_site: &validation::CallSite<'_>,
         target_state: &(impl ContractTargetParameters + ?Sized),
         expression: typed_trees::expression::ExpressionHandle,
+        availability: &std::cell::OnceCell<Option<CasePremiseAvailability<'premises>>>,
     ) -> bool {
         let candidate_label = instantiate_call_contract_expression_label(
             program,
@@ -3109,21 +3103,25 @@ mod domains {
             expression,
         );
 
-        let Some(machine) = program.machine_holding_state(caller_state_symbol) else {
+        let Some(availability) = availability
+            .get_or_init(|| {
+                let machine = program.machine_holding_state(caller_state_symbol)?;
+                Some(CasePremiseAvailability::new(
+                    program,
+                    semantic,
+                    contexts,
+                    facts::ProgramPoint::Statement {
+                        machine_symbol: machine.symbol,
+                        state_symbol: caller_state_symbol,
+                        statement_index,
+                    },
+                ))
+            })
+            .as_ref()
+        else {
             return false;
         };
-        context_domain_proves_label(
-            program,
-            semantic,
-            context,
-            contexts,
-            facts::ProgramPoint::Statement {
-                machine_symbol: machine.symbol,
-                state_symbol: caller_state_symbol,
-                statement_index,
-            },
-            &candidate_label,
-        )
+        context_domain_proves_label(program, semantic, context, &candidate_label, availability)
     }
 
     /*
@@ -3135,11 +3133,9 @@ mod domains {
         program: &dyn ::validation::CheckingInput,
         semantic: &facts::FactPlan,
         context: &facts::FactContext,
-        contexts: &[facts::FactContextHandle],
-        point: facts::ProgramPoint,
         candidate_label: &str,
+        availability: &CasePremiseAvailability<'_>,
     ) -> bool {
-        let availability = CasePremiseAvailability::new(program, semantic, contexts, point);
         semantic.context_view(context).facts().any(|fact| {
             let (domain_symbol, value, place) = match fact.payload {
                 FactPayload::DomainMembership {

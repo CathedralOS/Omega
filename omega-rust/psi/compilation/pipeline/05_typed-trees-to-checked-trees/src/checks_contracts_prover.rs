@@ -768,6 +768,7 @@ pub(super) use scalars::{
     has_builtin_operators,
 };
 mod booleans {
+    use crate::published::facts::boolean_predicates::CasePremiseAvailability;
     use symbols::SymbolHandle;
 
     use super::super::labels::ContractTargetParameters;
@@ -826,19 +827,20 @@ mod booleans {
         }
     }
 
-    pub(super) fn semantic_context_proves_instantiated_boolean_expression(
-        program: &dyn ::validation::CheckingInput,
-        facts: &checked_trees::CheckFacts,
+    pub(super) fn semantic_context_proves_instantiated_boolean_expression<'premises>(
+        program: &'premises dyn ::validation::CheckingInput,
+        facts: &'premises checked_trees::CheckFacts,
         call_flow: &checked_trees::FlowCallFact,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
         context: &facts::FactContext,
-        contexts: &[facts::FactContextHandle],
+        contexts: &'premises [facts::FactContextHandle],
         caller_state_symbol: SymbolHandle,
         statement_index: usize,
         call_site: &validation::CallSite<'_>,
         target_state: &(impl ContractTargetParameters + ?Sized),
         target_state_symbol: SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
+        availability: &std::cell::OnceCell<Option<CasePremiseAvailability<'premises>>>,
     ) -> bool {
         let semantic = &facts.semantic;
         macro_rules! prove_instantiated {
@@ -856,6 +858,7 @@ mod booleans {
                     target_state,
                     target_state_symbol,
                     $expression,
+                    availability,
                 )
             };
         }
@@ -897,6 +900,7 @@ mod booleans {
                     call_site,
                     target_state,
                     expression,
+                    availability,
                 ),
             },
             _ => prove_instantiated_boolean_expression_via_context_domain_membership(
@@ -909,6 +913,7 @@ mod booleans {
                 call_site,
                 target_state,
                 expression,
+                availability,
             ),
         }
     }
@@ -6022,8 +6027,11 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     if field_proof == Some(true) {
         return true;
     }
-    (field_proof.is_none()
-        && entry_contexts.iter().any(|entry_context| {
+    (field_proof.is_none() && {
+        // One unchanged entry roster supplies the case observations for every
+        // context and Boolean leaf. Each subject still receives its own check.
+        let availability = std::cell::OnceCell::new();
+        entry_contexts.iter().any(|entry_context| {
             let context = semantic.contexts.get(*entry_context);
             semantic_context_proves_instantiated_boolean_expression(
                 program,
@@ -6038,18 +6046,19 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
                 target_parameters,
                 call_flow.target_symbol,
                 expression,
+                &availability,
             )
-        }))
-        || call_site_proves_boolean_contract_expression(
-            program,
-            operators,
-            state_flow,
-            call_flow,
-            &call_site,
-            call_flow.target_symbol,
-            target_parameters,
-            expression,
-        )
+        })
+    }) || call_site_proves_boolean_contract_expression(
+        program,
+        operators,
+        state_flow,
+        call_flow,
+        &call_site,
+        call_flow.target_symbol,
+        target_parameters,
+        expression,
+    )
 }
 
 pub(super) fn semantic_contexts_prove_contract_fact(
