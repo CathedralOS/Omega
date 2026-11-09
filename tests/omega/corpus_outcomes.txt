@@ -14251,6 +14251,8 @@ fail/float/local_initializer_range_unproven rejected 5217ms expected @ccdb99ca22
 	cannot prove ensures contract for exit from forwarded at statement 1: result >= 0.0 && result <= 0.5
 fail/float/match_join_requires_preserves_ieee_nan rejected 4498ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from main: nan == nan (needs fact `value == value` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/float/math_minimum_identity_cannot_follow_maximum rejected 2774ms expected @4789f2d01fda
+	machine `wrong_minimum` ensures contract proof fact `core::Identity<FloatMeaning>(F64.meaning(result), FloatSemantics.minimum(F64.meaning(left), F64.meaning(right)))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 3612ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from invalid at statement 0: reflexive<f32>(value)
 fail/float/mixed_float_comparison_formats rejected 974ms unexpected @ccdb99ca2214
@@ -16519,6 +16521,8 @@ fail/proofs/core_identity_forged_comparison rejected 6073ms expected @26c39d0e63
 	cannot prove requires contract for call require_identity from forged_name: core::Identity(left, right) (needs fact `core::Identity<Pair>(left, right)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/core_identity_signed_zero rejected 6772ms expected @26c39d0e6335
 	cannot prove ensures contract for exit from impossible at statement 0: core::Identity<FloatBox>(FloatBox, FloatBox)
+fail/proofs/core_identity_statement_is_not_executable rejected 1536ms expected @df265b0073ea
+	machine `main` cannot resolve ordinary call `core::Identity` to a machine entry or requirement
 fail/proofs/core_identity_unproved rejected 6549ms expected @26c39d0e6335
 	cannot prove ensures contract for exit from arbitrary at statement 0: core::Identity<Pair>(left, right)
 fail/proofs/core_nat_runtime_consumption_rejected rejected 12272ms expected @ccdb99ca2214
@@ -16722,6 +16726,8 @@ fail/proofs/mathematical_generic_argument_carrier rejected 371ms expected @ccdb9
 	invalid mathematical application `identity(value)`: mathematical argument does not preserve its declared carrier and policy
 fail/proofs/mathematical_generic_argument_policy rejected 346ms expected @ccdb99ca2214
 	invalid mathematical application `identity(value)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/mathematical_identity_result_sort rejected 3908ms expected @245a25f49fe9
+	mathematical declaration `identity_as_strict` fails kernel checking: TypeMismatch { expected: Handle { arena_index: 926, generation: 1 }, actual: Handle { arena_index: 59041, generation: 1 } }
 fail/proofs/mathematical_machine_result_mismatched_carriers rejected 1199ms expected @ccdb99ca2214
 	operand `other(value)` inhabits a different scalar carrier
 fail/proofs/mathematical_machine_result_no_denotation rejected 2821ms expected @ccdb99ca2214
@@ -16744,6 +16750,8 @@ fail/proofs/mathematical_negated_identity_unknown rejected 8559ms expected @87bc
 	cannot prove ensures contract for exit from arbitrary at statement 0: different<Pair>(left, right)
 fail/proofs/mathematical_negated_ieee_order rejected 4572ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from unjustified at statement 0: value <= 5.0
+fail/proofs/mathematical_nullary_constructor_mismatch rejected 10422ms expected @02e75d5a4d4d
+	cannot prove requires contract for call consume from main: is_first(constructor:80:package:71a4b64c821bb8ec118d399d636f0aa5e30d3d9e47ae177daab570d803aee161::Choice10:name:Other) (needs fact `is_first(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/mathematical_opaque_operation_source_meaning rejected 2193ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from bad at statement 0: same()
 fail/proofs/mathematical_qualified_literal_argument rejected 324ms expected @ccdb99ca2214
@@ -19945,6 +19953,7 @@ pass/build/generated_declaration_continuation_exit rejected 874ms check-target:m
 pass/build/generated_source_selects_authored rejected 1413ms published:none regressed-from:checked+published:files/generated.omg @ccdb99ca2214
 	tests/omega/pass/build/generated_source_selects_authored/.omega/generated/generated.omg:16:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
 	published outputs [] differ from expected_published.txt [files/generated.omg]
+pass/build/initial_build_core_identity_exit checked 3259ms check-target:macos_arm64 @0992bbc6a472
 pass/build/installed_entry_ram_live_stack_exit checked 10648ms check-target:macos_arm64 @f6fb7ca6e997
 pass/build/installed_entry_ram_stack_occurrence_exit checked 4719ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/installed_entry_ram_two_occurrences_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
@@ -20594,6 +20603,7 @@ pass/comptime/range_endpoint_requires_discharge_exit checked 16565ms check-targe
 pass/comptime/runtime_const_array_anonymous_expression_exit checked 3661ms check-target:macos_arm64 @ccdb99ca2214
 pass/comptime/runtime_const_array_call_arguments_exit checked 15198ms check-target:macos_arm64 @c5cc3d874922+wt
 pass/comptime/runtime_const_array_cast_expression_exit checked 7595ms check-target:macos_arm64 @911f6617ba9e
+pass/comptime/runtime_const_array_identity_exit checked 3244ms check-target:macos_arm64 @df265b0073ea
 pass/comptime/runtime_const_array_length_dependency_order_exit incomplete 20211ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`table_size` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `table_size::entry`, statement 0
 pass/comptime/runtime_const_array_length_transitive_exit checked 17246ms check-target:macos_arm64 @ccdb99ca2214
@@ -26699,7 +26709,7 @@ pass/proofs/constructor_aggregate_guarantees_follow_evaluation_exit rejected 324
 	cannot prove requires contract for call demand from main: restored.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call demand from main: reordered.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/proofs/copied_descriptor_keeps_capture_extent checked 2816ms @ccdb99ca2214
-pass/proofs/core_identity_ieee_reflexivity_exit checked 21028ms check-target:macos_arm64 identity-formation-controls:match terminal-inspections:match @1e566db50bf5
+pass/proofs/core_identity_ieee_reflexivity_exit checked 16415ms check-target:macos_arm64 identity-formation-controls:match terminal-inspections:match @245a25f49fe9
 pass/proofs/declaration_call_requires rejected 31ms regressed-from:checked @911f6617ba9e
 	tests/omega/pass/proofs/declaration_call_requires/main.omg:8:30: implicit `self` is retired; name the explicit parameter or domain subject
 pass/proofs/declaration_constructed_data_identity checked 11911ms @089c0a150e63
@@ -26754,8 +26764,8 @@ pass/proofs/mathematical_machine_result_carrier checked 3425ms check-target:maco
 pass/proofs/mathematical_negated_identity_exit checked 12744ms check-target:macos_arm64 @87bc8227d1fb
 pass/proofs/mathematical_negated_integer_order_double_exit checked 3598ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/mathematical_negated_integer_order_exit checked 3835ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/mathematical_predicate_contract_import_exit rejected 3486ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove ensures contract for exit from typed_result at statement 0: helpers::byte_mask() == helpers::byte_mask()
+pass/proofs/mathematical_nullary_constructor_exit checked 14409ms check-target:macos_arm64 @02e75d5a4d4d
+pass/proofs/mathematical_predicate_contract_import_exit checked 14907ms check-target:macos_arm64 @af5f78a378f4
 pass/proofs/mathematical_prepared_scalar_interval checked 3504ms @ccdb99ca2214
 pass/proofs/mutable_fixed_array_ensures_exact_product checked 3671ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/named_witness_static_trait_plural_compile checked 2838ms @ccdb99ca2214

@@ -4457,22 +4457,10 @@ pub mod machine_parameters {
         let mut selections = FormedStaticMachineSelections::default();
         validate_conformance_machine_selections(program, diagnostics);
         let mathematical_expressions = crate::mathematical_applications::expression_nodes(program);
-        let erased_initializers =
-            crate::mathematical_applications::erased_initializer_nodes(program);
         let index = machine_state_index(program);
         for (handle, expression) in expression_table(program).iter_expressions() {
             if let ExpressionNode::Call(call) = expression {
-                if mathematical_expressions.contains(&handle)
-                    || (crate::mathematical_applications::is_identity_call(program, call)
-                        && program
-                            .prepared_mathematics()
-                            .is_some_and(|view| view.application(handle).is_some()))
-                    || (erased_initializers.contains(&handle)
-                        && crate::mathematical_applications::is_mathematical_call(program, call)
-                        && program
-                            .prepared_mathematics()
-                            .is_some_and(|view| view.application(handle).is_some()))
-                {
+                if mathematical_expressions.contains(&handle) {
                     continue;
                 }
                 if !typed_trees::operator::named_expression_call_candidates(program, call)
@@ -4772,12 +4760,10 @@ pub mod machine_parameters {
             )
         }
 
-        if target_symbol.is_valid()
-            && program
-                .mathematical_definitions()
-                .iter()
-                .any(|definition| definition.symbol == target_symbol)
-        {
+        // Constant and layout preparation can arrive before mathematical terms
+        // are checked. The declaration determines the call kind; source
+        // formation and runtime checks still apply separately.
+        if crate::mathematical_applications::is_mathematical_declaration(program, target_symbol) {
             return;
         }
 

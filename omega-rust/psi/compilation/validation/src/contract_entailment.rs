@@ -1921,19 +1921,23 @@ pub(crate) mod arithmetic_judgment {
         use typed_trees::types::PrimitiveType;
 
         impl Engine<'_> {
-            pub(crate) fn integer_complement_value(
-                primitive: PrimitiveType,
-                operand: &Polynomial,
-            ) -> Option<Polynomial> {
+            pub(crate) fn integer_complement_corner(primitive: PrimitiveType) -> Option<BigInt> {
                 if !primitive.is_fixed_integer() {
                     return None;
                 }
                 let (_, maximum) = primitive.integer_bounds()?;
-                let corner = if primitive.is_signed_integer() {
+                Some(if primitive.is_signed_integer() {
                     BigInt::from_i64(-1)
                 } else {
                     BigInt::from_i128(maximum)
-                };
+                })
+            }
+
+            pub(crate) fn integer_complement_value(
+                primitive: PrimitiveType,
+                operand: &Polynomial,
+            ) -> Option<Polynomial> {
+                let corner = Self::integer_complement_corner(primitive)?;
                 Some(Polynomial::constant(corner).sub(operand))
             }
 
@@ -53860,6 +53864,20 @@ pub(crate) mod structural_judgment {
                 if depth >= 64 {
                     return None;
                 }
+                // Retained source operations are values of their recorded word
+                // type. Keep that type until the scalar operation's formation and
+                // arithmetic policy have been checked by the integer receiver.
+                if let StructuralTerm::ObservedValue {
+                    observed_type,
+                    descriptor: None,
+                    ..
+                } = value
+                    && crate::reference_shell(self.program, *observed_type).is_none()
+                    && let Some(primitive) = self.program.primitive_type_reference(*observed_type)
+                    && primitive.is_fixed_integer()
+                {
+                    return self.integer_value(value, primitive, observations, depth + 1);
+                }
                 if let Some((_, _, primitive)) = self.prepared_completed_call(value, observations) {
                     return self.integer_value(value, primitive, observations, depth + 1);
                 }
@@ -54036,8 +54054,6 @@ pub(crate) mod structural_judgment {
         ordinary definitional resolution. Compose their checked endpoint views once
         per question; this table contains no scalar equations or active goals.
         */
-
-        use std::{collections::HashMap, ops::Range};
 
         use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 
@@ -54362,81 +54378,156 @@ pub(crate) mod structural_judgment {
         struct IdentitySubstitution<'value> {
             values: [&'value StructuralTerm; 2],
             heads: [RepresentationHead; 2],
+            rosters: [usize; 2],
         }
 
         /// Rows retain original order in each conservative head roster. Unknown
         /// endpoints remain eligible for every head; the full matcher still decides.
-        #[derive(Default)]
+        /// Each head resolves to its roster once, so walking candidates never
+        /// hashes a head again.
         struct RepresentationCandidates {
-            applications: HashMap<(symbols::SymbolHandle, usize), Vec<usize>>,
-            constructors: Vec<usize>,
-            unknown: Vec<usize>,
+            applications: symbols::SymbolKeyMap<(symbols::SymbolHandle, usize), usize>,
+            rosters: Vec<Vec<usize>>,
         }
 
         impl RepresentationCandidates {
-            fn retain(&mut self, row: usize, head: RepresentationHead) {
-                let rows = match head {
-                    RepresentationHead::Application { target, arguments } => {
-                        self.applications.entry((target, arguments)).or_default()
-                    }
-                    RepresentationHead::Constructor => &mut self.constructors,
-                    RepresentationHead::Other => &mut self.unknown,
-                };
-                if rows.last() != Some(&row) {
-                    rows.push(row);
+            const CONSTRUCTORS: usize = 0;
+            const UNKNOWN: usize = 1;
+            const EMPTY: usize = 2;
+            const ALL: usize = 3;
+
+            fn new() -> Self {
+                Self {
+                    applications: symbols::SymbolKeyMap::default(),
+                    rosters: vec![Vec::new(); 4],
                 }
             }
 
-            fn rows_for_head(&self, head: RepresentationHead) -> &[usize] {
+            fn retain(&mut self, row: usize, head: RepresentationHead) -> usize {
+                let roster = match head {
+                    RepresentationHead::Application { target, arguments } => {
+                        let next = self.rosters.len();
+                        let roster = *self.applications.entry((target, arguments)).or_insert(next);
+                        if roster == next {
+                            self.rosters.push(Vec::new());
+                        }
+                        roster
+                    }
+                    RepresentationHead::Constructor => Self::CONSTRUCTORS,
+                    RepresentationHead::Other => Self::UNKNOWN,
+                };
+                let rows = &mut self.rosters[roster];
+                if rows.last() != Some(&row) {
+                    rows.push(row);
+                }
+                roster
+            }
+
+            fn roster(&self, head: RepresentationHead) -> usize {
                 match head {
                     RepresentationHead::Application { target, arguments } => self
                         .applications
                         .get(&(target, arguments))
-                        .map_or(&[], Vec::as_slice),
-                    RepresentationHead::Constructor => &self.constructors,
-                    RepresentationHead::Other => &self.unknown,
+                        .copied()
+                        .unwrap_or(Self::EMPTY),
+                    RepresentationHead::Constructor => Self::CONSTRUCTORS,
+                    RepresentationHead::Other => Self::UNKNOWN,
                 }
+            }
+
+            fn seal(&mut self, count: usize) {
+                self.rosters[Self::ALL] = (0..count).collect();
+            }
+        }
+
+        /// Positions within each roster already known to hold only rows of the
+        /// component being closed. `included` only grows while one component
+        /// closes, so a skipped span never reopens and each member's scan visits
+        /// only rows not yet in the component, in the same order as before.
+        struct ClosedSpans {
+            next: Vec<Vec<usize>>,
+        }
+
+        impl ClosedSpans {
+            fn new(rosters: usize) -> Self {
+                Self {
+                    next: vec![Vec::new(); rosters],
+                }
+            }
+
+            fn first_open(
+                &mut self,
+                roster: usize,
+                rows: &[usize],
+                included: &[bool],
+                start: usize,
+            ) -> usize {
+                let next = &mut self.next[roster];
+                if next.is_empty() {
+                    next.extend(0..=rows.len());
+                }
+                // `next[p] > p` records that rows p..next[p] are all included.
+                let mut end = start;
+                while end < rows.len() && (next[end] != end || included[rows[end]]) {
+                    end = if next[end] != end { next[end] } else { end + 1 };
+                }
+                let mut position = start;
+                while position < end {
+                    let following = next[position].max(position + 1);
+                    next[position] = end;
+                    position = following;
+                }
+                end
             }
         }
 
         /// A cursor borrows no component state, so reaching a row can publish its
         /// completed component while the immutable candidate roster remains in use.
         struct CandidateRows {
-            all: Option<Range<usize>>,
-            heads: [RepresentationHead; 2],
+            rosters: [usize; 3],
             positions: [usize; 3],
         }
 
         impl CandidateRows {
-            fn new(heads: [RepresentationHead; 2], count: usize) -> Self {
-                let all = heads
+            fn new(rosters: [usize; 2], heads: [RepresentationHead; 2]) -> Self {
+                let rosters = if heads
                     .iter()
                     .any(|head| matches!(head, RepresentationHead::Other))
-                    .then_some(0..count);
+                {
+                    [
+                        RepresentationCandidates::ALL,
+                        RepresentationCandidates::EMPTY,
+                        RepresentationCandidates::EMPTY,
+                    ]
+                } else {
+                    [rosters[0], rosters[1], RepresentationCandidates::UNKNOWN]
+                };
                 Self {
-                    all,
-                    heads,
+                    rosters,
                     positions: [0; 3],
                 }
             }
 
-            fn next(&mut self, candidates: &RepresentationCandidates) -> Option<usize> {
-                if let Some(all) = &mut self.all {
-                    return all.next();
+            /// The next candidate in original row order. With `open`, rows already
+            /// in the closing component are passed over without being yielded.
+            fn next(
+                &mut self,
+                candidates: &RepresentationCandidates,
+                mut open: Option<(&mut ClosedSpans, &[bool])>,
+            ) -> Option<usize> {
+                let mut next = None::<usize>;
+                for (roster, position) in self.rosters.into_iter().zip(&mut self.positions) {
+                    let rows = candidates.rosters[roster].as_slice();
+                    if let Some((spans, included)) = &mut open {
+                        *position = spans.first_open(roster, rows, included, *position);
+                    }
+                    if let Some(&row) = rows.get(*position) {
+                        next = Some(next.map_or(row, |known| known.min(row)));
+                    }
                 }
-                let lists = [
-                    candidates.rows_for_head(self.heads[0]),
-                    candidates.rows_for_head(self.heads[1]),
-                    candidates.unknown.as_slice(),
-                ];
-                let next = lists
-                    .iter()
-                    .zip(self.positions)
-                    .filter_map(|(rows, position)| rows.get(position))
-                    .copied()
-                    .min()?;
-                for (rows, position) in lists.into_iter().zip(&mut self.positions) {
-                    if rows.get(*position) == Some(&next) {
+                let next = next?;
+                for (roster, position) in self.rosters.into_iter().zip(&mut self.positions) {
+                    if candidates.rosters[roster].get(*position) == Some(&next) {
                         *position += 1;
                     }
                 }
@@ -54462,7 +54553,7 @@ pub(crate) mod structural_judgment {
                 remaining: &mut usize,
             ) -> Result<Self, &'static str> {
                 let mut admitted = Vec::new();
-                let mut candidates = RepresentationCandidates::default();
+                let mut candidates = RepresentationCandidates::new();
                 for (left, right) in rows {
                     spend_component_work(remaining)?;
                     if judge.identity_value_is_available(left)
@@ -54472,16 +54563,16 @@ pub(crate) mod structural_judgment {
                             judge.identity_representation_head(left, remaining)?,
                             judge.identity_representation_head(right, remaining)?,
                         ];
-                        for head in heads {
-                            candidates.retain(admitted.len(), head);
-                        }
+                        let rosters = heads.map(|head| candidates.retain(admitted.len(), head));
                         admitted.push(IdentitySubstitution {
                             values: [left, right],
                             heads,
+                            rosters,
                         });
                     }
                 }
                 let count = admitted.len();
+                candidates.seal(count);
                 Ok(Self {
                     rows: admitted,
                     candidates,
@@ -54508,15 +54599,16 @@ pub(crate) mod structural_judgment {
                 let mut members = vec![seed];
                 let mut included = vec![false; self.rows.len()];
                 included[seed] = true;
+                let mut spans = ClosedSpans::new(self.candidates.rosters.len());
                 let mut cursor = 0;
                 while cursor < members.len() {
                     let row = members[cursor];
                     cursor += 1;
-                    let mut candidates = CandidateRows::new(self.rows[row].heads, self.rows.len());
-                    while let Some(candidate) = candidates.next(&self.candidates) {
-                        if included[candidate] {
-                            continue;
-                        }
+                    let mut candidates =
+                        CandidateRows::new(self.rows[row].rosters, self.rows[row].heads);
+                    while let Some(candidate) =
+                        candidates.next(&self.candidates, Some((&mut spans, &included)))
+                    {
                         let other = &self.rows[candidate];
                         let [left, right] = self.rows[row].values;
                         let [left_head, right_head] = self.rows[row].heads;
@@ -54589,8 +54681,9 @@ pub(crate) mod structural_judgment {
                 remaining: &mut usize,
             ) -> Result<Option<usize>, &'static str> {
                 let value_head = judge.identity_representation_head(value, remaining)?;
-                let mut candidates = CandidateRows::new([value_head; 2], self.rows.len());
-                while let Some(index) = candidates.next(&self.candidates) {
+                let value_roster = self.candidates.roster(value_head);
+                let mut candidates = CandidateRows::new([value_roster; 2], [value_head; 2]);
+                while let Some(index) = candidates.next(&self.candidates, None) {
                     spend_component_work(remaining)?;
                     let component = self.representatives[index];
                     if self.component_ready[index] {
@@ -55117,6 +55210,39 @@ pub(crate) mod structural_judgment {
                     substitutions.normalized[component] = Some(value.clone());
                 }
                 result
+            }
+        }
+
+        #[cfg(test)]
+        mod closed_span_tests {
+            use super::ClosedSpans;
+
+            /// Closing a component must still reach every row outside it, in
+            /// roster order, however the included rows are interleaved.
+            #[test]
+            fn open_rows_are_found_in_order_past_included_spans() {
+                let rows = [0, 2, 3, 5, 7, 8];
+                let mut included = [false; 9];
+                let mut spans = ClosedSpans::new(1);
+                let open = |spans: &mut ClosedSpans, included: &[bool]| {
+                    let mut found = Vec::new();
+                    let mut position = spans.first_open(0, &rows, included, 0);
+                    while position < rows.len() {
+                        found.push(rows[position]);
+                        position = spans.first_open(0, &rows, included, position + 1);
+                    }
+                    found
+                };
+                assert_eq!(open(&mut spans, &included), rows);
+                for row in [2, 3, 7] {
+                    included[row] = true;
+                }
+                assert_eq!(open(&mut spans, &included), [0, 5, 8]);
+                included[0] = true;
+                included[8] = true;
+                assert_eq!(open(&mut spans, &included), [5]);
+                included[5] = true;
+                assert!(open(&mut spans, &included).is_empty());
             }
         }
     }
@@ -57299,6 +57425,117 @@ pub(crate) mod structural_judgment {
                     result_type: wrapping,
                     integer_range: None,
                 }
+            }
+
+            #[test]
+            fn retained_word_operations_preserve_width_and_policy() {
+                use crate::proof_contracts::contract_entailment::structural_terms::{
+                    owned_projection_observation, unary_term_in_scope,
+                };
+                use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+                use typed_trees::expression::{
+                    ExpressionNode, TableUnaryExpression, UnaryOperator,
+                };
+
+                let mut symbols = SymbolTableBuilder::default();
+                let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let builtins = symbols.insert_children(root, symbols::builtin_type_symbols());
+                let mut program = TypedTrees {
+                    symbols: symbols.finish(),
+                    ..Default::default()
+                };
+                let exact = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: builtins.handle_at(BuiltinTypeAtom::I32.ordinal() as u32),
+                        name: Identifier::generated("i32"),
+                    });
+                let constraints = program.type_reference_table.insert_constraints([
+                    TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Wrapping),
+                ]);
+                let wrapping =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Constrained {
+                            base_type: exact,
+                            constraints,
+                        });
+                let byte = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: builtins.handle_at(BuiltinTypeAtom::U8.ordinal() as u32),
+                        name: Identifier::generated("u8"),
+                    });
+                let equal = |left, right| StructuralTerm::MathematicalBinary {
+                    operator: BinaryOperator::Equal,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                };
+                for (reference, expected) in [(byte, 255), (exact, -1)] {
+                    let zero = program
+                        .expression_table
+                        .insert(ExpressionNode::ZeroValue(reference));
+                    let complement = program.expression_table.insert(ExpressionNode::Unary(
+                        TableUnaryExpression {
+                            operator: UnaryOperator::BitwiseNot,
+                            operand: zero,
+                        },
+                    ));
+                    let value = unary_term_in_scope(
+                        &program,
+                        None,
+                        Some((SymbolHandle::invalid(), &[])),
+                        complement,
+                        integer(0),
+                    )
+                    .expect("the typed fixed-width complement must retain its value");
+                    let judge = StructuralJudge::from_declaration_requires(
+                        &program,
+                        SymbolHandle::invalid(),
+                        &[],
+                        &[],
+                        false,
+                    );
+                    assert!(matches!(
+                        judge.judge_observed_predicate(equal(value, integer(expected)), 0),
+                        StructuralJudgment::Proven
+                    ));
+                }
+
+                let judge = StructuralJudge::from_declaration_requires(
+                    &program,
+                    SymbolHandle::invalid(),
+                    &[],
+                    &[],
+                    false,
+                );
+                let product = |reference, policy| {
+                    owned_projection_observation(
+                        &program,
+                        reference,
+                        StructuralTerm::ScalarBinary {
+                            references: [reference; 2],
+                            operator: BinaryOperator::Multiply,
+                            meaning: [(PrimitiveType::I32, policy); 2],
+                            left: Box::new(integer(i64::from(i32::MAX))),
+                            right: Box::new(integer(i64::from(i32::MAX))),
+                        },
+                    )
+                };
+                assert!(matches!(
+                    judge.judge_observed_predicate(
+                        equal(product(wrapping, ArithmeticDomain::Wrapping), integer(1)),
+                        0,
+                    ),
+                    StructuralJudgment::Proven
+                ));
+                assert!(matches!(
+                    judge.judge_observed_predicate(
+                        equal(product(exact, ArithmeticDomain::Exact), integer(1)),
+                        0,
+                    ),
+                    StructuralJudgment::Unknown
+                ));
             }
 
             #[test]
@@ -59546,14 +59783,14 @@ pub(crate) mod structural_judgment {
                         let [(_, operand)] = inputs else {
                             return None;
                         };
-                        if let Some(negated) = structural_terms::logical_not_term_in_scope(
+                        if let Some(term) = structural_terms::unary_term_in_scope(
                             program,
                             Some(scope),
                             None,
                             expression,
                             operand.observed_value()?.clone(),
                         ) {
-                            value = negated;
+                            value = term;
                         }
                     }
                     if let ExpressionNode::Indexed(indexed) = node
@@ -68808,24 +69045,22 @@ pub(crate) mod structural_judgment {
                             result,
                             depth + 1,
                         ),
-                        ExpressionNode::Unary(unary) => {
-                            structural_terms::logical_not_term_in_scope(
-                                program,
-                                None,
-                                Some((scope, parameters)),
-                                expression,
-                                self.bound_contract_term(
-                                    unary.operand,
-                                    scope,
-                                    parameters,
-                                    callable,
-                                    bindings,
-                                    type_bindings,
-                                    result,
-                                    depth + 1,
-                                )?,
-                            )
-                        }
+                        ExpressionNode::Unary(unary) => structural_terms::unary_term_in_scope(
+                            program,
+                            None,
+                            Some((scope, parameters)),
+                            expression,
+                            self.bound_contract_term(
+                                unary.operand,
+                                scope,
+                                parameters,
+                                callable,
+                                bindings,
+                                type_bindings,
+                                result,
+                                depth + 1,
+                            )?,
+                        ),
                         ExpressionNode::Cast(cast) => {
                             let source = crate::parameter_expression_result_type_reference(
                                 program, scope, parameters, cast.value,
@@ -81024,7 +81259,7 @@ pub(crate) mod structural_judgment {
                         },
                     )
                 }
-                ExpressionNode::Unary(unary) => super::structural_terms::logical_not_term_in_scope(
+                ExpressionNode::Unary(unary) => super::structural_terms::unary_term_in_scope(
                     program,
                     scope,
                     None,
@@ -84398,7 +84633,7 @@ pub(crate) mod structural_terms {
         use typed_trees::state::State;
         use typed_trees::types::TypeReferenceHandle;
 
-        pub(crate) fn logical_not_term_in_scope(
+        pub(crate) fn unary_term_in_scope(
             program: &dyn crate::CheckingInput,
             scope: Option<(&Machine, &State, TypeReferenceHandle)>,
             frame: Option<(SymbolHandle, &[StateParameter])>,
@@ -84409,9 +84644,6 @@ pub(crate) mod structural_terms {
             else {
                 return None;
             };
-            if unary.operator != typed_trees::expression::UnaryOperator::LogicalNot {
-                return None;
-            }
             let reference = if let Some((owner, parameters)) = frame {
                 crate::parameter_expression_result_type_reference(
                     program,
@@ -84423,6 +84655,38 @@ pub(crate) mod structural_terms {
                 let (machine, state, _) = scope?;
                 crate::expression_result_type_reference(program, machine, state, unary.operand)
             };
+            if unary.operator == typed_trees::expression::UnaryOperator::BitwiseNot {
+                let reference = reference?;
+                let (primitive, _) = super::scalar_operand_meaning(program, reference, &operand)?;
+                let corner = super::super::arithmetic_judgment::Engine::integer_complement_corner(
+                    primitive,
+                )?;
+                let result = if let Some((owner, parameters)) = frame {
+                    crate::parameter_expression_result_type_reference(
+                        program, owner, parameters, expression,
+                    )
+                } else {
+                    let (machine, state, _) = scope?;
+                    crate::expression_result_type_reference(program, machine, state, expression)
+                }?;
+                if program.primitive_type_reference(result) != Some(primitive) {
+                    return None;
+                }
+                // At a checked fixed width, complement is corner minus the value:
+                // the unsigned maximum or signed -1 supplies the full bit width.
+                // Both source observations survive this mathematical interpretation.
+                let value = StructuralTerm::MathematicalBinary {
+                    operator: BinaryOperator::Subtract,
+                    left: Box::new(StructuralTerm::Integer(corner)),
+                    right: Box::new(super::owned_projection_observation(
+                        program, reference, operand,
+                    )),
+                };
+                return Some(super::owned_projection_observation(program, result, value));
+            }
+            if unary.operator != typed_trees::expression::UnaryOperator::LogicalNot {
+                return None;
+            }
             if reference.and_then(|reference| program.primitive_type_reference(reference))
                 != Some(typed_trees::types::PrimitiveType::Bool)
             {
@@ -86675,7 +86939,7 @@ pub(crate) mod structural_terms {
         }
     }
     pub(crate) use binary::{
-        binary_term_in_scope, logical_not_term_in_scope, sealed_primitive_float_operator,
+        binary_term_in_scope, sealed_primitive_float_operator, unary_term_in_scope,
     };
     pub(crate) use constructors::{
         admitted_const_value_term, captured_constructor_term, case_classifier,
@@ -87375,7 +87639,7 @@ pub(crate) mod structural_terms {
                 structural_term(program, scope, frame, binary.left, bindings)?,
                 structural_term(program, scope, frame, binary.right, bindings)?,
             ),
-            ExpressionNode::Unary(unary) => logical_not_term_in_scope(
+            ExpressionNode::Unary(unary) => unary_term_in_scope(
                 program,
                 scope,
                 frame,
@@ -87674,14 +87938,11 @@ pub(crate) mod structural_terms {
         if !target.is_valid() {
             return None;
         }
-        let mut matches = program.machines().iter().filter(|machine| {
-            program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|state| state.symbol == target)
-        });
-        let machine = matches.next()?;
-        matches.next().is_none().then_some(machine)
+        // The state index answers "the only machine entered at `target`" from the
+        // same table-order rows a scan of every machine would visit.
+        program
+            .unique_machine_by_entry_state_symbol(target)
+            .map(|(machine, _)| machine)
     }
 }
 pub(crate) mod transparent_applications {

@@ -61,8 +61,14 @@ fields; it cannot justify an overflowing addition or a dangling reference.
 ## Split a repair across helpers
 
 Some properties belong on completed operations rather than every intermediate
-value. Put those in a named domain. Here `Pair` is valid with any two `u32`
-fields, while `Pair::Ordered` adds a relationship between them:
+value. Put those in a named domain. The rule for choosing: a property goes in
+the default domain only if every holder of a plain value may assume it at all
+times. If a helper will ever see the value mid-repair, the property belongs in
+a named domain from the start, because a helper taking `&mut Pair` receives a
+valid `Pair` and no promise to fix it later changes that. Moving a property out
+of the default domain afterwards changes public signatures. Here `Pair` is
+valid with any two `u32` fields, while `Pair::Ordered` adds a relationship
+between them:
 
 ```omega
 data Pair {

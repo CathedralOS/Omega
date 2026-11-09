@@ -565,7 +565,8 @@ selected member's published row, and omitted `crashes` defers to its published
 routes. An explicit clause bounds that row, with `reaches none` requiring it
 to be empty and `crashes none` admitting only crash-free members. Omitted
 `suspends` and `blocks` still mean never, since their markers need a known
-bound. A conformance evidence binder retains a
+bound. A public generic whose body may crash under those requirements states
+its crash ceiling like any other public machine. A conformance evidence binder retains a
 separate dependency for each called requirement member and exact application.
 Calling `Order::compare` cannot substitute the reach of another row in `Order`.
 
