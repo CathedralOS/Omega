@@ -84,36 +84,27 @@ fn check_selection(root: &Path, paths: &[String]) -> Result<(), String> {
 }
 
 fn expected_exit(directory: &Path, target: &str, interpreted: bool) -> Result<String, String> {
-    let host = directory.join(format!("expected_native_exit.{target}.txt"));
-    let portable = directory.join("expected_native_exit.txt");
-    let interpreter = directory.join("expected_interpreter_exit.txt");
-    let path = if interpreted && interpreter.is_file() {
-        interpreter
-    } else if host.is_file() {
-        host
-    } else {
-        portable
-    };
-    let text = match fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return samples::parse_header_oracle(&directory.join("main.omg"))
-                .0
-                .map(|value| value.to_string())
-                .ok_or_else(|| {
-                    format!(
-                        "runtime selection needs an authored exit file or Expected exit header: {}",
-                        directory.display()
-                    )
-                });
-        }
-        Err(error) => return Err(format!("read exit oracle {}: {error}", path.display())),
-    };
-    let value = text
-        .trim()
-        .parse::<i32>()
-        .map_err(|e| format!("invalid exit oracle {}: {e}", path.display()))?;
-    Ok(value.to_string())
+    authored_exit(directory, target, interpreted, None)
+}
+
+fn authored_exit(
+    directory: &Path,
+    target: &str,
+    interpreted: bool,
+    observed: Option<&[(String, String)]>,
+) -> Result<String, String> {
+    crate::runtime_oracles::exit_oracle(
+        &directory.join("main.omg"),
+        Some(target),
+        interpreted,
+        observed,
+    )?
+    .ok_or_else(|| {
+        format!(
+            "runtime selection needs an authored exit file or Expected exit header: {}",
+            directory.display(),
+        )
+    })
 }
 
 fn validate_record(
@@ -150,29 +141,20 @@ fn validate_record(
         return Err(format!("{} did not check successfully", row.fixture));
     }
     if runtime {
-        let native = expected_exit(&directory, target, false)?;
-        let interpreted = expected_exit(&directory, target, true)?;
-        let actual_interpreted = facts
-            .get("interpreter-exit")
-            .and_then(|value| value.parse::<i32>().ok())
-            .map(|value| {
-                if !directory.join("expected_interpreter_exit.txt").is_file()
-                    && !target.starts_with("windows_")
-                {
-                    value & 255
-                } else {
-                    value
-                }
-            })
-            .map(|value| value.to_string());
+        let native = authored_exit(&directory, target, false, Some(&row.facts))?;
+        let interpreted = authored_exit(&directory, target, true, Some(&row.facts))?;
+        let agrees = if native == "trap" && interpreted == "trap" {
+            true
+        } else {
+            facts.get("interpreter") == Some(&"agrees")
+        };
         if row.status != "built"
-            || facts.get("exit") != Some(&native.as_str())
-            || actual_interpreted.as_deref() != Some(interpreted.as_str())
-            || facts.get("interpreter") != Some(&"agrees")
+            || !agrees
+            || facts.get("interpreter-engine") == Some(&"checked-tree")
         {
             return Err(format!(
                 "{} did not execute both engines at its authored exits",
-                row.fixture
+                row.fixture,
             ));
         }
         for (oracle, stream) in [
@@ -547,6 +529,21 @@ mod tests {
         assert!(validate_record(&row, &root, "linux_x86_64", true).is_ok());
         row.facts[1].1 = "255".to_owned();
         assert!(validate_record(&row, &root, "linux_x86_64", true).is_err());
+        fs::write(
+            directory.join("expected_native_exit.linux_x86_64.txt"),
+            "trap\n",
+        )
+        .unwrap();
+        fs::write(directory.join("expected_interpreter_exit.txt"), "trap\n").unwrap();
+        let mut trapped =
+            corpus::parse_records("pass/a/b built 1ms exit:signal signal:4 interpreter:trapped\n")
+                .unwrap()
+                .remove(0);
+        assert!(validate_record(&trapped, &root, "linux_x86_64", true).is_ok());
+        trapped
+            .facts
+            .push(("interpreter-engine".to_owned(), "checked-tree".to_owned()));
+        assert!(validate_record(&trapped, &root, "linux_x86_64", true).is_err());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -592,6 +589,10 @@ mod tests {
 
     #[test]
     fn accepted_invalid_and_wrong_reason_never_count_as_success() {
+        let refused = corpus::parse_records(
+            "pass/a/b rejected 1ms expected native-rejection:match\n\tauthored publication refusal\n",
+        ).unwrap().remove(0);
+        assert!(validate_record(&refused, Path::new("unused"), "linux_x86_64", true).is_err());
         let mut row = corpus::parse_records("fail/a/b rejected 1ms expected\n\texact obligation\n")
             .unwrap()
             .remove(0);
