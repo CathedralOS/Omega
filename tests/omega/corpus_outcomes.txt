@@ -12119,9 +12119,8 @@ fail/facts/scalar_sign_zero_extension_through_match_join_rejected rejected 1013m
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/scalar_sign_zero_extension_through_other_machine_rejected rejected 1657ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scalar_sign_zero_extension_through_other_state_rejected rejected 1114ms expected @ccdb99ca2214
+fail/facts/scalar_sign_zero_extension_through_other_state_rejected rejected 11724ms expected @15d803709557
 	exact arithmetic in machine `compute` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	Exact integer cast in machine `compute` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/scalar_sign_zero_extension_through_parameter_rejected rejected 1505ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/scalar_sign_zero_extension_through_target_body_rejected rejected 1408ms expected @ccdb99ca2214
@@ -13853,10 +13852,8 @@ fail/facts/unsigned_exact_subtraction_interval_through_match_join_rejected rejec
 	exact arithmetic in machine `subtract_match_join` state `entry` local `lower` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_exact_subtraction_interval_through_other_machine_rejected rejected 1417ms expected @ccdb99ca2214
 	exact arithmetic in machine `subtract_other_machine` state `entry` local `lower` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_exact_subtraction_interval_through_other_state_rejected rejected 1414ms expected @ccdb99ca2214
+fail/facts/unsigned_exact_subtraction_interval_through_other_state_rejected rejected 11729ms expected @15d803709557
 	exact arithmetic in machine `step` state `entry` local `lower` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `step` state `entry` local `sum` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	Exact integer cast in machine `step` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/unsigned_exact_subtraction_interval_through_parameter_rejected rejected 1489ms expected @ccdb99ca2214
 	exact arithmetic in machine `subtract_parameter` state `entry` local `lower` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_exact_subtraction_interval_through_target_body_rejected rejected 1665ms expected @ccdb99ca2214
@@ -15764,8 +15761,8 @@ fail/machines/private_division_self_formation_control rejected 1929ms expected @
 	partial wrapping division in machine `divided` state `entry` return value: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/machines/private_division_signed_pair_control rejected 1379ms expected @ccdb99ca2214
 	partial exact division in machine `divided` state `entry` terminal expression: the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
-fail/machines/private_division_zero_divisor_control rejected 1436ms expected @ccdb99ca2214
-	partial wrapping division in machine `divided` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/machines/private_division_zero_divisor_control rejected 6761ms expected @15d803709557
+	division by zero in machine `divided` state `entry` return value: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/machines/private_frontier_cycle_unsafe_backedge rejected 3396ms expected @ccdb99ca2214
 	cannot prove requires contract for call compare from find: index < 16 (needs fact `index < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/machines/private_frontier_cycle_unsafe_initial rejected 3248ms expected @ccdb99ca2214
@@ -15988,6 +15985,8 @@ fail/multiplicity/computed_subject_separate_affine_call rejected 2258ms expected
 	cannot use `choice` in machine `choose` state `entry` (statement 4) after `choice` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `choice` first
 fail/mutation/immutable_float_parameter_assignment rejected 1577ms expected @ccdb99ca2214
 	machine `replace` state `entry` assignment cannot write `fraction` because it is not mutable in this state (if `fraction` is undeclared -- a typo -- no such field or local exists)
+fail/nested_entry_facts/one_caller_lacks_guard rejected 6417ms expected @15d803709557
+	machine `finish` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/operators/constructed_operand_wrong_nominal_type rejected 692ms expected @ccdb99ca2214
 	machine `invalid` state `entry` applies `Add` to a `Input` value, but no such operator is declared for these operand types; declare a matching token-bearing machine or select its declared trait meaning
 fail/operators/declared_index_named_call_requires_explicit_borrow rejected 662ms expected @ccdb99ca2214
@@ -19217,16 +19216,12 @@ pass/arithmetic/reused_masked_shift_count_exit rejected 12741ms check-target:mac
 	Exact integer cast in machine `Main::main` state `main` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 20224ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 17205ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_boolean_alias_shift_count_exit rejected 1394ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_boolean_alias_shift_count_exit checked 12467ms check-target:macos_arm64 @15d803709557
 pass/arithmetic/runtime_boolean_divisor_state_exit checked 3856ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_boolean_field_shift_count_exit checked 3542ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_boolean_guarded_bit_value_exit rejected 1385ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `calculate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_boolean_guarded_bit_value_exit checked 12353ms check-target:macos_arm64 @15d803709557
 pass/arithmetic/runtime_boolean_guarded_product_exit checked 8015ms check-target:macos_arm64 @04c53f019837
-pass/arithmetic/runtime_boolean_state_shift_count_exit rejected 1168ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_boolean_state_shift_count_exit checked 13339ms check-target:macos_arm64 @15d803709557
 pass/arithmetic/runtime_bounded_dividend_remainder_exit checked 3905ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 15823ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 16203ms check-target:macos_arm64 @ccdb99ca2214
@@ -19276,9 +19271,7 @@ pass/arithmetic/runtime_signed_minimum_remainder_exit checked 3826ms check-targe
 pass/arithmetic/runtime_signed_minimum_remainder_postcondition_exit checked 3933ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_signed_modulo_shift_edges_exit checked 17145ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_transition_arg_false_arm_narrowing_exit checked 16400ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_transitive_bit_value_exit rejected 1395ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `calculate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_transitive_bit_value_exit checked 13467ms check-target:macos_arm64 @15d803709557
 pass/arithmetic/runtime_transitive_product_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_trapping_mutable_local_traps checked 17171ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_trapping_overflow_traps checked 16881ms check-target:macos_arm64 @ccdb99ca2214
@@ -21620,11 +21613,9 @@ pass/expressions/match_owned_call_return_values checked 12527ms check-target:mac
 pass/expressions/match_owned_computed_arm_arguments checked 13915ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_construction_and_call_arms checked 11453ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_interleaved_call_results checked 11668ms check-target:macos_arm64 @ccdb99ca2214
-pass/expressions/match_owned_mixed_projection_reads rejected 9070ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+pass/expressions/match_owned_mixed_projection_reads checked 30276ms check-target:macos_arm64 @15d803709557
 pass/expressions/match_owned_mixed_result_kinds checked 11461ms check-target:macos_arm64 @ccdb99ca2214
-pass/expressions/match_owned_parameter_field_subject rejected 8797ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+pass/expressions/match_owned_parameter_field_subject checked 30268ms check-target:macos_arm64 @15d803709557
 pass/expressions/match_owned_projected_field_arm checked 12975ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_projected_local_roots checked 11911ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_projected_parameter_roots checked 12218ms check-target:macos_arm64 @ccdb99ca2214
@@ -26402,6 +26393,7 @@ pass/modules/selected_constant_nominal_generic_match_literal checked 2362ms @ccd
 pass/modules/selected_constant_nominal_match checked 2636ms @ccdb99ca2214
 pass/modules/selected_constant_nominal_record_match_field checked 2913ms @ccdb99ca2214
 pass/modules/use_imports_sibling_trait checked 2495ms @ccdb99ca2214
+pass/nested_entry_facts/guard_reaches_nested_body checked 13335ms check-target:macos_arm64 @15d803709557
 pass/objc/gui_provider_substitution checked 17371ms @ccdb99ca2214
 pass/objc/native_gui_loop checked 74683ms @911f6617ba9e
 pass/objc/objc_get_class checked 20027ms @ccdb99ca2214
