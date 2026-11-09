@@ -122,10 +122,23 @@ moves one re-derivation into one new `CheckFacts` field.
 ### A probable live instance
 
 `ValueEnvironment::rebind` (`V/arithmetic_domains.rs:25971`) builds a fresh
-environment and copies only the string-keyed collections. `integer_ranges`,
-`boolean_values`, `ordered_values`, `float_elements` and
-`numeric_observations` do not survive a rebind. Whether this is intended is
-unverified; it is exactly the loss the PR stream keeps repairing.
+environment and copies only the string-keyed collections. Its two callers
+show the pattern in miniature:
+
+- The state-arrival join (`V/arithmetic_domains.rs:11270`) calls `rebind`, then
+  re-carries `boolean_values` and `ordered_values` by hand through a second,
+  separate binding list, and re-seeds parameter intervals. `integer_ranges`
+  and `float_elements` are not carried. `numeric_observations` are
+  per-statement, so dropping them at an arrival is expected.
+- The match-capture alias (`copy_path_facts`, `:2878`) extends the environment
+  in place, so nothing already known is lost, but `integer_ranges`,
+  `boolean_values`, `ordered_values` and `float_elements` are never copied to
+  the capture path.
+
+`float_elements` was added by #1701 for disjoint writes and never reached
+either transport. Whether `integer_ranges` is re-derived elsewhere after an
+arrival is unverified. Each missing collection is a candidate "preserve X
+through Y" PR.
 
 ## Design
 
@@ -196,12 +209,18 @@ kind lands with no place-specific code.
 - **Size.** Every step touches large modules (`V/contract_entailment.rs` is
   89k lines). Sequence by column, one place per PR.
 
-## Open questions
+## Stage 05 and validation are one producer
 
-1. Validation is the independent verifier at trust boundaries. Should it share
-   the place, overlap and `PlaceMap` layer with stage 05 (transport, not
-   judgment), or keep its own for independence?
-2. Is the `ValueEnvironment::rebind` loss intended?
+`validation/` is not an independent verifier. Its
+[README](../../../omega-rust/psi/compilation/validation/README.md) defines it
+as the reusable source-semantic judgments that Psi 05 borrows; Psi 05 owns the
+checked-program lifecycle. Independent checking is a separate, opt-in facility,
+[named stage-output validators](../../spec/build/command_line.md#independent-stage-validators),
+and the default compile does not revalidate its own output
+([verification placement](../../../omega-rust/pipeline.md#verification-placement)).
+The parallel carriers in stage 05 and `validation/` are therefore duplicated
+implementations of one producer, not deliberate redundancy. They share the
+transport layer; nothing in this design is an owner decision.
 
 ## Generic bodies: the spec already decides
 
