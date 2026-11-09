@@ -5463,10 +5463,13 @@ pub(crate) mod continuation_specialization {
                 .iter()
                 .map(|original| (*original, namespace.operation(*original)))
                 .collect(),
+            // Missing claim mappings already mean unchanged. Resolve each claim
+            // before filtering so dependency observations still record the read.
             claims: live
                 .claims
                 .iter()
                 .map(|original| (*original, namespace.claim(*original)))
+                .filter(|(original, mapped)| original != mapped)
                 .collect(),
             obligations: live
                 .obligations
@@ -5566,5 +5569,105 @@ pub(crate) mod continuation_specialization {
             namespace,
             successors: Vec::new(),
         })
+    }
+
+    #[cfg(test)]
+    mod captured_claim_tests {
+        use super::*;
+        use semantic_vocabulary::ClaimId;
+
+        fn capture_all_claim_pairs(
+            namespace: &mut IdentityMap,
+            live: &IdentityUses,
+        ) -> IdentityMap {
+            IdentityMap {
+                claims: live
+                    .claims
+                    .iter()
+                    .map(|original| (*original, namespace.claim(*original)))
+                    .collect(),
+                ..IdentityMap::default()
+            }
+        }
+
+        #[test]
+        fn captured_claims_keep_renames_and_observations_without_identity_rows() {
+            let id = |value| ClaimId::new(value).unwrap();
+            let live = IdentityUses {
+                claims: vec![id(3), id(1), id(2)],
+                ..IdentityUses::default()
+            };
+            let source = IdentityMap {
+                // Last-match identity overrides the earlier rename for claim 1.
+                claims: vec![
+                    (id(1), id(8)),
+                    (id(1), id(1)),
+                    (id(2), id(6)),
+                    (id(3), id(7)),
+                ],
+                ..IdentityMap::default()
+            };
+            let mut different = source.clone();
+            different.claims.push((id(2), id(9)));
+            let mut outside = source.clone();
+            outside.claims.push((id(99), id(9)));
+            let sources = [IdentityMap::default(), source.clone(), different, outside];
+            let mut full = Vec::new();
+            let mut sparse = Vec::new();
+            for mut namespace in sources {
+                full.push(capture_all_claim_pairs(&mut namespace.clone(), &live));
+                sparse.push(captured_namespace(&mut namespace, &live));
+            }
+            assert_eq!(sparse[1].claims, vec![(id(3), id(7)), (id(2), id(6))]);
+            for left_position in 0..full.len() {
+                for right_position in 0..full.len() {
+                    // Comparison is within one fixed continuation/live roster.
+                    assert_eq!(
+                        full[left_position] == full[right_position],
+                        sparse[left_position] == sparse[right_position],
+                    );
+                }
+                for original in [id(1), id(2), id(3), id(99)] {
+                    assert_eq!(
+                        full[left_position].claim(original),
+                        sparse[left_position].claim(original),
+                    );
+                }
+            }
+            // Edge substitutions may explicitly restore identity after a rename.
+            // Capture must resolve that final substitution before omitting it.
+            let mut full_reset = full[1].clone();
+            let mut sparse_reset = sparse[1].clone();
+            for namespace in [&mut full_reset, &mut sparse_reset] {
+                namespace.claims.retain(|(original, _)| *original != id(2));
+                namespace.claims.push((id(2), id(2)));
+            }
+            let mut reset = captured_namespace(&mut sparse_reset, &live);
+            let mut full_reset = capture_all_claim_pairs(&mut full_reset, &live);
+            assert_eq!(reset.claims, vec![(id(3), id(7))]);
+            for original in &live.claims {
+                assert_eq!(reset.claim(*original), full_reset.claim(*original));
+            }
+            let wide = IdentityUses {
+                claims: (1..=8192).map(id).collect(),
+                ..IdentityUses::default()
+            };
+            let mut observed = IdentityMap {
+                observed: Some(IdentityUses::default()),
+                ..IdentityMap::default()
+            };
+            let captured = captured_namespace(&mut observed, &wide);
+            assert!(captured.claims.is_empty());
+            assert_eq!(observed.observed.unwrap().claims, wide.claims);
+            assert_eq!(
+                capture_all_claim_pairs(&mut IdentityMap::default(), &wide)
+                    .claims
+                    .len(),
+                8192
+            );
+            eprintln!(
+                "8192 unchanged live claims retain 0 input pairs instead of 8192; ordered renames, last-match resets, lookup observations and fixed-roster comparison classes match the full-row oracle"
+            );
+        }
     }
 }
