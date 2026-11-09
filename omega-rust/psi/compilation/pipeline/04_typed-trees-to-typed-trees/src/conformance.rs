@@ -387,9 +387,8 @@ pub(crate) mod conformance_application_lifetimes {
                     ));
                     continue;
                 };
-                // Nested trait actuals can name evidence such as a selected model.
-                // Keep the whole callable telescope so those actuals retain their
-                // complete map application instead of remaining formal binders.
+                // Nested trait arguments can name selected implementations, such as a model.
+                // Include those parameters so substitution uses the caller's selection.
                 let machine_parameters = program.machine_callable_parameters(callee_declaration);
                 let (declared_arguments, expected_arguments) =
                     match inherited_arguments::materialize(
@@ -1646,10 +1645,21 @@ pub(crate) mod explicit_requirement_calls {
             }
         };
         if selected.symbol != implementation {
-            return Err("named implementation qualifier names another map".to_owned());
+            return Err(format!(
+                "named implementation qualifier `{}` names another map than receiver `{}`",
+                program.symbols.display_path(selected.symbol, "::"),
+                program.symbols.display_path(implementation, "::"),
+            ));
         }
-        close_conformance_application(program, &selected)
-            .map_err(|diagnostic| diagnostic.message)?;
+        close_conformance_application(program, &selected).map_err(|diagnostic| {
+            format!(
+                "{} (selected call `{}::{}` in `{}`)",
+                diagnostic.message,
+                program.symbols.display_path(implementation, "::"),
+                program.symbols.name(requirement),
+                program.symbols.display_path(owner, "::"),
+            )
+        })?;
         let captures = selected
             .application
             .as_ref()

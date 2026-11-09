@@ -6960,15 +6960,29 @@ impl CallableApplication {
                 origin: CallableLifetimeOrigin::Lexical,
             });
         };
-        let (region, substituted) = environment
-            .lifetime_identity(
-                program,
-                reference,
-                *preceding_frames,
-                original.as_str(),
-                self.region_scope,
-            )
-            .ok_or("applied trait operand has no exact supplying region")?;
+        let Some((region, substituted)) = environment.lifetime_identity(
+            program,
+            reference,
+            *preceding_frames,
+            original.as_str(),
+            self.region_scope,
+        ) else {
+            static REPORTED: std::sync::atomic::AtomicUsize =
+                std::sync::atomic::AtomicUsize::new(0);
+            if REPORTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 16 {
+                eprintln!(
+                    "REFINEMENT_REGION reference={reference:?} node={:?} slot={slot} name={original:?} retained_owner={:?} region_scope={:?} preceding_frames={preceding_frames} argument_owner={:?} frame_count={}",
+                    program.type_reference_node(reference),
+                    program
+                        .type_reference_table
+                        .operand_lifetime_owner(reference),
+                    self.region_scope,
+                    environment.argument_owner(),
+                    environment.frame_count(),
+                );
+            }
+            return Err("applied trait operand has no exact supplying region");
+        };
         let name = crate::type_identity::lifetime_parameter_name(program, region)
             .ok_or("applied trait operand lost its region declaration ordinal")?
             .clone();
