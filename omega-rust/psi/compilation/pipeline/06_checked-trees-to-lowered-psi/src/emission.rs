@@ -6173,12 +6173,13 @@ pub(crate) mod selected_continuations {
                 };
                 self.partial_states += 1;
                 self.logical_paths += paths.len();
-                if self.new_allocation(0, Arc::as_ptr(paths) as usize) {
+                let new_outer = self.new_allocation(0, Arc::as_ptr(paths) as usize);
+                if new_outer {
                     self.outer_lists += 1;
                     self.outer_bytes += size_of::<Vec<Arc<[StructuralPathSegment]>>>()
                         + paths.capacity() * size_of::<Arc<[StructuralPathSegment]>>();
                 }
-                if self.keys_censored {
+                if !new_outer || self.keys_censored {
                     continue;
                 }
                 for path in paths.iter() {
