@@ -672,10 +672,11 @@ mod actions {
         if covered.iter().any(|visited| !visited) {
             return Err("cleanup partition omits an authorized action leaf");
         }
+        let path = control.paths.insert_many(prefix.iter().cloned());
         let owner = control.partitions.insert(CheckedCleanupPartitionPlan {
             disposition,
             source,
-            path: control.paths.insert_many(prefix.iter().cloned()),
+            path,
             type_identity,
             root: handles[0],
             actions: Default::default(),
