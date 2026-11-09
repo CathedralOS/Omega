@@ -69222,6 +69222,8 @@ pub(crate) mod structural_judgment {
                                     let completed = self.captured_scalar_read(value, &place.segments);
                                     if crate::trace_flags::check_sites()
                                         && program.symbols.display_path(callable, "::").contains("WriteBuffer")
+                                        && program.symbols.display_path(self.machine_symbol, "::").contains("WriteBuffer")
+                                        && self.storage_version.is_some_and(|cut| cut.snapshot.is_valid())
                                         && program.expression_table.display_name(expression) == "source.value"
                                     {
                                         static EVENTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -74886,9 +74888,16 @@ pub(crate) mod structural_judgment {
                         .contains("WriteBuffer")
                     && self.program.expression_table.display_name(expression) == "source.value"
                     && {
-                        static EVENTS: std::sync::atomic::AtomicUsize =
+                        static VALID_CUT_EVENTS: std::sync::atomic::AtomicUsize =
                             std::sync::atomic::AtomicUsize::new(0);
-                        EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8
+                        static OTHER_CUT_EVENTS: std::sync::atomic::AtomicUsize =
+                            std::sync::atomic::AtomicUsize::new(0);
+                        let events = if at.is_some_and(|cut| cut.snapshot.is_valid()) {
+                            &VALID_CUT_EVENTS
+                        } else {
+                            &OTHER_CUT_EVENTS
+                        };
+                        events.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8
                     };
                 if trace {
                     eprintln!(
