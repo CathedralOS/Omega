@@ -20628,12 +20628,25 @@ pub(crate) mod observed_projections {
                     } else {
                         value
                     };
-                    value = project_field(source, program.symbols.name(*symbol))?;
-                    if owned {
-                        value = super::structural_terms::owned_projection_observation(
-                            program, projected, value,
-                        );
-                    }
+                    let supplied = owned
+                        .then(|| {
+                            observed_constructor_reference_field(
+                                program, reference, &source, *symbol, projected,
+                            )
+                        })
+                        .flatten();
+                    value = if let Some(supplied) = supplied {
+                        supplied
+                    } else {
+                        let field = project_field(source, program.symbols.name(*symbol))?;
+                        if owned {
+                            super::structural_terms::owned_projection_observation(
+                                program, projected, field,
+                            )
+                        } else {
+                            field
+                        }
+                    };
                 }
                 PlaceSegment::Case { variant }
                     if variant.is_valid() && program.variant_owner(*variant).is_some() =>
@@ -20653,6 +20666,56 @@ pub(crate) mod observed_projections {
             reference = projected;
         }
         Some(value)
+    }
+
+    fn observed_constructor_reference_field(
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        source: &StructuralTerm,
+        field: SymbolHandle,
+        projected: TypeReferenceHandle,
+    ) -> Option<StructuralTerm> {
+        use super::structural_judgment::ConstructorIdentity;
+        crate::reference_shell(program, projected)?;
+        let StructuralTerm::Constructor {
+            identity, fields, ..
+        } = source
+        else {
+            return None;
+        };
+        let ConstructorIdentity::Nominal {
+            declaration, case, ..
+        } = *identity
+        else {
+            return None;
+        };
+        let definition = program.data_constructor_definition(reference, declaration)?;
+        let variant = match case {
+            Some(case) => Some(program.data_constructor_case(reference, declaration, case)?),
+            None => None,
+        };
+        let expected = ConstructorIdentity::at_reference(program, reference, definition, variant)?;
+        if !identity.same_resolution_payload(expected) {
+            return None;
+        }
+        let declared =
+            program.closed_data_member_field(reference, field, program.symbols.name(field))?;
+        if !crate::declared_carriers_match(program, projected, declared.type_reference) {
+            return None;
+        }
+        let mut supplied = fields
+            .iter()
+            .filter(|(name, _)| name == declared.name.as_str());
+        let (_, value) = supplied.next()?;
+        if supplied.next().is_some()
+            || !super::structural_terms::scalar_operand_is_observed(program, projected, value)
+        {
+            return None;
+        }
+        // The checked constructor already retained this formed field operand.
+        // Keep its source observation instead of replacing it with a descriptor's
+        // opaque payload. Unobserved or symbolic projections still use that boundary.
+        Some(value.clone())
     }
 
     pub(crate) fn project_field(value: StructuralTerm, field_name: &str) -> Option<StructuralTerm> {
