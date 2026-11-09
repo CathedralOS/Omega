@@ -33,9 +33,10 @@ A token-bearing boundary operation is a machine requirement in a boundary
 trait. Its token is an ordinary explicit parameter, not a declaration owner or
 separate operation species. Ordinary nonboundary token-bearing machines own
 checked bodies and do not participate in Build provider selection.
-Compiler-catalog semantic primitives are automatic. Target defaults still
-supply boundary float implementations; overrides must satisfy the canonical
-arithmetic contract, not choose a different meaning for `+`.
+Compiler-catalog semantic primitives are automatic, and canonical float
+arithmetic is [realized by the selected target](../language/numeric_values.md#target-realization-and-control-state),
+not selected or overridden here; provider selection covers boundary services
+such as time, clocks, filesystems and devices.
 Selection alone contributes no service reach. Boundary requirements declare
 their rows explicitly, including `reaches none` for service-free arithmetic.
 A non-boundary numeric requirement that promises service-free implementations

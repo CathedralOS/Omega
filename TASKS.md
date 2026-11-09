@@ -42,6 +42,10 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
   Acceptance: one portable call selects per-target implementations from one Terminal artifact under `omega run --both`.
 
+- **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
+  - Declare per-target realization entries (catalog intrinsic, checked machine, unsupported) and bind the public float operators to them; delete `configure_float_defaults`/`configure_directed_fma_defaults` and the `NativeFloats` selection route while keeping differential-evidence identities and the checked-software route; profile remaining `select_provider` cost inside this item.
+  Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions; an unsupported operation rejects naming operation and target; core's build program makes no float selections.
+
 - **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
   - Resolve product requirements, infer `ForeignBinding` const lengths, migrate all `via` sites, and delete `via` parsing.
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
