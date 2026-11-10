@@ -1223,6 +1223,33 @@ pub(crate) mod prepare_expression {
                         "pending contract constant cannot be emitted as an executable value",
                     ))
                 }
+                CheckedScalarExpression::StructuralLocalField {
+                    symbol,
+                    path,
+                    primitive_type,
+                } => {
+                    // Formed only for an erased call actual: the observation
+                    // becomes a proof term over the local's place.
+                    let local = self
+                        .structural_locals
+                        .iter()
+                        .find(|local| {
+                            local.root == facts::PlaceRoot::Symbol(*symbol)
+                                && local.argument.path.is_empty()
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "erased actual observes a structural local that has no place here",
+                        ))?;
+                    crate::expression_preparation::bindings::structural_fields::resolve_local(
+                        identities,
+                        self.structural_fields,
+                        local.argument.place,
+                        local.argument.access,
+                        local.structural_type,
+                        path,
+                        terminal_scalar_type(*primitive_type)?,
+                    )
+                }
                 CheckedScalarExpression::StructuralSequenceLength { root, path } => self
                     .sequence_observation(
                         identities,

@@ -1644,11 +1644,12 @@ pub(crate) mod call_lowering {
 
     /*
         Lower the actual of one erased scalar lane. A primitive lane keeps the
-        ordinary erased scalar observation. A record leaf is either the matching
-        lane of the caller's own erased formal, or the scalar the caller wrote
-        at that field of an immutable closed construction. Nothing here reads
-        the record at run time, and an actual whose leaf is not exactly one of
-        those is not lowered, so the call is refused rather than guessed.
+        ordinary erased scalar observation. A record leaf is the matching lane
+        of the caller's own erased formal, the scalar the caller wrote at that
+        field of an immutable closed construction, or that field observed at
+        the place of a record local or runtime record formal. Nothing here reads the record
+        at run time, and an actual whose leaf is not exactly one of those is
+        not lowered, so the call is refused rather than guessed.
     */
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn lower_erased_lane_argument(
@@ -1694,6 +1695,25 @@ pub(crate) mod call_lowering {
                     position,
                     primitive_type: lane.primitive_type,
                 })
+            }
+            super::erased_observations::ErasedLeaf::ParameterField { position, path } => (lane
+                .primitive_type
+                != PrimitiveType::Bool)
+                .then_some(CheckedScalarExpression::StructuralParameterField {
+                    observation: expression,
+                    parameter_position: position,
+                    path,
+                    primitive_type: lane.primitive_type,
+                }),
+            super::erased_observations::ErasedLeaf::LocalField { symbol, path } => {
+                // The Boolean vocabulary has no local observation.
+                (lane.primitive_type != PrimitiveType::Bool).then_some(
+                    CheckedScalarExpression::StructuralLocalField {
+                        symbol,
+                        path,
+                        primitive_type: lane.primitive_type,
+                    },
+                )
             }
             super::erased_observations::ErasedLeaf::Value(leaf) => lower_return_expression(
                 program,
@@ -4333,6 +4353,7 @@ pub(crate) mod contract_entry {
                     }
                 }
                 CheckedScalarExpression::Local { .. }
+                | CheckedScalarExpression::StructuralLocalField { .. }
                 | CheckedScalarExpression::StructuralSequenceLength { .. }
                 | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
                 CheckedScalarExpression::RepresentationView { operand, .. } => {
@@ -11761,6 +11782,16 @@ mod erased_observations {
         Formal { position: usize },
         /// The scalar written at that field of an immutable closed construction.
         Value(ExpressionHandle),
+        /// That field of the caller's runtime record formal, observed at its place.
+        ParameterField {
+            position: u32,
+            path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+        },
+        /// That field of a structural local, observed at its place.
+        LocalField {
+            symbol: symbols::SymbolHandle,
+            path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+        },
     }
 
     /*
@@ -11769,8 +11800,10 @@ mod erased_observations {
         alias locals name their referent. The walk ends at the caller's erased
         formal, whose lane is forwarded, or at a closed construction (written
         in place, bound to an immutable local, or named by a constant), whose
-        field initializer is the leaf. A mutable binding, a runtime parameter
-        or a value produced by a call or a join has no exact leaf here.
+        field initializer is the leaf, or at any other record local, whose own
+        place is observed (a mutable local always, since its initializer may be
+        stale), or at the caller's runtime record formal, observed the same
+        way. A `mut` formal or a temporary has no exact leaf here.
     */
     pub(crate) fn resolve_leaf(
         program: &dyn ::validation::CheckingInput,
@@ -11842,8 +11875,18 @@ mod erased_observations {
                 .enumerate()
                 .find(|(_, parameter)| parameter.symbol == symbol)
             {
-                if !parameter.relevance.is_erased() || parameter.is_mutable || parameter.is_const {
+                if parameter.is_mutable || parameter.is_const {
                     return None;
+                }
+                if !parameter.relevance.is_erased() {
+                    // A runtime record formal is observed at its own place,
+                    // as any contract over that formal already is.
+                    return Some(ErasedLeaf::ParameterField {
+                        position: u32::try_from(position).ok()?,
+                        path: super::structural_fields::structural_projection_path(
+                            program, &segments,
+                        )?,
+                    });
                 }
                 let wanted = segments
                     .iter()
@@ -11861,11 +11904,25 @@ mod erased_observations {
                 });
             }
             let (ordinal, local) = program.state_local_declaration(state, symbol)?;
-            if ordinal >= before_statement as usize
-                || !local.initial_value.is_valid()
-                || local.is_mutable
-            {
+            if ordinal >= before_statement as usize || !local.initial_value.is_valid() {
                 return None;
+            }
+            let is_reference = matches!(
+                program
+                    .type_reference_table
+                    .type_reference(local.type_reference),
+                TypeReferenceNode::Reference { .. }
+            );
+            if local.is_mutable {
+                // A mutable record's initializer may be stale; only its own
+                // place holds the value the call observes.
+                if is_reference {
+                    return None;
+                }
+                return Some(ErasedLeaf::LocalField {
+                    symbol,
+                    path: super::structural_fields::structural_projection_path(program, &segments)?,
+                });
             }
             if let TypeReferenceNode::Reference { access, .. } = program
                 .type_reference_table
@@ -11893,17 +11950,25 @@ mod erased_observations {
             ) {
                 return Some(ErasedLeaf::Value(leaf));
             }
-            // `let record: Witness = RECORD;` names the same value as its
-            // initializer when that initializer is itself an immutable name.
-            if !place.segments.is_empty()
-                || !matches!(
-                    program.expression_table.expression(local.initial_value),
-                    ExpressionNode::Name(_)
-                )
+            // `let record: Witness = RECORD;` names the constant's value.
+            if place.segments.is_empty()
+                && let Some(path) = program.expression_table.name_path_node(local.initial_value)
+                && path.symbol.is_valid()
+                && program
+                    .const_declarations()
+                    .iter()
+                    .any(|constant| constant.symbol == path.symbol)
             {
-                return None;
+                current = local.initial_value;
+                continue;
             }
-            current = local.initial_value;
+            // Any other immutable record local (a call result, a match join)
+            // holds the value the callee names. Its leaf is observed at the
+            // local's own place, as a proof-side term and never a read.
+            return Some(ErasedLeaf::LocalField {
+                symbol,
+                path: super::structural_fields::structural_projection_path(program, &segments)?,
+            });
         }
         None
     }

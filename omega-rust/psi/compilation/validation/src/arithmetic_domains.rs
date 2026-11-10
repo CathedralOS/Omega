@@ -22708,7 +22708,9 @@ pub(crate) mod selected_scalar_intervals {
                 position,
                 primitive_type,
             } => (*primitive_type, source.binding(*position, *primitive_type)?),
-            Expression::ConstantApplication { .. } | Expression::ErasedParameter { .. } => {
+            Expression::ConstantApplication { .. }
+            | Expression::ErasedParameter { .. }
+            | Expression::StructuralLocalField { .. } => {
                 return None;
             }
             Expression::StorageRead {

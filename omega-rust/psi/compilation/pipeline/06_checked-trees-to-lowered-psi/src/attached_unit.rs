@@ -293,6 +293,7 @@ pub(crate) mod inner {
                     .map(|parameter| (parameter.position, parameter.clone()))
                     .collect::<Vec<_>>();
                 let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     parameters: &view_roster,
@@ -6293,6 +6294,7 @@ pub(crate) mod inner {
                     .map(|parameter| (parameter.position, parameter.clone()))
                     .collect();
                 let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
@@ -9096,8 +9098,8 @@ pub(crate) mod inner {
         use super::claims::{LoweredUnitClaims, lower_unit_entry_claims};
         use super::ordinary_calls;
         use super::parameters::{
-            lower_unit_parameters, lower_unit_scalar_parameter_declarations,
-            lower_unit_erased_scalar_lane_types, lower_unit_scalar_parameter_types,
+            lower_unit_erased_scalar_lane_types, lower_unit_parameters,
+            lower_unit_scalar_parameter_declarations,
         };
         use crate::expression_preparation::qualifications::PreparedScalarQualifications;
         use crate::shared::lowering_error::LoweringError;
@@ -11419,6 +11421,7 @@ pub(crate) mod inner {
                 &declared_result,
                 &signature.erased_scalar_parameters,
                 &crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     parameters: &evaluation.structural_parameters,
@@ -13038,6 +13041,22 @@ pub(crate) mod inner {
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
+            let caller_local_observations = structural_locals
+                .iter()
+                .filter_map(|local| {
+                    let facts::PlaceRoot::Symbol(symbol) = local.root else {
+                        return None;
+                    };
+                    local.argument.path.is_empty().then_some(
+                        crate::scalar_lowering::contracts::ContractLocalObservation {
+                            symbol,
+                            place: local.argument.place,
+                            structural_type: local.structural_type,
+                            access: local.argument.access,
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
             let erased_arguments = erased_scalar_arguments
                 .iter()
                 .map(|argument| {
@@ -13056,6 +13075,7 @@ pub(crate) mod inner {
                             scalar_applications,
                             constant_values: &checked.typed.constant_recipe_closure.values,
                             parameters: caller_observation_parameters,
+                            locals: &caller_local_observations,
                             structural_types,
                             ..crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY
                         },

@@ -7044,50 +7044,47 @@ mod successors {
         mark(SuccessorGuard::ErasedArguments);
         let erased_parameter_plans =
             crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, target)?;
-        let erased_arguments =
-            erased_parameter_plans
-                .iter()
-                .enumerate()
-                .map(|(erased_index, target)| {
-                    // A transition argument row is keyed by its authored
-                    // position and so carries one erased scalar. A record
-                    // formal with several leaves would bind every leaf to the
-                    // same row; refuse it instead.
-                    if erased_parameter_plans
-                        .iter()
-                        .filter(|plan| plan.source_position == target.source_position)
-                        .count()
-                        != 1
-                    {
-                        return None;
-                    }
-                    let argument = argument_at(target.source_position)?;
-                    let (custody, expression) =
-                        facts.values.scalar_expressions.bound_expression_at(
-                            source.symbol,
-                            ordinal,
-                            CheckedScalarExpressionRole::TransitionArgument {
-                                argument_ordinal: target.source_position,
-                            },
-                        )?;
-                    if custody.expression != argument
-                        || custody.destination
-                            != target_parameters
-                                .get(target.source_position as usize)?
-                                .symbol
-                        || scalar_expression_type(expression) != Some(target.primitive_type)
-                    {
-                        return None;
-                    }
-                    Some(CheckedStructuralScalarArgumentPlan {
+        let erased_arguments = erased_parameter_plans
+            .iter()
+            .enumerate()
+            .map(|(erased_index, target)| {
+                // A transition argument row is keyed by its authored
+                // position and so carries one erased scalar. A record
+                // formal with several leaves would bind every leaf to the
+                // same row; refuse it instead.
+                if erased_parameter_plans
+                    .iter()
+                    .filter(|plan| plan.source_position == target.source_position)
+                    .count()
+                    != 1
+                {
+                    return None;
+                }
+                let argument = argument_at(target.source_position)?;
+                let (custody, expression) = facts.values.scalar_expressions.bound_expression_at(
+                    source.symbol,
+                    ordinal,
+                    CheckedScalarExpressionRole::TransitionArgument {
                         argument_ordinal: target.source_position,
-                        source:
-                            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression,
-                        target_scalar_parameter_index: u32::try_from(erased_index).ok()?,
-                        primitive_type: target.primitive_type,
-                    })
+                    },
+                )?;
+                if custody.expression != argument
+                    || custody.destination
+                        != target_parameters
+                            .get(target.source_position as usize)?
+                            .symbol
+                    || scalar_expression_type(expression) != Some(target.primitive_type)
+                {
+                    return None;
+                }
+                Some(CheckedStructuralScalarArgumentPlan {
+                    argument_ordinal: target.source_position,
+                    source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression,
+                    target_scalar_parameter_index: u32::try_from(erased_index).ok()?,
+                    primitive_type: target.primitive_type,
                 })
-                .collect::<Option<Vec<_>>>()?;
+            })
+            .collect::<Option<Vec<_>>>()?;
         mark(SuccessorGuard::ErasedProofArguments);
         let erased_proof_arguments =
             crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, target)?

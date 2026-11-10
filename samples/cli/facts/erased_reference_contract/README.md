@@ -55,9 +55,8 @@ No Omega files or fact folders are added.
   guard after the transport to manufacture the required fact.
 - Reference arguments retain their exact declarations, referents and scopes.
   Type, borrow, access, ownership and write-validity checks still apply.
-- Calls and nested machines substitute the complete record subject. The
-  contract-term path carries its declared fields, rather than replacing the
-  record with a scalar or inferring a value from its name.
+- Calls and nested machines substitute each scalar field of the record through
+  its own erased scalar lane; no value is inferred from a name.
 - Checked lowering retains erased contract terms while excluding erased
   bindings from executable parameter plans. Psi/native exit agreement checks
   behavior; the lowered and calling-plan evidence separately establishes that
@@ -70,18 +69,25 @@ omega run --both samples/cli/facts/erased_reference_contract/local/main.omg
 omega --check samples/cli/facts/erased_reference_contract/local/invalid/main.omg
 ```
 
-## Observations and remaining scope
+## How the record is carried
 
-The primitive-reference row predates this extension; its historical observations
-retain their original producer identities. The record baseline at
-[`b85c3aef217b`](https://github.com/CathedralOS/Omega/actions/runs/42658306975)
-uses compiler inputs identical to published `4a194ff`. Both local programs
-refuse before contract checking because the erased record parameter is neither
-a scalar lane nor an admitted contract-term carrier. Neither engine ran, and
-the twin did not reach its intended field-value refusal. The original archive,
-source snapshots, six input blobs and both optimized producer profiles are
-retained in the claim evidence record.
+An erased closed record, by value or behind a shared reference, has one erased
+scalar lane per scalar field. `record.value` in `keep`'s contract names that
+lane, exactly as `witness` names the primitive's lane, so the record has no
+runtime parameter, field, address, read or cleanup. At a call the lane's actual
+is the caller's own erased lane (parameter, nested machine, other machine), the
+scalar written in an immutable construction (local, field, constant, selected
+body), or the field observed at the place of a record local (call result,
+match join) or of a runtime record formal. The two requirements are separate `requires` clauses so that a
+twin's refusal names `record.value == 7` alone.
 
-Record acceptance is in progress in this draft. Array referents, dynamic
-dispatch and transitive assumptions beyond the direct construction lane remain
-open. This row does not close the broader PROOF-KERNEL-CORE acceptance.
+The constant place declares `data Witness [copy]` because a
+[constant](../../../../wiki/spec/language/constants.md) needs a type that
+permits copying.
+
+## Remaining scope
+
+Array referents, sums, records with erased or address fields, a record with
+several scalar fields passed through a nested-machine transition, and a `mut`
+formal or a temporary used as an erased record actual are refused.
+This row does not close the broader PROOF-KERNEL-CORE acceptance.
