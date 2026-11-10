@@ -339,7 +339,7 @@ account for each component, rename with `as`, or explicitly waive bindings or
 remaining components. An initializer is evaluated once; copy-eligible field
 reads retain that subject's snapshots. This does not make non-copy fields
 implicitly copyable or movable from borrowed storage. Owned decomposition uses
-ordinary move/copy disposition and cleanup; a borrowed case view retains its
+ordinary move/copy disposition and cleanup; a borrowed field retains its
 source's loan rather than copying the carrier. No reference patterns or new
 binding modes are introduced. Larger borrowed fields require an otherwise
 authorized explicit borrow expression or waiver.

@@ -22,74 +22,53 @@ dispatch must be exhaustive.
 
 ## Data and case patterns
 
-Common fields belong to the whole value, not to each case's payload. Match them
-once in an outer data pattern, then match the case-only view:
+A record decomposes into its fields and a sum is matched by case. When a record
+holds a sum, match the sum through its field:
 
 ```omega
 data Command {
     command_id: u64;
-    case GetUser(user_id: u64);
-    case CountUsers;
+
+    op: data Operation {
+        case GetUser(user_id: u64);
+        case CountUsers;
+    };
 }
 
-machine targets_one_user(command: &Command) -> bool {
-    match command {
-        Command { command_id as _, case as operation } ->
-            match operation {
-                Command::GetUser { user_id as _ } -> true
-                Command::CountUsers -> false
-            }
-    }
-}
-```
-
-All inline cases follow the common fields. The equivalent positional outer
-pattern is `(_, operation)`: common fields in authored order, then one case
-component. Binding names are arbitrary. A named pattern uses `case as name` for
-that final component; `case` is a pattern selector, not a stored field. Ordinary
-field renaming still uses `as`, while `field: value` tests a value.
-
-Patterns account for all components unless `..` explicitly waives the remaining
-ones. Bind common fields in the outer pattern and payload fields in the inner
-case pattern. Pure sums support direct case matching.
-Nested matches retain outer bindings and still-valid facts, and each dispatch
-must be exhaustive. The case view preserves the original subject's type
-constraints, identity, lifetime, access and custody; ignoring a binding does not
-waive cleanup. Physical layout and case-literal construction are unchanged.
-The [pattern specification](../spec/language/patterns.md#data-and-case-decomposition)
-owns the full rule.
-
-The case-only view has a type you can name, `Command::case`, so a helper can
-take just that part instead of the whole value:
-
-```omega
-machine is_lookup(operation: &Command::case) -> bool {
-    match operation {
-        Command::GetUser { user_id as _ } -> true
-        Command::CountUsers -> false
+machine is_lookup(op: &Command::Operation) -> bool {
+    match op {
+        Command::Operation::GetUser { user_id as _ } -> true
+        Command::Operation::CountUsers -> false
     }
 }
 
 machine routes_to_user(command: &Command) -> bool {
-    match command {
-        Command { command_id as _, case as operation } -> is_lookup(operation)
-    }
+    is_lookup(&command.op)
 }
 ```
 
-`Command::case` is always used behind a reference and is still a view of the
-original `Command`: it copies nothing, keeps the original borrow, and gives the
-helper no way to reach `command_id`. The helper sees only what its own contract
-states, so a fact about the whole value that it needs becomes one of its
-`requires` clauses.
+A named record pattern binds fields, `Command { command_id as _, op }`, and the
+positional equivalent is `(_, op)`: fields in authored order. Binding names are
+arbitrary. Field renaming uses `as`, while `field: value` tests a value.
+Patterns account for all components unless `..` explicitly waives the remaining
+ones. Nested matches retain outer bindings and still-valid facts, and each
+dispatch must be exhaustive. Ignoring a binding does not waive cleanup.
+
+The helper takes an ordinary type. It sees the sum's own contract and has no
+way to reach `command_id`, so a fact about the whole command that it needs
+becomes one of its `requires` clauses. Matching `command.op` where the whole
+`Command` is in hand combines the selected case with the command's invariants.
+The [pattern specification](../spec/language/patterns.md#data-and-case-decomposition)
+owns the full rule.
 
 ## Irrefutable bindings
 
 When a pattern only decomposes the value, a local binding avoids a one-arm outer
-match. Inside the example machine above, bind the same view before matching it:
+match. Inside a machine holding `command: &Command`, bind the fields before
+matching:
 
 ```omega
-let Command { command_id as _, case as operation } = command;
+let Command { command_id as _, op as operation } = command;
 ```
 
 The positional equivalent is `let (_, operation) = command;`. Evaluate the
@@ -128,8 +107,22 @@ transition (player_defeated, enemy_defeated) {
 The first arm deliberately wins when both conditions hold. A component wildcard
 ignores that component without asserting anything about its value.
 
+A component can be a field and another a sum the same record holds, which is
+how one arm tests both:
+
+```omega
+match (command.command_id, command.op) {
+    (0, _) -> reject()
+    (_, Command::Operation::GetUser { user_id }) -> lookup(user_id)
+    (_, Command::Operation::CountUsers) -> count()
+}
+```
+
+Patterns are one level deep, so a record pattern does not contain a case
+pattern; match the held sum as its own subject or as a component here.
+
 Positional data patterns use the same parenthesized style on a data subject,
-but their components come from its declared fields and optional final case view,
+but their components come from its declared fields,
 not an implicit conversion to unrelated tuple storage. Named and positional data
 patterns do not change representation or add runtime fields.
 

@@ -632,7 +632,8 @@ is, and nothing about an argument position creates that binding. A
 signature-free requirement path must identify one overload independently of
 its satisfiers. A path in type position resolves by the kind of its left-hand
 name: a trait gives a requirement type, and a data or scalar type gives a
-[case projection](patterns.md#case-projection-type) or a domain-qualified type.
+[nested type](data_and_literals.md#records-sums-and-nested-declarations) or a
+domain-qualified type.
 
 Both nominal and structural callable invocations contribute reach and crash
 dependencies under the type's open or finite bound. The consumer authors
