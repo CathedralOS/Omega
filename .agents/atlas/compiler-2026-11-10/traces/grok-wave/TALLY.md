@@ -1,6 +1,6 @@
 # Grok wave tally, 2026-11-10
 
-This is a resume record, not a finished verdict tally. One slice report is saved. The platform still refuses a 101st concurrent worker.
+This is a resume record, not a finished verdict tally. Composer-2.5 reports are saved for 104 slices. Sixteen slices in the first 64 still have only a fast-model report, and that report was not saved. No trace worker is running.
 
 ## Launch refusal
 
@@ -10,71 +10,55 @@ Exact error, returned for slice_0072, slice_0083, slice_0099, and slice_0101, an
 Error: Async subagent limit of 100 reached
 ```
 
-The highest number that works is 100 workers at once. A retry of one more worker failed the same way. Slices past that cap were not launched.
+The highest number that works is 100 workers at once. A retry of one more worker failed the same way. Those four were started later, after a slot freed, and their composer-2.5 reports are saved. No later launch was refused.
 
-Peak workers running at once: 100. That is the accepted set below. The four refused launches are not counted in the peak.
+Peak workers running at once: 100.
 
 ## Fast workers
 
-This run's model is `grok-4.7-high-fast`. Slices slice_0001 through slice_0064 inherited that model. A follow-up to slice_0001 (`bc-f034c986-a460-5285-b52a-3dfc92c8c6be`) asking it to stop was refused:
+This run's model is `grok-4.7-high-fast`. Slices slice_0001 through slice_0064 inherited that model on the first pass. There is no cancel tool for a running background worker. Those first reports were not saved. Each slice was started again on `composer-2.5` with fast mode off after the fast pass finished, except the sixteen below, which finished and were not started again.
 
-```
-Error: Sub-agent is currently running. You may send the follow-up message when it has completed.
-```
+Still only a fast-model pass, report discarded, not saved:
 
-There is no cancel tool for a running background worker, so those 64 were not stopped while they were running. Their reports are not saved. Each one is started again on `composer-2.5` with fast mode off after it finishes.
+slice_0003, slice_0004, slice_0006, slice_0007, slice_0008, slice_0009, slice_0010, slice_0012, slice_0013, slice_0018, slice_0019, slice_0021, slice_0022, slice_0024, slice_0050, slice_0052.
 
-- slice_0001 fast worker `bc-f034c986-a460-5285-b52a-3dfc92c8c6be` finished. Report discarded. Composer-2.5 rerun: `bc-4f1621d5-1c6b-572b-bd87-519d6a6eefac`.
-- Fast reports discarded for slice_0014, slice_0015, slice_0020, slice_0023, slice_0028, slice_0031, slice_0033, and slice_0039. Each is running again on composer-2.5.
-- Composer-2.5 reports saved for slice_0002, slice_0005, slice_0011, slice_0016, and slice_0017. Those were the reruns, not the fast first passes.
-
-Slices slice_0065 onward that were accepted already use `composer-2.5` with fast mode off.
+Slices slice_0065 onward were started on `composer-2.5` with fast mode off.
 
 ## Workers left running
 
-Accepted and still in flight:
-
-- slice_0001 through slice_0071
-- slice_0072 (relaunched on `composer-2.5` after slice_0073 finished; agent bc-e81cc7e0-15a1-5289-b61e-a6bc28fa7735)
-- slice_0074 through slice_0082
-- slice_0084 through slice_0098
-- slice_0100
-- slice_0102 through slice_0104
-
-slice_0073 has finished and its report is saved. The in-flight set is again 100.
+None. Every trace worker for slice_0001 through slice_0120 has finished. The sixteen slices listed above need a composer-2.5 rerun. slice_0121 through slice_0304 have not been started.
 
 ## Saved
 
-- `slices/slice_0073.md` ends with `SLICE COMPLETE`. Verdicts were not edited.
+104 reports, all ending in `SLICE COMPLETE`. Verdicts were not edited. slice_0102's worker omitted the completion line; it was added after every entry already had a verdict. slice_0102 writes entry A0790 as A07810. slice_0046 A0352 is written `CLOSED / UNDECIDED` and is counted on its own row below. slice_0064 A0496 is written `NOT MY CASE`.
 
 ## Not started
 
-Refused twice, still not running: slice_0083, slice_0099, slice_0101.
+Composer-2.5 reruns still required: the sixteen fast-only slices listed above.
 
-Not attempted after the cap: slice_0105 through slice_0304.
-
-A later run can start those on `composer-2.5` with fast mode off, and only as slots free under the 100-worker cap.
+Not started: slice_0121 through slice_0304.
 
 ## Work list
 
 | Verdict | Saved rows |
 | --- | --- |
-| REACHABLE | 58 |
-| CLOSED | 108 |
-| UNDECIDED | 17 |
+| REACHABLE | 291 |
+| CLOSED | 416 |
+| UNDECIDED | 91 |
+| CLOSED / UNDECIDED | 1 |
 | LOST FAILURE | 0 |
-| NOT MY CASE | 0 |
+| NOT MY CASE | 1 |
 | NO CALLERS | 0 |
 | TEST ONLY | 0 |
 | HAS CALLERS | 0 |
 | SAME JOB | 0 |
 | DIFFERENT JOBS | 0 |
-| Total saved | 183 |
+| Total saved | 800 |
 | Work list | 2253 |
 
-Saved reports, all ending in `SLICE COMPLETE`: slice_0001, slice_0002, slice_0005, slice_0011, slice_0014, slice_0016, slice_0017, slice_0020, slice_0023, slice_0028, slice_0031, slice_0033, slice_0065, slice_0073, slice_0075, slice_0077, slice_0083, slice_0099, slice_0101, slice_0105, slice_0106, slice_0107, slice_0108, slice_0114, slice_0115. Fast-model reports for slices 0025 through 0064, except the composer reruns already listed, were discarded and those slices are running again on composer-2.5. Fast-model reports are not in this set. Slice 0105's worker omitted the completion line; it was added after every entry already had a verdict.
+Saved reports: slice_0001, slice_0002, slice_0005, slice_0011, slice_0014, slice_0015, slice_0016, slice_0017, slice_0020, slice_0023, slice_0025, slice_0026, slice_0027, slice_0028, slice_0029, slice_0030, slice_0031, slice_0032, slice_0033, slice_0034, slice_0035, slice_0036, slice_0037, slice_0038, slice_0039, slice_0040, slice_0041, slice_0042, slice_0043, slice_0044, slice_0045, slice_0046, slice_0047, slice_0048, slice_0049, slice_0051, slice_0053, slice_0054, slice_0055, slice_0056, slice_0057, slice_0058, slice_0059, slice_0060, slice_0061, slice_0062, slice_0063, slice_0064, slice_0065, slice_0066, slice_0067, slice_0068, slice_0069, slice_0070, slice_0071, slice_0072, slice_0073, slice_0074, slice_0075, slice_0076, slice_0077, slice_0078, slice_0079, slice_0080, slice_0081, slice_0082, slice_0083, slice_0084, slice_0085, slice_0086, slice_0087, slice_0088, slice_0089, slice_0090, slice_0091, slice_0092, slice_0093, slice_0094, slice_0095, slice_0096, slice_0097, slice_0098, slice_0099, slice_0100, slice_0101, slice_0102, slice_0103, slice_0104, slice_0105, slice_0106, slice_0107, slice_0108, slice_0109, slice_0110, slice_0111, slice_0112, slice_0113, slice_0114, slice_0115, slice_0116, slice_0117, slice_0118, slice_0119, slice_0120.
 
-Composer-2.5 reruns now in flight for fast slices whose first reports were discarded: slice_0001, slice_0014, slice_0015, slice_0020, slice_0023, slice_0028, slice_0031, slice_0033, slice_0039. Newly started, also on composer-2.5: slice_0109 through slice_0120. No new launch was refused in this batch. The earlier cap error is unchanged.
+Fast-model reports are not in this set.
 
 ## How the list was cut
 
