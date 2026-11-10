@@ -14,14 +14,34 @@ data MutexGuard<T> dropped by cleanup_mutex_guard<T> {
     mutex: &Mutex<T>;
 }
 
-machine cleanup_mutex_guard<T>(guard: &mut MutexGuard<T>) {
+machine cleanup_mutex_guard<T>(guard: MutexGuard<T>) {
     unlock_raw(guard.mutex);
 }
 ```
 
-The compiler borrows the whole valid guard for the hook, then cleans up its
-remaining fields. The hook runs as part of consuming the owner. Use a consuming
-operation for early disposal rather than calling the hook directly.
+The cleanup machine takes the guard by value: cleanup ends the value, so the
+machine doing it owns it. When it returns, any fields it did not move out are
+cleaned up in the usual order, and the machine is not run a second time for
+the same guard.
+
+Owning the value is what lets cleanup hand a field to an operation that
+consumes it:
+
+```omega
+data Lease [linear] dropped by end_lease {
+    pool: PoolHandle;
+    slot: SlotClaim;
+}
+
+machine end_lease(value: Lease) {
+    PoolHandle::give_back(move value.pool, move value.slot);
+}
+```
+
+Inside a cleanup machine you may borrow the value and move its fields out, but
+not move the value whole to a local, a helper or a result. A cleanup machine
+is an ordinary machine, so calling `end_lease(move lease)` yourself disposes of
+the lease early.
 
 Automatic cleanup must return normally, without failure, suspension, blocking,
 trapping, aborting or process exit. It can use only authority and facts available
@@ -98,8 +118,8 @@ protocol. See [ownership joins](../spec/language/ownership.md).
 
 ## Cleanup order
 
-Cleanup follows reverse declaration order. A whole-value hook runs first,
-then remaining fields are cleaned in reverse declaration order. Arrays clean
+Cleanup follows reverse declaration order. A selected cleanup machine runs
+first, then the fields it left are cleaned in reverse declaration order. Arrays clean
 remaining elements from highest index to lowest; sums clean their active
 payload. Locals precede by-value parameters declared before them.
 
@@ -134,7 +154,8 @@ The moved field's recipient owns its cleanup. A second move of that same field
 rejects. Arrays follow the same rule for identified elements, cleaning the
 remaining indices in descending order.
 
-A whole-value cleanup hook is entitled to receive the complete valid value.
+A selected cleanup machine is entitled to receive the complete valid value, so
+outside that machine a value of such a type cannot have a field moved out.
 Such a type must provide an explicit consuming decomposition operation if users
 need to extract its fields. A dynamic index also needs enough evidence to
 identify the unique owned element being removed.

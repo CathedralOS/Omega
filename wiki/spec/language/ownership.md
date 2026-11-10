@@ -100,8 +100,9 @@ domain-ending authority cannot waive them.
 
 Partial moves retain unselected siblings and make ancestors unavailable for
 whole-value use or disposal. Transparent child paths do not duplicate a nominal
-root obligation. They cannot evade a nominal cleanup hook's whole-value
-entitlement. Duplicate and overlapping moves reject. An owned extraction
+root obligation. They cannot evade a selected nominal cleanup: outside its
+selected cleanup machine, an occurrence with one cannot be partially moved.
+Duplicate and overlapping moves reject. An owned extraction
 must identify the unique moved element and retain its residual frontier;
 unsupported runtime-indexed extraction cannot fall back to forgetting the root.
 
@@ -231,10 +232,9 @@ it only when the type owner declares that exact plan as a valid terminal
 disposition. The hook must return normally and be infallible, nonblocking,
 non-suspending, free of abnormal outcomes, and require no runtime authority
 beyond its explicit value parameter. Termination alone is insufficient: the
-transitive hook contract must exclude process exit as well as crashes. The
-compiler begins consumption before temporarily lending the value to the
-hook's ordinary `value: &mut T` parameter; this is not
-consumption by an ordinary borrowed call.
+transitive hook contract must exclude process exit as well as crashes. At the
+death edge the compiler transfers ownership of the value to the selected
+machine's ordinary `value: T` parameter, as a consuming call does.
 [Nominal cleanup](../terminal-psi/ownership.md#nominal-cleanup) owns the selected
 cleanup edge and ordinary consuming early-disposal call.
 
@@ -243,15 +243,54 @@ The data declaration's owning package authorizes its nominal cleanup through
 named domain. Inheritance and conjunction permit zero or one distinct resolved
 machine application: identical selections coalesce and differing selections
 conflict, without overrides or sequencing. Its selected cleanup operation is
-an independent static machine with an explicit `value: &mut T` parameter, not a
-data-owned method. The exact owner/type/disposition identity, not a receiver flag
-or `T::drop` name lookup, selects the compiler cleanup edge. The legacy
-`machine T::drop` attachment is retired under `no-data-code-attachment`;
-source invocation of the selected edge-only hook rejects. The hook receives and
-must return a whole valid value before structural field cleanup. An owned
-occurrence with a selected whole-value hook cannot be partially moved;
-meaningful decomposition requires an explicit consuming
-machine. An unrelated ordinary machine named `drop` has no reserved meaning.
+an independent static machine with exactly one parameter, the subject, taken by
+value as `value: T`. It is not a data-owned method. The exact
+owner/type/disposition identity, not a receiver flag or `T::drop` name lookup,
+selects the compiler cleanup edge. The legacy `machine T::drop` attachment is
+retired under `no-data-code-attachment`. An unrelated ordinary machine named
+`drop` has no reserved meaning.
+
+Named decision: `owned-cleanup-consumer`, settled 2026-11-10. Cleanup ends the
+value, so the selected machine owns it. It receives the complete valid subject
+and is an ordinary consumer of it:
+
+```omega
+data Lease [linear] dropped by end_lease {
+    pool: PoolHandle;
+    slot: SlotClaim;
+}
+
+machine end_lease(value: Lease) {
+    PoolHandle::give_back(move value.pool, move value.slot);
+}
+```
+
+The names are illustrative. `give_back` takes both fields by value, which a
+machine holding only a reference to the lease could not supply.
+
+- Inside the selected machine, the subject may be borrowed and its fields may
+  be moved out to ordinary consuming operations. The subject may not be moved
+  whole: not into a local, an argument, a field or a result. The parameter is
+  therefore the only occurrence the machine is responsible for.
+- When the selected machine returns, each field it did not move is disposed of
+  by that field's own cleanup, in the ordinary order. The subject's selected
+  machine is not invoked again for it. A remaining field with no legal
+  automatic disposition rejects at that return edge.
+- A separately owned value of the same type, such as one the machine
+  constructs, keeps its own nominal cleanup.
+- Outside its selected machine, an occurrence with a selected cleanup cannot be
+  partially moved. No other code may dismantle the value and let the remainder
+  die without the selected machine running.
+- The selected machine is an ordinary static machine. Source may call it with
+  an owned argument, which disposes of that argument exactly as its death edge
+  would.
+- The transfer is of ownership, not of bytes. A subject whose carry forbids
+  relocation is consumed in its existing storage, and no realization of the
+  cleanup edge may relocate it.
+
+The eligibility restrictions above are unchanged and cover the whole selected
+machine, including every operation it calls and every remaining field's
+disposal.
 
 Every owned death edge derives an internal contextual cleanup row: Type-side
 disposition eligibility, proposition prerequisites, operational effects/reach/
@@ -290,8 +329,9 @@ Capturing does not itself dispose of or move the old value, and does not waive
 the loans or backing-lifetime obligations that keep the destination valid.
 
 Independent roots clean up in reverse declaration order, so later locals precede
-earlier by-value parameters. The nominal whole-value hook precedes structural
-field cleanup; only the active sum payload is present. Borrow and ownership
+earlier by-value parameters. The selected nominal cleanup runs first and the
+fields it leaves are then disposed of structurally; only the active sum payload
+is present. Borrow and ownership
 dependencies must fit this order: an owner cannot die before cleanup depending
 on its borrow. A different release protocol requires an explicit owner or
 consumer, not reconstruction of dynamic acquisition history.

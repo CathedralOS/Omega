@@ -21,8 +21,8 @@ After the move, the old binding is unusable. Replacement must also account for
 the old inventory's disposition.
 
 Moving one field leaves the remaining fields to be used or cleaned up. A type
-with a whole-value cleanup hook must instead provide a consuming operation that
-handles the complete value.
+with a selected cleanup machine must instead provide a consuming operation that
+handles the complete value; only its cleanup machine may take it apart.
 
 ## Copy values
 
@@ -98,8 +98,8 @@ This opens an ownership invariant window. You may transform the detached value
 and install a different valid replacement, provided every returning path repairs
 the original field. While it is absent, reading it, borrowing it, or passing
 `system` as a whole valid object rejects. Unaffected fields remain usable where
-their borrows and invariants permit. A nominal whole-value cleanup hook still
-prevents partial extraction.
+their borrows and invariants permit. A selected cleanup machine still
+prevents partial extraction outside that machine.
 
 Restore the field before returning or ending the borrow. An early failure does
 not put the moved value back. [Invariant windows](chapter_11_invariant_windows.md)
