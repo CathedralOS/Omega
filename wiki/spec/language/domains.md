@@ -668,8 +668,13 @@ let short = 7 as +Positive::Small;
 
 Naming an alias names its expansion: for `Socket::Usable` below, `-Usable`
 removes `Connected` and `Authenticated`, and the same cast may not also name
-either constituent. A data declaration's default domain belongs to the carrier.
-It is not an attached domain, and no cast names or removes it.
+either constituent.
+
+A data declaration's default domain is never removed. It belongs to the
+carrier: no cast names it, and no type spells the value without it, so every
+machine that receives a value of a data type receives it in that domain. A
+property that a helper must be able to receive false belongs in a named
+domain, which a [mutable view](#mutable-views) can remove and owe back.
 
 ### Carrier casts
 
