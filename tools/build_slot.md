@@ -94,6 +94,35 @@ build processes of four concurrent workers all carried it.
 measured here: how the mbx pool behaves when concurrent invocations carry
 different budgets, and the POSIX form.
 
+## On the test VMs
+
+One heavy job per machine. A build, a corpus run or a batch of compiler runs
+is heavy; reading logs, `git` and editing are not. The VMs have 16 cores and 11
+to 12 GB each, and memory is what runs out: on 2026-11-09 the ledger re-record
+lost a shard to the kernel's out-of-memory killer when a second batch of
+compiler runs was started beside it, and lost others to settings changed while
+it ran.
+
+- `~/omega-agent/bin/vm-heavy <label> <command...>` on `omega-linux` and
+  `omega-win`, installed from [`tools/vm_heavy.sh`](vm_heavy.sh), runs a
+  command holding the machine's lock. It refuses with exit
+  75 while a compiler build, a corpus run or another guarded job is active
+  there. `omega-remote` routes every command that names `mbx`, `cargo` or a
+  built binary through it. Wait, or use the other VM. For a deliberate overlap,
+  start the command with `OMEGA_REMOTE_SHARE=1`.
+- Do not change the settings of a job that is already running. Measure one
+  unit first (one shard, one build), choose the settings, then leave them.
+- A corpus runner with eight workers reached 8 GB there and was no faster than
+  six. Use `OMEGA_CORPUS_JOBS=6`.
+- On `omega-win`, Defender scanned every file a slot worktree touched until
+  `C:\Users\jarod` was excluded; the checking phase of a shard then dropped
+  from 18 minutes to 6. A new Windows VM needs that exclusion, which is its
+  owner's to add.
+
+[`tools/ledger_sweep.sh`](ledger_sweep.sh) re-records the whole ledger within
+these limits; [testing](testing.md#re-recording-the-whole-ledger) says how to
+start it.
+
 ## One hold for a whole chain
 
 Run a local chain (check, crate tests, scoped corpus gate) as sequential steps
