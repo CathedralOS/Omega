@@ -95,7 +95,7 @@ fn probe(main: &Path) -> String {
     let mut values = 0;
     let mut edges = 0;
     for tables in (1..=elaboration.tables.machines.len() as u64)
-        .filter_map(|raw| semantic_vocabulary::PsiSemanticId::new(raw))
+        .filter_map(semantic_vocabulary::PsiSemanticId::new)
         .filter_map(|machine| elaboration.tables.machines.get(machine))
     {
         values += tables.values.len();
