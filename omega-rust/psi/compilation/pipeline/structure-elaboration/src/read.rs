@@ -895,7 +895,8 @@ impl<'t> Program<'t> {
         let registration = application.registration_operation;
         let owner = match self.typed.symbols.get(target).kind {
             SymbolKind::State => self.typed.symbols.get(target).parent,
-            _ => target,
+            SymbolKind::Machine => target,
+            other => return Err(refuse(id, Construct::Machine, Unserved::Call(symbol_kind(other)))),
         };
         if registration.is_valid() && registration != target && registration != owner {
             let state = self
