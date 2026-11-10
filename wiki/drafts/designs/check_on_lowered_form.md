@@ -231,24 +231,55 @@ code and are not yet confirmed by a run:
   earlier wording said the back end read a list of source-checked obligations
   from lowering; no reader of that list was found.
 
-The full read added places that accept on missing or mismatched input. Each
-was opened in the code; none has been traced to a wrongly accepted program,
-so they are the first things to trace, not confirmed holes:
+The full read added seven places that accept on missing or mismatched input.
+Each was traced on 2026-11-10 at `c118c914794`, and the probes were run on the
+Mac mini. One accepts an invalid program; the other six are closed or not
+reached:
 
+- **Accepts an invalid program.** The default-domain driver skips its
+  end-of-state window check when the state contains any crash statement, even
+  one that cannot run (`domains_and_predicates.rs:13606`, `:13689`). A write
+  that breaks a data `requires`, then a complete dispatch whose arms all
+  return, then a dead `crash Trap;` is accepted. Without the crash, the same
+  program is rejected. Witness: `pending/dependent/data_requires_return_beside_dead_crash`,
+  accepted by `omega --check`. A crash beside a normal exit on another path cannot be
+  written: the parser makes `crash` an unguarded statement that ends the
+  dispatch.
 - A linear carry fact crosses a call when its place label text equals the
-  argument's spelling, even when the places differ (`flow_calls.rs:419`).
+  argument's spelling (`flow_calls.rs:419`). This adds nothing beyond
+  `places_match`, which already compares labels made from bare symbol names
+  (`facts/src/lib.rs:1827`). Two distinct locals or parameters cannot share a
+  name: `value_custody_core.rs:5750` and `declarations_core.rs:2373` reject
+  that. Label collisions remain only through index or expression spelling,
+  which is the `places.rs` item above.
 - An `ensures` subject binds to a callee parameter by name alone
-  (`flow_calls.rs:1066`).
+  (`flow_calls.rs:1066`). This is closed: the parameters and the contracts come
+  from one signature, and duplicate parameter names are rejected
+  (`declarations_core.rs:2373`).
 - With no checked body to consult, the fence on a call's result domains
-  answers yes (`flow_calls.rs:546`).
+  answers yes (`flow_calls.rs:546`). For a direct call, the callee's own exit
+  refuses a forged `ensures result in D` (`checks_contracts_exits.rs:9902`).
+  The bodyless-realization case was not run.
 - A recognizer for two-arm guarded values compares the first arm's condition
-  with itself (`contract_entailment.rs:44316`).
+  with itself (`contract_entailment.rs:44311`). Read only: this fails
+  closed. The recognizer is a fallback, tried only when the primary case walk
+  returns nothing, and the primary walk's refusals stay in the same batch
+  (`:90466-90474`). Its two arms must be the state's only statements, both
+  value returns. Each arm is judged with no hypothesis from its guard, and the
+  claim is proven only when every arm proves it.
 - A storage validity check answers "valid" when no storage graph exists
-  (`contract_entailment.rs:73357`).
-- An arena returns a shared dummy row for an invalid or stale handle, and a
-  writable one from `get_mut` (`psi/foundation/arena`, `arena.rs:1023`).
-- The default-domain driver skips its end-of-state window check when the
-  state has a crash transition (`domains_and_predicates.rs:13689`).
+  (`contract_entailment.rs:73358`). Read only: this branch is never reached. No storage
+  version is produced without a graph, and all seven callers are guarded.
+- An arena returns a shared dummy row for an invalid or stale handle
+  (`arena.rs:1023`). An invalid expression handle therefore reads as the
+  literal `0`, and the operator `requires` check compares that text
+  (`checks_operators.rs:2319`). An operand `0` was still refused, by the
+  call `requires` check (`checks_contracts_calls.rs:3508`). Other tables'
+  dummy rows were not audited.
+
+The carry-label place, the arena place and the `places.rs` item share one
+mechanism: they decide that two values are the same by comparing their
+spelling. Each is closed today only by the check that stands behind it.
 
 Must-reject programs the corpus lacks, none under `facts/`: knowledge that
 survives a pause; a write through a partly overlapping window; a linear value
