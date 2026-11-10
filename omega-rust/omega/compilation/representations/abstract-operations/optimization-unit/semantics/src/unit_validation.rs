@@ -2760,7 +2760,7 @@ pub(crate) mod function_structure {
         use abstract_operations::AbstractOperation as O;
         use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
         use semantic_vocabulary::{BlockId, StructuralDomainId, StructuralTypeId};
-        use std::collections::BTreeMap;
+        use std::collections::{BTreeMap, BTreeSet};
         use terminal_psi::control_flow::ByteSequenceOperand;
         use terminal_psi::{
             ByteSequenceCarrier, StructuralAccess, StructuralDomainDeclaration,
@@ -14311,7 +14311,7 @@ pub(crate) mod operation_contracts {
         use abstract_operations::AbstractOperation as O;
         use optimization_unit::{PsiOptimizationFunction, ValueDefinition, ValueDefinitionSite};
         use semantic_vocabulary::{BlockId, StructuralTypeId, ValueId};
-        use std::collections::{BTreeMap, BTreeSet};
+        use std::collections::BTreeMap;
 
         pub(super) fn collect_value_definitions(
             function: &PsiOptimizationFunction,
