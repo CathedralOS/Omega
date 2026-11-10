@@ -186,7 +186,7 @@ UNDECIDED: 2, 3, 7, 11, 12, 14, 17, 20, 21, 24, 25, 26, 33, 39, 41, 43, 46, 49.
 
 I did not build, compile, or run the compiler. I did not read the Omega sources under `source/`, the tests except the call sites named above, or the wiki. Each entry's "Not read" lines are the functions I stopped before. The parallel notes I was given were not copied in as verdicts unless the section says I read the lines. Entry 48 names the callers I read and says the body of `resolve_adapter_call` was not re-read in the last pass.
 
-The trace commit that contains entries 1-49, before the sentence that records its SHA, is filled in by the following commit.
+Completed-trace commit: `8914552b69a968ea08862817160f9511a6aac907`. That commit contains entries 1 through 49. This sentence is the following commit on `work/grok-traces-2026-11-10`.
 
 ## 1. `comp/product_execution.rs:473-491`
 
