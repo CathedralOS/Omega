@@ -2476,6 +2476,38 @@ pub mod expression {
         mod materialization_tests {
             use super::*;
 
+            /// A contract's reserved `result` is known by its owner identity,
+            /// not its spelling, so a name rebuilt from an owned tree must
+            /// keep that owner; an edited path is a different name and
+            /// loses it.
+            #[test]
+            fn inserting_a_tree_keeps_the_reserved_result_owner() {
+                use crate::expression::{Expression, NamePath};
+                let owner = SymbolHandle::from_arena_index(7);
+                let name = |text: &str| Identifier::from(text);
+                let result = NamePath::unresolved(vec![name("result")])
+                    .denoting_reserved_result_of(owner);
+                let mut table = ExpressionTable::default();
+                let stored = table.insert_tree(&Expression::Name(result.clone()));
+                let ExpressionNode::Name(path) = table.expression(stored) else {
+                    panic!("a name is stored as a name")
+                };
+                assert_eq!(path.reserved_result_of, owner);
+                assert!(!path.symbol.is_valid());
+
+                let plain = table.insert_tree(&Expression::Name(NamePath::unresolved(vec![
+                    name("result"),
+                ])));
+                let ExpressionNode::Name(path) = table.expression(plain) else {
+                    panic!("a name is stored as a name")
+                };
+                assert!(!path.reserved_result_of.is_valid());
+
+                let mut edited = result;
+                edited.push(name("field"));
+                assert!(!edited.reserved_result_of().is_valid());
+            }
+
             #[test]
             fn replacing_the_computation_retains_its_original_occurrence() {
                 let mut table = ExpressionTable::default();
@@ -2744,7 +2776,7 @@ pub mod expression {
                             member_symbols,
                             head_symbol: path.head_symbol(),
                             symbol: path.symbol(),
-                            reserved_result_of: SymbolHandle::invalid(),
+                            reserved_result_of: path.reserved_result_of(),
                         }))
                     }
                     Expression::Range(range) => {
@@ -4566,6 +4598,11 @@ pub mod expression {
         member_symbols: Arc<[SymbolHandle]>,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
+        /// The contract owner whose reserved `result` this name denotes, as
+        /// `TableNamePath::reserved_result_of`; invalid for every other name.
+        /// Held here so `ExpressionTable::insert_tree` stores the identity
+        /// instead of leaving a name that only spells `result`.
+        reserved_result_of: SymbolHandle,
     }
 
     impl NamePath {
@@ -4576,6 +4613,7 @@ pub mod expression {
                 member_symbols: Arc::from(member_symbols.into_boxed_slice()),
                 head_symbol: SymbolHandle::invalid(),
                 symbol: SymbolHandle::invalid(),
+                reserved_result_of: SymbolHandle::invalid(),
             }
         }
 
@@ -4608,7 +4646,20 @@ pub mod expression {
                 member_symbols: Arc::from(member_symbols.into_boxed_slice()),
                 head_symbol,
                 symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }
+        }
+
+        /// This name as the reserved `result` of the contract owned by
+        /// `owner`. Any later edit of the path's members clears it, because
+        /// the edited path is a different name.
+        pub fn denoting_reserved_result_of(mut self, owner: SymbolHandle) -> Self {
+            self.reserved_result_of = owner;
+            self
+        }
+
+        pub fn reserved_result_of(&self) -> SymbolHandle {
+            self.reserved_result_of
         }
 
         pub fn resolved_from_iter(
@@ -4652,6 +4703,7 @@ pub mod expression {
 
         pub fn last_mut(&mut self) -> Option<&mut Identifier> {
             self.symbol = SymbolHandle::invalid();
+            self.reserved_result_of = SymbolHandle::invalid();
             if let Some(last_symbol) = Arc::make_mut(&mut self.member_symbols).last_mut() {
                 *last_symbol = SymbolHandle::invalid();
             }
@@ -4667,6 +4719,7 @@ pub mod expression {
             member_symbols.push(SymbolHandle::invalid());
             self.member_symbols = Arc::from(member_symbols.into_boxed_slice());
             self.symbol = SymbolHandle::invalid();
+            self.reserved_result_of = SymbolHandle::invalid();
         }
 
         pub fn push_resolved(&mut self, member: Identifier, symbol: SymbolHandle) {
@@ -4678,6 +4731,7 @@ pub mod expression {
             member_symbols.push(symbol);
             self.member_symbols = Arc::from(member_symbols.into_boxed_slice());
             self.symbol = symbol;
+            self.reserved_result_of = SymbolHandle::invalid();
         }
 
         pub fn extend_from_slice(&mut self, members: &[Identifier]) {
@@ -4690,6 +4744,7 @@ pub mod expression {
                 .extend(std::iter::repeat_with(SymbolHandle::invalid).take(members.len()));
             self.member_symbols = Arc::from(member_symbols.into_boxed_slice());
             self.symbol = SymbolHandle::invalid();
+            self.reserved_result_of = SymbolHandle::invalid();
         }
 
         pub fn head_symbol(&self) -> SymbolHandle {
