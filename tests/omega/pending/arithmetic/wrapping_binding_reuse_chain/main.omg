@@ -1,0 +1,57 @@
+// Current behavior: checks, after 32 s for sixteen bindings; no diagnostic.
+// Each binding below uses the one before it twice, and every such binding
+// multiplies checking time by a little more than two. A chain of twenty did
+// not finish in 150 s, so straight-line arithmetic of ordinary length (a
+// hash round, a filter kernel) cannot be written in one machine. The same
+// chain with one use per binding stays cheap, which points at values being
+// re-expanded per use instead of shared.
+//
+// Time in proof checking (Psi 05), compiler a666cf4b30d, one run each on a
+// Ryzen 9 7950X; about 2.0 s of every figure is the fixed cost of checking
+// any program:
+//
+//   bindings                 8      12     14     16      18
+//   previous value used 2x   2.0 s  3.1 s  7.6 s  31.8 s  155.6 s
+//
+//   bindings                 16     64     128
+//   previous value used 1x   2.0 s  3.7 s  9.4 s
+//
+// Variants that bound it: `(v + 0x9E3779B9) & 0xFFFFFFFF` in place of each
+// right-hand side gives the second table; splitting the chain across
+// machines, four bindings each with the running value as an argument, checks
+// in the fixed 2 s. The 64 steps of MD5 written straight through (128
+// bindings, each value used three or four times) ran past ten minutes and
+// 6 GB before being stopped.
+//
+// Expected after the checker shares the bound values: checks in about the
+// time of the one-use chain, and `mix(1)` is 102631425 (129^16 mod 2^32).
+machine mix(seed: u64 in Wrapping) -> u64 in Wrapping {
+    let v0: u64 in Wrapping = seed;
+    let v1: u64 in Wrapping = (v0 + (v0 << 7)) & 0xFFFFFFFF;
+    let v2: u64 in Wrapping = (v1 + (v1 << 7)) & 0xFFFFFFFF;
+    let v3: u64 in Wrapping = (v2 + (v2 << 7)) & 0xFFFFFFFF;
+    let v4: u64 in Wrapping = (v3 + (v3 << 7)) & 0xFFFFFFFF;
+    let v5: u64 in Wrapping = (v4 + (v4 << 7)) & 0xFFFFFFFF;
+    let v6: u64 in Wrapping = (v5 + (v5 << 7)) & 0xFFFFFFFF;
+    let v7: u64 in Wrapping = (v6 + (v6 << 7)) & 0xFFFFFFFF;
+    let v8: u64 in Wrapping = (v7 + (v7 << 7)) & 0xFFFFFFFF;
+    let v9: u64 in Wrapping = (v8 + (v8 << 7)) & 0xFFFFFFFF;
+    let v10: u64 in Wrapping = (v9 + (v9 << 7)) & 0xFFFFFFFF;
+    let v11: u64 in Wrapping = (v10 + (v10 << 7)) & 0xFFFFFFFF;
+    let v12: u64 in Wrapping = (v11 + (v11 << 7)) & 0xFFFFFFFF;
+    let v13: u64 in Wrapping = (v12 + (v12 << 7)) & 0xFFFFFFFF;
+    let v14: u64 in Wrapping = (v13 + (v13 << 7)) & 0xFFFFFFFF;
+    let v15: u64 in Wrapping = (v14 + (v14 << 7)) & 0xFFFFFFFF;
+    let v16: u64 in Wrapping = (v15 + (v15 << 7)) & 0xFFFFFFFF;
+    v16
+}
+
+machine main() crashes Trap {
+    let mixed: u64 in Wrapping = mix(1);
+    transition mixed == 102631425 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
