@@ -2660,6 +2660,8 @@ fail/calls/foreign_scalar_indirect_result_parameter_overlap_rejected rejected 23
 	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(FixedOccurrences(UnsupportedCarrier)))
 fail/calls/foreign_scalar_indirect_result_wrong_width_rejected rejected 17495ms expected @ccdb99ca2214
 	calling policy accepted an invalid plan: value 2 has an invalid indirect shape
+fail/calls/forwarded_callback_binder_exclusive_argument_retires_fact rejected 35877ms expected @4cfa693dde1b
+	cannot prove requires contract for call positive from caller: cell > 0 (needs fact `cell > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/free_machine_named_transition_rejected rejected 6409ms expected @ab235e9fbe19
 	cannot prove requires contract: machine `Main::main` state `main` value call to `scan` violates required fact `value == 41`: the instantiated fact is structurally false (`40 == 41`)
 fail/calls/fused_child_computed_linear_borrow rejected 2944ms expected @ccdb99ca2214
@@ -20111,6 +20113,8 @@ pass/calls/declared_range_delivery_proven checked 5191ms @ccdb99ca2214
 pass/calls/direct_target_foreign_scalar_result_exit checked 3403ms check-target:macos_arm64 @efb4acd2300e
 pass/calls/ensures_result_membership_state_graph_issuer_exit checked 2938ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/field_path_byte_subslice_exit checked 17110ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/forwarded_callback_binder_keeps_unpassed_domain checked 51123ms @4cfa693dde1b
+pass/calls/forwarded_callback_binder_shared_argument_keeps_fact checked 42071ms @4cfa693dde1b
 pass/calls/generic_operator_guard_result checked 4770ms @ccdb99ca2214
 pass/calls/generic_reference_case_declared_premise_exit checked 4031ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/generic_reference_forwarding_exit checked 16828ms check-target:macos_arm64 @ccdb99ca2214
