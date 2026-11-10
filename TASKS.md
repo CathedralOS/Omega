@@ -89,6 +89,10 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
 
+- **CASE-TYPE.** Implement the [case projection type](wiki/drafts/designs/case_projection_type.md).
+
+- **CALLABLE-REACH.** Require [explicit reach on callable types](wiki/drafts/designs/explicit_callable_reach.md).
+
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.
   - Add the crash row (public omission means none, private inference, requirement deferral, `crashes none` enforcement, per-cause routes) and the termination row (binder premises on authored `terminates`).

@@ -16,7 +16,8 @@ type object.
 data Reader<'a, some S> {
     state: &'a mut S;
     read: machine(state: &mut S, output: &mut [u8]) -> u64
-        ensures result <= output.len;
+        ensures result <= output.len
+        reaches none;
 }
 ```
 

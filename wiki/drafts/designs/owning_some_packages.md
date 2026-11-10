@@ -81,8 +81,8 @@ never ahead of the borrowed machinery it builds on.
 ```omega
 data Job<P, R, some S> [linear] {
     state: Extent in Granted & Resident<P, S>;
-    run: machine(state: Extent in Granted & Resident<P, S>) -> R;
-    cancel: machine(state: Extent in Granted & Resident<P, S>);
+    run: machine(state: Extent in Granted & Resident<P, S>) -> R reaches none;
+    cancel: machine(state: Extent in Granted & Resident<P, S>) reaches none;
 }
 ```
 

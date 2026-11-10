@@ -83,7 +83,7 @@ machine requirements, and members called through conformance evidence binders.
 | Checked body, including public APIs | Infer from checked calls. | Bound the derived reach. |
 | Bodyless non-boundary requirement | Defer to the selected implementation's published reach. | Bound admitted implementations; `reaches none` requires empty reach. |
 | Boundary requirement | Reject the missing declaration. | Publish a stable ceiling across providers. |
-| Runtime callable type | Empty reach. | Publish a fixed finite ceiling. |
+| Runtime callable type | Reject the missing declaration. | Publish a fixed finite ceiling; `reaches none` states empty reach. |
 
 Every public machine publishes its checked summary, including unresolved static
 dependencies on generic interfaces. A requirement relying on service-free
@@ -93,6 +93,17 @@ reach. The callable shape and all other contract axes retain their own rules.
 No `reaches _` spelling is introduced on originating requirements; the existing
 [transparent-refinement form](conformances.md#transparent-refinements) retains
 its inherited constraints.
+
+Named decision: `explicit-callable-reach`, settled 2026-11-09. An authored
+runtime callable type states its service ceiling, as a boundary requirement
+does. Omitted `reaches` therefore has two meanings and never a silent empty
+one: it is derived, from a checked body's calls or from a static requirement's
+selected implementation, or it is rejected where a fixed interface has neither.
+A signature copied from a `requires machine` requirement into a field type
+cannot change from open reach to empty reach without the author writing
+`reaches none`. The other axes keep their omission rules on callable types.
+Implementation is tracked by `CALLABLE-REACH`; see the
+[design record](../../drafts/designs/explicit_callable_reach.md).
 
 ### Implementation boundaries and capability identities
 
