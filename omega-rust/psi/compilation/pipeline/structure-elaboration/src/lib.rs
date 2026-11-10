@@ -187,6 +187,7 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
         let body = program.body(next)?;
         bodies.push(body);
     }
+    program.refuse_recursion()?;
     let mut module = TerminalModule::for_entry(entry);
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();

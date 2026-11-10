@@ -50,6 +50,8 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// Every direct call read so far, as (caller, callee).
+    calls: Vec<(MachineId, MachineId)>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -136,6 +138,7 @@ impl<'t> Program<'t> {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            calls: Vec::new(),
         }
     }
 
@@ -164,6 +167,39 @@ impl<'t> Program<'t> {
         self.symbols.push(symbol);
         self.signatures.push(signature);
         Ok(id)
+    }
+
+    /// Refuses recursion: a cycle in the call graph read so far, including a
+    /// machine that calls itself. Kahn's algorithm over the call edges; a
+    /// machine left with incoming edges lies on or behind a cycle.
+    pub fn refuse_recursion(&self) -> Checked<()> {
+        let count = self.symbols.len();
+        let index = |machine: MachineId| machine.get() as usize - 1;
+        let mut incoming = vec![0_usize; count];
+        for (_, callee) in &self.calls {
+            incoming[index(*callee)] += 1;
+        }
+        let mut ready: Vec<usize> = (0..count).filter(|machine| incoming[*machine] == 0).collect();
+        let mut settled = 0;
+        while let Some(machine) = ready.pop() {
+            settled += 1;
+            for (caller, callee) in &self.calls {
+                if index(*caller) == machine {
+                    incoming[index(*callee)] -= 1;
+                    if incoming[index(*callee)] == 0 {
+                        ready.push(index(*callee));
+                    }
+                }
+            }
+        }
+        match incoming.iter().position(|edges| *edges != 0) {
+            None if settled == count => Ok(()),
+            unsettled => {
+                let machine = MachineId::new(unsettled.unwrap_or(0) as u64 + 1)
+                    .expect("positions start at 1");
+                Err(refuse(machine, Construct::Machine, Unserved::Call("recursion")))
+            }
+        }
     }
 
     fn declaration(&self, id: MachineId, symbol: SymbolHandle) -> Checked<(&'t Machine, &'t State)> {
@@ -786,6 +822,7 @@ impl<'t> Program<'t> {
             read.push(self.expression(id, slots, *argument)?);
         }
         let callee = self.machine(target)?;
+        self.calls.push((id, callee));
         let signature = terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
         if signature.parameters.len() != read.len()
             || signature
