@@ -14,8 +14,8 @@ Launch refusals:
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
-| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 3 | 18 | 0 |
-| B | 81 file ranges (B1 26, B2 55); merge files not started | 14 | 2 | 0 |
+| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 3 | 20 | 0 |
+| B | 81 file ranges (B1 26, B2 55); merge files not started | 15 | 0 | 0 |
 | C | 117 chapter pieces from 103 files; lane merge not started | 0 | 0 | 0 |
 | D | 412 batches, 17263 programs; D2 not started | 1 | 0 | 0 |
 | E | 19 units, 591 files, 7 excluded | 0 | 0 | 0 |
@@ -24,4 +24,4 @@ Launch refusals:
 
 Running agent ids are in `state/inflight.tsv`.
 
-Returned and not yet copied onto the branch (text is in the coordinator transcript): `b1_001` through `b1_004`, `b1_006`, `b1_011` through `b1_014`, `b1_016` through `b1_026`, `b2_002` through `b2_005`, `b2_007` through `b2_012`, `b2_014` through `b2_017`, `b2_019`, `b2_024`, `b2_025`, `batch_0001`, `C0001`, `C0002`, `unit_001`, `unit_002`. Each ended with its completion line. Copied this wave: `b2_044`. `descriptor_results.rs` stores existing integer and boolean constants and builds a `ScalarTerm` for add, subtract, multiply, divide, and remainder under exact, wrapping, and saturating policies. It does not call `IntegerArithmetic::evaluate`. Shifts are not represented. Boolean case tests negate a stored `bool`. Also returned, not yet copied: `b2_043`, `b2_045` through `b2_053`.
+Returned and not yet copied onto the branch (text is in the coordinator transcript): `b1_001` through `b1_004`, `b1_006`, `b1_011` through `b1_014`, `b1_016` through `b1_026`, `b2_002` through `b2_005`, `b2_007` through `b2_012`, `b2_014` through `b2_017`, `b2_019`, `b2_024`, `b2_025`, `batch_0001`, `C0001`, `C0002`, `unit_001`, `unit_002`. Each ended with its completion line. Copied this wave: `b2_054`. Selected-instruction literal folds do not evaluate add, divide, or remainder. A divisor of 1 becomes a copy. A zero dividend, or a wrapping remainder by 1 or by `u64::MAX`, becomes the constant 0. There is no shift rule. Signed minimum divided by minus one has no dedicated rule. Also returned with `SLICE COMPLETE`, not yet copied: `slice_0005` through `slice_0009`. `b2_055` agrees on `fold_immediate` and was not copied.
