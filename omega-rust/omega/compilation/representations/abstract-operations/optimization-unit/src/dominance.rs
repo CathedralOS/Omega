@@ -64,7 +64,7 @@ pub(super) fn solve(
     let order = reverse_postorder(&outgoing, entry_position);
     let word_count = blocks.len().div_ceil(64);
     let mut universe = vec![u64::MAX; word_count];
-    if blocks.len() % 64 != 0
+    if !blocks.len().is_multiple_of(64)
         && let Some(last) = universe.last_mut()
     {
         *last = (1 << (blocks.len() % 64)) - 1;
@@ -278,7 +278,7 @@ mod tests {
                     }
                 }
             }
-            if count % 64 != 0 {
+            if !count.is_multiple_of(64) {
                 assert!(
                     packed
                         .rows
