@@ -85,10 +85,11 @@ pub(crate) use artifact_admission::ArtifactLoweringError;
 pub use artifact_admission::{
     ArtifactSections, NativeExecutionSelection, NativeScalarApplications,
     TerminalAccessViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
+    lower_module_with_evidence,
 };
 pub use lowering::LoweringError;
 pub use optimization::{
-    VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
+    ObligationEvidence, VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
     VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
 pub use providers::provider_installation::SelectedProviderAdapter;
