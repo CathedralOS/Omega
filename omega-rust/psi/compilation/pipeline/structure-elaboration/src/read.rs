@@ -771,9 +771,10 @@ impl<'t> Program<'t> {
                 if operational_acknowledgement.acknowledges_suspend || operational_acknowledgement.acknowledges_block {
                     return Err(refuse(id, Construct::Machine, Unserved::Call("suspend or block acknowledgement")));
                 }
-                if static_machine_parameter.is_valid() || !evidence_arguments.is_empty() || authored_call_selection.is_some() {
-                    return Err(refuse(id, Construct::Machine, Unserved::Call("static, evidence or selected call")));
+                if static_machine_parameter.is_valid() || !evidence_arguments.is_empty() {
+                    return Err(refuse(id, Construct::Machine, Unserved::Call("static or evidence call")));
                 }
+                self.direct_selection(id, path.symbol, *authored_call_selection, None)?;
                 if typed.statement_table.name_path_members(path.members).len() != 1 || path.receiver_symbol.is_valid() {
                     return Err(refuse(id, Construct::Machine, Unserved::Call("qualified or receiver call")));
                 }
@@ -794,6 +795,37 @@ impl<'t> Program<'t> {
         Ok(self.typed.expression_table.expression(expression))
     }
 
+    /// A call is direct only when its authored selection, if recorded,
+    /// resolved to exactly the called machine, and its call binding, if
+    /// recorded, neither rebinds it nor reaches it through another
+    /// declaration. All comparisons are of symbols.
+    fn direct_selection(
+        &self,
+        id: MachineId,
+        target: SymbolHandle,
+        selection: Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+        binding: Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
+    ) -> Checked<()> {
+        use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if let Some(occurrence) = selection {
+            let Some(selected) = self.typed.authored_declaration_selections().get(occurrence) else {
+                return unserved("authored selection missing from its ledger");
+            };
+            match selected.target() {
+                AuthoredDeclarationSelectionTarget::Resolved(resolved) if resolved.selected_symbol() == target => {}
+                AuthoredDeclarationSelectionTarget::Resolved(_) => return unserved("selection resolved to another declaration"),
+                AuthoredDeclarationSelectionTarget::Intrinsic(_) => return unserved("intrinsic selection"),
+                AuthoredDeclarationSelectionTarget::LateBound(_) => return unserved("late-bound selection"),
+            }
+        }
+        match binding {
+            None => Ok(()),
+            Some(binding) if binding.selected == target && binding.original == target => Ok(()),
+            Some(_) => unserved("rebound call"),
+        }
+    }
+
     fn call_statement(&mut self, id: MachineId, slots: &[Slot], call: &TableCall) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if call.installed_interrupt_operation.is_some()
@@ -801,10 +833,10 @@ impl<'t> Program<'t> {
             || call.static_requirement_dispatch.is_some()
             || !call.machine_arguments.is_empty()
             || call.reflected_field_origin.is_some()
-            || call.authored_call_selection.is_some()
         {
-            return unserved("static, selected or reflected call");
+            return unserved("static or reflected call");
         }
+        self.direct_selection(id, call.target_symbol, call.authored_call_selection, None)?;
         if call.receiver_root_symbol.is_valid() || call.receiver_symbol.is_valid() || !call.receiver.is_empty() {
             return unserved("receiver call");
         }
@@ -820,16 +852,19 @@ impl<'t> Program<'t> {
 
     fn call_expression(&mut self, id: MachineId, slots: &[Slot], call: &TableCallExpression, source: SourceOrigin) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
-        if call.installed_interrupt_operation.is_some()
-            || call.authored_machine_application.is_valid()
-            || call.static_requirement_dispatch.is_some()
-            || !call.machine_arguments.is_empty()
-            || call.authored_call_selection.is_some()
-            || call.authored_call_binding.is_some()
-            || call.build_selection.is_valid()
-        {
-            return unserved("static, selected or Build call");
+        if call.installed_interrupt_operation.is_some() {
+            return unserved("installed interrupt operation");
         }
+        if call.authored_machine_application.is_valid() || !call.machine_arguments.is_empty() {
+            return unserved("static machine application");
+        }
+        if call.static_requirement_dispatch.is_some() {
+            return unserved("static requirement dispatch");
+        }
+        if call.build_selection.is_valid() {
+            return unserved("Build selection");
+        }
+        self.direct_selection(id, call.target_symbol, call.authored_call_selection, call.authored_call_binding)?;
         if call.quotient_operation.is_some()
             || call.private_layout_operation.is_some()
             || call.layout_query.is_some()
