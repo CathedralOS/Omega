@@ -21,10 +21,17 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 | 13 | whr/windows_handle_origins.rs:87 | CLOSED | Those origins are marked unknown, and the argument solver rejects an unknown word. The site comment already says they are unknowns. |
 | 14 | pa/provider_installation.rs:219-229 | UNDECIDED | An unselected catalog row is not installed. Whether a call to a boundary whose candidates were all filtered out is rejected later was not settled. |
 | 15 | pa/provider_installation/replay.rs:66-68, :151-160, :33-52 | CLOSED | A call with no replay row is left out of the selected-call map, and the settlement roster then requires a settlement for it. |
+| 16 | pp/intrinsic_declarations.rs:314-319 | REACHABLE | Review settles a hosted row with no declaration identity, so a failed declaration identity is never compared. |
+| 17 | pp/data_layout_queries/builder/data_layouts.rs:170-185 | UNDECIDED | A plan-laid record with a failed identity and no callback demand is still returned. Whether the layout-query caller enters that arm was not settled. |
+| 18 | pp/data_layout_queries/builder/private_callback_closure.rs:69-74, :184-186 | CLOSED | The record that owns the callback demand is visited on its own, and the demand match happens before the enum skip. |
+| 19 | pp/program_entry/source_contract.rs:121-124, :128 | CLOSED | The only consumer passes those strings into a constructor that rejects an empty parameter or result identity. |
+| 20 | pp/provider_identity.rs:22 | UNDECIDED | A plan with an application identity skips the no-type-parameter test. Whether that plan is supposed to be rejected was not settled. |
 
 `orch/` is `omega/build-system/orchestration/src/`. `ba/` is `omega/compilation/backend/artifacts/boundary-applications/src/`. `cd/` is `omega/compilation/backend/artifacts/component-description/src/`. `nc/` is `omega/compilation/native-compiler/src/`. `pa/` is `omega/compilation/realization/provider-admission/src/`. `whr/` is `pa/provider_admission/terminal_authority_review/`.
 
-Entries 16 onward are not written yet.
+`pp/` is `omega/compilation/realization/provider-planning/src/`.
+
+Entries 21 onward are not written yet.
 
 ## 1. `comp/product_execution.rs:473-491`
 
@@ -227,4 +234,60 @@ A call with no installed provider is not replayed, and it is not accepted unless
 Digest: right about the skip and first-wins. The skip does not accept the call.
 
 Not read: the external-completion arm of `index_boundary_calls` past `:89`. Boundary calls are indexed. External completions are handled in `replay` and in `selected_boundary_calls::index`, which I did read.
+
+## 16. `pp/intrinsic_declarations.rs:314-319`
+
+`IntrinsicDeclaration::settle` (`intrinsic_declarations.rs:274-333`, read). For a hosted row, `subject.matches` (`:84-112`, read) requires the role, package owners, declaration path, schema digest, and plan digest. If that passes and `binding.declaration_identity` is `None`, the arm returns `true` (`:314-318`) and does not read `declaration_identity` on the declaration. An `Err` stored there is ignored.
+
+`retain_selected_compiler_intrinsic_review_identities` builds that binding with `declaration_identity: None` (`intrinsic_review.rs:220-223`, read) and passes it to `settle_declaration` (`:246-252`, read). `settle_declaration` (`compiler_intrinsic.rs:127-139`, read) returns `Closed` when `settle` returns `Some`. Search `settle_declaration`: the review call above and the definition. I did not read a second constructor that passes `Some`.
+
+A hosted console or process-exit plan whose package, path, schema digest, and selected plan digest match the accepted binding is closed even when the declaration's own identity result failed.
+
+Digest: right.
+
+Not read: `compiler_intrinsic.rs` above `:120`. The numeric arm returns before this settle when a numeric identity is present (`intrinsic_review.rs:244-245`).
+
+## 17. `pp/data_layout_queries/builder/data_layouts.rs:170-185`
+
+The plan-laid record arm (read `:170-243`) turns `native_policy_identity` and `native_data_identity` errors into `None` with `.ok()`. The identity row is pushed only when both are `Some` (`:211-236`). If callback demands are nonempty, a missing subject is `Err` (`:191-200`). If they are empty, the function still returns `Ok(DataLayout ...)` (`:238-243`). `LayoutBuilder::finish` (`builder.rs:255-266`, read) keeps `data_layouts` after closing callback layouts.
+
+Search `build_layout_plan\(`: 7 hits, 6 in `builder/tests.rs` and the definition. `try_layout_type_reference` is called from `data_layout_queries.rs:128`. I did not read `layout_type_reference_handle`, so I do not know whether that call enters this plan-laid arm.
+
+Verdict UNDECIDED. What would decide it: whether `measure` in `data_layout_queries.rs` reaches `layout_data_definition`'s plan-laid arm. If it does, a record with no callback slot and a failing identity derivation is laid out with no identity row. If it does not, the arm is test-only.
+
+Digest: right about the `.ok()` and the missing row.
+
+Not read: `native_policy_identity` and `data_layout_queries.rs:128` past the call.
+
+## 18. `pp/data_layout_queries/builder/private_callback_closure.rs:69-74` and `:184-186`
+
+`close_private_callback_layouts` (`private_callback_closure.rs:22-74`, read) walks every `DataLayout`. A non-record shape `continue`s (`:69-74`) and gets no natural-layout identity. `reaches_slot` (`:166-196`, read) returns true when `demand.data_symbol == symbol` (`:173-174`) before it looks at the shape. A non-record then returns false (`:184-185`) and is not descended.
+
+The loop visits the record that owns the demand as its own layout. That record hits the demand match and is not skipped by the enum arm. An enum root is not used as a path through a case payload. The slot's record does not need that path.
+
+Digest: the skip of enum and mixed shapes is what the code does. A callback slot on a record is not missed because the slot sits in a case.
+
+Not read: `close_path` and `install_geometry`. They run after a record has already been selected.
+
+## 19. `pp/program_entry/source_contract.rs:121-124` and `:128`
+
+`prepare` (`source_contract.rs:106-131`, read) stores `type_identity_text(...).unwrap_or_default()`, so a missing text is `""`, for each parameter and for the result. Search `PreparedEntryCallingContract {`: the struct and this constructor. The only consumer is `program_entry.rs:302`, which calls `calling_plans::settle` (`:598-617`, read). `settle` rejects a missing result (`:716-719`, read) and passes the strings to `ProgramEntryPhysicalContractPlan::new` (`:721-729`, read). Search `ProgramEntryPhysicalContractPlan::new\(`: 1 hit, that call. `new` (`program-entry-plan/src/program_entry_physical.rs:154-159`, read) returns `Err` when any parameter identity is empty or the result identity is empty.
+
+Digest: right that the string becomes `""`. Empty does fail, in the only consumer.
+
+Not read: `physical_source.validate` before the `new` call. It does not replace these strings. `settle` passes the contract's strings through.
+
+## 20. `pp/provider_identity.rs:22`
+
+`named_provider` (`provider_identity.rs:16-30`, read). The filter is `(plan.application_identity().is_some() || eligible(definition))` plus path and package equality. `eligible` is `type_parameters.is_empty()` (`psi/compilation/build-time-evaluation/src/product.rs:1938-1940`, read). A conformance with type parameters is returned when the plan's application identity is `Some` and it is the unique path and package match.
+
+Search `named_provider\(`: 5 hits, three in `provider_identity.rs`, `provider_instances.rs:171`, and `adapter_conformance.rs:95`. Both outside callers use the symbol with no second `eligible` call (`adapter_conformance.rs:95-103` and `provider_instances.rs:170-171`, read).
+
+I did not read `application_identity()`. The disjunction may be the captured-application case, where a generic declaration is the intended owner. I cannot say the generic conformance should be rejected.
+
+Verdict UNDECIDED. What would decide it: the body of `ProviderPlan::application_identity` and whether a nonempty application is allowed to name a generic conformance.
+
+Digest: right that `eligible` is skipped when an application identity is present.
+
+Not read: `provider_plan.rs` around the application-identity accessor.
 
