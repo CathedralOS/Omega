@@ -112,3 +112,8 @@ outside users of anything documented as shared, and for the `stated` / `traced` 
   and whether the check is independent. Each claim is marked as opened in the
   code or taken from a record. They correct two digest claims: PE output is
   partly re-read, and program-entry binding works for hosted targets.
+- `reviews/`: three notes written from the code after an automated pass
+  traced about 800 accept-on-unknown places: a graded random sample of those
+  traces (its "a bad program gets through" verdicts were right about one time
+  in ten, its "closed" verdicts every time checked), what the Terminal
+  interpreter checks at run time, and what constant folding refuses.

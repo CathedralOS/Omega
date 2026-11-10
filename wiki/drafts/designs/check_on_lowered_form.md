@@ -137,10 +137,11 @@ Two standing rules on the parts that stay, both from the full read:
   evaluation that lost the identity rather than matching text in elaboration.
 - **Omega's own checks are not counted as independent.** Its stages mostly
   check a result with a second hand-written derivation or with the same
-  builder. This record does not change what Omega trusts, removes or guards
-  (whether missing kernel evidence retains runtime checks is proposed pending
-  the owner in [What each stage may trust](stage_trust.md) and
-  [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md)) and does not lean on
+  builder. This record does not change what Omega trusts, removes or guards.
+  The back half trusts the checker, as the specification says; the checker
+  earns that by accepting only what the proof kernel verified and rejecting
+  the rest at compile time ([What each stage may trust](stage_trust.md), rule
+  2). It does not lean on
   those checks to catch a defect in the new checker.
 
 Much of the receiving side exists. `terminal-psi/semantics` (51,352 lines)
@@ -226,9 +227,9 @@ before variants are added. Route one is:
   changing what the back half trusts, removes or guards; an artifact re-read
   from bytes (including a compiler-storage cache read) has no in-memory
   evidence, which is explicit and neither an error nor filled from an earlier
-  build (see [What each stage may trust](stage_trust.md) and
-  `evidence-gated-check-removal` in
-  [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md)).
+  build (see [What each stage may trust](stage_trust.md)). An obligation the
+  prover cannot discharge is a compile error for the program, never a slower
+  guarded form.
 - **Oracle.** Every corpus program inside the subset is checked by both
   routes. A disagreement is a defect in one of them and is classified, not
   averaged. The must-reject programs listed below guard the cases where the
@@ -474,10 +475,9 @@ overwrites; a rank premise across a pause.
   (`:8476-8556`, `:8640-8652`), the kernel front end checks the rule instance
   semantically (`integer_bound_rules`) before `rule_instance` mints a
   placeholder rule-axiom term in the core denotation; it is not an unchecked
-  acceptance. Whether missing kernel evidence should retain runtime guards in
-  native code across separate consumption is proposed pending the owner
-  (`evidence-gated-check-removal` in
-  [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md)).
+  acceptance. Missing evidence never keeps a runtime guard in native code: the
+  checker rejects what it cannot prove, and the back half trusts what the
+  checker accepted.
 - **Identity of a type on the lowered form.** Terminal Psi compares nominal
   identities by text within `TerminalIdentityIndex` (`terminal-psi/src/identity.rs:22`),
   and names record fields in `StructuralPathSegment::Field` by that index.
@@ -500,8 +500,13 @@ overwrites; a rank premise across a pause.
   says "No result is reused". Recorded for the owner as
   `specialization-certificate-reuse` in
   [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md), together with the
-  proposed reading (carry certificates through specialization and re-verify
-  them in `proof/admission` in each consumer without re-searching).
+  reading to confirm (carry certificates through specialization and re-verify
+  them in `proof/admission` in each consumer without re-searching). Read in
+  context the two clauses agree: the validation chapter's own account of a
+  check is "a lemma with valid evidence", and "a generic body under its
+  requirements", which also points to checking a generic body once. A test of
+  re-verifying a saved proof, including stale and misplaced ones, is planned
+  in `lowered-discharge` before anything is built on it.
 
 ## Corrections to fact transport
 
