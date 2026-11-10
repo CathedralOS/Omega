@@ -273,8 +273,8 @@ mod tests {
                     assert!(!set.contains(&blocks[position - 1]));
                 }
                 if count <= 65 {
-                    for member in 0..count {
-                        assert_eq!(set.contains(&blocks[member]), member >= position);
+                    for (member_position, member) in blocks.iter().enumerate() {
+                        assert_eq!(set.contains(member), member_position >= position);
                     }
                 }
             }
