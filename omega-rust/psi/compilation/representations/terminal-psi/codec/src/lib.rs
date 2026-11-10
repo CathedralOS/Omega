@@ -37,6 +37,7 @@ pub use identity_formations::{
 mod mathematical_proof_actual;
 pub(crate) use mathematical_proof_actual::indexed_theorem_roots;
 mod module_wire;
+mod obligation_evidence;
 mod sections;
 mod semantic_module;
 mod structural_wire;
@@ -71,6 +72,7 @@ pub(crate) mod codec_error {
         PropositionNestingTooDeep,
         ScalarTermNestingTooDeep,
         ContentTermNestingTooDeep,
+        CertificateNestingTooDeep,
         StringTooLong(&'static str),
         InvalidUtf8(&'static str),
         MalformedStructuralFoundation(&'static str),
@@ -137,6 +139,7 @@ pub use canonical_artifact::{
     CanonicalTerminalArtifactError, TerminalArtifactView,
 };
 pub use codec_error::CodecError;
+pub use obligation_evidence::{EvidenceSeals, ObligationEvidenceSeal, canonical_certificate_bytes};
 pub use sections::artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
     build_artifact_manifest, validate_artifact_manifest,

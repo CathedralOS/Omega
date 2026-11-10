@@ -81,3 +81,25 @@ subset needs, so the prover emits them directly.
    its evidence, so an exact `<<` whose count is not a literal zero is
    `Unproved`. No multiply result bound is built either: the kernel has no
    multiply definition rule.
+
+## Evidence seals
+
+`Discharge::operation_seals` turns each discharged `OperationSafety`
+obligation into a `terminal_codec::ObligationEvidenceSeal`: the obligation's
+machine and identity, its goal, the hypotheses and the certificate, and a
+SHA-256 fingerprint over their canonical encoding. Only that kind becomes an
+accepted fact in Omega 00. The caller hands the seals to Omega 00 with
+`VerifiedPsiOptimizationInput::with_evidence_seals`.
+
+Omega 00 checks each seal before it fills the fact's
+`proof_bundle_fingerprint`: the fingerprint matches the seal's parts, the
+operation is in the module and owns the obligation, and the goal Terminal
+semantics states for that operation equals the sealed goal. A seal that fails
+a check, or names no accepted fact, refuses the unit. Omega 00 does not re-run
+the kernel: that the kernel accepted the certificate under those hypotheses,
+and that the hypotheses held where the obligation sits, it takes on faith.
+
+Seals are in memory only. Terminal Psi's layout has no place for them yet, so
+they are lost on a byte round trip and do not survive a stored artifact: a
+module lowered from bytes, including one a cache rebuilt, arrives with
+`ObligationEvidence::ReadFromBytes` and zero fingerprints.

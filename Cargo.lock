@@ -1176,6 +1176,7 @@ dependencies = [
  "semantic-vocabulary",
  "structure-elaboration",
  "terminal-check-tables",
+ "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2716,6 +2717,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "layout-plans",
+ "lowered-discharge",
  "numerics",
  "optimization-core",
  "optimization-unit",
@@ -2728,6 +2730,7 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "source",
+ "structure-elaboration",
  "symbols",
  "target",
  "target-operations",
