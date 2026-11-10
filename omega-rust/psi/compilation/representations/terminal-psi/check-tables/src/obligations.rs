@@ -159,6 +159,12 @@ mod tests {
         };
         assert!(loan.is_conserved() && window.is_conserved());
         assert!(!ObligationKind::ArrivalInvariant { edge }.is_conserved());
-        assert!(!ObligationKind::NormalGuarantee { exit: edge, clause: 0 }.is_conserved());
+        assert!(
+            !ObligationKind::NormalGuarantee {
+                exit: edge,
+                clause: 0
+            }
+            .is_conserved()
+        );
     }
 }

@@ -7,8 +7,7 @@ a lane adds a field here, with its citation and a README row, never a table.
 */
 
 use semantic_vocabulary::{
-    BlockId, CrashCause, InvocationSite, MachineId, ObligationId, PropositionId, ServiceId,
-    ValueId,
+    BlockId, CrashCause, InvocationSite, MachineId, ObligationId, PropositionId, ServiceId, ValueId,
 };
 
 use crate::ExactPlaceId;
