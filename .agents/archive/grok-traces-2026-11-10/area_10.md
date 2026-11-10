@@ -223,7 +223,7 @@ Read `require_unrestricted_byte_region` from `5212` through `5252`. A fixed inde
 
 Reached 1–20. REACHABLE: 0. CLOSED: 4 (11, 12, 18, 19). UNDECIDED: 16. Not reached: 21–93 (73 entries).
 
-Analysis commit for entries 1–20: `aacead57058939620a092ab223cd4c9138fb2af0` on `work/grok-traces-2026-11-10`.
+Trace commit: `fcf87d0c2fb977349b5d43c9d19e0d459bda583c` on `work/grok-traces-2026-11-10`.
 
 ## Entries not reached
 
