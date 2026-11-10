@@ -966,11 +966,12 @@ pub(crate) mod control_flow {
         function: &TargetFunction,
         graph: &TargetControlGraph,
         abstracted: &AbstractFunction,
-        optimized: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
     ) -> Result<crate::legalization::scalar_graph_input::BlockEntryCustody, LegalizationError> {
+        let optimized = function_inputs.function();
         if (function.attachment != optimized.attachment
             || function.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
             || graph.structural_types != plan.structural_types
@@ -1078,7 +1079,7 @@ pub(crate) mod control_flow {
                     &graph.parameters,
                     &mut available,
                     &custody,
-                    optimized,
+                    function_inputs,
                     native,
                     plan,
                     unit,
@@ -1370,7 +1371,7 @@ pub(crate) mod control_flow {
                         && cleanup_actions == expected_cleanup
                         && (cleanup_actions.is_empty()
                             || crate::legalization::scalar_graph_input::aggregate_results::cleanup(
-                                optimized,
+                                function_inputs,
                                 cleanup_actions,
                                 &plan.structural_types,
                             ))
@@ -1381,7 +1382,8 @@ pub(crate) mod control_flow {
                             let checker = Checker {
                                 function,
                                 available: Some(&available),
-                                optimized,
+                                optimized: function_inputs.function(),
+                                function_inputs,
                                 types: unit.structural_types.as_slice(),
                             };
                             match expression {
@@ -1455,7 +1457,7 @@ pub(crate) mod control_flow {
                         && (cleanup.is_empty()
                             || crate::legalization::scalar_graph_input::read_byte::cleanup(optimized, cleanup)
                             || crate::legalization::scalar_graph_input::aggregate_results::cleanup(
-                                optimized,
+                                function_inputs,
                                 cleanup,
                                 &plan.structural_types,
                             ))
@@ -1482,7 +1484,7 @@ pub(crate) mod control_flow {
                             plan,
                         )
                         && edge_cleanup_matches(
-                            optimized,
+                            function_inputs,
                             &successor.cleanup_actions,
                             cleanup_actions,
                             &plan.structural_types,
@@ -1505,12 +1507,13 @@ pub(crate) mod control_flow {
                         && (Checker {
                             function,
                             available: Some(&available),
-                            optimized,
+                            optimized: function_inputs.function(),
+                            function_inputs,
                             types: unit.structural_types.as_slice(),
                         })
                         .boolean_source(condition, *expected, &[])
-                        && successor_matches(optimized, block.block, plan, when_true, expected_true)
-                        && successor_matches(optimized, block.block, plan, when_false, expected_false)
+                        && successor_matches(function_inputs, block.block, plan, when_true, expected_true)
+                        && successor_matches(function_inputs, block.block, plan, when_false, expected_false)
                 }
                 _ => false,
             };
@@ -1522,12 +1525,13 @@ pub(crate) mod control_flow {
     }
 
     fn successor_matches(
-        function: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         block: semantic_vocabulary::BlockId,
         plan: &AbstractOperationPlan,
         target: &TargetControlSuccessor,
         source: &abstract_operations::AbstractSuccessor,
     ) -> bool {
+        let function = function_inputs.function();
         target.psi_edge == source.psi_edge
             && target.target == source.target
             && target.bindings == source.bindings
@@ -1540,7 +1544,7 @@ pub(crate) mod control_flow {
                 plan,
             )
             && edge_cleanup_matches(
-                function,
+                function_inputs,
                 &target.cleanup_actions,
                 &source.cleanup_actions,
                 &plan.structural_types,
@@ -1548,14 +1552,14 @@ pub(crate) mod control_flow {
     }
 
     fn edge_cleanup_matches(
-        function: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         actions: &[terminal_psi::TerminalAffineCleanupAction],
         expected: &[terminal_psi::TerminalAffineCleanupAction],
         structural_types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> bool {
         actions == expected
             && crate::legalization::scalar_graph_input::aggregate_results::cleanup(
-                function,
+                function_inputs,
                 actions,
                 structural_types,
             )
@@ -2184,7 +2188,6 @@ pub(crate) mod expressions {
     use crate::legalization::scalar_graph_input::target::Expression;
     use crate::legalization::scalar_graph_input::target::location_matches;
     use crate::legalization::scalar_graph_input::target::resolve;
-    use crate::legalization::scalar_graph_input::value_type;
     use crate::legalization::scalar_graph_input::{
         saturating_carrier, supports_wrapping_division, trapping_form,
     };
@@ -2669,8 +2672,9 @@ pub(crate) mod expressions {
                 _ => return false,
             };
             operation == target_operation
-                && value_type(self.optimized, source_left) == Some(ScalarType::Integer(scalar_type))
-                && value_type(self.optimized, source_right)
+                && self.function_inputs.value_type(source_left)
+                    == Some(ScalarType::Integer(scalar_type))
+                && self.function_inputs.value_type(source_right)
                     == Some(ScalarType::Integer(right_scalar_type))
                 && self.integer_source(left, source_left, aliases)
                 && self.integer_source(right, source_right, aliases)
@@ -5044,11 +5048,12 @@ pub(crate) mod unit {
         parameters: &[TargetStructuralParameter],
         sources: &mut Vec<(ValueId, Source)>,
         custody: &crate::legalization::scalar_graph_input::reference_custody::Custody,
-        optimized: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
     ) -> Result<(), LegalizationError> {
+        let optimized = function_inputs.function();
         if matches!(abstracted, AbstractOperation::BoundaryCall { .. }) {
             let node = optimized
                 .block_nodes()
@@ -5074,7 +5079,7 @@ pub(crate) mod unit {
                     parameters,
                     sources,
                     custody,
-                    optimized,
+                    function_inputs,
                     native,
                     plan,
                     unit,
@@ -5084,7 +5089,8 @@ pub(crate) mod unit {
         let checker = Checker {
             function,
             available: Some(sources),
-            optimized,
+            optimized: function_inputs.function(),
+            function_inputs,
             types: unit.structural_types.as_slice(),
         };
         let projected_bytes = match target {
@@ -6693,11 +6699,12 @@ pub(crate) mod unit {
 pub(crate) fn validate_target(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
-    optimized: &PsiOptimizationFunction,
+    function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<crate::legalization::scalar_graph_input::BlockEntryCustody, LegalizationError> {
+    let optimized = function_inputs.function();
     crate::legalization::scalar_graph_input::hosted_scalar::validate_normal_call_completions(
         native, optimized, plan,
     )?;
@@ -6736,7 +6743,7 @@ pub(crate) fn validate_target(
         target,
         &target.graph,
         abstracted,
-        optimized,
+        function_inputs,
         native,
         plan,
         unit,
@@ -6747,6 +6754,7 @@ pub(crate) struct Checker<'a> {
     function: &'a TargetFunction,
     available: Option<&'a [(ValueId, target_operations::TargetUnitScalarArgumentSource)]>,
     optimized: &'a PsiOptimizationFunction,
+    function_inputs: &'a crate::legalization_function_inputs::FunctionInputs<'a>,
     types: &'a [terminal_psi::StructuralTypeDeclaration],
 }
 fn resolve(value: ValueId, aliases: &[(ValueId, ValueId)]) -> ValueId {
