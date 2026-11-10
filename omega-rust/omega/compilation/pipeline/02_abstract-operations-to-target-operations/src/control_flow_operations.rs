@@ -1332,11 +1332,6 @@ pub(crate) mod scalar_sources {
         TargetUnitScalarHomeRequirement,
     };
 
-    // Saved block states share unchanged homes. An insertion copies the map only
-    // when another state still needs its previous contents.
-    pub(crate) type ScalarHomes =
-        std::sync::Arc<BTreeMap<ValueId, TargetUnitScalarHomeRequirement>>;
-
     #[derive(Clone, Copy)]
     pub(crate) struct ScalarSources<'a> {
         pub integers: &'a BTreeMap<ValueId, KnownUnitInteger>,

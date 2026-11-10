@@ -26,7 +26,8 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
-    BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TerminalPsiProvenance,
+    BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TargetUnitScalarHomeRequirement,
+    TerminalPsiProvenance,
 };
 use terminal_psi::{StructuralAccess, StructuralPathSegment, TerminalAffineCleanupAction};
 #[path = "control_flow_operations.rs"]
@@ -2420,6 +2421,10 @@ pub(crate) struct ReferenceEdgeStorage {
     retired_reference_roots: BTreeSet<PlaceId>,
 }
 
+// Saved block states share unchanged homes. An insertion copies the map only
+// when another state still needs its previous contents.
+pub(crate) type ScalarHomes = std::sync::Arc<BTreeMap<ValueId, TargetUnitScalarHomeRequirement>>;
+
 #[derive(Clone)]
 pub(crate) struct LiveDefinitions {
     borrowed_reference_sources: references::BorrowedSources,
@@ -2429,7 +2434,7 @@ pub(crate) struct LiveDefinitions {
     structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
-    scalar_homes: scalar_sources::ScalarHomes,
+    scalar_homes: ScalarHomes,
     ieee_float_constants: BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
     scalar_block_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
@@ -2802,7 +2807,7 @@ pub(crate) fn lower(
         structural_homes: BTreeMap::new(),
         integers: integer_parameters(function.machine, &prepared.scalar_parameters)?,
         booleans: BTreeMap::new(),
-        scalar_homes: scalar_sources::ScalarHomes::default(),
+        scalar_homes: ScalarHomes::default(),
         ieee_float_constants: BTreeMap::new(),
         scalar_block_parameters: BTreeMap::new(),
         views: BTreeMap::new(),

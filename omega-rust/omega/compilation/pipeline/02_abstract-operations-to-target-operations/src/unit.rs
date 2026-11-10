@@ -813,7 +813,7 @@ pub(crate) mod boundary_call {
             (OperationId, StructuralTypeDeclaration, Vec<u8>),
         >,
         scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
-        scalar_homes: &mut crate::control_flow::scalar_sources::ScalarHomes,
+        scalar_homes: &mut crate::control_flow::ScalarHomes,
         booleans: &BTreeMap<ValueId, (OperationId, bool)>,
         ieee_float_constants: &BTreeMap<
             ValueId,
@@ -1405,7 +1405,7 @@ pub(crate) mod known_integers {
 
     pub(crate) fn insert_scalar_home(
         integers: &mut BTreeMap<ValueId, KnownUnitInteger>,
-        scalar_homes: &mut crate::control_flow::scalar_sources::ScalarHomes,
+        scalar_homes: &mut crate::control_flow::ScalarHomes,
         home: TargetUnitScalarHomeRequirement,
     ) -> Result<(), LoweringError> {
         match home.scalar_type {
