@@ -893,10 +893,14 @@ impl<'t> Program<'t> {
         // machine symbol or its one state's symbol (stage 04 records the
         // entry state). Any other declaration is a static or captured call.
         let registration = application.registration_operation;
-        if registration.is_valid() && registration != target {
+        let owner = match self.typed.symbols.get(target).kind {
+            SymbolKind::State => self.typed.symbols.get(target).parent,
+            _ => target,
+        };
+        if registration.is_valid() && registration != target && registration != owner {
             let state = self
                 .typed
-                .machine_by_symbol(target)
+                .machine_by_symbol(owner)
                 .and_then(|machine| self.typed.machine_states.span(machine.states))
                 .and_then(|states| match states {
                     [state] => Some(state.symbol),
