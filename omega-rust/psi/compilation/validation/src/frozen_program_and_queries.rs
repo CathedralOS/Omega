@@ -1826,6 +1826,67 @@ pub mod queries {
             program
         }
 
+        /*
+            Narrow a product program to its validation subjects before checking
+            (wiki/spec/build/validation_subjects.md). What stays: every
+            declaration authored in a subject source, the declarations the Build
+            demands (product roots and its selections), and whatever those
+            reference. A dependency declaration nothing reaches is removed
+            rather than left unchecked, so no later stage can rely on it.
+
+            Dispatch chooses among conformances and methods after this point, so
+            every conformance of a reached trait and every method of a reached
+            data type stays.
+        */
+        pub fn project_subject_program(
+            original: &TypedTrees,
+            is_subject: impl Fn(&source::SourceFile) -> bool,
+            demanded: &[SymbolHandle],
+        ) -> TypedTrees {
+            let instances = instantiated_declarations(original);
+            let demanded = demanded.iter().copied().collect::<HashSet<_>>();
+            // ponytail: keeps all conformances of a reached trait, not only the
+            // selected ones. Narrow it once selection is known before checking.
+            let children = original
+                .machines()
+                .iter()
+                .filter(|machine| machine.attached_data_symbol.is_valid())
+                .map(|machine| (machine.attached_data_symbol, machine.symbol))
+                .chain(
+                    original
+                        .conformances()
+                        .iter()
+                        .map(|conformance| (conformance.trait_symbol, conformance.symbol)),
+                )
+                // A value's qualification names a domain of its data type
+                // without a reference the walker follows, so a reached data
+                // type keeps its domains.
+                .chain(
+                    original
+                        .tables
+                        .domain_definitions
+                        .span_or_empty(original.roots.domain_definitions)
+                        .iter()
+                        .map(|domain| (domain.subject_symbol, domain.symbol)),
+                )
+                .collect::<Vec<_>>();
+            project_declarations(
+                original,
+                |symbol| {
+                    demanded.contains(&symbol)
+                        || (!is_derived_declaration(original, &instances, symbol)
+                            && original
+                                .symbols
+                                .symbol_provenance_source_span(symbol)
+                                .and_then(|span| original.symbols.source_file(span))
+                                .is_none_or(|file| is_subject(file)))
+                },
+                |_| true,
+                &children,
+                None,
+            )
+        }
+
         fn instantiated_declarations(program: &dyn crate::CheckingInput) -> HashSet<SymbolHandle> {
             let mut instances = program
                 .data_definitions()
