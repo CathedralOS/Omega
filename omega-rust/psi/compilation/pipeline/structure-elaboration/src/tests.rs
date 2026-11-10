@@ -895,7 +895,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
                 ..signature(Vec::new(), None)
             });
         }
-        let table = outcomes(&bodies, &signatures, &[id(2), id(1)]).unwrap();
+        let table = outcomes(&bodies, &signatures).unwrap();
         [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
     };
     let [caller_outcome, callee_outcome] = run(CrashCeiling::Inferred, CrashCeiling::Inferred);
@@ -913,4 +913,63 @@ fn outcomes_follow_the_ceiling_or_the_body() {
     );
     assert!(callee_outcome.crash_routes.is_empty());
     assert_eq!(caller_outcome.crash_routes, routes(&[CrashCause::Abort]));
+}
+
+/// The right operand of `&&` or `||` may be skipped, so a short-circuit whose
+/// right operand never returns still completes; its causes stay published. A
+/// call cycle handed to `lower_bodies` directly is refused as recursion.
+#[test]
+fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
+    use crate::outcome::outcomes;
+    // machine 1(a: bool) -> bool { a && f() }  with f = `{ crash Trap; }`
+    let caller = Body {
+        slots: vec![ScalarType::Boolean],
+        statements: vec![returns(expression(
+            ExpressionKind::ShortCircuit {
+                conjunction: true,
+                left: Box::new(boolean_slot(0)),
+                right: Box::new(call(2, Vec::new(), Some(ScalarType::Boolean))),
+            },
+            Some(ScalarType::Boolean),
+        ))],
+    };
+    let crashing = Body {
+        slots: Vec::new(),
+        statements: vec![crash_arm(None, CrashCause::Trap)],
+    };
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    bodies.push(caller);
+    bodies.push(crashing);
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    signatures.push(Signature {
+        crashes: CrashCeiling::Inferred,
+        ..signature(vec![ScalarType::Boolean], Some(ScalarType::Boolean))
+    });
+    signatures.push(Signature {
+        crashes: CrashCeiling::Inferred,
+        ..signature(Vec::new(), Some(ScalarType::Boolean))
+    });
+    let table = outcomes(&bodies, &signatures).unwrap();
+    assert_eq!(
+        table.get(id(1)).unwrap(),
+        &Outcome {
+            completes_normally: true,
+            crash_routes: routes(&[CrashCause::Trap]),
+        }
+    );
+
+    // machine 1 { f() }, machine 2 { g() }, machine 3 { f() }
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    for callee in [2, 3, 2] {
+        bodies.push(Body {
+            slots: Vec::new(),
+            statements: vec![Statement::Evaluate(call(callee, Vec::new(), None))],
+        });
+        signatures.push(signature(Vec::new(), None));
+    }
+    assert_eq!(
+        outcomes(&bodies, &signatures).unwrap_err().detail,
+        "call recursion"
+    );
 }
