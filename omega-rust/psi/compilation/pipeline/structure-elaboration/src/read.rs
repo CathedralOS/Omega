@@ -248,7 +248,12 @@ impl<'t> Program<'t> {
         if machine.structural_type_equations_pending {
             return unserved("pending type equations");
         }
-        if machine.service_reach_row != language_semantics::ServiceReachRowId::NULL
+        // Row 1 is the interned empty row (`ServiceReachRowTable::EMPTY_ROW`).
+        if !matches!(
+            machine.service_reach_row,
+            language_semantics::ServiceReachRowId::NULL
+                | language_semantics::ServiceReachRowTable::EMPTY_ROW
+        )
             || machine.service_reach_is_installation_bound
         {
             return unserved("service reach");
