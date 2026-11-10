@@ -9975,7 +9975,7 @@ pub(crate) mod operation_contracts {
                 &terminal_psi::StructuralTypeDeclaration,
             >,
             predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
-            dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+            dominators: &optimization_unit::DominatorSets,
         ) -> Result<(), OptimizationUnitValidationError> {
             let sequences: BTreeMap<BlockId, Vec<&AbstractOperation>> = function
                 .blocks
@@ -9990,7 +9990,11 @@ pub(crate) mod operation_contracts {
             match happens_before_atomic_coherence_violation(
                 &sequences,
                 predecessors,
-                dominators,
+                |producer, consumer| {
+                    dominators
+                        .get(&consumer)
+                        .is_some_and(|set| set.contains(&producer))
+                },
                 function.entry,
                 |predecessor, successor, root| {
                     let predecessor = function.block(predecessor)?;
@@ -14334,7 +14338,7 @@ pub(crate) mod operation_contracts {
             node_index: usize,
             node: &optimization_unit::OptimizationNode,
             definitions: &BTreeMap<ValueId, ValueDefinition>,
-            dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+            dominators: &optimization_unit::DominatorSets,
         ) -> Result<(), OptimizationUnitValidationError> {
             for use_site in &node.uses {
                 let Some(definition) = definitions.get(&use_site.value) else {

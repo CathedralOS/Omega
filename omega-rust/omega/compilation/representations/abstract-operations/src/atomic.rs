@@ -414,7 +414,7 @@ impl AbstractAtomicEvent {
 pub fn happens_before_atomic_coherence_violation(
     blocks: &BTreeMap<BlockId, Vec<&AbstractOperation>>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
-    dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    block_dominates: impl Fn(BlockId, BlockId) -> bool,
     entry: BlockId,
     projection_before_edge: impl Fn(BlockId, BlockId, PlaceId) -> Option<(PlaceId, Vec<PathSegment>)>,
     projections_may_alias: impl Fn(PlaceId, &[PathSegment], PlaceId, &[PathSegment]) -> bool,
@@ -486,7 +486,13 @@ pub fn happens_before_atomic_coherence_violation(
                     (true, None) => Some(AtomicEdgeViolation::MissingEdge),
                     (false, None) => None,
                     (true, Some(edge)) => residency_edge_violation(
-                        event, edge, *block, index, &events, &reached, dominators,
+                        event,
+                        edge,
+                        *block,
+                        index,
+                        &events,
+                        &reached,
+                        &block_dominates,
                     ),
                 };
                 refusal.map(coherence)
@@ -677,7 +683,7 @@ fn residency_edge_violation(
     index: usize,
     events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
     reached: &BTreeSet<ReachingWrite>,
-    dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    block_dominates: &impl Fn(BlockId, BlockId) -> bool,
 ) -> Option<AtomicEdgeViolation> {
     let Some(location) = event.location() else {
         return Some(AtomicEdgeViolation::MissingEdge);
@@ -736,9 +742,7 @@ fn residency_edge_violation(
             let happens_before = if *writer == block {
                 *position < index
             } else {
-                dominators
-                    .get(&block)
-                    .is_some_and(|dominating| dominating.contains(writer))
+                block_dominates(*writer, block)
             };
             if !happens_before {
                 return Some(AtomicEdgeViolation::NotHappensBefore { claimed });
@@ -973,7 +977,11 @@ mod tests {
         happens_before_atomic_coherence_violation(
             &blocks,
             &predecessors,
-            &dominators,
+            |producer, consumer| {
+                dominators
+                    .get(&consumer)
+                    .is_some_and(|set| set.contains(&producer))
+            },
             entry,
             |source, _, root| {
                 Some(if source == repeated {
@@ -1085,7 +1093,11 @@ mod tests {
             happens_before_atomic_coherence_violation(
                 &blocks,
                 &predecessors,
-                &dominators,
+                |producer, consumer| {
+                    dominators
+                        .get(&consumer)
+                        .is_some_and(|set| set.contains(&producer))
+                },
                 entry,
                 |_, _, root| Some((root, Vec::new())),
                 |_, _, _, _| false,

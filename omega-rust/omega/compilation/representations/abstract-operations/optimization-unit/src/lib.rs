@@ -74,6 +74,7 @@ use terminal_psi::{
 pub(crate) use optimization_core::codec_bytes;
 
 mod construction;
+mod dominance;
 mod graph;
 mod identity;
 mod ledger;
@@ -89,6 +90,7 @@ pub use construction::{
     OptimizationUnitBuildError, operation_definition, operation_ownership, operation_uses,
     reconstruct_psi_optimization_function_seed, reconstruct_psi_optimization_unit_seed,
 };
+pub use dominance::{DominatorSet, DominatorSets, dominators};
 pub use graph::{
     CycleComponentEdge, CycleComponentId, EffectLink, OptimizationBlock, OptimizationEdge,
     OptimizationFact, OptimizationNode, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
@@ -154,7 +156,7 @@ pub use rewrite::{
 };
 pub use structural_places::{
     DispatchCondition, Establishment, FieldEvidence, FunctionAnalysis, Position,
-    argument_rewrites_place, bound_place, bound_value, declared_structural_type, dominators,
+    argument_rewrites_place, bound_place, bound_value, declared_structural_type,
     established_case_at, field_evidence, field_value_accounting, field_value_reads,
     function_analysis, integer_comparison_condition, observed_field_declaration,
     operation_result_placement, proof_basis, reachable_blocks_after_conditional_fold,

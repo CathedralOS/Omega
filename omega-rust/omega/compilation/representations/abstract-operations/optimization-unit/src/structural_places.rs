@@ -290,7 +290,7 @@ impl ObservedFieldKind {
 
 pub struct FunctionAnalysis {
     pub definitions: BTreeMap<ValueId, ValueDefinition>,
-    pub dominators: BTreeMap<BlockId, BTreeSet<BlockId>>,
+    pub dominators: super::DominatorSets,
 }
 
 pub fn function_analysis(function: &PsiOptimizationFunction) -> FunctionAnalysis {
@@ -321,7 +321,7 @@ pub fn function_analysis(function: &PsiOptimizationFunction) -> FunctionAnalysis
     }
     FunctionAnalysis {
         definitions,
-        dominators: dominators(
+        dominators: super::dominators(
             function.entry,
             function.blocks.iter().map(|block| block.id),
             &predecessors,
@@ -567,48 +567,6 @@ pub(crate) fn matches_constant_kind(value: FoldedFieldValue, kind: ObservedField
 }
 
 pub type Establishment = RootProducer;
-
-pub fn dominators(
-    entry: BlockId,
-    block_ids: impl Iterator<Item = BlockId>,
-    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
-) -> BTreeMap<BlockId, BTreeSet<BlockId>> {
-    let all = block_ids.collect::<BTreeSet<_>>();
-    let mut result = all
-        .iter()
-        .copied()
-        .map(|block| {
-            let initial = if block == entry {
-                [entry].into_iter().collect()
-            } else {
-                all.clone()
-            };
-            (block, initial)
-        })
-        .collect::<BTreeMap<_, _>>();
-    loop {
-        let mut changed = false;
-        for block in all.iter().copied().filter(|block| *block != entry) {
-            let incoming = predecessors.get(&block).expect("all blocks indexed");
-            let mut next = if let Some(first) = incoming.first() {
-                result[first].clone()
-            } else {
-                BTreeSet::new()
-            };
-            for predecessor in incoming.iter().skip(1) {
-                next = next.intersection(&result[predecessor]).copied().collect();
-            }
-            next.insert(block);
-            if result[&block] != next {
-                result.insert(block, next);
-                changed = true;
-            }
-        }
-        if !changed {
-            return result;
-        }
-    }
-}
 
 pub(crate) fn descended_type(
     unit: &PsiOptimizationUnit,
