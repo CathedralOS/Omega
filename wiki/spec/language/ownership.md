@@ -100,9 +100,9 @@ domain-ending authority cannot waive them.
 
 Partial moves retain unselected siblings and make ancestors unavailable for
 whole-value use or disposal. Transparent child paths do not duplicate a nominal
-root obligation. They cannot evade a selected nominal cleanup: outside its
-selected cleanup machine, an occurrence with one cannot be partially moved.
-Duplicate and overlapping moves reject. An owned extraction
+root obligation. They cannot evade a selected nominal cleanup: an occurrence
+with one cannot be partially moved, and only an authorized complete consuming
+pattern takes it apart. Duplicate and overlapping moves reject. An owned extraction
 must identify the unique moved element and retain its residual frontier;
 unsupported runtime-indexed extraction cannot fall back to forgetting the root.
 
@@ -251,8 +251,10 @@ retired under `no-data-code-attachment`. An unrelated ordinary machine named
 `drop` has no reserved meaning.
 
 Named decision: `owned-cleanup-consumer`, settled 2026-11-10. Cleanup ends the
-value, so the selected machine owns it. It receives the complete valid subject
-and is an ordinary consumer of it:
+value, so the selected machine owns it. A value with a selected cleanup is an
+ordinary owned `T` through every move and call. It ends at one explicit place:
+a complete consuming pattern, which takes the wrapper apart into its owned
+components.
 
 ```omega
 data Lease [linear] dropped by end_lease {
@@ -261,36 +263,69 @@ data Lease [linear] dropped by end_lease {
 }
 
 machine end_lease(value: Lease) {
-    PoolHandle::give_back(move value.pool, move value.slot);
+    let Lease { pool, slot } = move value;
+    PoolHandle::give_back(move pool, move slot);
+}
+
+public machine into_parts(value: Lease) -> LeaseParts {
+    let Lease { pool, slot } = move value;
+    LeaseParts { pool: move pool, slot: move slot }
 }
 ```
 
-The names are illustrative. `give_back` takes both fields by value, which a
-machine holding only a reference to the lease could not supply.
+The names are illustrative. `end_lease` is the selected cleanup; `give_back`
+takes both components by value, which a machine holding only a reference to the
+lease could not supply. `into_parts` is declared in the package that declares
+`Lease` and hands the components to its caller without the cleanup running.
 
-- Inside the selected machine, the subject may be borrowed and its fields may
-  be moved out to ordinary consuming operations. The subject may not be moved
-  whole: not into a local, an argument, a field or a result. The parameter is
-  therefore the only occurrence the machine is responsible for.
-- When the selected machine returns, each field it did not move is disposed of
-  by that field's own cleanup, in the ordinary order. The subject's selected
-  machine is not invoked again for it. A remaining field with no legal
-  automatic disposition rejects at that return edge.
-- A separately owned value of the same type, such as one the machine
-  constructs, keeps its own nominal cleanup.
-- Outside its selected machine, an occurrence with a selected cleanup cannot be
-  partially moved. No other code may dismantle the value and let the remainder
-  die without the selected machine running.
-- The selected machine is an ordinary static machine. Source may call it with
-  an owned argument, which disposes of that argument exactly as its death edge
-  would.
-- The transfer is of ownership, not of bytes. A subject whose carry forbids
-  relocation is consumed in its existing storage, and no realization of the
-  cleanup edge may relocate it.
+**Who may write the pattern.** A complete consuming pattern on an owned
+occurrence with a selected cleanup is accepted only when the enclosing machine
+is declared in the carrier's owning package, or is the exact cleanup machine
+application selected for that occurrence. Anywhere else it rejects, whether or
+not the fields are visible. Authority comes from where the machine is declared,
+not from where it is called, instantiated or inlined, so a generic helper from
+another package gains nothing by being applied to the type. A selected machine
+declared in another package holds the permission for itself only, not for that
+package or its helpers. Other packages use the consuming operations the owner
+makes public.
 
-The eligibility restrictions above are unchanged and cover the whole selected
-machine, including every operation it calls and every remaining field's
-disposal.
+**What the permission is.** It is permission to end the nominal wrapper and
+nothing else. It grants no read, write, take, establishment, loan or resource
+authority, and every access policy, qualification and backing rule on the
+components applies as usual. Owning a wrapper around another package's
+protected resource does not permit dismantling that resource.
+
+**What the pattern does.** It consumes the complete value and partitions its
+active structure under ordinary ownership rules. The nominal cleanup obligation
+of the wrapper is satisfied there, and no `T` remains to be cleaned up.
+Components bound by the pattern are ordinary owned values. Components ignored
+with `_` or `..` keep their disposal obligations and are disposed of by their
+own cleanup. Every obligation carried independently of the wrapper, such as a
+capacity claim, provider completion or backing custody on the whole
+occurrence, must be transferred to a resulting owner or legally settled; the
+pattern cannot make it disappear. A projected move such as `move value.field`
+does not start this transition and still rejects.
+
+**Before the pattern.** The value keeps its ordinary type and cleanup. An
+intact value that reaches a death edge invokes its selected cleanup, including
+inside the selected machine. That generated invocation is an ordinary call for
+[termination](termination.md#calls-and-productive-loops), effect, reach and
+stack analysis, so a cleanup machine that lets its subject die whole cannot
+establish its own completion and rejects.
+
+**The selected machine.** It is an ordinary static machine with a unit result.
+Source may call it with an owned argument, which disposes of that argument
+exactly as its death edge would. The eligibility restrictions above are
+unchanged and cover the whole machine, including every operation it calls and
+every remaining component's disposal. An explicit consumer such as
+`into_parts` is not bound by them and has its ordinary contract.
+
+**In place.** The transfer and the partition are of ownership, not of bytes.
+A subject whose carry forbids relocation stays in its storage through the
+transfer, the pattern, the use of its components and their disposal, and that
+storage is retired only when nothing depends on it. Returning a component is
+legal only when the result preserves the backing and address stability that
+component needs.
 
 Every owned death edge derives an internal contextual cleanup row: Type-side
 disposition eligibility, proposition prerequisites, operational effects/reach/

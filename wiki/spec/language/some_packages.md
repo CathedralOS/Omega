@@ -162,8 +162,8 @@ packages are `[linear]`. Packing preserves the hidden state's resident custody,
 contained loans, zero-sized obligations, storage claims, carry demands and code
 dependencies, and storing a consuming operation admits no automatic cleanup by
 itself. The package's owner may select an ordinary cleanup machine with
-`dropped by` that opens the package and calls a stored consuming operation on
-the hidden owner; its eligibility is checked from that operation's callable
+`dropped by` that takes the package apart with a consuming pattern, opens its
+witness and calls a stored consuming operation on the hidden owner; its eligibility is checked from that operation's callable
 contract, and the package stays `[linear]`. A
 pending or failure outcome returns the remaining ownership as a package exposing
 only the operations valid in that state, under

@@ -59,7 +59,8 @@ the execution.
 11. Automatic cleanup needs no mechanism of its own. Under
     [owned cleanup consumers](owned_cleanup.md) the package's owner
     selects an ordinary `dropped by` machine that takes the package by value,
-    opens it and calls a stored consuming operation on the hidden owner.
+    takes it apart with a consuming pattern and calls a stored consuming
+    operation on the hidden owner.
     Eligibility is checked from that operation's callable contract. Storing a
     consuming operation admits no disposal by itself, and the package stays
     `[linear]`.

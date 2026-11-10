@@ -327,15 +327,22 @@ no call; executable cleanup belongs to its edge/action ordinal and runs before
 teardown. The [normal cleanup contract](calls_and_outcomes.md#normal-cleanup)
 owns sequential execution and suspension.
 
-A nominal invocation transfers its exact subject to the target and does not
-relocate a subject whose carry forbids relocation. Inside the target the
-subject parameter may lose fields to consuming calls and is never moved whole.
-The target's own return edge carries typed residual disposal for the fields
-that remain, and that residual never names the subject's nominal target again.
-The transfer is explicit action data, not inferred from the next action on the
-same edge: selected child cleanup may cross ordinary control blocks. Neither
-the transfer nor case selection settles child claims or retires a home; the
-complete disposal partition must finish before explicit home retirement.
+A nominal invocation is an ordinary owned-call transfer of its exact subject
+to the target, with the same argument correspondence, claim rebasing, carry
+and outcome accounting as a source call, and it does not relocate a subject
+whose carry forbids relocation. The subject keeps its nominal disposition
+inside the target until an authorized consuming decomposition retires it and
+partitions the subject into component claims. A verifier re-establishes that
+authorization from the retained declaration-package identity or the exact
+cleanup selection, and re-derives the partition; a producer-supplied marker is
+not evidence. Obligations held independently of the nominal disposition
+continue through the resulting claims. The transfer is explicit action data,
+not inferred from the next action on the same edge: selected child cleanup may
+cross ordinary control blocks. Neither the transfer nor case selection settles
+child claims or retires a home; the complete disposal partition must finish
+before explicit home retirement. Budget exhaustion inside a begun invocation
+resumes that invocation without transferring the subject or charging a
+committed action again.
 
 Cleanup prerequisites must already be proved locally or authored in `requires`;
 analysis cannot add a new caller demand. When the hook's value parameter is
