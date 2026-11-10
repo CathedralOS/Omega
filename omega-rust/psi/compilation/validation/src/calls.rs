@@ -7984,10 +7984,16 @@ pub(crate) mod write_frames {
                 parameter.symbol.is_valid()
                     && match binders {
                         SignatureBinders::Monomorphic => false,
+                        // A machine binder selects code the callee may run, never
+                        // the storage type of a parameter, so the write footprint
+                        // read from the parameter list is the same for every
+                        // machine bound to it.
                         SignatureBinders::AppliedStorageParameters => {
                             matches!(
                                 parameter.kind,
-                                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                                TypeParameterKind::Type
+                                    | TypeParameterKind::Const { .. }
+                                    | TypeParameterKind::Machine { .. }
                             )
                         }
                         SignatureBinders::CallBinders => true,
@@ -38624,6 +38630,12 @@ pub(crate) mod write_frames {
                     (TypeParameterKind::Type, StaticMachineBindingValue::Type(actual))
                     | (TypeParameterKind::Const { .. }, StaticMachineBindingValue::Const(actual)) => {
                         *actual
+                    }
+                    // The application must still bind a machine here, but that
+                    // machine names no type a parameter could be written through,
+                    // so it contributes no storage binding.
+                    (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(_)) => {
+                        continue;
                     }
                     _ => return None,
                 };
