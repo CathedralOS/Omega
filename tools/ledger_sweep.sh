@@ -23,19 +23,20 @@
 #   shards do not fit.
 # - jobs=6. Eight workers took the runner to 8 GB with no gain in speed, and
 #   the kernel killed it.
+# - The per-fixture time cap stays at the runner's default. Giving each fixture
+#   three times its recorded time let a few stuck fixtures hold their workers
+#   for up to 24 minutes, and a shard with several of them ran past the
+#   1800-second limit with half its fixtures unchecked.
 # - Start it through the machine's one-heavy-job guard where there is one
 #   (tools/build_slot.md), so nothing else builds on the host meanwhile.
 LOG=$1; N=$2; JOBS=${3:-6}
 [ -n "$LOG" ] && [ -n "$N" ] || { echo "usage: sh tools/ledger_sweep.sh <logdir> <N> [jobs]" >&2; exit 2; }
 mkdir -p "$LOG"
-# Per-fixture time caps come from the ledger as committed, so a slow fixture
-# gets three times its recorded time instead of a flat cap.
-[ -f "$LOG/timings.txt" ] || git show HEAD:tests/omega/corpus_outcomes.txt > "$LOG/timings.txt"
 if [ ! -f "$LOG/todo.txt" ]; then
   k=0; while [ "$k" -lt "$N" ]; do echo "$k"; k=$((k + 1)); done > "$LOG/todo.txt"
 fi
 touch "$LOG/done.txt" "$LOG/failed.txt"
-export OMEGA_CORPUS_JOBS="$JOBS" OMEGA_CORPUS_FIXTURE_SECS=300 OMEGA_CORPUS_TIMINGS="$LOG/timings.txt"
+export OMEGA_CORPUS_JOBS="$JOBS"
 while [ ! -f "$LOG/stop" ]; do
   k=""
   for c in $(cat "$LOG/todo.txt"); do

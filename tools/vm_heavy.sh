@@ -13,7 +13,7 @@ A=$HOME/omega-agent; L=$A/heavy.lock
 if command -v tasklist > /dev/null 2>&1; then
   busy=$(tasklist 2> /dev/null | grep -i -E "^(cargo|rustc|xtask|corpus_runner)" | head -1 | cut -c1-40)
 else
-  busy=$(ps -eo args | grep -E "[x]task corpus|out/[c]orpus_runner|[c]argo (build|test|check|clippy|xtask)|[r]ustc --crate-name" | head -1 | cut -c1-120)
+  busy=$(ps -eo comm= | grep -E "^(cargo|rustc|xtask|corpus_runner)" | head -1)
 fi
 if [ -n "$busy" ]; then
   echo "vm-heavy: refused, this machine is busy: $busy" >&2
