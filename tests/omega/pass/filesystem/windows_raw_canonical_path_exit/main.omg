@@ -65,7 +65,7 @@ machine canonical_spelling(bytes: &[u8; 1024]) -> bool {
         true -> find(bytes, 4)
         false -> false
     }
-    machine find(bytes: &[u8; 1024], position: u64) -> bool {
+    machine find(bytes: &[u8; 1024], position: u64) -> bool requires position >= 4 {
         transition position < 1024 { true -> inspect(bytes, position) false -> false }
     }
     machine inspect(bytes: &[u8; 1024], position: u64) -> bool requires position < 1024 && position >= 4 {
