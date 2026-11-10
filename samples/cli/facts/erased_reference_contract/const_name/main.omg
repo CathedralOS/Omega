@@ -1,8 +1,9 @@
 // Erased primitive and record references discharge their value-7 requirements at keep without runtime witness arguments, reads, storage or cleanup.
 // Expected exit: 0
-data Witness { value: i32; }
+data Witness [copy] { value: i32; }
 machine keep(runtime: i32, witness [erased]: &i32, record [erased]: &Witness) -> i32
-requires witness == 7 && record.value == 7 { runtime }
+requires witness == 7
+requires record.value == 7 { runtime }
 const SEVEN: i32 = 7;
 const RECORD: Witness = Witness { value: 7 };
 machine exercise(flag: bool) -> i32 {

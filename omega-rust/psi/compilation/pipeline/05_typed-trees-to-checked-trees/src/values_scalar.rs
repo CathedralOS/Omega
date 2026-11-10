@@ -1326,36 +1326,39 @@ pub(crate) mod call_lowering {
             explicit_index = explicit_index.checked_add(1)?;
             if strips_erased_parameter(target)? {
                 if !is_boundary {
-                    if let Some(expected_type) =
-                        program.erased_scalar_observation_type(target.type_reference)
-                    {
-                        if let Some(lowered) = lower_erased_scalar_argument(
-                            state.symbol,
-                            statement_ordinal,
-                            program,
-                            operators,
-                            argument,
-                            parameters,
-                            authored_parameters,
-                            parameter_types,
-                            locals,
-                            expected_type,
-                            exact_integer_casts,
-                        ) {
-                            output.push((
+                    let lanes = program.erased_scalar_lanes(target.type_reference);
+                    if !lanes.is_empty() {
+                        for lane in &lanes {
+                            if let Some(lowered) = lower_erased_lane_argument(
+                                state.symbol,
+                                statement_ordinal,
+                                program,
+                                operators,
                                 argument,
-                                CheckedLocatedScalarExpression {
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role: CheckedScalarExpressionRole::ErasedUnitCallArgument {
-                                        call_ordinal: u32::try_from(call_ordinal).ok()?,
-                                        erased_ordinal: u32::try_from(scalar_erased_index).ok()?,
+                                parameters,
+                                authored_parameters,
+                                parameter_types,
+                                locals,
+                                target.type_reference,
+                                lane,
+                                exact_integer_casts,
+                            ) {
+                                output.push((
+                                    argument,
+                                    CheckedLocatedScalarExpression {
+                                        state: state.symbol,
+                                        statement_ordinal,
+                                        role: CheckedScalarExpressionRole::ErasedUnitCallArgument {
+                                            call_ordinal: u32::try_from(call_ordinal).ok()?,
+                                            erased_ordinal: u32::try_from(scalar_erased_index)
+                                                .ok()?,
+                                        },
+                                        expression: lowered,
                                     },
-                                    expression: lowered,
-                                },
-                            ));
+                                ));
+                            }
+                            scalar_erased_index = scalar_erased_index.checked_add(1)?;
                         }
-                        scalar_erased_index = scalar_erased_index.checked_add(1)?;
                     } else if proof_only.contract_term_carrier(program, target.type_reference)
                         || validation::mathematical_applications::is_source_evidence_carrier(
                             program,
@@ -1640,6 +1643,73 @@ pub(crate) mod call_lowering {
     }
 
     /*
+        Lower the actual of one erased scalar lane. A primitive lane keeps the
+        ordinary erased scalar observation. A record leaf is either the matching
+        lane of the caller's own erased formal, or the scalar the caller wrote
+        at that field of an immutable closed construction. Nothing here reads
+        the record at run time, and an actual whose leaf is not exactly one of
+        those is not lowered, so the call is refused rather than guessed.
+    */
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn lower_erased_lane_argument(
+        state_symbol: symbols::SymbolHandle,
+        before_statement: u32,
+        program: &dyn ::validation::CheckingInput,
+        operators: &CheckedOperatorFacts,
+        expression: ExpressionHandle,
+        parameters: &[StateParameter],
+        authored_parameters: &[StateParameter],
+        parameter_types: &[PrimitiveType],
+        locals: &[ScalarLocal],
+        formal_type: typed_trees::types::TypeReferenceHandle,
+        lane: &typed_trees::proof_only::ErasedScalarLane,
+        exact_integer_casts: &[validation::ExactIntegerCastFact],
+    ) -> Option<CheckedScalarExpression> {
+        if lane.fields.is_empty() {
+            return lower_erased_scalar_argument(
+                state_symbol,
+                before_statement,
+                program,
+                operators,
+                expression,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                lane.primitive_type,
+                exact_integer_casts,
+            );
+        }
+        match super::erased_observations::resolve_leaf(
+            program,
+            state_symbol,
+            before_statement,
+            expression,
+            formal_type,
+            &lane.fields,
+            authored_parameters,
+        )? {
+            super::erased_observations::ErasedLeaf::Formal { position } => {
+                Some(CheckedScalarExpression::ErasedParameter {
+                    position,
+                    primitive_type: lane.primitive_type,
+                })
+            }
+            super::erased_observations::ErasedLeaf::Value(leaf) => lower_return_expression(
+                program,
+                operators,
+                leaf,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                lane.primitive_type,
+                exact_integer_casts,
+            ),
+        }
+    }
+
+    /*
         Lower one erased contract-term actual: a construction (or a bare
         reference to the caller's own erased proof-lane formal) becomes the
         checked proof term the callee's contract lane carries. A construction
@@ -1661,11 +1731,6 @@ pub(crate) mod call_lowering {
         exact_integer_casts: &[validation::ExactIntegerCastFact],
         proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     ) -> Option<CheckedProofTerm> {
-        // Erasure carries the observed value, while the located argument and
-        // authored formal retain the shared reference and its loan obligations.
-        let expected_type = proof_only
-            .contract_term_observation_type(program, expected_type)
-            .unwrap_or(expected_type);
         if let Some(view) = program.prepared_mathematics() {
             if let Some(constructor) = view.source_constructor(expression)
                 && constructor.type_identity == program.normalized_type_identity(expected_type)
@@ -1882,18 +1947,9 @@ pub(crate) mod call_lowering {
                 }
                 let state = program.state_by_symbol(caller_state)?;
                 let (_, local) = program.state_local_declaration(state, symbol)?;
-                if local.is_mutable
+                if !local.relevance.is_erased()
                     || !local.initial_value.is_valid()
                     || !parameter_is_erased_proof(program, proof_only, local.type_reference)
-                {
-                    return None;
-                }
-                let local_observation = proof_only
-                    .contract_term_observation_type(program, local.type_reference)
-                    .unwrap_or(local.type_reference);
-                if !local.relevance.is_erased()
-                    && program.normalized_type_identity(local_observation)
-                        != program.normalized_type_identity(expected_type)
                 {
                     return None;
                 }
@@ -2443,6 +2499,43 @@ pub(crate) mod call_lowering {
         let mut scalar_arguments = Vec::new();
         let mut proof_terms = Vec::new();
         for (argument, target_parameter) in arguments.iter().zip(target_parameters) {
+            let lanes = if target_parameter.relevance.is_erased() {
+                program.erased_scalar_lanes(target_parameter.type_reference)
+            } else {
+                Vec::new()
+            };
+            if lanes.iter().any(|lane| !lane.fields.is_empty()) {
+                for lane in &lanes {
+                    let ordinal = erased_ordinal;
+                    erased_ordinal = erased_ordinal.checked_add(1)?;
+                    scalar_arguments.push((
+                        *argument,
+                        CheckedLocatedScalarExpression {
+                            state,
+                            statement_ordinal,
+                            role: CheckedScalarExpressionRole::ErasedCallArgument {
+                                binding_ordinal,
+                                erased_ordinal: ordinal,
+                            },
+                            expression: lower_erased_lane_argument(
+                                state,
+                                statement_ordinal,
+                                program,
+                                operators,
+                                *argument,
+                                parameters,
+                                authored_parameters,
+                                parameter_types,
+                                locals,
+                                target_parameter.type_reference,
+                                lane,
+                                exact_integer_casts,
+                            )?,
+                        },
+                    ));
+                }
+                continue;
+            }
             let Some(expected_type) = (if target_parameter.relevance.is_erased() {
                 program.erased_scalar_observation_type(target_parameter.type_reference)
             } else {
@@ -4189,16 +4282,8 @@ pub(crate) mod contract_entry {
                 return None;
             }
             Some(
-                self.parameters[..position]
-                    .iter()
-                    .filter(|parameter| {
-                        parameter.relevance.is_erased()
-                            && self
-                                .program
-                                .erased_scalar_observation_type(parameter.type_reference)
-                                .is_some()
-                    })
-                    .count(),
+                self.program
+                    .erased_scalar_lane_base(self.parameters, position),
             )
         }
 
@@ -5129,6 +5214,50 @@ pub(crate) mod expression_plans {
                     let Ok(argument_ordinal) = u32::try_from(target_position) else {
                         continue;
                     };
+                    if target_parameter.relevance.is_erased() {
+                        let lanes = planner
+                            .program
+                            .erased_scalar_lanes(target_parameter.type_reference);
+                        if lanes.iter().any(|lane| !lane.fields.is_empty()) {
+                            // A transition argument row is keyed by its authored
+                            // position, so it can carry one leaf. A record with
+                            // several leaves is left unlowered and refused.
+                            if let [lane] = lanes.as_slice()
+                                && let Some(expression) =
+                                    crate::values::scalar::call_lowering::lower_erased_lane_argument(
+                                        planner.state.symbol,
+                                        planner.statement_ordinal,
+                                        planner.program,
+                                        planner.operators,
+                                        *argument,
+                                        planner.scalar_parameters,
+                                        planner.parameters,
+                                        planner.parameter_types,
+                                        planner.locals,
+                                        target_parameter.type_reference,
+                                        lane,
+                                        planner.exact_integer_casts,
+                                    )
+                            {
+                                let role = if continuation {
+                                    CheckedScalarExpressionRole::TransitionContinuationArgument {
+                                        argument_ordinal,
+                                    }
+                                } else {
+                                    CheckedScalarExpressionRole::TransitionArgument {
+                                        argument_ordinal,
+                                    }
+                                };
+                                planner.record_scalar_value_pair(
+                                    role,
+                                    target_parameter.symbol,
+                                    *argument,
+                                    expression,
+                                );
+                            }
+                            continue;
+                        }
+                    }
                     let Some(target_type) = (if target_parameter.relevance.is_erased() {
                         planner
                             .program
@@ -6195,21 +6324,60 @@ pub(crate) mod primitive_reference_read {
         {
             return None;
         }
-        let position = parameters[..authored_position]
-            .iter()
-            .filter(|candidate| {
-                candidate.relevance.is_erased()
-                    && program
-                        .erased_scalar_observation_type(candidate.type_reference)
-                        .is_some()
-            })
-            .count();
+        let position = program.erased_scalar_lane_base(parameters, authored_position);
         Some((
             ScalarExpression::ErasedParameter {
                 position,
                 primitive_type,
             },
             program.arithmetic_domain_for_type_reference(parameter.type_reference),
+        ))
+    }
+
+    /*
+        A field read below an erased record formal names that leaf's erased
+        scalar lane. The formal owns no structural slot, so the read never
+        becomes a structural observation; a path that is not exactly one lane
+        of the formal has no observation at all.
+    */
+    pub(crate) fn erased_leaf_observation(
+        program: &dyn ::validation::CheckingInput,
+        parameters: &[StateParameter],
+        authored_position: usize,
+        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        primitive_type: PrimitiveType,
+        leaf_type: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<(ScalarExpression, numerics::arithmetic::ArithmeticDomain)> {
+        let parameter = parameters.get(authored_position)?;
+        if !parameter.relevance.is_erased() || parameter.is_const || parameter.is_mutable {
+            return None;
+        }
+        let names = path
+            .iter()
+            .filter_map(|segment| match segment {
+                checked_trees::CheckedStructuralPredicatePathSegment::Referent => None,
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                    Some(Some(identity.name.as_str()))
+                }
+                _ => Some(None),
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let lanes = program.erased_scalar_lanes(parameter.type_reference);
+        let lane = lanes.iter().position(|lane| {
+            lane.primitive_type == primitive_type
+                && lane.fields.len() == names.len()
+                && lane
+                    .fields
+                    .iter()
+                    .zip(&names)
+                    .all(|(field, name)| program.symbols.name(*field) == *name)
+        })?;
+        Some((
+            ScalarExpression::ErasedParameter {
+                position: program.erased_scalar_lane_base(parameters, authored_position) + lane,
+                primitive_type,
+            },
+            program.arithmetic_domain_for_type_reference(leaf_type),
         ))
     }
 
@@ -7084,15 +7252,8 @@ pub(crate) mod result_contract {
                 }
                 program.primitive_type_reference(parameter.type_reference)?;
                 if parameter.relevance.is_erased() {
-                    let erased_position = self.parameters[..position]
-                        .iter()
-                        .filter(|parameter| {
-                            parameter.relevance.is_erased()
-                                && program
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_some()
-                        })
-                        .count();
+                    let erased_position =
+                        program.erased_scalar_lane_base(self.parameters, position);
                     return Some((erased_position, parameter.type_reference, true));
                 }
                 let scalar_position = scalar_position_count(program, &self.parameters[..position]);
@@ -8463,6 +8624,18 @@ pub(crate) mod scalar_lowering {
                             primitive_type,
                         );
                     }
+                } else if authored_parameters
+                    .get(usize::try_from(parameter_position).ok()?)
+                    .is_some_and(|parameter| parameter.relevance.is_erased())
+                {
+                    return crate::values::scalar::primitive_reference_read::erased_leaf_observation(
+                        program,
+                        authored_parameters,
+                        usize::try_from(parameter_position).ok()?,
+                        &path,
+                        primitive_type,
+                        reference,
+                    );
                 }
                 let expression = if primitive_type == PrimitiveType::Bool {
                     CheckedScalarExpression::Boolean(Box::new(
@@ -11580,6 +11753,159 @@ mod erased_observations {
             )?;
             return Some(leaf);
         }
+    }
+
+    /// Where one scalar leaf of an erased record actual comes from.
+    pub(crate) enum ErasedLeaf {
+        /// The matching erased scalar lane of the caller's own erased formal.
+        Formal { position: usize },
+        /// The scalar written at that field of an immutable closed construction.
+        Value(ExpressionHandle),
+    }
+
+    /*
+        Find the scalar leaf `fields` below an erased record actual without
+        reading the record. Shared borrows and immutable shared-reference or
+        alias locals name their referent. The walk ends at the caller's erased
+        formal, whose lane is forwarded, or at a closed construction (written
+        in place, bound to an immutable local, or named by a constant), whose
+        field initializer is the leaf. A mutable binding, a runtime parameter
+        or a value produced by a call or a join has no exact leaf here.
+    */
+    pub(crate) fn resolve_leaf(
+        program: &dyn ::validation::CheckingInput,
+        state_symbol: symbols::SymbolHandle,
+        before_statement: u32,
+        expression: ExpressionHandle,
+        formal_type: typed_trees::types::TypeReferenceHandle,
+        fields: &[symbols::SymbolHandle],
+        authored_parameters: &[typed_trees::signature::StateParameter],
+    ) -> Option<ErasedLeaf> {
+        let state = program.state_by_symbol(state_symbol)?;
+        let record_type = match program.type_reference_table.type_reference(formal_type) {
+            TypeReferenceNode::Reference { referee, .. } => *referee,
+            _ => formal_type,
+        };
+        let leaf_segments = |prefix: &[facts::PlaceSegment]| {
+            prefix
+                .iter()
+                .cloned()
+                .chain(
+                    fields
+                        .iter()
+                        .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol }),
+                )
+                .collect::<Vec<_>>()
+        };
+        let mut current = expression;
+        for _ in 0..=program.expression_table.expression_count() {
+            if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current) {
+                if borrow.access != language_core::ReferenceAccess::Shared {
+                    return None;
+                }
+                current = borrow.target;
+                continue;
+            }
+            if let Some(path) = program.expression_table.name_path_node(current)
+                && let Some(constant) = program
+                    .const_declarations()
+                    .iter()
+                    .find(|constant| path.symbol.is_valid() && constant.symbol == path.symbol)
+            {
+                let initializer = if constant.authored_initializer.is_valid() {
+                    constant.authored_initializer
+                } else {
+                    constant.materialized_initializer
+                };
+                let (leaf, _) = validation::closed_scalar_place_projection(
+                    program,
+                    initializer,
+                    constant.declared_type,
+                    &leaf_segments(&[]),
+                )?;
+                return Some(ErasedLeaf::Value(leaf));
+            }
+            if !static_place_syntax(program, current) {
+                let (leaf, _) = validation::closed_scalar_place_projection(
+                    program,
+                    current,
+                    record_type,
+                    &leaf_segments(&[]),
+                )?;
+                return Some(ErasedLeaf::Value(leaf));
+            }
+            let place = validation::canonical_place_from_expression(program, current)?;
+            let symbol = place.root.as_symbol()?;
+            let segments = leaf_segments(&place.segments);
+            if let Some((position, parameter)) = authored_parameters
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| parameter.symbol == symbol)
+            {
+                if !parameter.relevance.is_erased() || parameter.is_mutable || parameter.is_const {
+                    return None;
+                }
+                let wanted = segments
+                    .iter()
+                    .map(|segment| match segment {
+                        facts::PlaceSegment::Field { symbol } => Some(*symbol),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let lane = program
+                    .erased_scalar_lanes(parameter.type_reference)
+                    .iter()
+                    .position(|lane| lane.fields == wanted)?;
+                return Some(ErasedLeaf::Formal {
+                    position: program.erased_scalar_lane_base(authored_parameters, position) + lane,
+                });
+            }
+            let (ordinal, local) = program.state_local_declaration(state, symbol)?;
+            if ordinal >= before_statement as usize
+                || !local.initial_value.is_valid()
+                || local.is_mutable
+            {
+                return None;
+            }
+            if let TypeReferenceNode::Reference { access, .. } = program
+                .type_reference_table
+                .type_reference(local.type_reference)
+            {
+                let ExpressionNode::Borrow(borrow) =
+                    program.expression_table.expression(local.initial_value)
+                else {
+                    return None;
+                };
+                if !place.segments.is_empty()
+                    || *access != language_core::ReferenceAccess::Shared
+                    || borrow.access != *access
+                {
+                    return None;
+                }
+                current = borrow.target;
+                continue;
+            }
+            if let Some((leaf, _)) = validation::closed_scalar_place_projection(
+                program,
+                local.initial_value,
+                local.type_reference,
+                &segments,
+            ) {
+                return Some(ErasedLeaf::Value(leaf));
+            }
+            // `let record: Witness = RECORD;` names the same value as its
+            // initializer when that initializer is itself an immutable name.
+            if !place.segments.is_empty()
+                || !matches!(
+                    program.expression_table.expression(local.initial_value),
+                    ExpressionNode::Name(_)
+                )
+            {
+                return None;
+            }
+            current = local.initial_value;
+        }
+        None
     }
 
     fn static_place_syntax(

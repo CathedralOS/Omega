@@ -9980,9 +9980,9 @@ pub mod relevance {
                         {
                             continue;
                         }
-                        if program
-                            .erased_scalar_observation_type(parameter.type_reference)
-                            .is_some()
+                        if !program
+                            .erased_scalar_lanes(parameter.type_reference)
+                            .is_empty()
                         {
                             continue;
                         }

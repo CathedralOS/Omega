@@ -9097,7 +9097,7 @@ pub(crate) mod inner {
         use super::ordinary_calls;
         use super::parameters::{
             lower_unit_parameters, lower_unit_scalar_parameter_declarations,
-            lower_unit_scalar_parameter_types,
+            lower_unit_erased_scalar_lane_types, lower_unit_scalar_parameter_types,
         };
         use crate::expression_preparation::qualifications::PreparedScalarQualifications;
         use crate::shared::lowering_error::LoweringError;
@@ -9202,7 +9202,7 @@ pub(crate) mod inner {
                     next_value,
                 )?;
                 let erased_scalar_parameters =
-                    lower_unit_scalar_parameter_types(plan.erased_scalar_parameters)?
+                    lower_unit_erased_scalar_lane_types(plan.erased_scalar_parameters)?
                         .into_iter()
                         .map(|scalar_type| {
                             Ok(ValueDeclaration {
@@ -13924,6 +13924,26 @@ pub(crate) mod inner {
                 .any(|pair| pair[0].source_position >= pair[1].source_position)
             {
                 return unsupported("Unit scalar parameters are not in strict source order");
+            }
+            parameters
+                .iter()
+                .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+                .collect()
+        }
+
+        /*
+            Erased scalar lanes keep source order, but an erased record formal
+            owns one lane per scalar leaf, so consecutive lanes may share their
+            authored position. Runtime scalar parameters never do.
+        */
+        pub(crate) fn lower_unit_erased_scalar_lane_types(
+            parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+        ) -> Result<Vec<ScalarType>, LoweringError> {
+            if parameters
+                .windows(2)
+                .any(|pair| pair[0].source_position > pair[1].source_position)
+            {
+                return unsupported("Unit erased scalar lanes are not in source order");
             }
             parameters
                 .iter()

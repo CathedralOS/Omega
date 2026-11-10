@@ -1739,13 +1739,25 @@ mod parameters {
                     || is_source_evidence_carrier(program, parameter.type_reference))
             })
             .map(|(position, parameter)| {
-                Some(CheckedStructuralScalarParameterPlan {
-                    source_position: u32::try_from(position).ok()?,
-                    primitive_type: program
-                        .erased_scalar_observation_type(parameter.type_reference)?,
-                })
+                // One plan per erased scalar lane, in lane order: a record
+                // formal repeats its source position once for each leaf.
+                let lanes = program.erased_scalar_lanes(parameter.type_reference);
+                if lanes.is_empty() {
+                    return None;
+                }
+                let source_position = u32::try_from(position).ok()?;
+                Some(
+                    lanes
+                        .into_iter()
+                        .map(|lane| CheckedStructuralScalarParameterPlan {
+                            source_position,
+                            primitive_type: lane.primitive_type,
+                        })
+                        .collect::<Vec<_>>(),
+                )
             })
-            .collect()
+            .collect::<Option<Vec<_>>>()
+            .map(|plans| plans.into_iter().flatten().collect())
     }
 
     /*
@@ -1785,15 +1797,7 @@ mod parameters {
                     {
                         program.normalized_type_identity(parameter.type_reference)
                     } else {
-                        base_type_identity(
-                            program,
-                            proof_only.contract_term_observation_type(
-                                program,
-                                parameter.type_reference,
-                            )?,
-                            &[],
-                            &[],
-                        )?
+                        base_type_identity(program, parameter.type_reference, &[], &[])?
                     },
                 })
             })

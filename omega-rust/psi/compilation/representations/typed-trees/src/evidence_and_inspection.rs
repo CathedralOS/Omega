@@ -179,6 +179,14 @@ pub mod evidence {
         use std::collections::HashMap;
         use symbols::SymbolHandle;
 
+        /// One erased scalar lane: the field path below an erased binding (empty
+        /// for a primitive or a shared reference to one) and the leaf's type.
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct ErasedScalarLane {
+            pub fields: Vec<SymbolHandle>,
+            pub primitive_type: crate::types::PrimitiveType,
+        }
+
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum ProofOnlyReason {
             Integer,
@@ -235,42 +243,16 @@ pub mod evidence {
                 program: &TypedTrees,
                 type_reference: TypeReferenceHandle,
             ) -> bool {
-                self.contract_term_observation_type(program, type_reference)
-                    .is_some()
-            }
-
-            /// A shared reference supplies a proof-side observation of its referent,
-            /// while the original binding still owns type, scope and loan checking.
-            /// This selects no executable descriptor or read, and does not admit
-            /// mutable references or storage-bearing fields into a contract term.
-            pub fn contract_term_observation_type(
-                &self,
-                program: &TypedTrees,
-                type_reference: TypeReferenceHandle,
-            ) -> Option<TypeReferenceHandle> {
                 if self.proof_only_mention(program, type_reference).is_some() {
-                    return Some(type_reference);
+                    return true;
+                }
+                // A record whose leaves all ride erased scalar lanes is carried
+                // there, leaf by leaf, and owns no contract-term position.
+                if !program.erased_scalar_lanes(type_reference).is_empty() {
+                    return false;
                 }
                 let mut visiting = Vec::new();
-                if self.closed_contract_carrier(program, type_reference, &mut visiting) {
-                    return Some(type_reference);
-                }
-                if !program
-                    .type_reference_table
-                    .contains_type_reference(type_reference)
-                {
-                    return None;
-                }
-                let TypeReferenceNode::Reference {
-                    referee,
-                    access: language_core::ReferenceAccess::Shared,
-                    ..
-                } = program.type_reference_table.type_reference(type_reference)
-                else {
-                    return None;
-                };
-                self.closed_contract_carrier(program, *referee, &mut visiting)
-                    .then_some(*referee)
+                self.closed_contract_carrier(program, type_reference, &mut visiting)
             }
 
             fn closed_contract_carrier(
@@ -303,9 +285,7 @@ pub mod evidence {
                 };
                 let shape =
                     DataDefinition::shape_kind_from_members(program.data_members(definition));
-                if definition.supply_mode != language_core::DataSupplyMode::CheckedShape
-                    || definition.quotient.is_some()
-                    || !program.data_type_parameters(definition).is_empty()
+                if !program.closed_contract_nominal(definition)
                     || !matches!(
                         shape,
                         crate::data::DataShapeKind::Empty
@@ -313,18 +293,6 @@ pub mod evidence {
                             | crate::data::DataShapeKind::Enum
                             | crate::data::DataShapeKind::Mixed
                     )
-                    || program
-                        .plan_laid_layouts
-                        .iter()
-                        .any(|plan| plan.data_symbol == definition.symbol)
-                    || program
-                        .access_view_plans
-                        .iter()
-                        .any(|plan| plan.data_symbol == definition.symbol)
-                    || program
-                        .wire_schemas()
-                        .iter()
-                        .any(|schema| schema.name == definition.name)
                 {
                     return false;
                 }

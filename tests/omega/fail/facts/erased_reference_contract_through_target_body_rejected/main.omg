@@ -80,7 +80,8 @@ machine arm_entry() crashes Trap {
 // Expected exit: 0
 data record_Witness { value: i32; }
 machine keep_record(runtime: i32, witness [erased]: &i32, record [erased]: &record_Witness) -> i32
-requires witness == 7 && record.value == 7 { runtime }
+requires witness == 7
+requires record.value == 7 { runtime }
 boundary trait record_SelectedBodyCheck {
     machine record_require_tag(tag: u64) reaches crashes Trap;
 }

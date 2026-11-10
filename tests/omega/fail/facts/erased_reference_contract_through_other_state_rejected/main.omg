@@ -32,16 +32,19 @@ machine main() crashes Trap { run(true); run(false); }
 // Expected exit: 0
 data record_Witness { value: i32; }
 machine keep_record(runtime: i32, witness [erased]: &i32, record [erased]: &record_Witness) -> i32
-requires witness == 7 && record.value == 7 { runtime }
+requires witness == 7
+requires record.value == 7 { runtime }
 machine record_exercise(witness [erased]: &i32, record [erased]: &record_Witness, flag: bool) -> i32
-requires witness == 7 && record.value == 7 {
+requires witness == 7
+requires record.value == 7 {
     let runtime: i32 = match flag { true -> 41, false -> 42 };
     transition flag {
         true -> record_ready(runtime, witness, record)
         false -> record_ready(runtime, witness, record)
     }
     machine record_ready(runtime: i32, witness [erased]: &i32, record [erased]: &record_Witness) -> i32
-    requires witness == 7 && record.value == 7 { keep_record(runtime, witness, record) }
+    requires witness == 7
+requires record.value == 7 { keep_record(runtime, witness, record) }
 }
 machine record_verify(result: i32, flag: bool) crashes Trap {
     transition (flag && result == 41) || (!flag && result == 42) {

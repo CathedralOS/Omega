@@ -7042,11 +7042,25 @@ mod successors {
             })
             .collect::<Option<Vec<_>>>()?;
         mark(SuccessorGuard::ErasedArguments);
+        let erased_parameter_plans =
+            crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, target)?;
         let erased_arguments =
-            crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, target)?
+            erased_parameter_plans
                 .iter()
                 .enumerate()
                 .map(|(erased_index, target)| {
+                    // A transition argument row is keyed by its authored
+                    // position and so carries one erased scalar. A record
+                    // formal with several leaves would bind every leaf to the
+                    // same row; refuse it instead.
+                    if erased_parameter_plans
+                        .iter()
+                        .filter(|plan| plan.source_position == target.source_position)
+                        .count()
+                        != 1
+                    {
+                        return None;
+                    }
                     let argument = argument_at(target.source_position)?;
                     let (custody, expression) =
                         facts.values.scalar_expressions.bound_expression_at(

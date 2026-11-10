@@ -25,9 +25,10 @@ machine main() crashes Trap { run(true); run(false); }
 // The separate record-only twin below transports the same field fact through this place.
 // Erased primitive and record references discharge their value-7 requirements at keep_record without runtime witness arguments, reads, storage or cleanup.
 // Expected exit: 0
-data record_Witness { value: i32; }
+data record_Witness [copy] { value: i32; }
 machine keep_record(runtime: i32, witness [erased]: &i32, record [erased]: &record_Witness) -> i32
-requires witness == 7 && record.value == 7 { runtime }
+requires witness == 7
+requires record.value == 7 { runtime }
 const record_SEVEN: i32 = 7;
 const record_RECORD: record_Witness = record_Witness { value: 8 };
 machine record_exercise(flag: bool) -> i32 {

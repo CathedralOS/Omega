@@ -2,7 +2,8 @@
 // Expected exit: 0
 data Witness { value: i32; }
 machine keep(runtime: i32, witness [erased]: &i32, record [erased]: &Witness) -> i32
-requires witness == 7 && record.value == 7 { runtime }
+requires witness == 7
+requires record.value == 7 { runtime }
 data Holder { value: i32; record: Witness; }
 machine exercise(flag: bool) -> i32 {
     let runtime: i32 = match flag { true -> 41, false -> 42 };

@@ -2,7 +2,8 @@
 // Expected exit: 0
 data Witness { value: i32; }
 machine keep(runtime: i32, witness [erased]: &i32, record [erased]: &Witness) -> i32
-requires witness == 7 && record.value == 7 { runtime }
+requires witness == 7
+requires record.value == 7 { runtime }
 machine produce(flag: bool) -> i32
 ensures result == 7 { match flag { true -> 7, false -> 7 } }
 machine produce_record(flag: bool) -> Witness
