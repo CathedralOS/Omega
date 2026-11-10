@@ -59,9 +59,9 @@ A later run can start those on `composer-2.5` with fast mode off, and only as sl
 
 | Verdict | Saved rows |
 | --- | --- |
-| REACHABLE | 41 |
-| CLOSED | 66 |
-| UNDECIDED | 9 |
+| REACHABLE | 58 |
+| CLOSED | 108 |
+| UNDECIDED | 17 |
 | LOST FAILURE | 0 |
 | NOT MY CASE | 0 |
 | NO CALLERS | 0 |
@@ -69,10 +69,10 @@ A later run can start those on `composer-2.5` with fast mode off, and only as sl
 | HAS CALLERS | 0 |
 | SAME JOB | 0 |
 | DIFFERENT JOBS | 0 |
-| Total saved | 116 |
+| Total saved | 183 |
 | Work list | 2253 |
 
-Saved reports, all ending in `SLICE COMPLETE`: slice_0002, slice_0005, slice_0011, slice_0016, slice_0017, slice_0065, slice_0073, slice_0075, slice_0077, slice_0083, slice_0099, slice_0101, slice_0105, slice_0106, slice_0107, slice_0108. Fast-model reports are not in this set. Slice 0105's worker omitted the completion line; it was added after every entry already had a verdict.
+Saved reports, all ending in `SLICE COMPLETE`: slice_0001, slice_0002, slice_0005, slice_0011, slice_0014, slice_0016, slice_0017, slice_0020, slice_0023, slice_0028, slice_0031, slice_0033, slice_0065, slice_0073, slice_0075, slice_0077, slice_0083, slice_0099, slice_0101, slice_0105, slice_0106, slice_0107, slice_0108, slice_0114, slice_0115. Fast-model reports for slices 0025 through 0064, except the composer reruns already listed, were discarded and those slices are running again on composer-2.5. Fast-model reports are not in this set. Slice 0105's worker omitted the completion line; it was added after every entry already had a verdict.
 
 Composer-2.5 reruns now in flight for fast slices whose first reports were discarded: slice_0001, slice_0014, slice_0015, slice_0020, slice_0023, slice_0028, slice_0031, slice_0033, slice_0039. Newly started, also on composer-2.5: slice_0109 through slice_0120. No new launch was refused in this batch. The earlier cap error is unchanged.
 
