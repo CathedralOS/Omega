@@ -1879,7 +1879,7 @@ pub mod queries {
                                 .symbols
                                 .symbol_provenance_source_span(symbol)
                                 .and_then(|span| original.symbols.source_file(span))
-                                .is_none_or(|file| is_subject(file)))
+                                .is_none_or(&is_subject))
                 },
                 |_| true,
                 &children,
