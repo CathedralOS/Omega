@@ -1,1 +1,1 @@
-cannot prove requires contract for call use_small from guarded: y in u64::Small
+cannot prove requires contract for call use_small from small: y in u64::Small
