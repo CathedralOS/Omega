@@ -1222,6 +1222,7 @@ pub mod expression {
                 let mut source = ExpressionTable::default();
                 let child = source.insert(ExpressionNode::Boolean(true));
                 let root = source.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left: child,
                     operator: BinaryOperator::And,
                     right: child,
@@ -1972,6 +1973,7 @@ pub mod expression {
                             copies,
                         );
                         self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: binary.policy,
                             left,
                             operator: binary.operator,
                             right,
@@ -2648,6 +2650,7 @@ pub mod expression {
                         let left = self.insert_tree(&binary.left);
                         let right = self.insert_tree(&binary.right);
                         self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left,
                             operator: binary.operator,
                             right,
@@ -3684,6 +3687,21 @@ pub mod expression {
                 );
         }
 
+        /// Hands an expression's authored selection occurrences to the
+        /// expression that now holds its operation, so a rewrite that wraps
+        /// an authored operator keeps one owner for each occurrence.
+        pub fn move_authored_selection_occurrences(
+            &mut self,
+            from: ExpressionHandle,
+            to: ExpressionHandle,
+        ) {
+            let moved = std::mem::replace(
+                &mut self.authored_selection_occurrences[source_span_index(from)],
+                HandleSpan::empty(),
+            );
+            self.authored_selection_occurrences[source_span_index(to)] = moved;
+        }
+
         pub fn authored_selection_occurrences(
             &self,
             handle: ExpressionHandle,
@@ -4245,6 +4263,12 @@ pub mod expression {
         pub left: ExpressionHandle,
         pub operator: BinaryOperator,
         pub right: ExpressionHandle,
+        /// The policy an operator suffix chose for this one operation
+        /// (`+%`, `+|`, `+!`); `Exact` for the bare operator. Preparation
+        /// rewrites every suffixed operation in executable code onto
+        /// policy-qualified operands, so checking sees `Exact` here and
+        /// rejects anything else.
+        pub policy: numerics::arithmetic::ArithmeticDomain,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]

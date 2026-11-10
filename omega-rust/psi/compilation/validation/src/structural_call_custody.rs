@@ -1925,6 +1925,7 @@ pub(crate) mod declaration_predicates {
                 program
                     .expression_table
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: operands[0],
                         operator: BinaryOperator::Equal,
                         right: operands[1],
@@ -2198,6 +2199,7 @@ pub(crate) mod declaration_predicates {
                         )));
                 membership.push(program.expression_table.insert(ExpressionNode::Binary(
                     TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: subject,
                         operator: BinaryOperator::CaseMembership,
                         right: selected,
@@ -2208,6 +2210,7 @@ pub(crate) mod declaration_predicates {
                 program
                     .expression_table
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: membership[0],
                         operator: BinaryOperator::Or,
                         right: membership[1],

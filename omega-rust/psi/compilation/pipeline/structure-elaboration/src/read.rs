@@ -1881,6 +1881,7 @@ mod tests {
             .expression_table
             .insert(ExpressionNode::Boolean(false));
         let node = ExpressionNode::Binary(TableBinaryExpression {
+            policy: numerics::arithmetic::ArithmeticDomain::Exact,
             left,
             operator: BinaryOperator::CaseMembership,
             right,

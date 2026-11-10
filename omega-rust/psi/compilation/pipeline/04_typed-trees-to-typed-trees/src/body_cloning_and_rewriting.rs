@@ -391,6 +391,7 @@ pub(crate) mod body_cloning {
                 );
                 let root = expressions_of_mut(&mut program).insert(ExpressionNode::Binary(
                     TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: leaf,
                         operator: BinaryOperator::Add,
                         right: leaf,
