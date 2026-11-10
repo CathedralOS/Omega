@@ -26,8 +26,10 @@ Any other kind is refused as `Unsupported`; elaboration mints none yet.
 Hypotheses come only from the lowered form and the tables. `discharge` fills
 each machine's `knowledge` table with one row per entry `requires` clause
 (`EntryRequirement`, at the entry block), per operation result equation
-(`OperationSemantics`, on its normal successor) and per callee `ensures`
-clause (`CalleeGuarantee`, after the call). A row is passed to the kernel for
+(`OperationSemantics`, on its normal successor), per callee `ensures`
+clause (`CalleeGuarantee`, after the call) and per edge of a conditional
+(`BranchCondition`: the condition is `true` on the true edge and `false` on
+the false edge). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
@@ -43,9 +45,23 @@ comparison closes by chaining the two sides' bounds through a closed literal
 relation. An arithmetic safety goal closes through `IntegerAffineBound`, whose
 image of the operands' bounds the kernel itself computes.
 
+The same prover carries relations between values, with no literal endpoint.
+A comparison between two values searches order steps between values:
+hypotheses relating two values, and `a < a + d` or `a - d < a` from an exact
+result when `0 < d` (`IntegerAddOrder`, `IntegerSubtractOrder`), chained by
+order transitivity. An unsigned `a - b` is safe from `b <= a` through the
+kernel's correlated unsigned subtract. A goal the direct search misses is
+split over a disjunctive fact (a disequality guard transports to `v < k or
+k < v`): each alternative proves the goal as a local assumption or
+contradicts what is known (`DisjunctionElimination`, contradiction
+elimination). Splits do not nest.
+
 `verify_obligation` then decides the whole certificate. Its acceptance records
-whether the mathematical core judged it as well; every certificate in the
-tests was judged (`MathematicalCoreDecision::Judged`).
+whether the mathematical core judged it as well. Most certificates are
+`Judged`; a discreteness step from a transported strict guard (`a < 10` to
+`a <= 9`, `0 < a` to `1 <= a`) is accepted by the rule checker and answered
+`Refused` by the core. Both count as discharged, and the comparison harness
+reports them apart.
 
 ## Why this route and not the arithmetic engine
 
@@ -61,16 +77,17 @@ subset needs, so the prover emits them directly.
 
 ## Findings
 
-1. **No justification for a branch condition.** `Justification` has no
-   variant for the condition of a conditional edge, so a guard such as
-   `when a < 10` gives the arm no knowledge. Obligations that need a guard
-   are `Unproved`. `values.rs` is not this crate's to change.
-2. **Knowledge rows point at a table that does not exist.**
-   `KnowledgeRow::proposition` is a `PropositionId` into "the module's
-   proposition table", which Terminal Psi does not have. This crate mints the
-   proposition in lockstep with the row (`MachineDischarge::propositions`,
-   `PropositionId` n for `KnowledgeId` n). The justification already
-   identifies the proposition, so the field could go.
+1. **Branch facts reach the prover through the kernel.** A `BranchCondition`
+   row states `c == true` (or `false`); the prover transports it through the
+   result equations of Boolean values and constants into the comparison it
+   stands for (`ValueEqualityTransport`, whose conclusion the kernel
+   computes with `check_value_equality_denotation`). The mathematical core
+   does not cover every certificate this makes: a discreteness step from a
+   transported `a < 10` to `a <= 9` is accepted by the rule checker and
+   answered `Refused` by the core. `verify_obligation` accepts such a
+   certificate; the comparison harness counts it apart from `Judged`.
+2. **Knowledge propositions have a table.** `MachineTables::propositions`
+   (machine-local, minted by `push`); `KnowledgeRow::proposition` indexes it.
 3. **Summaries name no proposition.** `Summary` no longer holds
    `requires` and `result_relation`: the callee's clauses live once in its
    `MachineContract`, identified by machine and position, which is what
@@ -103,3 +120,11 @@ Seals are in memory only. Terminal Psi's layout has no place for them yet, so
 they are lost on a byte round trip and do not survive a stored artifact: a
 module lowered from bytes, including one a cache rebuilt, arrives with
 `ObligationEvidence::ReadFromBytes` and zero fingerprints.
+
+## Measuring against the current checker
+
+`omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs` runs
+both checkers on corpus programs and prints one line per program and one per
+obligation. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
+so that comparison can count what branch facts buy; the checker uses
+`discharge`.

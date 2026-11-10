@@ -19,7 +19,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 
-use crate::{Discharge, Evidence, discharge};
+use crate::{Discharge, Discharged, Evidence, discharge};
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
     IntegerType::new(sign, 32).unwrap()
@@ -166,7 +166,7 @@ fn verdicts<'a>(
     result: &'a Discharge,
     machine: u64,
     select: impl Fn(&ObligationKind) -> bool,
-) -> Vec<(ObligationId, &'a Checked<Evidence>)> {
+) -> Vec<(ObligationId, &'a Checked<Discharged>)> {
     let tables = elaboration.tables.machines.get(id(machine)).unwrap();
     let verdicts = &result.machines.get(id(machine)).unwrap().verdicts;
     tables
@@ -189,24 +189,42 @@ fn guarantee(kind: &ObligationKind) -> bool {
     matches!(kind, ObligationKind::NormalGuarantee { .. })
 }
 
-/// The kernel decides the evidence again from its parts, and refuses the
-/// same certificate once its conclusion is tampered with.
+/// The kernel decides the evidence again from its parts, its mathematical
+/// core judged it too, and the same certificate is refused once its
+/// conclusion is tampered with.
 fn assert_kernel_checked(
     elaboration: &structure_elaboration::Elaboration,
-    result: &Discharge,
     machine: u64,
     obligation: ObligationId,
     evidence: &Evidence,
 ) {
+    let core = assert_kernel_accepted(elaboration, machine, obligation, evidence);
+    assert!(
+        matches!(core, MathematicalCoreDecision::Judged(_)),
+        "{core:?}"
+    );
+}
+
+/// As `assert_kernel_checked`, returning the mathematical core's decision
+/// instead of requiring `Judged`: `verify_obligation` accepts a certificate
+/// whose rule families the core does not cover.
+fn assert_kernel_accepted(
+    elaboration: &structure_elaboration::Elaboration,
+    machine: u64,
+    obligation: ObligationId,
+    evidence: &Evidence,
+) -> MathematicalCoreDecision {
     assert!(matches!(
         evidence.fact.route,
         AcceptedFactRoute::CertificateDerived { .. }
     ));
     let tables = elaboration.tables.machines.get(id(machine)).unwrap();
-    let propositions = &result.machines.get(id(machine)).unwrap().propositions;
     let resolve = |rows: &[terminal_check_tables::KnowledgeId]| {
         rows.iter()
-            .map(|row| propositions.get(id(row.get())).unwrap().clone())
+            .map(|row| {
+                let row = tables.knowledge.get(*row).unwrap();
+                tables.propositions.get(row.proposition).unwrap().clone()
+            })
             .collect::<Vec<_>>()
     };
     let context = PropositionContext::from_value_types(
@@ -235,16 +253,14 @@ fn assert_kernel_checked(
     let AcceptedFactRoute::CertificateDerived { acceptance, .. } = &fact.route else {
         panic!("certificate route");
     };
-    assert!(matches!(
-        acceptance.mathematical_core,
-        MathematicalCoreDecision::Judged(_)
-    ));
+    let core = acceptance.mathematical_core.clone();
     let mut tampered = evidence.certificate.clone();
     tampered.proof.conclusion = Proposition::Falsehood;
     assert!(decide(&evidence.goal, tampered).is_err());
+    core
 }
 
-fn assert_unproved(verdict: &Checked<Evidence>) {
+fn assert_unproved(verdict: &Checked<Discharged>) {
     let refusal = verdict
         .as_ref()
         .expect_err("the obligation must be refused");
@@ -276,8 +292,8 @@ fn bounded_operands_discharge_an_exact_add_with_kernel_evidence() {
     let verdicts = verdicts(&elaboration, &result, 1, safety);
     assert_eq!(verdicts.len(), 1);
     let (obligation, verdict) = verdicts[0];
-    let evidence = verdict.as_ref().unwrap();
-    assert_kernel_checked(&elaboration, &result, 1, obligation, evidence);
+    let evidence = certificate(verdict);
+    assert_kernel_checked(&elaboration, 1, obligation, evidence);
 }
 
 #[test]
@@ -325,13 +341,7 @@ fn a_bound_follows_an_earlier_exact_result() {
     };
     let (elaboration, result) = run(vec![chained]);
     for (obligation, verdict) in verdicts(&elaboration, &result, 1, safety) {
-        assert_kernel_checked(
-            &elaboration,
-            &result,
-            1,
-            obligation,
-            verdict.as_ref().unwrap(),
-        );
+        assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
     }
 }
 
@@ -360,13 +370,7 @@ fn a_signed_add_needs_both_bounds() {
     both.extend(range(2));
     let (elaboration, result) = run(vec![add(both)]);
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
-    assert_kernel_checked(
-        &elaboration,
-        &result,
-        1,
-        obligation,
-        verdict.as_ref().unwrap(),
-    );
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
     // Upper bounds alone leave the sum's lower end at the carrier minimum.
     let upper_only = vec![
         Proposition::LessOrEqual(formal(1, i32_type()), signed(100)),
@@ -391,13 +395,7 @@ fn a_divisor_known_nonzero_discharges_and_a_zero_divisor_is_refused() {
     };
     let (elaboration, result) = run(vec![divide(vec![at_least(2, 1)], slot(1, u32_type()))]);
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
-    assert_kernel_checked(
-        &elaboration,
-        &result,
-        1,
-        obligation,
-        verdict.as_ref().unwrap(),
-    );
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
 
     let (elaboration, result) = run(vec![divide(Vec::new(), slot(1, u32_type()))]);
     assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
@@ -421,13 +419,7 @@ fn a_multiply_of_bounded_operands_discharges() {
     };
     let (elaboration, result) = run(vec![multiply]);
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
-    assert_kernel_checked(
-        &elaboration,
-        &result,
-        1,
-        obligation,
-        verdict.as_ref().unwrap(),
-    );
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
 }
 
 /// Machine 1 calls machine 2, whose `requires` is `x <= 10`.
@@ -447,13 +439,7 @@ fn caller(requires: Vec<Proposition>, argument: Expression) -> Vec<Machine> {
 fn a_call_requirement_discharges_from_the_callers_requires() {
     let (elaboration, result) = run(caller(vec![at_most(1, 5)], slot(0, u32_type())));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
-    assert_kernel_checked(
-        &elaboration,
-        &result,
-        1,
-        obligation,
-        verdict.as_ref().unwrap(),
-    );
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
 }
 
 #[test]
@@ -469,13 +455,7 @@ fn a_call_requirement_broken_by_a_constant_is_refused() {
     // The same call with 7 holds by the constant's own result equation.
     let (elaboration, result) = run(caller(Vec::new(), unsigned(7)));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
-    assert_kernel_checked(
-        &elaboration,
-        &result,
-        1,
-        obligation,
-        verdict.as_ref().unwrap(),
-    );
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
 }
 
 fn guaranteeing(requires: Vec<Proposition>, ensures: Proposition) -> Machine {
@@ -490,13 +470,7 @@ fn guaranteeing(requires: Vec<Proposition>, ensures: Proposition) -> Machine {
 fn a_normal_guarantee_discharges_from_the_entry_requires() {
     let (elaboration, result) = run(vec![guaranteeing(vec![at_most(1, 3)], at_most(1, 10))]);
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, guarantee)[0];
-    assert_kernel_checked(
-        &elaboration,
-        &result,
-        1,
-        obligation,
-        verdict.as_ref().unwrap(),
-    );
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
 }
 
 #[test]
@@ -576,12 +550,347 @@ fn knowledge_after_an_arm_operation_is_not_available_after_the_guard() {
     assert!(graph.dominates(entry, in_arm).unwrap() && graph.dominates(entry, in_rest).unwrap());
     // Both adds discharge from `a <= 10` and their own constants.
     for (obligation, verdict) in verdicts(&elaboration, &result, 1, safety) {
-        assert_kernel_checked(
-            &elaboration,
-            &result,
-            1,
-            obligation,
-            verdict.as_ref().unwrap(),
-        );
+        assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
     }
+}
+
+fn compare(operation: Strict, left: Expression, right: Expression) -> Expression {
+    expression(
+        ExpressionKind::Strict {
+            operation,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+        Some(ScalarType::Boolean),
+    )
+}
+
+fn guarded(guard: Expression, target: Expression) -> Statement {
+    Statement::Arm {
+        guard: Some(guard),
+        target: Target::Value(target),
+        source: nowhere(),
+    }
+}
+
+#[test]
+fn a_true_branch_bounds_its_arm() {
+    // when a < 10 -> a + (MAX - 9); return 0. Only the guard bounds `a`.
+    let arm = |guard: Option<Expression>| {
+        let sum = strict(
+            Strict::Add,
+            slot(0, u32_type()),
+            unsigned(u128::from(u32::MAX) - 9),
+        );
+        let mut statements = Vec::new();
+        match guard {
+            Some(guard) => statements.push(guarded(guard, sum)),
+            None => statements.push(returns(sum)),
+        }
+        statements.push(returns(unsigned(0)));
+        machine(vec![u32_type()], statements)
+    };
+    let (elaboration, result) = run(vec![arm(Some(compare(
+        Strict::Less,
+        slot(0, u32_type()),
+        unsigned(10),
+    )))]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    let core = assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    // The rule checker accepts it; the mathematical core does not cover the
+    // discreteness step from the transported `a < 10` to `a <= 9`, and says
+    // so instead of judging.
+    assert_eq!(
+        core,
+        MathematicalCoreDecision::Refused("checked discreteness has integer order endpoints"),
+        "{core:?}"
+    );
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert_eq!(
+        tables
+            .knowledge
+            .values()
+            .filter(|row| matches!(row.justification, Justification::BranchCondition { .. }))
+            .count(),
+        2
+    );
+    // The same add with the guard on `a < 11` overflows at `a = 10`.
+    let (elaboration, result) = run(vec![arm(Some(compare(
+        Strict::Less,
+        slot(0, u32_type()),
+        unsigned(11),
+    )))]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+}
+
+#[test]
+fn a_false_branch_bounds_the_continuation() {
+    // when a < 10 -> 0; return a - 10. Past the guard, `10 <= a`.
+    let program = machine(
+        vec![u32_type()],
+        vec![
+            guarded(
+                compare(Strict::Less, slot(0, u32_type()), unsigned(10)),
+                unsigned(0),
+            ),
+            returns(strict(Strict::Subtract, slot(0, u32_type()), unsigned(10))),
+        ],
+    );
+    let (elaboration, result) = run(vec![program]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+}
+
+#[test]
+fn every_obligation_has_exactly_one_verdict() {
+    // Calls, guards, every partial operation and guarantees in one closure;
+    // some discharge and some do not. No obligation may lack a verdict and
+    // none may have two.
+    let callee = Machine {
+        requires: vec![at_most(1, 10)],
+        ensures: vec![at_most(1, 10)],
+        ..machine(
+            vec![u32_type(), u32_type()],
+            vec![
+                guarded(
+                    compare(Strict::Equal, slot(1, u32_type()), unsigned(0)),
+                    unsigned(0),
+                ),
+                returns(strict(
+                    Strict::ShiftLeft,
+                    strict(Strict::Multiply, slot(0, u32_type()), slot(1, u32_type())),
+                    strict(Strict::Remainder, slot(0, u32_type()), slot(1, u32_type())),
+                )),
+            ],
+        )
+    };
+    let caller = Machine {
+        locals: vec![u32_type()],
+        requires: vec![at_most(1, 5)],
+        ..machine(
+            vec![u32_type()],
+            vec![
+                Statement::Bind {
+                    slot: 1,
+                    value: call(2, vec![slot(0, u32_type()), unsigned(3)]),
+                },
+                returns(strict(
+                    Strict::Divide,
+                    strict(Strict::Subtract, slot(1, u32_type()), slot(0, u32_type())),
+                    call(2, vec![unsigned(11), slot(1, u32_type())]),
+                )),
+            ],
+        )
+    };
+    let (elaboration, result) = run(vec![caller, callee]);
+    let mut discharged = 0;
+    let mut refused = 0;
+    for (machine, tables) in elaboration.tables.machines.iter() {
+        let verdicts = &result.machines.get(machine).unwrap().verdicts;
+        assert_eq!(verdicts.len(), tables.obligations.len());
+        assert!(
+            tables.obligations.keys().eq(verdicts.keys()),
+            "verdicts are indexed by exactly the obligation identities"
+        );
+        for verdict in verdicts.values() {
+            match verdict {
+                Ok(_) => discharged += 1,
+                Err(_) => refused += 1,
+            }
+        }
+    }
+    assert!(discharged > 0 && refused > 0);
+}
+
+/// `formal(left) R formal(right)` over u32 formals, as a contract clause.
+fn relate(strict: bool, left: u64, right: u64) -> Proposition {
+    let (left, right) = (formal(left, u32_type()), formal(right, u32_type()));
+    if strict {
+        Proposition::LessThan(left, right)
+    } else {
+        Proposition::LessOrEqual(left, right)
+    }
+}
+
+#[test]
+fn an_index_below_a_length_passes_to_a_callee_with_no_literal_bound() {
+    // check(i, len) requires i < len calls at(i, len), which requires i < len
+    // and guarantees i <= len: both are relations between two values.
+    let at = Machine {
+        requires: vec![relate(true, 1, 2)],
+        ensures: vec![relate(false, 1, 2)],
+        ..machine(
+            vec![u32_type(), u32_type()],
+            vec![returns(slot(0, u32_type()))],
+        )
+    };
+    let check = Machine {
+        requires: vec![relate(true, 1, 2)],
+        ..machine(
+            vec![u32_type(), u32_type()],
+            vec![returns(call(
+                2,
+                vec![slot(0, u32_type()), slot(1, u32_type())],
+            ))],
+        )
+    };
+    let (elaboration, result) = run(vec![check, at]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    // `i <= len` from `i < len`: a strict relation, weakened.
+    let (obligation, verdict) = verdicts(&elaboration, &result, 2, guarantee)[0];
+    assert_kernel_checked(&elaboration, 2, obligation, certificate(verdict));
+}
+
+#[test]
+fn an_unsigned_difference_is_safe_when_the_subtrahend_is_no_larger() {
+    // a - b with b <= a: no literal bound on either operand.
+    let subtract = |requires| Machine {
+        requires,
+        ..machine(
+            vec![u32_type(), u32_type()],
+            vec![returns(strict(
+                Strict::Subtract,
+                slot(0, u32_type()),
+                slot(1, u32_type()),
+            ))],
+        )
+    };
+    let (elaboration, result) = run(vec![subtract(vec![relate(false, 2, 1)])]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    // a <= b says nothing about a - b staying above zero.
+    let (elaboration, result) = run(vec![subtract(vec![relate(false, 1, 2)])]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+}
+
+#[test]
+fn order_between_values_is_transitive() {
+    // requires a <= b, b <= c ensures a <= c; and not c <= a.
+    let chain = |ensures| Machine {
+        requires: vec![relate(false, 1, 2), relate(false, 2, 3)],
+        ensures: vec![ensures],
+        ..machine(
+            vec![u32_type(), u32_type(), u32_type()],
+            vec![returns(slot(0, u32_type()))],
+        )
+    };
+    let (elaboration, result) = run(vec![chain(relate(false, 1, 3))]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, guarantee)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    let (elaboration, result) = run(vec![chain(relate(false, 3, 1))]);
+    assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
+}
+
+#[test]
+fn a_branch_relation_makes_a_difference_safe() {
+    // when b <= a -> a - b; return 0. Only the guard relates a and b.
+    let program = machine(
+        vec![u32_type(), u32_type()],
+        vec![
+            guarded(
+                compare(
+                    Strict::LessOrEqual,
+                    slot(1, u32_type()),
+                    slot(0, u32_type()),
+                ),
+                strict(Strict::Subtract, slot(0, u32_type()), slot(1, u32_type())),
+            ),
+            returns(unsigned(0)),
+        ],
+    );
+    let (elaboration, result) = run(vec![program]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+}
+
+/// The certificate of a discharged verdict.
+fn certificate(verdict: &Checked<Discharged>) -> &Evidence {
+    verdict
+        .as_ref()
+        .expect("discharged")
+        .certificate()
+        .expect("a certificate")
+}
+
+fn published(kind: &ObligationKind) -> bool {
+    matches!(kind, ObligationKind::PublishedGuarantee { .. })
+}
+
+#[test]
+fn a_published_clause_holds_only_when_every_return_establishes_it() {
+    // f(a) ensures a <= 10 { when a <= 10 -> 0; return 1 }: two normal
+    // returns. Without a requires, the arm's return establishes the clause
+    // from its guard and the fall-through return does not.
+    let program = |requires| Machine {
+        requires,
+        ensures: vec![at_most(1, 10)],
+        ..machine(
+            vec![u32_type()],
+            vec![
+                guarded(
+                    compare(Strict::LessOrEqual, slot(0, u32_type()), unsigned(10)),
+                    unsigned(0),
+                ),
+                returns(unsigned(1)),
+            ],
+        )
+    };
+    let (elaboration, result) = run(vec![program(Vec::new())]);
+    let exits = verdicts(&elaboration, &result, 1, guarantee);
+    assert_eq!(exits.len(), 2);
+    assert!(exits.iter().filter(|(_, verdict)| verdict.is_ok()).count() == 1);
+    let (clause, verdict) = verdicts(&elaboration, &result, 1, published)[0];
+    assert_unproved(verdict);
+    // The module's clause carries the published identity, not an exit's.
+    let lowered = &elaboration.module.machines[0];
+    assert_eq!(lowered.contract.ensures[0].obligation, clause);
+
+    let (elaboration, result) = run(vec![program(vec![at_most(1, 5)])]);
+    let (_, verdict) = verdicts(&elaboration, &result, 1, published)[0];
+    let Ok(Discharged::EveryExit(exits)) = verdict else {
+        panic!("both returns establish the clause: {verdict:?}");
+    };
+    assert_eq!(exits.len(), 2);
+}
+
+#[test]
+fn a_published_clause_with_no_normal_return_holds_vacuously() {
+    // The subset cannot write a machine with no normal return, so the
+    // tables state one directly: a published clause and no return edge.
+    let mut tables = terminal_check_tables::MachineTables::default();
+    let clause = tables
+        .obligations
+        .push(terminal_check_tables::obligations::ObligationRow {
+            kind: ObligationKind::PublishedGuarantee { clause: 0 },
+            created_at: ProgramPoint::BlockEntry(id(1)),
+        });
+    let verdict = crate::published(&tables, id(1), clause, 0, &[None]);
+    assert_eq!(verdict, Ok(Discharged::EveryExit(Vec::new())));
+}
+
+#[test]
+fn a_disequality_guard_splits_into_cases() {
+    // when 0 != a -> a - 1; return 0. The guard transports to `a < 0 or
+    // 0 < a`; the first alternative contradicts the carrier, the second
+    // bounds `a` from below.
+    let program = machine(
+        vec![u32_type()],
+        vec![
+            guarded(
+                compare(Strict::NotEqual, unsigned(0), slot(0, u32_type())),
+                strict(Strict::Subtract, slot(0, u32_type()), unsigned(1)),
+            ),
+            returns(unsigned(0)),
+        ],
+    );
+    let (elaboration, result) = run(vec![program]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    let core = assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    // The case split and the contradiction are judged; the discreteness step
+    // from `0 < a` to `1 <= a` is the one the core does not cover.
+    assert_eq!(
+        core,
+        MathematicalCoreDecision::Refused("checked discreteness has integer order endpoints")
+    );
 }

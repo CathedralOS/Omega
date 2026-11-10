@@ -18,6 +18,7 @@ lookup is one index.
 | --- | --- | --- |
 | `values` | `ValueId` | One evaluated scalar: its type, its single origin, and for a callable selector the machines it may select. A write never changes it. |
 | `knowledge` | `KnowledgeId` | A proposition over value identities, the point it is available from, its one justification and its premises. It never becomes false. |
+| `propositions` | `PropositionId` | The proposition each knowledge row states. Machine-local, minted by `push`: Terminal Psi keeps contract propositions inline and has no proposition table. |
 | `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value), with its sorted children and the writes to it. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
 | `writes` | `WriteId` | The forward write log: a value, an installed reference, unknown contents, or a hole. |
@@ -32,7 +33,9 @@ root `PlaceId` are the lowered form's own identities, so the checker and the
 emitted product name the same things. `ExactPlaceId`, `KnowledgeId`,
 `WriteId`, `ReferentSetId`, `SelectionSetId` and `InvocationId` belong to this
 crate because the lowered form has no identity for those concepts (its
-`PlaceId` names roots only).
+`PlaceId` names roots only). `PropositionId` is reused from the vocabulary, but
+here it is machine-local and indexes `MachineTables::propositions`, not the
+module's named proposition declarations.
 
 References and callables are keyed differently because the lowered form holds
 them differently. A reference is a structural place, so the places it may
@@ -92,7 +95,8 @@ refused as `Unsupported`, never accepted by default.
 | `CallRequirement` | question | [fact validity](../../../../../../wiki/spec/terminal-psi/fact_validity.md): "one exact obligation for every callee `requires` clause" |
 | `OperationSafety` | question | [control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md): "Each partial operation still proves its own safety" |
 | `ArrivalInvariant` | question | control flow: "one obligation for every actual incoming edge" |
-| `NormalGuarantee` | question | control flow: "All normal returns ... must establish the published guarantees." |
+| `NormalGuarantee` | question | control flow: "All normal returns ... must establish the published guarantees." One per (normal return edge, clause); names its `PublishedGuarantee`. |
+| `PublishedGuarantee` | question | the same sentence: the per-clause identity in `ContractClause`, holding when every return edge's `NormalGuarantee` for the clause holds (vacuously with no return). |
 | `CrashCoverage` | question | [calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash): "proves every site guard ... and checks same-cause coverage". Its `CrashSite` is a block with a no-successor terminator ("closed causes on distinct no-successor terminators") or a call operation whose callee may return and crash ("Surviving crash routes are derived from the pinned callee contract using exact actuals") |
 | `WellFoundedness` | question | control flow: "a shared well-foundedness question" |
 | `RankComparison` | question | control flow: "comparison obligations for every internal edge" |
@@ -115,8 +119,8 @@ refused as `Unsupported`, never accepted by default.
 
 ## Open
 
-- **Text inside propositions.** A knowledge row points at the module's
-  proposition table (`PropositionId`). `semantic_vocabulary::Proposition` is
+- **Text inside propositions.** A knowledge row points at its machine's
+  `propositions` table (`PropositionId`). `semantic_vocabulary::Proposition` is
   reused unchanged, and its `ContentConservation` variant still reaches text
   keys: `ContentAlgebra::parameter`, `ContentPlaceSegment::{Case, Field}` and
   `ContentProjectionScalar` hold `String`s. Route one (scalars) uses none of
@@ -134,9 +138,9 @@ refused as `Unsupported`, never accepted by default.
   `requires` and `ensures` inline in its `MachineContract`; its only
   `PropositionId` table is named proposition declarations. `Summary`
   therefore names no proposition: a callee clause is its machine and
-  position. Two places still assume a module proposition table: a
-  knowledge row's `proposition` (`lowered-discharge` mints its proposition
-  in lockstep with the row, in its own output) and `CrashRoute::guards`.
+  position. Knowledge rows index this crate's own machine-local
+  `propositions` table. `CrashRoute::guards` still assumes a module
+  proposition table.
   A body-derived result relation has no `MachineContract` slot; the lane
   that publishes `SummaryBasis::BodyDerived` decides where it lives.
 - **No carry term in `Summary`.** The design record lists carry as a summary

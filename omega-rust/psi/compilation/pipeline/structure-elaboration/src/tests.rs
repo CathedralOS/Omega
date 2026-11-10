@@ -436,18 +436,22 @@ fn every_normal_exit_owes_one_guarantee_per_ensures_clause() {
         .filter(|edge| tables.edges.get(*edge).unwrap().destination == Destination::Return)
         .collect::<Vec<_>>();
     assert_eq!(exits.len(), 2);
+    // One published identity per clause first, then one guarantee per (exit,
+    // clause) naming it.
     let guarantees = obligations(&tables);
-    let expected = exits
-        .iter()
-        .flat_map(|exit| {
-            [0, 1].map(|clause| ObligationKind::NormalGuarantee {
-                exit: *exit,
-                clause,
-            })
+    let mut expected = vec![
+        ObligationKind::PublishedGuarantee { clause: 0 },
+        ObligationKind::PublishedGuarantee { clause: 1 },
+    ];
+    expected.extend(exits.iter().flat_map(|exit| {
+        [0, 1].map(|clause| ObligationKind::NormalGuarantee {
+            exit: *exit,
+            clause,
+            published: id(u64::from(clause) + 1),
         })
-        .collect::<Vec<_>>();
+    }));
     assert_eq!(guarantees, expected);
-    // The module's clauses carry the first exit's identities.
+    // The module's clauses carry the published identities, not an exit's.
     let clauses = machine
         .contract
         .ensures
@@ -962,13 +966,20 @@ fn ensures_over_result_name_the_result_pseudo_value() {
         panic!("one clause")
     };
     assert_eq!(contract.proposition, clause);
+    // The clause carries its published identity; the one return edge owes a
+    // guarantee that names it.
     assert_eq!(
         tables.obligations.get(contract.obligation).unwrap().kind,
-        ObligationKind::NormalGuarantee {
-            exit: id(1),
-            clause: 0
-        }
+        ObligationKind::PublishedGuarantee { clause: 0 }
     );
+    assert!(tables.obligations.iter().any(|(_, row)| {
+        row.kind
+            == ObligationKind::NormalGuarantee {
+                exit: id(1),
+                clause: 0,
+                published: contract.obligation,
+            }
+    }));
     // The literal 7 is the first body value, after the result.
     assert_eq!(
         tables.values.get(id(3)).unwrap().origin,
