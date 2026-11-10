@@ -26,12 +26,13 @@ arithmetic, bitwise operations, shifts and comparisons; `!`, `~`, `&&` and
 formals and `ensures` clauses over their formals and `result`; `crashes Trap`
 and `crashes Abort` clauses with or without route guards over the formals;
 `crash Trap;` and `crash Abort;`; guarded transition arms; and returns. A call
-of a machine that publishes a crash route is served only when that machine
-has no normal completion and the call is in terminal position (an arm target
-or a call statement), where it becomes the block's no-normal invocation.
+of a machine that may return is an operation wherever it stands, and carries
+the callee's crash routes when it publishes any. A call of a machine with no
+normal completion is served only in terminal position (an arm target or a
+call statement), where it becomes the block's no-normal invocation.
 Everything else is refused with `RefusalReason::Unsupported` and a detail
-naming the construct (`expression match`, `type reference`, `call call that
-may crash and return`, ...): a reference, record, slice, loop, recursion
+naming the construct (`expression match`, `type reference`, `call no-normal
+call inside an expression`, ...): a reference, record, slice, loop, recursion
 through a cycle, generic, callable value, suspension, assembly, cast, float,
 domain or service reach is never skipped, approximated or passed through. A
 refusal anywhere in the closure refuses the whole closure.
@@ -80,7 +81,11 @@ used as route witnesses are proof information and are not added here. A call
 of a machine with no normal completion is an `InvokeNoNormal` terminator whose
 crash continuations are the callee's published routes with each formal
 replaced by the actual at its position; nothing is dropped or simplified.
-Both edges go to `Destination::NoNormal`. Their dispositions are empty: the
+Both edges go to `Destination::NoNormal`. A call of a machine that may return
+and also publishes crash routes stays a `Call` or `CallUnit` operation and
+carries the same substituted routes as its crash continuations: the block
+goes on after it, so the crash site is the operation
+(`CrashSite::Operation`), not the block. Their dispositions are empty: the
 subset mints no conserved obligation, and if one existed the edge is refused
 rather than given a guessed fate (a crash abandons; `Fate::Abandoned`).
 
@@ -113,7 +118,7 @@ the place, root and write tables are empty because the form implies none.
 | `OperationSafety` | each `Exact` add, subtract, multiply, divide, remainder, shift (every primitive whose `integer_policy_bridge` has formation conditions) | the point before the operation |
 | `CallRequirement` | one per callee `requires` clause per call, clause = position in the callee's canonical `requires` | the point before the call |
 | `NormalGuarantee` | one per `ensures` clause per normal exit edge | that edge |
-| `CrashCoverage` | one per crash site and cause: a `Crash` terminator (its one cause), or an `InvokeNoNormal` terminator (each cause among its continuations) | the point before the terminator |
+| `CrashCoverage` | one per crash site and cause. `CrashSite::Block`: a `Crash` terminator (its one cause), or an `InvokeNoNormal` terminator (each cause among its continuations). `CrashSite::Operation`: a `Call` or `CallUnit` whose callee may return and publishes crash routes (each cause among its continuations) | the point before the terminator or the call |
 
 ## Source correspondence
 
@@ -139,60 +144,51 @@ from Psi 05, validation, checked trees or Psi 06 is used or depended on.
 Each is a gap between this route and the contract it builds against; none was
 worked around by adding to `terminal-check-tables`.
 
-1. **Crash coverage at a call operation has no key.** A call of a machine
-   that may both return and crash is a crash site of the caller ([fact
-   validity](../../../../../wiki/spec/terminal-psi/fact_validity.md#entry-facts-and-crash-coverage):
-   "Entry-only call-ceiling coverage proves the same-cause union of published
-   alternatives"), but `ObligationKind::CrashCoverage { site: BlockId, cause }`
-   names a block whose terminator crashes, and such a call is an operation in
-   the middle of a block. Such calls are refused (`call call that may crash
-   and return`) rather than lowered without their obligation. The general fix
-   is a site form that names an operation, decided in the tables, not here.
-2. **`crashes none` is erased by stage 01.** It publishes no contract
+1. **`crashes none` is erased by stage 01.** It publishes no contract
    (`01_tokens-to-syntax-trees`, `finish_crashes_none`), so on a private body
    it reads exactly as an omitted clause, which requests inference. This crate
    infers in both cases, as stage 05 does; a private body that writes
    `crashes none` and crashes therefore publishes a route its author forbade.
    The identity has to be kept where it is lost, in stages 01 to 03.
-3. **Inferred routes are `Truth` per cause.** A narrower guard would be over
+2. **Inferred routes are `Truth` per cause.** A narrower guard would be over
    body values, not formals, and stating it over formals is proof work.
-4. **One `ensures` obligation per clause in Terminal Psi, one per exit in the
+3. **One `ensures` obligation per clause in Terminal Psi, one per exit in the
    tables.** `MachineContract::ensures` holds a `ContractClause` with one
    `ObligationId` per clause (`terminal-psi/src/proof.rs`), while control flow
    and `ObligationKind::NormalGuarantee` have one per (normal exit, clause).
    The module's clauses carry the first exit's identities; the others exist
    only in the tables. A machine with `ensures` and no normal exit has no
    identity to give its clauses and is refused.
-5. **No summaries.** `Summary::requires` and `result_relation` are
+4. **No summaries.** `Summary::requires` and `result_relation` are
    `PropositionId`s into "the module's proposition table", but Terminal Psi
    keeps contract propositions inline in `MachineContract` and its only
    `PropositionId` table (`proposition_declarations`) is named propositions
    with a `String` name. `CheckTables::summaries` is left empty; published
    crash routes live in `MachineContract::crash_routes` only.
-6. **`requires` is a canonical set in Terminal Psi.** The codec requires
+5. **`requires` is a canonical set in Terminal Psi.** The codec requires
    `MachineContract::requires` to strictly increase in canonical byte order,
    so clauses are sorted and a duplicate clause is refused. Clause positions
    in `CallRequirement` are canonical positions, not authored ones.
-7. **The machine declaration is left `None`.** `CheckedMachineDeclaration`
+6. **The machine declaration is left `None`.** `CheckedMachineDeclaration`
    holds identity-table text; producing it is identity work this route does
    not do. The codec and the interpreter accept the module without it.
-8. **A value arm's test is stored twice.** For `true -> X` on a captured
+7. **A value arm's test is stored twice.** For `true -> X` on a captured
    subject, stage 03 keeps a `When(subject == true)` guard and, as a separate
    expression copy, a non-structural pattern whose `guard` and `condition` are
    one handle. The reader evaluates the guard once and refuses the arm unless
    the copy reads to the same computation (`same_computation`, over slots,
    literal values, operators and callee identities).
-9. **Calls name the callee's entry state.** `target_symbol` and transition
+8. **Calls name the callee's entry state.** `target_symbol` and transition
    paths hold the `State` symbol; the machine is that symbol's parent, and the
    reader checks that the machine's one state is exactly that symbol. Every
    authored call also carries an authored selection occurrence and a static
    application whose registered operation is that state; both are accepted
    only when they resolve to exactly the callee and apply nothing.
-10. **Stage 04 leaves some literals unlanded.** An integer literal with no
-    landing takes the type its context expects (initializer, assignment,
-    argument, return, arm result, or the other operand), per
+9. **Stage 04 leaves some literals unlanded.** An integer literal with no
+   landing takes the type its context expects (initializer, assignment,
+   argument, return, arm result, or the other operand), per
     [literals and expected types](../../../../../wiki/spec/language/domains.md#literals-and-expected-types);
     with no expected type it is refused.
-11. **Every machine carries a reach row.** A machine with no reach holds
+10. **Every machine carries a reach row.** A machine with no reach holds
     `ServiceReachRowTable::EMPTY_ROW`, not `NULL`; both are accepted, any other
     row is refused.

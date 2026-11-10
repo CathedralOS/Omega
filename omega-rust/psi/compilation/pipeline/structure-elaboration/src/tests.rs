@@ -6,7 +6,7 @@ use semantic_vocabulary::{
     Proposition, PsiSemanticId, ScalarTerm, ScalarType, ValueId,
 };
 use terminal_check_tables::edges::Destination;
-use terminal_check_tables::obligations::ObligationKind;
+use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{MachineTables, ProgramPoint};
 use terminal_psi::{
@@ -636,13 +636,20 @@ fn every_crash_site_owes_one_coverage_per_cause_on_a_no_successor_edge() {
             (row.source, row.destination, row.dispositions.len()),
             (site, Destination::NoNormal, 0)
         );
-        coverage.push(ObligationKind::CrashCoverage { site, cause });
+        coverage.push(ObligationKind::CrashCoverage {
+            site: CrashSite::Block(site),
+            cause,
+        });
     }
     assert_eq!(obligations(&tables), coverage);
     for raw in 1..=tables.obligations.len() as u64 {
         let row = tables.obligations.get(id(raw)).unwrap();
-        let ObligationKind::CrashCoverage { site, .. } = row.kind else {
-            unreachable!()
+        let ObligationKind::CrashCoverage {
+            site: CrashSite::Block(site),
+            ..
+        } = row.kind
+        else {
+            panic!("a crash terminator's site is its block")
         };
         assert_eq!(row.created_at, ProgramPoint::BlockEntry(site));
     }
@@ -759,11 +766,11 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
                 clause: 0
             },
             ObligationKind::CrashCoverage {
-                site: id(1),
+                site: CrashSite::Block(id(1)),
                 cause: CrashCause::Trap
             },
             ObligationKind::CrashCoverage {
-                site: id(1),
+                site: CrashSite::Block(id(1)),
                 cause: CrashCause::Abort
             },
         ]
@@ -772,48 +779,149 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
     assert_eq!(tables.edges.len(), 1);
 }
 
-/// A call that may both return and crash would owe coverage at an operation,
-/// which `CrashCoverage` cannot key; a call with no normal completion inside
-/// an expression has no terminator to be. Both are refused, not lowered
-/// without their obligation.
+/// A call of a machine that may return and may crash stays an operation in
+/// the middle of its block. It carries the callee's routes with formals
+/// replaced by the actuals, and that operation, not the block, is the crash
+/// site: one `CrashCoverage` per cause, created before the call.
 #[test]
-fn calls_that_crash_outside_terminal_position_are_refused() {
-    let refused = |outcome: Outcome| {
-        // machine 1() -> u32 { f() + 1 }
-        let body = Body {
-            slots: Vec::new(),
-            statements: vec![returns(strict(
-                Strict::Add,
-                call(2, Vec::new(), Some(u32_type())),
-                integer(1),
-                u32_type(),
-            ))],
-        };
-        try_lower(
-            body,
-            vec![
-                signature(Vec::new(), Some(u32_type())),
-                signature(Vec::new(), Some(u32_type())),
-            ],
-            vec![returns_normally(), outcome],
-        )
-        .unwrap_err()
-        .detail
+fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
+    // machine 1(x: u32) -> u32 { f(x) + 1 }
+    // with f(y: u32) -> u32 crashes Trap when y < 3 crashes Abort
+    let body = Body {
+        slots: vec![u32_type()],
+        statements: vec![returns(strict(
+            Strict::Add,
+            call(2, vec![slot(0, u32_type())], Some(u32_type())),
+            integer(1),
+            u32_type(),
+        ))],
     };
-    assert_eq!(
-        refused(Outcome {
-            completes_normally: true,
-            crash_routes: routes(&[CrashCause::Trap]),
-        }),
-        "call call that may crash and return"
+    let three = ScalarTerm::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+        value: IntegerValue::Unsigned(3),
+    };
+    let guarded = |value: ValueId| {
+        CrashRouteGuard::Predicate(CrashPredicateTerm::new(Proposition::LessThan(
+            ScalarTerm::Value {
+                id: value,
+                scalar_type: u32_type(),
+            },
+            three.clone(),
+        )))
+    };
+    let callee_routes = vec![
+        CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![guarded(id(1))],
+        },
+        CrashRouteBucket {
+            cause: CrashCause::Abort,
+            alternatives: vec![CrashRouteGuard::Truth],
+        },
+    ];
+    let (machine, tables) = lower_with(
+        body,
+        vec![
+            signature(vec![u32_type()], Some(u32_type())),
+            signature(vec![u32_type()], Some(u32_type())),
+        ],
+        vec![
+            Outcome {
+                completes_normally: true,
+                crash_routes: routes(&[CrashCause::Trap, CrashCause::Abort]),
+            },
+            Outcome {
+                completes_normally: true,
+                crash_routes: callee_routes,
+            },
+        ],
     );
+    // One block: the call does not end it.
+    assert_eq!(machine.blocks.len(), 1);
+    let entry = block(&machine, 1);
+    let call_operation = &entry.operations[0];
+    let OperationKind::Call {
+        callee,
+        arguments,
+        crash_continuations,
+        ..
+    } = &call_operation.kind
+    else {
+        panic!("the call is the block's first operation")
+    };
+    assert_eq!((*callee, arguments.as_slice()), (id(2), [id(1)].as_slice()));
     assert_eq!(
-        refused(Outcome {
-            completes_normally: false,
-            crash_routes: routes(&[CrashCause::Trap]),
-        }),
-        "call no-normal call inside an expression"
+        crash_continuations,
+        &vec![
+            CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives: vec![guarded(arguments[0])],
+            },
+            CrashRouteBucket {
+                cause: CrashCause::Abort,
+                alternatives: vec![CrashRouteGuard::Truth],
+            },
+        ]
     );
+    assert!(matches!(entry.terminator, Terminator::Return { .. }));
+    let site = CrashSite::Operation(call_operation.id);
+    let coverage: Vec<_> = obligations(&tables)
+        .into_iter()
+        .filter(|kind| matches!(kind, ObligationKind::CrashCoverage { .. }))
+        .collect();
+    assert_eq!(
+        coverage,
+        vec![
+            ObligationKind::CrashCoverage {
+                site,
+                cause: CrashCause::Trap
+            },
+            ObligationKind::CrashCoverage {
+                site,
+                cause: CrashCause::Abort
+            },
+        ]
+    );
+    for raw in 1..=tables.obligations.len() as u64 {
+        let row = tables.obligations.get(id(raw)).unwrap();
+        if matches!(row.kind, ObligationKind::CrashCoverage { .. }) {
+            // The call is the first operation, so the point before it is
+            // the block entry.
+            assert_eq!(row.created_at, ProgramPoint::BlockEntry(id(1)));
+        }
+    }
+}
+
+/// A call with no normal completion inside an expression has no terminator
+/// to be, so it is refused, not lowered as an operation that returns.
+#[test]
+fn a_no_normal_call_inside_an_expression_is_refused() {
+    // machine 1() -> u32 { f() + 1 }
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(strict(
+            Strict::Add,
+            call(2, Vec::new(), Some(u32_type())),
+            integer(1),
+            u32_type(),
+        ))],
+    };
+    let refusal = try_lower(
+        body,
+        vec![
+            signature(Vec::new(), Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![
+            returns_normally(),
+            Outcome {
+                completes_normally: false,
+                crash_routes: routes(&[CrashCause::Trap]),
+            },
+        ],
+    )
+    .unwrap_err();
+    assert_eq!(refusal.detail, "call no-normal call inside an expression");
 }
 
 /// `ensures result == 7` on `machine(x: u32) -> u32`: the result
