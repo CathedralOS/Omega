@@ -334,6 +334,40 @@ pub(crate) mod copy_propagation {
                 retained_values.insert(value);
             });
         }
+        // A return membership row binds its source and result by identity,
+        // and a completion row also names its jump argument by position.
+        // Collapsing an earlier parameter of the receiving block would shift
+        // that position, so the receiving block keeps every parameter.
+        let module = &after.semantic_module;
+        for returned in &module.scalar_qualifications.returns {
+            retained_values.extend([returned.source, returned.result]);
+            if !matches!(
+                returned.site,
+                terminal_psi::ScalarReturnSite::Completion { .. }
+            ) {
+                continue;
+            }
+            let receiving = module
+                .machines
+                .iter()
+                .filter(|machine| machine.id == returned.machine)
+                .flat_map(|machine| {
+                    machine
+                        .blocks
+                        .iter()
+                        .filter_map(move |block| match &block.terminator {
+                            terminal_psi::Terminator::Jump { edge, target, .. }
+                                if *edge == returned.edge =>
+                            {
+                                machine.block(target)
+                            }
+                            _ => None,
+                        })
+                });
+            for block in receiving {
+                retained_values.extend(block.parameters.iter().map(|parameter| parameter.id));
+            }
+        }
         for machine in &mut after.semantic_module.machines {
             copies::propagate(
                 machine,
