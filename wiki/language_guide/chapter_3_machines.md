@@ -37,10 +37,10 @@ terminates
 ```
 
 A bodyless declaration ends with one semicolon after the complete header, as in
-`machine identity(value: u64) -> u64 terminates;`. The same applies to a nested
-`requires machine`: its final semicolon closes that required callable, and the
-next clause belongs to the enclosing machine. `terminates`, `suspends`, and
-`blocks` have no special punctuation. See the
+`machine identity(value: u64) -> u64 terminates;`. A callable parameter's
+clauses sit inside its type, `<const F: machine() -> u64 terminates>`, so
+clauses after the parameter list belong to the enclosing machine. `terminates`,
+`suspends`, and `blocks` have no special punctuation. See the
 [header delimiter rule](../spec/language/state_contracts.md#machine-header-delimiters).
 
 ## Operational inference and public contracts

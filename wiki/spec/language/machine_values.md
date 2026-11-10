@@ -10,8 +10,9 @@ named conformances, proof laws and `machine F` generic binders remain. Anonymous
 
 ## Callable types and construction
 
-A runtime callable type uses the structural signature and clauses already used
-by a `requires machine` requirement, without a declaration name:
+A callable type is a structural signature with its clauses and no declaration
+name. The same type may type a static parameter or, when closed, a runtime
+value:
 
 ```omega
 data Counter { value: u64; }
@@ -115,13 +116,14 @@ static arguments closed and a finite published envelope; an open generic family
 has no descriptor. [Implementations](conformances.md#implementations-are-operation-records)
 are records of these selections.
 
-## Static selection remains distinct
+## Static and runtime selection
 
-`machine F` in a generic list selects a declaration statically under its required
-contract. It remains eligible for specialization and direct calls. It is not a
-runtime parameter and is not removed by this feature. Conversely, a runtime
-callable does not become a static generic argument merely because the optimizer
-predicts its target. Explicit generic instantiations can produce callable values
+A `const` parameter of callable type selects a declaration statically under
+[typed static parameters](generics.md#typed-static-parameters). It remains
+eligible for specialization and direct calls and is not a runtime parameter.
+The same closed callable type may instead type an ordinary runtime parameter.
+A runtime callable does not become a static generic argument merely because
+the optimizer predicts its target. Explicit generic instantiations can produce callable values
 once their static arguments close. Their callable contracts use the checked
 application's substituted [operational dependencies](effects.md#static-callback-operational-dependencies);
 construction still proves refinement against the destination callable type.

@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Typed static parameters](designs/typed_static_parameters.md): a static
+  code parameter is one typed `const` value, and a machine is bound to a
+  requirement only by a declared edge, a selection row or
+  `(m satisfies T::m)`; delete when the board item lands.
 - [Activation storage plans](designs/activation_storage_plans.md): suspension
   preserves the unfinished computation and its storage layout is a
   compile-time `ActivationStorage` argument at the start site, `Fixed` or

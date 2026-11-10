@@ -9,9 +9,9 @@ requirement, or replace its selected ABI adapter and registration contract.
 
 ## Authored selection
 
-A registrar's static machine binder declares
-`requires machine Selected satisfies CallbackRequirement::call`. That
-signature-free path must select one exact overload at the binder declaration;
+A registrar's static callable parameter is typed
+`const Selected: CallbackRequirement::call`. That
+signature-free path must select one exact overload at the parameter declaration;
 signature coincidence or a uniquely visible machine cannot choose it later.
 Adding an overload that makes such a reference ambiguous is a compatibility
 break, diagnosed at the declaring trait and affected uses. No callback-specific
