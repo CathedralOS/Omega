@@ -11639,23 +11639,23 @@ fail/facts/runtime_index_application_computed_result_through_parameter_rejected 
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_computed_result_through_target_body_rejected rejected 801ms expected @ccdb99ca2214
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_call_result_rejected rejected 2311ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_call_result_rejected rejected 8235ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_const_name_rejected rejected 3692ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_const_name_rejected rejected 7621ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_field_rejected rejected 2005ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_field_rejected rejected 7575ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_local_rejected rejected 1937ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_local_rejected rejected 7564ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_match_join_rejected rejected 2104ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_match_join_rejected rejected 8245ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_other_machine_rejected rejected 3194ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_other_machine_rejected rejected 8239ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_other_state_rejected rejected 3141ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_other_state_rejected rejected 8217ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_parameter_rejected rejected 3074ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_parameter_rejected rejected 8815ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_target_body_rejected rejected 1824ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_target_body_rejected rejected 8190ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_contract_index_through_call_result_rejected rejected 2286ms expected @4a93353f8274+wt
@@ -11825,28 +11825,28 @@ fail/facts/runtime_index_application_qualified_computed_through_parameter_reject
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_qualified_computed_through_target_body_rejected rejected 595ms expected @ccdb99ca2214
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_call_result_rejected rejected 1832ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_call_result_rejected rejected 8089ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_const_name_rejected rejected 2067ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_const_name_rejected rejected 6276ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_field_rejected rejected 1840ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_field_rejected rejected 8045ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_local_rejected rejected 3296ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_local_rejected rejected 8804ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_match_join_rejected rejected 3482ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_match_join_rejected rejected 8468ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_other_machine_rejected rejected 1937ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_other_machine_rejected rejected 7126ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_other_state_rejected rejected 1849ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_other_state_rejected rejected 7036ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_parameter_rejected rejected 3575ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_parameter_rejected rejected 7924ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_selected_operator_through_target_body_rejected rejected 3854ms expected @25f8bb78090b
