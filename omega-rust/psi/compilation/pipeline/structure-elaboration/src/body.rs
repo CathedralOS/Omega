@@ -45,6 +45,14 @@ pub enum CrashCeiling {
     /// A private body with no `crashes` clause: its published routes are
     /// derived from its body (`outcome`).
     Inferred,
+    /// The header wrote `crashes none`, read from the typed trees'
+    /// `Machine::declares_no_crash_route`, not from the absence of a clause.
+    /// effects.md: "An explicit empty value, `reaches none`, `crashes none`,
+    /// `suspends false` or `blocks false`, promises the empty value and
+    /// rejects any body or selection that violates it." It publishes no
+    /// route, and a body that structure can reach a crash from is refused
+    /// (`outcome`), never given an inferred route.
+    DeclaredNone,
 }
 
 /// A machine body: slot types (formals first, then locals in binding order)

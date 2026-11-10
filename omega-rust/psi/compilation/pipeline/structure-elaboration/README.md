@@ -25,6 +25,7 @@ arithmetic, bitwise operations, shifts and comparisons; `!`, `~`, `&&` and
 `||`; direct calls of other such machines with `requires` clauses over their
 formals and `ensures` clauses over their formals and `result`; `crashes Trap`
 and `crashes Abort` clauses with or without route guards over the formals;
+`crashes none` on a body that reaches no crash;
 `crash Trap;` and `crash Abort;`; guarded transition arms; and returns. A call
 of a machine that may return is an operation wherever it stands, and carries
 the callee's crash routes when it publishes any. A call of a machine with no
@@ -96,6 +97,16 @@ from a `crash` statement or a callee's route, as the alternative `Truth`.
 `Truth` is the widest route of that cause, so inference never hides a crash a
 caller must cover; a narrower guard needs proof.
 
+An authored `crashes none` is not an omitted clause. It leaves no contract
+row, so the reader takes it from `Machine::declares_no_crash_route`, the fact
+stage 01 records where it parses the clause and stages 02 and 03 copy. Such a
+machine publishes no route and nothing is inferred for it. When its body can
+reach a crash by structure, from a `crash` statement or a callee's route, the
+closure is refused with ``contract `crashes none` on a body with a crash
+route``: effects.md says an explicit empty value "promises the empty value and
+rejects any body or selection that violates it", and keeping the promise
+would need each route disproved, which is the checker's work.
+
 Stage 01 desugars `transition subject { arms }` into a `DispatchSubject`
 local, evaluated once, followed by one `Transition` statement per arm
 (`01_tokens-to-syntax-trees/src/bodies_and_transitions.rs`,
@@ -144,12 +155,16 @@ from Psi 05, validation, checked trees or Psi 06 is used or depended on.
 Each is a gap between this route and the contract it builds against; none was
 worked around by adding to `terminal-check-tables`.
 
-1. **`crashes none` is erased by stage 01.** It publishes no contract
-   (`01_tokens-to-syntax-trees`, `finish_crashes_none`), so on a private body
-   it reads exactly as an omitted clause, which requests inference. This crate
-   infers in both cases, as stage 05 does; a private body that writes
-   `crashes none` and crashes therefore publishes a route its author forbade.
-   The identity has to be kept where it is lost, in stages 01 to 03.
+1. **The current checker accepts a private `crashes none` body that
+   crashes.** Stage 01 publishes no contract row for `crashes none`, so
+   stage 05 reads it on a private body as an omitted clause and infers the
+   routes the author forbade
+   ([effects](../../../../../wiki/spec/language/effects.md#static-binder-contract-dependencies):
+   an explicit empty value "promises the empty value and rejects any body or
+   selection that violates it"). The typed trees now keep the authored fact as
+   `Machine::declares_no_crash_route`, and this crate refuses such a body
+   (above). Stage 05 was left as it is; the witness is
+   `tests/omega/pending/effects/private_crashes_none_body_crashes`.
 2. **Inferred routes are `Truth` per cause.** A narrower guard would be over
    body values, not formals, and stating it over formals is proof work.
 3. **One `ensures` obligation per clause in Terminal Psi, one per exit in the

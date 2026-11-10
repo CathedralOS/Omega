@@ -1023,6 +1023,52 @@ fn outcomes_follow_the_ceiling_or_the_body() {
     assert_eq!(caller_outcome.crash_routes, routes(&[CrashCause::Abort]));
 }
 
+/// An authored `crashes none` is a promise, not a request to infer: a body
+/// with no crash publishes no route, and a body that reaches a crash, by its
+/// own `crash` statement or through a callee's route, is refused by name
+/// instead of being given the route its author forbade.
+#[test]
+fn a_body_that_declares_crashes_none_and_can_crash_is_refused() {
+    use crate::outcome::outcomes;
+    let run = |statements: Vec<Statement>, callee_statements: Vec<Statement>| {
+        let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+        let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+        for (statements, crashes) in [
+            (statements, CrashCeiling::DeclaredNone),
+            (callee_statements, CrashCeiling::Inferred),
+        ] {
+            bodies.push(Body {
+                slots: Vec::new(),
+                statements,
+            });
+            signatures.push(Signature {
+                crashes,
+                ..signature(Vec::new(), None)
+            });
+        }
+        outcomes(&bodies, &signatures).map(|table| table.get(id(1)).unwrap().clone())
+    };
+    let quiet = || Vec::new();
+    let crashing = || vec![crash_arm(None, CrashCause::Trap)];
+    let calls = || vec![Statement::Evaluate(call(2, Vec::new(), None))];
+
+    assert_eq!(run(quiet(), quiet()).unwrap(), returns_normally());
+    assert_eq!(run(calls(), quiet()).unwrap(), returns_normally());
+    for refusal in [
+        run(crashing(), quiet()).unwrap_err(),
+        run(calls(), crashing()).unwrap_err(),
+    ] {
+        assert_eq!(
+            (refusal.reason, refusal.machine, refusal.detail.as_str()),
+            (
+                terminal_check_tables::RefusalReason::Unsupported,
+                id(1),
+                "contract `crashes none` on a body with a crash route"
+            )
+        );
+    }
+}
+
 /// The right operand of `&&` or `||` may be skipped, so a short-circuit whose
 /// right operand never returns still completes; its causes stay published. A
 /// call cycle handed to `lower_bodies` directly is refused as recursion.

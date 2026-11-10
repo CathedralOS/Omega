@@ -9,7 +9,9 @@ Published routes follow `wiki/spec/language/effects.md`: an authored
 `crashes` clause is the published ceiling; a public body without one
 publishes none ("On a public checked body omitted `crashes` means no crash
 route"); a private body without one publishes what its body may do ("Private
-checked bodies may omit any of the three to request inference"). Inference
+checked bodies may omit any of the three to request inference"); an authored
+`crashes none` publishes none and refuses a body with a crash route ("promises
+the empty value and rejects any body or selection that violates it"). Inference
 here is structural: each cause the body may crash with, from a `crash`
 statement or from a callee's published route, is published with the
 alternative `Truth`. That is the widest route of that cause, so it never
@@ -112,6 +114,20 @@ impl Walk<'_> {
             CrashCeiling::Authored(routes) => routes.clone(),
             CrashCeiling::Inferred => {
                 canonical::routes(causes.iter().map(|cause| (*cause, CrashRouteGuard::Truth)))
+            }
+            // The author promised no crash route, so nothing is inferred. A
+            // body that structure reaches a crash from keeps the promise only
+            // if every such route is disproved, which is proof work this
+            // crate does not do: it is refused, never published as a route.
+            CrashCeiling::DeclaredNone => {
+                if !causes.is_empty() {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Contract("`crashes none` on a body with a crash route"),
+                    ));
+                }
+                Vec::new()
             }
         };
         let outcome = Outcome {

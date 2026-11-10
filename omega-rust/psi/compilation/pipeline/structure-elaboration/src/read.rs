@@ -461,12 +461,29 @@ impl<'t> Program<'t> {
         }
         // effects.md: "On a public checked body omitted `crashes` means no
         // crash route, exactly as `crashes none`. Private checked bodies may
-        // omit any of the three to request inference." Stage 01 publishes no
-        // contract for `crashes none`, so on a private body it reads as an
-        // omission (README, "Findings").
-        let crashes = match (crash_clauses, machine.is_public) {
-            (true, _) | (false, true) => CrashCeiling::Authored(canonical::routes(routes)),
-            (false, false) => CrashCeiling::Inferred,
+        // omit any of the three to request inference." An authored
+        // `crashes none` leaves no contract row; the typed trees record it
+        // as `declares_no_crash_route`, so it is told from an omission by
+        // that fact and never by the missing rows.
+        let crashes = match (
+            machine.declares_no_crash_route,
+            crash_clauses,
+            machine.is_public,
+        ) {
+            (true, false, _) => CrashCeiling::DeclaredNone,
+            // Stage 01 rejects this header; refused here too rather than
+            // trusted to have been.
+            (true, true, _) => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Contract("`crashes none` beside a `crashes Cause` clause"),
+                ));
+            }
+            (false, true, _) | (false, false, true) => {
+                CrashCeiling::Authored(canonical::routes(routes))
+            }
+            (false, false, false) => CrashCeiling::Inferred,
         };
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         Ok(Signature {
