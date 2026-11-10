@@ -260,6 +260,8 @@ Read the exit match from `2011` through `2044`. Jumps, conditionals, case edges,
 
 Reached 1–25. REACHABLE: 0. CLOSED: 5 (11, 12, 18, 19, 23). UNDECIDED: 20. Not reached: 26–93 (68 entries).
 
+Commit of this trace through entry 25: `44ce2f2f272870c852d63bbf9b77bfd08e36f3f2` on `work/grok-traces-2026-11-10`.
+
 ## Entries not reached
 
 26 through 93.
