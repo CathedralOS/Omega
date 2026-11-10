@@ -2,16 +2,22 @@
 // scalar program it lowers; the reader's refusals are tested in `read.rs`.
 
 use semantic_vocabulary::{
-    BlockId, IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, Proposition,
-    PsiSemanticId, ScalarTerm, ScalarType, ValueId,
+    BlockId, CrashCause, IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    Proposition, PsiSemanticId, ScalarTerm, ScalarType, ValueId,
 };
 use terminal_check_tables::edges::Destination;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{MachineTables, ProgramPoint};
-use terminal_psi::{OperationKind, TerminalMachine, Terminator};
+use terminal_psi::{
+    CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, OperationKind, TerminalMachine,
+    Terminator,
+};
 
-use crate::body::{Body, Expression, ExpressionKind, Signature, Statement, Strict, Target};
+use crate::body::{
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target,
+};
+use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unpositioned};
 
 fn u32_type() -> ScalarType {
@@ -85,18 +91,50 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         result,
         requires: Vec::new(),
         ensures: Vec::new(),
+        crashes: CrashCeiling::Authored(Vec::new()),
     }
 }
 
-/// Lowers machine 1 against `signatures` (machine 1 first).
-fn lower(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, MachineTables) {
-    let mut table: IdTable<MachineId, Signature> = IdTable::default();
-    for signature in signatures {
-        table.push(signature);
+/// A machine that may return and publishes no crash route.
+fn returns_normally() -> Outcome {
+    Outcome {
+        completes_normally: true,
+        crash_routes: Vec::new(),
     }
-    let lowered = crate::lower::machine(id(1), &body, &table).unwrap();
+}
+
+/// Lowers machine 1 against `signatures` (machine 1 first), every machine
+/// returning normally with no crash route.
+fn lower(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, MachineTables) {
+    let outcomes = signatures.iter().map(|_| returns_normally()).collect();
+    lower_with(body, signatures, outcomes)
+}
+
+/// Lowers machine 1 against `signatures` and `outcomes` (machine 1 first).
+fn lower_with(
+    body: Body,
+    signatures: Vec<Signature>,
+    outcomes: Vec<Outcome>,
+) -> (TerminalMachine, MachineTables) {
+    let lowered = try_lower(body, signatures, outcomes).unwrap();
     assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
     (lowered.machine, lowered.tables)
+}
+
+fn try_lower(
+    body: Body,
+    signatures: Vec<Signature>,
+    outcomes: Vec<Outcome>,
+) -> terminal_check_tables::Checked<crate::lower::Lowered> {
+    let mut signature_table: IdTable<MachineId, Signature> = IdTable::default();
+    for signature in signatures {
+        signature_table.push(signature);
+    }
+    let mut outcome_table: IdTable<MachineId, Outcome> = IdTable::default();
+    for outcome in outcomes {
+        outcome_table.push(outcome);
+    }
+    crate::lower::machine(id(1), &body, &signature_table, &outcome_table)
 }
 
 /// Every value, edge and obligation the machine names has a table row.
@@ -124,7 +162,9 @@ fn assert_module_and_tables_agree(machine: &TerminalMachine, tables: &MachineTab
             } => vec![when_true.edge, when_false.edge],
             Terminator::Jump { edge, .. }
             | Terminator::Return { edge, .. }
-            | Terminator::ReturnUnit { edge, .. } => vec![*edge],
+            | Terminator::ReturnUnit { edge, .. }
+            | Terminator::Crash { edge, .. }
+            | Terminator::InvokeNoNormal { edge, .. } => vec![*edge],
             other => panic!("unexpected terminator {other:?}"),
         })
         .collect::<Vec<_>>();
@@ -472,12 +512,307 @@ fn a_value_machine_that_falls_off_its_end_is_refused() {
         slots: Vec::new(),
         statements: Vec::new(),
     };
-    let mut table: IdTable<MachineId, Signature> = IdTable::default();
-    table.push(signature(Vec::new(), Some(u32_type())));
-    let refusal = crate::lower::machine(id(1), &body, &table).unwrap_err();
+    let refusal = try_lower(
+        body,
+        vec![signature(Vec::new(), Some(u32_type()))],
+        vec![returns_normally()],
+    )
+    .unwrap_err();
     assert_eq!(
         refusal.reason,
         terminal_check_tables::RefusalReason::Unsupported
+    );
+}
+
+fn boolean_slot(slot: usize) -> Expression {
+    expression(ExpressionKind::Slot(slot), Some(ScalarType::Boolean))
+}
+
+fn crash_arm(guard: Option<Expression>, cause: CrashCause) -> Statement {
+    Statement::Arm {
+        guard,
+        target: Target::Crash(cause),
+        source: nowhere(),
+    }
+}
+
+fn decision(value: ValueId, taken: bool) -> CrashPredicateTerm {
+    CrashPredicateTerm::new(Proposition::Equal(
+        ScalarTerm::Value {
+            id: value,
+            scalar_type: ScalarType::Boolean,
+        },
+        ScalarTerm::Boolean(taken),
+    ))
+}
+
+fn crash_sites(machine: &TerminalMachine) -> Vec<(BlockId, CrashCause, Vec<CrashPredicateTerm>)> {
+    machine
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            Terminator::Crash {
+                cause, site_guard, ..
+            } => Some((block.id, *cause, site_guard.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+/// `crash Trap;` behind a guard is a `Crash` terminator with its cause, and
+/// its site guard is the exact incoming conjunction: the earlier arm's guard
+/// was false and this arm's guard was true.
+#[test]
+fn a_crash_is_a_terminator_with_its_cause_and_incoming_conjunction() {
+    // machine 1(a: bool, b: bool) { transition { a -> {}  b -> crash Trap  _ -> crash Abort } }
+    let body = Body {
+        slots: vec![ScalarType::Boolean, ScalarType::Boolean],
+        statements: vec![
+            Statement::Arm {
+                guard: Some(boolean_slot(0)),
+                target: Target::Unit,
+                source: nowhere(),
+            },
+            crash_arm(Some(boolean_slot(1)), CrashCause::Trap),
+            crash_arm(None, CrashCause::Abort),
+        ],
+    };
+    let (machine, _) = lower(
+        body,
+        vec![signature(
+            vec![ScalarType::Boolean, ScalarType::Boolean],
+            None,
+        )],
+    );
+    let (a, b) = (id::<ValueId>(1), id::<ValueId>(2));
+    // Block 1 branches on a (2 arm, 3 rest); block 3 on b (4 arm, 5 rest).
+    assert_eq!(
+        crash_sites(&machine),
+        vec![
+            (
+                id(4),
+                CrashCause::Trap,
+                vec![decision(a, false), decision(b, true)]
+            ),
+            (
+                id(5),
+                CrashCause::Abort,
+                vec![decision(a, false), decision(b, false)]
+            ),
+        ]
+    );
+    for (_, _, guard) in crash_sites(&machine) {
+        // Canonical: each `Equal` names the value before the literal.
+        for term in &guard {
+            let Proposition::Equal(ScalarTerm::Value { .. }, ScalarTerm::Boolean(_)) =
+                term.proposition()
+            else {
+                panic!("a decision is the branch value equal to a Boolean")
+            };
+        }
+    }
+}
+
+/// Each crash edge has no successor and no conserved obligation to give a
+/// fate, and each crash site owes one `CrashCoverage` per cause, created
+/// before its terminator.
+#[test]
+fn every_crash_site_owes_one_coverage_per_cause_on_a_no_successor_edge() {
+    let body = Body {
+        slots: vec![ScalarType::Boolean],
+        statements: vec![
+            crash_arm(Some(boolean_slot(0)), CrashCause::Trap),
+            crash_arm(None, CrashCause::Abort),
+        ],
+    };
+    let (machine, tables) = lower(body, vec![signature(vec![ScalarType::Boolean], None)]);
+    let mut coverage = Vec::new();
+    for (site, cause, _) in crash_sites(&machine) {
+        let Terminator::Crash { edge, .. } = block(&machine, site.get()).terminator else {
+            unreachable!()
+        };
+        let row = tables.edges.get(edge).unwrap();
+        assert_eq!(
+            (row.source, row.destination, row.dispositions.len()),
+            (site, Destination::NoNormal, 0)
+        );
+        coverage.push(ObligationKind::CrashCoverage { site, cause });
+    }
+    assert_eq!(obligations(&tables), coverage);
+    for raw in 1..=tables.obligations.len() as u64 {
+        let row = tables.obligations.get(id(raw)).unwrap();
+        let ObligationKind::CrashCoverage { site, .. } = row.kind else {
+            unreachable!()
+        };
+        assert_eq!(row.created_at, ProgramPoint::BlockEntry(site));
+    }
+}
+
+fn routes(causes: &[CrashCause]) -> Vec<CrashRouteBucket> {
+    causes
+        .iter()
+        .map(|cause| CrashRouteBucket {
+            cause: *cause,
+            alternatives: vec![CrashRouteGuard::Truth],
+        })
+        .collect()
+}
+
+/// A terminal call of a machine with no normal completion is the block's
+/// `InvokeNoNormal` terminator. Its crash continuations are the callee's
+/// routes with formals replaced by the actuals, and the site owes one
+/// `CrashCoverage` per cause besides the callee's `requires` clause.
+#[test]
+fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
+    // machine 1(x: u32) { transition { _ -> f(x) } }
+    // with f(y: u32) requires P crashes Trap when y < 3 crashes Abort
+    let body = Body {
+        slots: vec![u32_type()],
+        statements: vec![returns(call(2, vec![slot(0, u32_type())], None))],
+    };
+    let formal = ScalarTerm::Value {
+        id: id(1),
+        scalar_type: u32_type(),
+    };
+    let three = ScalarTerm::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+        value: IntegerValue::Unsigned(3),
+    };
+    let guarded = CrashRouteGuard::Predicate(CrashPredicateTerm::new(Proposition::LessThan(
+        formal,
+        three.clone(),
+    )));
+    let callee_routes = vec![
+        CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![guarded],
+        },
+        CrashRouteBucket {
+            cause: CrashCause::Abort,
+            alternatives: vec![CrashRouteGuard::Truth],
+        },
+    ];
+    let callee = Signature {
+        requires: vec![Proposition::Truth],
+        ..signature(vec![u32_type()], None)
+    };
+    let (machine, tables) = lower_with(
+        body,
+        vec![signature(vec![u32_type()], None), callee],
+        vec![
+            returns_normally(),
+            Outcome {
+                completes_normally: false,
+                crash_routes: callee_routes,
+            },
+        ],
+    );
+    let entry = block(&machine, 1);
+    let Terminator::InvokeNoNormal {
+        edge,
+        callee,
+        arguments,
+        requirement_obligations,
+        crash_continuations,
+        ..
+    } = &entry.terminator
+    else {
+        panic!("the call is the terminator")
+    };
+    assert_eq!((*callee, arguments.as_slice()), (id(2), [id(1)].as_slice()));
+    // The caller's x is value 1 too, so the substituted guard reads the same
+    // here; the actual it names is the caller's value.
+    assert_eq!(
+        crash_continuations,
+        &vec![
+            CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                    Proposition::LessThan(
+                        ScalarTerm::Value {
+                            id: arguments[0],
+                            scalar_type: u32_type()
+                        },
+                        three
+                    )
+                ))],
+            },
+            CrashRouteBucket {
+                cause: CrashCause::Abort,
+                alternatives: vec![CrashRouteGuard::Truth],
+            },
+        ]
+    );
+    let row = tables.edges.get(*edge).unwrap();
+    assert_eq!(row.destination, Destination::NoNormal);
+    let invocation = tables.invocations.get(id(1)).unwrap();
+    assert_eq!(
+        invocation.site,
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(*edge)
+    );
+    assert_eq!(&invocation.requirements, requirement_obligations);
+    assert_eq!(
+        obligations(&tables),
+        vec![
+            ObligationKind::CallRequirement {
+                invocation: id(1),
+                clause: 0
+            },
+            ObligationKind::CrashCoverage {
+                site: id(1),
+                cause: CrashCause::Trap
+            },
+            ObligationKind::CrashCoverage {
+                site: id(1),
+                cause: CrashCause::Abort
+            },
+        ]
+    );
+    // No normal exit, so no return edge and no guarantee.
+    assert_eq!(tables.edges.len(), 1);
+}
+
+/// A call that may both return and crash would owe coverage at an operation,
+/// which `CrashCoverage` cannot key; a call with no normal completion inside
+/// an expression has no terminator to be. Both are refused, not lowered
+/// without their obligation.
+#[test]
+fn calls_that_crash_outside_terminal_position_are_refused() {
+    let refused = |outcome: Outcome| {
+        // machine 1() -> u32 { f() + 1 }
+        let body = Body {
+            slots: Vec::new(),
+            statements: vec![returns(strict(
+                Strict::Add,
+                call(2, Vec::new(), Some(u32_type())),
+                integer(1),
+                u32_type(),
+            ))],
+        };
+        try_lower(
+            body,
+            vec![
+                signature(Vec::new(), Some(u32_type())),
+                signature(Vec::new(), Some(u32_type())),
+            ],
+            vec![returns_normally(), outcome],
+        )
+        .unwrap_err()
+        .detail
+    };
+    assert_eq!(
+        refused(Outcome {
+            completes_normally: true,
+            crash_routes: routes(&[CrashCause::Trap]),
+        }),
+        "call call that may crash and return"
+    );
+    assert_eq!(
+        refused(Outcome {
+            completes_normally: false,
+            crash_routes: routes(&[CrashCause::Trap]),
+        }),
+        "call no-normal call inside an expression"
     );
 }
 
@@ -531,4 +866,51 @@ fn ensures_over_result_name_the_result_pseudo_value() {
         tables.values.get(id(3)).unwrap().origin,
         ValueOrigin::Operation(id(1))
     );
+}
+
+/// A machine publishes what it may do: an authored ceiling as written, none
+/// for a public body without a clause, and for a private body without one
+/// each cause its body may reach, as `Truth`. A body whose every path crashes
+/// has no normal completion.
+#[test]
+fn outcomes_follow_the_ceiling_or_the_body() {
+    use crate::outcome::outcomes;
+    // machine 1 calls 2; 2 is `{ crash Trap; }`.
+    let caller = Body {
+        slots: Vec::new(),
+        statements: vec![Statement::Evaluate(call(2, Vec::new(), None))],
+    };
+    let crashing = Body {
+        slots: Vec::new(),
+        statements: vec![crash_arm(None, CrashCause::Trap)],
+    };
+    let run = |first: CrashCeiling, second: CrashCeiling| {
+        let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+        bodies.push(caller.clone());
+        bodies.push(crashing.clone());
+        let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+        for crashes in [first, second] {
+            signatures.push(Signature {
+                crashes,
+                ..signature(Vec::new(), None)
+            });
+        }
+        let table = outcomes(&bodies, &signatures, &[id(2), id(1)]).unwrap();
+        [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
+    };
+    let [caller_outcome, callee_outcome] = run(CrashCeiling::Inferred, CrashCeiling::Inferred);
+    assert_eq!(
+        callee_outcome,
+        Outcome {
+            completes_normally: false,
+            crash_routes: routes(&[CrashCause::Trap]),
+        }
+    );
+    assert_eq!(caller_outcome, callee_outcome);
+    let [caller_outcome, callee_outcome] = run(
+        CrashCeiling::Authored(routes(&[CrashCause::Abort])),
+        CrashCeiling::Authored(Vec::new()),
+    );
+    assert!(callee_outcome.crash_routes.is_empty());
+    assert_eq!(caller_outcome.crash_routes, routes(&[CrashCause::Abort]));
 }
