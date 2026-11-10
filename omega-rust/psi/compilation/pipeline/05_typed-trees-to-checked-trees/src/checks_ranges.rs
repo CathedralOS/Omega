@@ -9010,6 +9010,36 @@ mod guards {
                 );
             }
 
+            /*
+                `bound == coll.len - k` (the equality arm's len spelling): k >= 1
+                proves `bound` an index — `bound <= coll.len - 1 < coll.len`. k == 0
+                is `bound == coll.len`, which is NOT an index and seeds nothing here.
+            */
+            pub(in crate::checks::ranges::guards) fn seed_equal_len_offset_fact(
+                program: &dyn ::validation::CheckingInput,
+                machine: &typed_trees::machine::Machine,
+                state: &typed_trees::state::State,
+                facts: &mut RangeFacts<'_>,
+                bound: ExpressionHandle,
+                upper_bound: ExpressionHandle,
+            ) {
+                let Some((collection_label, offset)) =
+                    len_bound_minus_offset(program, facts, upper_bound)
+                else {
+                    return;
+                };
+                if offset >= 1 {
+                    prove_index_within_member_length(
+                        program,
+                        machine,
+                        state,
+                        facts,
+                        bound,
+                        &collection_label,
+                    );
+                }
+            }
+
             pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
                 program: &dyn ::validation::CheckingInput,
                 machine: &typed_trees::machine::Machine,
@@ -9269,7 +9299,8 @@ mod guards {
         }
 
         pub(super) use indexes::{
-            seed_at_most_len_range_bound_fact, seed_index_at_most_integer_fact, seed_index_less_than_integer_fact,
+            seed_at_most_len_range_bound_fact, seed_equal_len_offset_fact,
+            seed_index_at_most_integer_fact, seed_index_less_than_integer_fact,
             seed_less_than_len_fact, seed_successor_at_most_len_fact,
         };
         pub(super) use lengths::{
@@ -9288,7 +9319,8 @@ mod guards {
     use super::expressions::{expression_integer_value, expression_name};
     use super::facts::RangeFacts;
     use bounds::{
-        seed_at_most_fact, seed_at_most_len_range_bound_fact, seed_index_at_most_integer_fact, seed_index_less_than_integer_fact,
+        seed_at_most_fact, seed_at_most_len_range_bound_fact, seed_equal_len_offset_fact,
+        seed_index_at_most_integer_fact, seed_index_less_than_integer_fact,
         seed_length_at_least_fact, seed_length_equality_fact, seed_length_greater_than_fact,
         seed_length_not_zero_fact, seed_less_than_len_fact, seed_non_negative_fact,
         seed_successor_at_most_len_fact,
@@ -9713,12 +9745,7 @@ mod guards {
                 seed_at_most_fact(program, facts, binary.right, binary.left, false);
                 seed_index_at_most_integer_fact(program, facts, binary.left, binary.right);
                 seed_index_at_most_integer_fact(program, facts, binary.right, binary.left);
-                // `a == b` holds `a <= b` and `b <= a`, so each side gets the
-                // at-most-length facts the `<=` arm seeds: `bound == coll.len - k`
-                // with k >= 1 proves an index, and `width == coll.len` proves
-                // `width` a range bound for `value % width`. Without the second
-                // case only a caller's literal arguments could bound that remainder.
-                seed_at_most_len_range_bound_fact(
+                seed_equal_len_offset_fact(
                     program,
                     machine,
                     state,
@@ -9726,7 +9753,7 @@ mod guards {
                     binary.left,
                     binary.right,
                 );
-                seed_at_most_len_range_bound_fact(
+                seed_equal_len_offset_fact(
                     program,
                     machine,
                     state,
