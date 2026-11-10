@@ -4,10 +4,11 @@
 use crate::LegalizationError;
 use abstract_operations::AbstractOperation;
 use optimization_unit::{PsiOptimizationFunction, ValueDefinition};
-use semantic_vocabulary::{BlockId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId};
+use semantic_vocabulary::{
+    BlockId, OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_psi::{
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind,
 };
 
 pub(crate) struct FunctionInputs<'function> {
