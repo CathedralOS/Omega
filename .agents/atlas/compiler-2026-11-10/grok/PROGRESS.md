@@ -11,11 +11,11 @@ Peak workers running at once: 40
 Launch refusals:
 
 - `Async new-VM subagent limit of 20 reached` while starting B1-007 (`embedding.rs` lines 3001-3012). Twenty other launches in that wave were accepted.
-- `Async new-VM subagent limit of 20 reached` again on slices 0055, 0056, and 0065 while refilling after twenty slice completions. Seventeen other launches in that refill were accepted. Recorded running count after the refill: 37.
+- `Async new-VM subagent limit of 20 reached` on most refill launches after twenty more slice completions (0055, 0056, 0065, 0072, 0073, 0075–0081, 0083–0086, 0088). Three launches were accepted (0074, 0082, 0087). Recorded running count after that refill: 20. Peak recorded running count remains 40.
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
-| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 3 | 37 | 0 |
+| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 3 | 20 | 0 |
 | B | 81 file ranges (B1 26, B2 55); merge files not started | 15 | 0 | 0 |
 | C | 117 chapter pieces from 103 files; lane merge not started | 0 | 0 | 0 |
 | D | 412 batches, 17263 programs; D2 not started | 1 | 0 | 0 |
