@@ -16481,6 +16481,8 @@ fail/parse/retired_trait_operator_requirement rejected 680ms expected @c2cfe5f3d
 	tests/omega/fail/parse/retired_trait_operator_requirement/main.omg:5:5: the `operator` introducer is retired: a trait requirement binds operator syntax as an ordinary machine -- write `machine + name(...)`, or `machine name(...)` without a token
 fail/parser/nesting_exceeds_max_depth rejected 5ms expected @ccdb99ca2214
 	tests/omega/fail/parser/nesting_exceeds_max_depth/main.omg:7:1076: expression or type nesting is too deep (exceeds the maximum of 1024 levels)
+fail/parser/trailing_boundary_clause_after_requires rejected 13780ms expected @ca5ba0d1d711
+	tests/omega/fail/parser/trailing_boundary_clause_after_requires/main.omg:4:28: trailing `boundary host` and `boundary Name` contract clauses are retired; use a leading `boundary trait`, `boundary machine`, or `boundary operator` declaration and realize exact requirements with `satisfies Trait::requirement via Binding::...`
 fail/ports/asm_port_in_missing_reach rejected 9548ms expected @8e3c139d8359
 	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/proofs/accepted_axiom_engine_veto rejected 7934ms expected @ccdb99ca2214
@@ -26705,6 +26707,7 @@ pass/packages/runtime_attached_owner_crash_guard_scope_exit checked 3639ms check
 pass/packages/runtime_public_attached_owner_cleanup_exit checked 7678ms check-target:macos_arm64 @6c3dcb823e47
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 11779ms check-target:macos_arm64 @ccdb99ca2214
 pass/parameters/shared_and_mut_borrow_params_compile checked 2944ms @ccdb99ca2214
+pass/parser/clause_word_names_a_requires_subject checked 46308ms @ca5ba0d1d711
 pass/parser/deep_nesting_within_limit checked 2816ms @ccdb99ca2214
 pass/parser/invariant_is_an_identifier checked 2769ms @ccdb99ca2214
 pass/parser/move_named_state_transition_exit checked 11035ms check-target:macos_arm64 @ccdb99ca2214
