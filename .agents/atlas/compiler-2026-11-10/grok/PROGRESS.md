@@ -16,18 +16,19 @@ Launch refusals:
 - `Async new-VM subagent limit of 20 reached` while refilling after seventeen slices finished (0055, 0056, 0072, 0075, 0076, 0078–0081, 0083–0086, 0088–0091). Eighteen later launches were accepted (0106, 0110, 0112–0127). Slice 0128 was refused with that text. Running count after that refill: 36. Peak recorded running count remains 40.
 - `Async new-VM subagent limit of 20 reached` after the next wave of ACCEPT slices 0128–0145 and two spec chapters (C0003, C0004) were accepted. C0005–C0010 were refused with that text. Running count: 20. Peak recorded running count remains 40.
 - `Async new-VM subagent limit of 20 reached` after ACCEPT slices 0128–0145 and chapters C0003–C0004 landed. Twenty spec chapters C0005–C0024 were accepted. C0025–C0030 were refused with that text. Running count: 20. Peak recorded running count remains 40.
+- C0008 returned `CHAPTER COMPLETE` on a stub that pointed at a file the worker did not include. The stub was not kept. C0036 and C0044 were refused with `Async new-VM subagent limit of 20 reached` while later launches in the same wave were accepted. Peak recorded running count remains 40.
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
 | A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 145 | 0 | 0 |
 | B | 81 file ranges (B1 26, B2 55); merge files not started | 81 | 0 | 0 |
-| C | 117 chapter pieces from 103 files; lane merge not started | 4 | 20 | 0 |
+| C | 117 chapter pieces from 103 files; lane merge not started | 25 | 17 | 0 |
 | D | 412 batches, 17263 programs; D2 not started | 2 | 0 | 0 |
 | E | 19 units, 591 files, 7 excluded | 2 | 0 | 0 |
 | F | 28 site files, 83 occurrences | 2 | 0 | 0 |
 | G | 120 shards, not started. G stays at most a quarter of the live worker count, and only when a slot is free | 0 | 0 | 0 |
 
-ACCEPT slices 0001–0145 are on the branch. Spec chapters C0001–C0004 are on the branch. C0005–C0024 are running. Next unstarted spec chapter is C0025.
+ACCEPT slices 0001–0145 are on the branch. Spec chapters through C0027 are on the branch except C0008, whose return was only a stub and is being rerun. Sixteen spec chapters are running (C0025, C0028–C0035, C0037–C0043).
 
 `B/notes/b2_031.md` was returned without `QUESTION COMPLETE`. The note ends in the identity-patch table. Do not treat that range as finished.
 
