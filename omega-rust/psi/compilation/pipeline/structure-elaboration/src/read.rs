@@ -795,6 +795,25 @@ impl<'t> Program<'t> {
         Ok(self.typed.expression_table.expression(expression))
     }
 
+    /// An authored static machine application that applies nothing: no
+    /// static or selected arguments, bindings, lifetimes, inputs, conformance
+    /// or contract source. Stage 03 records one for every authored call; one
+    /// that applies anything is a generic or static call and is refused.
+    fn applies_nothing(&self, application: typed_trees::static_applications::StaticMachineApplicationHandle) -> bool {
+        if !application.is_valid() {
+            return true;
+        }
+        let application = self.typed.expression_table.static_machine_application(application);
+        application.arguments.is_empty()
+            && application.input_selections.is_empty()
+            && application.selected_machine_arguments.is_empty()
+            && application.bindings.is_empty()
+            && application.lifetime_bindings.is_empty()
+            && application.conformance_selection.is_none()
+            && !application.callable_contract_source.is_valid()
+            && !application.registration_operation.is_valid()
+    }
+
     /// A call is direct only when its authored selection, if recorded,
     /// resolved to exactly the called machine, and its call binding, if
     /// recorded, neither rebinds it nor reaches it through another
@@ -829,7 +848,7 @@ impl<'t> Program<'t> {
     fn call_statement(&mut self, id: MachineId, slots: &[Slot], call: &TableCall) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if call.installed_interrupt_operation.is_some()
-            || call.authored_machine_application.is_valid()
+            || !self.applies_nothing(call.authored_machine_application)
             || call.static_requirement_dispatch.is_some()
             || !call.machine_arguments.is_empty()
             || call.reflected_field_origin.is_some()
@@ -855,7 +874,7 @@ impl<'t> Program<'t> {
         if call.installed_interrupt_operation.is_some() {
             return unserved("installed interrupt operation");
         }
-        if call.authored_machine_application.is_valid() || !call.machine_arguments.is_empty() {
+        if !self.applies_nothing(call.authored_machine_application) || !call.machine_arguments.is_empty() {
             return unserved("static machine application");
         }
         if call.static_requirement_dispatch.is_some() {
