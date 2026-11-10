@@ -1776,6 +1776,13 @@ pub mod control_flow {
             pub service_reach_row: language_semantics::ServiceReachRowId,
             pub service_reach_is_installation_bound: bool,
             pub admitted_same_stack_bytes: u64,
+            /// The header wrote `crashes none`, which leaves no row in
+            /// `contracts`. `wiki/spec/language/effects.md`: "An explicit
+            /// empty value, `reaches none`, `crashes none`, `suspends false`
+            /// or `blocks false`, promises the empty value and rejects any
+            /// body or selection that violates it." False for an omitted
+            /// clause, which on a private body requests inference.
+            pub declares_no_crash_route: bool,
             pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
             pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
             pub lifetime_parameters: Vec<Identifier>,
@@ -1867,6 +1874,7 @@ pub mod control_flow {
                     service_reach_row: language_semantics::ServiceReachRowId::NULL,
                     service_reach_is_installation_bound: false,
                     admitted_same_stack_bytes: 0,
+                    declares_no_crash_route: false,
                     suspends_keyword_source_spans: Vec::new(),
                     blocks_keyword_source_spans: Vec::new(),
                     lifetime_parameters: Vec::new(),

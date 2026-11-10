@@ -676,6 +676,7 @@ pub(crate) mod tests {
             service_reach_row: Default::default(),
             service_reach_is_installation_bound: false,
             admitted_same_stack_bytes: 0,
+            declares_no_crash_route: false,
             suspends_keyword_source_spans: Vec::new(),
             blocks_keyword_source_spans: Vec::new(),
             body_is_present: true,
