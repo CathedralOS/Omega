@@ -5111,14 +5111,14 @@ pub(crate) mod structural_case {
 
     #[allow(clippy::type_complexity)]
     pub(crate) fn membership_layout(
-        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
+        function: &PsiOptimizationFunction,
         source: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
         case: semantic_vocabulary::StructuralCaseId,
         plan: &AbstractOperationPlan,
+        result: Result<(OperationId, &StructuralOperationResult), LegalizationError>,
     ) -> Result<(u32, u32, Vec<RuntimeElement>), LegalizationError> {
-        let function = function_inputs.function();
-        let identity = source_identity(function, source, function_inputs.source_result(source))?;
+        let identity = source_identity(function, source, result)?;
         let geometry = reference_source_geometry(identity, path, &plan.structural_types)
             .ok_or(LegalizationError::custody())?;
         if !geometry.readable

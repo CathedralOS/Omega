@@ -5848,11 +5848,12 @@ pub(crate) mod unit {
                 && result.scalar_type == ScalarType::Boolean =>
             {
                 let (expected_tag, expected_offset, elements) = membership_layout(
-                    function_inputs,
+                    optimized,
                     *expected_source,
                     expected_path,
                     *expected_case,
                     plan,
+                    function_inputs.source_result(*expected_source),
                 )?;
                 if (*case_tag, *tag_byte_offset) != (expected_tag, expected_offset)
                     || !runtime_indices_rejoin(indices, &elements, sources)

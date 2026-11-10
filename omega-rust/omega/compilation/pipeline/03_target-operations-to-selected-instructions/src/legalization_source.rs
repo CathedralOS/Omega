@@ -777,7 +777,7 @@ pub(crate) mod scalar_graph {
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
             use scalar_graph_input::structural_case::{
-                membership_layout, structural_transport_layout,
+                membership_layout, source_result, structural_transport_layout,
             };
             use semantic_vocabulary::ScalarType;
 
@@ -808,8 +808,14 @@ pub(crate) mod scalar_graph {
                 if result.scalar_type != ScalarType::Boolean {
                     return Err(Error::custody());
                 }
-                let (case_tag, tag_byte_offset, elements) =
-                    membership_layout(optimized, *source, path, *case, plan)?;
+                let (case_tag, tag_byte_offset, elements) = membership_layout(
+                    optimized,
+                    *source,
+                    path,
+                    *case,
+                    plan,
+                    source_result(optimized, *source),
+                )?;
                 let indices = o!(optimized => unit => *psi_operation => &elements)?;
                 Ok(LegalizedScalarInstructionKind::StructuralCaseMembership {
                     source: *source,
