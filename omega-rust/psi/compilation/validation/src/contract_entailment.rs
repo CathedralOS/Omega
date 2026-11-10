@@ -38573,15 +38573,15 @@ pub(crate) mod specification_calls {
                             let signature = program
                                 .applied_callable_signature(&scope, row.requirement)
                                 .or_else(|| {
-                                    (scope.substitutions.is_empty()
-                                        && scope.declaration.lifetime_parameters.is_empty())
-                                    .then(|| {
-                                        program.trait_machine_signature_by_symbol(
-                                            scope.declaration,
-                                            row.requirement,
-                                        )
-                                    })
-                                    .flatten()
+                                    scope
+                                        .keeps_declared_signatures(program.typed_program())
+                                        .then(|| {
+                                            program.trait_machine_signature_by_symbol(
+                                                scope.declaration,
+                                                row.requirement,
+                                            )
+                                        })
+                                        .flatten()
                                 })?;
                             let identity = operation_identity(
                                 program,
