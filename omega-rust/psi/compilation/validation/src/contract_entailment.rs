@@ -18965,42 +18965,6 @@ pub(crate) mod law_conformance {
                 }
                 (StructuralTerm::Opaque(_), StructuralTerm::Opaque(_)) => false,
                 (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) => left == right,
-                (
-                    StructuralTerm::CallProjection {
-                        target,
-                        selections,
-                        machine,
-                        result_type,
-                        field,
-                        arguments,
-                        ..
-                    },
-                    StructuralTerm::CallProjection {
-                        target: target_t,
-                        selections: selections_t,
-                        machine: machine_t,
-                        result_type: result_type_t,
-                        field: field_t,
-                        arguments: arguments_t,
-                        ..
-                    },
-                ) => {
-                    target.is_valid()
-                        && target == target_t
-                        && selections == selections_t
-                        && machine == machine_t
-                        && result_type == result_type_t
-                        && field == field_t
-                        && arguments.len() == arguments_t.len()
-                        && arguments
-                            .iter()
-                            .zip(arguments_t)
-                            .all(|(argument, argument_t)| {
-                                diagnostic_shape_match(
-                                    program, argument, argument_t, variables, bindings,
-                                )
-                            })
-                }
                 _ => false,
             }
         }
@@ -19077,16 +19041,6 @@ pub(crate) mod law_conformance {
                     let rendered: Vec<String> =
                         arguments.iter().map(display_structural_term).collect();
                     format!("{machine}({})", rendered.join(", "))
-                }
-                StructuralTerm::CallProjection {
-                    machine,
-                    field_name,
-                    arguments,
-                    ..
-                } => {
-                    let rendered: Vec<String> =
-                        arguments.iter().map(display_structural_term).collect();
-                    format!("{machine}({}).{field_name}", rendered.join(", "))
                 }
                 StructuralTerm::ScalarBinary {
                     operator,
@@ -20872,7 +20826,6 @@ pub(crate) mod observed_projections {
             }),
             value @ (StructuralTerm::CapturedValue { .. }
             | StructuralTerm::Application { .. }
-            | StructuralTerm::CallProjection { .. }
             | StructuralTerm::IndexedValue { .. }) => Some(StructuralTerm::Projection {
                 subject: Box::new(value),
                 path: field_name.to_owned(),
@@ -34775,11 +34728,19 @@ pub(crate) mod refuted_requires {
         program: &dyn crate::CheckingInput,
         term: &StructuralTerm,
     ) -> bool {
-        matches!(
-            term,
-            StructuralTerm::CallProjection { target, .. }
-                if crate::machine_calls::denotational_calls::abstract_value_call_signature(program, *target).is_none()
-        ) || term.any_child(|child| uncertified_call_projection(program, child))
+        let mut current = term.semantic_value();
+        let mut projected = false;
+        while let StructuralTerm::Projection { subject, .. } = current {
+            projected = true;
+            current = subject.as_ref().semantic_value();
+        }
+        (projected
+            && matches!(
+                current,
+                StructuralTerm::Application { target, .. }
+                    if crate::machine_calls::denotational_calls::abstract_value_call_signature(program, *target).is_none()
+            ))
+            || term.any_child(|child| uncertified_call_projection(program, child))
     }
 
     fn instantiated_operands(
@@ -35005,7 +34966,6 @@ pub(crate) mod refuted_requires {
     ) -> bool {
         match term.semantic_value() {
             StructuralTerm::Application { target, .. }
-            | StructuralTerm::CallProjection { target, .. }
                 if target_result_is_unreplayable(program, *target, &mut Vec::new()) =>
             {
                 true
@@ -35143,10 +35103,8 @@ pub(crate) mod refuted_requires {
     }
 
     fn term_contains_application(term: &StructuralTerm) -> bool {
-        matches!(
-            term.semantic_value(),
-            StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
-        ) || term.any_child(term_contains_application)
+        matches!(term.semantic_value(), StructuralTerm::Application { .. })
+            || term.any_child(term_contains_application)
     }
 
     fn expression_contains_call(
@@ -42735,12 +42693,6 @@ pub(crate) mod specification_calls {
                 selections,
                 arguments,
                 ..
-            }
-            | StructuralTerm::CallProjection {
-                target,
-                selections,
-                arguments,
-                ..
             } => {
                 let signature = program
                     .retained_static_machine_contract(*target)
@@ -42753,7 +42705,7 @@ pub(crate) mod specification_calls {
                                 .first()
                                 .map(|state| (machine, state))
                         });
-                let (parameter_count, declared_result) = if let Some(signature) = signature {
+                let (parameter_count, _) = if let Some(signature) = signature {
                     if !selections.is_empty() {
                         return false;
                     }
@@ -42785,29 +42737,6 @@ pub(crate) mod specification_calls {
                 };
                 if parameter_count != arguments.len() {
                     return false;
-                }
-                if let StructuralTerm::CallProjection {
-                    result_type,
-                    field,
-                    field_name,
-                    ..
-                } = term
-                {
-                    if declared_result != *result_type {
-                        return false;
-                    }
-                    let Some(data) = crate::value_custody::places::data_definition_for_type(
-                        program,
-                        *result_type,
-                    ) else {
-                        return false;
-                    };
-                    if !program.data_members(data).iter().any(|member| {
-                        matches!(member, typed_trees::data::DataMember::Field(candidate)
-                        if candidate.symbol == *field && candidate.name.as_str() == field_name)
-                    }) {
-                        return false;
-                    }
                 }
                 arguments
                     .iter()
@@ -48328,7 +48257,6 @@ pub(crate) mod structural_judgment {
                     StructuralTerm::Identity { .. }
                     | StructuralTerm::LogicalNot { .. }
                     | StructuralTerm::ContentValue { .. }
-                    | StructuralTerm::CallProjection { .. }
                     | StructuralTerm::Opaque(_)
                     | StructuralTerm::ScalarBinary { .. }
                     | StructuralTerm::MathematicalBinary { .. }
@@ -60374,7 +60302,6 @@ pub(crate) mod structural_judgment {
                                 !operator.is_comparison()
                             }
                             StructuralTerm::Application { .. }
-                            | StructuralTerm::CallProjection { .. }
                             | StructuralTerm::IndexedValue { .. }
                             | StructuralTerm::Projection { .. }
                             | StructuralTerm::CollectionMeasure { .. }
@@ -66857,14 +66784,6 @@ pub(crate) mod structural_judgment {
                         machine,
                         ..
                     } => (target, result_type, machine).hash(hash),
-                    StructuralTerm::CallProjection {
-                        target,
-                        result_type,
-                        field,
-                        field_name,
-                        machine,
-                        ..
-                    } => (target, result_type, field, field_name, machine).hash(hash),
                     StructuralTerm::Projection { path, .. } => path.hash(hash),
                     StructuralTerm::RepeatedArray { length, element } => {
                         (length, element.is_some()).hash(hash);
@@ -67646,14 +67565,15 @@ pub(crate) mod structural_judgment {
                         machine: "selected".to_owned(),
                         arguments: Vec::new(),
                     },
-                    StructuralTerm::CallProjection {
-                        result_type: TypeReferenceHandle::from_arena_index(1),
-                        target: symbols::SymbolHandle::from_arena_index(2),
-                        selections: vec![selected],
-                        machine: "selected".to_owned(),
-                        field: symbols::SymbolHandle::from_arena_index(3),
-                        field_name: "value".to_owned(),
-                        arguments: Vec::new(),
+                    StructuralTerm::Projection {
+                        subject: Box::new(StructuralTerm::Application {
+                            result_type: TypeReferenceHandle::from_arena_index(1),
+                            target: symbols::SymbolHandle::from_arena_index(2),
+                            selections: vec![selected],
+                            machine: "selected".to_owned(),
+                            arguments: Vec::new(),
+                        }),
+                        path: "value".to_owned(),
                     },
                 ]
             }
@@ -67661,10 +67581,13 @@ pub(crate) mod structural_judgment {
             fn selected_landing(
                 term: &StructuralTerm,
             ) -> Option<numerics::literals::IntegerLanding> {
-                let selections = match term {
-                    StructuralTerm::Application { selections, .. }
-                    | StructuralTerm::CallProjection { selections, .. } => selections,
-                    _ => panic!("expected selected application"),
+                let mut candidate = term;
+                let selections = loop {
+                    match candidate {
+                        StructuralTerm::Application { selections, .. } => break selections,
+                        StructuralTerm::Projection { subject, .. } => candidate = subject,
+                        _ => panic!("expected selected application"),
+                    }
                 };
                 let mut selected = &selections[0];
                 while let Some(application) = &selected.application {
@@ -78963,15 +78886,6 @@ pub(crate) mod structural_judgment {
             machine: String,
             arguments: Vec<StructuralTerm>,
         },
-        CallProjection {
-            selections: Vec<StaticMachineArgument>,
-            target: SymbolHandle,
-            machine: String,
-            result_type: TypeReferenceHandle,
-            field: SymbolHandle,
-            field_name: String,
-            arguments: Vec<StructuralTerm>,
-        },
         Projection {
             subject: Box<StructuralTerm>,
             path: String,
@@ -79094,8 +79008,7 @@ pub(crate) mod structural_judgment {
                             | StructuralTerm::IndexedValue { .. }
                             | StructuralTerm::CollectionMeasure { .. }
                             | StructuralTerm::ScalarBinary { .. }
-                            | StructuralTerm::Application { .. }
-                            | StructuralTerm::CallProjection { .. } => {
+                            | StructuralTerm::Application { .. } => {
                                 left_occ > self.max_premise_occurrence
                             }
                             _ => false,
@@ -79335,9 +79248,6 @@ pub(crate) mod structural_judgment {
                     (7, hash.finish())
                 }
                 StructuralTerm::Application { target, .. } => (8, handle_key(*target)),
-                StructuralTerm::CallProjection { target, field, .. } => {
-                    (9, handle_key(*target) ^ handle_key(*field).rotate_left(32))
-                }
                 StructuralTerm::IndexedValue {
                     element_identity,
                     collection,
@@ -79399,7 +79309,6 @@ pub(crate) mod structural_judgment {
                             | StructuralTerm::Projection { .. }
                             | StructuralTerm::IndexedValue { .. }
                             | StructuralTerm::Application { .. }
-                            | StructuralTerm::CallProjection { .. }
                     ) && !term_has_mathematical_or_integer_embedding(other)
                     {
                         return false;
@@ -79596,8 +79505,7 @@ pub(crate) mod structural_judgment {
                         Self::Constructor { fields, .. } => {
                             StructuralChildren::Fields(fields.iter())
                         }
-                        Self::Application { arguments, .. }
-                        | Self::CallProjection { arguments, .. } => {
+                        Self::Application { arguments, .. } => {
                             StructuralChildren::Terms(arguments.iter())
                         }
                         Self::IndexedValue {
@@ -79886,38 +79794,6 @@ pub(crate) mod structural_judgment {
                             && machine == other_machine
                             && self.term_lists_match(arguments, other_arguments)
                     }
-                    StructuralTerm::CallProjection {
-                        selections,
-                        target,
-                        machine,
-                        result_type,
-                        field,
-                        field_name,
-                        arguments,
-                    } => {
-                        let StructuralTerm::CallProjection {
-                            selections: other_selections,
-                            target: other_target,
-                            machine: other_machine,
-                            result_type: other_result_type,
-                            field: other_field,
-                            field_name: other_field_name,
-                            arguments: other_arguments,
-                        } = other
-                        else {
-                            return false;
-                        };
-                        self.selections_match(selections, other_selections)
-                            && (target, machine, result_type, field, field_name)
-                                == (
-                                    other_target,
-                                    other_machine,
-                                    other_result_type,
-                                    other_field,
-                                    other_field_name,
-                                )
-                            && self.term_lists_match(arguments, other_arguments)
-                    }
                     StructuralTerm::IndexedValue {
                         element_identity,
                         element_type,
@@ -80130,24 +80006,6 @@ pub(crate) mod structural_judgment {
                         .field("target", target)
                         .field("selections", selections)
                         .field("machine", machine)
-                        .field("arguments", arguments)
-                        .finish(),
-                    Self::CallProjection {
-                        selections,
-                        target,
-                        machine,
-                        result_type,
-                        field,
-                        field_name,
-                        arguments,
-                    } => formatter
-                        .debug_struct("CallProjection")
-                        .field("selections", selections)
-                        .field("target", target)
-                        .field("machine", machine)
-                        .field("result_type", result_type)
-                        .field("field", field)
-                        .field("field_name", field_name)
                         .field("arguments", arguments)
                         .finish(),
                     Self::IndexedValue {
@@ -80594,23 +80452,6 @@ pub(crate) mod structural_judgment {
                     target,
                     selections,
                     machine,
-                    arguments: arguments.into_iter().map(&mut map).collect(),
-                },
-                StructuralTerm::CallProjection {
-                    selections,
-                    target,
-                    machine,
-                    result_type,
-                    field,
-                    field_name,
-                    arguments,
-                } => StructuralTerm::CallProjection {
-                    selections,
-                    target,
-                    machine,
-                    result_type,
-                    field,
-                    field_name,
                     arguments: arguments.into_iter().map(&mut map).collect(),
                 },
                 leaf => leaf,
@@ -81605,10 +81446,16 @@ pub(crate) mod structural_judgment {
                 self.invalidate_resolution_observations();
                 return self.resolve_uncached(term, depth, purpose);
             }
-            if !matches!(
-                term,
-                StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
-            ) {
+            if !matches!(term, StructuralTerm::Application { .. })
+                && !matches!(
+                    &term,
+                    StructuralTerm::Projection { subject, .. }
+                        if matches!(
+                            subject.as_ref().semantic_value(),
+                            StructuralTerm::Application { .. }
+                        )
+                )
+            {
                 return self.resolve_uncached(term, depth, purpose);
             }
             match purpose {
@@ -81775,56 +81622,6 @@ pub(crate) mod structural_judgment {
                         }
                         return resolved;
                     }
-                    StructuralTerm::CallProjection {
-                        selections,
-                        target,
-                        machine,
-                        result_type,
-                        field,
-                        field_name,
-                        arguments,
-                    } => {
-                        let arguments = arguments
-                            .into_iter()
-                            .map(|argument| self.resolve_with_at(argument, depth + 1, purpose))
-                            .collect::<Vec<_>>();
-                        let resolved = StructuralTerm::CallProjection {
-                            selections,
-                            target,
-                            machine,
-                            result_type,
-                            field,
-                            field_name,
-                            arguments,
-                        };
-                        if !self.resolve_applications && !self.runtime_body_values {
-                            return resolved;
-                        }
-                        let StructuralTerm::CallProjection {
-                            selections,
-                            target,
-                            result_type,
-                            field,
-                            arguments,
-                            ..
-                        } = &resolved
-                        else {
-                            unreachable!()
-                        };
-                        if let Some(unfolded) = self.unfold_exact_call_projection(
-                            *target,
-                            selections,
-                            *result_type,
-                            *field,
-                            arguments,
-                            depth + 1,
-                            purpose,
-                        ) {
-                            term = unfolded;
-                            continue;
-                        }
-                        return resolved;
-                    }
                     StructuralTerm::IndexedValue {
                         element_type,
                         element_identity,
@@ -81906,6 +81703,55 @@ pub(crate) mod structural_judgment {
                         }
                         if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                             term = replacement.clone();
+                            continue;
+                        }
+                        if !self.require_closed_computation
+                            && let StructuralTerm::Application {
+                                target,
+                                selections,
+                                result_type,
+                                arguments,
+                                ..
+                            } = subject.semantic_value()
+                            && let Some((machine, state)) =
+                                crate::machine_calls::calls::machine_state_by_symbol(
+                                    self.program,
+                                    *target,
+                                )
+                            && state.return_type == *result_type
+                            && let Some(first) = path.split('.').next()
+                            && let Some(data) =
+                                crate::value_custody::places::data_definition_for_type(
+                                    self.program,
+                                    *result_type,
+                                )
+                            && let Some(field) =
+                                super::structural_terms::call_projection_field_symbol(
+                                    self.program,
+                                    *result_type,
+                                    first,
+                                )
+                            && let Some(projected_field) = self.program.data_field(data, field)
+                            && let Some(value) = self.direct_literal_call_field(
+                                machine,
+                                state,
+                                selections,
+                                field,
+                                projected_field.type_reference,
+                                arguments,
+                                depth + 1,
+                            )
+                            && let Some(value) =
+                                path.split('.').skip(1).try_fold(value, |value, field| {
+                                    super::observed_projections::project_declared_field(
+                                        self.program,
+                                        self,
+                                        value,
+                                        field,
+                                    )
+                                })
+                        {
+                            term = value;
                             continue;
                         }
                         if (!self.require_closed_computation || subject.is_closed_value())
@@ -82024,72 +81870,16 @@ pub(crate) mod structural_judgment {
             let data =
                 crate::value_custody::places::data_definition_for_type(program, result_type)?;
             let projected_field = program.data_field(data, field)?;
-            let direct_literal_field = || {
-                let machine_parameters = program
-                    .machine_kind_type_parameters(machine)
-                    .collect::<Vec<_>>();
-                if machine_parameters.len() != selections.len() {
-                    return None;
-                }
-                let static_environment = machine_parameters
-                    .iter()
-                    .zip(selections)
-                    .map(|(parameter, selected)| {
-                        (
-                            parameter.symbol,
-                            parameter.name.as_str().to_owned(),
-                            selected.clone(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let parameters = program.state_parameters(state);
-                if parameters.len() != arguments.len() {
-                    return None;
-                }
-                let environment = parameters
-                    .iter()
-                    .zip(arguments)
-                    .map(|(parameter, argument)| {
-                        (parameter.name.as_str().to_owned(), argument.clone())
-                    })
-                    .collect::<Vec<_>>();
-                self.record_returned_field_dependency(machine.symbol);
-                let [StatementNode::Transition(transition)] =
-                    program.statement_table.statements(state.statement_nodes)
-                else {
-                    return None;
-                };
-                if !matches!(transition.guard, TransitionGuardNode::Always)
-                    || transition.continuation.is_valid()
-                {
-                    return None;
-                }
-                let TransitionTargetNode::Value(value) =
-                    program.statement_table.transition_target(transition.target)
-                else {
-                    return None;
-                };
-                let literal = expression_table(program).struct_literal_node(*value)?;
-                let projected = expression_table(program)
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .find(|candidate| candidate.field_symbol == field)?;
-                // Nested calls still belong to the callee declaration. Their own
-                // result query uses this frame; the field type supplies only the
-                // retained landing for anonymous arithmetic.
-                self.callee_term(
-                    projected.value,
-                    &environment,
-                    StaticObservations {
-                        machine_bindings: &static_environment,
-                        body_parameters: &[],
-                    },
-                    Some((machine, state, projected_field.type_reference)),
-                    depth + 1,
-                )
-            };
             if !self.require_closed_computation
-                && let Some(value) = direct_literal_field()
+                && let Some(value) = self.direct_literal_call_field(
+                    machine,
+                    state,
+                    selections,
+                    field,
+                    projected_field.type_reference,
+                    arguments,
+                    depth,
+                )
             {
                 return Some(value);
             }
@@ -82122,6 +81912,79 @@ pub(crate) mod structural_judgment {
             fields
                 .into_iter()
                 .find_map(|(name, value)| (name == projected_field.name.as_str()).then_some(value))
+        }
+
+        fn direct_literal_call_field(
+            &self,
+            machine: &Machine,
+            state: &typed_trees::state::State,
+            selections: &[StaticMachineArgument],
+            field: SymbolHandle,
+            field_type: TypeReferenceHandle,
+            arguments: &[StructuralTerm],
+            depth: usize,
+        ) -> Option<StructuralTerm> {
+            let program = self.program;
+            let machine_parameters = program
+                .machine_kind_type_parameters(machine)
+                .collect::<Vec<_>>();
+            if machine_parameters.len() != selections.len() {
+                return None;
+            }
+            let static_environment = machine_parameters
+                .iter()
+                .zip(selections)
+                .map(|(parameter, selected)| {
+                    (
+                        parameter.symbol,
+                        parameter.name.as_str().to_owned(),
+                        selected.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let parameters = program.state_parameters(state);
+            if parameters.len() != arguments.len() {
+                return None;
+            }
+            let environment = parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
+                .collect::<Vec<_>>();
+            self.record_returned_field_dependency(machine.symbol);
+            let [StatementNode::Transition(transition)] =
+                program.statement_table.statements(state.statement_nodes)
+            else {
+                return None;
+            };
+            if !matches!(transition.guard, TransitionGuardNode::Always)
+                || transition.continuation.is_valid()
+            {
+                return None;
+            }
+            let TransitionTargetNode::Value(value) =
+                program.statement_table.transition_target(transition.target)
+            else {
+                return None;
+            };
+            let literal = expression_table(program).struct_literal_node(*value)?;
+            let projected = expression_table(program)
+                .struct_fields(literal.fields)
+                .iter()
+                .find(|candidate| candidate.field_symbol == field)?;
+            // Nested calls still belong to the callee declaration. Their own
+            // result query uses this frame; the field type supplies only the
+            // retained landing for anonymous arithmetic.
+            self.callee_term(
+                projected.value,
+                &environment,
+                StaticObservations {
+                    machine_bindings: &static_environment,
+                    body_parameters: &[],
+                },
+                Some((machine, state, field_type)),
+                depth + 1,
+            )
         }
 
         pub(crate) fn closed_application_value(
@@ -82978,22 +82841,23 @@ pub(crate) mod structural_judgment {
                             program,
                             data_symbol,
                         )?;
-                        let field = program.data_members(data).iter().find_map(|candidate| {
+                        program.data_members(data).iter().find_map(|candidate| {
                             let field = candidate.as_field()?;
                             (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
                         })?;
-                        return Some(StructuralTerm::CallProjection {
-                            target: call.target_symbol,
-                            selections: call.machine_arguments.to_vec(),
-                            machine: structural_call_machine_name(
-                                call.target.as_str(),
-                                &call.machine_arguments,
-                                static_observations.machine_bindings,
-                            ),
-                            result_type: state.return_type,
-                            field,
-                            field_name: member.member.as_str().to_owned(),
-                            arguments,
+                        return Some(StructuralTerm::Projection {
+                            subject: Box::new(StructuralTerm::Application {
+                                result_type: state.return_type,
+                                target: call.target_symbol,
+                                selections: call.machine_arguments.to_vec(),
+                                machine: structural_call_machine_name(
+                                    call.target.as_str(),
+                                    &call.machine_arguments,
+                                    static_observations.machine_bindings,
+                                ),
+                                arguments,
+                            }),
+                            path: member.member.as_str().to_owned(),
                         });
                     }
                     let receiver_term = child_term!(member.receiver)?;
@@ -83195,17 +83059,10 @@ pub(crate) mod structural_judgment {
                     .find(|(variable, _)| variable == name)
                     .map(|(_, replacement)| replacement.clone())
                     .unwrap_or_else(|| term.clone()),
-                StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. } => {
+                StructuralTerm::Application { .. } => {
                     let mut substituted = term.clone().map_children(substitute);
                     let (target, selections, machine, result_type) = match &mut substituted {
                         StructuralTerm::Application {
-                            target,
-                            selections,
-                            machine,
-                            result_type,
-                            ..
-                        }
-                        | StructuralTerm::CallProjection {
                             target,
                             selections,
                             machine,
@@ -83279,6 +83136,12 @@ pub(crate) mod structural_judgment {
                             StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
                                 StructuralTerm::Opaque(format!("{root}.{suffix}"))
                             }
+                            StructuralTerm::Projection { subject, path } => {
+                                StructuralTerm::Projection {
+                                    subject: subject.clone(),
+                                    path: format!("{path}.{suffix}"),
+                                }
+                            }
                             StructuralTerm::Identity { .. }
                             | StructuralTerm::LogicalNot { .. }
                             | StructuralTerm::ContentValue { .. }
@@ -83287,14 +83150,12 @@ pub(crate) mod structural_judgment {
                             | StructuralTerm::Float(_)
                             | StructuralTerm::ScalarRepresentation { .. }
                             | StructuralTerm::Application { .. }
-                            | StructuralTerm::CallProjection { .. }
                             | StructuralTerm::CapturedValue { .. }
                             | StructuralTerm::ObservedValue { .. }
                             | StructuralTerm::ScalarBinary { .. }
                             | StructuralTerm::MathematicalBinary { .. }
                             | StructuralTerm::IntegerEmbedding { .. }
                             | StructuralTerm::CollectionMeasure { .. }
-                            | StructuralTerm::Projection { .. }
                             | StructuralTerm::IndexedValue { .. } => StructuralTerm::Projection {
                                 subject: Box::new(replacement.clone()),
                                 path: suffix.to_owned(),
@@ -87355,15 +87216,8 @@ pub(crate) mod structural_terms {
                 StructuralTerm::CapturedValue { result_type, .. }
                 | StructuralTerm::Application { result_type, .. } => *result_type,
                 StructuralTerm::IndexedValue { element_type, .. } => *element_type,
-                StructuralTerm::CallProjection {
-                    result_type,
-                    field,
-                    field_name,
-                    ..
-                } => {
-                    program
-                        .closed_data_member_field(*result_type, *field, field_name)?
-                        .type_reference
+                StructuralTerm::Projection { .. } => {
+                    super::completed_owned_carrier(program, collection)?
                 }
                 _ => return None,
             };
@@ -88562,7 +88416,6 @@ pub(crate) mod structural_terms {
                     )
                     .is_some_and(|(primitive, _)| primitive == *target)
                 }
-                StructuralTerm::CallProjection { .. } => true,
                 StructuralTerm::Projection { subject, .. } => {
                     !has_produced_subject(subject)
                         || completed_owned_carrier(program, term).is_some_and(|reference| {
@@ -88625,23 +88478,6 @@ pub(crate) mod structural_terms {
                 StructuralTerm::CapturedValue { result_type, .. } => {
                     crate::reference_shell(program, *result_type).is_some()
                 }
-                StructuralTerm::CallProjection {
-                    result_type,
-                    field,
-                    field_name,
-                    arguments,
-                    ..
-                } => {
-                    crate::reference_shell(program, *result_type).is_some()
-                        || program
-                            .closed_data_member_field(*result_type, *field, field_name)
-                            .is_none_or(|field| {
-                                crate::reference_shell(program, field.type_reference).is_some()
-                            })
-                        || arguments
-                            .iter()
-                            .any(|argument| term_is_unobserved_descriptor(program, argument))
-                }
                 StructuralTerm::IndexedValue {
                     element_type,
                     collection,
@@ -88655,8 +88491,32 @@ pub(crate) mod structural_terms {
                 StructuralTerm::Constructor { fields, .. } => fields
                     .iter()
                     .any(|(_, value)| term_is_unobserved_descriptor(program, value)),
-                StructuralTerm::Projection { subject, .. } => {
+                StructuralTerm::Projection { subject, path } => {
                     term_is_unobserved_descriptor(program, subject)
+                        || matches!(
+                            subject.as_ref().semantic_value(),
+                            StructuralTerm::Application { result_type, .. }
+                                if super::call_projection_field_symbol(
+                                    program,
+                                    *result_type,
+                                    path.split('.').next().unwrap_or_default(),
+                                )
+                                .is_none_or(|field| {
+                                    program
+                                        .closed_data_member_field(
+                                            *result_type,
+                                            field,
+                                            path.split('.').next().unwrap_or_default(),
+                                        )
+                                        .is_none_or(|field| {
+                                            crate::reference_shell(
+                                                program,
+                                                field.type_reference,
+                                            )
+                                            .is_some()
+                                        })
+                                })
+                        )
                 }
                 StructuralTerm::ScalarBinary {
                     references,
@@ -88694,19 +88554,6 @@ pub(crate) mod structural_terms {
                 StructuralTerm::Application { result_type, .. }
                 | StructuralTerm::CapturedValue { result_type, .. } => *result_type,
                 StructuralTerm::IndexedValue { element_type, .. } => *element_type,
-                StructuralTerm::CallProjection {
-                    result_type,
-                    field,
-                    field_name,
-                    ..
-                } => {
-                    if crate::reference_shell(program, *result_type).is_some() {
-                        return None;
-                    }
-                    program
-                        .closed_data_member_field(*result_type, *field, field_name)?
-                        .type_reference
-                }
                 StructuralTerm::Projection { subject, path } => {
                     let mut reference = completed_owned_carrier(program, subject)?;
                     for name in path.split('.') {
@@ -88742,9 +88589,7 @@ pub(crate) mod structural_terms {
 
         fn has_produced_subject(term: &StructuralTerm) -> bool {
             match term {
-                StructuralTerm::Application { .. }
-                | StructuralTerm::CapturedValue { .. }
-                | StructuralTerm::CallProjection { .. } => true,
+                StructuralTerm::Application { .. } | StructuralTerm::CapturedValue { .. } => true,
                 StructuralTerm::Projection { subject, .. } => has_produced_subject(subject),
                 StructuralTerm::IndexedValue { collection, .. } => has_produced_subject(collection),
                 _ => false,
@@ -89062,29 +88907,50 @@ pub(crate) mod structural_terms {
                     arguments,
                 })
             }
-            term @ StructuralTerm::CallProjection { .. } => {
-                let term = term.map_children(unfold);
-                if let StructuralTerm::CallProjection {
-                    result_type,
-                    target,
-                    selections,
-                    arguments,
-                    field,
-                    ..
-                } = &term
-                {
-                    super::StructuralJudge::closed_application_value(
-                        program,
-                        *result_type,
-                        *target,
-                        selections,
-                        arguments,
-                        Some(*field),
-                    )
-                    .unwrap_or(term)
-                } else {
-                    unreachable!()
+            StructuralTerm::Projection { subject, path } => {
+                let mut value = unfold(*subject);
+                for field_name in path.split('.') {
+                    value = match value {
+                        application @ StructuralTerm::Application { .. } => {
+                            let StructuralTerm::Application {
+                                result_type,
+                                target,
+                                selections,
+                                arguments,
+                                ..
+                            } = &application
+                            else {
+                                unreachable!()
+                            };
+                            call_projection_field_symbol(program, *result_type, field_name)
+                                .and_then(|field| {
+                                    super::StructuralJudge::closed_application_value(
+                                        program,
+                                        *result_type,
+                                        *target,
+                                        selections,
+                                        arguments,
+                                        Some(field),
+                                    )
+                                })
+                                .unwrap_or_else(|| {
+                                    super::observed_projections::project_field(
+                                        application,
+                                        field_name,
+                                    )
+                                    .expect("application subjects always project")
+                                })
+                        }
+                        value => {
+                            super::observed_projections::project_field(value.clone(), field_name)
+                                .unwrap_or_else(|| StructuralTerm::Projection {
+                                    subject: Box::new(value),
+                                    path: field_name.to_owned(),
+                                })
+                        }
+                    };
                 }
+                value
             }
             other => other.map_children(unfold),
         }
@@ -89154,12 +89020,6 @@ pub(crate) mod structural_terms {
                 arguments: values,
                 ..
             } => format!("{machine}({})", arguments(values)),
-            StructuralTerm::CallProjection {
-                machine,
-                field_name,
-                arguments: values,
-                ..
-            } => format!("{machine}({}).{field_name}", arguments(values)),
             StructuralTerm::CollectionMeasure {
                 measure,
                 collection,
@@ -89760,23 +89620,20 @@ pub(crate) mod structural_terms {
                         let result_type = program
                             .state_by_symbol(call.target_symbol)
                             .map(|state| state.return_type)?;
-                        let field = call_projection_field_symbol(
-                            program,
-                            result_type,
-                            member.member.as_str(),
-                        )?;
-                        return Some(StructuralTerm::CallProjection {
-                            target: structural_call_target_in_frame(program, call, frame),
-                            selections: call.machine_arguments.to_vec(),
-                            machine: structural_call_machine_name(
-                                call.target.as_str(),
-                                &call.machine_arguments,
-                                &[],
-                            ),
-                            result_type,
-                            field,
-                            field_name: member.member.as_str().to_owned(),
-                            arguments,
+                        call_projection_field_symbol(program, result_type, member.member.as_str())?;
+                        return Some(StructuralTerm::Projection {
+                            subject: Box::new(StructuralTerm::Application {
+                                result_type,
+                                target: structural_call_target_in_frame(program, call, frame),
+                                selections: call.machine_arguments.to_vec(),
+                                machine: structural_call_machine_name(
+                                    call.target.as_str(),
+                                    &call.machine_arguments,
+                                    &[],
+                                ),
+                                arguments,
+                            }),
+                            path: member.member.as_str().to_owned(),
                         });
                     }
                 }
@@ -89802,13 +89659,9 @@ pub(crate) mod structural_terms {
                         | StructuralTerm::Projection { .. }
                         | StructuralTerm::Application { .. }
                         | StructuralTerm::CapturedValue { .. }
-                        | StructuralTerm::CallProjection { .. }
                         | StructuralTerm::IndexedValue { .. }),
                     ) if declared_field && !term_is_unobserved_descriptor(program, &subject) => {
-                        Some(StructuralTerm::Projection {
-                            subject: Box::new(subject),
-                            path: member.member.as_str().to_owned(),
-                        })
+                        super::observed_projections::project_field(subject, member.member.as_str())
                     }
                     _ => Some(StructuralTerm::Opaque(
                         expression_table(program).display_name(expression),
@@ -89913,7 +89766,7 @@ pub(crate) mod structural_terms {
             .unwrap_or(target)
     }
 
-    fn call_projection_field_symbol(
+    pub(crate) fn call_projection_field_symbol(
         program: &dyn crate::CheckingInput,
         result_type: typed_trees::types::TypeReferenceHandle,
         field_name: &str,
