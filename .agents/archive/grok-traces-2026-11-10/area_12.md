@@ -11,17 +11,17 @@ Numbering follows the open bullets in digest order. A bullet that names several 
 | # | file:line | verdict | one-line reason |
 | --- | --- | --- | --- |
 | 1 | SRT/storage_and_indexes.rs:37-69 | UNDECIDED | The only reader indexes a cached position without checking the symbol; a stale hit was not shown to accept a program. |
-| 2 | SRT/type_system_and_names.rs:895-908 | UNDECIDED | Spelling alone classifies a named type as a primitive; no constructor of that named type was read. |
-| 3 | SRT/values.rs:2518-2519 | UNDECIDED | Destructure field values are omitted from the dependency list; the match reducer was not read. |
+| 2 | SRT/type_system_and_names.rs:895-908 | REACHABLE | A proposition binder spelled like a primitive hides the builtin, and an integer literal for a const binder of that spelling is still accepted. |
+| 3 | SRT/values.rs:2518-2519 | REACHABLE | A constant whose only mention of another constant or a call is a destructure field value never records that dependency. |
 | 4 | SRT/values.rs:1309-1316 | CLOSED | Production copies stay in the same expression table; the cross-table copy is only in tests. |
 | 5 | SRT/values.rs:578-588 and 459-470 | UNDECIDED | The target-family contract copy leaves the requirement handle and the selection id untouched; their checker was not read. |
-| 6 | SRT/lib.rs:725 | UNDECIDED | An authored nominal machine parameter has no contract view, so hoist inference keeps the declared unit type; the later check was not read. |
+| 6 | SRT/lib.rs:725 | CLOSED | An authored nominal machine parameter is an error when its declaration is lowered, so the missing view cannot publish it. |
 | 7 | SRT/type_system_and_names.rs:370 | CLOSED | A missing owner row is the invalid owner the only writer refuses to store, and lowering records nothing. |
-| 8 | SRT/storage_and_indexes.rs:104-108 | UNDECIDED | Index equality is always true and the trees derive `Eq`; no branch on that equality was read. |
+| 8 | SRT/storage_and_indexes.rs:104-108 | CLOSED | Index equality is always true, and tree equality still compares roots, tables, and symbols, so a different program does not compare equal. |
 | 9 | SRT/storage_and_indexes.rs:63 and 152 | UNDECIDED | `as u32` wraps only past 2^32 elements; one arena cannot get there, a concatenated statement vector can, and no such program was shown. |
 | 10 | ST/lib.rs:1724 | CLOSED | A call, cast, or member is reported nameless, then both callers' evaluator rejects that shape. |
 | 11 | ST/control_flow_and_names.rs:759-764 | CLOSED | A repeated generation is a second copy of a page the counter already issued, and a conflicting text fails record decode. |
-| 12 | ST/declarations.rs:735-741 | UNDECIDED | `Default` is syscall 0 and `Use`; no caller of those defaults was found. |
+| 12 | ST/declarations.rs:735-741 | CLOSED | An unknown foreign-binding case is a parse error, and an unknown stored variant is a record error. |
 | 13 | ST/inspection.rs:406-408 | CLOSED | An invalid expression becomes an empty snapshot name, and every snapshot caller found is a test or JSON dump. |
 | 14 | codec/foundation_validation.rs:11215-11218 | REACHABLE | A wrapping integer add with a scalar result is admitted even when the operands are not integers of that carrier. |
 | 15 | codec/foundation_validation.rs:142-166 | CLOSED | Every static call kind is passed through `validate_module_invocation_entry`, which checks structural arguments and claims. |
@@ -51,7 +51,7 @@ Digest: the cited caller lines are right. The description of a stale hit indexin
 
 ## 2. Named type spelled as a primitive
 
-Verdict: UNDECIDED.
+Verdict: REACHABLE.
 
 Search: `.primitive_type()` under `pipeline/02_syntax-trees-to-symbol-resolved-trees` — 0 matches. Under `pipeline/03_symbol-resolved-trees-to-typed-trees` — 2 matches, both read (`equality_and_exhaustiveness.rs:2336` and `:2402`). `resolved::types::PrimitiveType::from_name` — the definition (`SRT/type_system_and_names.rs:912`) and one other use at `type_reference.rs:2880`, read.
 
@@ -59,15 +59,13 @@ Read in full: `TypeReference::primitive_type` (`SRT/type_system_and_names.rs:895
 
 `primitive_type` on `Named` calls `from_name` and does not read the symbol (`:899`). `validate_const_literal_argument` then accepts an integer literal when that primitive accepts it (`:2342-2348`). `proposition_const_types_match` returns true from the primitive kinds alone when both spellings classify (`:2402-2403`), so the symbols in the `Named` arm (`:2406-2410`) are not consulted.
 
-I did not read the code that builds a `TypeReference::Named`, so I cannot say a user declaration spelled like `u8` is stored there. Builtin spellings exist (`psi/foundation/symbols/src/builtin.rs:134-154`, read). I did not read whether a second declaration of that spelling is rejected before a named type is built.
+A later read of name binding: proposition binders are installed as local type parameters, including a const binder's type (`symbols_type_references.rs:466-495`, read). `resolve_type_symbol` returns the first local parameter with that spelling before any top-level type (`:1076-1080`, read). The `Named` arm stores that symbol and leaves the spelling (`:903-908`, read). A binder spelled `u8` therefore wins over the builtin, and the node still spells `u8`. `validate_const_literal_argument` then accepts an integer literal that fits (`equality_and_exhaustiveness.rs:2342-2348`, read earlier). The smallest case is a proposition with a binder spelled `u8` and a const binder whose type uses that spelling, given an integer literal.
 
-What would decide it: the constructor of `TypeReference::Named` for a type annotation, and whether a declaration spelled `u8` can be the symbol (or an unresolved symbol) on a node whose name is `u8`.
-
-Digest: the site does ignore the symbol. "Depends on whether shadowing is allowed" is still the open question.
+Digest: the site does ignore the symbol. Shadowing by a proposition binder reaches it.
 
 ## 3. Destructure field values left out of pattern dependencies
 
-Verdict: UNDECIDED.
+Verdict: REACHABLE.
 
 Search: `match_pattern_dependencies(` — 25 matches, including three definitions (`SRT/values.rs:2510`, `ST/values_and_types.rs:1503`, `TT/values.rs:3062`). The other 22 are call sites. I read the SRT definition and two SRT consumers. I did not read the other 20 call sites, and I did not separate their receiver types.
 
@@ -75,11 +73,9 @@ Read in full: `ExpressionTable::match_pattern_dependencies` (`SRT/values.rs:2510
 
 For a destructure the iterator is given an empty field span (`SRT/values.rs:2518-2519`), so an `Equal` field value is never yielded. The symbol walk then calls `assign_pattern_field_symbols`, which writes `field_symbol` and does not visit `field.action` (`symbols_expression_paths.rs:410-416`). The constant walk queues only what the iterator yields (`constant.rs:2153`). A search of `constant.rs` for `match_fields`, `Destructure`, and `MatchFieldAction::Equal` returned no matches.
 
-A name that appears only as a destructure field's compared value is therefore not queued by that walk and not symbol-assigned by the match arm. I did not read the function that reduces a match after the queue is built, so I cannot say the omitted expression is accepted rather than rejected when the match is reduced.
+A later read of the syntax constant walk in `constant.rs`: a `Name` that is visited is recorded (`:3892-3918`, read). A match queues the arm value and a value pattern only (`:3957-3964`, read). A destructure field's compared value is not queued. A visited node of any other shape is rejected as outside constant leaf evaluation (`:3966-3970`, read), but the field value is never visited, so a call there does not hit that error. Cycle reporting walks only the recorded references (`:4061-4072`, read). A constant initializer whose only mention of another constant, or of a call, is that field value is kept.
 
-What would decide it: that reducer, and whether any other walk visits `MatchFieldAction::Equal` before acceptance.
-
-Digest: the omission is real. The "23 call sites" count is 22 calls plus the syntax-trees and typed-trees definitions are separate functions; I did not resolve receiver types.
+Digest: the omission is real. The syntax walk drops the field without calling this function. The "23 call sites" count is 22 calls; the syntax-trees and typed-trees definitions are separate functions.
 
 ## 4. `copy_graph` shares type handles
 
@@ -111,7 +107,7 @@ Digest: both omissions match the code that was read. `requirement_application` i
 
 ## 6. Authored nominal machine parameter has no contract view
 
-Verdict: UNDECIDED.
+Verdict: CLOSED.
 
 Search: `machine_parameter_contract_view(` under `omega-rust/psi/compilation/pipeline` — 11 matches. `statement_lowering.rs:290` is `source_trees` (this function). `lowerer.rs:1208-1218` is `&TypedTrees` (read). The other nine are in stages 04–06; their receivers were not opened. Validation also calls a method of this name (seen in an earlier search); those bodies were not opened.
 
@@ -119,9 +115,7 @@ Read in full: `machine_parameter_contract_view` (`SRT/lib.rs:716-742`), `Machine
 
 `AuthoredNominal` returns `None` (`SRT/lib.rs:725`), as does `RequirementIdentity` (`:721`). Inside `infer_hoist_temp_type` the `?` skips that parameter (`statement_lowering.rs:288-291`). If nothing else supplies a return type, the function returns `Ok(None)` (`:320-321`). For an inferred unit local, `None` keeps the declared type (`:1391-1395`), which this branch only reaches when that declared type is unit (`:1378-1381`). A call to a machine parameter whose contract is still the authored nominal form is therefore lowered as a unit temporary.
 
-I did not read the later check of that temporary against the call. `None` at `:595-598` only skips one substitution and continues.
-
-What would decide it: whether a unit-inferred local initialized by a call to an authored-nominal machine parameter is rejected after lowering.
+Machine lowering calls `lower_type_parameters` on the machine's parameters (`declarations.rs:783`, read). That calls `lower_type_parameter_kind` (`contracts_and_signatures.rs:858`, read), which returns an error for `AuthoredNominal` (`:895-898`, read): "an unresolved nominal machine-parameter requirement reached typed lowering." The inference `None` cannot publish that parameter. `RequirementIdentity` also returns `None` from the view (`SRT/lib.rs:721`) and is lowered as its own variant (`contracts_and_signatures.rs:887-888`, read); that variant was not followed further.
 
 Digest: the `None` arm matches. It is not only `AuthoredNominal`; `RequirementIdentity` returns `None` too.
 
@@ -139,15 +133,13 @@ Digest: “no owner row reads as no owner” matches the lookup. It does not des
 
 ## 8. Resolution-index equality
 
-Verdict: UNDECIDED.
+Verdict: CLOSED.
 
 Search: `resolution_indexes` — 24 matches, listed while tracing entry 1. None of those lines compare two index values. I did not search every `==` on a `SymbolResolvedTrees`.
 
-Read: `PartialEq for ResolvedIndexes` (`SRT/storage_and_indexes.rs:104-108`) and the `SymbolResolvedTrees` derive (`SRT/lib.rs:91-102`). `eq` ignores both sides and returns true. Because the trees derive `Eq`, two trees that differ only in this cache compare equal.
+Read: `PartialEq for ResolvedIndexes` (`SRT/storage_and_indexes.rs:104-108`) and the `SymbolResolvedTrees` derive (`SRT/lib.rs:91-102`). `eq` ignores both sides and returns true. `SymbolResolvedTrees` still compares roots, tables, and symbols because those fields have their own equality. `DeferredResolvedFrontier` compares `trees == &other.trees` (`resolution.rs:144`, read). A difference in the cache alone does not make two different declaration payloads equal. `SourceCompletionInput::same_completion_input` (`source_compilation.rs:1177-1187`, read) does not compare the trees.
 
-What would decide it: a production branch on that equality. I did not find one, and I did not look through every `==`.
-
-Digest: the always-true comparison matches the code.
+Digest: the always-true comparison matches the code. It does not make a different program compare equal.
 
 ## 9. Position truncated to `u32`
 
@@ -187,15 +179,13 @@ Digest: the in-memory skip is real. It does not replace a live page with differe
 
 ## 12. Default syscall zero and default use
 
-Verdict: UNDECIDED.
+Verdict: CLOSED.
 
 Search: `ExternalBinding::default` and `Item::default()` — 1 match, the `Item` impl body at `ST/declarations.rs:743`. No call.
 
-Read: `Default for ExternalBinding` (`ST/declarations.rs:735-738`) returns `Syscall { number: 0 }`. `Default for Item` (`:740-744`) returns `Use`. `ExternalBinding` does not derive `Default`; the impl is hand-written. I did not read the `compiler_storage::Record` derive to see whether it fills a missing variant from `Default`.
+Read: `Default for ExternalBinding` (`ST/declarations.rs:735-738`) returns `Syscall { number: 0 }`. `Default for Item` (`:740-744`) returns `Use`. The foreign-binding parser requires one of `Syscall`, `TableFunction`, or `VtableField`, and any other case is `Err` (`pipeline/01_tokens-to-syntax-trees/src/contracts_and_parameters.rs:33-68`, read). A declaration that matches no item keyword is `expected_one_of_here`, not `Item::Use` (`pipeline/01_tokens-to-syntax-trees/src/declarations.rs:2535-2556`, read). The record derive's unknown enum tag is `Err` with "unknown Variant" (`psi/foundation/compiler-storage/derive/src/lib.rs:128`, read).
 
-What would decide it: a reader or constructor that uses these defaults when the source did not write a syscall or a use.
-
-Digest: the defaults match the code. Nothing read shows them becoming an accepted binding.
+Digest: the defaults match the code. A missing tag does not become them.
 
 ## 13. Invalid expression snapshots as an empty name
 
@@ -307,9 +297,9 @@ Entries 1–20 are commit `b7b57ae4351c7fcdc600e580457eeabd9eaebbb0`. The counts
 
 | verdict | count |
 | --- | --- |
-| REACHABLE | 6 |
-| CLOSED | 6 |
-| UNDECIDED | 8 |
+| REACHABLE | 8 |
+| CLOSED | 9 |
+| UNDECIDED | 3 |
 | not reached | the entries listed above |
 
 ## What I did not read
