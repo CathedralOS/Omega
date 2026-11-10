@@ -26,12 +26,17 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 | 18 | pp/data_layout_queries/builder/private_callback_closure.rs:69-74, :184-186 | CLOSED | The record that owns the callback demand is visited on its own, and the demand match happens before the enum skip. |
 | 19 | pp/program_entry/source_contract.rs:121-124, :128 | CLOSED | The only consumer passes those strings into a constructor that rejects an empty parameter or result identity. |
 | 20 | pp/provider_identity.rs:22 | UNDECIDED | A plan with an application identity skips the no-type-parameter test. Whether that plan is supposed to be rejected was not settled. |
+| 21 | pp/provider_instances.rs:229, :256 | UNDECIDED | Import, vtable, and table rows get an empty instance list. Whether those rows can carry closed requirement instances was not settled. |
+| 22 | pp/provider_planning/external_binding_rows.rs:167-194 | CLOSED | A syscall on a target with no kernel policy is rejected when the call is realized, before the empty application list is used. |
+| 23 | pp/provider_planning/provenance_replay.rs:357-391 | CLOSED | A demanded boundary whose intrinsic execution is missing is rejected. `settle` does not itself reject the unknown machine. |
+| 24 | pp/provider_planning/provenance_replay.rs:175-176 | UNDECIDED | A missing trait or signature text is interned as `""` with no check in `mint_plan_row_identity`. Whether a demand can match that empty text was not settled. |
+| 25 | pp/provider_planning/provenance_replay/adapter_conformance.rs:232 | UNDECIDED | The provider-row join is skipped when `provider_type` is empty. One caller rejects that emptiness first. The selected-facts caller does not, and I did not read its admission check. |
 
 `orch/` is `omega/build-system/orchestration/src/`. `ba/` is `omega/compilation/backend/artifacts/boundary-applications/src/`. `cd/` is `omega/compilation/backend/artifacts/component-description/src/`. `nc/` is `omega/compilation/native-compiler/src/`. `pa/` is `omega/compilation/realization/provider-admission/src/`. `whr/` is `pa/provider_admission/terminal_authority_review/`.
 
 `pp/` is `omega/compilation/realization/provider-planning/src/`.
 
-Entries 21 onward are not written yet.
+Entries 26 onward are not written yet.
 
 ## 1. `comp/product_execution.rs:473-491`
 
@@ -290,4 +295,60 @@ Verdict UNDECIDED. What would decide it: the body of `ProviderPlan::application_
 Digest: right that `eligible` is skipped when an application identity is present.
 
 Not read: `provider_plan.rs` around the application-identity accessor.
+
+## 21. `pp/provider_instances.rs:229` and `:256`
+
+`prepare_instance_declarations` (read `:154-259`). `CompilerIntrinsic` and `Syscall` inherit leaf applications (`:175-196`). `CheckedAdapter` inherits through `generic_instances` (`:241-255`). Every other binding, including `Import`, `VtableField`, `TableFunction`, and `VtableSlot`, takes `_ => Ok(Vec::new())` (`:229` and `:256`).
+
+I did not read `inherited_instances` or `closed_requirement_applications`. An empty list drops whatever those functions would have found for a checked adapter. I cannot say an import or vtable row has such instances.
+
+Verdict UNDECIDED. What would decide it: whether `closed_requirement_applications` returns a row for one of those four bindings.
+
+Digest: right about the empty list.
+
+Not read: `providers_and_trust.rs`.
+
+## 22. `pp/provider_planning/external_binding_rows.rs:167-194`
+
+`ExternalBindingContext::row` (read `:165-205`). For a syscall, `compatibility_policy` is `CallingPolicy::native_syscall_for_target`. That is `None` for Mach-O and COFF (`calling-conventions/src/plans/vocabulary.rs:498-510`, read). The default-application fill runs only when the policy is `Some` (`:172-174`), so the row is returned with the applications it already had, including none (`:195`).
+
+`rejoin_system_call` is the realization of `NativeBoundaryRealization::SystemCall` (`settlements.rs:125-134`, read). Search `rejoin_system_call\(`: 2 hits, the definition and that call. It rejects a target with no kernel policy (`:518-519`, read) before it reads applications. When a policy exists, `external_calling_application` (`:271-279`, read) rejects a row whose ABI application is missing.
+
+Digest: right that the row can be emitted with an empty application list. Using that row does not succeed.
+
+Not read: `evaluate_default_calling_applications`.
+
+## 23. `pp/provider_planning/provenance_replay.rs:357-391`
+
+`inferred_selected_target_compiler_leaf` (read in full, `:357-391`). On a non-hosted target it returns a `CompilerIntrinsic` binding for a bodiless boundary machine with attached data, no parameters, no external binding, one state, and one target origin. It does not check the signature or the machine name.
+
+`settle` returns `Ok(None)` when the target does not match (`intrinsic_declarations.rs:290-292`, read) and for `Unsupported` (`:294`, read). It does not reject an unknown machine by name.
+
+`select_boundary_applications` (`ps/boundary.rs:57-111`, read) zips each row with `row_executions` and, for a `CompilerIntrinsic` binding, requires `execution.ok_or` "selected intrinsic has no canonical or admitted execution identity" (`:109-111`). A demanded boundary whose execution slot is `None` is rejected there.
+
+Digest: right about the leaf. `settle` does not reject it. The demand check does.
+
+Not read: the assignment that copies `settle`'s `None` into `row_executions`. The boundary function rejects a `None` slot whatever wrote it.
+
+## 24. `pp/provider_planning/provenance_replay.rs:175-176`
+
+`exact_satisfied_requirement_identity` (read `:158-181`) returns `""` when the trait symbol has no definition (`:174-175`) and when the signature or callable-identity text is missing (`:177-180`). `plan_derivation.rs:112-116` (read) stores that string, and `:139-152` (read) pushes a row whose identity is `mint_plan_row_identity` (`:550-555`, read). `mint` is `plan.identities.intern` with no emptiness test. The push sits inside `provider_plan_schema_target` returning `Some` (`:118-120`). A trait that has a schema and no callable-identity text still gets the row.
+
+`select_boundary_applications` matches `plan.identities.text(row.requirement_identity)` to `requirement.overload()` (`boundary.rs:74`, read). An empty identity does not match a nonempty overload, so that demand fails the unique-row error (`:78-84`). I did not read `overload()`. If it can be `""`, the empty identity matches it.
+
+Verdict UNDECIDED. What would decide it: whether a boundary demand's overload text can be empty.
+
+Digest: half right. The empty string is interned. The `plan_derivation.rs:112` call does not by itself push a row when the schema lookup is `None`.
+
+Not read: `provider_plan_schema_target` and `named_provider_plans.rs:154`.
+
+## 25. `pp/provider_planning/provenance_replay/adapter_conformance.rs:232`
+
+`exact_checked_adapter` (read `:224-239`) runs `provider_row_matches` only when `plan.provider_type` is nonempty. Search `exact_checked_adapter\(`: 5 hits. The build-time caller rejects an empty provider type before the call (`adapter_conformance.rs:88-93`, read). `provider_instances.rs:115` (read `:103-119`) does not. `validate_candidate_against_schema` rejects an empty provider type on a checked-adapter row (`provider_plan.rs:883-901`, read). I did not read the function that inserts a plan into `SelectedProviderPlanFacts`, so I cannot show that every plan reaching `:115` passed that validation.
+
+Verdict UNDECIDED. What would decide it: the constructor of `SelectedProviderPlanFacts` and whether it calls `validate_candidate_against_schema`.
+
+Digest: right about the local skip.
+
+Not read: `from_selected_plans`. `product_boundary.rs` and the two test hits were not read past the search count.
 
