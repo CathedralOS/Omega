@@ -301,7 +301,7 @@ Digest: both unchecked claims match what was searched and read.
 
 ## Commit
 
-Entries 1–20 are commit `b7b57ae4351c7fcdc600e580457eeabd9eaebbb0`.
+Entries 1–20 are commit `b7b57ae4351c7fcdc600e580457eeabd9eaebbb0`. The counts section was added in `94993cf06f60c97609f5b3c988b49328d910e60f`.
 
 ## Counts
 
