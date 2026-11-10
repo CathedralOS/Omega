@@ -195,14 +195,16 @@ the corresponding routes and access policy. A cast cannot bypass them.
 ### Contract-based repair
 
 Ratified 2026-11-05: existing `requires` and `ensures` compose repairs of a
-lender's named predicate qualification. No new repair syntax is introduced.
+lender's named qualification. No new repair syntax is introduced.
 The receiving machine must establish its own parameter/default domains and
 entry requirements from the current contents. It may receive a weaker view
 while the original owner's stronger qualification remains owed, provided
 exclusive custody and the exact restoration obligation remain attached to
 that storage until handback. The caller writes the weaker view as a
 [cast on the mutable reference](domains.md#mutable-views), which can remove
-only predicate-only domains. That cast never cancels the obligation.
+any domain the lender could add again itself when the loan ends. That cast
+never cancels the obligation: each removed domain is re-established by its own
+`+D` rules for the current contents.
 
 A helper's checked normal-completion guarantees may discharge the enclosing
 machine's restoration promise. At a terminal call, prove the successor's

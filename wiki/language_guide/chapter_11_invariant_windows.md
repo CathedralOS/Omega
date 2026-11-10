@@ -100,8 +100,9 @@ makes the fields equal and proves `Ordered`; its postcondition fulfills
 `reset`'s promise. This remains an in-place update of the same pair.
 
 If the lender stores `Pair in Pair::Ordered`, the loan must return ordered.
-Passing a weaker `&mut Pair` view lets helpers perform the repair, but retains
-that handback obligation. If `Ordered` were instead part of `Pair`'s default
+Passing a weaker view, written `&mut pair as -Pair::Ordered`, lets helpers perform
+the repair, but retains that handback obligation: when the loan ends `Ordered`
+is established again for whatever the pair then holds. If `Ordered` were instead part of `Pair`'s default
 domain, `finish` would need it on entry as well. Its future postcondition
 cannot justify receiving an invalid value.
 
