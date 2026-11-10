@@ -26,8 +26,7 @@ fn required_checks_verdict(nodes: &[Value], head: &str) -> (String, String) {
         let latest = nodes
             .iter()
             .filter(|n| {
-                n["__typename"].as_str() == Some("CheckRun")
-                    && n["name"].as_str() == Some(required)
+                n["__typename"].as_str() == Some("CheckRun") && n["name"].as_str() == Some(required)
             })
             .max_by_key(|n| n["startedAt"].as_str().unwrap_or(""));
         let Some(run) = latest else {
