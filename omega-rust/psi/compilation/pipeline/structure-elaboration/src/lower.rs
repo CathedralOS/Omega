@@ -23,8 +23,10 @@ Obligations are created, never discharged:
 - `CrashCoverage` per crash site and cause (calls_and_outcomes.md: "The
   verifier proves every site guard from independent entry/CFG facts and
   checks same-cause coverage"). A site is a block whose terminator leaves
-  without a successor: a `Crash` with its one cause, or an `InvokeNoNormal`
-  with one obligation per cause among the callee's substituted routes.
+  without a successor (a `Crash` with its one cause, or an `InvokeNoNormal`
+  with one obligation per cause among the callee's substituted routes), or a
+  call operation whose callee may return and also publishes crash routes,
+  again with one obligation per cause among the substituted routes.
 
 Each is created at the point before the construct it guards: the program point
 after the preceding operation, or the block entry when none precedes it.
@@ -45,7 +47,7 @@ use semantic_vocabulary::{
 use terminal_check_tables::edges::{
     Actual, Callee, Destination, Disposition, EdgeRow, InvocationRow,
 };
-use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
+use terminal_check_tables::obligations::{CrashSite, ObligationKind, ObligationRow};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
@@ -557,7 +559,10 @@ impl Lowering<'_> {
                 .map(CrashPredicateTerm::new)
                 .collect();
         self.obligation(
-            ObligationKind::CrashCoverage { site, cause },
+            ObligationKind::CrashCoverage {
+                site: CrashSite::Block(site),
+                cause,
+            },
             before,
             source,
         );
@@ -599,7 +604,7 @@ impl Lowering<'_> {
         for bucket in &crash_continuations {
             self.obligation(
                 ObligationKind::CrashCoverage {
-                    site,
+                    site: CrashSite::Block(site),
                     cause: bucket.cause,
                 },
                 before,
@@ -890,33 +895,28 @@ impl Lowering<'_> {
         result: Option<ScalarType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
-        // A call is an operation only when its callee may return and
-        // publishes no crash route. One with no normal completion is a
-        // terminator (`invoke_no_normal`), reached only in terminal position.
-        // One that may both return and crash needs a `CrashCoverage`
-        // obligation at the call operation, which that obligation's key (a
-        // block whose terminator crashes) cannot name: refused, and reported
-        // in the README, "Findings".
+        // A call is an operation only when its callee may return. One with
+        // no normal completion is a terminator (`invoke_no_normal`), reached
+        // only in terminal position.
         let outcome = self.outcome(callee)?;
-        let concerns = self.current.map_or(Construct::Machine, Construct::Block);
         if !outcome.completes_normally {
             return Err(refuse(
                 self.id,
-                concerns,
+                self.current.map_or(Construct::Machine, Construct::Block),
                 Unserved::Call("no-normal call inside an expression"),
-            ));
-        }
-        if !outcome.crash_routes.is_empty() {
-            return Err(refuse(
-                self.id,
-                concerns,
-                Unserved::Call("call that may crash and return"),
             ));
         }
         let mut actuals = Vec::with_capacity(arguments.len());
         for argument in arguments {
             actuals.push(self.scalar(argument)?);
         }
+        // A callee that may return and also publishes crash routes makes
+        // this operation a crash site: its routes, with each formal replaced
+        // by the actual at its position, are the call's crash continuations,
+        // and the site owes one `CrashCoverage` per surviving cause, as an
+        // `InvokeNoNormal` terminator does at its block.
+        let crash_continuations =
+            canonical::substituted_routes(&self.outcome(callee)?.crash_routes, &actuals, self.id)?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
         let requirements = self.invocation(
@@ -926,6 +926,16 @@ impl Lowering<'_> {
             before,
             source,
         )?;
+        for bucket in &crash_continuations {
+            self.obligation(
+                ObligationKind::CrashCoverage {
+                    site: CrashSite::Operation(operation),
+                    cause: bucket.cause,
+                },
+                before,
+                source,
+            );
+        }
         let kind = match result {
             Some(_) => OperationKind::Call {
                 callee,
@@ -933,7 +943,7 @@ impl Lowering<'_> {
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 requirement_obligations: requirements,
-                crash_continuations: Vec::new(),
+                crash_continuations,
             },
             None => OperationKind::CallUnit {
                 callee,
@@ -943,7 +953,7 @@ impl Lowering<'_> {
                 structural_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
                 requirement_obligations: requirements,
-                crash_continuations: Vec::new(),
+                crash_continuations,
             },
         };
         self.emit(operation, result, kind)
