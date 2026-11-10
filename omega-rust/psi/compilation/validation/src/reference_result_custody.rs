@@ -6862,6 +6862,26 @@ pub fn origin_formal<'parameters>(
         .nth(usize::try_from(index).ok()?)
 }
 
+/*
+    The inverse of `origin_formal`: the structural index a published origin
+    carries for the formal `symbol`. The side that publishes an origin and the
+    sides that read it count the same roster here, so an index names the same
+    input on both. Counting an erased formal on one side only made the origin
+    of the second of two inputs behind an erased one name no input at all.
+*/
+pub fn origin_index<'parameters>(
+    program: &dyn CheckingInput,
+    parameters: &'parameters [typed_trees::signature::StateParameter],
+    symbol: SymbolHandle,
+) -> Option<(u32, &'parameters typed_trees::signature::StateParameter)> {
+    let (index, parameter) = parameters
+        .iter()
+        .filter(|parameter| is_mutable_structural_parameter(program, parameter))
+        .enumerate()
+        .find(|(_, parameter)| parameter.symbol == symbol)?;
+    Some((u32::try_from(index).ok()?, parameter))
+}
+
 fn reference_origin_expansion_is_bounded(
     program: &dyn CheckingInput,
     reference: TypeReferenceHandle,

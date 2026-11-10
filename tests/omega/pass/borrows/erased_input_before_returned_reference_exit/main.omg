@@ -2,7 +2,8 @@
 // An erased input has no runtime slot, so it must not shift which input a
 // returned reference borrows. Each helper returns its real input from behind
 // an erased one: directly, inside a record, through a forwarding call, and
-// crossed between two real inputs. Writing a different input stays allowed.
+// crossed between two real inputs, and as the second of two real inputs behind
+// the erased one. Writing a different input stays allowed.
 data Holder<'storage> { target: &'storage mut u64; tag: u64; }
 data Pair<'storage> { first: &'storage mut u64; second: &'storage mut u64; }
 
@@ -17,6 +18,8 @@ machine crossed<'storage>(left: &'storage mut u64, witness [erased]: &u64, right
     Pair { first: right, second: left }
 }
 
+machine second_of_two<'storage>(witness [erased]: &u64, first: &'storage mut u64, second: &'storage mut u64) -> &'storage mut u64 { second }
+
 machine exercise(proof [erased]: &u64, one: &mut u64, two: &mut u64, other: &mut u64) -> u64 {
     let first: &mut u64 = direct(proof, one);
     other = 1;
@@ -30,6 +33,9 @@ machine exercise(proof [erased]: &u64, one: &mut u64, two: &mut u64, other: &mut
     let fourth: Pair = crossed(one, proof, two);
     other = 4;
     fourth.first = 40;
+    let fifth: &mut u64 = second_of_two(proof, other, two);
+    one = 5;
+    fifth = 50;
     two
 }
 
@@ -39,7 +45,7 @@ machine main() crashes Trap {
     let mut two: u64 = 0;
     let mut other: u64 = 0;
     let total: u64 = exercise(&proof, &mut one, &mut two, &mut other);
-    transition total == 40 && one == 30 && two == 40 && other == 4 {
+    transition total == 50 && one == 5 && two == 50 && other == 4 {
         true -> done()
         _ -> bad()
     }
