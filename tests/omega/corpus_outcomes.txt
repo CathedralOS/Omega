@@ -7866,8 +7866,8 @@ fail/facts/domain_carrier_identity_through_target_body_rejected rejected 617ms e
 	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
 fail/facts/domain_geometry_through_call_result_rejected rejected 1295ms expected @ccdb99ca2214
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/domain_geometry_through_const_name_rejected rejected 1237ms expected @ccdb99ca2214
-	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/domain_geometry_through_const_name_rejected rejected 6146ms expected @bf83fcce74d3
+	exact arithmetic in machine `cut` state `entry` return value may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `addr`.
 fail/facts/domain_geometry_through_field_rejected rejected 2442ms expected @ccdb99ca2214
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/domain_geometry_through_local_rejected rejected 1826ms expected @ccdb99ca2214
@@ -12878,8 +12878,8 @@ fail/facts/slice_view_element_read_bound_through_other_machine_rejected rejected
 	cannot prove requires contract for call index from target_reader: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/slice_view_element_read_bound_through_other_state_rejected rejected 2744ms expected @ccdb99ca2214
 	cannot prove requires contract for call index from check_view: 3 < v.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/slice_view_element_read_bound_through_parameter_rejected rejected 3366ms expected @ccdb99ca2214
-	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `3 < v.len`
+fail/facts/slice_view_element_read_bound_through_parameter_rejected rejected 6497ms expected @bf83fcce74d3
+	cannot prove index `3` is within unknown slice length of `v` in read_guarded::entry
 fail/facts/slice_view_element_read_bound_through_target_body_rejected rejected 3139ms expected @ccdb99ca2214
 	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -24272,11 +24272,9 @@ pass/facts/remainder_width_index_through_const_name_exit checked 3243ms check-ta
 pass/facts/remainder_width_index_through_field_exit checked 3967ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/remainder_width_index_through_local_exit checked 3110ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/remainder_width_index_through_match_join_exit checked 3706ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/remainder_width_index_through_other_machine_exit rejected 8443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @8d52a8575c51
-	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
-pass/facts/remainder_width_index_through_other_state_exit checked 2978ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/remainder_width_index_through_parameter_exit rejected 6959ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @8d52a8575c51
-	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
+pass/facts/remainder_width_index_through_other_machine_exit checked 6744ms check-target:macos_arm64 @bf83fcce74d3
+pass/facts/remainder_width_index_through_other_state_exit checked 6598ms check-target:macos_arm64 @bf83fcce74d3
+pass/facts/remainder_width_index_through_parameter_exit checked 6739ms check-target:macos_arm64 @bf83fcce74d3
 pass/facts/remainder_width_index_through_target_body_exit checked 4080ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_call_result_exit checked 3313ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_const_name_exit checked 3614ms check-target:macos_arm64 @ccdb99ca2214
