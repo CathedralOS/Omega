@@ -1,7 +1,7 @@
 # What each stage may trust
 
-Architecture decision, 2026-11-10, for the whole compiler from source text to
-the executable file. Not a language change. It extends
+Architecture decision and owner proposal, 2026-11-10, for the whole compiler
+from source text to the executable file. Not a language change. It extends
 [check on the lowered form](check_on_lowered_form.md), which covers only the
 checker, to every hand-off between stages.
 
@@ -9,9 +9,14 @@ Today a wrongly accepted program runs as native code with its safety checks
 removed, and nothing between the checker and the executable would notice. The
 back half takes every proof obligation as accepted without evidence and then
 emits unguarded arithmetic, division and indexing on the strength of it. This
-record sets one rule for every hand-off: what a stage may take on faith, what
-it must be given proof of, and what counts as a check. Its first consequence
-is that a fact with no checked evidence can no longer remove a runtime check.
+record sets rules for every hand-off: what a stage may take on faith, what
+counts as a check, and (proposed pending the owner) what proof a claim must
+carry before removing a runtime check. Rules 1 and 3, the supporting rules, the
+hand-off table and the oracle findings stand as compiler decisions; rule 2 and
+steps 2 and 3 below are proposed pending the owner (`evidence-gated-check-removal`
+in [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md)), because they would
+amend the ratified `psi-execution-admission` contract in
+[`product.md`](../../spec/terminal-psi/product.md#publication-and-separate-consumption).
 
 ## What happens to a proof obligation today
 
@@ -89,13 +94,31 @@ Hand-offs are of three kinds, and each kind has one rule.
    stage on every compile is not the goal. Two conditions make the trust
    safe: the producer returns a row or a refusal and never drops silently, and
    every validator that exists runs in the corpus harness on every program.
-2. **A claim that removes a runtime check.** Never on faith. A fact may
-   license unguarded code only when it carries evidence the proof kernel
+2. **A claim that removes a runtime check (proposed, pending the owner).**
+   Proposed rule (`evidence-gated-check-removal` in
+   [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md)): never on faith. A fact
+   may license unguarded code only when it carries evidence the proof kernel
    accepted, and the stage that removes the check verifies that evidence or a
    fingerprint of it sealed at acceptance. A fact without it keeps its check:
    the back half emits the guarded form and the crash route. Missing evidence
    then costs speed and never safety, and native code cannot do what the
    interpreter would refuse to do.
+
+   This rule is a proposal, not a settled decision, because it contradicts the
+   ratified `psi-execution-admission` decision (2026-11-07) in
+   [`product.md`](../../spec/terminal-psi/product.md#publication-and-separate-consumption):
+   - for a trusted producer's exact artifact going to native code: *"Reuse
+     checked judgments for optimization and lowering under the selected
+     installation contracts"*;
+   - for certificates in the portable envelope: *"Their presence grants no
+     truth, execution authority or producer trust, and receipt does not require
+     kernel replay"*, and *"The consumer does not rediscover source theorems or
+     require transported derivations"*;
+   - for an untrusted artifact going to native code: *"Refuse. This contract
+     provides no guarded native lowering route."*
+
+   Until the owner rules on `evidence-gated-check-removal`, what the back half
+   trusts, removes or guards is unchanged.
 3. **Bytes that leave the compiler.** An executable or an artifact is read
    back by a decoder that shares no builder with its writer before it is
    called validated. Where that does not exist yet, the result is called
@@ -120,15 +143,30 @@ Three supporting rules:
    obligations by kind and by how they were accepted. Extend it across the
    boundary: how many accepted facts in Omega 00 have a real fingerprint
    (today: none), and how many guards rule 2 would put back, per program.
-2. **Carry the evidence.** Route one's prover emits evidence for every
-   obligation of the scalar subset; publication seals its fingerprint with the
-   obligation; Omega 00 fills the fact's fingerprint from it and refuses a
-   fact whose fingerprint does not match. This is added to spine piece 3 and
-   to the gate.
-3. **No evidence, no removal.** Omega 01 and 03 key every check removal on a
-   verified fingerprint. Facts without one get the guarded form. The measured
-   cost from step 1 decides whether this ships before or with the wave; the
-   rule itself is not conditional.
+2. **Carry the evidence (in-memory carrier now; boundary refusal proposed,
+   pending the owner).** Route one's prover emits kernel-checked certificates
+   for the obligations of the scalar subset and carries that evidence in memory
+   beside `TerminalModule` within one compile so Omega 00 can fill
+   `AcceptedObligationFact::proof_bundle_fingerprint` when present. An artifact
+   re-read from bytes (including a compiler-storage cache read) has no
+   in-memory evidence, which is explicit: never an error and never filled from
+   an earlier build. Requiring `PSITERM\0` to distinguish kernel-evidenced
+   obligations across separate consumption and having Omega 00 refuse a
+   check-removing fact whose fingerprint is missing or mismatched is proposed
+   pending the owner (`evidence-gated-check-removal` in
+   [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md)), because
+   `psi-execution-admission` specifies that *"receipt does not require kernel
+   replay"* and *"The consumer does not rediscover source theorems or require
+   transported derivations"*.
+3. **No evidence, no removal (proposed, pending the owner).** Under the
+   proposed rule, Omega 01 and 03 would key every check removal on a verified
+   fingerprint and emit the guarded form and crash route for facts without one.
+   Because `psi-execution-admission` lets native lowering *"Reuse checked
+   judgments for optimization and lowering"* on a trusted producer's artifact
+   and states *"This contract provides no guarded native lowering route"*, this
+   step waits on the owner's decision; the measured guard count from step 1
+   informs that decision, and nothing in back-half trust or instruction
+   selection changes beforehand.
 4. **Run what exists.** Every validator and replay that exists runs in the
    corpus harness for every program, including the Omega 02 to 03 audit, the
    06 to 07 validator and the full native replay. The `--validator` options
@@ -147,11 +185,11 @@ steps 1 and 4.
 
 ## Open questions
 
-- **Cost of rule 2.** Unknown until measured. If almost every obligation
-  lacks evidence for a long time, native code carries almost every guard for
-  that time.
-- **What the interpreter checks.** Rule 2 assumes it checks everything the
-  native guards would. Not opened for this record.
+- **Cost of proposed rule 2.** Unknown until measured. If the owner adopts it
+  while almost every obligation still lacks evidence, native code would carry
+  almost every guard for that time.
+- **What the interpreter checks.** Proposed rule 2 assumes it checks everything
+  the native guards would. Not opened for this record.
 - **Constant folding.** Whether Omega 01's constant propagation refuses
   overflow and a zero divisor was not established.
 - **An independent decoder for ELF and PE.** None exists; Mach-O's is in the

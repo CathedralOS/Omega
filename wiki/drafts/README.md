@@ -208,9 +208,9 @@ Dated cost and failure evidence, superseded by a later run.
   then check on that form, replacing Psi 05, validation and Psi 06 after one
   proven route.
 
-- [What each stage may trust](designs/stage_trust.md): architecture decision
-  for every hand-off from source to executable. A fact without checked
-  evidence keeps its runtime check; "validated" means an independent check.
+- [What each stage may trust](designs/stage_trust.md): hand-off audit,
+  compiler rules for stage outputs and `"validated"` claims, and an owner
+  proposal to gate native runtime-check removal on kernel-checked evidence.
 
 - [Fact transport](designs/fact_transport.md): the evidence behind that
   decision. Its design section is superseded; see the corrections there.
