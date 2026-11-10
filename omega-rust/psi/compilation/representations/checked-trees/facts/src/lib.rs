@@ -433,6 +433,7 @@ pub(crate) mod tests {
                 member_symbols,
                 head_symbol: root_symbol,
                 symbol: field_symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }));
         let index = program.expression_table.insert(ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(0),
@@ -737,6 +738,7 @@ pub(crate) mod tests {
                     member_symbols: HandleSpan::empty(),
                     head_symbol: main_parameter_symbol,
                     symbol: main_parameter_symbol,
+                    reserved_result_of: SymbolHandle::invalid(),
                 }));
         let member_expression =
             program
@@ -893,6 +895,7 @@ pub(crate) mod tests {
                         member_symbols,
                         head_symbol: root_symbol,
                         symbol: root_symbol,
+                        reserved_result_of: SymbolHandle::invalid(),
                     }));
             if indexed {
                 let index = program.expression_table.insert(ExpressionNode::Integer(

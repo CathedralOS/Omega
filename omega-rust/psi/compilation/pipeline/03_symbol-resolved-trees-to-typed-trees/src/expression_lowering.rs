@@ -408,12 +408,15 @@ pub(crate) mod expression {
             let members = lower_name_path_members_into_table(source, target, path.members);
             let member_symbols = lower_name_path_member_symbols_into_table(source, target, path);
 
-            typed::expression::TableNamePath::new(
-                members,
-                member_symbols,
-                path.head_symbol,
-                path.symbol,
-            )
+            typed::expression::TableNamePath {
+                reserved_result_of: path.reserved_result_of,
+                ..typed::expression::TableNamePath::new(
+                    members,
+                    member_symbols,
+                    path.head_symbol,
+                    path.symbol,
+                )
+            }
         }
 
         fn lower_name_path_member_symbols_into_table(

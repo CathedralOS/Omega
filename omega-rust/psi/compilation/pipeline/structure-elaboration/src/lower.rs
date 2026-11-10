@@ -86,6 +86,18 @@ pub(crate) fn machine(
         parameters.push(declaration(value, *scalar_type));
         *lowering.slot_mut(position)? = Some(value);
     }
+    // The scalar result pseudo-value comes right after the formals, which is
+    // how `ensures` clauses name `result` (`Signature::result`).
+    let result = match signature.result {
+        None => None,
+        Some(scalar_type) => {
+            let value = lowering.value(scalar_type, ValueOrigin::MachineResult);
+            if value.get() != signature.parameters.len() as u64 + 1 {
+                return Err(lowering.internal("the result does not follow the formals"));
+            }
+            Some(declaration(value, scalar_type))
+        }
+    };
     lowering.enter(entry);
     for statement in &body.statements {
         lowering.statement(statement)?;
@@ -98,7 +110,7 @@ pub(crate) fn machine(
             Some(_) => return Err(lowering.internal("a value machine fell off its last statement")),
         }
     }
-    lowering.finish(entry, parameters)
+    lowering.finish(entry, parameters, result)
 }
 
 struct Lowering<'a> {
@@ -697,18 +709,15 @@ impl Lowering<'_> {
         self.emit(operation, result, kind)
     }
 
-    fn finish(mut self, entry: BlockId, parameters: Vec<ValueDeclaration>) -> Checked<Lowered> {
-        let result = match self.signature.result {
+    fn finish(
+        mut self,
+        entry: BlockId,
+        parameters: Vec<ValueDeclaration>,
+        result: Option<ValueDeclaration>,
+    ) -> Checked<Lowered> {
+        let result = match result {
             None => TerminalMachineResult::Unit,
-            // The scalar result pseudo-value has no `ValueOrigin`, so it gets
-            // the identity after the last body value and no table row
-            // (README, "Findings").
-            Some(scalar_type) => {
-                let next = self.tables.values.len() as u64 + 1;
-                let value =
-                    ValueId::new(next).ok_or_else(|| self.internal("result identity overflow"))?;
-                TerminalMachineResult::Scalar(declaration(value, scalar_type))
-            }
+            Some(declaration) => TerminalMachineResult::Scalar(declaration),
         };
         let ensures = match (&self.guarantees, self.signature.ensures.is_empty()) {
             (_, true) => Vec::new(),

@@ -19,8 +19,8 @@ Machines with one state and a complete body whose formals, locals and result
 are builtin integers (`i8` to `u64`) or `bool`, using: scalar locals and
 assignment to them; integer and Boolean literals; builtin `Exact` integer
 arithmetic, bitwise operations, shifts and comparisons; `!`, `~`, `&&` and
-`||`; direct calls of other such machines with `requires` and `ensures`
-clauses over their formals; guarded transition arms; and returns. Everything
+`||`; direct calls of other such machines with `requires` clauses over their
+formals and `ensures` clauses over their formals and `result`; guarded transition arms; and returns. Everything
 else is refused with `RefusalReason::Unsupported` and a detail naming the
 construct (`expression match`, `type reference`, `transition crash`, ...): a
 reference, record, slice, loop, recursion through a cycle, generic, callable
@@ -38,6 +38,15 @@ closure refuses the whole closure.
   Integer literals take their type from the landing stage 04 recorded.
 - **Names** are slots only when the path has one member and a valid symbol
   equal to a formal's or local's symbol. A name without a symbol is refused.
+- **`result`** in a contract is the result pseudo-value only through the name
+  path's `reserved_result_of`, the contract owner that stage 02 records where
+  it decides the name is the reserved result (`symbols.rs`,
+  `assign_contract_call_symbols`). The owner must be the machine's one state,
+  the clause an `ensures`, and the machine scalar. A name spelled `result`
+  with no recorded owner is refused as a spelling. The pseudo-value is value
+  `formals + 1` with `ValueOrigin::MachineResult`, so the module's
+  `TerminalMachineResult::Scalar`, its `ensures` propositions and the value
+  table name one identity.
 - **Callees** are `MachineId`s reached from a `SymbolKind::Machine` symbol.
 - No table here is keyed by text; text appears only in `Refusal::detail`.
 
@@ -102,54 +111,42 @@ from Psi 05, validation, checked trees or Psi 06 is used or depended on.
 Each is a gap between this route and the contract it builds against; none was
 worked around by adding to `terminal-check-tables`.
 
-1. **`ensures` cannot name `result` by identity.** The typed trees hold the
-   synthetic `result` as a name path with invalid symbols, recognised only by
-   spelling (`typed-trees/src/values.rs`, `names_reserved_result`, which calls
-   `Identifier::is_reserved_result`). The reader refuses any name without a
-   symbol, so every `ensures` clause that mentions `result` is refused
-   (`spelling name without a symbol`). Only clauses over formals elaborate.
-2. **No `ValueOrigin` for the scalar result pseudo-value.**
-   [Calls and outcomes](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#normal-results):
-   "Scalar | One typed value with a stable result pseudo-value". The module's
-   `TerminalMachineResult::Scalar` needs a `ValueId`; `ValueOrigin` has no
-   variant for it and that enum is not an extension point. The result gets the
-   identity after the last body value and has no `values` row.
-3. **One `ensures` obligation per clause in Terminal Psi, one per exit in the
+1. **One `ensures` obligation per clause in Terminal Psi, one per exit in the
    tables.** `MachineContract::ensures` holds a `ContractClause` with one
    `ObligationId` per clause (`terminal-psi/src/proof.rs`), while control flow
    and `ObligationKind::NormalGuarantee` have one per (normal exit, clause).
    The module's clauses carry the first exit's identities; the others exist
    only in the tables.
-4. **No summaries.** `Summary::requires` and `result_relation` are
+2. **No summaries.** `Summary::requires` and `result_relation` are
    `PropositionId`s into "the module's proposition table", but Terminal Psi
    keeps contract propositions inline in `MachineContract` and its only
    `PropositionId` table (`proposition_declarations`) is named propositions
    with a `String` name. `CheckTables::summaries` is left empty; the other
    axes (reach, termination, crash routes) are not structure either.
-5. **`requires` is a canonical set in Terminal Psi.** The codec requires
+3. **`requires` is a canonical set in Terminal Psi.** The codec requires
    `MachineContract::requires` to strictly increase in canonical byte order,
    so clauses are sorted and a duplicate clause is refused. Clause positions
    in `CallRequirement` are canonical positions, not authored ones.
-6. **The machine declaration is left `None`.** `CheckedMachineDeclaration`
+4. **The machine declaration is left `None`.** `CheckedMachineDeclaration`
    holds identity-table text; producing it is identity work this route does
    not do. The codec and the interpreter accept the module without it.
-7. **A value arm's test is stored twice.** For `true -> X` on a captured
+5. **A value arm's test is stored twice.** For `true -> X` on a captured
    subject, stage 03 keeps a `When(subject == true)` guard and, as a separate
    expression copy, a non-structural pattern whose `guard` and `condition` are
    one handle. The reader evaluates the guard once and refuses the arm unless
    the copy reads to the same computation (`same_computation`, over slots,
    literal values, operators and callee identities).
-8. **Calls name the callee's entry state.** `target_symbol` and transition
+6. **Calls name the callee's entry state.** `target_symbol` and transition
    paths hold the `State` symbol; the machine is that symbol's parent, and the
    reader checks that the machine's one state is exactly that symbol. Every
    authored call also carries an authored selection occurrence and a static
    application whose registered operation is that state; both are accepted
    only when they resolve to exactly the callee and apply nothing.
-9. **Stage 04 leaves some literals unlanded.** An integer literal with no
+7. **Stage 04 leaves some literals unlanded.** An integer literal with no
    landing takes the type its context expects (initializer, assignment,
    argument, return, arm result, or the other operand), per
    [literals and expected types](../../../../../wiki/spec/language/domains.md#literals-and-expected-types);
    with no expected type it is refused.
-10. **Every machine carries a reach row.** A machine with no reach holds
-    `ServiceReachRowTable::EMPTY_ROW`, not `NULL`; both are accepted, any other
-    row is refused.
+8. **Every machine carries a reach row.** A machine with no reach holds
+   `ServiceReachRowTable::EMPTY_ROW`, not `NULL`; both are accepted, any other
+   row is refused.
