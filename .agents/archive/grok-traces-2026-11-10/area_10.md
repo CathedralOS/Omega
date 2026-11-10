@@ -11,7 +11,12 @@ Paths: a bare file name is under `omega-rust/psi/compilation/pipeline/06_checked
 | 3 | `attached_unit.rs:7101` | UNDECIDED | An unclassified boundary symbol contributes no provider candidates and lowering continues. |
 | 4 | `attached_unit.rs:6711-6717` | UNDECIDED | An invalid receiving handle becomes a blank application and the requirement is still emitted. |
 | 5 | `attached_unit.rs:8375-8377, 8431-8434, 8467-8472` | UNDECIDED | Unreferenced, already-valued, and landed rows are skipped; completeness of the reference set was not read. |
-| 6–93 | see digest | not reached | Tracing continues. |
+| 6 | `attached_unit.rs:8071-8073, 8087` | UNDECIDED | A failed description is stored as Unavailable and the codec allows a non-empty reason. |
+| 7 | `attached_unit.rs:9345` | UNDECIDED | Open families are omitted, and the completeness check counts only the closed set. |
+| 8 | `attached_unit.rs:13701` | UNDECIDED | A returned byte or element view is left out of the origin list. |
+| 9 | `attached_unit.rs:15256-15268` | UNDECIDED | `Ok(false)` is ignored at every caller; later argument lowering was not read. |
+| 10 | `attached_unit.rs:11984-11992` | UNDECIDED | Normal and scalar returns emit the deferred release; the invocation-completion path does not. |
+| 11–93 | see digest | not reached | Tracing continues. |
 
 ## 1. Scalar ensures that name a structural result
 
@@ -75,9 +80,70 @@ Read `SourceScalarApplications::prepare` from `8355` through `8507`. Three skips
 
 Search of the function name was not finished; the only production of this `prepare` was not traced past the definition. Not read: `collect_program_references` and the consumers of a missing application row. What would decide it: whether a live recipe, const, or layout observation can be absent from that reference set and still be required later, with the missing row treated as success. The digest's "by reference set" matches the three `continue`s. It does not mention that `RetainedConstantPosition::None` is always skipped, which was read at `8373`.
 
+## 6. Proof-scope description failure and invalid symbols
+
+Verdict: UNDECIDED.
+
+Read `proof_scope::publish` from `8058` through `8132`, including the `identity` closure (`8069-8091`), and `describe` in full (`8288-8316`). Search `proof_scope::publish(`: one call, `SourceScalarApplications::publish` at `8894` (read `8880-8901`).
+
+An invalid symbol returns `ProofDeclarationId::default()` and is not inserted (`8071-8072`). A valid symbol gets an id starting at 1 (`8078-8088`). `describe`'s `Err` becomes `ProofScopeDeclaration::Unavailable` (`8086-8087`). `describe` returns that error from `boundary_identity` or `semantic_identity`; those two functions were not read.
+
+`foundation_validation.rs` `validate` for a proof scope (`2893-2921`, read) rejects `Missing` and an empty Unavailable reason, and accepts `Unavailable` when the reason is non-empty. It rejects a referenced id with no declaration row (`2896-2900`).
+
+Not read: whether a checked symbol can make `describe` fail, and whether an invalid symbol's default id is stored in a call edge. What would decide it: those two producers. If `describe` can fail for an accepted symbol, the scope keeps the symbol as Unavailable and the codec check above does not reject it. The digest matches both branches.
+
+## 7. Open target families skipped
+
+Verdict: UNDECIDED.
+
+Read `runtime_families` in full (`9321-9349`) and `target_families::lower` from `9376` through `9411`. A family whose head has specialization parameters is not pushed (`9332`, `9345-9347`). A cohort that mixes open and closed members is an error (`9339-9342`). `has_specialization_parameters` is a non-empty type-parameter or conformance-bound list (`calls_and_control_flow.rs:1801-1803`, read).
+
+Search `runtime_families(`: the definition, the call inside `lower` (`9382`), the root walk at `869` (read `863-880`), and the count check at `machine_lowering.rs:1962` (read `1962-1964`). That check requires the emitted family list to have the same length as `runtime_families`, so it does not demand the open families that were filtered out.
+
+Not read: whether an open family can be the selected runtime entry. What would decide it: the entry-binding consumer of `target_machine_families`. The digest matches the skip.
+
+## 8. Returned byte and element views
+
+Verdict: UNDECIDED.
+
+Read `lower_reference_result_sources` from `13658` through `13776`. A result path whose field carrier is a byte-sequence view, or whose leaf is an element view or a byte-sequence view, is skipped (`13689-13701`). A leaf that is not a reference is an error (`13703-13709`). The kept rows record a parameter or invocation origin (`13711-13775`).
+
+Search `lower_reference_result_sources(`: the definition, `attached_unit.rs:11624` (read the result-declaration builder through `11624`), and `unit_composed_control.rs:13555` (read `13547-13566`). Both store the returned vector on the structural result.
+
+Not read: any consumer of `reference_sources`, and the stage 05 check that a returned view's origin is legal. What would decide it: a consumer that is the only record of that origin. If it never sees the skipped row, a returned view of storage that should not escape is accepted. The digest matches the skip.
+
+## 9. Immutable-local borrow returns false
+
+Verdict: UNDECIDED.
+
+Read `prepare_immutable_local_borrow` from `15243` through `15317`. It returns `Ok(false)` when the root is not a symbol (`15256-15257`), the state has no local of that name (`15260-15261`), the local is not a primitive (`15263-15264`), or the local is mutable (`15266-15267`). The `bool` is otherwise unused by the callers below.
+
+Search `prepare_immutable_local_borrow(`: the definition and three calls, all discarding the bool with `?`:
+
+- `prepare_borrowed_argument` (`15136-15240`, read). The scalar-parameter arm prepares a home. The other arm only calls this function and returns `Ok(())`.
+- `establish_reference` (`unit_operation_frame.rs:7905-7969`, read through the call at `7930`).
+- the place-loan loop (`unit_arguments.rs:2076-2091`, read).
+
+Search `prepare_borrowed_argument(`: four calls. Read `emit_call` (`unit_operation_frame.rs:1046-1070`), which calls it for every structural argument, and `unit_arguments.rs:2056-2059`, which calls it for borrowed computation roots. `unit_operation_frame.rs:1723` and `unit_structural_values.rs:4263` were not read. The rest of `emit_call` after `1070` was not read.
+
+The digest's "one caller" is wrong. There are three direct calls, and the bool is ignored at each. What would decide it: the argument lowering after `1070`, specifically whether a structural argument that took the `Ok(false)` arm is rejected later or passed through with no home.
+
+## 10. Deferred reference release emits nothing in the step
+
+Verdict: UNDECIDED.
+
+Read `MachineEmission::lower_step` from `11764` through `11992`. `ReleaseReference { defer_to_exit: true }` returns `Ok(())` without pushing an operation (`11984-11991`). Search `lower_step(`: one call, the ordinary schedule loop at `10795` (read `10789-10798`).
+
+`lower_reference_completion_regions` (`unit.rs:2221-2292`, read) is the pass that turns `defer_to_exit: true` into a cleanup region. Its only call is `for_planned_actions` (`attached_unit.rs:6032`, read `5942-6036`). That function is reached from:
+
+- `for_exit_regions` (`5910-5938`, read), called for an ordinary normal return at `11061` with `plan.operations` (`11065-11069`, read).
+- `scalar_returns` (`5765-5847`, read), which calls `for_planned_actions` at `5816`, used by the scalar-control arm at `10910` (read `10883-10929`).
+
+The invocation-completion arm (`10871-10881`, read) sets `completes_normally = false`, pushes the block, and does not call either function. `take_invocation_completion` (`operation_emission.rs:1683-1720`, read) builds `InvokeNoNormal` or starts an `External` outcome. Not read: the rest of that match, and whether a `defer_to_exit` release can sit in a plan that takes this arm. What would decide it: that combination. On the normal and scalar-return arms the release is emitted later; the digest's "not traced" is the invocation arm.
+
 ## Entries not reached
 
-6 through 93. Entry 6 was opened (`proof_scope::publish` at `8058-8090` and `describe` at `8288-8316`) and is not given a verdict in this commit.
+11 through 93.
 
 ## What I did not read
 
@@ -86,5 +152,8 @@ Search of the function name was not finished; the only production of this `prepa
 - `boundary_targets`, `is_boundary`, and provider-candidate publication for an unclassified symbol.
 - Who sets a receiving handle invalid, and what the default identity means.
 - `collect_program_references` and consumers of a missing scalar-application row.
-- Entries 7–93, except the opened but unfinished entry 6 noted above.
-- The two background traces of entries 15–68 were not used. A background trace of later entries was not copied in; those sites are still "not reached" until read here.
+- `declarations::semantic_identity`, `declarations::boundary_identity`, and `try_map` on the proof-scope identity closure.
+- Entry binding of `target_machine_families`, and consumers of `reference_sources`.
+- `emit_call` after line `1070`, and `prepare_borrowed_argument` at `unit_operation_frame.rs:1723` and `unit_structural_values.rs:4263`.
+- The remainder of `PendingInvocationOutcome` after `operation_emission.rs:1720`.
+- Entries 11–93. Background traces were not copied in.
