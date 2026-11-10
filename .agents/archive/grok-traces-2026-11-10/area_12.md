@@ -15,6 +15,11 @@ Numbering follows the open bullets in digest order. A bullet that names several 
 | 3 | SRT/values.rs:2518-2519 | UNDECIDED | Destructure field values are omitted from the dependency list; the match reducer was not read. |
 | 4 | SRT/values.rs:1309-1316 | CLOSED | Production copies stay in the same expression table; the cross-table copy is only in tests. |
 | 5 | SRT/values.rs:578-588 and 459-470 | UNDECIDED | The target-family contract copy leaves the requirement handle and the selection id untouched; their checker was not read. |
+| 6 | SRT/lib.rs:725 | UNDECIDED | An authored nominal machine parameter has no contract view, so hoist inference keeps the declared unit type; the later check was not read. |
+| 7 | SRT/type_system_and_names.rs:370 | CLOSED | A missing owner row is the invalid owner the only writer refuses to store, and lowering records nothing. |
+| 8 | SRT/storage_and_indexes.rs:104-108 | UNDECIDED | Index equality is always true and the trees derive `Eq`; no branch on that equality was read. |
+| 9 | SRT/storage_and_indexes.rs:63 and 152 | UNDECIDED | `as u32` wraps only past 2^32 elements; one arena cannot get there, a concatenated statement vector can, and no such program was shown. |
+| 10 | ST/lib.rs:1724 | CLOSED | A call, cast, or member is reported nameless, then both callers' evaluator rejects that shape. |
 
 ## 1. Prefix-position cache
 
@@ -94,9 +99,73 @@ What would decide it: the consumer of `machine.contracts` after `target_family_c
 
 Digest: both omissions match the code that was read. `requirement_application` is a type handle, not a symbol. `authored_domain_selection` is an occurrence id, not a symbol.
 
+## 6. Authored nominal machine parameter has no contract view
+
+Verdict: UNDECIDED.
+
+Search: `machine_parameter_contract_view(` under `omega-rust/psi/compilation/pipeline` — 11 matches. `statement_lowering.rs:290` is `source_trees` (this function). `lowerer.rs:1208-1218` is `&TypedTrees` (read). The other nine are in stages 04–06; their receivers were not opened. Validation also calls a method of this name (seen in an earlier search); those bodies were not opened.
+
+Read in full: `machine_parameter_contract_view` (`SRT/lib.rs:716-742`), `MachineParameterContract` (`declarations_and_machines.rs:154-167`), `infer_hoist_temp_type` (`statement_lowering.rs:211-367`). Read the two uses of its `Ok(None)` at `:595-598` and `:1377-1396`.
+
+`AuthoredNominal` returns `None` (`SRT/lib.rs:725`), as does `RequirementIdentity` (`:721`). Inside `infer_hoist_temp_type` the `?` skips that parameter (`statement_lowering.rs:288-291`). If nothing else supplies a return type, the function returns `Ok(None)` (`:320-321`). For an inferred unit local, `None` keeps the declared type (`:1391-1395`), which this branch only reaches when that declared type is unit (`:1378-1381`). A call to a machine parameter whose contract is still the authored nominal form is therefore lowered as a unit temporary.
+
+I did not read the later check of that temporary against the call. `None` at `:595-598` only skips one substitution and continues.
+
+What would decide it: whether a unit-inferred local initialized by a call to an authored-nominal machine parameter is rejected after lowering.
+
+Digest: the `None` arm matches. It is not only `AuthoredNominal`; `RequirementIdentity` returns `None` too.
+
+## 7. Missing operand-owner row
+
+Verdict: CLOSED.
+
+Search: `.supplied_operand_owner(` — 14 matches. The table method that takes a handle is `SRT/type_system_and_names.rs:363`. Its lowering call is `type_reference.rs:2708` (read). `SRT/type_system_and_names.rs:690` and `:704` are the tree-node method, a different function (read). The syntax-tree hits (`ST/values_and_types.rs:224`, `ST/copies.rs:529`, `preparation.rs:3161`, `:3180`, `:3840`) are the syntax-tree table. The remaining pipeline hits (`type_reference.rs:1588`, `symbols_type_references.rs:1513`, `lowering.rs:4101`, `:4105`, `:4262`, `:4314`, `:4450`) call the no-argument node method; I read `:1513` and `:2704-2710` and inferred the others from the call shape (no extra argument).
+
+Read in full: the table method (`SRT/type_system_and_names.rs:363-371`), the only `supplied_operand_owners.insert` (`:690-698`), `TypeReferenceNode` (`:768-809`), `retain_supplied_operand_owner` (`type_reference.rs:2716-2747`).
+
+The node enum has no owner field. The only insert writes a side row when the tree node’s owner or lexical owner is valid (`:692-698`). A missing row is the invalid handle `unwrap_or_default()` returns (`:370`). Lowering then returns `Ok(())` without recording an owner (`type_reference.rs:2729-2730`). That is the same result as an owner that was never valid.
+
+Digest: “no owner row reads as no owner” matches the lookup. It does not describe a second stored owner being ignored.
+
+## 8. Resolution-index equality
+
+Verdict: UNDECIDED.
+
+Search: `resolution_indexes` — 24 matches, listed while tracing entry 1. None of those lines compare two index values. I did not search every `==` on a `SymbolResolvedTrees`.
+
+Read: `PartialEq for ResolvedIndexes` (`SRT/storage_and_indexes.rs:104-108`) and the `SymbolResolvedTrees` derive (`SRT/lib.rs:91-102`). `eq` ignores both sides and returns true. Because the trees derive `Eq`, two trees that differ only in this cache compare equal.
+
+What would decide it: a production branch on that equality. I did not find one, and I did not look through every `==`.
+
+Digest: the always-true comparison matches the code.
+
+## 9. Position truncated to `u32`
+
+Verdict: UNDECIDED.
+
+The casts are `SRT/storage_and_indexes.rs:63` (`position as u32` while filling the prefix cache) and `:152` (`position as u32` in `data_definition_position`). Search: `data_definition_position(` — 3 matches: the definition (`:140`) and calls at `symbols.rs:4078` and `symbols_expression_paths.rs:288`. Both calls were seen in entry 1’s reader (`:286-288` indexes with `as usize`). I did not read the function around `symbols.rs:4078` past the call.
+
+`Handle::arena_index` is `u32` (`psi/foundation/arena/src/arena.rs:54`, read). `next_arena_index` panics when the next slot does not fit in `u32` (`arena.rs:1412-1416`, read). One arena therefore never yields an index that `as u32` changes. The assembly walker builds `sequence` by appending one span to a copy of another (`symbols_statements.rs:94-95`, read in entry 1). Those two lengths can sum past 2^32 even though each span cannot. No check of that sum was found. I did not show a source program that reaches it.
+
+What would decide it: whether that concatenated vector can be longer than 2^32 before `local_statement_position` runs.
+
+Digest: the cast is real. “Practically unreachable” is not established for the concatenated vector.
+
+## 10. Const expression “contains no name”
+
+Verdict: CLOSED.
+
+Search: `const_expression_contains_name(` — 5 matches: the definition (`ST/lib.rs:1716`) and the two recursive calls (`:1720`, `:1723`), plus `preparation_const_evaluation.rs:1504` and `:3239`. All five were read.
+
+Read in full: `const_expression_contains_name` (`ST/lib.rs:1716-1725`), `requires_const_operator_selection` (`preparation_const_evaluation.rs:174-189`), `evaluate_const_argument_expression` through its wildcard (`:784-930`), `anonymous_numeric_expression` (`:354-397`). Read both caller arms (`:1503-1536` and `:3238-3262`).
+
+Only a name, or a binary or unary that reaches a name, returns true (`ST/lib.rs:1718-1724`). A call, cast, or member returns false. Both callers treat false as “evaluate it”. `requires_const_operator_selection` is also false for those shapes (`preparation_const_evaluation.rs:188`). `anonymous_numeric_expression` returns false for them (`:393`). The evaluator then hits `_ => Err("expression is not a symbolic integer const expression")` (`:929`). Caller one turns that into `Diagnostic::error` (`:1521-1525`). Caller two turns it into `Err` (`:3257-3258`).
+
+Digest: the function does answer false for a call, cast, or member. Both cited callers reject that shape rather than accepting a nameless initializer.
+
 ## Entries not reached
 
-6 onward. The open list continues at `SRT/lib.rs:725`, `SRT/type_system_and_names.rs:370`, the `PartialEq` / `as u32` sites, then syntax trees, the codec, semantics, terminal psi, and typed trees.
+11 onward. The open list continues with the second syntax-tree page (`ST/control_flow_and_names.rs:759-764`), the syscall/use defaults, the inspection renderer, then the codec, semantics, terminal psi, and typed trees.
 
 ## What I did not read
 
@@ -105,4 +174,6 @@ Digest: both omissions match the code that was read. `requirement_application` i
 - 20 of the 22 `match_pattern_dependencies` call sites, and the constant match reducer.
 - Test bodies at `SRT/values.rs:1741`, `:1854`, `:2282`, `:2356`, and the `copy_expression_with_symbols` tests.
 - Any checker of the copied target-family contracts.
-- No codec, semantics, terminal-psi, or typed-trees open entry yet. Subagent notes under `/tmp/area12/` were not used for the verdicts above.
+- The stage 04–06 and validation callers of `machine_parameter_contract_view`, and the check of a unit temporary after `infer_hoist_temp_type`.
+- The function body around `symbols.rs:4078`, and every `==` on `SymbolResolvedTrees`.
+- No codec, semantics, terminal-psi, or typed-trees open entry yet. Notes under `/tmp/area12/` were not used for these verdicts.
