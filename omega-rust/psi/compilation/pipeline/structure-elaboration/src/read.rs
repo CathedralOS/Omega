@@ -1140,12 +1140,16 @@ mod tests {
     fn scalar_types_come_from_builtin_slots_not_spellings() {
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let builtins = builder.insert_children(root, builtin_type_symbols());
-        let impostor = builder.insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("u32"))]);
+        let children = builder.insert_children(
+            root,
+            builtin_type_symbols()
+                .into_iter()
+                .chain([(SymbolKind::Data, SymbolNameRef::Static("u32"))]),
+        );
         let mut typed = TypedTrees::default();
         typed.symbols = builder.finish();
-        let u32_slot = builtins.handles().nth(7).unwrap();
-        let impostor = impostor.handles().next().unwrap();
+        let u32_slot = children.handles().nth(7).unwrap();
+        let impostor = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
         let named = |typed: &mut TypedTrees, symbol| {
             typed.type_reference_table.insert(TypeReferenceNode::Named {
                 symbol,
