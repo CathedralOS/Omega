@@ -18,15 +18,15 @@ Launch refusals:
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
-| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 127 | 18 | 0 |
+| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 145 | 0 | 0 |
 | B | 81 file ranges (B1 26, B2 55); merge files not started | 81 | 0 | 0 |
-| C | 117 chapter pieces from 103 files; lane merge not started | 2 | 2 | 0 |
+| C | 117 chapter pieces from 103 files; lane merge not started | 4 | 0 | 0 |
 | D | 412 batches, 17263 programs; D2 not started | 2 | 0 | 0 |
 | E | 19 units, 591 files, 7 excluded | 2 | 0 | 0 |
 | F | 28 site files, 83 occurrences | 2 | 0 | 0 |
 | G | 120 shards, not started. G stays at most a quarter of the live worker count, and only when a slot is free | 0 | 0 | 0 |
 
-ACCEPT slices 0001–0127 are on the branch. Slices 0128–0145 are running, plus spec chapters C0003 and C0004. Next unstarted spec chapter is C0005.
+ACCEPT slices 0001–0145 are on the branch. Spec chapters C0001–C0004 are on the branch. Next unstarted spec chapter is C0005.
 
 `B/notes/b2_031.md` was returned without `QUESTION COMPLETE`. The note ends in the identity-patch table. Do not treat that range as finished.
 
