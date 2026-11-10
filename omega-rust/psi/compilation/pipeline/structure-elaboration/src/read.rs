@@ -669,15 +669,20 @@ impl<'t> Program<'t> {
                         (TransitionGuardNode::Always, []) => None,
                         (TransitionGuardNode::When(guard), []) => Some(guard),
                         (TransitionGuardNode::Always, [pattern]) => Some(self.value_pattern(id, pattern)?),
-                        // The same expression handle as guard and as pattern
-                        // condition is one guard, evaluated once.
+                        // Stage 03 keeps the arm's value test twice: as the
+                        // transition guard and, as a separate copy, as the
+                        // pattern's condition. The guard is evaluated once;
+                        // the copy must read to the same computation.
                         (TransitionGuardNode::When(guard), [pattern]) => {
                             let condition = self.value_pattern(id, pattern)?;
-                            if condition != guard {
+                            let read_guard = self.expression(id, &slots, guard, Some(ScalarType::Boolean))?;
+                            let read_condition =
+                                self.expression(id, &slots, condition, Some(ScalarType::Boolean))?;
+                            if !same_computation(&read_guard, &read_condition) {
                                 return Err(refuse(
                                     id,
                                     Construct::Machine,
-                                    Unserved::Transition("guard beside a different pattern condition"),
+                                    Unserved::Transition("guard and pattern condition differ"),
                                 ));
                             }
                             Some(guard)
@@ -738,10 +743,13 @@ impl<'t> Program<'t> {
         {
             return unserved("destructuring pattern");
         }
+        // Stage 03 stores the value test as both the pattern's guard and its
+        // condition, one handle.
         match (destructure.guard.is_valid(), destructure.condition.is_valid()) {
             (true, false) => Ok(destructure.guard),
             (false, true) => Ok(destructure.condition),
-            (true, true) => unserved("pattern with a guard and a condition"),
+            (true, true) if destructure.guard == destructure.condition => Ok(destructure.condition),
+            (true, true) => unserved("pattern with a separate guard and condition"),
             (false, false) => unserved("pattern without a condition"),
         }
     }
@@ -1232,6 +1240,70 @@ fn binary_expression(
         result: Some(result),
         source,
     })
+}
+
+/// Whether two read expressions compute the same thing: equal kinds over
+/// equal slots, literal values, operators and callee identities, ignoring
+/// only where each came from. Nothing here is text.
+fn same_computation(left: &Expression, right: &Expression) -> bool {
+    let both = |a: &Expression, b: &Expression| same_computation(a, b);
+    left.result == right.result
+        && match (&left.kind, &right.kind) {
+            (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
+            (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
+            (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
+            (
+                ExpressionKind::Strict {
+                    operation: a,
+                    left: a_left,
+                    right: a_right,
+                },
+                ExpressionKind::Strict {
+                    operation: b,
+                    left: b_left,
+                    right: b_right,
+                },
+            ) => a == b && both(a_left, b_left) && both(a_right, b_right),
+            (ExpressionKind::Not(a), ExpressionKind::Not(b))
+            | (ExpressionKind::BitwiseNot(a), ExpressionKind::BitwiseNot(b)) => both(a, b),
+            (
+                ExpressionKind::ShortCircuit {
+                    conjunction: a,
+                    left: a_left,
+                    right: a_right,
+                },
+                ExpressionKind::ShortCircuit {
+                    conjunction: b,
+                    left: b_left,
+                    right: b_right,
+                },
+            ) => a == b && both(a_left, b_left) && both(a_right, b_right),
+            (
+                ExpressionKind::Call {
+                    callee: a,
+                    arguments: a_arguments,
+                },
+                ExpressionKind::Call {
+                    callee: b,
+                    arguments: b_arguments,
+                },
+            ) => {
+                a == b
+                    && a_arguments.len() == b_arguments.len()
+                    && a_arguments.iter().zip(b_arguments).all(|(a, b)| both(a, b))
+            }
+            (
+                ExpressionKind::Integer(_)
+                | ExpressionKind::Boolean(_)
+                | ExpressionKind::Slot(_)
+                | ExpressionKind::Strict { .. }
+                | ExpressionKind::Not(_)
+                | ExpressionKind::BitwiseNot(_)
+                | ExpressionKind::ShortCircuit { .. }
+                | ExpressionKind::Call { .. },
+                _,
+            ) => false,
+        }
 }
 
 /// Sorts propositions into Terminal Psi's canonical order and refuses a
