@@ -14,7 +14,7 @@ Launch refusals:
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
-| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 3 | 0 | 0 |
+| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 3 | 7 | 0 |
 | B | 81 file ranges (B1 26, B2 55); merge files not started | 13 | 13 | 0 |
 | C | 117 chapter pieces from 103 files; lane merge not started | 0 | 0 | 0 |
 | D | 412 batches, 17263 programs; D2 not started | 1 | 0 | 0 |
