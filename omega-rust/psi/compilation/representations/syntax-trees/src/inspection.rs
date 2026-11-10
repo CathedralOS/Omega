@@ -1010,6 +1010,11 @@ pub mod snapshot {
                 requirement_ordinal: usize,
                 declaration: Box<ItemSnapshot>,
             },
+            Selection {
+                declaring_trait: IdentifierSnapshot,
+                requirement: IdentifierSnapshot,
+                target: Vec<IdentifierSnapshot>,
+            },
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1225,6 +1230,18 @@ pub mod snapshot {
                                     syntax_trees,
                                     &Item::Machine(machine.clone()),
                                 )),
+                            },
+                            ConformanceMember::Selection {
+                                declaring_trait,
+                                requirement,
+                                target,
+                            } => ConformanceMemberSnapshot::Selection {
+                                declaring_trait: snapshot_identifier(syntax_trees, declaring_trait),
+                                requirement: snapshot_identifier(syntax_trees, requirement),
+                                target: snapshot_identifier_slice(
+                                    syntax_trees,
+                                    syntax_trees.items.identifier_path_members(*target),
+                                ),
                             },
                         })
                         .collect(),
