@@ -7794,6 +7794,7 @@ pub mod result_overloads {
                         member_symbols: arena::HandleSpan::empty(),
                         head_symbol: call.receiver_root_symbol,
                         symbol: call.receiver_symbol,
+                        reserved_result_of: SymbolHandle::invalid(),
                     }))
             };
             let arguments = program
@@ -9418,6 +9419,7 @@ pub mod terminal_transitions {
                             member_symbols: arena::HandleSpan::empty(),
                             head_symbol: namespace_head,
                             symbol: namespace_endpoint,
+                            reserved_result_of: SymbolHandle::invalid(),
                         }));
                 program
                     .expression_table

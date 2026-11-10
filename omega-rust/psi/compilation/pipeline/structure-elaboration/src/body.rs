@@ -17,13 +17,16 @@ pub struct Signature {
     /// machine's value `i + 1`, so clause propositions name formals by those
     /// identities.
     pub parameters: Vec<ScalarType>,
-    /// `None` is a Unit machine.
+    /// `None` is a Unit machine. A scalar result's pseudo-value is the value
+    /// right after the formals, `parameters.len() + 1`, which is how
+    /// `ensures` clauses name `result`.
     pub result: Option<ScalarType>,
     /// Entry `requires` clauses over the formals, in Terminal Psi's canonical
     /// order (`MachineContract::requires` must strictly increase). A clause's
     /// position here is its position in every `CallRequirement`.
     pub requires: Vec<Proposition>,
-    /// Normal-return guarantees over the formals, in authored order.
+    /// Normal-return guarantees over the formals and the result pseudo-value,
+    /// in authored order.
     pub ensures: Vec<Proposition>,
 }
 
