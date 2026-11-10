@@ -343,14 +343,9 @@ pub(crate) mod const_item {
         let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
         let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-        let initializer = input;
-        let (value, input) = parse_expression_handle(syntax_trees, input)?;
-        crate::grammar::expressions::parse_expression::reject_policy_operators(
-            syntax_trees,
-            value,
-            initializer,
-            "a constant initializer",
-        )?;
+        let (value, input) =
+            parse_expression_handle(syntax_trees, input.with_constant_position(true))?;
+        let input = input.with_constant_position(false);
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         Ok((
             ConstDefinition {

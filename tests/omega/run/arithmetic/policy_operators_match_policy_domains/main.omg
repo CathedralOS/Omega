@@ -4,8 +4,18 @@
 // comparison values each machine builds to show the two spellings agree.
 use omega_language_std::console;
 const STEP: u32 = 4000000000;
+// A constant computed by a machine makes the compiler check a projection of
+// this program that leaves out the machines below; their suffixed operators
+// must not disturb it.
+const LIMIT: u32 = limit();
 data Main {
     total: u32;
+}
+
+machine limit() -> u32 { 7 }
+
+machine wrapping_sum(a: u32, b: u32) -> u32 {
+    a +% b
 }
 
 machine wrapping_unsigned(a: u32, b: u32) -> bool {
@@ -104,7 +114,7 @@ public machine guarded_sum(left: u64, right: u64) -> u64
 }
 
 // The same wrapping operation carried through a field, a named constant, a
-// match join, a nested machine and a call result.
+// match join, a transition guard, a nested machine and a call result.
 machine field_and_constant(main: &mut Main) -> u32 {
     main.total = main.total +% STEP;
     main.total +% STEP
@@ -119,7 +129,7 @@ machine joined(a: u32, b: u32, forward: bool) -> u32 {
 }
 
 machine nested(a: u32) -> u32 {
-    transition a > 10 {
+    transition a +% LIMIT > 17 {
         true -> high(a)
         _ -> low(a)
     }
@@ -147,7 +157,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let quotient: bool = minimum_quotient(-2147483648, -1);
     let shifted: bool = shifts(48, 33);
     let guarded: u64 = guarded_sum(40, 2);
-    let placed: bool = placements(main);
+    let placed: bool = placements(main) && wrapping_sum(4294967295, 2) == 1;
     transition wrapped && clamped && checked && quotient && shifted && guarded == 42 && placed {
         true -> good(main)
         _ -> bad(main)

@@ -422,6 +422,10 @@ pub(crate) mod tokens {
             source_owner: Handle<syntax_trees::RetainedSource>,
             depth: u16,
             pending_greater: bool,
+            /// Set while parsing a constant initializer or a constant integer
+            /// expression. Those are folded before any operand is typed, so
+            /// a suffixed policy operator rejects there at its own token.
+            constant_position: bool,
         }
 
         impl<'tokens, 'source> Input<'tokens, 'source> {
@@ -446,6 +450,7 @@ pub(crate) mod tokens {
                     tokens: skip_non_semantic_tokens(stream.as_slice()),
                     depth: 0,
                     pending_greater: false,
+                    constant_position: false,
                 }
             }
 
@@ -457,6 +462,7 @@ pub(crate) mod tokens {
                     tokens: skip_non_semantic_tokens(tokens),
                     depth: self.depth,
                     pending_greater: self.pending_greater,
+                    constant_position: self.constant_position,
                 }
             }
 
@@ -498,6 +504,17 @@ pub(crate) mod tokens {
 
             pub(crate) fn with_depth(self, depth: u16) -> Self {
                 Self { depth, ..self }
+            }
+
+            pub(crate) fn constant_position(&self) -> bool {
+                self.constant_position
+            }
+
+            pub(crate) fn with_constant_position(self, constant_position: bool) -> Self {
+                Self {
+                    constant_position,
+                    ..self
+                }
             }
 
             pub(crate) fn source_span(&self, token: &Token) -> SourceSpan {

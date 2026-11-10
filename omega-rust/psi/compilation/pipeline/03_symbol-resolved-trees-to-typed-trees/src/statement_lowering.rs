@@ -5,7 +5,7 @@ root bindings, inline assembly windows, and inferred hoist-temporary types.
 
 pub(crate) mod statement {
     pub(crate) mod arguments {
-        use crate::expressions::expression::lower_expression_handle;
+        use crate::expressions::expression::lower_executable_expression_handle;
         use crate::lowerer::Lowerer;
         use crate::tables::{resolved_statements, statement_table_mut};
         use arena::HandleSpan;
@@ -17,7 +17,7 @@ pub(crate) mod statement {
             lowerer: &mut Lowerer,
             expression: resolved::expression::ExpressionHandle,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-            lower_expression_handle(lowerer, expression)
+            lower_executable_expression_handle(lowerer, expression)
         }
 
         pub(crate) fn lower_statement_argument_span(
@@ -417,9 +417,10 @@ pub(crate) mod statement {
             for step in steps.into_iter().rev() {
                 match step {
                     ProjectionStep::Element(selector) => {
-                        let selector = crate::expressions::expression::lower_expression_handle(
-                            lowerer, selector,
-                        )?;
+                        let selector =
+                            crate::expressions::expression::lower_executable_expression_handle(
+                                lowerer, selector,
+                            )?;
                         path.push(facts::PlaceSegment::Index {
                             expression: selector,
                         });

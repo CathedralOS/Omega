@@ -600,10 +600,17 @@ pub(crate) mod type_syntax {
             allow_trailing_domain: bool,
         ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
             let outer_depth = input.depth();
-            let input = input.deepen()?;
+            // Every expression a type contains (an array extent, a constant
+            // argument, a range bound) is a constant position.
+            let outer_constant = input.constant_position();
+            let input = input.with_constant_position(true).deepen()?;
             let (type_reference, rest) =
                 parse_type_reference_handle_inner(syntax_trees, input, allow_trailing_domain)?;
-            Ok((type_reference, rest.with_depth(outer_depth)))
+            Ok((
+                type_reference,
+                rest.with_depth(outer_depth)
+                    .with_constant_position(outer_constant),
+            ))
         }
 
         fn parse_type_reference_handle_inner<'tokens, 'source>(

@@ -3975,7 +3975,8 @@ pub(crate) mod expression_stack {
 
     /// A suffix chooses the policy of one operation and nothing else: every
     /// suffixed form parses as its base operator with that operator's
-    /// precedence, and the operator span covers the suffix.
+    /// precedence. A suffixed token's span covers its suffix; `>>` reads its
+    /// suffix from the next token, so its span stays the two `>`.
     #[test]
     fn policy_suffixes_keep_the_base_operator_and_record_its_policy() {
         use numerics::arithmetic::ArithmeticDomain::{Exact, Saturating, Trapping, Wrapping};
@@ -4038,6 +4039,35 @@ pub(crate) mod expression_stack {
                 ),
                 negated,
                 "{source}"
+            );
+        }
+    }
+
+    /// A constant is folded before any operand is typed, so a suffixed
+    /// operator rejects at its own token wherever the initializer nests it.
+    #[test]
+    fn a_constant_initializer_rejects_a_nested_policy_suffix() {
+        for source in [
+            "const WRAPPED: u32 = BASE +% BASE;",
+            "const TABLE: [u32; 2] = [1 +% 2, 3];",
+            "const CALLED: u32 = scale(BASE *| 2);",
+            "const SHIFTED: u32 = (BASE >>! 1);",
+            "data Buffer { bytes: [u8; SIZE +% 1]; }",
+        ] {
+            let tokens = Lexer::new(source).tokenize().expect("tokenize constant");
+            let error = crate::parse_syntax_trees(&tokens).expect_err("constant must reject");
+            assert!(
+                error
+                    .message
+                    .contains("is not available in a constant expression yet"),
+                "{source}: {}",
+                error.message
+            );
+            let span = error.source_span.span;
+            assert!(
+                matches!(&source[span.start..span.end], "+%" | "*|" | ">>"),
+                "{source}: error points at `{}`",
+                &source[span.start..span.end]
             );
         }
     }

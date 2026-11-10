@@ -390,49 +390,18 @@ pub(crate) mod parse_expression {
         input: Input<'tokens, 'source>,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
         let outer_depth = input.depth();
-        let start = input;
-        let input = input.deepen()?;
+        let outer_constant = input.constant_position();
+        let input = input.with_constant_position(true).deepen()?;
         let (handle, rest) = parse_bitwise_or_expression_handle(
             syntax_trees,
             input,
             ExpressionContext::NoStructLiteral,
         )?;
-        reject_policy_operators(syntax_trees, handle, start, "a constant integer expression")?;
-        Ok((handle, rest.with_depth(outer_depth)))
-    }
-
-    /// A suffixed policy operator is typed against its operands' carrier in
-    /// executable code. Constant positions are folded before that typing
-    /// exists, and folding one as the bare Exact operator would silently drop
-    /// its policy, so those positions reject the suffixed spelling.
-    pub(crate) fn reject_policy_operators<'tokens, 'source>(
-        syntax_trees: &SyntaxTrees,
-        expression: ExpressionHandle,
-        start: Input<'tokens, 'source>,
-        position: &str,
-    ) -> Result<(), crate::ParseError> {
-        let mut pending = vec![expression];
-        while let Some(expression) = pending.pop() {
-            if !expression.is_valid() {
-                continue;
-            }
-            match exprs_of(syntax_trees).expression(expression) {
-                ExpressionNode::Binary(binary) => {
-                    if binary.policy != ArithmeticDomain::Exact {
-                        return Err(start.error_here(format!(
-                            "the policy operator `{}{}` is not available in {position} yet; use it in executable machine code",
-                            binary.operator.display_name(),
-                            binary.policy.operator_suffix(),
-                        )));
-                    }
-                    pending.extend([binary.left, binary.right]);
-                }
-                ExpressionNode::Unary(unary) => pending.push(unary.operand),
-                ExpressionNode::Cast(cast) => pending.push(cast.value),
-                _ => {}
-            }
-        }
-        Ok(())
+        Ok((
+            handle,
+            rest.with_depth(outer_depth)
+                .with_constant_position(outer_constant),
+        ))
     }
 
     pub(crate) fn parse_expression_handle_in<'tokens, 'source>(
@@ -656,6 +625,20 @@ pub(crate) mod parse_expression {
             let mut policy = punctuation_policy(punctuation);
             if punctuation == PunctuationKind::GreaterGreater {
                 (policy, input) = take_right_shift_policy(operator_span, input)?;
+            }
+            // A constant position is folded before any operand is typed, and
+            // folding a suffixed operator as the bare Exact one would drop
+            // its policy without a word. Reject it at the operator, however
+            // deeply the constant nests it.
+            if policy != ArithmeticDomain::Exact && input.constant_position() {
+                return Err(crate::ParseError::at_source_span(
+                    format!(
+                        "the policy operator `{}{}` is not available in a constant expression yet; use it in executable machine code",
+                        operator.display_name(),
+                        policy.operator_suffix(),
+                    ),
+                    operator_span,
+                ));
             }
             pending[pending_count] =
                 Some((expression, operator, precedence, operator_span, policy));

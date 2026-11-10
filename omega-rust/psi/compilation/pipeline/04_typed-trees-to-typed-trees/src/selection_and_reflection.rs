@@ -2182,6 +2182,7 @@ pub(crate) mod reflection {
             let left = name(program, subject);
             let right = name(program, variant);
             expressions_of_mut(program).insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 left,
                 operator: BinaryOperator::CaseMembership,
                 right,

@@ -63171,6 +63171,7 @@ pub(crate) mod structural_judgment {
                         }));
                     let joined = program.expression_table.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left,
                             operator: BinaryOperator::And,
                             right,
@@ -63178,6 +63179,7 @@ pub(crate) mod structural_judgment {
                     ));
                     let repeated = program.expression_table.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: joined,
                             operator: BinaryOperator::Or,
                             right: joined,

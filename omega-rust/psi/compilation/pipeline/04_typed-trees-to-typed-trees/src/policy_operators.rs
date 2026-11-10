@@ -22,8 +22,7 @@ use numerics::arithmetic::ArithmeticDomain;
 use symbols::BuiltinTypeAtom;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, PolicyOperation, TableBinaryExpression,
-    TableCastExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCastExpression,
 };
 use typed_trees::name::Identifier;
 use typed_trees::references::DeclarationSelection;
@@ -47,18 +46,23 @@ struct Elaboration {
 }
 
 pub(crate) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    if program.expression_table.policy_operations().is_empty() {
+    // Most programs write no suffixed operator; one pass over the nodes
+    // settles that before any statement is walked.
+    if !program
+        .expression_table
+        .iter_backing_expressions()
+        .any(|(_, node)| suffixed(node).is_some())
+    {
         return Ok(());
     }
-    let mut pending = program.expression_table.take_policy_operations();
-    pending.sort_by_key(|operation| operation.expression.arena_index());
-    pending.dedup_by_key(|operation| operation.expression.arena_index());
-    let mut reached = vec![false; pending.len()];
-    let mut elaborations = Vec::with_capacity(pending.len());
-    let mut diagnostics = Vec::new();
-
+    // Typing stage 03 admits a suffixed operator only in executable
+    // statements, so walking those reaches every one this program can
+    // evaluate. The node carries its own policy, so a clone or a projection
+    // of this program keeps it, and a failed pass leaves it in place for
+    // checking to reject; nothing here can turn it into the bare operator.
     let values =
         validation::collect_executable_value_origins(program, &DeclarationSelection::all());
+    let mut sites = Vec::new();
     let mut expressions = Vec::new();
     for (_, value) in values.values.iter() {
         let checked_trees::CheckedValueOrigin::StateStatement {
@@ -69,46 +73,36 @@ pub(crate) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
         else {
             continue;
         };
-        let Some((machine, state)) = program
-            .machine_by_symbol(machine_symbol)
-            .zip(program.state_by_symbol(state_symbol))
-        else {
-            continue;
-        };
         expressions.clear();
         validation::expression_traversal::collect_expression_tree(
             program,
             value.expression,
             &mut expressions,
         );
-        for expression in expressions.iter().copied() {
-            let Ok(index) = pending.binary_search_by_key(&expression.arena_index(), |operation| {
-                operation.expression.arena_index()
-            }) else {
-                continue;
-            };
-            if std::mem::replace(&mut reached[index], true) {
-                continue;
-            }
-            match plan(program, machine, state, pending[index]) {
-                Ok(elaboration) => elaborations.push(elaboration),
-                Err(diagnostic) => diagnostics.push(diagnostic),
-            }
-        }
+        sites.extend(
+            expressions
+                .iter()
+                .filter(|expression| {
+                    suffixed(program.expression_table.expression(**expression)).is_some()
+                })
+                .map(|expression| (*expression, machine_symbol, state_symbol)),
+        );
     }
+    sites.sort_by_key(|(expression, _, _)| expression.arena_index());
+    sites.dedup_by_key(|(expression, _, _)| expression.arena_index());
 
-    // A suffixed operator outside executable code (a contract, a decreases
-    // measure, a constant initializer) has no typed elaboration here. Reject
-    // it instead of letting it check as the bare Exact operator.
-    for (operation, reached) in pending.iter().zip(&reached) {
-        if !reached {
-            diagnostics.push(
-                Diagnostic::error(format!(
-                    "the policy operator `{}` is supported only in executable machine code; contracts and constant expressions cannot use a suffixed operator yet",
-                    spelling(program, *operation),
-                ))
-                .with_source_span(program.expression_table.source_span(operation.expression)),
-            );
+    let mut elaborations = Vec::with_capacity(sites.len());
+    let mut diagnostics = Vec::new();
+    for (expression, machine_symbol, state_symbol) in sites {
+        let Some((machine, state)) = program
+            .machine_by_symbol(machine_symbol)
+            .zip(program.state_by_symbol(state_symbol))
+        else {
+            continue;
+        };
+        match plan(program, machine, state, expression) {
+            Ok(elaboration) => elaborations.push(elaboration),
+            Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
     if !diagnostics.is_empty() {
@@ -120,28 +114,34 @@ pub(crate) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
     Ok(())
 }
 
-fn spelling(program: &TypedTrees, operation: PolicyOperation) -> String {
-    let base = program
-        .expression_table
-        .binary_node(operation.expression)
-        .map_or("?", |binary| binary.operator.display_name());
-    format!("{base}{}", operation.policy.operator_suffix())
+/// The operation and policy of a node written with a policy suffix.
+fn suffixed(node: &ExpressionNode) -> Option<(&TableBinaryExpression, ArithmeticDomain)> {
+    match node {
+        ExpressionNode::Binary(binary) if binary.policy != ArithmeticDomain::Exact => {
+            Some((binary, binary.policy))
+        }
+        _ => None,
+    }
 }
 
 fn plan(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    operation: PolicyOperation,
+    expression: ExpressionHandle,
 ) -> Result<Elaboration, Diagnostic> {
-    let span = program.expression_table.source_span(operation.expression);
-    let spelling = spelling(program, operation);
-    let Some(binary) = program.expression_table.binary_node(operation.expression) else {
-        return Err(Diagnostic::error(format!(
-            "the policy operator `{spelling}` lost its operation before typing"
-        ))
-        .with_source_span(span));
+    let span = program.expression_table.source_span(expression);
+    let Some((binary, policy)) = suffixed(program.expression_table.expression(expression)) else {
+        return Err(
+            Diagnostic::error("a policy operator lost its operation before typing")
+                .with_source_span(span),
+        );
     };
+    let spelling = format!(
+        "{}{}",
+        binary.operator.display_name(),
+        policy.operator_suffix()
+    );
     let is_shift = matches!(
         binary.operator,
         BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
@@ -157,9 +157,15 @@ fn plan(
             ))
             .with_source_span(span));
         };
+        // Both operands of a builtin operator are unqualified, and a count
+        // that carries a domain would also change which count law applies.
+        match operand(program, machine, state, binary.right, &spelling, "count") {
+            Ok(Operand::Carrier(_) | Operand::Anonymous) => {}
+            Err(diagnostic) => return Err(diagnostic.with_source_span(span)),
+        }
         return Ok(Elaboration {
-            expression: operation.expression,
-            policy: operation.policy,
+            expression,
+            policy,
             carrier,
             cast_left: true,
             cast_right: false,
@@ -191,8 +197,8 @@ fn plan(
         }
     };
     Ok(Elaboration {
-        expression: operation.expression,
-        policy: operation.policy,
+        expression,
+        policy,
         carrier,
         cast_left,
         cast_right,
@@ -312,6 +318,8 @@ fn rewrite(program: &mut TypedTrees, elaboration: Elaboration) {
                 left,
                 operator: binary.operator,
                 right,
+                // The casts now say what the suffix said.
+                policy: ArithmeticDomain::Exact,
             }));
     program.expression_table.set_source_span(operation, span);
     // The authored operator occurrence follows the operation it selected.

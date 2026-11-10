@@ -1222,6 +1222,7 @@ pub mod expression {
                 let mut source = ExpressionTable::default();
                 let child = source.insert(ExpressionNode::Boolean(true));
                 let root = source.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left: child,
                     operator: BinaryOperator::And,
                     right: child,
@@ -1972,6 +1973,7 @@ pub mod expression {
                             copies,
                         );
                         self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: binary.policy,
                             left,
                             operator: binary.operator,
                             right,
@@ -2648,6 +2650,7 @@ pub mod expression {
                         let left = self.insert_tree(&binary.left);
                         let right = self.insert_tree(&binary.right);
                         self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left,
                             operator: binary.operator,
                             right,
@@ -2857,16 +2860,6 @@ pub mod expression {
         pub domain: SymbolHandle,
     }
 
-    /// A suffixed policy operator (`a +% b`, `a +| b`, `a +! b`) that typing
-    /// lowered as its base `Binary`. The operand carrier is unknown until the
-    /// whole program is typed, so preparation reads these rows once and
-    /// rewrites each operation onto the existing policy-qualified arithmetic.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-    pub struct PolicyOperation {
-        pub expression: ExpressionHandle,
-        pub policy: numerics::arithmetic::ArithmeticDomain,
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct ExpressionTable {
         expressions: Arena<ExpressionNode>,
@@ -2877,8 +2870,6 @@ pub mod expression {
         /// Original checked computation of a materialized static value. This
         /// provenance edge preserves invocation custody without executing it again.
         materialization_sources: Vec<ExpressionHandle>,
-        /// Suffixed policy operators not yet elaborated, in insertion order.
-        policy_operations: Vec<PolicyOperation>,
 
         constructed_value_types: Arena<crate::types::TypeReferenceHandle>,
         constructed_value_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
@@ -3210,7 +3201,6 @@ pub mod expression {
                 source_spans: Vec::with_capacity(capacity.expressions),
                 pattern_components: Vec::with_capacity(capacity.expressions),
                 materialization_sources: Vec::new(),
-                policy_operations: Vec::new(),
                 constructed_value_types: Arena::default(),
                 constructed_value_type_handles: Vec::new(),
                 construction_required_types: Arena::default(),
@@ -3244,7 +3234,6 @@ pub mod expression {
             self.expression_roots.reset_retain_capacity();
             self.source_spans.clear();
             self.materialization_sources.clear();
-            self.policy_operations.clear();
             self.constructed_value_types.reset_retain_capacity();
             self.constructed_value_type_handles.clear();
             self.construction_required_types.reset_retain_capacity();
@@ -3548,28 +3537,6 @@ pub mod expression {
                 self.authored_selection_occurrences.len() - 1
             );
             handle
-        }
-
-        /// Records that `expression`, a `Binary`, was written with a policy
-        /// suffix. Exact is the bare operator and records nothing.
-        pub fn retain_policy_operation(
-            &mut self,
-            expression: ExpressionHandle,
-            policy: numerics::arithmetic::ArithmeticDomain,
-        ) {
-            if policy != numerics::arithmetic::ArithmeticDomain::Exact {
-                self.policy_operations
-                    .push(PolicyOperation { expression, policy });
-            }
-        }
-
-        pub fn policy_operations(&self) -> &[PolicyOperation] {
-            &self.policy_operations
-        }
-
-        /// Hands the pending rows to their elaboration and leaves none behind.
-        pub fn take_policy_operations(&mut self) -> Vec<PolicyOperation> {
-            std::mem::take(&mut self.policy_operations)
         }
 
         pub fn materialization_source(&self, handle: ExpressionHandle) -> ExpressionHandle {
@@ -4296,6 +4263,12 @@ pub mod expression {
         pub left: ExpressionHandle,
         pub operator: BinaryOperator,
         pub right: ExpressionHandle,
+        /// The policy an operator suffix chose for this one operation
+        /// (`+%`, `+|`, `+!`); `Exact` for the bare operator. Preparation
+        /// rewrites every suffixed operation in executable code onto
+        /// policy-qualified operands, so checking sees `Exact` here and
+        /// rejects anything else.
+        pub policy: numerics::arithmetic::ArithmeticDomain,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
