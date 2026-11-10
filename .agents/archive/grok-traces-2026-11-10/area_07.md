@@ -28,8 +28,13 @@ Paths below are under `omega-rust/`. `BTE/` is `psi/compilation/build-time-evalu
 | 13 | BTE/layouts.rs:3955, 4011, 4023 | CLOSED | A user type named Access is treated as the template only when the source map is absent, and every constructed source context has one. |
 | 14 | BTE/layouts.rs:5338-5348 | UNDECIDED | An open policy with no targets is not requested, and the later missing-plan error applies only to a closed policy. |
 | 15 | S00/lexer.rs:63-69, 116 | CLOSED | Empty integer digits and an empty float exponent are rejected when the parser reads the token. |
+| 16 | S01/expressions.rs:668-669, 737 | REACHABLE | The word move is consumed and the expression is kept with no record of the word. |
+| 17 | S01/bodies_and_transitions.rs:1068-1107 | UNDECIDED | A complete boolean-literal matrix rewrites the last guard to always. Whether a non-boolean subject can form that matrix was not followed. |
+| 18 | S01/contracts_and_parameters.rs:743-757 | REACHABLE | A second terminates-by clause replaces the first, and the loop has no duplicate diagnostic. |
+| 19 | S01/declarations.rs:51-55, 760-764, 806-810; S01/expressions.rs:2081-2102 | UNDECIDED | The parser continues when a field separator is absent. Whether the language requires the separator was not settled. |
+| 20 | S01/declarations.rs:1205 | UNDECIDED | A reference or generic domain carrier with no type parameters is named with a question mark. Whether that spelling is rejected later was not followed. |
 
-Entries 16 onward are not written yet.
+Entries 21 onward are not written yet.
 
 ## 1. `BTE/evaluation_accounting.rs:499-501, 525-527`
 
@@ -245,16 +250,54 @@ A token `0x` or `1e` is rejected at those two parsers. Digest is right, and the 
 
 Not read: every expression parser to prove no numeric token is copied into a tree without `take_parsed_integer` or `take_float_text`. The flag fields have no other non-test reader.
 
+## 16. `S01/expressions.rs:668-669, 737`
+
+`parse` of a unary prefix (`expressions.rs:668-670`, read) and `apply_unary_prefix` (`:674-738`, read). Search `UnaryPrefix::Move`: those two lines only. The token is taken with `take_contextual("move")`, and the arm returns the inner expression unchanged (`:737`). No node field stores the word. A later stage cannot see it.
+
+A name written with move in front is accepted as that name. Digest is right. The test it names was not opened.
+
+## 17. `S01/bodies_and_transitions.rs:1068-1107`
+
+The boolean-coverage rewrite (`bodies_and_transitions.rs:1068-1104`, read) and the loop that pushes `bool_tuple` (`:982-1017`, read). When every arm has a boolean tuple of the subject's length, at most 8 subjects, and the tuples cover every combination, the last arm's guard becomes `Always` and its patterns are cleared (`:1098-1104`).
+
+`bool_tuple` comes from `parse_transition_guard_node`, which I did not read. I also did not read a later consumer of `TransitionGuardNode::Always`. What would decide it is whether a non-boolean subject can produce those tuples, and whether an always guard then passes exhaustiveness.
+
+Digest is right about the rewrite.
+
+## 18. `S01/contracts_and_parameters.rs:743-757`
+
+The contract-clause loop (`contracts_and_parameters.rs:730-757`, read). Each `terminates by` assigns `ranking_subjects`, `ranking_view`, `ranking_view_arguments`, and `ranking_range` (`:752-755`). A second clause overwrites the first. Search `ranking_subjects =` in this file: `:752` and a later insert at `:1233` of whatever remains. No duplicate diagnostic is in the loop.
+
+Two terminates-by clauses on one signature keep only the second witness. Digest is right.
+
+Not read: the insert at `:1233` past the assignment, and any later check that re-reads the source text for a second clause. The first clause is already gone from the tree.
+
+## 19. Field separators
+
+Four sites, all read: capability fields (`declarations.rs:51-55`), data fields (`:760-764`), case members (`:806-810`), and struct-literal fields (`expressions.rs:2092-2102`). Each continues when the semicolon or comma is absent. I found no later separator check.
+
+What I could not determine: whether the language requires the separator. The parser treats it as optional on purpose. What would decide it is the grammar rule for those lists.
+
+Digest is right that the forms parse.
+
+## 20. `S01/declarations.rs:1205`
+
+`type_reference_target_label` (`declarations.rs:1187-1206`, read) returns `"?"` for a reference, a generic, or any node that is not a name, a slice, or a fixed array. `parse_domain_definition` (`:905-999`, read through the name) uses that label when the domain has no type parameters (`:991-994`): the stored name is the label, `::`, and the segments. A reference or generic carrier therefore gets a name that starts with `?::`.
+
+Search `type_reference_target_label\(`: the definition and the call at `:923`, plus the two recursive calls. I did not follow the stored name into symbol resolution. What would decide it is whether that spelling fails to bind, or collides with another domain that received the same generated name.
+
 ## Counts so far
 
 | verdict | count |
 | --- | --- |
-| REACHABLE | 1 |
+| REACHABLE | 3 |
 | CLOSED | 7 |
-| UNDECIDED | 13 |
+| UNDECIDED | 17 |
 
-Entries not reached: 16 through 61. Sub-sites are counted as their own rows.
+The earlier count of 13 undecided rows was short by one. The rows are 4, 5a, 5b, 7, 8, 9, 11a–11d, 12a–12c, 14, 17, 19, and 20.
+
+Entries not reached: 21 through 61. Sub-sites are counted as their own rows.
 
 ## What I did not read
 
-Stage 01 except `parse_operator_spelling`, `take_parsed_integer`, and `take_float_text`. Stage 02 except the symbol assignment and the zero-gate setter. Stage 03 except `lower_named_type_reference`. Stage 04 except `preparation.rs:415-437`. The callers of `admit_captured_native_bindings`, the remapped product graph, `ProviderSelectionCall`'s builder, `BuildTimeCallEdge`'s construction, and the admission use of `walk_call_closure` were not read. No compiler was built or run.
+`parse_transition_guard_node`, any consumer of `TransitionGuardNode::Always`, the resolution of a domain name that starts with `?::`, and everything from entry 21 on: the rest of stage 01, stage 02 except the symbol assignment and the zero-gate setter, stage 03 except `lower_named_type_reference`, and stage 04 except `preparation.rs:415-437`. No compiler was built or run.
