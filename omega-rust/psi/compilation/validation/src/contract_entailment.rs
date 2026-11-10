@@ -59428,7 +59428,9 @@ pub(crate) mod structural_judgment {
         pub(crate) mod call_completion {
             use super::*;
 
-            use super::super::selected_contracts::PreparedSelectedGuarantees;
+            use super::super::selected_contracts::{
+                ConditionalGuaranteeUse, PreparedSelectedGuarantees,
+            };
             pub(crate) use super::call_preparation::PreparedNormalCall;
 
             pub(crate) struct CompletedBodyResult {
@@ -59601,6 +59603,7 @@ pub(crate) mod structural_judgment {
                             let prerequisites = self.complete_selected_guarantees(
                                 prepared_guarantees,
                                 Some(captured),
+                                ConditionalGuaranteeUse::Discarded,
                                 0,
                             )?;
                             for (left, right) in prerequisites.equations {
@@ -59614,6 +59617,7 @@ pub(crate) mod structural_judgment {
                     let guarantees = self.complete_selected_guarantees(
                         prepared_guarantees,
                         captured.as_ref(),
+                        ConditionalGuaranteeUse::Kept,
                         0,
                     )?;
                     let placement =
@@ -61486,7 +61490,12 @@ pub(crate) mod structural_judgment {
                                 0,
                             )
                             && let Some(guarantees) =
-                                judge.complete_selected_guarantees(&prepared, None, 0)
+                                judge.complete_selected_guarantees(
+                                    &prepared,
+                                    None,
+                                    super::super::selected_contracts::ConditionalGuaranteeUse::Discarded,
+                                    0,
+                                )
                         {
                             judge.intake_normal_call_equations(
                                 guarantees
@@ -66712,12 +66721,14 @@ pub(crate) mod structural_judgment {
             Resolution,
             IntegerProjection,
             Predicate,
+            ApplicationEquations,
         }
 
         #[derive(Clone)]
         pub(crate) enum StructuralQueryAnswer {
             Resolution(StructuralTerm),
             Predicate(StructuralJudgment),
+            Equations(Option<Arc<[(StructuralTerm, StructuralTerm)]>>),
         }
 
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -66901,7 +66912,7 @@ pub(crate) mod structural_judgment {
                     |judge, term| StructuralQueryAnswer::Resolution(compute(judge, term)),
                 ) {
                     StructuralQueryAnswer::Resolution(value) => value,
-                    StructuralQueryAnswer::Predicate(_) => {
+                    StructuralQueryAnswer::Predicate(_) | StructuralQueryAnswer::Equations(_) => {
                         unreachable!("resolution query kind changed")
                     }
                 }
@@ -66920,7 +66931,7 @@ pub(crate) mod structural_judgment {
                     |judge, term| StructuralQueryAnswer::Resolution(compute(judge, term)),
                 ) {
                     StructuralQueryAnswer::Resolution(value) => value,
-                    StructuralQueryAnswer::Predicate(_) => {
+                    StructuralQueryAnswer::Predicate(_) | StructuralQueryAnswer::Equations(_) => {
                         unreachable!("projection query kind changed")
                     }
                 }
@@ -66939,8 +66950,38 @@ pub(crate) mod structural_judgment {
                     |judge, term| StructuralQueryAnswer::Predicate(compute(judge, term)),
                 ) {
                     StructuralQueryAnswer::Predicate(value) => value,
-                    StructuralQueryAnswer::Resolution(_) => {
+                    StructuralQueryAnswer::Resolution(_) | StructuralQueryAnswer::Equations(_) => {
                         unreachable!("predicate query kind changed")
+                    }
+                }
+            }
+
+            /// The equations a call's contract publishes about its result, answered once
+            /// per judge state. Every resolution of a term that mentions the call asks
+            /// for them, and deriving them judges the operands of the `ensures` clause,
+            /// so an unmemoized derivation repeats for each such term.
+            pub(crate) fn completed_application_equations(
+                &self,
+                application: &StructuralTerm,
+                depth: usize,
+                compute: impl FnOnce(
+                    &Self,
+                    &StructuralTerm,
+                ) -> Option<Vec<(StructuralTerm, StructuralTerm)>>,
+            ) -> Option<Arc<[(StructuralTerm, StructuralTerm)]>> {
+                match self.completed_query(
+                    StructuralQueryKind::ApplicationEquations,
+                    application.clone(),
+                    depth,
+                    |judge, application| {
+                        StructuralQueryAnswer::Equations(
+                            compute(judge, &application).map(Arc::from),
+                        )
+                    },
+                ) {
+                    StructuralQueryAnswer::Equations(equations) => equations,
+                    StructuralQueryAnswer::Resolution(_) | StructuralQueryAnswer::Predicate(_) => {
+                        unreachable!("application equations query kind changed")
                     }
                 }
             }
@@ -69290,6 +69331,7 @@ pub(crate) mod structural_judgment {
                     &self,
                     prepared: &PreparedSelectedGuarantees<'_>,
                     result: Option<&StructuralTerm>,
+                    conditional_use: ConditionalGuaranteeUse,
                     depth: usize,
                 ) -> Option<SelectedGuarantees> {
                     let mut common: Option<SelectedGuarantees> = None;
@@ -69302,6 +69344,7 @@ pub(crate) mod structural_judgment {
                                 &member.type_bindings,
                                 &member.machine_bindings,
                                 result,
+                                conditional_use,
                                 depth,
                             )?,
                             EntryEvidence::UnconditionalBoolean(literal) => SelectedGuarantees {
@@ -69363,6 +69406,7 @@ pub(crate) mod structural_judgment {
                     type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
                     machine_bindings: &[PredicateMachineBinding],
                     result: Option<&StructuralTerm>,
+                    conditional_use: ConditionalGuaranteeUse,
                     depth: usize,
                 ) -> Option<SelectedGuarantees> {
                     let program = self.program;
@@ -69447,7 +69491,10 @@ pub(crate) mod structural_judgment {
                                     result,
                                     &mut equations,
                                     &mut data_identities,
-                                    &mut conditional,
+                                    match conditional_use {
+                                        ConditionalGuaranteeUse::Kept => Some(&mut conditional),
+                                        ConditionalGuaranteeUse::Discarded => None,
+                                    },
                                     depth + 1,
                                 );
                             }
@@ -69693,7 +69740,7 @@ pub(crate) mod structural_judgment {
                             result,
                             &mut equations,
                             &mut identities,
-                            &mut nested,
+                            Some(&mut nested),
                             depth + 1,
                         );
                         if conditions.iter().all(|(condition, holds)| {
@@ -70580,6 +70627,16 @@ pub(crate) mod structural_judgment {
                 .map(RecordedBooleanExit::Expression)
         }
 
+        /// Whether the caller keeps the guarantees that hold only under a condition.
+        /// Deriving them means assuming each condition in a copy of the judge and
+        /// re-examining everything already known there, so a caller that would drop
+        /// them says so and the derivation never starts.
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        pub(crate) enum ConditionalGuaranteeUse {
+            Kept,
+            Discarded,
+        }
+
         pub(crate) struct SelectedGuarantees {
             pub(crate) equations: Vec<(StructuralTerm, StructuralTerm)>,
             pub(crate) data_identities: Vec<(StructuralTerm, StructuralTerm)>,
@@ -70640,8 +70697,8 @@ pub(crate) mod structural_judgment {
                     else {
                         continue;
                     };
-                    for (left, right) in equations {
-                        for (pattern, replacement) in [(&left, &right), (&right, &left)] {
+                    for (left, right) in equations.iter() {
+                        for (pattern, replacement) in [(left, right), (right, left)] {
                             if pattern == value
                                 && replacement != value
                                 && !super::super::structural_terms::term_contains(
@@ -70823,8 +70880,9 @@ pub(crate) mod structural_judgment {
                 &self,
                 application: &StructuralTerm,
                 depth: usize,
-            ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
-                let resolving = self.resolving_application(application, depth)?;
+            ) -> Option<std::sync::Arc<[(StructuralTerm, StructuralTerm)]>> {
+                self.completed_application_equations(application, depth, |judge, application| {
+                let resolving = judge.resolving_application(application, depth)?;
                 let SelectedApplicationCarrier {
                     owner, parameters, ..
                 } = resolving.selected_application_carrier(application, depth)?;
@@ -70853,6 +70911,7 @@ pub(crate) mod structural_judgment {
                         depth,
                     )
                     .map(|guarantees| guarantees.equations)
+                })
             }
 
             pub(crate) fn selected_guarantees(
@@ -70872,7 +70931,12 @@ pub(crate) mod structural_judgment {
                     &[],
                     depth,
                 )?;
-                self.complete_selected_guarantees(&prepared, result, depth)
+                self.complete_selected_guarantees(
+                    &prepared,
+                    result,
+                    ConditionalGuaranteeUse::Discarded,
+                    depth,
+                )
             }
 
             fn recorded_body_boolean(
@@ -71511,7 +71575,9 @@ pub(crate) mod structural_judgment {
             result: Option<&StructuralTerm>,
             equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
             data_identities: &mut Vec<(StructuralTerm, StructuralTerm)>,
-            conditional: &mut Vec<super::conditional_guarantees::ConditionalGuarantees>,
+            // `None` when the caller keeps only what holds unconditionally: a guarantee
+            // behind a condition is then not derived at all.
+            mut conditional: Option<&mut Vec<super::conditional_guarantees::ConditionalGuarantees>>,
             depth: usize,
         ) {
             let program = judge.program;
@@ -71532,13 +71598,16 @@ pub(crate) mod structural_judgment {
                     result,
                     equations,
                     data_identities,
-                    conditional,
+                    // A match does its own arm bookkeeping, so a caller that keeps no
+                    // conditional guarantees hands it a sink that is dropped.
+                    conditional.unwrap_or(&mut Vec::new()),
                     depth + 1,
                 );
                 return;
             }
             let binary = program.expression_table.binary_node(expression);
-            if let Some(binary) = binary
+            if let Some(conditional) = conditional.as_deref_mut()
+                && let Some(binary) = binary
                 && matches!(
                     binary.operator,
                     BinaryOperator::Equal | BinaryOperator::NotEqual
@@ -71597,7 +71666,7 @@ pub(crate) mod structural_judgment {
                     result,
                     equations,
                     data_identities,
-                    conditional,
+                    conditional.as_deref_mut(),
                     depth + 1,
                 );
                 capture_guarantees(
@@ -71655,7 +71724,7 @@ pub(crate) mod structural_judgment {
                             result,
                             equations,
                             data_identities,
-                            conditional,
+                            conditional.as_deref_mut(),
                             depth + 1,
                         );
                         selected = true;
@@ -71678,8 +71747,11 @@ pub(crate) mod structural_judgment {
                         depth + 1,
                     )
                 };
-                if let Some(left) =
-                    judge.bound_observed_condition(binary.left, scope, parameters, &mut operand)
+                // Neither operand is refuted here, so everything the right operand
+                // publishes holds only where the left one is false.
+                if let Some(conditional) = conditional
+                    && let Some(left) =
+                        judge.bound_observed_condition(binary.left, scope, parameters, &mut operand)
                 {
                     // The right operand is formed only on the short-circuit path
                     // where the left is false. Retain that same condition on every
@@ -71701,7 +71773,7 @@ pub(crate) mod structural_judgment {
                         result,
                         &mut right_equations,
                         &mut right_identities,
-                        &mut nested,
+                        Some(&mut nested),
                         depth + 1,
                     );
                     let right_equations = right_equations
