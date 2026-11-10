@@ -16,6 +16,7 @@ pub(crate) fn check_product_source(
     rollback: &crate::OptimizationRollback,
     reuse: SettledCheckReuse,
     selections: &mut psi_compiler::ProductSelections,
+    frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
         source_completion_accounting,
@@ -80,32 +81,38 @@ pub(crate) fn check_product_source(
         .iter()
         .chain(reuse.prior.sibling_product_checks.iter())
         .collect();
-    let outcome = timings
-        .record_result(TYPED_TREES_TO_CHECKED_TREES, || {
-            let started = std::time::Instant::now();
-            let result = psi_compiler::CheckRequest {
-                program: typed,
-                admission: source_admission,
-                previous: &previous,
-                retain: reuse.retain,
-                library_slice: psi_compiler::LibrarySliceRequest {
-                    root_package: package_inputs.map(PackageCompilationInputs::root),
-                },
-            }
-            .check();
-            if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
-                artifacts::compile_timings::counters::record_product_source_check(
-                    started.elapsed(),
-                );
-            }
-            result
-        })
-        .map_err(|mut diagnostics| {
-            if let Some(sources) = symbol_sources.as_deref() {
-                super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
-            }
-            diagnostics
-        })?;
+    let mut judged = None;
+    let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
+        let started = std::time::Instant::now();
+        let result = psi_compiler::CheckRequest {
+            program: typed,
+            admission: source_admission,
+            previous: &previous,
+            retain: reuse.retain,
+            library_slice: psi_compiler::LibrarySliceRequest {
+                root_package: package_inputs.map(PackageCompilationInputs::root),
+            },
+        }
+        .check_keeping_typed_frontier(frontier.is_some().then_some(&mut judged));
+        if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
+            artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
+        }
+        result
+    });
+    // The entries are this request's, so they are paired with the trees here,
+    // before a rejection below returns and drops the Build configuration.
+    if let (Some(frontier), Some(typed)) = (frontier, judged) {
+        *frontier = Some(super::typed_frontier::TypedFrontier {
+            typed,
+            entries: external_roots.clone(),
+        });
+    }
+    let outcome = outcome.map_err(|mut diagnostics| {
+        if let Some(sources) = symbol_sources.as_deref() {
+            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        }
+        diagnostics
+    })?;
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
         program,
