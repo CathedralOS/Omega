@@ -18,8 +18,18 @@ Paths below are under `omega-rust/`. `BTE/` is `psi/compilation/build-time-evalu
 | 8 | BTE/const_initializers.rs:2188-2191, 2238-2240 | UNDECIDED | Replay is skipped when the walker finds no call and no float. The walker does not enter a saved subject. |
 | 9 | BTE/const_initializers.rs:3288, 3323 | UNDECIDED | The target-observation helpers keep only scalar destinations. Where an aggregate observation is evaluated was not read. |
 | 10 | BTE/syntax_probes.rs:652-661 | CLOSED | Both constructors of the source context pass a source map, so the drop branch is not taken. |
+| 11a | BTE/product.rs:242-253, 326-328 | UNDECIDED | An unloaded native requirement is omitted and the function still returns success. The caller of that list was not followed. |
+| 11b | BTE/product.rs:2458 | UNDECIDED | A span that is not a declaration and does not rejoin becomes the default span. The remapped graph was not followed. |
+| 11c | BTE/product.rs:3140-3142 | UNDECIDED | Any call whose name is not `select_provider` is not recorded. Whether that call remains for ordinary checking was not followed. |
+| 11d | BTE/product.rs:1789-1790 | UNDECIDED | A selection with no target matches every scope. Whether an omitted target is a legal default was not settled. |
+| 12a | BTE/machine_execution.rs:455 | UNDECIDED | A target with no parameter or trait signature produces no violation, and the walk then completes. |
+| 12b | BTE/machine_execution.rs:262 | UNDECIDED | A symbol that is not a machine produces no termination violation. |
+| 12c | BTE/machine_execution.rs:3410-3412 | UNDECIDED | A symbol that is not a machine is dropped from the effect summary. |
+| 13 | BTE/layouts.rs:3955, 4011, 4023 | CLOSED | A user type named Access is treated as the template only when the source map is absent, and every constructed source context has one. |
+| 14 | BTE/layouts.rs:5338-5348 | UNDECIDED | An open policy with no targets is not requested, and the later missing-plan error applies only to a closed policy. |
+| 15 | S00/lexer.rs:63-69, 116 | CLOSED | Empty integer digits and an empty float exponent are rejected when the parser reads the token. |
 
-Entries 11 onward are not written yet.
+Entries 16 onward are not written yet.
 
 ## 1. `BTE/evaluation_accounting.rs:499-501, 525-527`
 
@@ -173,16 +183,78 @@ The drop runs only for a missing source map, and every constructed source contex
 
 Not read: every test that builds a `ResolutionRequest` with `sources: None` outside this struct.
 
+## 11. `BTE/product.rs:242-253, 326-328, 2458, 3140-3142, 1789-1790`
+
+Four sites in one digest bullet.
+
+### 11a. `:242-253`, `:326-328`
+
+`collect_captured` (`product.rs:228-348`, read through the skip and the intent loop). Search `collect_captured\(`: definition `:228` and one caller, `admit_captured_native_bindings` (`psi-compiler/src/source_compilation.rs:481-490`, read). That caller returns the vector unchanged.
+
+When the requirement's source file is not a selected product file, the declaration is stored as `None` (`:250-252`) and each intent that points at it is skipped (`:326-327`). The function still returns `Ok`. I did not read the caller of `admit_captured_native_bindings`. What would decide it is whether a missing selection is required to be present before the product is admitted.
+
+Digest is right that the binding is skipped with no diagnostic.
+
+### 11b. `:2458`
+
+The rejoin closure (`product.rs:2420-2458`, read). A declaration span that does not rejoin is an error (`:2447-2451`). Any other span that does not rejoin becomes `SourceSpan::default()` (`:2456-2458`). I did not read `remap_source_spans` or a later use of that default span. What would decide it is whether a default span fails a later custody check or is treated as no source and allowed.
+
+### 11c. `:3140-3142`
+
+`collect_provider_selections` (`product.rs:3123-3142`, read through the name test). A request whose target is not `select_provider` returns from the recorder with no diagnostic. The function does not remove the call from the tree. I did not read the builder of `ProviderSelectionCall`. What would decide it is whether an unresolved call is in that iterator and, if so, whether ordinary checking still rejects it.
+
+Digest says "unresolved". The test I read is the name only.
+
+### 11d. `:1789-1790`
+
+`CheckingScope::prepare` (`product.rs:1768-1793`, read). A row whose `target` is `None` passes the filter for every scope (`:1788-1791`). I did not read the type of `target` or a diagnostic for an omitted target. What would decide it is whether an omitted target is the declared way to name every scope.
+
+## 12. `BTE/machine_execution.rs:455, 262, 3410-3412`
+
+### 12a. `:455`
+
+`callable_contract_violation` (`machine_execution.rs:449-488`, read through the linear checks) and its caller in `machine_termination_violation` (`:347-381`, read). Search `callable_contract_violation\(`: definition `:449` and the call `:364`. `callable_signature` returns `None` for an invalid symbol, a builtin, an operator, or a symbol with neither a machine-parameter nor a trait signature (`:421-441`, read). The `?` then makes this function return `None`. The caller treats `None` as no violation and completes the walk (`:375-381`).
+
+What I could not determine: whether a call edge can carry such a symbol and then be executed. What would decide it is the construction of `BuildTimeCallEdge::target_state_symbol`.
+
+### 12b. `:262`
+
+Same function. `program.machine(machine_symbol)?` returns `None` when the symbol is not a machine (`:262`), and the caller treats that as no violation. Digest is right. The same gap as 12a decides it.
+
+### 12c. `:3410-3412`
+
+`walk_call_closure` (`machine_execution.rs:3401-3424`, read in full). A symbol with no machine is `continue`d, so it adds nothing to the summary and its edges are not walked. I did not read the caller that turns that summary into an admission decision. What would decide it is that caller.
+
+## 13. `BTE/layouts.rs:3955, 4011, 4023`
+
+`discover_applications` (`layouts.rs:3856-3957`, read through the Access test). Search `discover_applications\(`: definition `:3856` and one call, `desugar_access_views` (`:3555`). That function sets `sources` from `context.sources` (`:3450-3454`, read in section 10).
+
+A non-toolchain application is skipped when a source map is present, even if the base name is `Access` (`:3955-3956`: `sources.is_some()` makes the condition true, and `continue` leaves it). The same missing map is the gate at `:4011` (`None => {}` does not diagnose a missing nominal selection; the error at `:4002` requires `sources.is_some()`) and at `:4023` (a policy candidate matches by name only when `sources.is_none()`). Both were read. The "any user type named Access" arm requires `sources` to be `None`. Section 10 shows both constructors pass `Some`. Digest is right about the arms. They are not taken for a program that enters pre-resolution.
+
+## 14. `BTE/layouts.rs:5338-5348`
+
+`scoped_representation_requests` (`layouts.rs:5303-5360`, read through the push). An open policy (`!policy_is_closed`) whose target list is empty is `continue`d (`:5346-5347`) and is not pushed. The later missing-plan error requires `index_argument_is_closed` (`:6160-6171`, read). An open policy does not take that error.
+
+What I could not determine: whether an open policy with no targets is allowed to stay without a plan, or is rejected by another check after this function returns `Ok`. What would decide it is the consumer of a layout storage whose policy is open and whose plan is absent.
+
+## 15. `S00/lexer.rs:63-69, 116`
+
+`Lexer::lex_number` (`lexer.rs:49-137`, read). A prefix with no digits sets `empty_digits` (`:63-75`). An exponent with no digits sets `empty_exponent` (`:101-116`). Search `empty_digits`: the lexer, the flag field, `parse_integer_literal` (`S01/tokens_and_storage.rs:250`, read), and tests. Search `empty_exponent`: the lexer, the flag field, `validate_float_literal` (`:290`, read), and tests. `parse_integer_literal` is called from `take_parsed_integer` for every integer token (`:673-684`, read). `validate_float_literal` is called from `take_float_text` for every float token (`:737-742`, read). The other call at `:350` is inside `#[cfg(test)]`.
+
+A token `0x` or `1e` is rejected at those two parsers. Digest is right, and the consumer it names is the rejection.
+
+Not read: every expression parser to prove no numeric token is copied into a tree without `take_parsed_integer` or `take_float_text`. The flag fields have no other non-test reader.
+
 ## Counts so far
 
 | verdict | count |
 | --- | --- |
 | REACHABLE | 1 |
-| CLOSED | 5 |
-| UNDECIDED | 6 |
+| CLOSED | 7 |
+| UNDECIDED | 13 |
 
-Entries not reached: 11 through 61 (the remaining digest bullets). Sub-sites 5a and 5b are counted above.
+Entries not reached: 16 through 61. Sub-sites are counted as their own rows.
 
 ## What I did not read
 
-Stage 00, stage 01 except `parse_operator_spelling` and the machine-declaration caller, stage 02 except the symbol assignment and the zero-gate setter, stage 03 except `lower_named_type_reference`, stage 04 except `preparation.rs:415-437`, and build-time evaluation outside the functions named in sections 1–10. `evaluate_const_evaluable_invocation_measured`, `SavedSubject`, and the target-observation assignments at `const_initializers.rs:3786` and `:3868` were not read. No compiler was built or run.
+Stage 01 except `parse_operator_spelling`, `take_parsed_integer`, and `take_float_text`. Stage 02 except the symbol assignment and the zero-gate setter. Stage 03 except `lower_named_type_reference`. Stage 04 except `preparation.rs:415-437`. The callers of `admit_captured_native_bindings`, the remapped product graph, `ProviderSelectionCall`'s builder, `BuildTimeCallEdge`'s construction, and the admission use of `walk_call_closure` were not read. No compiler was built or run.
