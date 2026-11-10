@@ -1,0 +1,2 @@
+cannot prove requires contract for call keep from take
+owner.slots[next + key] == Slot::Empty

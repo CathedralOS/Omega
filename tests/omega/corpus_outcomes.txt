@@ -2593,6 +2593,8 @@ fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 17163ms 
 	cannot prove requires contract: machine `Main::main` state `main` value call to `take` violates required fact `core::Identity<Point>(point, Point.zero())`: the instantiated fact is structurally false
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/calls/composed_index_case_selector_write_retires rejected 28131ms expected @a9b71e8de5dd
+	cannot prove requires contract for call keep from take: addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && key <= 8191 - next && owner.slots[next + key] == constructor:78:package:bbfa6a54f926133547d32f7eb71fa55510a3d0ffca4361ddde6ff5cb00dc9116::Slot10:name:Empty (needs fact `addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && key <= 8191 - next && owner.slots[next + key] == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/computed_zero_requires_argument_rejected rejected 15362ms expected @ccdb99ca2214
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false (`0 != 0`)
 fail/calls/const_boundary_rejects_other_bound rejected 742ms expected @101f66e2f97e
@@ -2674,6 +2676,8 @@ fail/calls/immutable_arg_for_mut_param_rejected rejected 14508ms unexpected @ccd
 	store in machine `handle` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/calls/immutable_local_requires_argument_rejected rejected 15177ms expected @ccdb99ca2214
 	cannot prove requires contract for call scale from Main::main: d != 0 (needs fact `divisor != 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/calls/indexed_case_pool_transition_without_guard rejected 25580ms expected @a9b71e8de5dd
+	cannot prove requires contract for call take from reserve: addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && owner.slots[next] == constructor:78:package:13aa8f08a8d51d8bd69e69ee1f5ae060ad7345394229859c1e183ddbcbec2367::Slot10:name:Empty (needs fact `addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && owner.slots[next] == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/indexed_case_successor_unproved_bound rejected 2919ms expected @ccdb99ca2214
 	cannot prove index `index` is within unknown slice length of `cells` in read::entry
 fail/calls/member_literal_requires_argument_rejected rejected 15050ms expected @ccdb99ca2214
@@ -3708,8 +3712,8 @@ fail/control_flow/qualified_case_wrong_carrier rejected 1904ms expected @ccdb99c
 	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
 	machine `read` state `entry` uses `shapes`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `read` state `entry` uses `shapes`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/control_flow/saved_case_predicate_guard_write_retires rejected 2644ms expected @ccdb99ca2214
-	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/control_flow/saved_case_predicate_guard_write_retires rejected 2161ms expected @0c71efeee94c
+	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 fail/control_flow/saved_case_predicate_local_write_retires rejected 7066ms expected @b45dc4f7989c
 	machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected rejected 3096ms expected @ccdb99ca2214
@@ -20231,6 +20235,7 @@ pass/calls/runtime_case_terminal_payload_result_exit checked 3223ms check-target
 pass/calls/runtime_closed_constructor_requires_exit checked 38418ms check-target:macos_arm64 @089c0a150e63
 pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit checked 2845ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_completed_operand_then_shared_borrow_exit checked 2803ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_composed_index_case_pool_transition_exit checked 67973ms check-target:macos_arm64 @0c71efeee94c
 pass/calls/runtime_computed_case_subject_affine_argument_exit checked 3444ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_computed_case_terminal_payload_result_exit checked 3387ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_constant_tail_requires_argument_exit checked 25115ms check-target:macos_arm64 @089c0a150e63
@@ -20283,6 +20288,7 @@ pass/calls/runtime_guarded_terminal_reference_result_exit checked 3695ms check-t
 pass/calls/runtime_guarded_terminal_reference_write_exit checked 3680ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 3556ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_heterogeneous_case_argument_exit checked 3931ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_indexed_case_pool_transition_exit checked 65306ms check-target:macos_arm64 @0c71efeee94c
 pass/calls/runtime_indexed_module_guard_operands_exit checked 3503ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_indexed_scalar_calls_exit checked 16334ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_inherited_membership_argument_snapshot_exit checked 3542ms check-target:macos_arm64 @ccdb99ca2214

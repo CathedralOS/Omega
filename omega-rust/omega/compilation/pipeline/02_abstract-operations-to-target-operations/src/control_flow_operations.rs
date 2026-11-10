@@ -614,9 +614,7 @@ pub(crate) mod operations {
                     shape: crate::scalar_abi::fixed_native_scalar_shape(scalar_type)
                         .ok_or(LoweringError::ValueTypeMismatch(*result))?,
                 };
-                if site
-                    .live
-                    .scalar_homes
+                if std::sync::Arc::make_mut(&mut site.live.scalar_homes)
                     .insert(*result, result_home)
                     .is_some()
                 {
@@ -653,7 +651,7 @@ pub(crate) mod operations {
                     scalar_type: ScalarType::Boolean,
                     shape: ValueShape::integer(1, 1),
                 };
-                site.live.scalar_homes.insert(*result, result_home);
+                std::sync::Arc::make_mut(&mut site.live.scalar_homes).insert(*result, result_home);
                 site.provenance.operations.push(*psi_operation);
                 site.operations.push(TargetUnitOperation::IeeeFloatCompare {
                     result_home,

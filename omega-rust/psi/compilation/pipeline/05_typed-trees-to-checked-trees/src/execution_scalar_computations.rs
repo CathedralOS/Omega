@@ -359,6 +359,7 @@ mod boundary_calls {
                     .span(temporary_cleanups)?
                     .to_vec();
                 cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
+                    partitions: Default::default(),
                     argument_ordinal: None,
                     operand,
                     owner: Default::default(),
@@ -1479,6 +1480,7 @@ mod call_arguments {
             }
             if let Some(discards) = discards {
                 temporary_cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
+                    partitions: Default::default(),
                     argument_ordinal: Some(argument_ordinal),
                     operand,
                     owner: Default::default(),

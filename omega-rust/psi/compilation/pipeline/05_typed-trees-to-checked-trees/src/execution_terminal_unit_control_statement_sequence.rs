@@ -3847,6 +3847,7 @@ mod reference_retirement {
                         return None;
                     };
                     completed.push(CheckedReferenceOwnerCleanup {
+                        partitions: Default::default(),
                         disposition: owner.disposition,
                         owner: CheckedUnitStructuralArgumentPlan {
                             projection_evaluations: Default::default(),
@@ -7102,10 +7103,12 @@ mod result_consumption {
             }
             retired.push(result.binding_ordinal);
             pending.push(OperationPlan::ContinuationCleanup {
+                partitions: Default::default(),
                 selected_regions: Vec::new(),
                 boundary: CheckedUnitCleanupBoundary::StatementEntry { statement_index },
                 cleanup_actions: vec![CheckedNormalCleanupAction::Discard(
                     CheckedUnitPartialAffineDiscardPlan {
+partition_leaf: Default::default(),
                         source:
                             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                 binding_ordinal: result.binding_ordinal,
@@ -8406,10 +8409,12 @@ mod statement_call {
             operations.push(operation);
             if result.multiplicity == Multiplicity::Affine && !reference_result {
                 operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    partitions: Default::default(),
                     selected_regions: Vec::new(),
                     boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
                     cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
                         CheckedUnitPartialAffineDiscardPlan {
+                            partition_leaf: Default::default(),
                             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                 binding_ordinal: result.binding_ordinal,
                             },

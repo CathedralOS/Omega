@@ -4617,6 +4617,34 @@ pub(crate) mod replay {
                 calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).ok()
             }
 
+            pub(crate) fn replay_structural_sum_layout(
+                structural_type: StructuralTypeId,
+                declarations: &[terminal_psi::StructuralTypeDeclaration],
+            ) -> Option<calling_conventions::ConventionalSumLayout> {
+                let declaration_count = declarations.len();
+                let declarations = declarations
+                    .iter()
+                    .map(|declaration| (declaration.id, declaration))
+                    .collect::<std::collections::BTreeMap<_, _>>();
+                if declarations.len() != declaration_count {
+                    return None;
+                }
+                let (common, cases) = match &declarations.get(&structural_type)?.shape {
+                    terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                    terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
+                        (fields.as_slice(), cases)
+                    }
+                    _ => return None,
+                };
+                replay_sum_layout(
+                    common,
+                    cases,
+                    &declarations,
+                    &mut std::collections::BTreeMap::new(),
+                    &mut std::collections::BTreeSet::new(),
+                )
+            }
+
             pub(crate) fn replay_structural_value_shape(
                 structural_type: StructuralTypeId,
                 declarations: &[terminal_psi::StructuralTypeDeclaration],

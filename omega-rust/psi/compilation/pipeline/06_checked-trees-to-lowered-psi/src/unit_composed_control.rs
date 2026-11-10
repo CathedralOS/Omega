@@ -3286,9 +3286,12 @@ pub(crate) mod attached_unit {
                                         .iter()
                                         .copied()
                                         .filter(|place| {
-                                            !regions
-                                                .iter()
-                                                .any(|region| region.action.place() == *place)
+                                            !regions.iter().any(|region| {
+                                                region
+                                                    .action
+                                                    .physical()
+                                                    .is_some_and(|action| action.place() == *place)
+                                            })
                                         })
                                         .map(|place| {
                                             crate::unit::unit_cleanup::CleanupRegion::unconditional(
@@ -11130,6 +11133,8 @@ pub(crate) mod attached_unit {
                             &occurrences.selected_cleanup_groups,
                             &catalogs.structural_types,
                             crate::emission::continuation_specialization::CompanionRows {
+                                completed_cleanup_frontiers: &mut occurrences
+                                    .completed_cleanup_frontiers,
                                 source_returns: &mut occurrences.source_returns,
                                 continuation_value_uses: &continuation_value_uses,
                                 claim_introductions: &mut occurrences.claim_introductions,
@@ -11199,6 +11204,7 @@ pub(crate) mod attached_unit {
                     // capability is independent of scheduled source death rows; descriptors
                     // keep their existing loan-continuation custody.
                     crate::emission::affine_cleanup::complete(
+                        &occurrences.completed_cleanup_frontiers,
                         &[],
                         &machine.structural_parameters,
                         &crate::emission::affine_cleanup::no_code_type_ids(
@@ -13743,6 +13749,8 @@ pub(crate) mod attached_unit {
                 Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
             pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
             pub(crate) claim_edge_bindings: Vec<crate::emission::claim_bindings::ClaimEdgeBinding>,
+            pub(crate) completed_cleanup_frontiers:
+                Vec<crate::emission::selected_continuations::CompletedCleanupFrontier>,
             pub(crate) selected_cleanup_groups:
                 Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
             pub(crate) quotient_adaptations:
@@ -13761,6 +13769,8 @@ pub(crate) mod attached_unit {
                 operations: crate::emission::operation_emission::buffer::OperationBuffer,
             ) {
                 self.source_returns.extend(operations.source_returns);
+                self.completed_cleanup_frontiers
+                    .extend(operations.completed_cleanup_frontiers);
                 self.selected_cleanup_groups
                     .extend(operations.selected_cleanup_groups);
                 self.claim_introductions

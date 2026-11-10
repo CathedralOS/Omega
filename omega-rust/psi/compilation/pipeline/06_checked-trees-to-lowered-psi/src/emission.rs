@@ -5945,6 +5945,8 @@ pub(crate) mod runtime_elements {
 }
 pub(crate) mod selected_continuations {
 
+    use std::sync::Arc;
+
     use crate::shared::lowering_error::{LoweringError, unsupported};
     use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralPlaceKind, StructuralTypeId};
     use terminal_psi::{
@@ -5967,17 +5969,65 @@ pub(crate) mod selected_continuations {
         pub(crate) bypass: BlockId,
     }
 
+    /// The checked partition has finished these value obligations. This records
+    /// availability only; real cleanup actions, homes, claims and loans stay in
+    /// their existing schedules and namespaces.
+    #[derive(Clone, Debug)]
+    pub(crate) struct CompletedCleanupFrontier {
+        pub(crate) edge: EdgeId,
+        pub(crate) region: StructuralArgument,
+        pub(crate) kind: CompletedCleanupKind,
+    }
+
+    #[derive(Clone, Debug)]
+    pub(crate) enum CompletedCleanupKind {
+        Value,
+        CasePayloads(Vec<semantic_vocabulary::StructuralCaseId>),
+    }
+
+    pub(crate) struct CleanupCompletionIndex<'rows> {
+        rows: semantic_vocabulary::IdTable<EdgeId, Vec<&'rows CompletedCleanupFrontier>>,
+    }
+
+    impl<'rows> CleanupCompletionIndex<'rows> {
+        pub(crate) fn new(rows: &'rows [CompletedCleanupFrontier]) -> Result<Self, LoweringError> {
+            let mut ordered = rows.iter().collect::<Vec<_>>();
+            ordered.sort_by_key(|row| row.edge);
+            let mut grouped = Vec::<(EdgeId, Vec<&CompletedCleanupFrontier>)>::new();
+            for row in ordered {
+                if let Some((edge, entries)) = grouped.last_mut()
+                    && *edge == row.edge
+                {
+                    entries.push(row);
+                } else {
+                    grouped.push((row.edge, vec![row]));
+                }
+            }
+            let rows = semantic_vocabulary::IdTable::from_rows_with_gaps(grouped, usize::MAX)
+                .map_err(LoweringError::InvalidCleanupCompletionIndex)?;
+            Ok(Self { rows })
+        }
+
+        pub(crate) fn at(
+            &self,
+            edge: EdgeId,
+        ) -> impl Iterator<Item = &'rows CompletedCleanupFrontier> + '_ {
+            self.rows.get(edge).into_iter().flatten().copied()
+        }
+    }
+
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct TrackedRegion {
         region: StructuralArgument,
         requirement: CleanupRequirement,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub(crate) enum RegionState {
         Absent,
         Live,
-        Partial(Vec<Vec<StructuralPathSegment>>),
+        // State copies share unchanged lists and paths; updates copy only the list.
+        Partial(Arc<Vec<Arc<[StructuralPathSegment]>>>),
     }
 
     #[derive(Clone, Debug)]
@@ -5992,6 +6042,185 @@ pub(crate) mod selected_continuations {
         pub(crate) continuations: Vec<Continuation>,
     }
 
+    struct ContinuationCandidates {
+        by_block: Vec<symbols::SymbolKeyMap<u64, Vec<usize>>>,
+    }
+
+    impl ContinuationCandidates {
+        fn new(block_count: usize) -> Self {
+            Self {
+                by_block: vec![symbols::SymbolKeyMap::default(); block_count],
+            }
+        }
+
+        fn find(
+            &self,
+            block: usize,
+            signature: u64,
+            incoming: &[RegionState],
+            continuations: &[Continuation],
+        ) -> Option<usize> {
+            self.by_block[block]
+                .get(&signature)?
+                .iter()
+                .copied()
+                .find(|&position| continuations[position].incoming == incoming)
+        }
+
+        fn insert(&mut self, block: usize, signature: u64, position: usize) {
+            self.by_block[block]
+                .entry(signature)
+                .or_default()
+                .push(position);
+        }
+
+        fn release(&mut self, block: usize, continuations: &mut [Continuation]) {
+            for position in self.by_block[block].values().flatten() {
+                continuations[*position].incoming = Vec::new();
+            }
+            self.by_block[block] = Default::default();
+        }
+    }
+
+    // Incoming states are lookup keys only while another predecessor can arrive.
+    // Keep the emitted topology, but release processed keys after their last reader.
+    pub(crate) struct IncomingKeyLifetimes {
+        successors: Vec<Vec<usize>>,
+        predecessors: Vec<usize>,
+        pending: Vec<usize>,
+        closed: Vec<bool>,
+    }
+
+    impl IncomingKeyLifetimes {
+        pub(crate) fn for_emitted_blocks(blocks: &[Block]) -> Option<Self> {
+            let positions = BlockPositions::new(blocks.iter().map(|block| block.id));
+            Self::for_blocks(blocks, &positions, &[])
+        }
+
+        fn for_blocks(
+            blocks: &[Block],
+            positions: &BlockPositions,
+            groups: &[SelectedCleanupGroup],
+        ) -> Option<Self> {
+            let mut bypasses = groups
+                .iter()
+                .map(|group| (group.edge, group.bypass))
+                .collect::<Vec<_>>();
+            bypasses.sort_unstable_by_key(|(edge, _)| *edge);
+            let mut successors = Vec::with_capacity(blocks.len());
+            for (position, block) in blocks.iter().enumerate() {
+                // Unknown or repeated identities leave the original lazy checks in
+                // charge. They do not establish that a lookup key is dead.
+                if positions.position(block.id).ok()? != position {
+                    return None;
+                }
+                let mut targets = Vec::new();
+                for (edge, target) in block.terminator.successor_edges() {
+                    targets.push(positions.position(target).ok()?);
+                    let first = bypasses.partition_point(|(candidate, _)| *candidate < edge);
+                    for (_, bypass) in bypasses[first..]
+                        .iter()
+                        .take_while(|(candidate, _)| *candidate == edge)
+                    {
+                        targets.push(positions.position(*bypass).ok()?);
+                    }
+                }
+                targets.sort_unstable();
+                targets.dedup();
+                successors.push(targets);
+            }
+            Self::from_successors(successors)
+        }
+
+        fn from_successors(successors: Vec<Vec<usize>>) -> Option<Self> {
+            let mut predecessors = vec![0_usize; successors.len()];
+            for targets in &successors {
+                for target in targets {
+                    let count = predecessors.get_mut(*target)?;
+                    *count = count.checked_add(1)?;
+                }
+            }
+            let pending = vec![0; successors.len()];
+            let closed = vec![false; successors.len()];
+            Some(Self {
+                successors,
+                predecessors,
+                pending,
+                closed,
+            })
+        }
+
+        pub(crate) fn discover(&mut self, block: usize) {
+            // Every arrival's source is still pending, so it cannot have closed
+            // this destination's complete predecessor set.
+            debug_assert!(!self.closed[block]);
+            self.pending[block] += 1;
+        }
+
+        pub(crate) fn processed(&mut self, block: usize) -> Vec<usize> {
+            self.pending[block] -= 1;
+            self.close_ready(vec![block])
+        }
+
+        pub(crate) fn close_unused_roots(&mut self) {
+            let roots = (0..self.successors.len())
+                .filter(|block| self.predecessors[*block] == 0 && self.pending[*block] == 0)
+                .collect();
+            self.close_ready(roots);
+        }
+
+        fn close_ready(&mut self, mut ready: Vec<usize>) -> Vec<usize> {
+            let mut closed = Vec::new();
+            while let Some(block) = ready.pop() {
+                if self.closed[block] || self.predecessors[block] != 0 || self.pending[block] != 0 {
+                    continue;
+                }
+                self.closed[block] = true;
+                closed.push(block);
+                for target in &self.successors[block] {
+                    self.predecessors[*target] -= 1;
+                    ready.push(*target);
+                }
+            }
+            closed
+        }
+    }
+
+    fn incoming_signature(incoming: &[RegionState]) -> u64 {
+        use std::hash::BuildHasher;
+        symbols::BuildSymbolHasher.hash_one(incoming)
+    }
+
+    // A missing key is absent; None marks a repeated identity. Recording either
+    // condition is harmless until the original query order requests that block.
+    struct BlockPositions(symbols::SymbolKeyMap<BlockId, Option<usize>>);
+
+    impl BlockPositions {
+        const ABSENT_ERROR: LoweringError =
+            LoweringError::Unsupported("selected continuation names an absent block");
+        const REPEATED_ERROR: LoweringError =
+            LoweringError::Unsupported("selected continuation repeats a block identity");
+
+        fn new(blocks: impl Iterator<Item = BlockId>) -> Self {
+            let mut positions = symbols::SymbolKeyMap::default();
+            for (position, block) in blocks.enumerate() {
+                positions
+                    .entry(block)
+                    .and_modify(|entry| *entry = None)
+                    .or_insert(Some(position));
+            }
+            Self(positions)
+        }
+
+        fn position(&self, target: BlockId) -> Result<usize, LoweringError> {
+            self.0
+                .get(&target)
+                .copied()
+                .ok_or(Self::ABSENT_ERROR)?
+                .ok_or(Self::REPEATED_ERROR)
+        }
+    }
+
     pub(crate) fn prepare(
         machine: semantic_vocabulary::MachineId,
         entry: BlockId,
@@ -6000,8 +6229,13 @@ pub(crate) mod selected_continuations {
         blocks: &[Block],
         types: &[StructuralTypeDeclaration],
         groups: &[SelectedCleanupGroup],
+        completed_cleanups: &[CompletedCleanupFrontier],
         has_claim_bindings: bool,
     ) -> Result<Option<Specialization>, LoweringError> {
+        // Record identities once, but report absent or repeated identities only
+        // when the original validation order asks for that block.
+        let positions = BlockPositions::new(blocks.iter().map(|block| block.id));
+        let completions = CleanupCompletionIndex::new(completed_cleanups)?;
         let mut regions = Vec::new();
         for group in groups {
             if group.region.access != StructuralAccess::Owned {
@@ -6019,7 +6253,7 @@ pub(crate) mod selected_continuations {
             {
                 return unsupported("selected home retirement has a projected value receiver");
             }
-            validate_group(machine, blocks, group)?;
+            validate_group(machine, blocks, &positions, group)?;
         }
         let extractions =
             super::affine_cleanup::owned_extractions(parameters, places, blocks, types)?;
@@ -6045,7 +6279,7 @@ pub(crate) mod selected_continuations {
         if regions.is_empty() && !has_claim_bindings {
             return Ok(None);
         }
-        let entry = block_position(blocks, entry)?;
+        let entry = positions.position(entry)?;
         let mut initial = vec![RegionState::Absent; regions.len()];
         for parameter in parameters {
             establish_parameter(&regions, &mut initial, parameter, &projected_roots);
@@ -6055,6 +6289,15 @@ pub(crate) mod selected_continuations {
             incoming: initial,
             successors: Vec::new(),
         }];
+        let mut key_lifetimes = IncomingKeyLifetimes::for_blocks(blocks, &positions, groups);
+        if let Some(lifetimes) = &mut key_lifetimes {
+            lifetimes.discover(entry);
+            lifetimes.close_unused_roots();
+        }
+        // Only continuations of the same original block can share an incoming
+        // state. Keep their discovery order and compare the complete state.
+        let mut candidates = ContinuationCandidates::new(blocks.len());
+        candidates.insert(entry, incoming_signature(&continuations[0].incoming), 0);
         let mut position = 0;
         while position < continuations.len() {
             let block = &blocks[continuations[position].original_block];
@@ -6161,24 +6404,58 @@ pub(crate) mod selected_continuations {
                         dispose(&regions, &mut outgoing, action);
                     }
                 }
-                let original_block = block_position(blocks, target)?;
-                let successor = continuations
-                    .iter()
-                    .position(|candidate| {
-                        candidate.original_block == original_block && candidate.incoming == outgoing
-                    })
-                    .unwrap_or_else(|| {
-                        let successor = continuations.len();
-                        continuations.push(Continuation {
-                            original_block,
-                            incoming: outgoing,
-                            successors: Vec::new(),
-                        });
-                        successor
+                for completion in completions.at(edge) {
+                    let paths = match &completion.kind {
+                        CompletedCleanupKind::Value => vec![completion.region.path.clone()],
+                        CompletedCleanupKind::CasePayloads(cases) => cases
+                            .iter()
+                            .map(|case| {
+                                let mut path = completion.region.path.clone();
+                                path.push(StructuralPathSegment::Case(*case));
+                                path
+                            })
+                            .collect(),
+                    };
+                    for path in paths {
+                        for (tracked, state) in regions.iter().zip(&mut outgoing) {
+                            if tracked.requirement == CleanupRequirement::WholeValue {
+                                consume_region(
+                                    &tracked.region,
+                                    state,
+                                    completion.region.place,
+                                    &path,
+                                );
+                            }
+                        }
+                    }
+                }
+                let original_block = positions.position(target)?;
+                let signature = incoming_signature(&outgoing);
+                let successor = if let Some(successor) =
+                    candidates.find(original_block, signature, &outgoing, &continuations)
+                {
+                    successor
+                } else {
+                    if let Some(lifetimes) = &mut key_lifetimes {
+                        lifetimes.discover(original_block);
+                    }
+                    let successor = continuations.len();
+                    continuations.push(Continuation {
+                        original_block,
+                        incoming: outgoing,
+                        successors: Vec::new(),
                     });
+                    candidates.insert(original_block, signature, successor);
+                    successor
+                };
                 successors.push((edge, successor));
             }
             continuations[position].successors = successors;
+            if let Some(lifetimes) = &mut key_lifetimes {
+                for block in lifetimes.processed(continuations[position].original_block) {
+                    candidates.release(block, &mut continuations);
+                }
+            }
             position += 1;
         }
         Ok(Some(Specialization {
@@ -6239,7 +6516,7 @@ pub(crate) mod selected_continuations {
             let region = &tracked.region;
             if region.place == extraction.place && *state != RegionState::Absent {
                 *state = if region.path.is_empty() {
-                    RegionState::Partial(vec![Vec::new()])
+                    RegionState::Partial(Arc::new(vec![Arc::from([])]))
                 } else {
                     RegionState::Absent
                 };
@@ -6278,11 +6555,14 @@ pub(crate) mod selected_continuations {
         } else if terminal_semantics::structural_paths_may_overlap(&region.path, path) {
             match state {
                 RegionState::Absent => {}
-                RegionState::Live => *state = RegionState::Partial(vec![path.to_vec()]),
+                RegionState::Live => {
+                    *state = RegionState::Partial(Arc::new(vec![Arc::from(path)]));
+                }
                 RegionState::Partial(missing) => {
                     if !missing.iter().any(|prior| contains_path(prior, path)) {
+                        let missing = Arc::make_mut(missing);
                         missing.retain(|prior| !contains_path(path, prior));
-                        missing.push(path.to_vec());
+                        missing.push(Arc::from(path));
                         missing.sort();
                     }
                 }
@@ -6315,7 +6595,9 @@ pub(crate) mod selected_continuations {
             if contains_path(path, &region.path) {
                 *state = RegionState::Live;
             } else if let RegionState::Partial(missing) = state {
-                missing.retain(|hole| !contains_path(path, hole));
+                if missing.iter().any(|hole| contains_path(path, hole)) {
+                    Arc::make_mut(missing).retain(|hole| !contains_path(path, hole));
+                }
                 if missing.is_empty() {
                     *state = RegionState::Live;
                 }
@@ -6325,7 +6607,7 @@ pub(crate) mod selected_continuations {
 
     fn transfers_complete_custody(
         region: &StructuralArgument,
-        missing: &[Vec<StructuralPathSegment>],
+        missing: &[Arc<[StructuralPathSegment]>],
         parameters: &[StructuralParameterDeclaration],
         places: &[StructuralPlaceDeclaration],
         blocks: &[Block],
@@ -6349,7 +6631,7 @@ pub(crate) mod selected_continuations {
             return Ok(false);
         }
         let root = root_type(region.place, parameters, places, blocks)?;
-        let moved = missing.iter().cloned().collect();
+        let moved = missing.iter().map(|path| path.to_vec()).collect();
         Ok(
             terminal_semantics::partial_affine_residuals(types, root, &moved, 1)
                 .is_some_and(|residuals| residuals.is_empty()),
@@ -6421,23 +6703,10 @@ pub(crate) mod selected_continuations {
         }
     }
 
-    fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringError> {
-        let mut positions = blocks
-            .iter()
-            .enumerate()
-            .filter(|(_, block)| block.id == target);
-        let Some((position, _)) = positions.next() else {
-            return unsupported("selected continuation names an absent block");
-        };
-        if positions.next().is_some() {
-            return unsupported("selected continuation repeats a block identity");
-        }
-        Ok(position)
-    }
-
     fn validate_group(
         machine: semantic_vocabulary::MachineId,
         blocks: &[Block],
+        positions: &BlockPositions,
         group: &SelectedCleanupGroup,
     ) -> Result<(), LoweringError> {
         let mut sites = blocks.iter().filter_map(|block| match &block.terminator {
@@ -6483,8 +6752,8 @@ pub(crate) mod selected_continuations {
                 },
             )));
         }
-        let entry = &blocks[block_position(blocks, target)?];
-        let bypass = &blocks[block_position(blocks, group.bypass)?];
+        let entry = &blocks[positions.position(target)?];
+        let bypass = &blocks[positions.position(group.bypass)?];
         if !entry.structural_parameters.is_empty()
             || !bypass.structural_parameters.is_empty()
             || entry
@@ -6505,6 +6774,163 @@ pub(crate) mod selected_continuations {
             return unsupported("selected cleanup bypass changes the captured continuation frame");
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod continuation_candidate_tests {
+        use super::*;
+        use semantic_vocabulary::{ObligationId, ScalarType, StructuralCaseId, ValueId};
+
+        #[test]
+        fn incoming_keys_wait_for_all_predecessors_and_pending_work() {
+            let mut lifetimes = IncomingKeyLifetimes::from_successors(vec![
+                vec![1, 2],
+                vec![3],
+                vec![4],
+                vec![],
+                vec![3],
+                vec![3],
+            ])
+            .unwrap();
+            lifetimes.discover(0);
+            lifetimes.close_unused_roots();
+            assert!(lifetimes.closed[5]);
+            lifetimes.discover(1);
+            lifetimes.discover(2);
+            assert_eq!(lifetimes.processed(0), vec![0]);
+            lifetimes.discover(3);
+            assert_eq!(lifetimes.processed(1), vec![1]);
+            // The first arrival can finish before another predecessor arrives.
+            assert!(lifetimes.processed(3).is_empty());
+            assert!(!lifetimes.closed[3]);
+            lifetimes.discover(4);
+            assert_eq!(lifetimes.processed(2), vec![2]);
+            assert!(!lifetimes.closed[3]);
+            lifetimes.discover(3);
+            assert_eq!(lifetimes.processed(4), vec![4]);
+            assert!(!lifetimes.closed[3]);
+            assert_eq!(lifetimes.processed(3), vec![3]);
+
+            let mut cycle =
+                IncomingKeyLifetimes::from_successors(vec![vec![1], vec![1, 2], vec![]]).unwrap();
+            cycle.discover(0);
+            cycle.close_unused_roots();
+            cycle.discover(1);
+            assert_eq!(cycle.processed(0), vec![0]);
+            cycle.discover(2);
+            assert!(cycle.processed(1).is_empty());
+            assert!(cycle.processed(2).is_empty());
+            assert!(!cycle.closed[1] && !cycle.closed[2]);
+            assert!(IncomingKeyLifetimes::from_successors(vec![vec![1]]).is_none());
+        }
+
+        #[test]
+        fn block_positions_preserve_lazy_missing_and_duplicate_queries() {
+            let id = |value| BlockId::new(value).unwrap();
+            let blocks = [id(1), id(2), id(4), id(2)];
+            let positions = BlockPositions::new(blocks.into_iter());
+            for target in [id(1), id(4), id(2), id(3), id(1)] {
+                let direct = {
+                    let mut matches = blocks
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, block)| **block == target);
+                    match matches.next() {
+                        None => Err(BlockPositions::ABSENT_ERROR),
+                        Some((_, _)) if matches.next().is_some() => {
+                            Err(BlockPositions::REPEATED_ERROR)
+                        }
+                        Some((position, _)) => Ok(position),
+                    }
+                };
+                let indexed = positions.position(target);
+                assert_eq!(indexed, direct);
+            }
+        }
+
+        #[test]
+        fn signature_collisions_keep_full_states_and_first_discovery() {
+            let segments = vec![
+                StructuralPathSegment::AllElements,
+                StructuralPathSegment::Case(StructuralCaseId::new(1).unwrap()),
+                StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1)),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2)),
+                StructuralPathSegment::FixedIndex(1),
+                StructuralPathSegment::FixedIndex(2),
+                StructuralPathSegment::FixedRange { start: 0, end: 3 },
+                StructuralPathSegment::FixedRange { start: 1, end: 3 },
+                StructuralPathSegment::FixedRange { start: 1, end: 4 },
+                StructuralPathSegment::RuntimeIndex {
+                    index: ValueId::new(1).unwrap(),
+                    obligation: ObligationId::new(1).unwrap(),
+                },
+                StructuralPathSegment::RuntimeIndex {
+                    index: ValueId::new(1).unwrap(),
+                    obligation: ObligationId::new(2).unwrap(),
+                },
+                StructuralPathSegment::RuntimeIndex {
+                    index: ValueId::new(2).unwrap(),
+                    obligation: ObligationId::new(1).unwrap(),
+                },
+                StructuralPathSegment::RepresentationView {
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    stored_scalar: None,
+                },
+                StructuralPathSegment::RepresentationView {
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    stored_scalar: Some(ScalarType::Boolean),
+                },
+                StructuralPathSegment::RepresentationView {
+                    structural_type: StructuralTypeId::new(2).unwrap(),
+                    stored_scalar: None,
+                },
+                StructuralPathSegment::Referent,
+            ];
+            let mut states = vec![
+                Vec::new(),
+                vec![RegionState::Absent],
+                vec![RegionState::Live],
+                vec![RegionState::Partial(Arc::new(Vec::new()))],
+                vec![RegionState::Partial(Arc::new(vec![Arc::from([])]))],
+                vec![RegionState::Absent, RegionState::Live],
+                vec![RegionState::Live, RegionState::Absent],
+                vec![RegionState::Partial(Arc::new(vec![
+                    segments.clone().into(),
+                ]))],
+                vec![RegionState::Partial(Arc::new(vec![
+                    segments.iter().rev().cloned().collect::<Vec<_>>().into(),
+                ]))],
+            ];
+            states.extend(
+                segments.into_iter().map(|segment| {
+                    vec![RegionState::Partial(Arc::new(vec![Arc::from([segment])]))]
+                }),
+            );
+            let mut index = ContinuationCandidates::new(2);
+            let mut continuations: Vec<Continuation> = Vec::new();
+            // Every distinct state collides. Replay both blocks and duplicates;
+            // the direct old search decides each first representative.
+            for block in [0, 1, 0, 1] {
+                for incoming in &states {
+                    let direct = continuations.iter().position(|candidate| {
+                        candidate.original_block == block && candidate.incoming == *incoming
+                    });
+                    let found = index.find(block, 0, incoming, &continuations);
+                    assert_eq!(found, direct);
+                    if found.is_none() {
+                        let position = continuations.len();
+                        continuations.push(Continuation {
+                            original_block: block,
+                            incoming: incoming.clone(),
+                            successors: Vec::new(),
+                        });
+                        index.insert(block, 0, position);
+                    }
+                }
+            }
+            assert_eq!(continuations.len(), states.len() * 2);
+        }
     }
 }
 pub(crate) mod structural_byte_sequence_store {

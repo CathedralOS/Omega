@@ -55,48 +55,11 @@ mod dominance {
         outgoing: &[Vec<usize>],
         entry: usize,
     ) -> Option<Vec<(usize, Option<usize>)>> {
-        let mut reachable = BTreeSet::new();
-        let mut pending = vec![entry];
-        while let Some(position) = pending.pop() {
-            if reachable.insert(position) {
-                pending.extend(outgoing.get(position)?.iter().copied());
-            }
-        }
-        if reachable.len() != incoming.len() {
+        let solver_order = reverse_postorder(outgoing, entry)?;
+        if solver_order.len() != incoming.len() {
             return None;
         }
-        let mut complete = vec![0_u64; incoming.len().max(outgoing.len()).div_ceil(64)];
-        for position in reachable {
-            complete[position / 64] |= 1_u64 << (position % 64);
-        }
-        let mut dominators = vec![complete; incoming.len()];
-        dominators[entry].fill(0);
-        dominators[entry][entry / 64] |= 1_u64 << (entry % 64);
-        loop {
-            let mut changed = false;
-            for (position, predecessors) in incoming.iter().enumerate() {
-                if position == entry {
-                    continue;
-                }
-                let (first, others) = predecessors.split_first()?;
-                let mut current = dominators[*first].clone();
-                for predecessor in others {
-                    for (word, predecessor_word) in
-                        current.iter_mut().zip(&dominators[*predecessor])
-                    {
-                        *word &= *predecessor_word;
-                    }
-                }
-                current[position / 64] |= 1_u64 << (position % 64);
-                if current != dominators[position] {
-                    dominators[position] = current;
-                    changed = true;
-                }
-            }
-            if !changed {
-                break;
-            }
-        }
+        let dominators = solve_sets(incoming, outgoing, entry, &solver_order)?;
         let mut order = Vec::with_capacity(incoming.len());
         let mut visited = BTreeSet::new();
         let mut pending = VecDeque::from([entry]);
@@ -123,6 +86,73 @@ mod dominance {
                 }
             })
             .collect()
+    }
+
+    // Block numbers can run opposite to control flow. Use graph order for
+    // convergence while keeping the returned lowering schedule breadth-first.
+    fn reverse_postorder(outgoing: &[Vec<usize>], entry: usize) -> Option<Vec<usize>> {
+        let mut reached = BTreeSet::new();
+        let mut pending = vec![(entry, false)];
+        let mut postorder = Vec::new();
+        while let Some((position, finished)) = pending.pop() {
+            if finished {
+                postorder.push(position);
+            } else if reached.insert(position) {
+                let successors = outgoing.get(position)?;
+                pending.push((position, true));
+                pending.extend(successors.iter().rev().map(|target| (*target, false)));
+            }
+        }
+        postorder.reverse();
+        Some(postorder)
+    }
+
+    fn solve_sets(
+        incoming: &[Vec<usize>],
+        outgoing: &[Vec<usize>],
+        entry: usize,
+        order: &[usize],
+    ) -> Option<Vec<Vec<u64>>> {
+        let mut complete = vec![0_u64; incoming.len().max(outgoing.len()).div_ceil(64)];
+        for position in order {
+            complete[*position / 64] |= 1_u64 << (*position % 64);
+        }
+        let mut dominators = vec![complete; incoming.len()];
+        dominators.get_mut(entry)?.fill(0);
+        dominators[entry][entry / 64] |= 1_u64 << (entry % 64);
+        let mut dirty = vec![true; incoming.len()];
+        dirty[entry] = false;
+        let mut pending_count = incoming.len() - 1;
+        while pending_count != 0 {
+            for position in order.iter().copied() {
+                // Clear before evaluation so a changed self-loop stays pending.
+                if !std::mem::replace(dirty.get_mut(position)?, false) {
+                    continue;
+                }
+                pending_count -= 1;
+                let (first, others) = incoming.get(position)?.split_first()?;
+                let mut current = dominators.get(*first)?.clone();
+                for predecessor in others {
+                    for (word, predecessor_word) in
+                        current.iter_mut().zip(dominators.get(*predecessor)?)
+                    {
+                        *word &= *predecessor_word;
+                    }
+                }
+                current[position / 64] |= 1_u64 << (position % 64);
+                if current != dominators[position] {
+                    dominators[position] = current;
+                    for successor in outgoing.get(position)? {
+                        if *successor != entry
+                            && !std::mem::replace(dirty.get_mut(*successor)?, true)
+                        {
+                            pending_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        Some(dominators)
     }
 
     fn dominator_positions(words: &[u64]) -> impl Iterator<Item = usize> + '_ {
@@ -223,7 +253,25 @@ mod dominance {
         }
 
         #[test]
-        fn packed_dominators_match_original_sets_for_all_small_graphs_and_boundaries() {
+        fn reverse_numbered_chain_keeps_each_immediate_parent_and_breadth_first_order() {
+            let count = 8192;
+            let mut outgoing = vec![Vec::new(); count];
+            let mut incoming = vec![Vec::new(); count];
+            for position in 1..count {
+                outgoing[position].push(position - 1);
+                incoming[position - 1].push(position);
+            }
+            let schedule = schedule(&incoming, &outgoing, count - 1).unwrap();
+            assert_eq!(schedule.len(), count);
+            assert!(schedule.into_iter().eq(
+                (0..count).rev().map(|position| {
+                    (position, (position != count - 1).then_some(position + 1))
+                })
+            ));
+        }
+
+        #[test]
+        fn scheduled_dominators_match_original_sets_for_all_small_graphs_and_boundaries() {
             for count in 1..=4 {
                 for mask in 0_u32..(1_u32 << (count * count)) {
                     let mut outgoing = vec![Vec::new(); count];
@@ -2373,6 +2421,10 @@ pub(crate) struct ReferenceEdgeStorage {
     retired_reference_roots: BTreeSet<PlaceId>,
 }
 
+// Saved block states share unchanged homes. An insertion copies the map only
+// when another state still needs its previous contents.
+pub(crate) type ScalarHomes = std::sync::Arc<BTreeMap<ValueId, TargetUnitScalarHomeRequirement>>;
+
 #[derive(Clone)]
 pub(crate) struct LiveDefinitions {
     borrowed_reference_sources: references::BorrowedSources,
@@ -2382,7 +2434,7 @@ pub(crate) struct LiveDefinitions {
     structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
-    scalar_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+    scalar_homes: ScalarHomes,
     ieee_float_constants: BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
     scalar_block_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
@@ -2755,7 +2807,7 @@ pub(crate) fn lower(
         structural_homes: BTreeMap::new(),
         integers: integer_parameters(function.machine, &prepared.scalar_parameters)?,
         booleans: BTreeMap::new(),
-        scalar_homes: BTreeMap::new(),
+        scalar_homes: ScalarHomes::default(),
         ieee_float_constants: BTreeMap::new(),
         scalar_block_parameters: BTreeMap::new(),
         views: BTreeMap::new(),

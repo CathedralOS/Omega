@@ -1816,6 +1816,7 @@ mod borrowed_windows {
                     expression: selector_target,
                 }),
                 cleanup: needs_cleanup.then(|| OperationPlan::ContinuationCleanup {
+                    partitions: Default::default(),
                     selected_regions: Vec::new(),
                     boundary: CheckedUnitCleanupBoundary::Replacement {
                         statement_index,
@@ -1825,6 +1826,7 @@ mod borrowed_windows {
                     },
                     cleanup_actions: vec![CheckedNormalCleanupAction::Discard(
                         CheckedUnitPartialAffineDiscardPlan {
+                            partition_leaf: Default::default(),
                             source: old_value.source,
                             path: old_value.path,
                             type_identity: produced.type_identity,
