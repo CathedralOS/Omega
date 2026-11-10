@@ -314,4 +314,4 @@ Entries not reached: 26 through 120.
 - Entries 26 through 120.
 - Subagent drafts: nothing from them is copied here.
 
-Pushed through entry 20 as `c8babc6d520401ddf340b24267096b08cfc41a15`. The final SHA is written on the last push.
+Entries 1 through 25 are in commit `d70b32772926e86553b03aa377575c2370f2a74b` on `work/grok-traces-2026-11-10`. Entries 26 through 120 were not reached.
