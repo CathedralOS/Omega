@@ -74,6 +74,9 @@ fn probe(main: &Path) -> String {
         return "no-entry\t-".to_owned();
     };
     let program = checked.source_inspection().program();
+    if std::env::var_os("STRUCTURE_ELABORATION_DUMP").is_some() {
+        dump_transitions(&program.typed);
+    }
     let elaboration = match structure_elaboration::elaborate(&program.typed, entry) {
         Ok(elaboration) => elaboration,
         Err(refusal) => return format!("refused\t{}", refusal.detail),
@@ -122,6 +125,42 @@ fn probe(main: &Path) -> String {
     match execution.resume(&mut WorkMeter::with_budget(10_000_000), &mut NoEffects) {
         Ok(status) => format!("ran\t{}\t{summary}\texpected={expected}", first_line(status)),
         Err(error) => format!("run-failed\t{}\t{summary}", first_line(error)),
+    }
+}
+
+/// Diagnostic only: each transition's guard and pattern handles, so a reader
+/// rule can be checked against what the typed trees actually hold.
+fn dump_transitions(typed: &typed_trees::TypedTrees) {
+    use typed_trees::statement::{StatementNode, TransitionGuardNode};
+    let kind = |handle: typed_trees::expression::ExpressionHandle| {
+        if handle.is_valid() {
+            let node = format!("{:?}", typed.expression_table.expression(handle));
+            format!("{handle:?}={}", node.chars().take(160).collect::<String>())
+        } else {
+            "invalid".to_owned()
+        }
+    };
+    for machine in typed.machines() {
+        for state in typed.machine_states.span(machine.states).unwrap_or(&[]) {
+            for statement in typed.statement_table.statements(state.statement_nodes) {
+                let StatementNode::Transition(transition) = statement else {
+                    continue;
+                };
+                let guard = match transition.guard {
+                    TransitionGuardNode::Always => "Always".to_owned(),
+                    TransitionGuardNode::When(guard) => kind(guard),
+                };
+                eprintln!("dump {} guard {guard}", machine.name);
+                for pattern in typed.statement_table.transition_patterns(transition.patterns) {
+                    eprintln!(
+                        "dump   pattern subject {} guard {} condition {}",
+                        kind(pattern.subject),
+                        kind(pattern.pattern.guard),
+                        kind(pattern.pattern.condition)
+                    );
+                }
+            }
+        }
     }
 }
 
