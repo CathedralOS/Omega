@@ -191,3 +191,67 @@ may be carried forward versus repeated in each consumer.
   per-specialization certificate re-verification:** Treat checking a generic
   template against its declared bounds as sufficient for all admitted concrete
   selections within a consumer check, re-checking only instantiation bounds.
+
+### Q3 - What source forms spell a brand, a stored theorem selection, an explicit choice between conflicting parent selections, and a computed record offered to Build?
+
+Decision name: `operation-record-source-forms`.
+
+**Customer.** `OPERATION-RECORD-IMPLEMENTATIONS` on [TASKS.md](TASKS.md) is a
+human-set priority item, and `OWNED-ACTIVATIONS` is sequenced after it. Its
+acceptance list in
+[operation-record implementations](wiki/drafts/designs/operation_record_implementations.md#acceptance)
+(ratified 2026-11-09 as documentation) names four behaviors that an author
+must be able to write: *"a branded pair is two"*, *"a stored theorem selection
+yields two"*, *"conflicting parents reject without an explicit choice"*, and *"A
+computed record offered to Build is checked for slots, realization and
+admission"*. The product requirement is the one the design states: a library
+that reuses existing machines in an implementation, and that keeps two policies
+with identical selections apart on purpose, without forwarding members.
+Implementation of the decided parts (selection rows, structural identity,
+static callable selections, the schema as a record type) is proceeding; these
+four acceptance cases cannot be written as programs.
+
+**Gap.** Contracts checked and found silent on the source form:
+
+- [Conformances](wiki/spec/language/conformances.md#implementations-are-operation-records):
+  *"a deliberately distinct policy carries an explicit brand"*. No section of
+  `conformances.md`, `machine_values.md`, `domains.md` or
+  [chapter 14](wiki/language_guide/chapter_14_traits.md) gives a declaration,
+  field or clause that is a brand, or says how a brand enters identity.
+- The same section: *"A strict proof is irrelevant, a stored theorem selection
+  retains its declaration identity"*. Traits declare laws today as resultless
+  `machine name(...) ensures ...;` requirements
+  (`source/library/core/algebra.omg`). Nothing says which source form makes a
+  law field a strict proof and which makes it a stored selection, so a row
+  `Trait::law = some_lemma;` has no defined sort.
+- The same section: *"a diamond duplicates nothing and conflicting selections
+  need an explicit choice"*. A diamond has one originating requirement and so
+  one slot; the text does not say what a conflict is in that case or how the
+  choice is written. Qualified rows (`Left::set = a; Right::set = b;`) already
+  separate same-named requirements of different origins.
+- The same section and
+  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection):
+  *"Build may consume a computed record"*. `Build::select_provider<Slot,
+  Provider>(builder)` takes a named implementation as a static argument. The
+  text does not say whether a `const` record of the schema is admissible as
+  `Provider` or whether another Build operation is meant.
+
+**Questions for Zac.**
+
+- **(a) Brand:** What is a brand in source: a field of the schema, a clause on
+  the `satisfies` block, a declared marker type, or an ordinary relevant field
+  the author adds? Does it take part in identity as a relevant field value?
+- **(b) Law evidence:** Is `Trait::law = lemma;` a strict proof, so identity
+  ignores which lemma was cited, with a separate form for a stored theorem
+  selection? If so, what is that form?
+- **(c) Explicit choice:** Is the choice a qualified row naming the parent
+  whose selection wins, and is a conflict two parent implementations selecting
+  different machines for one originating requirement?
+- **(d) Computed record to Build:** Is a `const` value of the schema admissible
+  wherever `select_provider` takes a named implementation, checked for slots,
+  realization and admission as today?
+
+One reading the implementer applies meanwhile, stated so it can be corrected:
+structural identity unifies two all-row `satisfies` blocks with the same
+selections, and does not unify a block with an inline member body with any
+other, because *"An inline body still declares a new machine"*.

@@ -112,6 +112,10 @@ machine save_dynamic<T>(format: &Codec<T>, value: &T, out: &mut [u8]) -> u64 {
 
 ## Acceptance
 
+Four cases below have no source spelling yet (brand, stored theorem selection,
+explicit choice, computed record offered to Build); see
+`operation-record-source-forms` in [OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md).
+
 - A codec assembled from two existing machines and their proof needs no
   forwarding member, and the existing law applies to the exact selections.
 - One trait declaration is used through a static parameter and as a runtime
