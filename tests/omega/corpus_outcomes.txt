@@ -14744,9 +14744,9 @@ fail/generics/contextual_static_machine_wrong_evidence_authority rejected 1421ms
 	generic machine `probe` cannot bind `Evidence` to conformance `Wrong`: expected a complete `Probe` implementation with the instantiated trait arguments
 fail/generics/contextual_static_machine_wrong_lifetime_result_source rejected 1620ms expected @ccdb99ca2214
 	machine argument `choose` for `apply` does not refine `Callback`: callable returned view has a different input-source relation
-fail/generics/core_slice_for_each_callback_mutability rejected 752ms expected @ccdb99ca2214
+fail/generics/core_slice_for_each_callback_mutability rejected 8322ms expected @d10ab95687ea
 	argument `items` for state `entry` is declared `&mut` (`&mut [Item]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/generics/core_slice_for_each_callback_reach rejected 2056ms expected @ccdb99ca2214
+fail/generics/core_slice_for_each_callback_reach rejected 11155ms expected @d10ab95687ea
 	machine argument `effectful` for `head` does not refine `Step`: service reach `Output` exceeds its authored ceiling
 	machine argument `effectful` for `head` does not refine `Step`: synchronous invocation `Output` exceeds its authored `invokes` ceiling
 	machine argument `effectful` for `done` does not refine `Step`: service reach `Output` exceeds its authored ceiling
@@ -14755,7 +14755,7 @@ fail/generics/core_slice_for_each_callback_reach rejected 2056ms expected @ccdb9
 	machine argument `effectful` for `for_each` does not refine `Step`: synchronous invocation `Output` exceeds its authored `invokes` ceiling
 	machine argument `effectful` for `for_each` does not refine `Step`: service reach `Output` exceeds its authored ceiling
 	machine argument `effectful` for `for_each` does not refine `Step`: synchronous invocation `Output` exceeds its authored `invokes` ceiling
-	machine `effectful` does not refine `ElementStep::apply`: its body may synchronously invoke binding `Output`, but the requirement omits `invokes Output;` (requirement invokes: [])
+	machine `effectful` does not refine `ElementStep::apply`: its body may synchronously invoke binding `Output`, but the requirement omits `invokes Output` (requirement invokes: [])
 	machine `effectful` state `entry` does not satisfy trait `ElementStep` machine `apply`: service `Output` is not allowed by the trait requirement
 fail/generics/core_slice_for_each_callback_termination rejected 2708ms unexpected @ccdb99ca2214
 	cannot prove published termination for machine `does_not_finish`: its checked body reaches an operation without a usable termination guarantee
@@ -20395,8 +20395,7 @@ pass/calls/runtime_param_receiver_second_instance_exit checked 17992ms check-tar
 pass/calls/runtime_projected_type_operand_scopes_exit checked 31166ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/calls/runtime_qualified_owned_result_argument_exit checked 3801ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_qualified_record_call_results_reused_exit checked 3156ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_qualified_tail_recursion_exit rejected 14676ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine call cycle: `Walker::walk`, `step` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/calls/runtime_qualified_tail_recursion_exit checked 39874ms check-target:macos_arm64 @d10ab95687ea
 pass/calls/runtime_qualified_terminal_result_exit checked 3534ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_reference_returned_slice_element_write_exit checked 17210ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit checked 11859ms check-target:macos_arm64 @ccdb99ca2214
@@ -25772,10 +25771,7 @@ pass/generics/contextual_static_machine_lifetime_result_sources_exit checked 326
 pass/generics/contextual_static_machine_open_const_exit checked 5729ms check-target:macos_arm64 @75dd4e483f7a
 pass/generics/contextual_static_machine_returned_view_local_exit checked 3445ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_universal_lifetime_application_exit checked 3705ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/core_slice_for_each rejected 2699ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine call cycle: `for_each`, `head` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-	machine call cycle: `for_each$specialized$7e3b6faed20da29c$1`, `head$specialized$3e103169b4998725$1` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-	machine call cycle: `for_each$specialized$488437f83a46b294$0`, `head$specialized$b51362fe10a4f527$0` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/generics/core_slice_for_each checked 15841ms check-target:macos_arm64 @d10ab95687ea
 pass/generics/cross_module_const_alias_callable_arguments_exit checked 8002ms check-target:macos_arm64 @d4295d67990d
 pass/generics/declared_range_endpoint_inference rejected 50353ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	authored Operator declaration selection occurrence 21291 (`+` in \\\\?\\tests\\omega\\pass\\generics\\declared_range_endpoint_inference\\main.omg) remained unresolved after successful checking (CheckedOperator)
@@ -27683,12 +27679,10 @@ pass/termination/inherited_acyclic_requirement_guarantee_compile checked 3024ms 
 pass/termination/inherited_requirement_guarantee_compile checked 2312ms @ccdb99ca2214
 pass/termination/interior_loop_header checked 3071ms @ccdb99ca2214
 pass/termination/joint_cycle_finish checked 3622ms @ccdb99ca2214
-pass/termination/joint_lexicographic_machine_call_cycle_compile rejected 1985ms regressed-from:checked @ccdb99ca2214
-	machine call cycle: `Main::scan_a`, `Main::scan_b` -- ranking preservation or strict DECREASE is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/joint_lexicographic_machine_call_cycle_compile checked 13771ms @d10ab95687ea
 pass/termination/joint_machine_call_cycle_forwarding_compile checked 2202ms @ccdb99ca2214
 pass/termination/joint_rank_acyclic_finish_exit checked 2992ms check-target:macos_arm64 @ccdb99ca2214
-pass/termination/lexicographic_measure rejected 2911ms regressed-from:checked @ccdb99ca2214
-	machine call cycle: `Main::scan_a`, `Main::scan_b` -- ranking preservation or strict DECREASE is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/lexicographic_measure checked 13577ms @d10ab95687ea
 pass/termination/lower_upper_endpoints checked 3381ms @ccdb99ca2214
 pass/termination/measure_borrowed_projection_range checked 3115ms @ccdb99ca2214
 pass/termination/measure_computed_endpoint checked 8824ms @8ff88b9df484
@@ -27707,9 +27701,7 @@ pass/termination/measure_field_rank_step checked 6067ms @8ff88b9df484
 pass/termination/measure_field_relational_range checked 6238ms @8ff88b9df484
 pass/termination/measure_field_remainder_limit checked 5853ms @8ff88b9df484
 pass/termination/measure_member_endpoint checked 7082ms @8ff88b9df484
-pass/termination/measure_nested_projection_range_pinned_limit rejected 13475ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=countdown.bounds.limit` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/measure_nested_projection_range_pinned_limit checked 13860ms @d10ab95687ea
 pass/termination/measure_nested_projection_range_relational checked 6454ms @8ff88b9df484
 pass/termination/measure_param_endpoint checked 9403ms @d352d5e8e77e
 pass/termination/measure_projected_rank checked 8411ms @d352d5e8e77e
@@ -27727,9 +27719,7 @@ pass/termination/nested_helper_record_measure_result_equation_exit checked 7632m
 pass/termination/nested_leaf_rank checked 6275ms @d352d5e8e77e
 pass/termination/nested_machine_computed_distance_indexed_upper_exit checked 4191ms check-target:macos_arm64 @6c0b29931314
 pass/termination/nested_machine_computed_distance_narrow_inputs_exit checked 3895ms check-target:macos_arm64 @6c0b29931314
-pass/termination/nested_pair_endpoint rejected 11099ms regressed-from:checked @911f6617ba9e
-	terminating machine walk: cannot prove rank range `0..=countdown.bounds.limit` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/nested_pair_endpoint checked 13450ms @d10ab95687ea
 pass/termination/nested_projection_measure checked 7486ms @8ff88b9df484
 pass/termination/predicate_requires_ranked_cycle checked 13641ms @ccdb99ca2214
 pass/termination/private_rank_endpoint_composed_endpoint_exit checked 27470ms check-target:macos_arm64 @4449c9d8ccc0
@@ -27785,11 +27775,7 @@ pass/termination/runtime_call_result_short_circuit_rank_exit checked 12984ms che
 pass/termination/runtime_computed_projected_measure_arrivals_exit checked 4128ms check-target:macos_arm64 @d352d5e8e77e
 pass/termination/runtime_computed_result_rank_arrivals_exit checked 4529ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/runtime_distance_crossed_header_exit checked 3255ms check-target:macos_arm64 @ccdb99ca2214
-pass/termination/runtime_float_requirement_integer_rank_exit rejected 5507ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminating machine countdown: cannot prove rank range `0..=4` for the rank produced by the selected view
-	terminating machine narrow: cannot prove rank range `0..=4` for the rank produced by the selected view
-	machine call cycle: `narrow` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/termination/runtime_float_requirement_integer_rank_exit checked 13463ms check-target:macos_arm64 @d10ab95687ea
 pass/termination/runtime_joint_rank_computed_copy_exit checked 3999ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/runtime_measure_input_requirement_exit checked 5290ms check-target:macos_arm64 @d159e82b5a61
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 12126ms check-target:macos_arm64 @ccdb99ca2214
