@@ -16,10 +16,15 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 | 8 | orch/project/build_directory.rs:254, :271-273, :217 | REACHABLE | An owner file with no `root ` line is treated as unowned, so another project root is admitted into that build directory. |
 | 9 | orch/package/package_review.rs:205-207 | CLOSED | `Ok(None)` means the required component is the package being reviewed. A missing candidate is an error. |
 | 10 | ba/lib.rs:201-203 | CLOSED | The only producer copies the plan digest into the occurrence immediately before this check. A mismatched digest is not supplied. |
+| 11 | cd/component_description.rs:334-336 | UNDECIDED | A missing identity becomes `""` and is stored in the called-requirement list. No emptiness rejection was found in the provider-closure check that was read. |
+| 12 | nc/realization/callback_thunks.rs:507 | UNDECIDED | `(None, None)` emits an ordinary callback. Whether a real handler is dropped from its own interrupt cohort before `retain` was not settled. |
+| 13 | whr/windows_handle_origins.rs:87 | CLOSED | Those origins are marked unknown, and the argument solver rejects an unknown word. The site comment already says they are unknowns. |
+| 14 | pa/provider_installation.rs:219-229 | UNDECIDED | An unselected catalog row is not installed. Whether a call to a boundary whose candidates were all filtered out is rejected later was not settled. |
+| 15 | pa/provider_installation/replay.rs:66-68, :151-160, :33-52 | CLOSED | A call with no replay row is left out of the selected-call map, and the settlement roster then requires a settlement for it. |
 
-`orch/` is `omega/build-system/orchestration/src/`. `ba/` is `omega/compilation/backend/artifacts/boundary-applications/src/`.
+`orch/` is `omega/build-system/orchestration/src/`. `ba/` is `omega/compilation/backend/artifacts/boundary-applications/src/`. `cd/` is `omega/compilation/backend/artifacts/component-description/src/`. `nc/` is `omega/compilation/native-compiler/src/`. `pa/` is `omega/compilation/realization/provider-admission/src/`. `whr/` is `pa/provider_admission/terminal_authority_review/`.
 
-Entries 11 onward are not written yet.
+Entries 16 onward are not written yet.
 
 ## 1. `comp/product_execution.rs:473-491`
 
@@ -160,4 +165,66 @@ Search `TerminalIeeeFloatComparisonOccurrenceProposal {`: 3 hits. Two are the st
 Digest: right that this roster does not compare the commitment. The commitment cannot disagree on the only path that reaches the check.
 
 Not read: later consumers of the stored commitment field. They receive a value copied from the plan this function just checked by index.
+
+## 11. `cd/component_description.rs:334-336`
+
+`identity_text` (`component_description.rs:334-336`, read). `module.identities.text(identity)` missing becomes `""`. Search `identity_text(` in this crate: the definition, eight call sites in `component_description.rs`, and uses in `component_verification.rs`.
+
+`derive_component_inventory` pushes that string into `called_requirement_identities` with no emptiness test (`:567-572`, read). The provider-closure check (`component_verification.rs:780-829`, read) rejects an empty `requirement_identities` list on a retained provider (`:799-803`) and a zero plan digest. It does not reject a called identity whose text is `""`. I stopped at `:829`.
+
+Verdict UNDECIDED. What would decide it: the rest of that verification function, and whether a missing identity index can occur for a module that still verifies. If `""` is compared with a plan row whose requirement text is also empty, two different missing identities would compare equal.
+
+Digest: right that a missing identity becomes `""`.
+
+Not read: `component_verification.rs` after `:829`.
+
+## 12. `nc/realization/callback_thunks.rs:507`
+
+`PreparedEntryPlans::for_body` (`callback_thunks.rs:479-526`, read). `(None, None)` returns `Ok(None)`. Any other mismatch is `Err`. The caller is `lower_callback_thunk` (`:305-320`, read). `Ok(None)` skips `with_installed_entry_execution`, so the body is prepared as an ordinary callable.
+
+`for_body` runs before `prepare_installed_callbacks`, which is the function that calls `retain` (`:153`, read). `realize` (`:75-114`, read) stores the first object and later returns it without lowering again (`:87-95`).
+
+The cohort `for_body` reads is `admitted_installed_interrupts()` on the body just lowered. `admit_prepared_native_realization` keeps a parent interrupt when `in_scope` is true or a callback occurrence matches (`native_execution_scope.rs:707-727`, read). `in_scope` (`:681-684`, read) is true when the operation is in the body's plan, or when the body's module does not contain that operation as a boundary call. If the handler's own admission still contains the placement, `for_body` sees `Some` against a `None` slot and rejects. If that admission drops the placement, `for_body` returns `Ok(None)` and the ordinary object is reused.
+
+Verdict UNDECIDED. What would decide it: for one installed-handler body, whether the filtered `installed_interrupts` in `admit_prepared_native_realization` still contain that placement. I did not execute a handler and I did not read `lower_callable` past `retained_terminal.rs:374-401`.
+
+Digest: right about the `(None, None)` result. The producer half is the filter above, which I read, and the body's own operation set, which I did not.
+
+Not read: `InstalledInterruptEntryPlan` consumers after a successful `Some` arm.
+
+## 13. `whr/windows_handle_origins.rs:87`
+
+`OriginKind::ExternalInput` and `OpaqueObservation` (`windows_handle_origins.rs:86-89`, read). The comment on the site says inputs or observations with no derived identity remain explicit unknowns, and no consumer may treat absent edges as empty reach. The digest's "no reason at the site" is wrong. The comment is the reason.
+
+`HandleArgumentValues::from_origins` maps both, plus `NativeOutput`, `IntrinsicReturn`, and `InactiveCase`, to `ArgumentValues::Unknown` (`windows_handle_arguments.rs:250-254`, read). `actual` (`:290-307`, read) returns `Err` "has no complete closed value derivation" unless the value is a nonempty `Finite` set. `words` and `exact` (`:310-344`, read) call `actual`. `prepare_handle_arguments` (`:151-181`, read) sends `CreateFile`, `DuplicateHandle`, `QueryFileMode`, `ReadFile`, `WriteFile`, and `QueryFinalPath` through those solvers. Search `OriginKind::ExternalInput`: I read the match arm; I did not grep a count beyond this file and `windows_handle_arguments.rs`.
+
+An external parameter or an opaque observation used as one of those native arguments fails the word check. It is not treated as an empty handle list.
+
+Digest: the "no sources" description matches the variants. The open question is closed by `actual`.
+
+Not read: `windows_handle_replay.rs` outside this argument path. `NoHandleIntervention`, `CurrentProcess`, and `CloseHandle` take `CurrentValues` and do not call `actual` (`:175-177`). I did not read whether those contracts can consume an `ExternalInput` origin.
+
+## 14. `pa/provider_installation.rs:219-229`
+
+`admit_terminal_provider_installation` (`provider_installation.rs:214-232`, read). The filter keeps a catalog candidate only when some selected row's requirement text equals `identities.text(candidate.requirement_identity)`. Search `admit_terminal_provider_installation`: I used the definition and did not record a second caller in the earlier grep of this name. `select_provider_candidates` (`:234-316`, read) groups the already filtered list. `MissingSelectedProvider` (`:278-281`) fires only for a boundary that survived the filter and whose text is then absent from `selected_by_req`. An unselected catalog row never enters that list, so it is not installed and it does not raise that error.
+
+That drop is the selection. It is a wrong accept only if a program can call a boundary whose every catalog candidate was filtered out and a later stage still accepts the call. I did not read the interpreter's missing-provider check.
+
+Verdict UNDECIDED. What would decide it: the consumer of `AdmittedProviderSelections` when a called boundary has no installed candidate because the filter removed it.
+
+Digest: right that unselected rows are dropped before the missing-provider check. That check cannot see them.
+
+Not read: `embedding.rs` and `engine_execution.rs`.
+
+## 15. `pa/provider_installation/replay.rs:66-68`, `:151-160`, `:33-52`
+
+`replay_installed_provider_calls` (`replay.rs:24-160`, read through the second `continue`). Search `replay_installed_provider_calls\(`: 2 hits, the definition and `provider_installation.rs:200`. An empty `installed` slice returns no calls (`:30-32`). `or_insert` keeps the first boundary, assumption, function, and machine (`:33-52`). An external completion or boundary call with no installed provider `continue`s (`:66-68`, `:151-160`).
+
+The caller stores those calls on the installation (`provider_installation.rs:185-205`, read). `index_installed_provider_calls` (`coordination.rs:43-71`, read) inserts them and rejects a duplicate key (`:63-68`). `selected_boundary_calls::index` (`omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs:538-675`, read) leaves a call with no installed row and no target family out of the selected map (`:674`, `(None, None) => continue`). `validate_settlement_roster` (`coordination.rs:430-476`, read) then requires a settlement for every boundary call absent from that map (`:460-467`) and rejects a boundary that was only partly installed (`:446-458`). The call at `coordination.rs:534-546` (read) runs this after the index.
+
+A call with no installed provider is not replayed, and it is not accepted unless a settlement covers it. Two installed candidates for one boundary cannot reach `or_insert` from `select_provider_candidates`, which requires exactly one match (`provider_installation.rs:295-301`, read).
+
+Digest: right about the skip and first-wins. The skip does not accept the call.
+
+Not read: the external-completion arm of `index_boundary_calls` past `:89`. Boundary calls are indexed. External completions are handled in `replay` and in `selected_boundary_calls::index`, which I did read.
 
