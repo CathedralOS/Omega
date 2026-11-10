@@ -41,6 +41,11 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 | 33 | pp/service_schema/mod.rs:44 | UNDECIDED | A schema that is not a boundary trait gets no calling attachments from this loop. Whether one can still carry calling plans was not settled. |
 | 34 | ps/binding.rs:159 | REACHABLE | A qualification requirement that matches zero granted plans passes. Only two or more matches are an error. |
 | 35 | ps/binding/provider_instances.rs:81 | REACHABLE | An application with zero candidates is skipped, so a bad declaration result on that application is not read. |
+| 36 | ps/bodies.rs:184-187 | CLOSED | No numeric candidate returns the retained execution only when that execution is absent or not numeric. A demanded intrinsic still needs an execution identity. |
+| 37 | ps/bodies/callback_roots.rs:174-176 | REACHABLE | An external callback registration with no selected row is not foreign, so it is not a composition root, and the selector can still return success. |
+| 38 | ps/bodies/target_bodies.rs:76-80 | REACHABLE | No entry, or an entry with no explicit body for this target, leaves the frontier empty, and an empty refusal list returns success. |
+| 39 | ps/publication.rs:494-497, :503-506 | UNDECIDED | A machine with no callable declaration, and an operation with no demand record, are skipped. Whether that machine is still executed was not settled. |
+| 40 | sd/compiler_intrinsic.rs:136-138 | CLOSED | `Unsupported` is stored as a missing execution, and a demanded boundary rejects a missing execution. |
 
 `orch/` is `omega/build-system/orchestration/src/`. `ba/` is `omega/compilation/backend/artifacts/boundary-applications/src/`. `cd/` is `omega/compilation/backend/artifacts/component-description/src/`. `nc/` is `omega/compilation/native-compiler/src/`. `pa/` is `omega/compilation/realization/provider-admission/src/`. `whr/` is `pa/provider_admission/terminal_authority_review/`.
 
@@ -50,7 +55,7 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 
 `sd/` is `omega/compilation/realization/selected-dispatch/src/`.
 
-Entries 36 onward are not written yet.
+Entries 41 onward are not written yet.
 
 ## 1. `comp/product_execution.rs:473-491`
 
@@ -475,4 +480,56 @@ A checked-adapter application with zero candidates publishes nothing and no diag
 Digest: right about the empty-candidate skip. `:99` was not the line I read; the continue I read is `:81-83`.
 
 Not read: `generic_instances`.
+
+## 36. `ps/bodies.rs:184-187`
+
+`selected_execution_for_identity` (read `:167-197`). No row from `selected_numeric_provider` calls `reconcile_numeric_meaning(None, retained)` and returns `Ok(retained)` (`:184-186`). `reconcile_numeric_meaning` (`effects/src/external_providers.rs:153-170`, read) returns `Ok(())` for `(None, _, false)`, which is a retained execution that is absent or not numeric. Any numeric retained execution is the `Err` arm (`:169`).
+
+`select_boundary_applications` rejects a `CompilerIntrinsic` row whose execution is `None` (`boundary.rs:109-111`, read). Returning `Ok(None)` from this function does not admit a demanded intrinsic.
+
+Digest: right that the function returns `retained`. A numeric retained value is rejected by `reconcile_numeric_meaning`. A missing execution is rejected when the boundary is demanded.
+
+Not read: `selected_numeric_provider` itself. I read its caller and `reconcile_numeric_meaning`.
+
+## 37. `ps/bodies/callback_roots.rs:174-176`
+
+`registration_is_foreign` (read `:166-186`). An `External` registration with `provider == None` returns `Ok(false)` (`:174-176`). `select_callback_declarations` (read `:115-160`) uses that flag. With exactly one calling plan and `foreign_registration == false`, the use is not pushed (`:155-157`) and is not diagnosed. An empty diagnostic list returns `Ok(roots)` (`:159-160`).
+
+An external callback registration that has one calling plan and no selected provider row is left out of the roots, and the selector succeeds.
+
+Digest: right.
+
+Not read: `retained_roots` in the terminal producer. This function's `Ok` is the accept at this stage.
+
+## 38. `ps/bodies/target_bodies.rs:30-32`, `:97`, `:76-80`
+
+`DirectTargetBodyAbsences::derive` (read `:20-54`) skips a call whose `machine` is `None` (`:30-32`). That call does not mark the caller absent.
+
+`reject_reached_inert_calls` (read `:65-122`). The frontier is the entry's explicit body (`:76-80`). No entry, or no explicit body, leaves it empty. A provider-row realization with no graph position is dropped by `filter_map` (`:92-97`). The walk then adds no refusal. An empty refusal list returns `Ok(())` (`:119-120`).
+
+A selected entry machine with no explicit body for this target does not refuse direct calls. The same `Ok` covers a reached call that has no callee machine and no graph position.
+
+Digest: right about the three skips. The empty frontier is also an entry that exists but has no explicit body, not only a missing entry.
+
+Not read: `execution_settlement.rs` past the call the digest already recorded at `:357-364`. I read this function's `Ok`.
+
+## 39. `ps/publication.rs:494-497` and `:503-506`
+
+`extend_application_demand` (read `:493-507`). A machine with no `callable_declaration` is skipped (`:494-497`). An operation whose id is not in `boundary_application_demands` is skipped (`:503-506`). I did not read the rest of `select` or `ProofApplications::reachability`.
+
+Verdict UNDECIDED. What would decide it: whether lowering can put a boundary-application demand on a machine that has no callable association and is still executed.
+
+Digest: the two `continue`s match the code.
+
+Not read: `publication.rs` after `:507`.
+
+## 40. `sd/compiler_intrinsic.rs:136-138`
+
+`settle_declaration` (read `:127-139`) maps `settle`'s `None` to `Unsupported`. Review stores that as `None` and continues (`intrinsic_review.rs:262-264`, read). `select_boundary_applications` rejects a demanded `CompilerIntrinsic` whose execution is `None` (`boundary.rs:109-111`, read).
+
+`Unsupported` is a value in this function. A demanded boundary does not keep it.
+
+Digest: the value is real. The header claim that package review rejects unsupported children was not what I read. I read review storing `None` (`:262-264`), not a rejection there. The rejection I read is the boundary demand.
+
+Not read: `intrinsics.rs` reconcile.
 
