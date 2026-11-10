@@ -1,0 +1,8 @@
+A0537	ACCEPT	area_14	q:5551-5556	GROUP: **q, rc (12)** | - q:5551-5556 argument with no data definition accepted if spelled like a primitive.
+A0538	ACCEPT	area_14	q:7540-7549	GROUP: **q, rc (12)** | - q:7540-7549 — "a quotient type whose definition is not in `data_definitions()` would be treated as an ordinary type".
+A0539	ACCEPT	area_14	q:424-426	GROUP: **q, rc (12)** | - q:424-426 authority is path text `"relation.omg"`; whether a non-toolchain symbol can return it "was not traced".
+A0540	ACCEPT	area_14	rc:1483-1490	GROUP: **q, rc (12)** | - rc:1483-1490 returns with no diagnostic while layout geometry is pending; the re-run pass was not traced.
+A0541	ACCEPT	area_14	rc:1795-1800	GROUP: **q, rc (12)** | - rc:1795-1800 pending view accepted and checked at consumption; coverage of consumption paths untraced.
+A0542	ACCEPT	area_14	rc:731-770	GROUP: **q, rc (12)** | - rc:731-770 — "a reference to a pending view received from another machine is not charged here".
+A0543	ACCEPT	area_14	rc:1902-1907	GROUP: **q, rc (12)** | - rc:1902-1907 silent return if a scalar byte size is `None`.
+A0544	ACCEPT	area_14	rc:2307-2321	GROUP: **q, rc (12)** | - rc:2307-2321 only scalar-vs-scalar puns are reported.

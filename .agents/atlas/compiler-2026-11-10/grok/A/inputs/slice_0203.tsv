@@ -1,0 +1,8 @@
+U0191	UNUSED	area_03	-	GROUP: **isa-x86_64** | - `encode_hosted_exit_process_i32_for_target`, `encode_hosted_write_byte_i32_from_r11`: 1 hit each outside their file, the `lib.rs` re-export (u007; checked).
+U0192	UNUSED	area_03	lib.rs:232-236	GROUP: **isa-x86_64** | - `encode_binary32_bits_to_xmm`, `encode_binary64_bits_to_xmm`, `encode_store_mxcsr_constant_rsp_displacement`, `decode_vfmadd132_scalar`: only `lib.rs:232-236` re-exports (u007; checked).
+U0193	UNUSED	area_03	X-SFE:14419	GROUP: **isa-x86_64** | - `X-SFE:14419, 14436`: two materialization error enums with no functions; users not grepped (u009).
+U0194	UNUSED	area_03	machine_effects.rs:1176-1182	GROUP: **isa-x86_64** | - `machine_effects.rs:1176-1182, 1451`: `AccessorScalarAccess` arms possibly dead; inferred from dispatch order, not traced (u008).
+U0195	UNUSED	area_03	semantic_unit_wrapper_encoding.rs:529	GROUP: **isa-x86_64** | - `semantic_unit_wrapper_encoding.rs:529, 266`: an R8 prefix and a capacity of 3 that the one canonical request never uses (u009).
+U0196	UNUSED	area_03	-	GROUP: **isa-x86_64** | - Post-handoff writer exports: see Disagreements 3.
+U0197	UNUSED	area_03	-	GROUP: **isa-aarch64** | - `trapping_forms::byte_size`: 0 uses outside its module; `floating_control::clobbers`: 0; `plan_words::words`: none (u007-gap-003).
+U0198	UNUSED	area_03	-	GROUP: **isa-aarch64** | - No `validate_aarch64_selected_dynamic_call_template` exists (u007-gap-004).

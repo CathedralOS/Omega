@@ -1,0 +1,8 @@
+A0553	ACCEPT	area_14	scc:2953-2958	GROUP: **rrc, scc, tr (13)** | - scc:2953-2958, 2980-2987, 3017 — "an unresolved named type contributes no qualifications".
+A0554	ACCEPT	area_14	tr:1517-1531	GROUP: **rrc, scc, tr (13)** | - tr:1517-1531 `AppliedTraitScope::new` returning `None` skips signature, evidence and law checks.
+A0555	ACCEPT	area_14	tr:1718-1724	GROUP: **rrc, scc, tr (13)** | - tr:1718-1724 — "named evidence rows backed by expression/membership facts get no equality check".
+A0556	ACCEPT	area_14	tr:3681-3697	GROUP: **rrc, scc, tr (13)** | - tr:3681-3697, 7907-7909 silent return on shape mismatch (open for data/conformance paths).
+A0557	ACCEPT	area_14	tr:2912	GROUP: **rrc, scc, tr (13)** | - tr:2912, 2933-2941 — "an implementation whose reference lifetime is unconstrained by the requirement gets no region check".
+A0558	ACCEPT	area_14	tr:7397-7399	GROUP: **rrc, scc, tr (13)** | - tr:7397-7399, 7490-7505 — "a refinement whose clause signature loses `suspends` without a recorded keyword span would not reject a suspending realization".
+A0559	ACCEPT	area_14	tr:362-363	GROUP: **rrc, scc, tr (13)** | - tr:362-363, 5366-5368 fall back to the first state on a name miss.
+A0560	ACCEPT	area_14	trw:5633	GROUP: **trw, vcc (28)** | - trw:5633 — a demand requiring canonicality over schemas with no declared codec is satisfied.

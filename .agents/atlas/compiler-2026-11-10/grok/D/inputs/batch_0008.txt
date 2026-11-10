@@ -1,0 +1,3 @@
+tests/omega/fail/blockexec/blocking_executor_ticket_scope_loss
+tests/omega/fail/blockexec/worker_body_requires_suspend_safe_arguments
+tests/omega/fail/blockexec/worker_body_selected_machine_type_mismatch

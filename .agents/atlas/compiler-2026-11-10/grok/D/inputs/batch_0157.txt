@@ -1,0 +1,10 @@
+tests/omega/fail/range/element_view_field_domain_occurrence
+tests/omega/fail/range/funnel_guard_one_edge_unguarded
+tests/omega/fail/range/guarded_copy_stale_after_write
+tests/omega/fail/range/guarded_runtime_index_collection_write
+tests/omega/fail/range/indexed_field_range_runtime_write_rejected
+tests/omega/fail/range/indexed_field_window_different_positions
+tests/omega/fail/range/indexed_field_window_inherited_debt
+tests/omega/fail/range/indexed_field_window_overlapping_concrete_debt
+tests/omega/fail/range/nested_array_element_view_out_of_bounds
+tests/omega/fail/range/refined_element_view_outside_field_domain

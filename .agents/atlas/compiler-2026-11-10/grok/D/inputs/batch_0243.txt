@@ -1,0 +1,2 @@
+tests/omega/pass/entry/nested_where_record_binding_field_exit
+tests/omega/pass/entry/service_borrowed_slice_call

@@ -1,0 +1,13 @@
+tests/omega/pass/arrays/array_operand_epochs
+tests/omega/pass/arrays/computed_fixed_array_length_exit
+tests/omega/pass/arrays/data_binding_index_hoist
+tests/omega/pass/arrays/guard_compound_index
+tests/omega/pass/arrays/indexed_state_arg
+tests/omega/pass/arrays/local_record_array_guard_exit
+tests/omega/pass/arrays/qualified_array_literal
+tests/omega/pass/arrays/qualified_array_literal_retains_element_policy_exit
+tests/omega/pass/arrays/record_array_literal
+tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit
+tests/omega/pass/arrays/runtime_computed_float_element_store_exit
+tests/omega/pass/arrays/runtime_index_recast
+tests/omega/pass/arrays/subject_field_where_index

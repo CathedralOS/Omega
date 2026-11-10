@@ -1,0 +1,6 @@
+D0009	DROP	area_08	checks_multiplicity.rs:2110-2112	- `checks_multiplicity.rs:2110-2112`, `:4796-4822`, `:8430-8482`, `:8754-8759`, `:8839-8855`, `:9802-9937`. `checks_multiplicity_borrowed_windows.rs:565-567`, `:1368/1433/1480`.
+D0010	DROP	area_08	checks_multiplicity_claim_outcomes.rs:1678-1855	- `checks_multiplicity_claim_outcomes.rs:1678-1855`; `checks_multiplicity_cleanup_dispositions.rs:1311-1318`, `:1349-1351`; `checks_multiplicity_linear_validation.rs:489-494`, `:574-579`, `:679-684`, `:3654`; `checks_multiplicity_permission_events.rs:178-186`.
+D0011	DROP	area_08	checks_operators.rs:1835-1870	- `checks_operators.rs:1835-1870`, `:190-332`.
+D0012	DROP	area_08	checks_ranges.rs:6271	- `checks_ranges.rs:6271/6285`, `:11163-11230`, `:4459`, `:1077-1079`; `checks_ranges_facts.rs:2639` (incomplete read set stored as `None`).
+D0013	DROP	area_08	checks_termination_progress.rs:1088-1093	- `checks_termination_progress.rs:1088-1093`, `:4378-4383`.
+D0014	DROP	area_08	execution.rs:166-168	- `execution.rs:166-168`, `:292-301`, `:594-596` (whole plan omitted).

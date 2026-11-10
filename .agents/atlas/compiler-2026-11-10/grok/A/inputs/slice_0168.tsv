@@ -1,0 +1,8 @@
+D0149	DROP	area_03	-	- isa-x86_64 (7): `register_model.rs` builders stop appending with `else { return; }` in `float_scalar_calls` (1474-1515), `indirect_results` (1684-1714), `mixed_aggregate_calls` (1763-1777), `mixed_calls` (1966-2000), `append_row` (1955-1957), `append_normalized_foreign_constraints` (2036-2041), `packed_memory` (2386-2388). u008 traced that the validator's required-key list then reports the missing rows.
+D0150	DROP	area_03	code_layout.rs:103	- machine-emission (2): `code_layout.rs:103` drops zero-length spans; `fragment_emission.rs:964` gives `None` provenance to any unmatched instruction (traced as checked on replay).
+D0151	DROP	area_03	boundary_values.rs:467	- layout (2): `boundary_values.rs:467` drops fields with erased relevance; `terminal_callback_layouts.rs:456, 483` skips zero-size fields.
+D0152	DROP	area_03	synchronous_invocations.rs:200-205	- backend-plan (1): `synchronous_invocations.rs:200-205`.
+D0153	DROP	area_03	provider_grants.rs:80-82	- effects (3): `provider_grants.rs:80-82`; `executable_scopes.rs:803-818`; `provider_evidence.rs:1199-1204` (missing identity index becomes `""`).
+D0154	DROP	area_03	names.rs:79-85	- object-file (1): `names.rs:79-85`.
+D0155	DROP	area_03	entry_signature.rs:265-267	- program-entry-plan (2): `entry_signature.rs:265-267, 286-288`; `optimized_semantic_wrapper.rs:287, 304` (`.map_err(|_| InvalidSemanticPlan)` discards the reason text).
+D0156	DROP	area_03	activation.rs:313	- task-plans (1): `activation.rs:313` (`.ok()` turns a layout failure into `None`).

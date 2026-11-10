@@ -1,0 +1,8 @@
+S0115	SAMEJOB	area_11	pc/lib.rs:103-125	- **"Find a prior equal input" cache, 3 copies:** `pc/lib.rs:103-125`, `pc/source_checking.rs:861-874`, `pc/source_compilation.rs:300-341`.
+S0116	SAMEJOB	area_11	pc/source_compilation.rs:838-871	- **"Pick pending machines, resolve bodies, type bodies, repeat" loop, 3 copies:** `pc/source_compilation.rs:838-871`, `:892`, `:1086`.
+S0117	SAMEJOB	area_11	tp/build_bindings.rs:598	- **Build protocol capture wrappers, 3 copies over one generic:** `tp/build_bindings.rs:598`, `:879`, `:954` over `:652`; `capture` at `:387` re-implements a similar scan.
+S0118	SAMEJOB	area_11	tp/lib.rs:333-364	- **Stage label table kept parallel to an enum by hand:** `tp/lib.rs:333-364` (inferred).
+S0119	SAMEJOB	area_11	fa/lib.rs:1819	- **Place identity, 3 notions:** structural (`fa/lib.rs:1819`, `:1709`), label-capable (`fa/lib.rs:1827`), write-frame path strings (`c&p:1796`).
+S0120	SAMEJOB	area_11	p:1226	- **Member symbol by name, 3 paths:** `c&p:1226`, `:1543`, `:1574`; `prf/obligations.rs:711` is a "suspected" further one.
+S0121	SAMEJOB	area_11	ct/flow_terminal_units.rs:287	- **"Does control return normally", 7 implementations plus one stored bool:** `ct/flow_terminal_units.rs:287`, `:802`, `:2124`, `:1311`, `:2019`; `ct/flow_terminal.rs:1816`; `ct/values_and_views.rs:1231`; stored `ct/flow_terminal_units.rs:636`.
+S0122	SAMEJOB	area_11	ct/facts.rs:366	- **`iter().find(|x| x.machine == machine)`, about 14 copies:** `ct/facts.rs:366`, `:1736`, `:1936`, `:1968`, `:2029`, `:2053`, `:2683`, `:3272`; `ct/termination_and_cleanup_facts.rs:893`; `ct/flow_terminal.rs:2544`, `:289`, `:311`; `ct/flow_terminal_units.rs:1564`, `:1568`.

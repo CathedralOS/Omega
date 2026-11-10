@@ -1,0 +1,16 @@
+tests/omega/fail/relevance/erased_array_missing
+tests/omega/fail/relevance/erased_array_runtime_read
+tests/omega/fail/relevance/erased_array_wrong_element
+tests/omega/fail/relevance/erased_array_wrong_extent
+tests/omega/fail/relevance/erased_array_wrong_record
+tests/omega/fail/relevance/erased_local_receiver_call
+tests/omega/fail/relevance/erased_mutable_parameter
+tests/omega/fail/relevance/erased_parameter_runtime_read
+tests/omega/fail/relevance/erased_reference_distinct_subject
+tests/omega/fail/relevance/erased_reference_mutable_formal
+tests/omega/fail/relevance/erased_reference_runtime_guard
+tests/omega/fail/relevance/erased_reference_runtime_result
+tests/omega/fail/relevance/erased_reference_stale_field
+tests/omega/fail/relevance/erased_reference_stale_referent
+tests/omega/fail/relevance/static_proof_borrow_requires_storage
+tests/omega/fail/relevance/static_proof_result_cannot_materialize

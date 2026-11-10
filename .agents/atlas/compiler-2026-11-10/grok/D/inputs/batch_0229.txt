@@ -1,0 +1,14 @@
+tests/omega/pass/control_flow/single_case_parameter_dispatch_exit
+tests/omega/pass/control_flow/single_case_result_dispatch_exit
+tests/omega/pass/control_flow/single_case_wildcard_dispatch_exit
+tests/omega/pass/control_flow/state_local_operand_edge_call_exit
+tests/omega/pass/control_flow/static_bounded_byte_state_loan_exit
+tests/omega/pass/control_flow/stored_reference_holder_disposal_exit
+tests/omega/pass/control_flow/structural_result_transition_tail
+tests/omega/pass/control_flow/sum_field_storage_roundtrip
+tests/omega/pass/control_flow/termination_index_distance_compile
+tests/omega/pass/control_flow/three_param_state_forward_compile
+tests/omega/pass/control_flow/transition_operand_schedule
+tests/omega/pass/control_flow/transition_tail_self_call
+tests/omega/pass/control_flow/unconditional_unit_completion_exit
+tests/omega/pass/control_flow/wildcard_structural_return_operand_schedule_exit

@@ -1,0 +1,3 @@
+tests/omega/pass/range/data_parameter_counter_non_negative_exit
+tests/omega/pass/range/runtime_funnel_guard_agreement_exit
+tests/omega/pass/range/runtime_guarded_runtime_index_increment_exit

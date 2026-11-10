@@ -1,0 +1,1 @@
+tests/omega/pass/resources/owned_extent_label_erasure_exit

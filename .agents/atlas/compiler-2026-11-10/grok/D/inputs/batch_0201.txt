@@ -1,0 +1,11 @@
+tests/omega/pass/borrows/suspension_saved_reference_view_source_replaced_exit
+tests/omega/pass/borrows/tagged_scalar_field_live_copy_exit
+tests/omega/pass/borrows/target_family_backing_alternatives_exit
+tests/omega/pass/borrows/template_prefix_forms_owned_borrow_exit
+tests/omega/pass/borrows/terminal_call_loan_completion_exit
+tests/omega/pass/borrows/transition_shared_borrow_result
+tests/omega/pass/borrows/view_field_record_exit_disposal
+tests/omega/pass/borrows/view_local_rebind_keeps_alias_exit
+tests/omega/pass/borrows/write_projection_loan
+tests/omega/pass/borrows/writeonly_record_field_store
+tests/omega/pass/borrows/writeonly_record_field_store_variants

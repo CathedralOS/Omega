@@ -1,0 +1,8 @@
+A0626	ACCEPT	area_04	LSG:7376-7409	- LSG:7376-7409 into LSrc:3053: `structural_contract` returning `None` is accepted (inferred).
+A0627	ACCEPT	area_04	LSrc:1287-1469	- LSrc:1287-1469: byte and element view read and write projections do not compare against the target row.
+A0628	ACCEPT	area_04	LT:810-812	- LT:810-812 with 446-448: an unreached block is dominated by everything; "a target plan whose unreachable block uses values defined in other blocks". Traced for selection (rejected at S03/selection.rs:166-168); open for the standalone audit.
+A0629	ACCEPT	area_04	S03/optimized.rs:68-70	- S03/optimized.rs:68-70: a required register parameter with no fixed view in the environment gets no constraint and no error.
+A0630	ACCEPT	area_04	S03/selection.rs:1559	- S03/selection.rs:1559: an instruction kind not in the `referent_used` list counts as not using the referent.
+A0631	ACCEPT	area_04	S03/selection_call_abi.rs:1428-1430	- S03/selection_call_abi.rs:1428-1430: "a function with no result and arbitrary parameter placements passes this entry predicate".
+A0632	ACCEPT	area_04	SIN:647-649	- SIN:647-649 ("a new instruction kind that reads a parameter place and is not added to the list ... would silently get no home"), SIN:2540, SIN:4856-4858, SIN:3276, SIN:30-32 and 49-51.
+A0633	ACCEPT	area_04	S03/selection_interrupts.rs:404-475	- S03/selection_interrupts.rs:404-475: memory footprint uses hard-coded 104 and 10.

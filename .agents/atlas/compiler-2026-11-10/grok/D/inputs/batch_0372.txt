@@ -1,0 +1,2 @@
+tests/omega/pass/tasks/ordinary_named_task_runtime_compile
+tests/omega/pass/tasks/task_runtime_machine_selection_compile

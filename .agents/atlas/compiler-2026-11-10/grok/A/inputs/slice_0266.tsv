@@ -1,0 +1,7 @@
+S0400	SAMEJOB	area_02	IM/relocations.rs:224-261	Patch ADRP / page-offset | IM/relocations.rs:224-261; MO/dyld_linking.rs:420-468 | Mach-O has its own copy of the page-range check (:430)
+S0401	SAMEJOB	area_02	MO/file_layout.rs:34-51	Load-command sizes | MO/file_layout.rs:34-51 (constants); MO/dyld_linking.rs:2081-2091 (literals) | two tables
+S0402	SAMEJOB	area_02	IM/final_image.rs:89	Data vs executable region inventory | IM/final_image.rs:89 vs :1073; :199 vs :1182; :331 vs :1313; :354 vs :1336; :399 vs :1441 | executable digest domain `.v2` vs data `.v1`; register index written as 4 bytes at :1405 and 1 byte at :1422
+S0403	SAMEJOB	area_02	IM/lib.rs:81-92	Little-endian byte writers | IM/lib.rs:81-92, :101-142; PE/lib.rs:52-62; MO/dyld_linking.rs:470; EM/lib.rs:41-53 | at least four families; `mod codec_bytes` defined in 9 places and `DomainDigestEncoder` in 2 across omega-rust (unit 2 grep)
+S0404	SAMEJOB	area_02	ELF/shared_component.rs:455	Align helpers | `fn align(` has 9 definitions in omega-rust (unit 4 grep) incl. ELF/shared_component.rs:455, EM/entries.rs:1296, :5440; `fn checked_align_up` has 5 (unit 5 grep) incl. EM/object_artifact.rs:4473, CC/terminal_layout.rs:444 |
+S0405	SAMEJOB	area_02	A64/floating_control.rs:46-55	Large-offset page stepping | A64/floating_control.rs:46-55; A64/frame_protocol.rs:359-375; A64/immediate_offset.rs:60 |
+S0406	SAMEJOB	area_02	A64/post_handoff_writer.rs:396	Load/store word encoders | A64/post_handoff_writer.rs:396; A64/frame_protocol.rs:377-391 | different offset rules

@@ -1,0 +1,2 @@
+tests/omega/pass/borrow/write_only_projected_state_receiver_exit
+tests/omega/pass/borrow/write_only_whole_scalar_replace

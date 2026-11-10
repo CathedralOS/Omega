@@ -1,0 +1,8 @@
+S0131	SAMEJOB	area_11	ct/termination_and_cleanup_facts.rs:47	- **Merge worker rows with handle shifting, 2:** `ct/termination_and_cleanup_facts.rs:47`, `ct/facts.rs:749`.
+S0132	SAMEJOB	area_11	ct/flow_terminal.rs:259	- **`same_effect` copies of `PartialEq`, 2:** `ct/flow_terminal.rs:259`, `:347`.
+S0133	SAMEJOB	area_11	ct/flow_ownership_and_roots.rs:1027-1039	- **"Which place is this argument", 3:** `ct/flow_ownership_and_roots.rs:1027-1039`, `:694`, `:1556-1568`.
+S0134	SAMEJOB	area_11	ct/flow_terminal_units.rs:2604-2605	- **`Eligible | FreeUnitEffect` re-spelled, 3:** `ct/flow_terminal_units.rs:2604-2605`, `06.../scalar_lowering.rs:1069`, `06.../attached_unit.rs:1310` (grepped).
+S0135	SAMEJOB	area_11	ct/admissibility_and_borrow.rs:2039	- **State-borrow lookups, 4:** `ct/admissibility_and_borrow.rs:2039`, `:2054`, `:2069`, `:2080`.
+S0136	SAMEJOB	area_11	ct/values_and_views.rs:232-300	- **Root lookups in two parallel families:** `ct/values_and_views.rs:232-300` and `:1515-1552`; "sealed index or scan" twice `:2241-2258`, `:2278-2299`.
+S0137	SAMEJOB	area_11	ct/providers_and_trust.rs:472	- **Closed-requirement derivation, 2:** `ct/providers_and_trust.rs:472`/`:484` and `:381-389`.
+S0138	SAMEJOB	area_11	ct/termination_and_cleanup_facts.rs:637-721	- **Rank coordinates, 3 families ("suspected", not compared):** `ct/termination_and_cleanup_facts.rs:637-721`, `ct/flow_terminal_units.rs:175`.

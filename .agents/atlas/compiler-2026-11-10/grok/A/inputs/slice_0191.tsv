@@ -1,0 +1,2 @@
+U0109	UNUSED	area_04	PR/compilation_products.rs:347	- PR/compilation_products.rs:347: `CompileReport::checked` is `pub` with 0 outside callers (re-run: one `Self::checked(` at :338, nothing else).
+U0110	UNUSED	area_04	PA/terminal_authority_review.rs:26-32	- PA/windows_handle_activations.rs and PA/windows_handle_conditions.rs: declared `#[cfg(test)]` (PA/terminal_authority_review.rs:26-32), no non-test users (4 grep hits).

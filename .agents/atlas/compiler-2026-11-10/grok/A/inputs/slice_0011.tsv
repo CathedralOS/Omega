@@ -1,0 +1,4 @@
+A0081	ACCEPT	area_08	execution.rs:817-821	GROUP: Ranges, termination, execution: | - `execution.rs:817-821`: "an affine field projection (partial move) whose path contains an invalid-symbol field segment would be treated as a harmless read".
+A0082	ACCEPT	area_08	execution.rs:547-550	GROUP: Ranges, termination, execution: | - `execution.rs:547-550` unresolved callable maps to `StateArrival`.
+A0083	ACCEPT	area_08	execution.rs:2565-2580	GROUP: Ranges, termination, execution: | - `execution.rs:2565-2580` exhaustiveness checked against the first case's parent definition, not the subject's type.
+A0084	ACCEPT	area_08	execution.rs:292-301	GROUP: Ranges, termination, execution: | - `execution.rs:292-301` a trait signature with no reach is omitted.

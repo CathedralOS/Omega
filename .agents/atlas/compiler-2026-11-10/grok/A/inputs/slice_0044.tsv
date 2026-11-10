@@ -1,0 +1,8 @@
+A0333	ACCEPT	area_13	ad:795	9. ad:795 (728-733, 791-794) a narrowing store whose interval has a missing end is accepted [088].
+A0334	ACCEPT	area_13	ad:6463-6500	10. ad:6463-6500 returns without a diagnostic after queuing an obligation; accepted unless the consumer enforces it; consumers outside the file [088].
+A0335	ACCEPT	area_13	ad:4975-4983	11. ad:4975-4983 no MIN/-1 check for a signed type outside I8-I64 [088]. My check: `PrimitiveType` has no other signed integer (see Disagreements).
+A0336	ACCEPT	area_13	ad:5246	12. ad:5246 `signed_pair_excluded: true` hard-coded for proof integers (inferred: unbounded) [088].
+A0337	ACCEPT	area_13	ad:10885-10938	13. ad:10885-10938 fixed point stops after `states.len()+1` rounds and uses the last environments [088].
+A0338	ACCEPT	area_13	ad:13395-13416	14. ad:13395-13416 contradictory `requires` replace the environment; effect on later obligations not traced [088].
+A0339	ACCEPT	area_13	ad:3185-3202	15. ad:3185-3202 imports a callee's `ensures` as caller facts; sound only if the callee body is verified elsewhere [088].
+A0340	ACCEPT	area_13	ad:13462	16. ad:13462, 13527-13530 `condition_belongs_to_state` true for literals and builtin type members; traced as low risk, "open beyond that" [089].

@@ -1,0 +1,17 @@
+tests/omega/fail/proofs/specification_static_argument_body_local
+tests/omega/fail/proofs/static_machine_result_effectful_contract
+tests/omega/fail/proofs/static_machine_result_partial_contract
+tests/omega/fail/proofs/static_machine_result_wrong_field
+tests/omega/fail/proofs/static_machine_result_wrong_selection
+tests/omega/fail/proofs/store_selector_mutation_retires_bound
+tests/omega/fail/proofs/strict_comparison_mutation_snapshot
+tests/omega/fail/proofs/structural_application_decreasing_false_rejected
+tests/omega/fail/proofs/structural_application_premise_false_rejected
+tests/omega/fail/proofs/structural_application_premise_unknown_rejected
+tests/omega/fail/proofs/structural_ensures_unjudged_rejected
+tests/omega/fail/proofs/structural_mathematical_predicate_wrong_polarity
+tests/omega/fail/proofs/unknown_boolean_return_is_not_omitted
+tests/omega/fail/proofs/value_call_refuted_inequality_rejected
+tests/omega/fail/proofs/wrapping_zero_product_does_not_cancel_factor
+tests/omega/fail/proofs/zero_value_executable_rejected
+tests/omega/fail/proofs/zero_value_gated_home_rejected

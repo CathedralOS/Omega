@@ -1,0 +1,8 @@
+D0001	DROP	area_08	preparation.rs:47-61	- Stage 04: `preparation.rs:47-61`, `:138`, `:454-466`, `:1452`; `selection_and_reflection.rs:215/237`, `:86-100`.
+D0002	DROP	area_08	borrow.rs:4765-4775	- `borrow.rs:4765-4775`, `:4891-4893`, `:7764/7801-7803`, `:1475-1479`, `:9089-9093` (`.ok()`), `:326-372`. `checking.rs:329-334`, `:47-54`.
+D0003	DROP	area_08	checks.rs:4205-4210	- `checks.rs:4205-4210`, `:4294-4296`, `:4297-4305`, `:7448-7457`, `:7460-7469`, `:7708-7714`, `:8633-8639`, `:10374-10381`, `:10798-10800`.
+D0004	DROP	area_08	checks_borrows.rs:5502-5509	- `checks_borrows.rs:5502-5509`, `:5393-5408`, `:11434-11435`; `checks_borrows_calls.rs:1497`, `:162-164`.
+D0005	DROP	area_08	checks_borrows_resources.rs:72	- `checks_borrows_resources.rs:72` (`let _ =`), `:129-286`, `:2940-2953`, `:5773` (`Err(_) => {}`), `:883-1096` (event kept without the restored-call join).
+D0006	DROP	area_08	checks_content.rs:114-206	- `checks_content.rs:114-206`, `:588-590/664-666/3441-3443`.
+D0007	DROP	area_08	checks_contracts.rs:1201-1209	- `checks_contracts.rs:1201-1209`, `:244-261`, `:1566-1587`, `:690-696`; `checks_contracts_calls.rs:4542-4652`; `checks_contracts_exits.rs:2086/2096`, `:4037/4042`; `checks_contracts_writes.rs:1590-1594`, `:2172-2184`.
+D0008	DROP	area_08	checks_current_scalar_values.rs:5073	- `checks_current_scalar_values.rs:5073`.

@@ -1,0 +1,2 @@
+tests/omega/pass/parameters/byte_store_root_after_scalar_formal_exit
+tests/omega/pass/parameters/shared_and_mut_borrow_params_compile

@@ -1,0 +1,2 @@
+tests/omega/fail/indexes/literal_linked_index_identity_other_literal
+tests/omega/fail/indexes/literal_linked_index_identity_without_connection

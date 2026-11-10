@@ -1,0 +1,8 @@
+A0481	ACCEPT	area_14	lsl:3557-3559	GROUP: **lsl, mcc (17)** | - lsl:3557-3559 no data definition: all `requires` facts skipped (reader infers unreachable).
+A0482	ACCEPT	area_14	lsl:2761-2765	GROUP: **lsl, mcc (17)** | - lsl:2761-2765, 2776-2778 — a suffixed literal landing in a non-primitive destination is not checked.
+A0483	ACCEPT	area_14	lsl:350	GROUP: **lsl, mcc (17)** | - lsl:350 unmatched float destinations are left unlanded.
+A0484	ACCEPT	area_14	lsl:5247-5262	GROUP: **lsl, mcc (17)** | - lsl:5247-5262 window validation returns silently when the shape is `None`.
+A0485	ACCEPT	area_14	mcc:607-634	GROUP: **lsl, mcc (17)** | - mcc:607-634 — a call whose flow row lost its boundary edge and whose target is a concrete implementation.
+A0486	ACCEPT	area_14	mcc:366-400	GROUP: **lsl, mcc (17)** | - mcc:366-400 "approved" boundary trait means unique name in module and package; no provider table read here.
+A0487	ACCEPT	area_14	mcc:123-215	GROUP: **lsl, mcc (17)** | - mcc:123-215 a generic-data method never selected is never bound-checked.
+A0488	ACCEPT	area_14	mcc:1931-1933	GROUP: **lsl, mcc (17)** | - mcc:1931-1933 an invalid dependency symbol is treated as closed.

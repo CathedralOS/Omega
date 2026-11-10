@@ -1,0 +1,8 @@
+S0276	SAMEJOB	area_05	UV:5120-5122	41. **Width tests.** Unsigned 8-bit non-address: `UV:5120-5122`, `DR:2648-2650`, `UV:17317-17323`. Unsigned 64-bit: 11 times in `UV:11693-11743` plus `UV:11765`, `11854`, `11929`, `11934`, `11961`.
+S0277	SAMEJOB	area_05	UV:12262	42. **Call argument scalar-type zip.** `UV:12262`, `12282`, `12298`, `12319`, `12333`; dynamic slot lookup at `UV:11950-11957` and `UV:12493-12500`.
+S0278	SAMEJOB	area_05	UV:8545	43. **Field and claim lookups.** Field exists and is not erased: `UV:8545`, `UV:7432-7445`, `UV:2828-2857`. "Result with claims by place" lists with different members: `UV:8604-8618` and `UV:11277-11294`.
+S0279	SAMEJOB	area_05	UV:16125	44. **Function parameter checks run twice.** `UV:16125` (called at `UV:16696`) and `UV:16705-16723`.
+S0280	SAMEJOB	area_05	UV:2175	45. **Range-authority helpers.** `UV:2175` and inline `UV:1980-2004`; `UV:2141` and `UV:2158` differ only in the kernel function called. `SEM/lib.rs:103-124` and `:126-147` are line-for-line the same except the last call.
+S0281	SAMEJOB	area_05	UV:2630	46. **Provenance of a node.** `UV:2630` (recomputed expectation, accepts extra trailing rows) and `UV:6413` (duplicates across nodes limited to terminal edge sites); "They check different sides" (`unit_026_gap_011.md`).
+S0282	SAMEJOB	area_05	CAND:8834	47. **"This operand is a specific integer literal."** `CAND:8834`/`8889`, `CAND:8852`, `CAND:6433`, `CAND:5460`, `CAND:6730`.
+S0283	SAMEJOB	area_05	CAND:4931	48. **Scalar identity classifiers and validators.** `CAND:4931` and `CAND:6038`; validators `CAND:5538` and `CAND:5891`.

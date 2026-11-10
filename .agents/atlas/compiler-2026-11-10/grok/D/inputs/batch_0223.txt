@@ -1,0 +1,6 @@
+tests/omega/pass/constraints/anonymous_integer_return_landing
+tests/omega/pass/constraints/contract_range_membership_unimplemented
+tests/omega/pass/constraints/guarded_parameter_result_contract
+tests/omega/pass/constraints/proof_machine_order_fact
+tests/omega/pass/constraints/scalar_requires_satisfied_by_literal
+tests/omega/pass/constraints/selected_arithmetic_return_ensures

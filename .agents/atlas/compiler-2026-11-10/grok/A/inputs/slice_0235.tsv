@@ -1,0 +1,8 @@
+S0163	SAMEJOB	area_13	calls:43567	25. **Skip statically unreachable code and short-circuited `&&`/`||`**: call-ordinal walk calls:43567, 43623 and effect walk calls:31632, 31757. Ordinals stay aligned only if both skip the same nodes (inferred, not traced) [092].
+S0164	SAMEJOB	area_13	ce:847	26. **Expression or term to polynomial** (7): ce:847, 6938, 5082, 4747, 27311, 54800, 54955 [093, 094, 096].
+S0165	SAMEJOB	area_13	ce:969	27. **Does a value fit its integer type** (6): ce:969, 2137, 4921; ad:15246, 24162; ce:21900-23178 (per occurrence) [089, 093, 094].
+S0166	SAMEJOB	area_13	ce:489-585	28. **Split a Boolean guard** (`x == true/false`, `!`, `&&`, `||`) (9): ce:489-585, 5427-5486, 16516-16546, 24014-24027, 33981-34062, 35665-35730, 47020; ad:13858; calls:16917 [089, 091, 093, 094, 095].
+S0167	SAMEJOB	area_13	ce:6900	29. **Flatten a conjunction** (5 in area): ce:6900, 8976, 8988, 15650, 17692; outside, `checks_contracts_exits.rs:5061` (grepped) [093].
+S0168	SAMEJOB	area_13	ce:8378-8478	30. **Prefix-walk scaffold** ("acyclic: invocation prefix, else runtime prefix, then private arrivals") 3 times: ce:8378-8478, 10405-10445, 13047-13119; 18 `StructuralPrefixVisitor` impls in the file, each with its own `seen/proven/unresolved` bookkeeping [093].
+S0169	SAMEJOB	area_13	ce:15122	31. **Provider asks no more, guarantees at least**: `check_contract_refinement` ce:15122 (identity or arithmetic implication) and `check_operator_contract_conformance` ce:17999 (equality-only rung) [093].
+S0170	SAMEJOB	area_13	ce:34689	32. **Three-valued truth tables**: ce:34689, ce:43619, `StructuralJudgment::connective` (used ce:53685, 71386; defined outside this area), calls:16911 [091, 094, 095, 096].

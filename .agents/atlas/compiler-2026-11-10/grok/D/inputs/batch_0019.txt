@@ -1,0 +1,6 @@
+tests/omega/fail/boundary/bare_field_value_rejected
+tests/omega/fail/boundary/named_foreign_provider_wrong_table
+tests/omega/fail/boundary/named_target_foreign_provider_missing_member
+tests/omega/fail/boundary/opaque_result_requires_representation
+tests/omega/fail/boundary/requirement_case_precondition_unproved
+tests/omega/fail/boundary/requirement_float_precondition_unproved

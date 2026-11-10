@@ -1,0 +1,14 @@
+tests/omega/pass/storage/computed_float_local_view_store_exit
+tests/omega/pass/storage/forwarded_context_bounded_byte_field_exit
+tests/omega/pass/storage/forwarded_context_byte_field_cross_state_store_exit
+tests/omega/pass/storage/forwarded_context_byte_field_read_store_exit
+tests/omega/pass/storage/large_zero_initialized_local_exit
+tests/omega/pass/storage/runtime_alias_field_binary
+tests/omega/pass/storage/runtime_alias_integer_write
+tests/omega/pass/storage/runtime_bounded_effectful_initializer_exit
+tests/omega/pass/storage/runtime_bounded_scalar_replacement_exit
+tests/omega/pass/storage/runtime_local_slice_forward_exit
+tests/omega/pass/storage/runtime_machine_owned_indexed_integer_write_exit
+tests/omega/pass/storage/runtime_machine_owned_indexed_struct_copy_exit
+tests/omega/pass/storage/runtime_parameter_slice_forward_exit
+tests/omega/pass/storage/runtime_primitive_local_literal_composition_exit

@@ -1,0 +1,4 @@
+tests/omega/pass/components/independent_same_spelling_packages
+tests/omega/pass/components/independent_same_spelling_packages/api
+tests/omega/pass/components/independent_same_spelling_packages/chosen
+tests/omega/pass/components/independent_same_spelling_packages/other

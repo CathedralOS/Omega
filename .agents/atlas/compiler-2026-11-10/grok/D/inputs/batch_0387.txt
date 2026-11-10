@@ -1,0 +1,8 @@
+tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators
+tests/omega/run/arithmetic/disjoint_pressure_regions
+tests/omega/run/arithmetic/fixed_input_reused_across_calls
+tests/omega/run/arithmetic/fixed_integer_operand_after_call
+tests/omega/run/arithmetic/fixed_integer_operand_after_pressure
+tests/omega/run/arithmetic/fixed_integer_operand_join
+tests/omega/run/arithmetic/float_structural_initializer_selection
+tests/omega/run/arithmetic/pinned_dividend_across_console_calls

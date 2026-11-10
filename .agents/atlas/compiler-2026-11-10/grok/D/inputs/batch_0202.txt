@@ -1,0 +1,9 @@
+tests/omega/pass/boundary/interleaved_structural_crash_formal_exit
+tests/omega/pass/boundary/later_state_requirement_scalar_result_exit
+tests/omega/pass/boundary/named_target_foreign_provider_exit
+tests/omega/pass/boundary/native_provider_unoffered_read
+tests/omega/pass/boundary/nested_projected_structural_crash_formal_exit
+tests/omega/pass/boundary/requirement_case_precondition_exit
+tests/omega/pass/boundary/requirement_float_precondition_exit
+tests/omega/pass/boundary/static_foreign_scalar_result_locals_exit
+tests/omega/pass/boundary/static_opaque_qualifier_exit

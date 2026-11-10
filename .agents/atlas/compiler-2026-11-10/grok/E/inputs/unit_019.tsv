@@ -1,0 +1,11 @@
+unit_019	source/psi/typing/generics.omg	1	520	520
+unit_019	source/psi/typing/joins.omg	1	182	182
+unit_019	source/psi/typing/landing.omg	1	339	339
+unit_019	source/psi/typing/literals.omg	1	556	556
+unit_019	source/psi/typing/matches.omg	1	135	135
+unit_019	source/psi/typing/memberships.omg	1	64	64
+unit_019	source/psi/typing/operators.omg	1	249	249
+unit_019	source/psi/typing/patterns.omg	1	62	62
+unit_019	source/psi/typing/references.omg	1	669	669
+unit_019	source/psi/typing/statements.omg	1	644	644
+unit_019	source/psi/typing/typer.omg	1	350	350

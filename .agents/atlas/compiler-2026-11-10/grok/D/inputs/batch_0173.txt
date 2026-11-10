@@ -1,0 +1,1 @@
+tests/omega/fail/terminal_psi/inspection_scalar_library

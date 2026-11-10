@@ -1,0 +1,8 @@
+U0111	UNUSED	area_05	DR:905	GROUP: **optimization-unit-semantics** | - `abstract_catalog_graph` (`DR:905`): `grep -w` gives 1 occurrence, the definition. Zero call sites.
+U0112	UNUSED	area_05	DR:950	GROUP: **optimization-unit-semantics** | - `optimized_borrowed_storage_catalog_graph` (`DR:950`): `pub`, 1 call site, inside the crate (`UV:8784`).
+U0113	UNUSED	area_05	DR:217	GROUP: **optimization-unit-semantics** | - `ConflictingInterpretations` (`DR:217`): used only in `DR`.
+U0114	UNUSED	area_05	CO:2787	GROUP: **optimization-unit-semantics** | - `parameter_establishment_order` (`CO:2787`, re-exported `CO:9836`): 4 occurrences, all in `CO` (definition, import `3114`, call `3223`, re-export). No user outside the file.
+U0115	UNUSED	area_05	CO:2923	GROUP: **optimization-unit-semantics** | - `has_descriptor_call_origins` (`CO:2923`): one caller, `UV:12837`.
+U0116	UNUSED	area_05	-	GROUP: **optimization-unit-semantics** | - `validate_total_cfg`: 2 occurrences; `block_reaches`: 6, all in `UV`.
+U0117	UNUSED	area_05	UV:9841	GROUP: **optimization-unit-semantics** | - Five plain-call recognisers (`UV:9841, 10514, 10700, 10906, 11582`): 3 occurrences each, all in `UV`; no outside crate uses them.
+U0118	UNUSED	area_05	UV:14975	GROUP: **optimization-unit-semantics** | - `is_reference_projection` (`UV:14975`) and `storage_projection` (`UV:14984`): no use inside `UV`; used from `CO` (`CO:6601`, import `CO:3790`).

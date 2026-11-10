@@ -1,0 +1,8 @@
+S0392	SAMEJOB	area_02	EM/object.rs:411-426	Decode bridge bytes and compare | EM/object.rs:411-426; EM/image.rs:370-430 | near-identical
+S0393	SAMEJOB	area_02	EM/image.rs:156-188	Emit sequence (prepare entry, build image, attach effects, emit, validate) | EM/image.rs:156-188, :238-253, :1830-1858, :1911-1925 | written four times
+S0394	SAMEJOB	area_02	EM/object_artifact.rs:3452-3457	Scalar-result producer check | EM/object_artifact.rs:3452-3457; ff:22416-22425 |
+S0395	SAMEJOB	area_02	ff:8881	`unique` helper; `operation_rows` | ff:8881 vs ff:4810; ff:12769 vs ff:9782 | second pair grepped, not read
+S0396	SAMEJOB	area_02	ELF/shared_component.rs:56-76	Validate a component export roster | ELF/shared_component.rs:56-76; MO/shared_component.rs:251-290; PE/shared_component.rs:104-132 | Checked: same job three times. ELF and Mach-O are line-for-line the same test; PE detects duplicate commitments by count == 1 instead of a prefix scan and sorts by name first. Unit 6 only suspected the ELF copy.
+S0397	SAMEJOB	area_02	PE/imports.rs:37	Install, patch and validate import thunks | PE/imports.rs:37, :295, :319; MO/dyld_linking.rs:75, :271, :337 | PE thunks every import row (:49-178); Mach-O only referenced ones (:183). PE checks 2 opcode bytes (:340); Mach-O decodes the thunk and re-reads the container.
+S0398	SAMEJOB	area_02	MO/dyld_linking.rs:1659	Read ULEB128 | MO/dyld_linking.rs:1659; MO/shared_component.rs:139 | different overflow rules (:1664 vs :146)
+S0399	SAMEJOB	area_02	MO/dyld_linking.rs:355-361	Decode thunk opcodes | MO/dyld_linking.rs:355-361; :555-566 | same file

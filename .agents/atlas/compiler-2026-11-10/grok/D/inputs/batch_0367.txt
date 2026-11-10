@@ -1,0 +1,6 @@
+tests/omega/pass/slices/termination_slice_length_compile
+tests/omega/pass/slices/weak_vacant_extent
+tests/omega/pass/slices/whole_element_store
+tests/omega/pass/slices/window_shrink_min_length_tail_index_compile
+tests/omega/pass/slices/wrapping_count_window_length
+tests/omega/pass/slices/zero_len_array

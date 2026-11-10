@@ -1,0 +1,8 @@
+D0090	DROP	area_13	ce:34118-34126	33. ce:34118-34126, 34129, 34152-34176, 35086-35098 [094].
+D0091	DROP	area_13	ce:37594-37601	34. ce:37594-37601, 37606 negated hypotheses skipped [095].
+D0092	DROP	area_13	ce:40706-40708	35. ce:40706-40708, 41519-41524, 41529-41533, 41537-41540, 41659, 41730-41732, 41770-41784 [095].
+D0093	DROP	area_13	ce:43168-43173	36. ce:43168-43173 static parameters other than `Const`/`Value` are not bound, so their requirements are not judged here [095].
+D0094	DROP	area_13	ce:46198	37. ce:46198 [095].
+D0095	DROP	area_13	ce:54637-54655	38. ce:54637-54655 an unprojectable premise is skipped or marks the set incomplete [096].
+D0096	DROP	area_13	ce:56590	39. ce:56590 unobserved argument replaced by a placeholder [096].
+D0097	DROP	area_13	ce:58827-58835	40. ce:58827-58835 array-element equations not recorded on a length mismatch [096].

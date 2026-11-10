@@ -1,0 +1,8 @@
+A0513	ACCEPT	area_14	pl:6124-6128	GROUP: **mpb, ops, pl (19)** | - pl:6124-6128, 6142-6146 carrier match falls back to name equality.
+A0514	ACCEPT	area_14	pl:1618-1626	GROUP: **mpb, ops, pl (19)** | - pl:1618-1626 a `Named` reference with invalid symbol is read as a number from its spelling.
+A0515	ACCEPT	area_14	pv:74-79	GROUP: **pv, pcc (20)** | - pv:74-79 a state with a return type and no finite order is not checked for a missing return value.
+A0516	ACCEPT	area_14	pv:4927-4929	GROUP: **pv, pcc (20)** | - pv:4927-4929 cleanup target missing from the operational plan is skipped.
+A0517	ACCEPT	area_14	pv:4555-4570	GROUP: **pv, pcc (20)** | - pv:4555-4570 — "A program whose only errors match the message text would pass `validate` if a caller ignores the field" (`deferred_overflow`).
+A0518	ACCEPT	area_14	pv:860-887	GROUP: **pv, pcc (20)** | - pv:860-887 body reuse — semantic inputs outside the hashed source text "would not invalidate it"; which are missing "was not traced".
+A0519	ACCEPT	area_14	pcc:217-221	GROUP: **pv, pcc (20)** | - pcc:217-221, 245-255 — "a quotient over a carrier whose type name resolves to something other than data or a data type parameter".
+A0520	ACCEPT	area_14	pcc:795-801	GROUP: **pv, pcc (20)** | - pcc:795-801 unresolved or opaque proposition returns `true`.

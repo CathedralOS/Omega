@@ -1,0 +1,10 @@
+tests/omega/pass/packages/implementation_parent_review
+tests/omega/pass/packages/indexed_contract_field_review
+tests/omega/pass/packages/indexed_contract_field_review/vendor
+tests/omega/pass/packages/public_case_default_domain
+tests/omega/pass/packages/retained_dependency_bodies_exit
+tests/omega/pass/packages/retained_dependency_bodies_exit/vendor
+tests/omega/pass/packages/rootless_numeric_provider_consumer
+tests/omega/pass/packages/rootless_numeric_provider_review
+tests/omega/pass/packages/runtime_attached_owner_crash_guard_scope_exit
+tests/omega/pass/packages/runtime_public_attached_owner_cleanup_exit

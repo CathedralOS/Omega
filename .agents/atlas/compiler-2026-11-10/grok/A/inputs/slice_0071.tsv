@@ -1,0 +1,8 @@
+A0545	ACCEPT	area_14	rc:4818-4820	GROUP: **q, rc (12)** | - rc:4818-4820 no storage index means "no atomic storage", which disables the qualification-erasure check.
+A0546	ACCEPT	area_14	rc:1028-1050	GROUP: **q, rc (12)** | - rc:1028-1050 with rc:4660 non-`Domain` constraints give `None`, read as "no qualification issue"; an `ArithmeticDomain` constraint is ignored.
+A0547	ACCEPT	area_14	rrc:3354-3356	GROUP: **rrc, scc, tr (13)** | - rrc:3354-3356 with rrc:4516-4535 `Image` sources count as not present so the leaf needs no loan; reader: "none identified for ordinary programs".
+A0548	ACCEPT	area_14	rrc:8795-8799	GROUP: **rrc, scc, tr (13)** | - rrc:8795-8799 invocation-rooted sources accepted without comparing any argument.
+A0549	ACCEPT	area_14	rrc:7020-7022	GROUP: **rrc, scc, tr (13)** | - rrc:7020-7022 — "a boundary/opaque data value that stores a reference would then not be a 'reference record'".
+A0550	ACCEPT	area_14	rrc:7685-7687	GROUP: **rrc, scc, tr (13)** | - rrc:7685-7687, 7742-7747 `NumericOwned` contents and activation byte carriers count as holding no references.
+A0551	ACCEPT	area_14	scc:642-656	GROUP: **rrc, scc, tr (13)** | - scc:642-656 — "a data type with a `where` fact the spelling cannot express would get predicate rows silently missing for that fact"; the fence function has no production caller.
+A0552	ACCEPT	area_14	scc:438	GROUP: **rrc, scc, tr (13)** | - scc:438 `is_none_or` returns `true` for a carrier with no closed data definition.

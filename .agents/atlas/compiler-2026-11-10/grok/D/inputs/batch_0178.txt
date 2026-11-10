@@ -1,0 +1,4 @@
+tests/omega/fail/time/duration_constant_unnormalized
+tests/omega/fail/time/instant_constant_unnormalized
+tests/omega/fail/time/instant_mutation_leaves_invalid_return
+tests/omega/fail/time/system_time_constant_unnormalized

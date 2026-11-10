@@ -1,0 +1,12 @@
+tests/omega/fail/cases/borrowed_case_component_cannot_recover_common_fields
+tests/omega/fail/cases/borrowed_case_payload_cannot_move
+tests/omega/fail/cases/borrowed_case_write_only_tag_read
+tests/omega/fail/cases/borrowed_case_wrong_pattern_owner
+tests/omega/fail/cases/constructor_subject_range_narrowing_unproved
+tests/omega/fail/cases/constructor_subject_range_neighbor_not_evidence
+tests/omega/fail/cases/constructor_subject_range_replaced_value
+tests/omega/fail/cases/constructor_subject_range_unproved
+tests/omega/fail/cases/constructor_subject_range_unsigned_to_signed_unproved
+tests/omega/fail/cases/match_guard_invalidates_nested_tag
+tests/omega/fail/cases/nested_payload_read_after_case_replacement
+tests/omega/fail/cases/nested_payload_write_only_read

@@ -1,0 +1,11 @@
+tests/omega/fail/traits/structural_identity_distinct_values
+tests/omega/fail/traits/structural_identity_exact_carrier
+tests/omega/fail/traits/structural_identity_executable_equality
+tests/omega/fail/traits/structural_identity_private_overwrite
+tests/omega/fail/traits/structural_identity_rebound_reference
+tests/omega/fail/traits/structural_identity_stale_requirement
+tests/omega/fail/traits/trait_contract_undeclared_parameter_member
+tests/omega/fail/traits/trait_default_outside_requirement_call
+tests/omega/fail/traits/trait_requirement_cycle
+tests/omega/fail/traits/trait_satisfies_parameter_mismatch
+tests/omega/fail/traits/transparent_refinement_widening_axis

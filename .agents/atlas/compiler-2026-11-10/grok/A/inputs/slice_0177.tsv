@@ -1,0 +1,8 @@
+U0018	UNUSED	area_09	SH:3637	- `run_caller_first` SH:3637: 2 occ, the definition and an in-file test; `#[allow(dead_code)]`; "No phase uses this order yet" (SH:3633). (checked)
+U0019	UNUSED	area_09	SH:3566	- `MachineCallComponents` SH:3566: documented for termination, mutation, crash and reach summaries (SH:3541-3563); one outside user, checks_termination_progress.rs:370, 387.
+U0020	UNUSED	area_09	VS:4340	- `scalar_parameter_roster` VS:4340: 12 occ, all in VS, though documented as the roster every lowerer takes (VS:4335-4339). (checked)
+U0021	UNUSED	area_09	VS:8049	- `lower_scalar_parameter_range_requirements` VS:8049: one call, VS:8275; not re-exported. (checked)
+U0022	UNUSED	area_09	FM:2177	- `family_attached_data_symbol` FM:2177: `pub(crate)`, 2 occ, definition and one in-file use. (checked) `rebase_descriptor_slot_regions` FM:1671: 2 occ in-file.
+U0023	UNUSED	area_09	SH:1835	- `expression_is_contextual_statement_primitive`, `expression_is_intrinsic_primitive_without_origin` SH:1835, 1887: 11 occ, all in SH. (checked) `checked_statement_call_target`, `checked_call_target`, `checked_name_path_segment_target`, `checked_operator_conformance_targets`, `implementation_call_selection`: `pub(crate)`, no uses outside SH. `GenericOperatorValueOrigins` SH:2082: only inside SH.
+U0024	UNUSED	area_09	F:1397	- `append_writes` F:1397, `captured_before_snapshot` F:1597, `before_snapshot` F:1582: `pub(crate)`, each one call, in-file. (first two checked)
+U0025	UNUSED	area_09	FT:3654	- `CallValues.fields` FT:3654: only ever built as `Vec::new()` (FT:2195, 2456), because receiver calls return `None` at FT:2347; its readers search an empty list. (checked)

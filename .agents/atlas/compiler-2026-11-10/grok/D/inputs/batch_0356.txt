@@ -1,0 +1,10 @@
+tests/omega/pass/ranges/loop_saved_guard_disjoint_write_exit
+tests/omega/pass/ranges/runtime_array_element_full_width_receiving_exit
+tests/omega/pass/ranges/runtime_bounded_array_element_order_exit
+tests/omega/pass/ranges/runtime_correlated_store_saved_values_exit
+tests/omega/pass/ranges/runtime_primitive_window_copy_snapshot_exit
+tests/omega/pass/ranges/runtime_subject_guard_compound_read_exit
+tests/omega/pass/ranges/subject_field_where_fact_index_bound
+tests/omega/pass/ranges/subject_guard_compound_index_successor
+tests/omega/pass/ranges/subject_unsigned_computed_index_lower_bound
+tests/omega/pass/ranges/sum_payload_range_arith_narrowed_exit

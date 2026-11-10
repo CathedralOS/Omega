@@ -1,0 +1,10 @@
+tests/omega/fail/host/conditional_process_exit_keeps_return_obligations
+tests/omega/fail/host/console_byte_payload_above_byte
+tests/omega/fail/host/console_byte_payload_negative
+tests/omega/fail/host/descriptor_read_guarded_prefix_without_admitted_abi
+tests/omega/fail/host/macos_image_snapshot_wrong_extent
+tests/omega/fail/host/process_exit_argument_requires_live_custody
+tests/omega/fail/host/process_exit_before_crash_keeps_crossing_obligations
+tests/omega/fail/host/process_exit_preserves_borrowed_restoration
+tests/omega/fail/host/process_exit_reach_keeps_return_obligations
+tests/omega/fail/host/returning_exit_spelling_keeps_linear_obligations

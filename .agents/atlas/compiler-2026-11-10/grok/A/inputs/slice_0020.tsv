@@ -1,0 +1,8 @@
+A0149	ACCEPT	area_09	PCC:5205-5207	GROUP: Published facts, shared, values: | - PCC:5205-5207. A target that is not a checked body and has no published routes gets no crash causes for that call.
+A0150	ACCEPT	area_09	PCC:815-870	GROUP: Published facts, shared, values: | - PCC:815-870. Asm intrinsics and atomic fences get no crash edge.
+A0151	ACCEPT	area_09	PCC:750	GROUP: Published facts, shared, values: | - PCC:750, 788-789. The summary fixed point returns its last rows if it has not converged within `equations.len()` rounds.
+A0152	ACCEPT	area_09	PF:6637-6643	GROUP: Published facts, shared, values: | - PF:6637-6643, 5356-5377. Index compatibility is skipped for an invalid `semantic_id`, empty arguments, or an expression kind with no instances.
+A0153	ACCEPT	area_09	PF:412-455	GROUP: Published facts, shared, values: | - PF:412-455. A receiver head that is not `self` or a parameter gives `Unknown` provenance, so capability verbs may be under-reported.
+A0154	ACCEPT	area_09	PF:7755	GROUP: Published facts, shared, values: | - PF:7755, 7789-7791, 7835-7840. A machine with no operational row defaults to not blocking, not suspending, no invocations.
+A0155	ACCEPT	area_09	PF:8155-8187	GROUP: Published facts, shared, values: | - PF:8155-8187. A named operator crash route is dropped on label or display-name equality: two distinct expressions with the same display name.
+A0156	ACCEPT	area_09	PF:8290-8292	GROUP: Published facts, shared, values: | - PF:8290-8292, 8394-8399. Operator uses with no selected candidate or no declaration are skipped.

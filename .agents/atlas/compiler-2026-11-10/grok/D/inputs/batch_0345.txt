@@ -1,0 +1,1 @@
+tests/omega/pass/patterns/named_value_before_negative_integer_pattern_exit

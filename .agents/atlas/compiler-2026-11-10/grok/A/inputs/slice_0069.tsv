@@ -1,0 +1,8 @@
+A0529	ACCEPT	area_14	pcc:8971-8977	GROUP: **pv, pcc (20)** | - pcc:8971-8977 — "two different expressions with identical rendering (… same spelling of shadowed locals) would be treated as the same fact".
+A0530	ACCEPT	area_14	pcc:9095	GROUP: **pv, pcc (20)** | - pcc:9095, 9109 — "a call whose target symbol resolves to none of these categories keeps its qualification facts".
+A0531	ACCEPT	area_14	pcc:9684-9686	GROUP: **pv, pcc (20)** | - pcc:9684-9686 return type match ignores generic arguments.
+A0532	ACCEPT	area_14	pcc:10571-10582	GROUP: **pv, pcc (20)** | - pcc:10571-10582, 10680-10682, 10714-10718 — an erased field reached through an unresolvable receiver is not reported.
+A0533	ACCEPT	area_14	pcc:10464-10469	GROUP: **pv, pcc (20)** | - pcc:10464-10469 struct literal with no data definition: no erased-field check.
+A0534	ACCEPT	area_14	pcc:10996-10999	GROUP: **pv, pcc (20)** | - pcc:10996-10999 emitted conclusion is `result == result`; consumption "not traced".
+A0535	ACCEPT	area_14	q:477-479	GROUP: **q, rc (12)** | - q:477-479 — a dependency that resolves to no machine is skipped, "i.e. treated as checked".
+A0536	ACCEPT	area_14	q:3586-3588	GROUP: **q, rc (12)** | - q:3586-3588, 3616 trace key omits Binary/Unary operators; sound if the rendered half includes them ("inferred, not traced").

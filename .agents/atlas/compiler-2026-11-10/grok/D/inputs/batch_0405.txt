@@ -1,0 +1,6 @@
+tests/omega/run/ranges/borrowed_case_payload_alias
+tests/omega/run/ranges/borrowed_case_payload_bound
+tests/omega/run/ranges/guarded_case_payload_identity
+tests/omega/run/ranges/guarded_case_payload_types
+tests/omega/run/ranges/refuted_boolean_alias_dispatch
+tests/omega/run/ranges/refuted_boolean_alias_local

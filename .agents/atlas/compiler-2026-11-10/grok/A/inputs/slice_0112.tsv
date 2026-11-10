@@ -1,0 +1,7 @@
+A0863	ACCEPT	area_02	MO/dyld_linking.rs:193-210	33. MO/dyld_linking.rs:193-210: a relocation with an invalid symbol handle is skipped at thunk installation.
+A0864	ACCEPT	area_02	PE/imports.rs:95	34. PE/imports.rs:95: only the Foreign-locator branch rejects UEFI subsystems 10..=12; string-backed and component imports do not, so an import-bearing EFI image is not rejected here.
+A0865	ACCEPT	area_02	PE/headers.rs:42	35. PE/headers.rs:42, :52 and PE/sections.rs:51, :57, :60, :61, :86, :183: unchecked `as u32` / `as u16` casts.
+A0866	ACCEPT	area_02	-	36. PE/lib.rs: the written file is not re-read; header and section-table correctness rests on the planner.
+A0867	ACCEPT	area_02	IM/lib.rs:221	37. IM/lib.rs:221: `final_image_symbol_address` adds the offset without checking it against the section size.
+A0868	ACCEPT	area_02	A64/machine_effects.rs:993-998	38. A64/machine_effects.rs:993-998, :1187: default arms give any semantic not in the implicit-effect table no implicit uses or defs, "never traps", fall-through, 4 bytes. The reader's wrong declaration: a semantic added to the reads/writes table (:729-879) but not to the effect table would be declared pure.
+A0869	ACCEPT	area_02	A64/post_handoff_writer.rs:104	39. A64/post_handoff_writer.rs:104, :126: the byte loop is only correct up to 8 bytes; whether larger container widths can arrive depends on `layout_plans::validate_fragment`, not read.

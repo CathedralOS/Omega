@@ -1,0 +1,12 @@
+tests/omega/pass/types/address_comparison_symbolic_bound_compile
+tests/omega/pass/types/address_model_conversion
+tests/omega/pass/types/exact_address_conversion
+tests/omega/pass/types/runtime_addr_algebra_exit
+tests/omega/pass/types/runtime_addr_conversion_trap_exit
+tests/omega/pass/types/runtime_addr_field_exit
+tests/omega/pass/types/runtime_address_literal_landing_exit
+tests/omega/pass/types/runtime_exact_address_subtraction_exit
+tests/omega/pass/types/runtime_i16_signed_arith_exit
+tests/omega/pass/types/shared_borrow_retains_carrier_exit
+tests/omega/pass/types/storage_address_aggregate
+tests/omega/pass/types/storage_address_core_name_shadowed_exit

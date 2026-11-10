@@ -1,0 +1,8 @@
+A0109	ACCEPT	area_09	F:1273-1353	GROUP: Flow: | - F:1273-1353. A state or call with no reach summary gets the default summary: a state missing from the operational plan that does suspend. The `Default` impls were not read.
+A0110	ACCEPT	area_09	F:1469	GROUP: Flow: | - F:1469, 1506; F:1524-1539. A store to a destination without static identity is not recorded, so the older snapshot stands; a join of zero predecessors makes an empty join node.
+A0111	ACCEPT	area_09	F:1647-1678	GROUP: Flow: | - F:1647-1678, 1618-1621, 1780-1784. An unresolved descriptor returns `Some(empty)`, not `None`; in `address_before_statement` the address then vanishes from the output.
+A0112	ACCEPT	area_09	F:2741-2775	GROUP: Flow: | - F:2741-2775. For exit contexts a fact whose root has no valid target origin is still published with its unrebased root.
+A0113	ACCEPT	area_09	F:3687-3689	GROUP: Flow: | - F:3687-3689, 3729-3734. `possible` is false for an unresolvable selection; callers skip on false (checks_multiplicity.rs:6568, 6592; checks_contracts.rs:5760).
+A0114	ACCEPT	area_09	F:4146-4165	GROUP: Flow: | - F:4146-4165; F:4166-4174. The expression-form operator effect returns early when operands cannot be rebuilt, and drops a mutable operand with no place, where the statement form reports unknown (F:4292-4296): facts about that operand would not be dropped.
+A0115	ACCEPT	area_09	F:4432-4449	GROUP: Flow: | - F:4432-4449. An `ensures` with no operand place is published at `FactPlace::Unknown` and no write ever invalidates it (traced at F:7056-7071); open whether expressions with only unplaceable operands end up here.
+A0116	ACCEPT	area_09	F:4652-4656	GROUP: Flow: | - F:4652-4656. A state with no borrow state fact gets no flow state row.

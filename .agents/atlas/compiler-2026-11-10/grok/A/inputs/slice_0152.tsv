@@ -1,0 +1,8 @@
+D0044	DROP	area_11	prf/obligations.rs:947-975	GROUP: **proof (9)** | - `prf/obligations.rs:947-975`: array element obligations for anything but borrow, match arms, array literal.
+D0045	DROP	area_11	adm/predicate_denotation.rs:189-195	GROUP: **proof-admission (5)** | - `adm/predicate_denotation.rs:189-195`: non-matching or duplicate-left value equations.
+D0046	DROP	area_11	bd:6299-6318	GROUP: **proof-admission (5)** | - `bd:6299-6318`: rewrite equations whose carrier is not `Int`.
+D0047	DROP	area_11	bd:6381-6385	GROUP: **proof-admission (5)** | - `bd:6381-6385`: no-op or duplicate transport equations.
+D0048	DROP	area_11	adm/integer_affine.rs:1424-1427	GROUP: **proof-admission (5)** | - `adm/integer_affine.rs:1424-1427`: extra shift evidence.
+D0049	DROP	area_11	adm/mathematical_core.rs:3664-3666	GROUP: **proof-admission (5)** | - `adm/mathematical_core.rs:3664-3666`: unknown constant index in the closure.
+D0050	DROP	area_11	pc/source_compilation.rs:326	GROUP: **psi-compiler (1)** | - `pc/source_compilation.rs:326`: a completion with incomplete usage accounting is not retained.
+D0051	DROP	area_11	tp/build_bindings.rs:682-699	GROUP: **psi-terminal-production (4)** | - `tp/build_bindings.rs:682-699`, `:394-402`, `:33-41`; `tp/lib.rs:188-198`.

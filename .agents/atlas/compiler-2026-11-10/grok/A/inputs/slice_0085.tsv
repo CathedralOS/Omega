@@ -1,0 +1,8 @@
+A0650	ACCEPT	area_04	S07/validation.rs:315-327	- S07/validation.rs:315-327: `code` and `footprint` of a deferred row are not examined here.
+A0651	ACCEPT	area_04	PR/checked_compilation.rs:162-165	- PR/checked_compilation.rs:162-165: no root grants, `reconstruct_trust_obligations` is skipped.
+A0652	ACCEPT	area_04	PR/evaluated_build.rs:104-118	- PR/evaluated_build.rs:104-118: native binding evaluations compared by `terminal_code` only.
+A0653	ACCEPT	area_04	PR/package_build.rs:185-193	- PR/package_build.rs:185-193: inputs replaced after sealing without recomputing the handoff.
+A0654	ACCEPT	area_04	PR/package_build/retention_identity.rs:685-689	- PR/package_build/retention_identity.rs:685-689: invalid symbols hash identically.
+A0655	ACCEPT	area_04	PR/prepared_build.rs:127	- PR/prepared_build.rs:127: `adopt_derived_code` guards equivalence only with `debug_assert!`.
+A0656	ACCEPT	area_04	PA/admission_source.rs:209-217	- PA/admission_source.rs:209-217: "a current cohort that drops a fatal entry, the anchor or the assumptions but keeps everything else".
+A0657	ACCEPT	area_04	PA/provider_admission.rs:437-440	- PA/provider_admission.rs:437-440, 472: "a reachable boundary without a selected provider whose declaration or identity text is missing from the plan".

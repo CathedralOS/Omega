@@ -1,0 +1,8 @@
+A0433	ACCEPT	area_14	dp:7976-7987	GROUP: **dp (22)** | - dp:7976-7987 store to a field no fact names returns before any check.
+A0434	ACCEPT	area_14	dp:8005-8049	GROUP: **dp (22)** | - dp:8005-8049 requirement filter drops requirements judged disjoint from the store.
+A0435	ACCEPT	area_14	dp:8982-9019	GROUP: **dp (22)** | - dp:8982-9019 `validate_qualified_place_read` six silent returns.
+A0436	ACCEPT	area_14	dp:8966	GROUP: **dp (22)** | - dp:8966 `_ => {}`: reads inside unlisted node kinds are not scanned.
+A0437	ACCEPT	area_14	dp:9939-9941	GROUP: **dp (22)** | - dp:9939-9941 every state parameter counts as established whatever its type.
+A0438	ACCEPT	area_14	dp:11400	GROUP: **dp (22)** | - dp:11400 unresolved transition targets add no edge — a missing predecessor makes the target look more established.
+A0439	ACCEPT	area_14	dp:11807-11812	GROUP: **dp (22)** | - dp:11807-11812 — a case path that resolves to a different variant with the same spelling evaluates true.
+A0440	ACCEPT	area_14	dp:12902-12904	GROUP: **dp (22)** | - dp:12902-12904 with dp:13231-13233 — "a callee that leaves an invariant window open on its own parameter, called once with a tracked place that the re-walk proves and once with an untracked place".

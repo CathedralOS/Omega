@@ -1,0 +1,8 @@
+U0181	UNUSED	area_02	ff:24678	- Fourteen `ObjectFunction` carrier fields that `empty_unsupported_records` requires empty (ff:24678) are still public fields (EM/object_artifact.rs:341-373). Suspected unused; not grepped per field.
+U0182	UNUSED	area_02	IM/output.rs:212	- Single-variant or empty items: `ImageOutputKind` (IM/output.rs:212; 7 matches in 3 files); `ElfDynamicAddressApplicationKind`, test-only (ELF/load_placement.rs:2557-2562); `NativeCompilerBuiltinCatalogIdentity::HostedV1` (NA/physical/mod.rs:121); empty `impl ObjectArtifact {}` at EM/entries.rs:2668-2669 and ff:3953-3954; empty `mod tests {}` at ELF/static_executable.rs:157-158.
+U0183	UNUSED	area_02	NA/native_artifact/provider_execution.rs:125	- Ignored parameters: `_identities` (NA/native_artifact/provider_execution.rs:125); `_signature` (CC/plans.rs:427).
+U0184	UNUSED	area_02	NA/publication.rs:428	- `DynamicElfPublicationReceipt.installation_evidence_digest` (NA/publication.rs:428): written at :416, no accessor, takes part only in derived equality.
+U0185	UNUSED	area_02	A64/register_model.rs:1709	- `AARCH64_INLINE_ASSEMBLY_DEFAULT` (A64/register_model.rs:1709): unit 6 could not separate its count; checked: 5 matches, all in register_model.rs.
+U0186	UNUSED	area_02	MO/dyld_linking.rs:1041	- `MachoDylib::LIBOBJC` (MO/dyld_linking.rs:1041): used only at :1060 and in a test (:1111).
+U0187	UNUSED	area_02	ELF/load_placement.rs:492	- Test-only visibility: `aarch64_page_delta_covers_extent` (ELF/load_placement.rs:492) and `validate_deferred_constraint_envelope` (:425) each have 1 production caller in the same file.
+U0188	UNUSED	area_02	-	- `encoded_scalar_plan`: documented as the single shared definition; 4 matches in 2 files, the two ISAs (checked). The claim holds.

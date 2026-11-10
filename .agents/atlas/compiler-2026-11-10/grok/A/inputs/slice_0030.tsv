@@ -1,0 +1,8 @@
+A0224	ACCEPT	area_10	projections.rs:1835-1866	GROUP: projections.rs (record 068): | 49. 1835-1866: calls to unresolved or non-checked-supply targets are recorded as `unresolved_calls` instead of failing (consumers unread).
+A0225	ACCEPT	area_10	proofs.rs:2625-2626	GROUP: proofs.rs (record 069): | 50. 2625-2626: the "policy" divisor check accepts a literal `-1`.
+A0226	ACCEPT	area_10	proofs.rs:298-308	GROUP: proofs.rs (record 069): | 51. 298-308, 368-370: an entry claim with no content qualification or projection is dropped. Reader: a parameter claim whose qualifications do not resolve to a content projection is dropped rather than rejected.
+A0227	ACCEPT	area_10	proofs.rs:4452-4463	GROUP: proofs.rs (record 069): | 52. 4452-4463: a crash bucket whose guards all vanish is dropped (the reader did not read `CrashRouteBucket::new`).
+A0228	ACCEPT	area_10	proofs.rs:4220	GROUP: proofs.rs (record 069): | 53. 4220, 4326: unlisted term and proposition kinds are left unsubstituted.
+A0229	ACCEPT	area_10	proofs.rs:4751-4766	GROUP: proofs.rs (record 069): | 54. 4751-4766: an application naming an undeclared proposition is omitted. Traced for the lookups at 5050 and 6543 only; open for other consumers.
+A0230	ACCEPT	area_10	proofs.rs:7186-7256	GROUP: proofs.rs (record 069): | 55. 7186-7256: with no resolved direct source the float projection uses `TransitionalInput`. Reader: a program whose direct source could not be resolved still lowers.
+A0231	ACCEPT	area_10	proofs.rs:7319-7324	GROUP: proofs.rs (record 069): | 56. 7319-7324, 7400-7402, 7417, 7449: four `Ok(None)` paths that lead to entry 55.

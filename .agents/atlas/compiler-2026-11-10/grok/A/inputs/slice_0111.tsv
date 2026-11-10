@@ -1,0 +1,8 @@
+A0855	ACCEPT	area_02	ff:20219	25. ff:20219 (`cleanup_actions_match`): tests accept any subset or reordering of the read results' discards (ff:20644-20649); the empty list is not asserted. Marked open by gap_002 because the body was not read.
+A0856	ACCEPT	area_02	EM/object_artifact.rs:3628	26. EM/object_artifact.rs:3628: `_ => true` in the execution/realization pairing. An `AdmittedProvider` execution with any realization other than the three hosted ones is accepted by this check; a later custody equality (:3633-3641) still applies.
+A0857	ACCEPT	area_02	EM/object_artifact.rs:1170	27. EM/object_artifact.rs:1170: `ram::validate` examines three operation kinds and `continue`s on all others.
+A0858	ACCEPT	area_02	EM/object_artifact.rs:1673-1675	28. EM/object_artifact.rs:1673-1675: a foreign call whose record has no descriptor input passes; a call that should have a guard but whose record omits it would pass.
+A0859	ACCEPT	area_02	EM/object_artifact.rs:2594-2609	29. EM/object_artifact.rs:2594-2609: argument sources `Parameter`, `BlockParameter`, `BooleanImmediate`, `IeeeFloatImmediate` record the whole call span as the argument span with no transport check.
+A0860	ACCEPT	area_02	EM/entries.rs:328	30. EM/entries.rs:328: `_ => {}` for instruction families not in the privileged list; they contribute only their decoded footprint. Which families exist not traced.
+A0861	ACCEPT	area_02	EM/entries.rs:3891-3896	31. EM/entries.rs:3891-3896: `prepare` returns `Ok(None)` (no shim) when the artifact is not a free-Unit entry or the target has no form.
+A0862	ACCEPT	area_02	EM/entries.rs:5575-5594	32. EM/entries.rs:5575-5594: when two origin rows share an identity, a `None` field never conflicts with a `Some`.

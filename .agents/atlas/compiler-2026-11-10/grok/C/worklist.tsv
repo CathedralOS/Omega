@@ -1,0 +1,117 @@
+C0001	ASSUMED_BINDING_CONTRACT	wiki/spec/build/assumed_binding_contracts.md	1	253	Assumed binding contracts	wiki__spec__build__assumed_binding_contracts.md
+C0002	BEHAVIOR_EXCLUSIONS	wiki/spec/build/behavior_exclusions.md	1	259	Build-level behavior exclusions	wiki__spec__build__behavior_exclusions.md
+C0003	BOUNDARY_SHAPES	wiki/spec/build/boundary_shapes.md	1	66	Boundary signature shapes	wiki__spec__build__boundary_shapes.md
+C0004	CALLING_PLANS	wiki/spec/build/calling_plans.md	1	168	Boundary calling plans	wiki__spec__build__calling_plans.md
+C0005	COMMAND_LINE	wiki/spec/build/command_line.md	1	150	Command-line tools	wiki__spec__build__command_line.md
+C0006	COMPILER_REQUEST	wiki/spec/build/compiler_request.md	1	268	Standalone Omega compiler request (before next heading) + Logical inputs + OCREQ v1 framing + Canonical subject + 1 more	wiki__spec__build__compiler_request__L0001-L0268.md
+C0007	COMPILER_REQUEST	wiki/spec/build/compiler_request.md	269	623	Validation and failures	wiki__spec__build__compiler_request__L0269-L0623.md
+C0008	COMPONENT_PUBLICATION	wiki/spec/build/component_publication.md	1	573	Native products and component publication	wiki__spec__build__component_publication.md
+C0009	CONFIGURATION	wiki/spec/build/configuration.md	1	308	Build configuration and target selection	wiki__spec__build__configuration.md
+C0010	DECLARATIONS	wiki/spec/build/declarations.md	1	276	Build declarations and package identity	wiki__spec__build__declarations.md
+C0011	EMBEDDING	wiki/spec/build/embedding.md	1	453	Embedding and interpreted components	wiki__spec__build__embedding.md
+C0012	ENTRY_ROOTS	wiki/spec/build/entry_roots.md	1	212	Target slots and program entry	wiki__spec__build__entry_roots.md
+C0013	EXECUTABLE_INSTALLATION	wiki/spec/build/executable_installation.md	1	110	Admitted executable installation	wiki__spec__build__executable_installation.md
+C0014	EXECUTION	wiki/spec/build/execution.md	1	199	Build execution and generated source	wiki__spec__build__execution.md
+C0015	EXTERNAL_ROOTS	wiki/spec/build/external_roots.md	1	141	Installed external roots	wiki__spec__build__external_roots.md
+C0016	FOREIGN_BINDINGS	wiki/spec/build/foreign_bindings.md	1	255	Foreign boundary bindings	wiki__spec__build__foreign_bindings.md
+C0017	FOREIGN_STORAGE	wiki/spec/build/foreign_storage.md	1	145	Foreign storage and lifetime	wiki__spec__build__foreign_storage.md
+C0018	HARDWARE_MATERIALIZATION	wiki/spec/build/hardware_materialization.md	1	69	Symbolic hardware materialization	wiki__spec__build__hardware_materialization.md
+C0019	INTERRUPT_OBLIGATIONS	wiki/spec/build/interrupt_obligations.md	1	71	Interrupt entry obligations	wiki__spec__build__interrupt_obligations.md
+C0020	MACHINE_STATE_EVIDENCE	wiki/spec/build/machine_state_evidence.md	1	67	Machine-state realization evidence	wiki__spec__build__machine_state_evidence.md
+C0021	MACOS_APPLICATION	wiki/spec/build/macos_application.md	1	120	macOS application publication	wiki__spec__build__macos_application.md
+C0022	BUILD_OBSERVATIONS	wiki/spec/build/observations.md	1	68	Build inputs, observations, and outputs	wiki__spec__build__observations.md
+C0023	OPAQUE_REPRESENTATIONS	wiki/spec/build/opaque_representations.md	1	72	Opaque representation selection	wiki__spec__build__opaque_representations.md
+C0024	OPTIMIZATIONS	wiki/spec/build/optimizations.md	1	266	Optimization selection and validation	wiki__spec__build__optimizations.md
+C0025	PERMISSIONS	wiki/spec/build/permissions.md	1	258	Service permission and terminal authority	wiki__spec__build__permissions.md
+C0026	PLATFORM_SERVICES	wiki/spec/build/platform_services.md	1	103	Platform services	wiki__spec__build__platform_services.md
+C0027	PRIVATE_CALLBACKS	wiki/spec/build/private_callbacks.md	1	154	Private callback realization	wiki__spec__build__private_callbacks.md
+C0028	PROVIDER_SELECTION	wiki/spec/build/provider_selection.md	1	427	Provider selection	wiki__spec__build__provider_selection.md
+C0029	SCOPED_EXECUTION	wiki/spec/build/scoped_execution.md	1	550	Build staging, dependency scopes, and capabilities (before next heading) + Contract summary + Problem and scope + Existing owners + 5 more	wiki__spec__build__scoped_execution__L0001-L0550.md
+C0030	SCOPED_EXECUTION	wiki/spec/build/scoped_execution.md	551	868	Execution contexts and reuse + Staged products and failure + Target inspection and reflection + Implementation acceptance + 2 more	wiki__spec__build__scoped_execution__L0551-L0868.md
+C0031	TASK_RUNTIME	wiki/spec/build/task_runtime.md	1	279	Task activation and lifecycle	wiki__spec__build__task_runtime.md
+C0032	TESTING	wiki/spec/build/testing.md	1	327	Requirement-based test groups	wiki__spec__build__testing.md
+C0033	UEFI_ENTRY	wiki/spec/build/uefi_entry.md	1	150	UEFI entry and firmware handoff	wiki__spec__build__uefi_entry.md
+C0034	VALIDATION_SUBJECTS	wiki/spec/build/validation_subjects.md	1	102	Validation subjects	wiki__spec__build__validation_subjects.md
+C0035	ASSEMBLY	wiki/spec/language/assembly.md	1	422	Checked assembly	wiki__spec__language__assembly.md
+C0036	CONCURRENCY	wiki/spec/language/concurrency.md	1	173	Concurrency and atomic observation	wiki__spec__language__concurrency.md
+C0037	CONFORMANCES	wiki/spec/language/conformances.md	1	425	Named conformances and exact satisfaction	wiki__spec__language__conformances.md
+C0038	CONSTANTS	wiki/spec/language/constants.md	1	88	Constants	wiki__spec__language__constants.md
+C0039	COUNTS_AND_ADDRESSES	wiki/spec/language/counts_and_addresses.md	1	277	Counts, indices, and addresses	wiki__spec__language__counts_and_addresses.md
+C0040	DATA_AND_LITERALS	wiki/spec/language/data_and_literals.md	1	297	Data, literals, and lexical framing	wiki__spec__language__data_and_literals.md
+C0041	DEPENDENT_VALUES	wiki/spec/language/dependent_values.md	1	332	Value-dependent facts and views	wiki__spec__language__dependent_values.md
+C0042	DOMAINS	wiki/spec/language/domains.md	1	548	Domains and qualification (before next heading) + Declaration and membership + Domain-owned read and write authority + Domain-selected automatic cleanup + 1 more	wiki__spec__language__domains__L0001-L0548.md
+C0043	DOMAINS	wiki/spec/language/domains.md	549	1050	Domain casts + Semantic roles and operators + Aliases and identity + Indexed families + 1 more	wiki__spec__language__domains__L0549-L1050.md
+C0044	EFFECTS	wiki/spec/language/effects.md	1	326	Service reach and operational ceilings (before next heading) + Declarations + Process-exit reach + Recoverable outcomes and strict use + 1 more	wiki__spec__language__effects__L0001-L0326.md
+C0045	EFFECTS	wiki/spec/language/effects.md	327	851	Static callback reach dependencies + Direct synchronous invocation + Call-site acknowledgements + Guarded crashes + 1 more	wiki__spec__language__effects__L0327-L0851.md
+C0046	EVALUATION	wiki/spec/language/evaluation.md	1	358	Semantic evaluation	wiki__spec__language__evaluation.md
+C0047	EXPRESSIONS	wiki/spec/language/expressions.md	1	490	Expressions and evaluation order	wiki__spec__language__expressions.md
+C0048	GENERICS	wiki/spec/language/generics.md	1	577	Generic declarations and static machine parameters (before next heading) + Generic machine requirements + Applications and specialization + Transparent type aliases + 10 more	wiki__spec__language__generics__L0001-L0577.md
+C0049	GENERICS	wiki/spec/language/generics.md	578	810	Static machine binder categories + Forwarded callback requirements + Invocation-lifetime families + Nested contracts and proof families + 1 more	wiki__spec__language__generics__L0578-L0810.md
+C0050	LIFETIMES	wiki/spec/language/lifetimes.md	1	106	Lifetimes and carried borrows	wiki__spec__language__lifetimes.md
+C0051	MACHINE_VALUES	wiki/spec/language/machine_values.md	1	152	Machines as runtime values	wiki__spec__language__machine_values.md
+C0052	MACHINES	wiki/spec/language/machines.md	1	332	Machines and contract refinement	wiki__spec__language__machines.md
+C0053	MODULES	wiki/spec/language/modules.md	1	193	Modules, imports, and visibility	wiki__spec__language__modules.md
+C0054	NUMERIC_VALUES	wiki/spec/language/numeric_values.md	1	517	Numeric values and bounds (before next heading) + Library numeric helpers + Core integer and float APIs + Literal landing and destinations + 1 more	wiki__spec__language__numeric_values__L0001-L0517.md
+C0055	NUMERIC_VALUES	wiki/spec/language/numeric_values.md	518	737	Floating formats and operations + Collection bounds + Policy realization	wiki__spec__language__numeric_values__L0518-L0737.md
+C0056	LANGUAGE_OWNERSHIP	wiki/spec/language/ownership.md	1	344	Ownership and multiplicity	wiki__spec__language__ownership.md
+C0057	PATTERNS	wiki/spec/language/patterns.md	1	249	Patterns and dispatch	wiki__spec__language__patterns.md
+C0058	PROCESS_EXIT	wiki/spec/language/process_exit.md	1	133	Process exit	wiki__spec__language__process_exit.md
+C0059	REFLECTION	wiki/spec/language/reflection.md	1	425	Semantic reflection and typed visitation	wiki__spec__language__reflection.md
+C0060	SOME_PACKAGES	wiki/spec/language/some_packages.md	1	197	Per-value type packages with some	wiki__spec__language__some_packages.md
+C0061	STATE_CONTRACTS	wiki/spec/language/state_contracts.md	1	281	Invocation contracts and live facts	wiki__spec__language__state_contracts.md
+C0062	TERMINATION	wiki/spec/language/termination.md	1	266	Termination, ranking, and progress	wiki__spec__language__termination.md
+C0063	CODECS	wiki/spec/layouts/codecs.md	1	203	Codecs and format policies	wiki__spec__layouts__codecs.md
+C0064	PLANS	wiki/spec/layouts/plans.md	1	420	Layout policies and plans	wiki__spec__layouts__plans.md
+C0065	RECASTS	wiki/spec/layouts/recasts.md	1	180	Representation-compatible recasts	wiki__spec__layouts__recasts.md
+C0066	ACCEPTANCE	wiki/spec/packages/acceptance.md	1	316	Package acceptance	wiki__spec__packages__acceptance.md
+C0067	BOUNDARIES	wiki/spec/packages/boundaries.md	1	124	Package declaration and carried-type boundaries	wiki__spec__packages__boundaries.md
+C0068	LOCKS	wiki/spec/packages/locks.md	1	158	Project locks	wiki__spec__packages__locks.md
+C0069	RESOLVER_SECURITY	wiki/spec/packages/resolver_security.md	1	333	Source resolver security	wiki__spec__packages__resolver_security.md
+C0070	REVIEW	wiki/spec/packages/review.md	1	318	Compiler-derived package review	wiki__spec__packages__review.md
+C0071	SOURCES	wiki/spec/packages/sources.md	1	158	Package source selection	wiki__spec__packages__sources.md
+C0072	TOOLCHAIN	wiki/spec/packages/toolchain.md	1	56	Core, ordinary libraries, and semantic bindings	wiki__spec__packages__toolchain.md
+C0073	TOPOLOGY	wiki/spec/packages/topology.md	1	577	Checked boundary topology (before next heading) + Contract summary + Problem and decision + Ownership + 8 more	wiki__spec__packages__topology__L0001-L0577.md
+C0074	TOPOLOGY	wiki/spec/packages/topology.md	578	724	First executable realization + Diagnostics and implementation acceptance + Alternatives and scope settlement + Implementation and amendments + 1 more	wiki__spec__packages__topology__L0578-L0724.md
+C0075	CLASSICALITY	wiki/spec/proofs/classicality.md	1	189	Classicality audit of the proof rules	wiki__spec__proofs__classicality.md
+C0076	CONTRACTS	wiki/spec/proofs/contracts.md	1	528	Mathematical proof contracts (before next heading) + Machines and bundles + Mathematical values and quantification + Citation and induction + 2 more	wiki__spec__proofs__contracts__L0001-L0528.md
+C0077	CONTRACTS	wiki/spec/proofs/contracts.md	529	686	Axioms and receiving policy + Certified elaboration and review + Delivery obligations	wiki__spec__proofs__contracts__L0529-L0686.md
+C0078	FOUNDATION	wiki/spec/proofs/foundation.md	1	262	Mathematical foundation	wiki__spec__proofs__foundation.md
+C0079	INDUCTIVE_PROFILE	wiki/spec/proofs/inductive_profile.md	1	199	W-based inductive profile	wiki__spec__proofs__inductive_profile.md
+C0080	KERNEL_METATHEORY	wiki/spec/proofs/kernel_metatheory.md	1	559	Kernel metatheory	wiki__spec__proofs__kernel_metatheory.md
+C0081	MATHEMATICAL_BINDINGS	wiki/spec/proofs/mathematical_bindings.md	1	281	Mathematical bindings and logical hypotheses	wiki__spec__proofs__mathematical_bindings.md
+C0082	QUOTIENTS	wiki/spec/proofs/quotients.md	1	370	Relations and quotients	wiki__spec__proofs__quotients.md
+C0083	ACCESS	wiki/spec/resources/access.md	1	476	Access policies, views, and resident custody	wiki__spec__resources__access.md
+C0084	ACTIVATION_STORAGE	wiki/spec/resources/activation_storage.md	1	75	Runtime-sized activation storage	wiki__spec__resources__activation_storage.md
+C0085	ALLOCATION	wiki/spec/resources/allocation.md	1	103	Allocation strategies	wiki__spec__resources__allocation.md
+C0086	AUTHORITY	wiki/spec/resources/authority.md	1	273	Authority values and qualification evidence	wiki__spec__resources__authority.md
+C0087	BOUNDED_GROWTH	wiki/spec/resources/bounded_growth.md	1	70	Bounded growth	wiki__spec__resources__bounded_growth.md
+C0088	BOUNDED_INPUT	wiki/spec/resources/bounded_input.md	1	131	Bounded byte input	wiki__spec__resources__bounded_input.md
+C0089	CARRY	wiki/spec/resources/carry.md	1	128	Carry demands and runtime preservation	wiki__spec__resources__carry.md
+C0090	CONTENT_CUSTODY	wiki/spec/resources/content_custody.md	1	312	Content conservation and custody	wiki__spec__resources__content_custody.md
+C0091	DEVICE_ACCESS	wiki/spec/resources/device_access.md	1	82	Device custody and ordering	wiki__spec__resources__device_access.md
+C0092	ENTRY_STACKS	wiki/spec/resources/entry_stacks.md	1	76	External-entry stack composition	wiki__spec__resources__entry_stacks.md
+C0093	EXTENTS	wiki/spec/resources/extents.md	1	164	Extent authority and mappings	wiki__spec__resources__extents.md
+C0094	LOGICAL_WORK	wiki/spec/resources/logical_work.md	1	201	Logical work and response bounds	wiki__spec__resources__logical_work.md
+C0095	STORAGE	wiki/spec/resources/storage.md	1	148	Provisioned storage and stack demand	wiki__spec__resources__storage.md
+C0096	TYPED_RUNS	wiki/spec/resources/typed_runs.md	1	190	Dense owned runs	wiki__spec__resources__typed_runs.md
+C0097	BOUNDARY_CALLS	wiki/spec/terminal-psi/boundary_calls.md	1	384	Terminal Psi boundary calls and realization	wiki__spec__terminal-psi__boundary_calls.md
+C0098	BYTE_VIEWS	wiki/spec/terminal-psi/byte_views.md	1	459	Terminal Psi byte views	wiki__spec__terminal-psi__byte_views.md
+C0099	CALLS_AND_OUTCOMES	wiki/spec/terminal-psi/calls_and_outcomes.md	1	376	Calls and outcomes	wiki__spec__terminal-psi__calls_and_outcomes.md
+C0100	CONTROL_FLOW	wiki/spec/terminal-psi/control_flow.md	1	159	Control flow and ranking	wiki__spec__terminal-psi__control_flow.md
+C0101	DYNAMIC_DISPATCH	wiki/spec/terminal-psi/dynamic_dispatch.md	1	168	Runtime callable dispatch and package evidence	wiki__spec__terminal-psi__dynamic_dispatch.md
+C0102	ENCODING	wiki/spec/terminal-psi/encoding.md	1	597	Terminal canonical encoding and identities (before next heading) + Canonical form + Field encodings + Scalar terms + 3 more	wiki__spec__terminal-psi__encoding__L0001-L0597.md
+C0103	ENCODING	wiki/spec/terminal-psi/encoding.md	598	868	Propositions + Operation rows + Terminator rows	wiki__spec__terminal-psi__encoding__L0598-L0868.md
+C0104	ENCODING	wiki/spec/terminal-psi/encoding.md	869	1468	Machine rows (before next heading) (part 1)	wiki__spec__terminal-psi__encoding__L0869-L1468.md
+C0105	ENCODING	wiki/spec/terminal-psi/encoding.md	1469	1563	Machine rows (before next heading) (part 2) + Deferred static reach summaries + Conditional suspension-carry summaries	wiki__spec__terminal-psi__encoding__L1469-L1563.md
+C0106	ENCODING	wiki/spec/terminal-psi/encoding.md	1564	2149	Module declaration tables (before next heading) + Structural declarations + Access-view inputs and reborrow custody + Boundary machines and provider candidates + 3 more	wiki__spec__terminal-psi__encoding__L1564-L2149.md
+C0107	ENCODING	wiki/spec/terminal-psi/encoding.md	2150	2577	Closed conformance applications + Suspension rows + Operation crash contracts + Canonical artifact + Debug map + Optimization execution + 4 more	wiki__spec__terminal-psi__encoding__L2150-L2577.md
+C0108	FACT_VALIDITY	wiki/spec/terminal-psi/fact_validity.md	1	165	Terminal fact validity	wiki__spec__terminal-psi__fact_validity.md
+C0109	INTEGER_CERTIFICATES	wiki/spec/terminal-psi/integer_certificates.md	1	258	Integer goals and certificates	wiki__spec__terminal-psi__integer_certificates.md
+C0110	LOANS	wiki/spec/terminal-psi/loans.md	1	126	Loan resources and compatibility	wiki__spec__terminal-psi__loans.md
+C0111	MATHEMATICAL_VALUES	wiki/spec/terminal-psi/mathematical_values.md	1	187	Mathematical proof values	wiki__spec__terminal-psi__mathematical_values.md
+C0112	TERMINAL_PSI_OBSERVATIONS	wiki/spec/terminal-psi/observations.md	1	171	Terminal observations	wiki__spec__terminal-psi__observations.md
+C0113	TERMINAL_PSI_OWNERSHIP	wiki/spec/terminal-psi/ownership.md	1	370	Structural claims and cleanup	wiki__spec__terminal-psi__ownership.md
+C0114	PRODUCT	wiki/spec/terminal-psi/product.md	1	324	Psi product	wiki__spec__terminal-psi__product.md
+C0115	STRUCTURAL_ACCESS	wiki/spec/terminal-psi/structural_access.md	1	455	Structural access and stores (before next heading) + Referent identity + Construction and receiving checks + Write-only authority + 3 more	wiki__spec__terminal-psi__structural_access__L0001-L0455.md
+C0116	STRUCTURAL_ACCESS	wiki/spec/terminal-psi/structural_access.md	456	905	Store vocabulary + Conformance checks	wiki__spec__terminal-psi__structural_access__L0456-L0905.md
+C0117	STRUCTURAL_PREDICATES	wiki/spec/terminal-psi/structural_predicates.md	1	75	Structural predicates	wiki__spec__terminal-psi__structural_predicates.md

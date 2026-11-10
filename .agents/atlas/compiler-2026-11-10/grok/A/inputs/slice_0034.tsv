@@ -1,0 +1,8 @@
+A0256	ACCEPT	area_10	scalar_lowering.rs:2815-2818	GROUP: scalar_lowering.rs, shared.rs, unit.rs, unit_arguments.rs (record 070): | 81. scalar_lowering.rs:2815-2818: a produced value without fresh storage gets no discard.
+A0257	ACCEPT	area_10	scalar_lowering.rs:793	GROUP: scalar_lowering.rs, shared.rs, unit.rs, unit_arguments.rs (record 070): | 82. scalar_lowering.rs:793: `Ok(None)` snapshot completion.
+A0258	ACCEPT	area_10	shared.rs:308-321	GROUP: scalar_lowering.rs, shared.rs, unit.rs, unit_arguments.rs (record 070): | 83. shared.rs:308-321: a missing call row is treated as an ordinary operand call.
+A0259	ACCEPT	area_10	shared.rs:2065-2079	GROUP: scalar_lowering.rs, shared.rs, unit.rs, unit_arguments.rs (record 070): | 84. shared.rs:2065-2079: no qualification row means a plain scalar type with no qualifications.
+A0260	ACCEPT	area_10	unit.rs:98-100	GROUP: scalar_lowering.rs, shared.rs, unit.rs, unit_arguments.rs (record 070): | 85. unit.rs:98-100: no contract plan means no crash routes. Reader: a callee without a contract plan is treated as crash-free. Checked: matches.
+A0261	ACCEPT	area_10	unit.rs:625-628	GROUP: scalar_lowering.rs, shared.rs, unit.rs, unit_arguments.rs (record 070): | 86. unit.rs:625-628: tables not selected here get `None` rows and no realization check.
+A0262	ACCEPT	area_10	unit.rs:1074-1080	GROUP: scalar_lowering.rs, shared.rs, unit.rs, unit_arguments.rs (record 070): | 87. unit.rs:1074-1080, 1560-1561, 2061-2072: facts skipped, propositions returned unchanged, and a store re-opening a cleanup action.
+A0263	ACCEPT	area_10	unit.rs:3759-3761	GROUP: scalar_lowering.rs, shared.rs, unit.rs, unit_arguments.rs (record 070): | 88. unit.rs:3759-3761: a cleanup whose machine is not in the closure is skipped.

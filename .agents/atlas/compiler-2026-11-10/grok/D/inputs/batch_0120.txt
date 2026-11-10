@@ -1,0 +1,10 @@
+tests/omega/fail/float/trapping_arithmetic_requires_same_cause_ceiling
+tests/omega/fail/float/trapping_named_conversion_requires_site_coverage
+tests/omega/fail/float/trapping_nonentry_site_requires_matching_path
+tests/omega/fail/float/trapping_raw_finite_predicate_invalidated_by_write
+tests/omega/fail/float/trapping_raw_finite_predicate_keeps_operand_identity
+tests/omega/fail/float/trapping_raw_finite_proof_keeps_operation_identity
+tests/omega/fail/float/unbounded_result_does_not_prove_guarantee
+tests/omega/fail/float/unguarded_scalar_state_contract
+tests/omega/fail/float/value_refinement_conjunction_requires_finite
+tests/omega/fail/float/x86_fma_missing_deployment_features

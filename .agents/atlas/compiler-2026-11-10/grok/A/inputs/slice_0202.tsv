@@ -1,0 +1,2 @@
+U0189	UNUSED	area_02	EM/lib.rs:11	- "Sole builder of `ObjectArtifact`" (EM/lib.rs:11): the only struct literal is ff:3821 (unit 5 grep); EM/object.rs:467 makes modified clones, a second path.
+U0190	UNUSED	area_02	-	- One-caller public or crate-public functions are the norm in NA/physical/derivation (each `derive_*_child` and each settlement identity function has 1 caller; unit 2), and for `bind_hosted_receiver`, `bind_physical_entry` (1 caller each in `fragment_object_publication.rs`; unit 4).

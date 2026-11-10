@@ -1,0 +1,8 @@
+A0473	ACCEPT	area_14	etf:1444-1462	GROUP: **lib, fz, fl, etf (26)** | - etf:1444-1462 values with no declared type and no value class are compatible.
+A0474	ACCEPT	area_14	etf:1270-1275	GROUP: **lib, fz, fl, etf (26)** | - etf:1270-1275 returns before compatibility checks when arms share a static type.
+A0475	ACCEPT	area_14	etf:3078-3340	GROUP: **lib, fz, fl, etf (26)** | - etf:3078-3340 conflict reporters return "no conflict" on unreachable context, unlisted expression kinds, failed substitution, any `Reference`, unresolved carriers.
+A0476	ACCEPT	area_14	etf:7030-7062	GROUP: **lib, fz, fl, etf (26)** | - etf:7030-7062, 7168-7178 — required `Slice`, `Generic`, `DynamicTrait`, plain `Named` accept by expression node kind alone, "e.g. a `Call` whose `constructed_value_type_reference` is unset".
+A0477	ACCEPT	area_14	etf:685-704	GROUP: **lib, fz, fl, etf (26)** | - etf:685-704 any value pattern counts as total.
+A0478	ACCEPT	area_14	fz:1097-1119	GROUP: **lib, fz, fl, etf (26)** | - fz:1097-1119 after `program_mut()` every `has_active_*` cycle cut is false ("Suspected unbounded recursion risk"; not an accept).
+A0479	ACCEPT	area_14	lsl:4229-4231	GROUP: **lsl, mcc (17)** | - lsl:4229-4231 — a generic data literal with a valid applied type skips field obligations.
+A0480	ACCEPT	area_14	lsl:5509-5547	GROUP: **lsl, mcc (17)** | - lsl:5509-5547 — "a `const` whose struct literal has an out-of-range field, a duplicate field, or an unknown field, unless another pass reports it"; nothing is scanned when the program has no machine.

@@ -1,0 +1,2 @@
+tests/omega/pass/compile_time/const_overload_nested_dependency_exit
+tests/omega/pass/compile_time/const_overload_selected_dependency_exit

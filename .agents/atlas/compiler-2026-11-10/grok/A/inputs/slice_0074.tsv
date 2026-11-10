@@ -1,0 +1,8 @@
+A0569	ACCEPT	area_14	vcc:2025-2033	GROUP: **trw, vcc (28)** | - vcc:2025-2033 generic with missing definition or wrong argument count judged not to need a drop machine.
+A0570	ACCEPT	area_14	vcc:2142-2149	GROUP: **trw, vcc (28)** | - vcc:2142-2149 a reserved cleanup selected by an unresolved target is not diagnosed.
+A0571	ACCEPT	area_14	vcc:2399-2403	GROUP: **trw, vcc (28)** | - vcc:2399-2403 delivery check returns silently without a source cleanup selection.
+A0572	ACCEPT	area_14	vcc:2838-2839	GROUP: **trw, vcc (28)** | - vcc:2838-2839, 2848-2850 regions that cannot be compared pass.
+A0573	ACCEPT	area_14	vcc:2785-2787	GROUP: **trw, vcc (28)** | - vcc:2785-2787, 2815 missing machine skipped.
+A0574	ACCEPT	area_14	vcc:2971-2973	GROUP: **trw, vcc (28)** | - vcc:2971-2973, 2997 length mismatch returns; a `Value` argument with no carrier is skipped.
+A0575	ACCEPT	area_14	vcc:3418-3445	GROUP: **trw, vcc (28)** | - vcc:3418-3445 array literal against a non-array carrier: nothing pushed.
+A0576	ACCEPT	area_14	vcc:4052	GROUP: **trw, vcc (28)** | - vcc:4052 — "a `Named` type with no resolvable data definition is treated as needing no establishment" (the `Generic` arm at vcc:4068 says the opposite).

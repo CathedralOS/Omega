@@ -1,0 +1,8 @@
+A0192	ACCEPT	area_10	emission.rs:1714-1716	GROUP: emission.rs (record 067): | 17. 1714-1716: an unmatched formal type identity falls back to `EndpointUse::Storage`.
+A0193	ACCEPT	area_10	emission.rs:1855-1858	GROUP: emission.rs (record 067): | 18. 1855-1858: `block_dominators` with no entry makes every block dominate every block. Checked: the branch exists, and both callers pass `Some(...)` (emission_cleanup.rs:1924, unit_composed_control.rs:6165), so it is not reached today.
+A0194	ACCEPT	area_10	emission.rs:4546	GROUP: emission.rs (record 067): | 19. 4546: unknown jump targets are dropped by `filter_map`.
+A0195	ACCEPT	area_10	emission.rs:5248	GROUP: emission.rs (record 067): | 20. 5248: with a runtime index only element 0 is probed after the disjointness check ("open for non-uniform arrays").
+A0196	ACCEPT	area_10	emission.rs:8245-8253	GROUP: emission.rs (record 067): | 21. 8245-8253: `readable_byte_source_bound` ignores the capacity for a borrowed view. Reader: a borrowed view longer than the plan's capacity would be accepted here; a separate capacity obligation is emitted at 7922, not traced. Checked: matches.
+A0197	ACCEPT	area_10	emission.rs:9646	GROUP: emission.rs (record 067): | 22. 9646: `contains_short_circuit` does not look inside `IntegerComparison` operands (inferred).
+A0198	ACCEPT	area_10	emission_cleanup.rs:1194-1196	GROUP: emission_cleanup.rs (record 067): | 23. 1194-1196: `restore_path` returns silently when the root is not in the frontier.
+A0199	ACCEPT	area_10	emission_cleanup.rs:872-895	GROUP: emission_cleanup.rs (record 067): | 24. 872-895, 919: structural arguments on `StructuralCase` edges and `ExternalCompletion` are not run through `transfer`. Whether those lists can be non-empty there was not traced.

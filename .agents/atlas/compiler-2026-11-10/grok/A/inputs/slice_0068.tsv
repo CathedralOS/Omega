@@ -1,0 +1,8 @@
+A0521	ACCEPT	area_14	pcc:2056-2058	GROUP: **pv, pcc (20)** | - pcc:2056-2058 no atoms means no weakening check; pcc:2036-2043 early return on unresolved local initializer.
+A0522	ACCEPT	area_14	pcc:3014	GROUP: **pv, pcc (20)** | - pcc:3014, 3100-3103 members resolved against a partial owner set.
+A0523	ACCEPT	area_14	pcc:5565-5572	GROUP: **pv, pcc (20)** | - pcc:5565-5572, 5686-5695 — "a name resolved to something that is neither a state local nor a state parameter … is treated as an immutable bound".
+A0524	ACCEPT	area_14	pcc:5934-5953	GROUP: **pv, pcc (20)** | - pcc:5934-5953, 5959 — "a bound using a user-defined `&` or `<<` on a non-integer type would be treated as the builtin when this function is the only gate".
+A0525	ACCEPT	area_14	pcc:6085-6144	GROUP: **pv, pcc (20)** | - pcc:6085-6144 `None` from the candidate check: neither admitted nor an error here.
+A0526	ACCEPT	area_14	pcc:7515-7519	GROUP: **pv, pcc (20)** | - pcc:7515-7519 — "a fact whose expression is an integer-valued name or call" passes the boolean-shape test.
+A0527	ACCEPT	area_14	pcc:7156-7160	GROUP: **pv, pcc (20)** | - pcc:7156-7160 argument/parameter zip does not report arity mismatch.
+A0528	ACCEPT	area_14	pcc:8189-8195	GROUP: **pv, pcc (20)** | - pcc:8189-8195 — "a boundary-opaque data declared `[copy]` is accepted in the pending phase".

@@ -1,0 +1,3 @@
+tests/omega/pass/arithmetic/typed_integer_remainder
+tests/omega/pass/arithmetic/unsigned_computed_index
+tests/omega/pass/arithmetic/wrapping_signed_divide_min_by_neg_one

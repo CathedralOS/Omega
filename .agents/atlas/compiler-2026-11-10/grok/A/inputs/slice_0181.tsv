@@ -1,0 +1,1 @@
+U0049	UNUSED	area_10	machine_lowering.rs:2075	- Debug hooks that read the environment inside product code (recorded, not unused): `OMEGA_COMPILER_CHECK_SITES` at machine_lowering.rs:2075, unit_arguments.rs:5420, unit_operation_frame.rs:7065; `OMEGA_TRACE_NATIVE_BOUNDARY` at machine_lowering.rs:1368; `OMEGA_STATE_REFERENCE_DIAGNOSTICS` at unit_composed_control.rs:8861.

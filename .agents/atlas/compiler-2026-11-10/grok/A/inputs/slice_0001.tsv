@@ -1,0 +1,8 @@
+A0001	ACCEPT	area_08	preparation.rs:47-61	GROUP: Stage 04: | - `preparation.rs:47-61` array length left unset on every failure; later rejection not traced.
+A0002	ACCEPT	area_08	preparation.rs:138	GROUP: Stage 04: | - `preparation.rs:138` recipe positions other than two get no context entry.
+A0003	ACCEPT	area_08	preparation.rs:1452	GROUP: Stage 04: | - `preparation.rs:1452` an unresolved selection stays late-bound.
+A0004	ACCEPT	area_08	selection_and_reflection.rs:1087	GROUP: Stage 04: | - `selection_and_reflection.rs:1087`, `:1103` name-only match: "a required parameter whose spelling equals a candidate binder binds to it even if the symbols differ".
+A0005	ACCEPT	area_08	borrow.rs:4765-4775	GROUP: `borrow.rs`, `checking.rs`: | - `borrow.rs:4765-4775`, `:4891-4893`, `:7764`, `:7801-7803` template-dependent stored-slot relation yields no loans for that call.
+A0006	ACCEPT	area_08	borrow.rs:1475-1479	GROUP: `borrow.rs`, `checking.rs`: | - `borrow.rs:1475-1479` no custody rows when call frames are missing.
+A0007	ACCEPT	area_08	borrow.rs:1058	GROUP: `borrow.rs`, `checking.rs`: | - `borrow.rs:1058`, `:1174` unknown formal: "A `&mut`-typed formal of an unresolved target would be recorded as read".
+A0008	ACCEPT	area_08	borrow.rs:2452-2519	GROUP: `borrow.rs`, `checking.rs`: | - `borrow.rs:2452-2519` `source_type` returns `None`; consumers not read.

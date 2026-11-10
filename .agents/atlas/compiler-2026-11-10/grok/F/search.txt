@@ -1,0 +1,83 @@
+command: rg -n --column --no-heading '\b(requires_unsatisfiable|hypotheses_contradictory)\b' omega-rust
+rg_exit: 0
+occurrences: 83
+sites_files: 28
+raw:
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:704:32:                }) || admitted.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:835:32:                    (!admitted.requires_unsatisfiable).then_some(IntegerApplicationFormation {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:1788:47:                if self.seed_matrix() || self.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:1831:22:                self.requires_unsatisfiable |= self.matrix.close(ZERO_ATOM);
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:4930:25:                if self.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:5435:30:                        self.requires_unsatisfiable |= value != positive;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:6162:20:        pub(crate) requires_unsatisfiable: bool,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:6239:17:                requires_unsatisfiable: false,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:6277:18:            self.requires_unsatisfiable = source.requires_unsatisfiable;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:6709:30:                        self.requires_unsatisfiable = true;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:6733:42:                    (true, true) => self.requires_unsatisfiable = true,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:6761:21:            if self.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:16476:27:                if engine.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:16507:30:        let vacuous = engine.requires_unsatisfiable;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:20194:22:            if judge.hypotheses_contradictory
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:20296:22:            if judge.hypotheses_contradictory || !self.operations.contains(&expression) {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:23648:16:        engine.requires_unsatisfiable || engine.prove_at_least(&polynomial, &BigInt::zero())
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:23664:16:        engine.requires_unsatisfiable || engine.proves_nonzero(&polynomial)
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:25753:24:            if !engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:25775:24:            if !engine.requires_unsatisfiable && !rank_value.forms(&mut engine) {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:25951:23:            if engine.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:28498:28:                    engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:29954:35:                if !source_engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:31200:23:            if engine.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:33443:44:        let source_application = if engine.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:33480:68:                membership_and_pinning: entry_membership || engine.requires_unsatisfiable,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:33558:36:                        if !engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:33587:32:                    if !engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:33631:24:            if !engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:33637:19:        if engine.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:33716:20:        if !engine.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:34129:18:        if judge.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:34249:18:        if judge.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:34467:29:            return if judge.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:34521:23:            && !judge.hypotheses_contradictory
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:37157:27:                || engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:37185:27:                || engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:37554:19:        if engine.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:37706:29:        let proven = engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:37737:77:        if !install_hypotheses(program, &mut engine, &hypotheses) || engine.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:43707:19:        if engine.requires_unsatisfiable {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:44844:61:                                    active_paths[idx].judge.hypotheses_contradictory
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:45260:63:                            let is_contradictory = path.judge.hypotheses_contradictory
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:45342:43:                            if next_judge.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:46074:47:                                if next_judge.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:46925:33:        let vacuous = arm_judge.hypotheses_contradictory;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:47016:19:        arm_judge.hypotheses_contradictory |= vacuous;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:49923:26:                if trial.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:49972:26:                if trial.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:51417:34:                            self.hypotheses_contradictory = true;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:51993:34:                            self.hypotheses_contradictory = true;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:52078:30:                        self.hypotheses_contradictory = true;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:52105:26:                    self.hypotheses_contradictory = true;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:52336:30:                        self.hypotheses_contradictory = true;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:53129:46:                    self.observations.engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:53394:41:                    if candidate.engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:54174:65:                let has_premises = prepared.observations.engine.requires_unsatisfiable
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:66420:13:            hypotheses_contradictory: bool,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:66601:21:                    hypotheses_contradictory,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:66643:25:                        hypotheses_contradictory: *hypotheses_contradictory,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:67343:26:                    self.hypotheses_contradictory,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:67395:29:                    && self.hypotheses_contradictory == other.hypotheses_contradictory
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:80609:20:        pub(crate) hypotheses_contradictory: bool,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:80678:17:                hypotheses_contradictory: self.hypotheses_contradictory,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:80700:19:            !self.hypotheses_contradictory
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:80701:25:                && self.hypotheses_contradictory == base.hypotheses_contradictory
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:81105:18:            self.hypotheses_contradictory = false;
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:81185:17:                hypotheses_contradictory: false,
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:83286:32:                return if self.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:85365:18:        if judge.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:85550:25:            if self.arm.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:85655:18:        if judge.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:86129:40:                        if entry.judge.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:86184:32:                if entry.judge.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:90209:15:        judge.hypotheses_contradictory
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:90637:26:                if bound.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:90781:27:            if structural.hypotheses_contradictory {
+omega-rust/psi/compilation/validation/src/contract_entailment.rs:90907:15:    if engine.requires_unsatisfiable {

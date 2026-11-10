@@ -1,0 +1,1 @@
+tests/omega/pass/indexes/literal_linked_index_identity

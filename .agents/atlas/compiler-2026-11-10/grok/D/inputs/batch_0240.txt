@@ -1,0 +1,11 @@
+tests/omega/pass/drops/runtime_unobserved_owned_state_transfer_exit
+tests/omega/pass/drops/skipped_claim_temporary
+tests/omega/pass/drops/snapshot_drop_reassign
+tests/omega/pass/drops/state_loan_restores_nominal_cleanup_prerequisite
+tests/omega/pass/drops/statement_result_cleanup_without_expression_home_exit
+tests/omega/pass/drops/statically_skipped_claim_bearing_temporary
+tests/omega/pass/drops/structural_return_drop_local
+tests/omega/pass/drops/structural_return_drops_unreturned_local_exit
+tests/omega/pass/drops/transfer_cleanup_into_state
+tests/omega/pass/drops/transfer_cleanup_state
+tests/omega/pass/drops/wildcard_owned_structural_return_cleanup_exit

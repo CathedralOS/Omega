@@ -1,0 +1,3 @@
+F0058	sites_020	omega-rust/psi/compilation/validation/src/contract_entailment.rs	54174	129	requires_unsatisfiable
+F0059	sites_020	omega-rust/psi/compilation/validation/src/contract_entailment.rs	66420	25	hypotheses_contradictory
+F0060	sites_020	omega-rust/psi/compilation/validation/src/contract_entailment.rs	66601	41	hypotheses_contradictory

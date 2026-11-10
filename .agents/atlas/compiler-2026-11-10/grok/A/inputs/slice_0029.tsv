@@ -1,0 +1,8 @@
+A0216	ACCEPT	area_10	expression_preparation.rs:4265-4268	GROUP: expression_preparation.rs (record 068): | 41. 4265-4268, 4281-4288: a missing root yields a default type reference.
+A0217	ACCEPT	area_10	expression_preparation.rs:3326	GROUP: expression_preparation.rs (record 068): | 42. 3326: `.ok()` turns an error into `None` (callers unread).
+A0218	ACCEPT	area_10	machine_lowering.rs:540	GROUP: machine_lowering.rs (record 068): | 43. 540: a callback request with no emitted registrar is dropped.
+A0219	ACCEPT	area_10	machine_lowering.rs:1280-1282	GROUP: machine_lowering.rs (record 068): | 44. 1280-1282: a checked interrupt-install request with no emitted install operation is skipped.
+A0220	ACCEPT	area_10	machine_lowering.rs:1618-1620	GROUP: machine_lowering.rs (record 068): | 45. 1618-1620, 1628-1630: `scalar_transport::complete` silently does nothing on two `None` paths; `lower_machine` (1798) ignores the outcome.
+A0221	ACCEPT	area_10	operation_emission.rs:1287-1319	GROUP: operation_emission.rs (record 068): | 46. 1287-1319: `declared_source_claims` returns `Ok(None)` when nothing names the place.
+A0222	ACCEPT	area_10	operation_emission.rs:577-579	GROUP: operation_emission.rs (record 068): | 47. 577-579: a call whose site is not an `Expression` gets no float result policy.
+A0223	ACCEPT	area_10	projections.rs:2133-2142	GROUP: projections.rs (record 068): | 48. 2133-2142: a `TaskRuntime` start whose target is a machine type parameter is skipped, yielding no activation demand.

@@ -1,0 +1,8 @@
+A0208	ACCEPT	area_10	expression_bindings.rs:4434	GROUP: expression_bindings.rs (record 068): | 33. 4434: `root == observed_root` is accepted without an access check (callers outside the file unread).
+A0209	ACCEPT	area_10	expression_preparation.rs:661-662	GROUP: expression_preparation.rs (record 068): | 34. 661-662, 743-747: five structural value kinds add no scalar dependencies to the closure.
+A0210	ACCEPT	area_10	expression_preparation.rs:388-391	GROUP: expression_preparation.rs (record 068): | 35. 388-391: a missing call schedule is `unwrap_or(&[])`.
+A0211	ACCEPT	area_10	expression_preparation.rs:2144-2148	GROUP: expression_preparation.rs (record 068): | 36. 2144-2148: a domain whose parent memberships are not well-formed loses its predicate instead of erroring.
+A0212	ACCEPT	area_10	expression_preparation.rs:1668-1685	GROUP: expression_preparation.rs (record 068): | 37. 1668-1685: an "unresolved" Boolean is emitted when no structural fields exist. The emitter treats that variant as `unreachable!` (operation_emission.rs:269-271).
+A0213	ACCEPT	area_10	expression_preparation.rs:3787	GROUP: expression_preparation.rs (record 068): | 38. 3787: `ArithmeticDomain` constraints are ignored when collecting qualification atoms.
+A0214	ACCEPT	area_10	expression_preparation.rs:3796-3813	GROUP: expression_preparation.rs (record 068): | 39. 3796-3813: three guard arms accept a `Domain` constraint with no atom when a predicate form exists; where the predicate is enforced was not traced.
+A0215	ACCEPT	area_10	expression_preparation.rs:4449	GROUP: expression_preparation.rs (record 068): | 40. 4449: other structural value kinds add no domains.

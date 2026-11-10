@@ -1,0 +1,8 @@
+A0497	ACCEPT	area_14	mpb:4941-4943	GROUP: **mpb, ops, pl (19)** | - mpb:4941-4943 an argument that names the demanded parameter itself skips validation.
+A0498	ACCEPT	area_14	mpb:4028-4033	GROUP: **mpb, ops, pl (19)** | - mpb:4028-4033 silent return for an invalid registrar application with open parameters.
+A0499	ACCEPT	area_14	mpb:7679	GROUP: **mpb, ops, pl (19)** | - mpb:7679, 7923 incomplete tuples are not conformance-checked.
+A0500	ACCEPT	area_14	mpb:7396-7401	GROUP: **mpb, ops, pl (19)** | - mpb:7396-7401 `require_declared_application_operands(...).is_err()` returns `true`.
+A0501	ACCEPT	area_14	mpb:6092-6094	GROUP: **mpb, ops, pl (19)** | - mpb:6092-6094 skip when the applied signature cannot be rebuilt.
+A0502	ACCEPT	area_14	mpb:6912-6947	GROUP: **mpb, ops, pl (19)** | - mpb:6912-6947 `continue` after limited checks.
+A0503	ACCEPT	area_14	ops:84-86	GROUP: **mpb, ops, pl (19)** | - ops:84-86, 107-109 `Ok(None)`: no closed application recorded, no error.
+A0504	ACCEPT	area_14	ops:1753-1756	GROUP: **mpb, ops, pl (19)** | - ops:1753-1756 with ops:1816 — "A user type spelled like a primitive name with no declared candidate" takes the builtin fallback ("not traced whether `Named` names can be shadowed").

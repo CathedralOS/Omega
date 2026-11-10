@@ -1,0 +1,8 @@
+D0058	DROP	area_13	ab:32-36	1. ab:32-36, 44-46, 47-53, 54-58, 59-70, 100-102 conformance skipped by `continue` [088].
+D0059	DROP	area_13	ab:1412	2. ab:1412, 1415-1420 no plan found, no atomic-permission check [088].
+D0060	DROP	area_13	ab:1444-1463	3. ab:1444-1463 no binding-private check [088].
+D0061	DROP	area_13	ab:2993-2996	4. ab:2993-2996 out-of-range range store [088].
+D0062	DROP	area_13	ab:3365	5. ab:3365, 3368-3376, 3406-3408, 3416-3418 opaque-call input check returns [088].
+D0063	DROP	area_13	ad:74-94	6. ad:74-94 abstract shift-count check skipped when the width is unknown or there is no direct abstract operand [088].
+D0064	DROP	area_13	ad:838-864	7. ad:838-864 diagnostics discarded [088].
+D0065	DROP	area_13	ad:6463-6483	8. ad:6463-6483, 6485-6500 obligation or pending formation queued, no diagnostic now [088].

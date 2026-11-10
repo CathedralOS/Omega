@@ -1,0 +1,8 @@
+A0389	ACCEPT	area_13	ce:16029-16086	65. ce:16029-16086 an `ensures` fact that names proof-only data through a path whose first segment is not the data name is not fenced [093].
+A0390	ACCEPT	area_13	ce:18278	66. ce:18278, 19153 law checks return silently for a machine with no states or no entry state [094].
+A0391	ACCEPT	area_13	ce:21185	67. ce:21185, 21188, 21206, 21217, 21257-21281, 21283, 21286 a lent scalar whose place cannot be resolved to a restricted-record field is never checked on handback [094].
+A0392	ACCEPT	area_13	ce:21947-21966	68. ce:21947-21966 `CarrierFit::retain` returns true for `Pending` and records an obligation checked later by code the reader did not read [094]. My check: `Pending` is built only at ce:4961.
+A0393	ACCEPT	area_13	ce:23093	69. ce:23093, 23103 (with 22879-22887) `range_complete` may stay true after an `Unknown` entry; inferred, no concrete program [094].
+A0394	ACCEPT	area_13	ce:23537	70. ce:23537 with no source metadata any type named `Nat` with the Zero/Succ shape is the proof `Nat` [094].
+A0395	ACCEPT	area_13	ce:24048	71. ce:24048 a different callable with the same last-segment name as the quotient relation, used in a `requires` fact, matches [094].
+A0396	ACCEPT	area_13	ce:29298-29300	72. ce:29298-29300 `Modulo` on a carrier-free operand is accepted with no engine binding [094].

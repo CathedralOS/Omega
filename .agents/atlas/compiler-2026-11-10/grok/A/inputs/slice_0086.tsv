@@ -1,0 +1,6 @@
+A0658	ACCEPT	area_04	PA/access_lifecycles.rs:326	- PA/access_lifecycles.rs:326: `_ => {}` accepts any structural shape other than the four named.
+A0659	ACCEPT	area_04	PA/retained.rs:210-217	- PA/retained.rs:210-217: a demanded requirement matching zero intrinsic rows continues with no diagnostic.
+A0660	ACCEPT	area_04	PA/settlements.rs:290-308	- PA/settlements.rs:290-308: with no declared calling application in the schema, the application from the retained row is accepted without a schema comparison.
+A0661	ACCEPT	area_04	PA/source_imports.rs:55-57	- PA/source_imports.rs:55-57, 66: "a boundary that has two selected non-external rows is not reported here".
+A0662	ACCEPT	area_04	PA/scopes.rs:556-577	- PA/scopes.rs:556-577: only `RegisterAccess` with `InterruptControl(Enable)` is recognised as re-enabling interrupts.
+A0663	ACCEPT	area_04	PA/host_cohorts.rs:127-135	- PA/host_cohorts.rs:127-135 through PA/terminal_authority_policy.rs:260-262: "a mislabeled authority class for an import whose real behavior is broader than its method name".

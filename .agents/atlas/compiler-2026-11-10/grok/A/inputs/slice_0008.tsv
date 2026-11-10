@@ -1,0 +1,8 @@
+A0057	ACCEPT	area_08	checks_contracts_prover.rs:2836-2845	GROUP: Contracts: | - `checks_contracts_prover.rs:2836-2845` any `And`/`Or` accepted for requirements and propositions without checking operand meaning.
+A0058	ACCEPT	area_08	checks_contracts_prover.rs:4667-4676	GROUP: Contracts: | - `checks_contracts_prover.rs:4667-4676` preserved when the write ceiling is empty; ceiling completeness not traced.
+A0059	ACCEPT	area_08	checks_contracts_prover.rs:5557	GROUP: Contracts: | - `checks_contracts_prover.rs:5557` type test skipped for unlisted program points (reader: low).
+A0060	ACCEPT	area_08	checks_contracts_prover.rs:7703	GROUP: Contracts: | - `checks_contracts_prover.rs:7703` default contract handle as placeholder; consumers not traced.
+A0061	ACCEPT	area_08	checks_contracts_prover.rs:7615-7623	GROUP: Contracts: | - `checks_contracts_prover.rs:7615-7623`: "one instruction event used to discharge two propositions when one proof routes through a helper's guarantee and the other uses the event directly".
+A0062	ACCEPT	area_08	checks_contracts_prover.rs:7384-7386	GROUP: Contracts: | - `checks_contracts_prover.rs:7384-7386` fixed incoming reference returns `true` outright.
+A0063	ACCEPT	area_08	checks_contracts_prover.rs:7863-7886	GROUP: Contracts: | - `checks_contracts_prover.rs:7863-7886` vacuous match if an operation has zero input carriers; whether any does was not checked.
+A0064	ACCEPT	area_08	checks_current_scalar_values.rs:5073	GROUP: Scalar values and ownership: | - `checks_current_scalar_values.rs:5073` inline assembly retires no tracked entry; `:4820-4822` arm pattern markers skipped.

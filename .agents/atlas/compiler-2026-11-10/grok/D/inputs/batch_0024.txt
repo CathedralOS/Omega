@@ -1,0 +1,2 @@
+tests/omega/fail/calling/call_plan_count_invalid_handback
+tests/omega/fail/calling/native_field_path_empty

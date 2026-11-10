@@ -1,0 +1,3 @@
+tests/omega/run/traits/named_map_record_result_contract
+tests/omega/run/traits/static_implementation_method_arguments
+tests/omega/run/traits/target_scoped_map_method_arguments

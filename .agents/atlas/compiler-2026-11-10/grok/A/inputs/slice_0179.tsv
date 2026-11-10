@@ -1,0 +1,8 @@
+U0033	UNUSED	area_10	08/result_policy_verification.rs:277	- `verify_boundary_result_policies` (08/result_policy_verification.rs:277): 4 hits in 2 files, both inside its own crate. Checked: same result; also no hit in `.md`, `.toml` or `.sh` files of the checkout. Exported and not called.
+U0034	UNUSED	area_10	08/lib.rs:39	- 08/lib.rs:39, 41, 42: variants `TerminalIdentity`, `ContextBridgeMultiplicity`, `ContextBridgeOccurrenceMismatch` appear only at their declaration. Checked: matches.
+U0035	UNUSED	area_10	07/lib.rs:88	- 07/lib.rs:88 `PsiOptimizationStageError::InvalidDebugMap`: the reader saw no construction in the unit. Checked: no construction anywhere in omega-rust (the other hits are the different `LoweringError::InvalidDebugMap`).
+U0036	UNUSED	area_10	07/psi_optimization.rs:48-51	- Four `PsiOptimization` selections are no-ops in stage 07 (07/psi_optimization.rs:48-51); the reader saw those variants referenced in 5 files and did not read the others.
+U0037	UNUSED	area_10	attached_unit.rs:4564	- `lower_unit_services_including` (attached_unit.rs:4564): 2 hits (definition and one call passing `&[]`), so `additional_roots` is always empty. Checked: matches.
+U0038	UNUSED	area_10	proofs.rs:7596	- `resolve_float_operation_result_source` (proofs.rs:7596) `call == false` arm: the only caller passes `true` (7414). Checked: 2 hits, matches.
+U0039	UNUSED	area_10	emission_cleanup.rs:3717	- `continuation_identities` (emission_cleanup.rs:3717): 3 lines, one consumer. Checked: matches.
+U0040	UNUSED	area_10	-	- Stage 07 retention helpers (`retained_machines_with_roots`, `machine_retention_roots`, `block_local_evidence`, `machine_evidence_bound`): all hits in one file, one consumer.

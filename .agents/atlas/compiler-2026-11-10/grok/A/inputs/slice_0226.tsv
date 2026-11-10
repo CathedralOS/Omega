@@ -1,0 +1,8 @@
+S0091	SAMEJOB	area_11	adm/integer_affine.rs:404	- **Interval propagation through endpoint steps, 3 sites:** `adm/integer_affine.rs:404`, `:1967`, `adm/integer_rules.rs:744`.
+S0092	SAMEJOB	area_11	adm/mathematical_core.rs:28-67	- **Certificate verification body, 2 copies:** `adm/mathematical_core.rs:28-67` (batch) and `:479-498`.
+S0093	SAMEJOB	area_11	adm/mathematical_core.rs:4012	- **Level equality, 2 notions:** structural `PartialEq` (`adm/mathematical_core.rs:4012`) and normal-form `levels_equal` (`:4227`). Tests pin that they differ (`:5726-5730`).
+S0094	SAMEJOB	area_11	adm/mathematical_typing.rs:2284	- **Explicit-stack drivers:** six in `bd` (`:3774`, `:1915`, `:10674`, `:5614`, `:6096`, `:7513`), plus `adm/mathematical_typing.rs:2284`, `adm/proof.rs:2092-2320`, `adm/mathematical_core.rs:1138`.
+S0095	SAMEJOB	area_11	bd:1314	- **BigInt <-> `IntegerValue` converters, 4:** `bd:1314`, `:15385`, `:15252`, `:514-525`.
+S0096	SAMEJOB	area_11	bd:4865	- **Apply an order relation to two terms, 3:** `bd:4865`, `:9169`, `:3130`. Numeral to term, 2: `bd:1393`, `:9179`.
+S0097	SAMEJOB	area_11	bd:5253	- **Equality orientation, 3:** `bd:5253`, `:5229-5239`, `:5009-5024`.
+S0098	SAMEJOB	area_11	bd:6661	- **Closed-goal inhabitation, 3:** `bd:6661`, `:2184`, `:12562`.

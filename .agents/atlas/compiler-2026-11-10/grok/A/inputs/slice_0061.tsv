@@ -1,0 +1,8 @@
+A0465	ACCEPT	area_14	fl:491-498	GROUP: **lib, fz, fl, etf (26)** | - fl:491-498 any literal counts as an "input-only" term.
+A0466	ACCEPT	area_14	fl:557-609	GROUP: **lib, fz, fl, etf (26)** | - fl:557-609 first matching equality accepted, later ones ignored.
+A0467	ACCEPT	area_14	fl:1451-1459	GROUP: **lib, fz, fl, etf (26)** | - fl:1451-1459, 1523, 1525 equality with one non-projection side is ignored.
+A0468	ACCEPT	area_14	fl:2381-2383	GROUP: **lib, fz, fl, etf (26)** | - fl:2381-2383 `logical_body` returns `true` on a cycle.
+A0469	ACCEPT	area_14	fl:2633	GROUP: **lib, fz, fl, etf (26)** | - fl:2633 `logical_expression` `_ => true` — a `Name` is admitted without checking it is a logical parameter or local.
+A0470	ACCEPT	area_14	etf:305-312	GROUP: **lib, fz, fl, etf (26)** | - etf:305-312, 354-356 — a cast whose operand type cannot be computed gets no float-denotation check.
+A0471	ACCEPT	area_14	etf:36-38	GROUP: **lib, fz, fl, etf (26)** | - etf:36-38 recasts return immediately from `validate_cast_types`.
+A0472	ACCEPT	area_14	etf:484-492	GROUP: **lib, fz, fl, etf (26)** | - etf:484-492, 2117-2127 unknown operand or source type gives no error (no class given by the reader).

@@ -1,0 +1,8 @@
+S0123	SAMEJOB	area_11	ct/lib.rs:258	- **`KeyedRows` (`ct/lib.rs:258`) re-implemented by hand, 6:** `ct/operators_and_proof.rs:956-998`, `ct/values_and_views.rs:2146-2174`, `:1029`, `ct/flow.rs:417-566`, `ct/facts.rs:1300-1303`, `:3417-3480`.
+S0124	SAMEJOB	area_11	ct/flow_ownership_and_roots.rs:1397-1508	- **Walks over `CheckedStructuralValueKind`, 4:** `ct/flow_ownership_and_roots.rs:1397-1508`, `ct/values_and_views.rs:1239-1338`, `:1342-1396`, `ct/facts.rs:1073-1142`.
+S0125	SAMEJOB	area_11	ct/flow_ownership_and_roots.rs:390-415	- **Find a call by `(statement, ordinal)`, 3:** `ct/flow_ownership_and_roots.rs:390-415` (two), `ct/flow.rs:2126-2144` (also compares target and receiver).
+S0126	SAMEJOB	area_11	ct/flow.rs:248-250	- **Call coordinate triple spelled in 5 structs:** `ct/flow.rs:248-250`, `ct/flow_terminal.rs:1247`, `ct/operators_and_proof.rs:1729`, `ct/facts.rs:2730`, `lp/lib.rs:29`.
+S0127	SAMEJOB	area_11	ct/flow_terminal.rs:2418-2429	- **Scalar primitive lists, 3:** `ct/flow_terminal.rs:2418-2429` (no floats), `:2458-2471` (with floats), `ct/flow_terminal_units.rs:163-171` (U8..U64).
+S0128	SAMEJOB	area_11	ct/facts.rs:2973	- **Dense vec by type reference with first-row fallback, 2:** `ct/facts.rs:2973`, `:3121`.
+S0129	SAMEJOB	area_11	ct/facts.rs:1447	- **`(arena_index, generation)` ordering, 4, plus one reversed:** `ct/facts.rs:1447`, `:90`, `:452`, `ct/operators_and_proof.rs:1400`; `ct/flow.rs:441` uses `(generation, arena_index)`.
+S0130	SAMEJOB	area_11	o:173	- **Per-target obligation discharge, 3 parallel shapes:** `c&o:173`, `:462`, `:765`.

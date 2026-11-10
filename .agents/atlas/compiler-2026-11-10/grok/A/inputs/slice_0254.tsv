@@ -1,0 +1,5 @@
+S0308	SAMEJOB	area_05	UV:14756	- `leaf_paths`, `leaf_referent`, `reference_source_accessible`: `UV:14756, 14830, 15001` and pipeline 02 `references.rs:373, 475`, pipeline 03 `legalization_reference_custody.rs:4236, 4329, 4399`.
+S0309	SAMEJOB	area_05	-	- Value-range reasoning: `CVR` and pipeline 01 `value_ranges.rs`.
+S0310	SAMEJOB	area_05	CO:8848-9096	- Residual computation: `CO:8848-9096` and `psi/.../validation/src/value_custody_core.rs`, `terminal-psi/semantics/src/structural.rs`, pipeline 06 `emission_cleanup.rs`.
+S0311	SAMEJOB	area_05	-	- `validate_structural_fields` pairing rules and Terminal Psi `types_and_values.rs`.
+S0312	SAMEJOB	area_05	LO/validation.rs:273-354	- Placement-shape rules in `LO/validation.rs:273-354` and the `calling_conventions` crate.

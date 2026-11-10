@@ -1,0 +1,10 @@
+tests/omega/run/slices/call_result_mutable_window_exit
+tests/omega/run/slices/computed_record_window
+tests/omega/run/slices/disjoint_local_state_windows
+tests/omega/run/slices/edge_window_owned_backing
+tests/omega/run/slices/folded_window_endpoint_effects
+tests/omega/run/slices/matched_computed_window_end
+tests/omega/run/slices/matched_record_window_lower_bound
+tests/omega/run/slices/mutable_window_call_argument
+tests/omega/run/slices/returned_record_fixed_array_window
+tests/omega/run/slices/returned_record_parameter_length

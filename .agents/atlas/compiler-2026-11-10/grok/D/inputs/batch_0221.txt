@@ -1,0 +1,16 @@
+tests/omega/pass/concurrency/boundary_suspension_inline_completion_exit
+tests/omega/pass/concurrency/host_boundary_readiness_exit
+tests/omega/pass/concurrency/incoming_aggregate_loan_after_suspend
+tests/omega/pass/concurrency/incoming_loan_after_suspend
+tests/omega/pass/concurrency/ref_array_suspend
+tests/omega/pass/concurrency/runtime_array_loan_suspension_exit
+tests/omega/pass/concurrency/runtime_retained_reference_boundary_exit
+tests/omega/pass/concurrency/runtime_returned_carrier_suspension_exit
+tests/omega/pass/concurrency/runtime_suspension_repeated_actual_exit
+tests/omega/pass/concurrency/runtime_zero_extent_carry_exit
+tests/omega/pass/concurrency/suspend_after_last_use_compile
+tests/omega/pass/concurrency/suspend_carry_task
+tests/omega/pass/concurrency/suspend_explicit_parameter_after_last_use
+tests/omega/pass/concurrency/suspend_message_carrier
+tests/omega/pass/concurrency/suspend_param_binding
+tests/omega/pass/concurrency/suspend_param_last_use

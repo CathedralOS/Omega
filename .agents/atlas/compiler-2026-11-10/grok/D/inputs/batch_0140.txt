@@ -1,0 +1,2 @@
+tests/omega/fail/optimizer/unexecutable_post_allocation_rule_rejected
+tests/omega/fail/optimizer/xor_zero_materialization_requires_x86_64

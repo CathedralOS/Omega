@@ -1,0 +1,1 @@
+U0017	UNUSED	area_08	checks.rs:1-37	- `checks.rs` header (`:1-37`) omits five checks that run: `runtime_indices`, `atomic_fences`, `stored_integer_calls`, `indexed_writes`, `zero_value_qualifications`.

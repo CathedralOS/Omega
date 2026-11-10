@@ -1,0 +1,2 @@
+tests/omega/run/proofs/embed_collection_length_exit
+tests/omega/run/proofs/quotient_copy_paths

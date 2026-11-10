@@ -1,0 +1,15 @@
+tests/omega/fail/capabilities/blocking_beneath_no_block_root
+tests/omega/fail/capabilities/boundary_qualification_subject_rejected
+tests/omega/fail/capabilities/callback_synchronous_registration_cycle
+tests/omega/fail/capabilities/cyclic_synchronous_invocation
+tests/omega/fail/capabilities/effect_ceiling_exceeded
+tests/omega/fail/capabilities/native_qualified_slice_external_leaf_rejected
+tests/omega/fail/capabilities/native_record_slice_external_leaf_rejected
+tests/omega/fail/capabilities/native_slice_external_leaf_rejected
+tests/omega/fail/capabilities/provider_widens_requirement_ceiling
+tests/omega/fail/capabilities/recursive_synchronous_invocations
+tests/omega/fail/capabilities/selected_applied_synchronous_cycle
+tests/omega/fail/capabilities/selected_synchronous_cycle
+tests/omega/fail/capabilities/selected_synchronous_helper_cycle
+tests/omega/fail/capabilities/undeclared_synchronous_invocation
+tests/omega/fail/capabilities/via_producer_without_target_body

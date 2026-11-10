@@ -1,0 +1,8 @@
+A0200	ACCEPT	area_10	emission_cleanup.rs:2044	GROUP: emission_cleanup.rs (record 067): | 25. 2044: no discards are added on InvokeNoNormal, Crash or ExternalCompletion exits, even for live managed places.
+A0201	ACCEPT	area_10	emission_cleanup.rs:1439-1459	GROUP: emission_cleanup.rs (record 067): | 26. 1439-1459: `scheduled_deaths` is machine-wide, so a descriptor arrival with a death on one branch gets no `DiscardRoot` on the others from this function.
+A0202	ACCEPT	area_10	emission_cleanup.rs:3089-3118	GROUP: emission_cleanup.rs (record 067): | 27. 3089-3118, 3223-3227: a store with no open window and no required restoration is emitted as `Vacant` without this code proving the slot vacant.
+A0203	ACCEPT	area_10	emission_cleanup.rs:2274-2276	GROUP: emission_cleanup.rs (record 067): | 28. 2274-2276: on ambiguous captures the unresolved carrier is used, so an overlap reached through two spellings would not be seen at 2852-2861.
+A0204	ACCEPT	area_10	emission_cleanup.rs:4903-4912	GROUP: emission_cleanup.rs (record 067): | 29. 4903-4912: source-checked obligations that no instance renamed are kept verbatim.
+A0205	ACCEPT	area_10	expression_bindings.rs:2995	GROUP: expression_bindings.rs (record 068): | 30. 2995: an invalid computation handle is skipped and the index stays a `ComputedIndex`.
+A0206	ACCEPT	area_10	expression_bindings.rs:1732-1736	GROUP: expression_bindings.rs (record 068): | 31. 1732-1736: earlier payload rows with the same source and path are replaced.
+A0207	ACCEPT	area_10	expression_bindings.rs:4032-4051	GROUP: expression_bindings.rs (record 068): | 32. 4032-4051: fewer captured places than runtime indexes leaves the rest as `RuntimeIndex`, no error.

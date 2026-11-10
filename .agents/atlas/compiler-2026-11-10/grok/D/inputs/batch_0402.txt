@@ -1,0 +1,17 @@
+tests/omega/run/ownership/claim_correspondence_all_returns
+tests/omega/run/ownership/content_transform_case_alias
+tests/omega/run/ownership/content_transform_case_parent
+tests/omega/run/ownership/content_transform_empty_array
+tests/omega/run/ownership/content_transform_ended_parent_loan
+tests/omega/run/ownership/content_transform_inactive_content
+tests/omega/run/ownership/content_transform_inactive_payload
+tests/omega/run/ownership/declared_record_selected_exit_disposal
+tests/omega/run/ownership/linear_result_crash_ceiling
+tests/omega/run/ownership/linear_result_guarded_terminal_call
+tests/omega/run/ownership/owned_parameter_member_moves_exit
+tests/omega/run/ownership/owned_parameter_narrow_member_moves_exit
+tests/omega/run/ownership/selected_owned_constructor_moves
+tests/omega/run/ownership/sequence_owned_local_cleanup
+tests/omega/run/ownership/temporary_case_observation
+tests/omega/run/ownership/temporary_projected_copy_argument
+tests/omega/run/ownership/temporary_projected_value_residual

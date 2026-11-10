@@ -1,0 +1,1 @@
+tests/omega/fail/resources/owned_extent_erased_label_rejected

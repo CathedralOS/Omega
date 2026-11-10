@@ -1,0 +1,8 @@
+A0409	ACCEPT	area_14	ce:73357-73359	GROUP: **ce (10)** | - ce:73357-73359 `current_value_valid` returns `true` with no storage graph — every stored observation treated as current. Sibling at ce:75288 passes a version in graph mode; "Not traced beyond that."
+A0410	ACCEPT	area_14	ce:76996	GROUP: **ce (10)** | - ce:76996 `entry_storage_observations_preserved` true when the judge is not a value-preserving one — a non-runtime judge never refuses on staleness.
+A0411	ACCEPT	area_14	ce:83286-83287	GROUP: **ce (10)** | - ce:83286-83287 `!P` is `Proven` when `hypotheses_contradictory` — any negated proposition; where the flag is set "not traced".
+A0412	ACCEPT	area_14	ce:85364-85368	GROUP: **ce (10)** | - ce:85364-85368 `visit_non_contradictory_arm` does not check `integer_premises_contradictory` — an arm with contradictory integer premises reaches the visitor.
+A0413	ACCEPT	area_14	ce:88447-88449	GROUP: **ce (10)** | - ce:88447-88449 `scalar_operand_is_observed` true for non-reference declared types — an `Opaque`, `Identity`, `LogicalNot` or `MathematicalBinary` term as a scalar operand.
+A0414	ACCEPT	area_14	ce:89539	GROUP: **ce (10)** | - ce:89539, 89638, 89738 unsupported names, calls, members become `Opaque(display_name)` — "two distinct places or calls with identical display text inside one frame" compare equal.
+A0415	ACCEPT	area_14	ce:90209-90216	GROUP: **ce (10)** | - ce:90209-90216 `premises_prove` — contradictory hypotheses prove any transparent application.
+A0416	ACCEPT	area_14	ce:90730-90736	GROUP: **ce (10)** | - ce:90730-90736 with ce:91002-91007 an `ensures` equal to a `requires` is proven if its calls are "declared" — a call whose target resolves by name only (see check 8).

@@ -1,0 +1,8 @@
+A0449	ACCEPT	area_14	ei:1285	GROUP: **ei (6)** | - ei:1285 exact embed calls contribute no effect.
+A0450	ACCEPT	area_14	ei:72	GROUP: **ei (6)** | - ei:72 assembly statements contribute no calls.
+A0451	ACCEPT	area_14	ei:2972-2982	GROUP: **ei (6)** | - ei:2972-2982 — an assembly intrinsic whose service cannot be resolved contributes no reach.
+A0452	ACCEPT	area_14	ei:3186	GROUP: **ei (6)** | - ei:3186 other target kinds yield empty reach (traced for ordinary machines only).
+A0453	ACCEPT	area_14	lib:172-174	GROUP: **lib, fz, fl, etf (26)** | - lib:172-174 invalid value handle returns no error.
+A0454	ACCEPT	area_14	lib:773	GROUP: **lib, fz, fl, etf (26)** | - lib:773 `_ => {}` for other `ProgramEntryVisibleParameters` variants (enum not read).
+A0455	ACCEPT	area_14	lib:940-951	GROUP: **lib, fz, fl, etf (26)** | - lib:940-951 parameters with an access-view plan never count as visible arrival parameters.
+A0456	ACCEPT	area_14	lib:421-444	GROUP: **lib, fz, fl, etf (26)** | - lib:421-444, 493 incomplete recursive component skipped.

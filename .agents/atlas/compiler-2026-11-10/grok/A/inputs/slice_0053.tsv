@@ -1,0 +1,4 @@
+A0405	ACCEPT	area_13	ce:56590	81. ce:56590 an unobserved invocation argument becomes an `Opaque` placeholder rather than failing; inferred it cannot satisfy a predicate [096].
+A0406	ACCEPT	area_13	ce:58147	82. ce:58147, 58149 polynomial atoms keyed on `format!("{term:?}")`; equal debug text means same atom [096].
+A0407	ACCEPT	area_13	ce:60372-60402	83. ce:60372-60402 two applications with the same target and argument count and matching result types are the same denotation; arguments are not compared there [096].
+A0408	ACCEPT	area_13	ce:63233-63239	84. ce:63233-63239 an unobserved value is returned unchanged when `proof_value_is_caller_isolated(declared)`; no comment [096].

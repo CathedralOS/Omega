@@ -1,0 +1,8 @@
+A0373	ACCEPT	area_13	calls:33194-33203	49. calls:33194-33203, 33266, 33286-33293 "no reference-slot effects" for asm intrinsics, `IntegerEmbed`, `call_preserves_reference_slots`, static call intrinsics; no comment [092].
+A0374	ACCEPT	area_13	calls:38739	50. calls:38739, 38743, 38770, 38784, 38787 `bind_formal_type` returns `true` on shape mismatch; a mismatch that still binds every parameter elsewhere is accepted [092].
+A0375	ACCEPT	area_13	calls:38952-38957	51. calls:38952-38957 a call result is admitted in `CallArgument`/`IndexOperand` position without looking at the return type [092].
+A0376	ACCEPT	area_13	calls:39238	52. calls:39238, 39250, 39259 empty write set for descriptor Load, activation accessor, access borrow, flag-retaining asm [092].
+A0377	ACCEPT	area_13	cs:1097-1099	53. cs:1097-1099 (1013-1014) immutable-image rows contribute no backing places [092].
+A0378	ACCEPT	area_13	cs:1630-1634	54. cs:1630-1634 falls back to the unmapped segment when no unique mapping exists [092].
+A0379	ACCEPT	area_13	cs:2244-2254	55. cs:2244-2254 a view with an empty path resolves to the capture itself when nothing else resolves [092].
+A0380	ACCEPT	area_13	cs:5468	56. cs:5468 a contract fact whose root has the same name as the parameter but a different symbol would match [092].

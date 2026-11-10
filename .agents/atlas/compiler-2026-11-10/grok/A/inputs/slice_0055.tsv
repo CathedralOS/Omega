@@ -1,0 +1,8 @@
+A0417	ACCEPT	area_14	ce:90957-90963	GROUP: **ce (10)** | - ce:90957-90963 engine `Unknown` outside the arithmetic language on an empty-bodied machine yields neither proven nor diagnostic; "whether another stage rejects it is not traced".
+A0418	ACCEPT	area_14	ce:90781-90784	GROUP: **ce (10)** | - ce:90781-90784 contradictory hypotheses with a "mention" fact are recorded proven.
+A0419	ACCEPT	area_14	dc:133-135	GROUP: **dc (6)** | - dc:133-135 public-interface selection with an unresolved target skipped ("partially covered" by dc:929-932, 1009-1014).
+A0420	ACCEPT	area_14	dc:998-1000	GROUP: **dc (6)** | - dc:998-1000, 1020-1031, 1064 no authority obligation for builtin and toolchain selections — any selection of a toolchain-origin declaration without a dependency edge.
+A0421	ACCEPT	area_14	dc:933	GROUP: **dc (6)** | - dc:933 `excluded` rows skipped — selections inside descriptor-skipped occurrences or pruned machines.
+A0422	ACCEPT	area_14	dc:1106	GROUP: **dc (6)** | - dc:1106 `allows` returns `None` for `Absent`; "Not traced."
+A0423	ACCEPT	area_14	dc:1646	GROUP: **dc (6)** | - dc:1646 `is_none_or` — generated or provenance-less traits count as product declarations for completion discovery.
+A0424	ACCEPT	area_14	dc:3151	GROUP: **dc (6)** | - dc:3151, 3161 terminal result types outside Unit/primitive/data are not compared — reference, slice, array, generic or trait results.

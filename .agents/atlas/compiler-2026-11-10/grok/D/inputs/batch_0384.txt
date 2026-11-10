@@ -1,0 +1,2 @@
+tests/omega/pass/versioning/migration_generic_trait
+tests/omega/pass/versioning/runtime_version_migration_exit

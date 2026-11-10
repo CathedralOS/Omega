@@ -1,0 +1,10 @@
+tests/omega/pass/providers/staggered_installation_reach_exit
+tests/omega/pass/providers/structural_membership_boundary_exit
+tests/omega/pass/providers/structural_result_field_guarantee_exit
+tests/omega/pass/providers/table_leaf_dispatch_parameter_exit
+tests/omega/pass/providers/target_contract_adjacency_exit
+tests/omega/pass/providers/target_family_entry
+tests/omega/pass/providers/token_machine_family_override_exit
+tests/omega/pass/providers/uncalled_boundary_provider_exit
+tests/omega/pass/providers/unreached_console_provider_rows
+tests/omega/pass/providers/unused_named_provider_candidates

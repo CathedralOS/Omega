@@ -1,0 +1,8 @@
+A0165	ACCEPT	area_09	VA:2164-2170	GROUP: Published facts, shared, values: | - VA:2164-2170. Storage other than `Declared | View` is treated as needing no source qualification.
+A0166	ACCEPT	area_09	VS:231-254	GROUP: Published facts, shared, values: | - VS:231-254. The atomic operand lowerer always returns `Some`, with fewer or zero rows, and its callers stop planning that statement.
+A0167	ACCEPT	area_09	VS:1328	GROUP: Published facts, shared, values: | - VS:1328, 1394. Erased formals of boundary calls are skipped.
+A0168	ACCEPT	area_09	VS:2226-2234	GROUP: Published facts, shared, values: | - VS:2226-2234; VS:2032-2041, 2073-2093. Proof symbols correspond if either derives from the other within 8 hops; a projection is kept if any call anywhere passes the expression as an argument.
+A0169	ACCEPT	area_09	VS:4480-4489	GROUP: Published facts, shared, values: | - VS:4480-4489. No recorded operator use counts as builtin: an expression whose user-defined operator resolution was never recorded. Lowerers at VS:488, 496, 544, 9333 rely on it alone.
+A0170	ACCEPT	area_09	VS:4388	GROUP: Published facts, shared, values: | - VS:4388, 4417; VS:5619-5622. A name with no symbol resolves to a parameter or local of the same spelling.
+A0171	ACCEPT	area_09	VS:10041-10060	GROUP: Published facts, shared, values: | - VS:10041-10060 with VS:5442-5443. A cast whose operand type cannot be resolved counts as not needing custody and keeps its plain plan row.
+A0172	ACCEPT	area_09	VS:8119-8135	GROUP: Published facts, shared, values: | - VS:8119-8135. A non-interval domain constraint adds no slot and does not mark the roster incomplete.

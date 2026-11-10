@@ -1,0 +1,8 @@
+A0561	ACCEPT	area_14	trw:2153-2154	GROUP: **trw, vcc (28)** | - trw:2153-2154, 2186-2217 — "an atom with the right type name and a malformed/out-of-range encoding for an ineligible-but-index-legal type".
+A0562	ACCEPT	area_14	trw:2114-2116	GROUP: **trw, vcc (28)** | - trw:2114-2116 pending range endpoint accepted without checks here.
+A0563	ACCEPT	area_14	trw:3688-3698	GROUP: **trw, vcc (28)** | - trw:3688-3698 `Ok(None)` passes without error.
+A0564	ACCEPT	area_14	trw:3462-3485	GROUP: **trw, vcc (28)** | - trw:3462-3485 normalisation silently does nothing for unlisted operators or owners.
+A0565	ACCEPT	area_14	trw:6794-6802	GROUP: **trw, vcc (28)** | - trw:6794-6802 a field whose type changes with the same number is not flagged between eras.
+A0566	ACCEPT	area_14	vcc:526-541	GROUP: **trw, vcc (28)** | - vcc:526-541, 584 — "a claim hidden behind a reference/slice/dyn type is not seen".
+A0567	ACCEPT	area_14	vcc:1521	GROUP: **trw, vcc (28)** | - vcc:1521 — a `[Linear; N]` with const-parameter length has no claim frontier at this layer.
+A0568	ACCEPT	area_14	vcc:1460-1462	GROUP: **trw, vcc (28)** | - vcc:1460-1462, 1491-1495 unresolved data definition contributes no claims.

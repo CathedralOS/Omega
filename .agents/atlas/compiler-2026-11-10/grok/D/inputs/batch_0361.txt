@@ -1,0 +1,2 @@
+tests/omega/pass/register_allocation/fixed_uses_across_hosted_clobbers_exit
+tests/omega/pass/register_allocation/runtime_call_crossing_decimal_reload_exit

@@ -1,0 +1,1 @@
+tests/omega/fail/relax/retired_relax_statement

@@ -1,0 +1,8 @@
+A0232	ACCEPT	area_10	proofs.rs:7479-7487	GROUP: proofs.rs (record 069): | 57. 7479-7487: `Ok(None)` when parameter scalar types differ.
+A0233	ACCEPT	area_10	proofs.rs:6954-6961	GROUP: proofs.rs (record 069): | 58. 6954-6961: open generic requirements get an empty row list, so a lowered application with zero rows would pass the length check at 6330.
+A0234	ACCEPT	area_10	retention.rs:698-700	GROUP: retention.rs (record 069): | 59. 698-700: a view plan whose carrier type was not emitted is dropped.
+A0235	ACCEPT	area_10	retention.rs:757-775	GROUP: retention.rs (record 069): | 60. 757-775: an accessor target matching no boundary machine yields an operations list without it.
+A0236	ACCEPT	area_10	retention.rs:1183-1185	GROUP: retention.rs (record 069): | 61. 1183-1185, 1408-1410: a closed-reach call with no emitted occurrence gets no entry. Reader: fine only if the emitter legitimately elided the call; not traced.
+A0237	ACCEPT	area_10	retention.rs:1898-1901	GROUP: retention.rs (record 069): | 62. 1898-1901, 1935-1945: conformance applications and static calls are skipped on owner or source mismatch.
+A0238	ACCEPT	area_10	retention.rs:2517-2519	GROUP: retention.rs (record 069): | 63. 2517-2519: retired calls are skipped (what retires a call not traced).
+A0239	ACCEPT	area_10	retention.rs:2652-2655	GROUP: retention.rs (record 069): | 64. 2652-2655, 2697-2699: provider candidates are silently omitted.

@@ -1,0 +1,3 @@
+D0098	DROP	area_13	ce:61468-61499	41. ce:61468-61499 (61525-61529) call guarantees not recorded when bindings are unavailable; write effects still observed [096].
+D0099	DROP	area_13	ce:68772	42. ce:68772, 68777 an empty returned-field template is stored and reused after a decline [096].
+D0100	DROP	area_13	ce:71897-71903	43. ce:71897-71903 `capture_guarantees` drops guarantees it cannot express [096].

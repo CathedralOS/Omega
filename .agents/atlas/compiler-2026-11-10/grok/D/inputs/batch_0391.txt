@@ -1,0 +1,7 @@
+tests/omega/run/contracts/captured_bound_unused_mutation
+tests/omega/run/contracts/cyclic_mixed_conjunction
+tests/omega/run/contracts/cyclic_record_writer
+tests/omega/run/contracts/cyclic_terminal_result_producers
+tests/omega/run/contracts/nested_cyclic_copy_bound
+tests/omega/run/contracts/qualified_result_forwarding_exit
+tests/omega/run/contracts/target_family_forwarded_result

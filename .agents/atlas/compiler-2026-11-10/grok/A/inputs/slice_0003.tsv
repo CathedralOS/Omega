@@ -1,0 +1,8 @@
+A0017	ACCEPT	area_08	checks.rs:5750-5753	GROUP: `checks.rs`: | - `:5750-5753` "not used after" when the statement is absent.
+A0018	ACCEPT	area_08	checks.rs:6972-6977	GROUP: `checks.rs`: | - `:6972-6977` a loan with a transport supplier accepted without one of the three resource kinds.
+A0019	ACCEPT	area_08	checks.rs:6299-6301	GROUP: `checks.rs`: | - `:6299-6301` empty required path makes the value view-free and permissive: "a value whose type `borrow_carrying_owner_paths` reports as carrying no borrow paths but does hold one".
+A0020	ACCEPT	area_08	checks.rs:7448-7457	GROUP: `checks.rs`: | - `:7448-7457`, `:7460-7469`, `:7708-7714` suspending call skipped when machine, state, call row or call site is missing.
+A0021	ACCEPT	area_08	checks.rs:7289-7291	GROUP: `checks.rs`: | - `:7289-7291` a call argument whose display name differs from the claim's label falls back to the structural policy, which "may be more permissive than the claim".
+A0022	ACCEPT	area_08	checks.rs:8633-8639	GROUP: `checks.rs`: | - `:8633-8639` an expression whose saved subject belongs elsewhere produces no ordered steps.
+A0023	ACCEPT	area_08	checks.rs:8959-8961	GROUP: `checks.rs`: | - `:8959-8961` a named-transition call inside a cleanup machine is not examined; `:8940-8946` vacuous when the target has no flow states.
+A0024	ACCEPT	area_08	checks.rs:10374-10381	GROUP: `checks.rs`: | - `:10374-10381` machine skipped when its contract plan row is missing; `:10798-10800` constant entry skipped when no crash summary exists.

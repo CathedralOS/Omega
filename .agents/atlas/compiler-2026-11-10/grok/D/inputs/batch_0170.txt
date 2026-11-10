@@ -1,0 +1,4 @@
+tests/omega/fail/structural/affine_successor_duplicate_mutable_loan
+tests/omega/fail/structural/foreign_case_record_member
+tests/omega/fail/structural/primitive_array_snapshot_index_out_of_bounds
+tests/omega/fail/structural/primitive_array_snapshot_shared_receiver

@@ -1,0 +1,8 @@
+A0489	ACCEPT	area_14	mcc:3158-3167	GROUP: **lsl, mcc (17)** | - mcc:3158-3167 `.ok()` swallows the diagnostic.
+A0490	ACCEPT	area_14	mcc:4767-4784	GROUP: **lsl, mcc (17)** | - mcc:4767-4784 memo keyed on `(machine, state)` only though the result depends on the plans passed.
+A0491	ACCEPT	area_14	mcc:5688-5712	GROUP: **lsl, mcc (17)** | - mcc:5688-5712, 5594 — "a hosted-build program that places a port-I/O or IDT asm intrinsic in a `let` initializer or return expression".
+A0492	ACCEPT	area_14	mcc:6359-6369	GROUP: **lsl, mcc (17)** | - mcc:6359-6369 a call under Indexed/Binary/Unary/Match inside a member receiver is not seen.
+A0493	ACCEPT	area_14	mcc:6611-6613	GROUP: **lsl, mcc (17)** | - mcc:6611-6613 — "a runtime call to a proof machine written with a namespace receiver".
+A0494	ACCEPT	area_14	mcc:7083-7105	GROUP: **lsl, mcc (17)** | - mcc:7083-7105 no name match means no refinement check.
+A0495	ACCEPT	area_14	mcc:8911-8913	GROUP: **lsl, mcc (17)** | - mcc:8911-8913 — a synthesized cast with no span stays an unbound raw numeric cast.
+A0496	ACCEPT	area_14	mpb:4770-4785	GROUP: **mpb, ops, pl (19)** | - mpb:4770-4785 unresolved target whose name string is a Build operation returns unchecked.

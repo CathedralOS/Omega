@@ -1,0 +1,10 @@
+tests/omega/run/layouts/placed_ram_capture_forwarding
+tests/omega/run/layouts/placed_ram_capture_helper
+tests/omega/run/layouts/placed_ram_capture_retirement
+tests/omega/run/layouts/placed_ram_capture_return
+tests/omega/run/layouts/placed_ram_original_backing
+tests/omega/run/layouts/placed_ram_scalar_types
+tests/omega/run/layouts/placed_ram_stored_field_return
+tests/omega/run/layouts/placed_stable_array
+tests/omega/run/layouts/placed_stable_distinct_fields
+tests/omega/run/layouts/placed_stable_nested_array

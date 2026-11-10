@@ -1,0 +1,8 @@
+A0585	ACCEPT	area_14	vcc:8618-8636	GROUP: **trw, vcc (28)** | - vcc:8618-8636 an assignment inside a guarded transition establishes the local for all later statements ("inferred from the loop").
+A0586	ACCEPT	area_14	vcc:9551	GROUP: **trw, vcc (28)** | - vcc:9551 budget of 4096 steps exhausted returns "no runtime extent found".
+A0587	ACCEPT	area_14	vcc:1705	GROUP: **trw, vcc (28)** | - vcc:1705, 1720 unknown name defaults to `Affine`, not `Linear` (no class given by the reader).
+A0588	ACCEPT	area_14	ti-lib:593-600	GROUP: **terminal-installation (6)** | - ti-lib:593-600 — "a Terminal artifact whose target-layout application lacks a member for this target is admitted with that record left unresolved".
+A0589	ACCEPT	area_14	ti-lib:653	GROUP: **terminal-installation (6)** | - ti-lib:653 duplicate-boundary check compares only with the last kept plan; correct only if sorted.
+A0590	ACCEPT	area_14	ti-ev:910	GROUP: **terminal-installation (6)** | - ti-ev:910 — "a build-time invocation across packages without any authority check, if a caller passes `None`". Callers not traced.
+A0591	ACCEPT	area_14	ti-ev:928-933	GROUP: **terminal-installation (6)** | - ti-ev:928-933 edge custody check skipped when either header lookup fails.
+A0592	ACCEPT	area_14	ti-prov:709-715	GROUP: **terminal-installation (6)** | - ti-prov:709-715 — "an unmatched source membership theory that is not in `source_required` passes" (structure only; "open whether that is sufficient").

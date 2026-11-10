@@ -1,0 +1,8 @@
+A0117	ACCEPT	area_09	F:6609-6641	GROUP: Flow: | - F:6609-6641. A domain with no predicate, aliases or memberships is content independent, so content writes would not invalidate its qualification.
+A0118	ACCEPT	area_09	F:6913-6920	GROUP: Flow: | - F:6913-6920. A fact whose place root is `Unknown` or invalid survives every write.
+A0119	ACCEPT	area_09	F:8110-8138	GROUP: Flow: | - F:8110-8138; F:8896-8904. A `Name` that does not resolve to a symbol-rooted place records no receiver read; without published flow only the value write frame is checked.
+A0120	ACCEPT	area_09	F:9282	GROUP: Flow: | - F:9282. `Unknown` and every borrow-resource constraint are kept regardless of the active contexts.
+A0121	ACCEPT	area_09	F:9426-9482	GROUP: Flow: | - F:9426-9482, 9732-9753. Machines, calls and events that fail a lookup add no dependency row; exposure defaults to private.
+A0122	ACCEPT	area_09	F:10617-10619	GROUP: Flow: | - F:10617-10619; F:10869-10874, 10964-10968; F:10759-10768; F:10799-10804. `zero_image` gives no cleanup leaves; a `DynamicTrait` value with an owner cleanup gets no edge; dispositions of non-checked-body, open or proof machines and leaves whose machine has no entry state are skipped.
+A0123	ACCEPT	area_09	F:11515	GROUP: Flow: | - F:11515. A selector cycle contributes no origins.
+A0124	ACCEPT	area_09	FCP:836-857	GROUP: Flow: | - FCP:836-857. Contract facts about non-parameter occurrences (no place, non-symbol root, no position) are never invalidated by this filter.

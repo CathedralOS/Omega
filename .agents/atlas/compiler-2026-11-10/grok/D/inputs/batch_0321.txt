@@ -1,0 +1,8 @@
+tests/omega/pass/generics/static_dispatch_public_ensures_reaches_caller_exit
+tests/omega/pass/generics/static_machine_borrowed_parameter_refines_after_substitution
+tests/omega/pass/generics/static_type_predicate_reference_callback_exit
+tests/omega/pass/generics/swapped_type_parameter_result
+tests/omega/pass/generics/type_index_forwarding_exit
+tests/omega/pass/generics/typed_const_equation_helper_body_exit
+tests/omega/pass/generics/unused_selected_value_carrier
+tests/omega/pass/generics/unused_selected_value_proved_where

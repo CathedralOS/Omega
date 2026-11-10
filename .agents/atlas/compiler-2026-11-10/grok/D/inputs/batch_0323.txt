@@ -1,0 +1,8 @@
+tests/omega/pass/host/runtime_windows_gui_argument_failures_exit
+tests/omega/pass/host/scalar_reference_mixed_backing_foreign_export
+tests/omega/pass/host/scalar_reference_mixed_index_backing_foreign_export
+tests/omega/pass/host/scalar_reference_narrow_backing_foreign_export
+tests/omega/pass/host/std_clock_explicit_override_exit
+tests/omega/pass/host/std_clock_sleep_exit
+tests/omega/pass/host/user32_window_procedure_registration
+tests/omega/pass/host/wincheck_probe

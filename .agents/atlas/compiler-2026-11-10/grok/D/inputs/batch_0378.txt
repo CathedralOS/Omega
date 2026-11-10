@@ -1,0 +1,17 @@
+tests/omega/pass/text/runtime_view_local_boundary_write_exit
+tests/omega/pass/text/runtime_view_local_call_argument_exit
+tests/omega/pass/text/runtime_view_local_call_initialized_exit
+tests/omega/pass/text/runtime_view_local_call_result_store_exit
+tests/omega/pass/text/runtime_view_local_field_store_exit
+tests/omega/pass/text/runtime_view_local_first_store_exit
+tests/omega/pass/text/runtime_view_local_qualified_argument_exit
+tests/omega/pass/text/runtime_view_local_reassign_exit
+tests/omega/pass/text/runtime_view_local_record_local_field_store_exit
+tests/omega/pass/text/runtime_view_local_state_transfer_exit
+tests/omega/pass/text/state_parameter_byte_replacement_exit
+tests/omega/pass/text/stored_shared_byte_descriptor_copy_exit
+tests/omega/pass/text/text_concat_assign
+tests/omega/pass/text/utf8_boundary_established
+tests/omega/pass/text/utf8_member_verdict
+tests/omega/pass/text/view_field_literal_store_outlives_helper_exit
+tests/omega/pass/text/zii_default_string_equality_exit

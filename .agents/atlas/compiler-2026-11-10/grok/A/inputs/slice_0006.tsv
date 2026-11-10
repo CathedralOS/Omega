@@ -1,0 +1,8 @@
+A0041	ACCEPT	area_08	:5395-5409	GROUP: Content: | - `:5395-5409` "accepts a bodyless boundary signature that returns qualified nested owned outputs although no input supplies owned qualified content".
+A0042	ACCEPT	area_08	:6270	GROUP: Content: | - `:6270` one owned source accepted on `owned_source_can_supply` alone.
+A0043	ACCEPT	area_08	:6005	GROUP: Content: | - `:6005`, `:6011-6019`: "owned qualified content nested inside a type form not in the match is invisible to the borrowed-source and partition checks".
+A0044	ACCEPT	area_08	:3834	GROUP: Content: | - `:3834`, `:3897-3910`: "a contract membership whose place text spells the same as the structural subject but resolves to a different symbol".
+A0045	ACCEPT	area_08	checks_contracts.rs:1201-1209	GROUP: Contracts: | - `checks_contracts.rs:1201-1209` evidence binding skipped when the call site is not found.
+A0046	ACCEPT	area_08	checks_contracts.rs:244-251	GROUP: Contracts: | - `checks_contracts.rs:244-251`, `:255-261` assembly fact not checked when machine, state or statement flow is missing.
+A0047	ACCEPT	area_08	checks_contracts.rs:1566-1587	GROUP: Contracts: | - `checks_contracts.rs:1566-1587` nominal field check skipped; `:690-696` cleanup check skipped when `target_machine` is `None`.
+A0048	ACCEPT	area_08	checks_contracts.rs:2873	GROUP: Contracts: | - `checks_contracts.rs:2873`, `:2876` third closure `&|_, _| true`; what it gates was not traced.

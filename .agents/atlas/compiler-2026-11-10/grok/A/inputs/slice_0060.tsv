@@ -1,0 +1,8 @@
+A0457	ACCEPT	area_14	lib:1056-1098	GROUP: **lib, fz, fl, etf (26)** | - lib:1056-1098 `None` on any failure; caller meaning not traced.
+A0458	ACCEPT	area_14	fz:1751-1754	GROUP: **lib, fz, fl, etf (26)** | - fz:1751-1754 symbols with no provenance are always retained in a Build projection.
+A0459	ACCEPT	area_14	fz:2090-2091	GROUP: **lib, fz, fl, etf (26)** | - fz:2090-2091 only "materialized" occurrences are removed from the descriptor set.
+A0460	ACCEPT	area_14	fz:2450-2452	GROUP: **lib, fz, fl, etf (26)** | - fz:2450-2452 an invalid sub-expression counts as inert.
+A0461	ACCEPT	area_14	fz:3334-3336	GROUP: **lib, fz, fl, etf (26)** | - fz:3334-3336 `layout_family_is_complete` is `true` when realizations are not `TargetInputs`.
+A0462	ACCEPT	area_14	fz:4458	GROUP: **lib, fz, fl, etf (26)** | - fz:4458 `_ => true` for unpaired type shapes — no region constraint and the match succeeds.
+A0463	ACCEPT	area_14	fz:4537-4539	GROUP: **lib, fz, fl, etf (26)** | - fz:4537-4539 required domain obligation with no actual is skipped.
+A0464	ACCEPT	area_14	fz:4147-4149	GROUP: **lib, fz, fl, etf (26)** | - fz:4147-4149, 4165-4167 `Ok(None)` means no region constraint at that slot.

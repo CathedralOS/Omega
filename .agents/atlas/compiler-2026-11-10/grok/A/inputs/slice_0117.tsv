@@ -1,0 +1,3 @@
+A0902	ACCEPT	area_03	stack_composition.rs:193-235	GROUP: **task-plans** | - `stack_composition.rs:193-235`. `validate_task_stack_frame_summary` trusts the supplied `validation` id. Traced for the one in-crate producer; open for others.
+A0903	ACCEPT	area_03	lib.rs:319-334	GROUP: **task-plans** | - `lib.rs:319-334`. Activation-plan validation does not look at `unresolved_calls()`; who rejects a partial plan was not traced beyond the crate.
+A0904	ACCEPT	area_03	identities.rs:184-308	GROUP: **register-model** | - `identities.rs:184-308`. `ieee_float_directed_unary` is not hashed into `TargetRegisterEnvironmentIdentity`. Reader: traced for this function, open for whether another identity covers it.

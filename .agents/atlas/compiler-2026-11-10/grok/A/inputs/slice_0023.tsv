@@ -1,0 +1,3 @@
+A0173	ACCEPT	area_09	VS:6880-6882	GROUP: Published facts, shared, values: | - VS:6880-6882; VS:7552. An empty predicate list yields `Constant(true)`.
+A0174	ACCEPT	area_09	VS:10938-10941	GROUP: Published facts, shared, values: | - VS:10938-10941. A type reference with no symbol resolves to the first data definition with that name.
+A0175	ACCEPT	area_09	VS:5429	GROUP: Published facts, shared, values: | - VS:5429 and the planners. Failed lowerings leave a statement with no scalar row.

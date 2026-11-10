@@ -1,0 +1,1 @@
+tests/omega/pass/reflection/schema_query_scalar_const

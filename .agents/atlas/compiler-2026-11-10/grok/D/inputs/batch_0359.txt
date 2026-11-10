@@ -1,0 +1,6 @@
+tests/omega/pass/references/mutable_loan_member_read_initializes_local_exit
+tests/omega/pass/references/rebound_local_reference_follows_new_referent_exit
+tests/omega/pass/references/rebound_parameter_reference_follows_new_referent_exit
+tests/omega/pass/references/rebound_parameter_returns_new_caller_view_exit
+tests/omega/pass/references/runtime_shared_ref_param_guard_exit
+tests/omega/pass/references/selected_record_loan_disjoint_fields_exit

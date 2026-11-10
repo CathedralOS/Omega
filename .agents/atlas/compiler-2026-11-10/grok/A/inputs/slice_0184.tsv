@@ -1,0 +1,2 @@
+U0066	UNUSED	area_11	lp/lib.rs:171	- **`visit_value_ids`** (`lp/lib.rs:171`): unit 78 "suspected unused". It is used; see "What I checked myself".
+U0067	UNUSED	area_11	06.../retention.rs:2943	- One-caller items recorded: `terminal_operand_position` 1 (`06.../retention.rs:2943`); `CheckedUnitPlan::admits_signature` 1 and `is_duplicated_in` 1 (`06.../machine_lowering.rs:1578`, `:1575`); `unique_contract_call_at` 1 (`c&o:2856`); `resolution_issues` 1; `provider_declarations` 1; `append_shifted` 1.

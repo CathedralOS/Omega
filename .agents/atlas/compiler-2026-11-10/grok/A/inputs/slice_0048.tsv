@@ -1,0 +1,8 @@
+A0365	ACCEPT	area_13	calls:19367-19376	41. calls:19367-19376 primitive, Unit or `dyn` leaf accepted without leaf origins [091].
+A0366	ACCEPT	area_13	calls:22354-22367	42. calls:22354-22367 assignment to an exclusive-reference parameter is treated as writing through, not rebinding [091].
+A0367	ACCEPT	area_13	calls:26047-26056	43. calls:26047-26056 a coarse origin with an invalid root passes through the call boundary without binding to an argument [091].
+A0368	ACCEPT	area_13	calls:26161-26186	44. calls:26161-26186 a local that shares a parameter's name is classified by the parameter branch first; shadowing rules not traced [091].
+A0369	ACCEPT	area_13	calls:22409-22418	45. calls:22409-22418 (26827-26841) a template-dependent prefix could reach `expression_sources_before_statement` consumers [091].
+A0370	ACCEPT	area_13	calls:28393-28399	46. calls:28393-28399 a may-select slot with no matching leaf is treated as unchanged; open on whether the leaf could be missing for another reason [091].
+A0371	ACCEPT	area_13	calls:29624-29630	47. calls:29624-29630, 29833, 30387-30389 sources passed through or returned empty without checks [092].
+A0372	ACCEPT	area_13	calls:31632-31635	48. calls:31632-31635, 31666, 31679 effects of statically unreachable code are dropped [092].

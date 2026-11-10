@@ -1,0 +1,8 @@
+S0260	SAMEJOB	area_05	SI/values.rs:66-147	25. **`VirtualRegisterOrigin` tags.** Encoder `SI/values.rs:66-147`; two decoders `RH/recovery.rs:423-482` and `RH/recovery/fixed_view_copy_codec.rs:724-765`.
+S0261	SAMEJOB	area_05	MC/lib.rs:123-154	26. **`CallSiteOwner` tags.** `MC/lib.rs:123-154`, `SI/plan_identity.rs:799-867`, `LO/identity/scalar_graph.rs:1437-1477`, `RH/recovery/structural_calls.rs:189-217`: same numbers in all four. `InvocationSite` uses different numbers (`MC/lib.rs:156-174`).
+S0262	SAMEJOB	area_05	AO/calls.rs:96	27. **Call target.** `AO/calls.rs:96` and `OU/identity.rs:3595-3612`, different layouts.
+S0263	SAMEJOB	area_05	OU/rewrite.rs:148	28. **`NodeLocation`.** `OU/rewrite.rs:148`, `OU/rewrite.rs:1919`, `OU/ledger.rs:289-296`.
+S0264	SAMEJOB	area_05	RH/lib.rs:105-125	29. **Native target.** `RH/lib.rs:105-125` (`encode_target`), `NativeTarget::identity_bytes` (used at `MC/fragments/identity.rs:39`), `wire_identity_bytes` (used at `MC/fragments/publication.rs:223`); decoders `RH/recovery/fixed_view_copy_codec.rs:417-437` and `SI/effects/program/encoding.rs:1789-1813`.
+S0265	SAMEJOB	area_05	MC/fragments/identity.rs:345-367	30. **Branch arm and image-address hashing.** `MC/fragments/identity.rs:345-367`, `MC/layout.rs:308-325`, `MC/layout.rs:529-545`; image-address block at `MC/fragments/identity.rs:81-86` and `MC/layout.rs:327-332`.
+S0266	SAMEJOB	area_05	OU/ledger.rs:170-214	31. **Provenance row validation.** `OU/ledger.rs:170-214` and `OU/rewrite.rs:2338-2376`, "almost line for line" with different error enums (`unit_027.md`).
+S0267	SAMEJOB	area_05	CAND:10488	32. **`provenance_proven_unreachable_at`.** `CAND:10488` and pipeline 01 `control_flow_cleanup.rs:1491`. Checked: identical bodies.

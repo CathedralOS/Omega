@@ -1,0 +1,8 @@
+A0049	ACCEPT	area_08	checks_contracts_calls.rs:3407-3474	GROUP: Contracts: | - `checks_contracts_calls.rs:3407-3474` an unproved requirement becomes a deferred obligation with no diagnostic; stated (`checks_contracts.rs:104-106`), downstream discharge not traced.
+A0050	ACCEPT	area_08	checks_contracts_calls.rs:4542-4560	GROUP: Contracts: | - `checks_contracts_calls.rs:4542-4560`, `:4617-4621`, `:4638-4652`: "a program that lends a state PARAMETER's storage (not a local) with a declared domain to a `&mut` callee that breaks the domain would not be checked here" (inferred).
+A0051	ACCEPT	area_08	checks_contracts_calls.rs:4175-4178	GROUP: Contracts: | - `checks_contracts_calls.rs:4175-4178` evidence term matched against any arm; cross-arm sharing open.
+A0052	ACCEPT	area_08	checks_contracts_exits.rs:9696	GROUP: Contracts: | - `checks_contracts_exits.rs:9696`, `:9713` facts skipped on entailment or evidence term set elsewhere.
+A0053	ACCEPT	area_08	checks_contracts_exits.rs:9655-9659	GROUP: Contracts: | - `checks_contracts_exits.rs:9655-9659`: "an exit the type context calls unreachable".
+A0054	ACCEPT	area_08	checks_contracts_exits.rs:4037	GROUP: Contracts: | - `checks_contracts_exits.rs:4037`, `:4042` result field domains unchecked when the returned expression is invalid or has no paths.
+A0055	ACCEPT	area_08	checks_contracts_exits.rs:2079-2088	GROUP: Contracts: | - `checks_contracts_exits.rs:2079-2088`, `:2096`: "a transition into the header whose site lookup fails" is not counted as an arrival.
+A0056	ACCEPT	area_08	checks_contracts_writes.rs:1590-1594	GROUP: Contracts: | - `checks_contracts_writes.rs:1590-1594` no write checks when the state lookup fails; `:205-214` check skipped when a formation membership was already published.

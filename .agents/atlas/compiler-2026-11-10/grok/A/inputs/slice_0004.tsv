@@ -1,0 +1,8 @@
+A0025	ACCEPT	area_08	checks_borrows.rs:439	GROUP: Borrow checks: | - `checks_borrows.rs:439`, `:446` incomplete frontier is not deferred; `:555` const-parameter root accepted (stated only for by-reference parameters, `:508-512`).
+A0026	ACCEPT	area_08	checks_borrows.rs:1447-1449	GROUP: Borrow checks: | - `checks_borrows.rs:1447-1449` a call with an empty may-write frame keeps all static provenance.
+A0027	ACCEPT	area_08	checks_borrows.rs:5393-5408	GROUP: Borrow checks: | - `checks_borrows.rs:5393-5408` no unique completion and no copied borrow-carrying operand: call skipped.
+A0028	ACCEPT	area_08	checks_borrows.rs:5502-5509	GROUP: Borrow checks: | - `checks_borrows.rs:5502-5509` state skipped when machine or state lookup fails.
+A0029	ACCEPT	area_08	checks_borrows.rs:11434-11435	GROUP: Borrow checks: | - `checks_borrows.rs:11434-11435` and `checks_borrows_calls.rs:1497`: a flow state with no borrow state gets no statement, aggregate or call check.
+A0030	ACCEPT	area_08	checks_borrows_calls.rs:1079-1085	GROUP: Borrow checks: | - `checks_borrows_calls.rs:1079-1085` later-operand check skipped unless the receiver is a `Borrow` or non-symbol root.
+A0031	ACCEPT	area_08	checks_borrows_overlap.rs:2828	GROUP: Borrow checks: | - `checks_borrows_overlap.rs:2828` unlisted segment pairs are "do not overlap" (inferred that they cannot occur at one depth).
+A0032	ACCEPT	area_08	checks_borrows_overlap.rs:2989-2992	GROUP: Borrow checks: | - `checks_borrows_overlap.rs:2989-2992` `independent_input_permissions`: no reason at the site.

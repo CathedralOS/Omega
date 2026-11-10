@@ -1,0 +1,8 @@
+A0441	ACCEPT	area_14	dp:13689	GROUP: **dp (22)** | - dp:13689 — a state with any crash transition skips the end-of-state window check "even if the crash is guarded and the state can also fall through".
+A0442	ACCEPT	area_14	dp:13685	GROUP: **dp (22)** | - dp:13685 other statement kinds neither clear nor poison tracked places.
+A0443	ACCEPT	area_14	dp:12681-12683	GROUP: **dp (22)** | - dp:12681-12683 with dp:11373 dropped edges enlarge a state's intersection.
+A0444	ACCEPT	area_14	dp:14154-14195	GROUP: **dp (22)** | - dp:14154-14195 membership carrier check accepts an unknown subject type and generic carriers.
+A0445	ACCEPT	area_14	dp:14879	GROUP: **dp (22)** | - dp:14879 runtime float comparison builder does not call the meaning check ("open observation, not a confirmed gap").
+A0446	ACCEPT	area_14	dp:8515-8516	GROUP: **dp (22)** | - dp:8515-8516 `case_position` drops the owner index — variants of two data types with the same position compare equal ("Not traced").
+A0447	ACCEPT	area_14	ei:976-984	GROUP: **ei (6)** | - ei:976-984 (with 405-408, 849) — a caller passes an argument with no nameable origin to a callee that invokes that parameter's service; the caller's inferred set omits the service.
+A0448	ACCEPT	area_14	ei:1450	GROUP: **ei (6)** | - ei:1450, 1473 no row means "no suspend, no block" — a call to a signature kind not in the row list whose signature says `suspends`.

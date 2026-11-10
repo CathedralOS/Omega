@@ -1,0 +1,2 @@
+tests/omega/pass/write_only/returned_destination_transport_exit
+tests/omega/pass/write_only/state_forwarded_scalar_store_exit

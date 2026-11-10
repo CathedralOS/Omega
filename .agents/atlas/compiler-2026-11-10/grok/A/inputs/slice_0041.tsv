@@ -1,0 +1,8 @@
+A0309	ACCEPT	area_11	ct/facts.rs:3440-3447	GROUP: **checked-trees** | 41. `ct/facts.rs:3440-3447`: state locals indexed by arena index alone, generation ignored. Inferred, not traced.
+A0310	ACCEPT	area_11	ct/flow.rs:1339-1346	GROUP: **checked-trees** | 42. `ct/flow.rs:1339-1346`: `state_by_symbol` takes the first of duplicate state rows; a test shows duplicates exist (`:1396`).
+A0311	ACCEPT	area_11	ct/flow.rs:2162-2166	GROUP: **checked-trees** | 43. `ct/flow.rs:2162-2166`: a missing call falls back to the statement's, then the state's, entry constraints.
+A0312	ACCEPT	area_11	ct/flow_ownership_and_roots.rs:905-914	GROUP: **checked-trees** | 44. `ct/flow_ownership_and_roots.rs:905-914`: no exit path gives a transfer count of 0; whether an undercount is the safe direction depends on the caller.
+A0313	ACCEPT	area_11	ct/flow_ownership_and_roots.rs:379-388	GROUP: **checked-trees** | 45. `ct/flow_ownership_and_roots.rs:379-388`: an empty evaluation-order span means "authored order".
+A0314	ACCEPT	area_11	ct/flow_terminal.rs:2044	GROUP: **checked-trees** | 46. `ct/flow_terminal.rs:2044`: structural type plans compare equal ignoring `source_declaration`; `adopt_structural_types` (`ct/flow_terminal_units.rs:1520-1543`) then treats them as a non-conflict.
+A0315	ACCEPT	area_11	ct/flow_terminal.rs:1384-1410	GROUP: **checked-trees** | 47. `ct/flow_terminal.rs:1384-1410`: with empty `projection_evaluations`, `FixedIndex` segments are never reported as selectors.
+A0316	ACCEPT	area_11	ct/flow_terminal_units.rs:972	GROUP: **checked-trees** | 48. `ct/flow_terminal_units.rs:972`, `:1005`: a return arm with no statement ordinal reports 0.

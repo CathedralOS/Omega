@@ -1,0 +1,7 @@
+tests/omega/fail/constraints/anonymous_integer_local_range
+tests/omega/fail/constraints/bounded_mutable_initializer_outside_range
+tests/omega/fail/constraints/callee_result_bound_exceeds_cast
+tests/omega/fail/constraints/computed_local_value_invalidated
+tests/omega/fail/constraints/guarded_integer_return_range
+tests/omega/fail/constraints/multiple_policy_domain_chain
+tests/omega/fail/constraints/scalar_requires_unproven_literal

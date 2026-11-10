@@ -1,0 +1,8 @@
+A0610	ACCEPT	area_04	S01/specialization.rs:478-508	- S01/specialization.rs:478-508: a callee's constant on its single `Return` is used without checking that the return is reachable or that the call has crash continuations.
+A0611	ACCEPT	area_04	S01/validation.rs:2557-2564	- S01/validation.rs:2557-2564: a node outside the loop whose operation is not enumerated and which references the picked place is accepted.
+A0612	ACCEPT	area_04	S01/validation.rs:1086-1087	- S01/validation.rs:1086-1087: duplicate value definitions overwrite silently.
+A0613	ACCEPT	area_04	S02/control_flow_operations.rs:557-570	- S02/control_flow_operations.rs:557-570: `PortWrite` passes `value` through with no source lookup.
+A0614	ACCEPT	area_04	S02/control_flow_storage.rs:1320	- S02/control_flow_storage.rs:1320: any arrival parameter passes as a byte-write source here. :3569: reference leaves of a descriptor-member field are not relocated. :2613-2616: an IEEE float block parameter is skipped.
+A0615	ACCEPT	area_04	S02/function_signature.rs:546-552	- S02/function_signature.rs:546-552: a failing `prepare_function_signature` becomes `Ok(None)`. :228, 232-252: a layout root whose recipe cannot be built is dropped.
+A0616	ACCEPT	area_04	S02/references.rs:1818-1827	- S02/references.rs:1818-1827: "a call whose incoming reference lives in a sum-case path can silently delete the destination's tracked provenance instead of failing". :2534-2540: the same skip for call results. :2235-2237: a place with no contract is treated as having no references to discard.
+A0617	ACCEPT	area_04	S02/structural_layout.rs:184-189	- S02/structural_layout.rs:184-189: an index segment whose prefix does not resolve is treated as an ordinary step.

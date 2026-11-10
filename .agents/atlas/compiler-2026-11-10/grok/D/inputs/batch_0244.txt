@@ -1,0 +1,8 @@
+tests/omega/pass/errors/crash_route_boundary
+tests/omega/pass/errors/crash_unrecoverable_stmt
+tests/omega/pass/errors/member_crash_route
+tests/omega/pass/errors/reconstructed_case_payload_exit
+tests/omega/pass/errors/returned_case_payload_from_parameter_exit
+tests/omega/pass/errors/runtime_result_match_exit
+tests/omega/pass/errors/runtime_trap_process_presentation
+tests/omega/pass/errors/trap_unrecoverable_statement

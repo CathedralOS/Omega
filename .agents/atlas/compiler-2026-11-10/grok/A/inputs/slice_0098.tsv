@@ -1,0 +1,8 @@
+A0752	ACCEPT	area_05	MC/layout/text_section.rs:282-308	GROUP: **machine-code (4)** | 89. `MC/layout/text_section.rs:282-308` the text-section identity does not hash `callback_materializations` (same remark).
+A0753	ACCEPT	area_05	RH/constraints.rs:48	GROUP: **register-homes (9)** | 90. `RH/constraints.rs:48, 112` sortedness stated in field comments is not checked at decode.
+A0754	ACCEPT	area_05	RH/post_allocation_manifest.rs:171-265	GROUP: **register-homes (9)** | 91. `RH/post_allocation_manifest.rs:171-265` statistics accepted unchecked at decode.
+A0755	ACCEPT	area_05	RH/recovery/fixed_view_copy_codec.rs:688	GROUP: **register-homes (9)** | 92. `RH/recovery/fixed_view_copy_codec.rs:688, 696` `structural: None` stays if `decode_contracts` does not fill it (not traced).
+A0756	ACCEPT	area_05	RH/recovery/selected_blocks.rs:436	GROUP: **register-homes (9)** | 93. `RH/recovery/selected_blocks.rs:436` `decode_case` accepts any `case_tag` and cleanup actions with no cross-check.
+A0757	ACCEPT	area_05	RH/recovery/selected_instructions.rs:243-249	GROUP: **register-homes (9)** | 94. `RH/recovery/selected_instructions.rs:243-249` `ReturnAggregate` fragment count and `Store` byte size are not checked.
+A0758	ACCEPT	area_05	RH/recovery/structural_contracts.rs:184	GROUP: **register-homes (9)** | 95. `RH/recovery/structural_contracts.rs:184` memory-access rows accepted with any place, offset and count.
+A0759	ACCEPT	area_05	RH/recovery/structural_calls.rs:1003-1009	GROUP: **register-homes (9)** | 96. `RH/recovery/structural_calls.rs:1003-1009` Import and Table bindings are not re-checked with `has_valid_entry_mechanism()`; only System and Component are.

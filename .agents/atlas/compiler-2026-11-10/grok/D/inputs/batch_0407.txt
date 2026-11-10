@@ -1,0 +1,1 @@
+tests/omega/run/state_owned_nested_borrow

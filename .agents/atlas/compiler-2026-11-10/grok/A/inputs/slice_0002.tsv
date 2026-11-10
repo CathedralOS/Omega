@@ -1,0 +1,8 @@
+A0009	ACCEPT	area_08	checking.rs:329-334	GROUP: `borrow.rs`, `checking.rs`: | - `checking.rs:329-334`, `:47-54`: "A call whose acknowledgement mismatches its envelope would pass if the plan lacks a row."
+A0010	ACCEPT	area_08	checking.rs:995-997	GROUP: `borrow.rs`, `checking.rs`: | - `checking.rs:995-997` no declaration authority at 15 of 16 construction sites: stated for toolchain selections (`:790-792`), open for the rest.
+A0011	ACCEPT	area_08	checking.rs:408-412	GROUP: `borrow.rs`, `checking.rs`: | - `checking.rs:408-412` pending opaque Copy receipts: whether the strict check re-runs is open.
+A0012	ACCEPT	area_08	checks.rs:2602-2603	GROUP: `checks.rs`: | - `:2602-2603` region depth over 16 returns `Inferred`, so the comparison is skipped.
+A0013	ACCEPT	area_08	checks.rs:4167-4169	GROUP: `checks.rs`: | - `:4167-4169` no check when the type context is called unreachable.
+A0014	ACCEPT	area_08	checks.rs:4205-4210	GROUP: `checks.rs`: | - `:4205-4210`, `:4294-4296`, `:4297-4305` a call with no parameter roster or call site gets no runtime-index check.
+A0015	ACCEPT	area_08	checks.rs:4269	GROUP: `checks.rs`: | - `:4269` assignment value unchecked when `actual` cannot name the target.
+A0016	ACCEPT	area_08	checks.rs:3328-3330	GROUP: `checks.rs`: | - `:3328-3330` invalid symbol is a stable index; `:1902`, `:1926-1935` invalid symbol is const.

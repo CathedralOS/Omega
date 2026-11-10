@@ -1,0 +1,1 @@
+tests/omega/fail/contracts/zero_storage_shadow_keeps_scope_fence

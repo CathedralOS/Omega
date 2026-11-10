@@ -1,0 +1,8 @@
+A0349	ACCEPT	area_13	calls:3057-3059	25. calls:3057-3059 a call with a quotient operation returns before argument validation [090].
+A0350	ACCEPT	area_13	calls:3171-3176	26. calls:3171-3176 build-declaration and exact-embed calls return with no argument validation [090].
+A0351	ACCEPT	area_13	calls:3809-3823	27. calls:3809-3823 a type-parameter bound is not checked when the argument's type cannot be resolved [090].
+A0352	ACCEPT	area_13	calls:4152-4155	28. calls:4152-4155; calls:4709-4713 arguments or const selections with no known type/binding are skipped [090].
+A0353	ACCEPT	area_13	calls:6059-6069	29. calls:6059-6069 a discarded non-unit result is accepted when the call's spelling equals the name of any proof machine with no attached data, found by first name match [090; checked].
+A0354	ACCEPT	area_13	calls:2523	30. calls:2523, 2701-2702, 2716-2724 scan skips `SavedSubject`, type-predicate binaries and the right operand of case-membership binaries [090].
+A0355	ACCEPT	area_13	calls:1795	31. calls:1795 wildcard `_ => true` in `nested_boundary_applications_compose` [090].
+A0356	ACCEPT	area_13	calls:10863-10868	32. calls:10863-10868 a write-origin query with no prefix evidence is answered with no alias context; two in-range callers treat that as an effect [090].

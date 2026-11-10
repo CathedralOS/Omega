@@ -1,0 +1,8 @@
+D0036	DROP	area_11	prf/checker.rs:6522	GROUP: **proof (9)** | - `prf/checker.rs:6522`: `BoundedValue` and `GuardedTransition` obligations produce nothing here.
+D0037	DROP	area_11	prf/checker.rs:342-344	GROUP: **proof (9)** | - `prf/checker.rs:342-344`: an "overwritten" assignment skips every check.
+D0038	DROP	area_11	md:2211-2215	GROUP: **proof (9)** | - `md:2211-2215`: identity emission rows.
+D0039	DROP	area_11	md:4953-5195	GROUP: **proof (9)** | - `md:4953-5195`, `:5213-5215`: contract theorems, including when the proposition elaborates to `None`.
+D0040	DROP	area_11	md:5515-5519	GROUP: **proof (9)** | - `md:5515-5519`: unresolved evidence aliases after the last pass.
+D0041	DROP	area_11	prf/obligations.rs:344	GROUP: **proof (9)** | - `prf/obligations.rs:344`: no obligation when the target type does not resolve.
+D0042	DROP	area_11	prf/obligations.rs:3195	GROUP: **proof (9)** | - `prf/obligations.rs:3195`, `:3229`: unconverted constraints.
+D0043	DROP	area_11	prf/obligations.rs:918-920	GROUP: **proof (9)** | - `prf/obligations.rs:918-920`: no initializer obligation unless the constrained type is primitive-carried.

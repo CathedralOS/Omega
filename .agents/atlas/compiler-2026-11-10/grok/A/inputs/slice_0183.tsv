@@ -1,0 +1,8 @@
+U0058	UNUSED	area_11	adm/mathematical_core.rs:4673	- **`identity_substitution`** (`adm/mathematical_core.rs:4673`): definition and two re-exports, zero call sites. (checked.)
+U0059	UNUSED	area_11	-	- **`ObligationClass::Derivable`**: "only declared" in `adm/lib.rs`; not grepped separately.
+U0060	UNUSED	area_11	-	- **Acceptance views** (`AcceptanceView`, `StateAcceptance`, ... `AcceptanceSummary`): 117 matches in 2 files, `ct/admissibility_and_borrow.rs` 113 and `ct/lib.rs` 4. `state_acceptance(`: 1 match, its definition. No implementation constructs a rejection. (checked: no `.rs` user outside the crate; one README mention.)
+U0061	UNUSED	area_11	o:2743	- **`CrashContractCapsule::new(`, `CheckedCrashCallSite::new(`**: 0 qualified-path matches (`c&o:2743`, `:2882`). (checked.)
+U0062	UNUSED	area_11	pc/source_checking.rs:100	- **`LibrarySliceKey`** (`pc/source_checking.rs:100`): only feeds counters (`:771-773`).
+U0063	UNUSED	area_11	-	- **`w_step_type`, `box_body_type`**: used only inside `adm/mathematical_typing.rs` (8 occurrences in 1 file).
+U0064	UNUSED	area_11	adm/mathematical_core.rs:1311	- **`convert_retaining`**: 1 caller outside its definition (`adm/mathematical_core.rs:1311`).
+U0065	UNUSED	area_11	-	- **`shifted_rows::*`**: used only in `ct/facts.rs` (9) and `ct/termination_and_cleanup_facts.rs` (9).

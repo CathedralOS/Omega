@@ -1,0 +1,8 @@
+A0141	ACCEPT	area_09	PROD:809	GROUP: Published facts, shared, values: | - PROD:809, 819. Nominal-use and interrupt rows with an expression site are kept whatever the owning machine.
+A0142	ACCEPT	area_09	PUB:8387-8586	GROUP: Published facts, shared, values: | - PUB:8387-8586. A call-site proposition fact whose instantiation failed is still published with `instantiated` invalid.
+A0143	ACCEPT	area_09	PUB:6796-6806	GROUP: Published facts, shared, values: | - PUB:6796-6806. A parameter constraint whose name is neither a domain nor a carry permission adds no obligation.
+A0144	ACCEPT	area_09	PUB:10387-10391	GROUP: Published facts, shared, values: | - PUB:10387-10391. Invalid member symbols are skipped, giving a shorter place.
+A0145	ACCEPT	area_09	PUB:9732	GROUP: Published facts, shared, values: | - PUB:9732, 9780, 9822. An unknown owner is published at global scope.
+A0146	ACCEPT	area_09	PUB:4465-4521	GROUP: Published facts, shared, values: | - PUB:4465-4521. An outcome arm with no selector that cannot be classified is skipped without error.
+A0147	ACCEPT	area_09	PUB:2483-2485	GROUP: Published facts, shared, values: | - PUB:2483-2485. A machine with no entry state is skipped in definite-assignment validation.
+A0148	ACCEPT	area_09	PUB:790-792	GROUP: Published facts, shared, values: | - PUB:790-792. A call with no retained signature owns every non-signature contract. The reader gave no class, only "No comment."

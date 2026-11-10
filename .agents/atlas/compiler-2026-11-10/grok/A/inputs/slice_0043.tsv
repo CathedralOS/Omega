@@ -1,0 +1,8 @@
+A0325	ACCEPT	area_13	rs:136-142	1. rs:136-142 accepts any primitive as an inert carrier; `primitive_type_reference` not traced [088].
+A0326	ACCEPT	area_13	ab:27-189	2. ab:27-189 an ill-formed `AccessCustody` conformance that hits one of six `continue`s gets no agreement check; not traced whether earlier stages reject it [088].
+A0327	ACCEPT	area_13	ab:1294-1305	3. ab:1294-1305 (1412, 1415-1420) an atomic accessor use on a place whose declared type cannot be computed is not checked [088].
+A0328	ACCEPT	area_13	ab:1444-1463	4. ab:1444-1463 no binding-private check when the call target matches no accessor state and the receiver path does not resolve [088].
+A0329	ACCEPT	area_13	ab:2993-2996	5. ab:2993-2996 an out-of-range or inverted fixed-array range store to a write-only array gets no diagnostic here; not traced whether another stage rejects it [088; checked].
+A0330	ACCEPT	area_13	ab:3365	6. ab:3365, 3368-3376, 3406-3408, 3416-3418 a call through an unresolved target with a `&write` input is not flagged here [088].
+A0331	ACCEPT	area_13	ad:7791-7793	7. ad:7791-7793 (with 5658, 5717-5718) arithmetic whose operand types do not resolve and that has no target type skips representability and division checks [088].
+A0332	ACCEPT	area_13	ad:838-864	8. ad:838-864 range diagnostics are written to a throwaway list; presumed reported elsewhere [088].

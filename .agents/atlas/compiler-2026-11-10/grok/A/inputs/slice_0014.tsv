@@ -1,0 +1,8 @@
+A0101	ACCEPT	area_09	SG:2000-2002	GROUP: Execution plans: | - SG:2000-2002, 2566-2568, 3021-3023. Image storage roots return "no local home" or `true`.
+A0102	ACCEPT	area_09	SG:3568-3570	GROUP: Execution plans: | - SG:3568-3570; SG:3571-3581. Unrestricted results, and no-code completion owners, pass with no cleanup check or disposition row.
+A0103	ACCEPT	area_09	SG:3895-3897	GROUP: Execution plans: | - SG:3895-3897, 3905-3909. No implementation witness and no runtime components means no rank; relies on termination being decided elsewhere.
+A0104	ACCEPT	area_09	SG:8482-8487	GROUP: Execution plans: | - SG:8482-8487, 8704-8713, 9255-9282. A Unit state whose transitions are all on erased dispatch subjects (or `Always`) returns Unit without planning any arm. "Stated" for intent ("the arms are not executed", SG:9251-9254); "open" for whether an arm can carry runtime effects.
+A0105	ACCEPT	area_09	SG:7362-7372	GROUP: Execution plans: | - SG:7362-7372. When `add_reference_type` fails the carrier identity becomes the default value and the plan proceeds.
+A0106	ACCEPT	area_09	SSS:3061-3088	GROUP: Execution plans: | - SSS:3061-3088; SSS:3051-3056. Assignments that fail planning but have a call or structural value, and atomic or array assignments, are skipped on the assumption another builder takes them.
+A0107	ACCEPT	area_09	TYPES:4786-4872	GROUP: Execution plans: | - TYPES:4786-4872, 1093, 4653-4659, 4760-4762. Memberships skipped when the root, domain definition or routing is missing; whether the scalar lane catches them was not traced.
+A0108	ACCEPT	area_09	F:742-748	GROUP: Flow: | - F:742-748. A borrow call whose caller or callee does not resolve adds no grouping edge: dependent machines could land in separate groups.

@@ -1,0 +1,6 @@
+tests/omega/fail/packages/indexed_contract_out_of_bounds
+tests/omega/fail/packages/public_case_default_domain_wrong_case
+tests/omega/fail/packages/retained_dependency_body_loan
+tests/omega/fail/packages/rootless_numeric_provider_missing_satisfaction
+tests/omega/fail/packages/std_missing_dependency_rejected
+tests/omega/fail/packages/std_mount_path_rejected

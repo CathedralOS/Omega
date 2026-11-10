@@ -1,0 +1,8 @@
+D0082	DROP	area_13	calls:26682-26707	25. calls:26682-26707 an assignment that exposes a frozen binding is absent from the roster (inferred fail-closed) [091].
+D0083	DROP	area_13	calls:31632-31635	26. calls:31632-31635, 31666, 31679 [092].
+D0084	DROP	area_13	cs:6418-6441	27. cs:6418-6441 the plan builder drops an invalid projection machine with `?`; diagnostics come only from the separate validator at cs:6276 [092].
+D0085	DROP	area_13	ce:16222	28. ce:16222, 16241-16267 the inductive judge returns with no verdict for unsupported bodies; ce:16355-16358 an `Unknown` arm is neither proven nor reported unless the machine is fully visible [093].
+D0086	DROP	area_13	ce:18278	29. ce:18278, 19153 [094].
+D0087	DROP	area_13	ce:18763-18765	30. ce:18763-18765 slot with no candidate skipped [094].
+D0088	DROP	area_13	ce:21185	31. ce:21185, 21188, 21206, 21217, 21257-21281, 21283, 21286 [094].
+D0089	DROP	area_13	ce:29640-29647	32. ce:29640-29647 hypotheses with an unadmitted carrier dropped; ce:30013, 30026, 30061 failures discarded with `let _ =` [094].

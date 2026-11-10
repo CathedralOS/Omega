@@ -1,0 +1,7 @@
+tests/omega/fail/concurrency/incoming_loan_forbidden_backing
+tests/omega/fail/concurrency/suspend_explicit_parameter_field_rejected
+tests/omega/fail/concurrency/suspend_later_operand_rejected
+tests/omega/fail/concurrency/suspend_reference_array_backing_write
+tests/omega/fail/concurrency/suspend_reference_permission_without_backing
+tests/omega/fail/concurrency/suspend_retained_loan_conflicting_backing_write
+tests/omega/fail/concurrency/suspend_with_indirect_resource_backing

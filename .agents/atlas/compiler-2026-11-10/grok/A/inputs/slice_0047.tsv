@@ -1,0 +1,8 @@
+A0357	ACCEPT	area_13	calls:8844-8846	33. calls:8844-8846 a result that aliases a shared-borrow argument is not recorded as aliasing [090].
+A0358	ACCEPT	area_13	calls:12128-12129	34. calls:12128-12129 a substitution source rooted at a local is skipped [090].
+A0359	ACCEPT	area_13	calls:11870	35. calls:11870 a `Value` transition target contributes an empty write set [090].
+A0360	ACCEPT	area_13	calls:16366	36. calls:16366, 16373 a call argument that is a `Cast`, `Unary`, `Binary` or `Match` is not recorded as a written place in the syntactic fallback [091; checked].
+A0361	ACCEPT	area_13	calls:16158-16193	37. calls:16158-16193 value builtins and byte predicates treated as write-free on a builtin flag [091].
+A0362	ACCEPT	area_13	calls:15923-15928	38. calls:15923-15928 a statement root that is an atomic-once operation with no calls gets an empty frame; depends on whether `expression_has_calls` counts atomics [091].
+A0363	ACCEPT	area_13	calls:17528	39. calls:17528 a type containing `dyn Trait` is treated as holding no caller-reachable reference, so writes through it do not appear in write frames [091; checked].
+A0364	ACCEPT	area_13	calls:17669-17681	40. calls:17669-17681 an alias that matches nothing is returned as if rooted at itself [091].

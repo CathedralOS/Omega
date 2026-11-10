@@ -1,0 +1,15 @@
+tests/omega/pass/memory/address_translation_canary
+tests/omega/pass/memory/bump_allocator_canary
+tests/omega/pass/memory/indexed_resident_bodyless_handback
+tests/omega/pass/memory/interrupt_table_canary
+tests/omega/pass/memory/resident_content_mutation_transport
+tests/omega/pass/memory/runtime_indexed_resident_exchange_exit
+tests/omega/pass/memory/runtime_large_entry_record_field_exit
+tests/omega/pass/memory/runtime_large_frame_console_byte_homes_exit
+tests/omega/pass/memory/runtime_large_local_record_exit
+tests/omega/pass/memory/runtime_large_structural_copy_exit
+tests/omega/pass/memory/runtime_linear_native_allocation_call_result_exit
+tests/omega/pass/memory/runtime_linear_native_allocation_exit
+tests/omega/pass/memory/runtime_selected_resident_exchange_exit
+tests/omega/pass/memory/secondary_processor_canary
+tests/omega/pass/memory/weak_vacant_qualifier_satisfied

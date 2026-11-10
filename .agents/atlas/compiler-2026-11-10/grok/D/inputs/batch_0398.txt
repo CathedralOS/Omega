@@ -1,0 +1,1 @@
+tests/omega/run/float/folded_anonymous_operator_custody_exit

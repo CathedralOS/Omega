@@ -1,0 +1,6 @@
+D0052	DROP	area_11	fa/lib.rs:1466	GROUP: **facts (2)** | - `fa/lib.rs:1466`, `:1479`: unresolved member becomes an invalid field segment.
+D0053	DROP	area_11	p:1700-1741	GROUP: **facts (2)** | - `c&p:1700-1741`: `(OpaqueRange, FixedIndex|Index)` composes to an index with an invalid expression (the index value is lost; a widening).
+D0054	DROP	area_11	o:109	GROUP: **checked-trees (5)** | - `c&o:109`, `:112-114`: constant predicate not retained.
+D0055	DROP	area_11	ct/providers_and_trust.rs:107	GROUP: **checked-trees (5)** | - `ct/providers_and_trust.rs:107`, `:161-163`.
+D0056	DROP	area_11	ct/operators_and_proof.rs:1331-1337	GROUP: **checked-trees (5)** | - `ct/operators_and_proof.rs:1331-1337`: `DomainPending` uses not reported.
+D0057	DROP	area_11	ct/values_and_views.rs:2436-2448	GROUP: **checked-trees (5)** | - `ct/values_and_views.rs:2436-2448`: `SealedExpressionStateIndex` is written as nothing and read as default (inferred).

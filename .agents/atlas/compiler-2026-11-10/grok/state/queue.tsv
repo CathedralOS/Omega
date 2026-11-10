@@ -1,0 +1,1072 @@
+1	B	B1-001	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_001.md	omega-rust/psi/interpreter/terminal-interpreter/src/boundary_effects.rs	B1|1|3000
+1	B	B1-002	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_002.md	omega-rust/psi/interpreter/terminal-interpreter/src/boundary_effects.rs	B1|3001|3787
+1	B	B1-003	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_003.md	omega-rust/psi/interpreter/terminal-interpreter/src/boundary_inputs.rs	B1|1|2814
+1	B	B1-004	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_004.md	omega-rust/psi/interpreter/terminal-interpreter/src/boundary_storage_inputs.rs	B1|1|2703
+1	B	B1-005	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_005.md	omega-rust/psi/interpreter/terminal-interpreter/src/boundary_values.rs	B1|1|2391
+1	B	B1-006	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_006.md	omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs	B1|1|3000
+1	B	B1-007	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_007.md	omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs	B1|3001|3012
+1	B	B1-008	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_008.md	omega-rust/psi/interpreter/terminal-interpreter/src/engine_calls.rs	B1|1|3000
+1	B	B1-009	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_009.md	omega-rust/psi/interpreter/terminal-interpreter/src/engine_calls.rs	B1|3001|3713
+1	B	B1-010	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_010.md	omega-rust/psi/interpreter/terminal-interpreter/src/engine_custody.rs	B1|1|2815
+1	B	B1-011	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_011.md	omega-rust/psi/interpreter/terminal-interpreter/src/engine_execution.rs	B1|1|3000
+1	B	B1-012	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_012.md	omega-rust/psi/interpreter/terminal-interpreter/src/engine_execution.rs	B1|3001|3900
+1	B	B1-013	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_013.md	omega-rust/psi/interpreter/terminal-interpreter/src/engine_structural.rs	B1|1|2321
+1	B	B1-014	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_014.md	omega-rust/psi/interpreter/terminal-interpreter/src/engine_terminators.rs	B1|1|2610
+1	B	B1-015	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_015.md	omega-rust/psi/interpreter/terminal-interpreter/src/lib.rs	B1|1|169
+1	B	B1-016	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_016.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_bytes_and_views.rs	B1|1|3000
+1	B	B1-017	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_017.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_bytes_and_views.rs	B1|3001|5598
+1	B	B1-018	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_018.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_primitives.rs	B1|1|3000
+1	B	B1-019	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_019.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_primitives.rs	B1|3001|6000
+1	B	B1-020	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_020.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_primitives.rs	B1|6001|6148
+1	B	B1-021	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_021.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_providers.rs	B1|1|3000
+1	B	B1-022	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_022.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_providers.rs	B1|3001|4400
+1	B	B1-023	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_023.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_records_and_arrays.rs	B1|1|3000
+1	B	B1-024	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_024.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_records_and_arrays.rs	B1|3001|5703
+1	B	B1-025	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_025.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_references.rs	B1|1|3000
+1	B	B1-026	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_026.md	omega-rust/psi/interpreter/terminal-interpreter/src/storage_references.rs	B1|3001|4461
+1	B	B2-001	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_001.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/analyses.rs	B2|1|170
+1	B	B2-002	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_002.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/control_flow_analyses.rs	B2|1|544
+1	B	B2-003	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_003.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/control_flow_cleanup.rs	B2|1|1735
+1	B	B2-004	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_004.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/countdown_analyses.rs	B2|1|1606
+1	B	B2-005	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_005.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/global_value_numbering.rs	B2|1|2382
+1	B	B2-006	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_006.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs	B2|1|267
+1	B	B2-007	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_007.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/pass_manager.rs	B2|1|1552
+1	B	B2-008	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_008.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/proof_check_elision.rs	B2|1|910
+1	B	B2-009	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_009.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/publication.rs	B2|1|380
+1	B	B2-010	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_010.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/ranked_cycles_validation.rs	B2|1|961
+1	B	B2-011	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_011.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/ranked_rewrites.rs	B2|1|1278
+1	B	B2-012	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_012.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/rules.rs	B2|1|1284
+1	B	B2-013	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_013.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/sccp.rs	B2|1|1246
+1	B	B2-014	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_014.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/semantic_analyses.rs	B2|1|2374
+1	B	B2-015	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_015.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/specialization.rs	B2|1|552
+1	B	B2-016	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_016.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation.rs	B2|1|3000
+1	B	B2-017	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_017.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation.rs	B2|3001|3171
+1	B	B2-018	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_018.md	omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/value_ranges.rs	B2|1|290
+1	B	B2-019	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_019.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/construction.rs	B2|1|1050
+1	B	B2-020	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_020.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/dominance.rs	B2|1|291
+1	B	B2-021	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_021.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/graph.rs	B2|1|380
+1	B	B2-022	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_022.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/identity.rs	B2|1|3000
+1	B	B2-023	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_023.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/identity.rs	B2|3001|5108
+1	B	B2-024	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_024.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/ledger.rs	B2|1|496
+1	B	B2-025	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_025.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/lib.rs	B2|1|421
+1	B	B2-026	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_026.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/manifest.rs	B2|1|563
+1	B	B2-027	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_027.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/observation.rs	B2|1|440
+1	B	B2-028	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_028.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/ownership.rs	B2|1|261
+1	B	B2-029	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_029.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/proof.rs	B2|1|552
+1	B	B2-030	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_030.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/range.rs	B2|1|413
+1	B	B2-031	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_031.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/rewrite.rs	B2|1|3000
+1	B	B2-032	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_032.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/rewrite.rs	B2|3001|3190
+1	B	B2-033	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_033.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs	B2|1|1655
+1	B	B2-034	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_034.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/access_references.rs	B2|1|120
+1	B	B2-035	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_035.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/candidates.rs	B2|1|3000
+1	B	B2-036	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_036.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/candidates.rs	B2|3001|6000
+1	B	B2-037	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_037.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/candidates.rs	B2|6001|9000
+1	B	B2-038	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_038.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/candidates.rs	B2|9001|10699
+1	B	B2-039	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_039.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership.rs	B2|1|3000
+1	B	B2-040	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_040.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership.rs	B2|3001|6000
+1	B	B2-041	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_041.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership.rs	B2|6001|9000
+1	B	B2-042	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_042.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership.rs	B2|9001|9965
+1	B	B2-043	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_043.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_value_ranges.rs	B2|1|500
+1	B	B2-044	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_044.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/descriptor_results.rs	B2|1|2907
+1	B	B2-045	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_045.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/error.rs	B2|1|391
+1	B	B2-046	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_046.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/lib.rs	B2|1|264
+1	B	B2-047	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_047.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	B2|1|3000
+1	B	B2-048	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_048.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	B2|3001|6000
+1	B	B2-049	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_049.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	B2|6001|9000
+1	B	B2-050	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_050.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	B2|9001|12000
+1	B	B2-051	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_051.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	B2|12001|15000
+1	B	B2-052	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_052.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	B2|15001|18000
+1	B	B2-053	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_053.md	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	B2|18001|18270
+1	B	B2-054	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_054.md	omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs	B2|1|3000
+1	B	B2-055	.agents/atlas/compiler-2026-11-10/grok/B/notes/b2_055.md	omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs	B2|3001|4575
+2	A	slice_0001	.agents/atlas/compiler-2026-11-10/grok/A/slice_0001.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0001.tsv	ACCEPT|area_08
+2	A	slice_0002	.agents/atlas/compiler-2026-11-10/grok/A/slice_0002.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0002.tsv	ACCEPT|area_08
+2	A	slice_0003	.agents/atlas/compiler-2026-11-10/grok/A/slice_0003.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0003.tsv	ACCEPT|area_08
+2	A	slice_0004	.agents/atlas/compiler-2026-11-10/grok/A/slice_0004.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0004.tsv	ACCEPT|area_08
+2	A	slice_0005	.agents/atlas/compiler-2026-11-10/grok/A/slice_0005.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0005.tsv	ACCEPT|area_08
+2	A	slice_0006	.agents/atlas/compiler-2026-11-10/grok/A/slice_0006.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0006.tsv	ACCEPT|area_08
+2	A	slice_0007	.agents/atlas/compiler-2026-11-10/grok/A/slice_0007.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0007.tsv	ACCEPT|area_08
+2	A	slice_0008	.agents/atlas/compiler-2026-11-10/grok/A/slice_0008.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0008.tsv	ACCEPT|area_08
+2	A	slice_0009	.agents/atlas/compiler-2026-11-10/grok/A/slice_0009.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0009.tsv	ACCEPT|area_08
+2	A	slice_0010	.agents/atlas/compiler-2026-11-10/grok/A/slice_0010.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0010.tsv	ACCEPT|area_08
+2	A	slice_0011	.agents/atlas/compiler-2026-11-10/grok/A/slice_0011.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0011.tsv	ACCEPT|area_08
+2	A	slice_0012	.agents/atlas/compiler-2026-11-10/grok/A/slice_0012.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0012.tsv	ACCEPT|area_09
+2	A	slice_0013	.agents/atlas/compiler-2026-11-10/grok/A/slice_0013.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0013.tsv	ACCEPT|area_09
+2	A	slice_0014	.agents/atlas/compiler-2026-11-10/grok/A/slice_0014.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0014.tsv	ACCEPT|area_09
+2	A	slice_0015	.agents/atlas/compiler-2026-11-10/grok/A/slice_0015.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0015.tsv	ACCEPT|area_09
+2	A	slice_0016	.agents/atlas/compiler-2026-11-10/grok/A/slice_0016.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0016.tsv	ACCEPT|area_09
+2	A	slice_0017	.agents/atlas/compiler-2026-11-10/grok/A/slice_0017.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0017.tsv	ACCEPT|area_09
+2	A	slice_0018	.agents/atlas/compiler-2026-11-10/grok/A/slice_0018.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0018.tsv	ACCEPT|area_09
+2	A	slice_0019	.agents/atlas/compiler-2026-11-10/grok/A/slice_0019.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0019.tsv	ACCEPT|area_09
+2	A	slice_0020	.agents/atlas/compiler-2026-11-10/grok/A/slice_0020.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0020.tsv	ACCEPT|area_09
+2	A	slice_0021	.agents/atlas/compiler-2026-11-10/grok/A/slice_0021.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0021.tsv	ACCEPT|area_09
+2	A	slice_0022	.agents/atlas/compiler-2026-11-10/grok/A/slice_0022.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0022.tsv	ACCEPT|area_09
+2	A	slice_0023	.agents/atlas/compiler-2026-11-10/grok/A/slice_0023.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0023.tsv	ACCEPT|area_09
+2	A	slice_0024	.agents/atlas/compiler-2026-11-10/grok/A/slice_0024.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0024.tsv	ACCEPT|area_10
+2	A	slice_0025	.agents/atlas/compiler-2026-11-10/grok/A/slice_0025.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0025.tsv	ACCEPT|area_10
+2	A	slice_0026	.agents/atlas/compiler-2026-11-10/grok/A/slice_0026.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0026.tsv	ACCEPT|area_10
+2	A	slice_0027	.agents/atlas/compiler-2026-11-10/grok/A/slice_0027.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0027.tsv	ACCEPT|area_10
+2	A	slice_0028	.agents/atlas/compiler-2026-11-10/grok/A/slice_0028.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0028.tsv	ACCEPT|area_10
+2	A	slice_0029	.agents/atlas/compiler-2026-11-10/grok/A/slice_0029.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0029.tsv	ACCEPT|area_10
+2	A	slice_0030	.agents/atlas/compiler-2026-11-10/grok/A/slice_0030.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0030.tsv	ACCEPT|area_10
+2	A	slice_0031	.agents/atlas/compiler-2026-11-10/grok/A/slice_0031.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0031.tsv	ACCEPT|area_10
+2	A	slice_0032	.agents/atlas/compiler-2026-11-10/grok/A/slice_0032.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0032.tsv	ACCEPT|area_10
+2	A	slice_0033	.agents/atlas/compiler-2026-11-10/grok/A/slice_0033.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0033.tsv	ACCEPT|area_10
+2	A	slice_0034	.agents/atlas/compiler-2026-11-10/grok/A/slice_0034.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0034.tsv	ACCEPT|area_10
+2	A	slice_0035	.agents/atlas/compiler-2026-11-10/grok/A/slice_0035.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0035.tsv	ACCEPT|area_10
+2	A	slice_0036	.agents/atlas/compiler-2026-11-10/grok/A/slice_0036.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0036.tsv	ACCEPT|area_11
+2	A	slice_0037	.agents/atlas/compiler-2026-11-10/grok/A/slice_0037.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0037.tsv	ACCEPT|area_11
+2	A	slice_0038	.agents/atlas/compiler-2026-11-10/grok/A/slice_0038.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0038.tsv	ACCEPT|area_11
+2	A	slice_0039	.agents/atlas/compiler-2026-11-10/grok/A/slice_0039.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0039.tsv	ACCEPT|area_11
+2	A	slice_0040	.agents/atlas/compiler-2026-11-10/grok/A/slice_0040.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0040.tsv	ACCEPT|area_11
+2	A	slice_0041	.agents/atlas/compiler-2026-11-10/grok/A/slice_0041.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0041.tsv	ACCEPT|area_11
+2	A	slice_0042	.agents/atlas/compiler-2026-11-10/grok/A/slice_0042.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0042.tsv	ACCEPT|area_11
+2	A	slice_0043	.agents/atlas/compiler-2026-11-10/grok/A/slice_0043.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0043.tsv	ACCEPT|area_13
+2	A	slice_0044	.agents/atlas/compiler-2026-11-10/grok/A/slice_0044.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0044.tsv	ACCEPT|area_13
+2	A	slice_0045	.agents/atlas/compiler-2026-11-10/grok/A/slice_0045.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0045.tsv	ACCEPT|area_13
+2	A	slice_0046	.agents/atlas/compiler-2026-11-10/grok/A/slice_0046.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0046.tsv	ACCEPT|area_13
+2	A	slice_0047	.agents/atlas/compiler-2026-11-10/grok/A/slice_0047.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0047.tsv	ACCEPT|area_13
+2	A	slice_0048	.agents/atlas/compiler-2026-11-10/grok/A/slice_0048.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0048.tsv	ACCEPT|area_13
+2	A	slice_0049	.agents/atlas/compiler-2026-11-10/grok/A/slice_0049.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0049.tsv	ACCEPT|area_13
+2	A	slice_0050	.agents/atlas/compiler-2026-11-10/grok/A/slice_0050.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0050.tsv	ACCEPT|area_13
+2	A	slice_0051	.agents/atlas/compiler-2026-11-10/grok/A/slice_0051.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0051.tsv	ACCEPT|area_13
+2	A	slice_0052	.agents/atlas/compiler-2026-11-10/grok/A/slice_0052.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0052.tsv	ACCEPT|area_13
+2	A	slice_0053	.agents/atlas/compiler-2026-11-10/grok/A/slice_0053.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0053.tsv	ACCEPT|area_13
+2	A	slice_0054	.agents/atlas/compiler-2026-11-10/grok/A/slice_0054.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0054.tsv	ACCEPT|area_14
+2	A	slice_0055	.agents/atlas/compiler-2026-11-10/grok/A/slice_0055.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0055.tsv	ACCEPT|area_14
+2	A	slice_0056	.agents/atlas/compiler-2026-11-10/grok/A/slice_0056.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0056.tsv	ACCEPT|area_14
+2	A	slice_0057	.agents/atlas/compiler-2026-11-10/grok/A/slice_0057.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0057.tsv	ACCEPT|area_14
+2	A	slice_0058	.agents/atlas/compiler-2026-11-10/grok/A/slice_0058.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0058.tsv	ACCEPT|area_14
+2	A	slice_0059	.agents/atlas/compiler-2026-11-10/grok/A/slice_0059.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0059.tsv	ACCEPT|area_14
+2	A	slice_0060	.agents/atlas/compiler-2026-11-10/grok/A/slice_0060.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0060.tsv	ACCEPT|area_14
+2	A	slice_0061	.agents/atlas/compiler-2026-11-10/grok/A/slice_0061.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0061.tsv	ACCEPT|area_14
+2	A	slice_0062	.agents/atlas/compiler-2026-11-10/grok/A/slice_0062.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0062.tsv	ACCEPT|area_14
+2	A	slice_0063	.agents/atlas/compiler-2026-11-10/grok/A/slice_0063.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0063.tsv	ACCEPT|area_14
+2	A	slice_0064	.agents/atlas/compiler-2026-11-10/grok/A/slice_0064.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0064.tsv	ACCEPT|area_14
+2	A	slice_0065	.agents/atlas/compiler-2026-11-10/grok/A/slice_0065.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0065.tsv	ACCEPT|area_14
+2	A	slice_0066	.agents/atlas/compiler-2026-11-10/grok/A/slice_0066.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0066.tsv	ACCEPT|area_14
+2	A	slice_0067	.agents/atlas/compiler-2026-11-10/grok/A/slice_0067.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0067.tsv	ACCEPT|area_14
+2	A	slice_0068	.agents/atlas/compiler-2026-11-10/grok/A/slice_0068.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0068.tsv	ACCEPT|area_14
+2	A	slice_0069	.agents/atlas/compiler-2026-11-10/grok/A/slice_0069.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0069.tsv	ACCEPT|area_14
+2	A	slice_0070	.agents/atlas/compiler-2026-11-10/grok/A/slice_0070.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0070.tsv	ACCEPT|area_14
+2	A	slice_0071	.agents/atlas/compiler-2026-11-10/grok/A/slice_0071.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0071.tsv	ACCEPT|area_14
+2	A	slice_0072	.agents/atlas/compiler-2026-11-10/grok/A/slice_0072.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0072.tsv	ACCEPT|area_14
+2	A	slice_0073	.agents/atlas/compiler-2026-11-10/grok/A/slice_0073.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0073.tsv	ACCEPT|area_14
+2	A	slice_0074	.agents/atlas/compiler-2026-11-10/grok/A/slice_0074.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0074.tsv	ACCEPT|area_14
+2	A	slice_0075	.agents/atlas/compiler-2026-11-10/grok/A/slice_0075.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0075.tsv	ACCEPT|area_14
+2	A	slice_0076	.agents/atlas/compiler-2026-11-10/grok/A/slice_0076.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0076.tsv	ACCEPT|area_14
+2	A	slice_0077	.agents/atlas/compiler-2026-11-10/grok/A/slice_0077.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0077.tsv	ACCEPT|area_14
+2	A	slice_0078	.agents/atlas/compiler-2026-11-10/grok/A/slice_0078.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0078.tsv	ACCEPT|area_04
+2	A	slice_0079	.agents/atlas/compiler-2026-11-10/grok/A/slice_0079.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0079.tsv	ACCEPT|area_04
+2	A	slice_0080	.agents/atlas/compiler-2026-11-10/grok/A/slice_0080.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0080.tsv	ACCEPT|area_04
+2	A	slice_0081	.agents/atlas/compiler-2026-11-10/grok/A/slice_0081.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0081.tsv	ACCEPT|area_04
+2	A	slice_0082	.agents/atlas/compiler-2026-11-10/grok/A/slice_0082.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0082.tsv	ACCEPT|area_04
+2	A	slice_0083	.agents/atlas/compiler-2026-11-10/grok/A/slice_0083.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0083.tsv	ACCEPT|area_04
+2	A	slice_0084	.agents/atlas/compiler-2026-11-10/grok/A/slice_0084.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0084.tsv	ACCEPT|area_04
+2	A	slice_0085	.agents/atlas/compiler-2026-11-10/grok/A/slice_0085.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0085.tsv	ACCEPT|area_04
+2	A	slice_0086	.agents/atlas/compiler-2026-11-10/grok/A/slice_0086.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0086.tsv	ACCEPT|area_04
+2	A	slice_0087	.agents/atlas/compiler-2026-11-10/grok/A/slice_0087.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0087.tsv	ACCEPT|area_05
+2	A	slice_0088	.agents/atlas/compiler-2026-11-10/grok/A/slice_0088.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0088.tsv	ACCEPT|area_05
+2	A	slice_0089	.agents/atlas/compiler-2026-11-10/grok/A/slice_0089.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0089.tsv	ACCEPT|area_05
+2	A	slice_0090	.agents/atlas/compiler-2026-11-10/grok/A/slice_0090.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0090.tsv	ACCEPT|area_05
+2	A	slice_0091	.agents/atlas/compiler-2026-11-10/grok/A/slice_0091.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0091.tsv	ACCEPT|area_05
+2	A	slice_0092	.agents/atlas/compiler-2026-11-10/grok/A/slice_0092.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0092.tsv	ACCEPT|area_05
+2	A	slice_0093	.agents/atlas/compiler-2026-11-10/grok/A/slice_0093.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0093.tsv	ACCEPT|area_05
+2	A	slice_0094	.agents/atlas/compiler-2026-11-10/grok/A/slice_0094.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0094.tsv	ACCEPT|area_05
+2	A	slice_0095	.agents/atlas/compiler-2026-11-10/grok/A/slice_0095.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0095.tsv	ACCEPT|area_05
+2	A	slice_0096	.agents/atlas/compiler-2026-11-10/grok/A/slice_0096.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0096.tsv	ACCEPT|area_05
+2	A	slice_0097	.agents/atlas/compiler-2026-11-10/grok/A/slice_0097.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0097.tsv	ACCEPT|area_05
+2	A	slice_0098	.agents/atlas/compiler-2026-11-10/grok/A/slice_0098.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0098.tsv	ACCEPT|area_05
+2	A	slice_0099	.agents/atlas/compiler-2026-11-10/grok/A/slice_0099.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0099.tsv	ACCEPT|area_05
+2	A	slice_0100	.agents/atlas/compiler-2026-11-10/grok/A/slice_0100.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0100.tsv	ACCEPT|area_05
+2	A	slice_0101	.agents/atlas/compiler-2026-11-10/grok/A/slice_0101.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0101.tsv	ACCEPT|area_05
+2	A	slice_0102	.agents/atlas/compiler-2026-11-10/grok/A/slice_0102.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0102.tsv	ACCEPT|area_01
+2	A	slice_0103	.agents/atlas/compiler-2026-11-10/grok/A/slice_0103.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0103.tsv	ACCEPT|area_01
+2	A	slice_0104	.agents/atlas/compiler-2026-11-10/grok/A/slice_0104.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0104.tsv	ACCEPT|area_01
+2	A	slice_0105	.agents/atlas/compiler-2026-11-10/grok/A/slice_0105.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0105.tsv	ACCEPT|area_01
+2	A	slice_0106	.agents/atlas/compiler-2026-11-10/grok/A/slice_0106.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0106.tsv	ACCEPT|area_01
+2	A	slice_0107	.agents/atlas/compiler-2026-11-10/grok/A/slice_0107.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0107.tsv	ACCEPT|area_01
+2	A	slice_0108	.agents/atlas/compiler-2026-11-10/grok/A/slice_0108.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0108.tsv	ACCEPT|area_02
+2	A	slice_0109	.agents/atlas/compiler-2026-11-10/grok/A/slice_0109.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0109.tsv	ACCEPT|area_02
+2	A	slice_0110	.agents/atlas/compiler-2026-11-10/grok/A/slice_0110.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0110.tsv	ACCEPT|area_02
+2	A	slice_0111	.agents/atlas/compiler-2026-11-10/grok/A/slice_0111.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0111.tsv	ACCEPT|area_02
+2	A	slice_0112	.agents/atlas/compiler-2026-11-10/grok/A/slice_0112.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0112.tsv	ACCEPT|area_02
+2	A	slice_0113	.agents/atlas/compiler-2026-11-10/grok/A/slice_0113.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0113.tsv	ACCEPT|area_03
+2	A	slice_0114	.agents/atlas/compiler-2026-11-10/grok/A/slice_0114.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0114.tsv	ACCEPT|area_03
+2	A	slice_0115	.agents/atlas/compiler-2026-11-10/grok/A/slice_0115.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0115.tsv	ACCEPT|area_03
+2	A	slice_0116	.agents/atlas/compiler-2026-11-10/grok/A/slice_0116.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0116.tsv	ACCEPT|area_03
+2	A	slice_0117	.agents/atlas/compiler-2026-11-10/grok/A/slice_0117.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0117.tsv	ACCEPT|area_03
+2	A	slice_0118	.agents/atlas/compiler-2026-11-10/grok/A/slice_0118.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0118.tsv	ACCEPT|area_06
+2	A	slice_0119	.agents/atlas/compiler-2026-11-10/grok/A/slice_0119.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0119.tsv	ACCEPT|area_06
+2	A	slice_0120	.agents/atlas/compiler-2026-11-10/grok/A/slice_0120.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0120.tsv	ACCEPT|area_06
+2	A	slice_0121	.agents/atlas/compiler-2026-11-10/grok/A/slice_0121.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0121.tsv	ACCEPT|area_06
+2	A	slice_0122	.agents/atlas/compiler-2026-11-10/grok/A/slice_0122.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0122.tsv	ACCEPT|area_06
+2	A	slice_0123	.agents/atlas/compiler-2026-11-10/grok/A/slice_0123.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0123.tsv	ACCEPT|area_06
+2	A	slice_0124	.agents/atlas/compiler-2026-11-10/grok/A/slice_0124.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0124.tsv	ACCEPT|area_07
+2	A	slice_0125	.agents/atlas/compiler-2026-11-10/grok/A/slice_0125.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0125.tsv	ACCEPT|area_07
+2	A	slice_0126	.agents/atlas/compiler-2026-11-10/grok/A/slice_0126.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0126.tsv	ACCEPT|area_07
+2	A	slice_0127	.agents/atlas/compiler-2026-11-10/grok/A/slice_0127.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0127.tsv	ACCEPT|area_07
+2	A	slice_0128	.agents/atlas/compiler-2026-11-10/grok/A/slice_0128.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0128.tsv	ACCEPT|area_07
+2	A	slice_0129	.agents/atlas/compiler-2026-11-10/grok/A/slice_0129.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0129.tsv	ACCEPT|area_07
+2	A	slice_0130	.agents/atlas/compiler-2026-11-10/grok/A/slice_0130.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0130.tsv	ACCEPT|area_07
+2	A	slice_0131	.agents/atlas/compiler-2026-11-10/grok/A/slice_0131.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0131.tsv	ACCEPT|area_07
+2	A	slice_0132	.agents/atlas/compiler-2026-11-10/grok/A/slice_0132.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0132.tsv	ACCEPT|area_12
+2	A	slice_0133	.agents/atlas/compiler-2026-11-10/grok/A/slice_0133.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0133.tsv	ACCEPT|area_12
+2	A	slice_0134	.agents/atlas/compiler-2026-11-10/grok/A/slice_0134.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0134.tsv	ACCEPT|area_12
+2	A	slice_0135	.agents/atlas/compiler-2026-11-10/grok/A/slice_0135.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0135.tsv	ACCEPT|area_12
+2	A	slice_0136	.agents/atlas/compiler-2026-11-10/grok/A/slice_0136.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0136.tsv	ACCEPT|area_12
+2	A	slice_0137	.agents/atlas/compiler-2026-11-10/grok/A/slice_0137.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0137.tsv	ACCEPT|area_12
+2	A	slice_0138	.agents/atlas/compiler-2026-11-10/grok/A/slice_0138.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0138.tsv	ACCEPT|area_12
+2	A	slice_0139	.agents/atlas/compiler-2026-11-10/grok/A/slice_0139.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0139.tsv	ACCEPT|area_15
+2	A	slice_0140	.agents/atlas/compiler-2026-11-10/grok/A/slice_0140.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0140.tsv	ACCEPT|area_15
+2	A	slice_0141	.agents/atlas/compiler-2026-11-10/grok/A/slice_0141.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0141.tsv	ACCEPT|area_15
+2	A	slice_0142	.agents/atlas/compiler-2026-11-10/grok/A/slice_0142.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0142.tsv	ACCEPT|area_15
+2	A	slice_0143	.agents/atlas/compiler-2026-11-10/grok/A/slice_0143.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0143.tsv	ACCEPT|area_15
+2	A	slice_0144	.agents/atlas/compiler-2026-11-10/grok/A/slice_0144.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0144.tsv	ACCEPT|area_15
+2	A	slice_0145	.agents/atlas/compiler-2026-11-10/grok/A/slice_0145.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0145.tsv	ACCEPT|area_15
+3	C	C0001	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__assumed_binding_contracts.md	wiki/spec/build/assumed_binding_contracts.md	ASSUMED_BINDING_CONTRACT|1|253|Assumed binding contracts
+3	C	C0002	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__behavior_exclusions.md	wiki/spec/build/behavior_exclusions.md	BEHAVIOR_EXCLUSIONS|1|259|Build-level behavior exclusions
+3	C	C0003	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__boundary_shapes.md	wiki/spec/build/boundary_shapes.md	BOUNDARY_SHAPES|1|66|Boundary signature shapes
+3	C	C0004	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__calling_plans.md	wiki/spec/build/calling_plans.md	CALLING_PLANS|1|168|Boundary calling plans
+3	C	C0005	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__command_line.md	wiki/spec/build/command_line.md	COMMAND_LINE|1|150|Command-line tools
+3	C	C0006	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__compiler_request__L0001-L0268.md	wiki/spec/build/compiler_request.md	COMPILER_REQUEST|1|268|Standalone Omega compiler request (before next heading) + Logical inputs + OCREQ v1 framing + Canonical subject + 1 more
+3	C	C0007	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__compiler_request__L0269-L0623.md	wiki/spec/build/compiler_request.md	COMPILER_REQUEST|269|623|Validation and failures
+3	C	C0008	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__component_publication.md	wiki/spec/build/component_publication.md	COMPONENT_PUBLICATION|1|573|Native products and component publication
+3	C	C0009	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__configuration.md	wiki/spec/build/configuration.md	CONFIGURATION|1|308|Build configuration and target selection
+3	C	C0010	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__declarations.md	wiki/spec/build/declarations.md	DECLARATIONS|1|276|Build declarations and package identity
+3	C	C0011	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__embedding.md	wiki/spec/build/embedding.md	EMBEDDING|1|453|Embedding and interpreted components
+3	C	C0012	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__entry_roots.md	wiki/spec/build/entry_roots.md	ENTRY_ROOTS|1|212|Target slots and program entry
+3	C	C0013	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__executable_installation.md	wiki/spec/build/executable_installation.md	EXECUTABLE_INSTALLATION|1|110|Admitted executable installation
+3	C	C0014	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__execution.md	wiki/spec/build/execution.md	EXECUTION|1|199|Build execution and generated source
+3	C	C0015	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__external_roots.md	wiki/spec/build/external_roots.md	EXTERNAL_ROOTS|1|141|Installed external roots
+3	C	C0016	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__foreign_bindings.md	wiki/spec/build/foreign_bindings.md	FOREIGN_BINDINGS|1|255|Foreign boundary bindings
+3	C	C0017	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__foreign_storage.md	wiki/spec/build/foreign_storage.md	FOREIGN_STORAGE|1|145|Foreign storage and lifetime
+3	C	C0018	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__hardware_materialization.md	wiki/spec/build/hardware_materialization.md	HARDWARE_MATERIALIZATION|1|69|Symbolic hardware materialization
+3	C	C0019	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__interrupt_obligations.md	wiki/spec/build/interrupt_obligations.md	INTERRUPT_OBLIGATIONS|1|71|Interrupt entry obligations
+3	C	C0020	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__machine_state_evidence.md	wiki/spec/build/machine_state_evidence.md	MACHINE_STATE_EVIDENCE|1|67|Machine-state realization evidence
+3	C	C0021	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__macos_application.md	wiki/spec/build/macos_application.md	MACOS_APPLICATION|1|120|macOS application publication
+3	C	C0022	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__observations.md	wiki/spec/build/observations.md	BUILD_OBSERVATIONS|1|68|Build inputs, observations, and outputs
+3	C	C0023	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__opaque_representations.md	wiki/spec/build/opaque_representations.md	OPAQUE_REPRESENTATIONS|1|72|Opaque representation selection
+3	C	C0024	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__optimizations.md	wiki/spec/build/optimizations.md	OPTIMIZATIONS|1|266|Optimization selection and validation
+3	C	C0025	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__permissions.md	wiki/spec/build/permissions.md	PERMISSIONS|1|258|Service permission and terminal authority
+3	C	C0026	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__platform_services.md	wiki/spec/build/platform_services.md	PLATFORM_SERVICES|1|103|Platform services
+3	C	C0027	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__private_callbacks.md	wiki/spec/build/private_callbacks.md	PRIVATE_CALLBACKS|1|154|Private callback realization
+3	C	C0028	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__provider_selection.md	wiki/spec/build/provider_selection.md	PROVIDER_SELECTION|1|427|Provider selection
+3	C	C0029	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__scoped_execution__L0001-L0550.md	wiki/spec/build/scoped_execution.md	SCOPED_EXECUTION|1|550|Build staging, dependency scopes, and capabilities (before next heading) + Contract summary + Problem and scope + Existing owners + 5 more
+3	C	C0030	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__scoped_execution__L0551-L0868.md	wiki/spec/build/scoped_execution.md	SCOPED_EXECUTION|551|868|Execution contexts and reuse + Staged products and failure + Target inspection and reflection + Implementation acceptance + 2 more
+3	C	C0031	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__task_runtime.md	wiki/spec/build/task_runtime.md	TASK_RUNTIME|1|279|Task activation and lifecycle
+3	C	C0032	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__testing.md	wiki/spec/build/testing.md	TESTING|1|327|Requirement-based test groups
+3	C	C0033	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__uefi_entry.md	wiki/spec/build/uefi_entry.md	UEFI_ENTRY|1|150|UEFI entry and firmware handoff
+3	C	C0034	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__build__validation_subjects.md	wiki/spec/build/validation_subjects.md	VALIDATION_SUBJECTS|1|102|Validation subjects
+3	C	C0035	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__assembly.md	wiki/spec/language/assembly.md	ASSEMBLY|1|422|Checked assembly
+3	C	C0036	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__concurrency.md	wiki/spec/language/concurrency.md	CONCURRENCY|1|173|Concurrency and atomic observation
+3	C	C0037	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__conformances.md	wiki/spec/language/conformances.md	CONFORMANCES|1|425|Named conformances and exact satisfaction
+3	C	C0038	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__constants.md	wiki/spec/language/constants.md	CONSTANTS|1|88|Constants
+3	C	C0039	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__counts_and_addresses.md	wiki/spec/language/counts_and_addresses.md	COUNTS_AND_ADDRESSES|1|277|Counts, indices, and addresses
+3	C	C0040	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__data_and_literals.md	wiki/spec/language/data_and_literals.md	DATA_AND_LITERALS|1|297|Data, literals, and lexical framing
+3	C	C0041	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__dependent_values.md	wiki/spec/language/dependent_values.md	DEPENDENT_VALUES|1|332|Value-dependent facts and views
+3	C	C0042	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__domains__L0001-L0548.md	wiki/spec/language/domains.md	DOMAINS|1|548|Domains and qualification (before next heading) + Declaration and membership + Domain-owned read and write authority + Domain-selected automatic cleanup + 1 more
+3	C	C0043	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__domains__L0549-L1050.md	wiki/spec/language/domains.md	DOMAINS|549|1050|Domain casts + Semantic roles and operators + Aliases and identity + Indexed families + 1 more
+3	C	C0044	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__effects__L0001-L0326.md	wiki/spec/language/effects.md	EFFECTS|1|326|Service reach and operational ceilings (before next heading) + Declarations + Process-exit reach + Recoverable outcomes and strict use + 1 more
+3	C	C0045	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__effects__L0327-L0851.md	wiki/spec/language/effects.md	EFFECTS|327|851|Static callback reach dependencies + Direct synchronous invocation + Call-site acknowledgements + Guarded crashes + 1 more
+3	C	C0046	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__evaluation.md	wiki/spec/language/evaluation.md	EVALUATION|1|358|Semantic evaluation
+3	C	C0047	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__expressions.md	wiki/spec/language/expressions.md	EXPRESSIONS|1|490|Expressions and evaluation order
+3	C	C0048	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__generics__L0001-L0577.md	wiki/spec/language/generics.md	GENERICS|1|577|Generic declarations and static machine parameters (before next heading) + Generic machine requirements + Applications and specialization + Transparent type aliases + 10 more
+3	C	C0049	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__generics__L0578-L0810.md	wiki/spec/language/generics.md	GENERICS|578|810|Static machine binder categories + Forwarded callback requirements + Invocation-lifetime families + Nested contracts and proof families + 1 more
+3	C	C0050	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__lifetimes.md	wiki/spec/language/lifetimes.md	LIFETIMES|1|106|Lifetimes and carried borrows
+3	C	C0051	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__machine_values.md	wiki/spec/language/machine_values.md	MACHINE_VALUES|1|152|Machines as runtime values
+3	C	C0052	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__machines.md	wiki/spec/language/machines.md	MACHINES|1|332|Machines and contract refinement
+3	C	C0053	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__modules.md	wiki/spec/language/modules.md	MODULES|1|193|Modules, imports, and visibility
+3	C	C0054	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__numeric_values__L0001-L0517.md	wiki/spec/language/numeric_values.md	NUMERIC_VALUES|1|517|Numeric values and bounds (before next heading) + Library numeric helpers + Core integer and float APIs + Literal landing and destinations + 1 more
+3	C	C0055	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__numeric_values__L0518-L0737.md	wiki/spec/language/numeric_values.md	NUMERIC_VALUES|518|737|Floating formats and operations + Collection bounds + Policy realization
+3	C	C0056	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__ownership.md	wiki/spec/language/ownership.md	LANGUAGE_OWNERSHIP|1|344|Ownership and multiplicity
+3	C	C0057	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__patterns.md	wiki/spec/language/patterns.md	PATTERNS|1|249|Patterns and dispatch
+3	C	C0058	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__process_exit.md	wiki/spec/language/process_exit.md	PROCESS_EXIT|1|133|Process exit
+3	C	C0059	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__reflection.md	wiki/spec/language/reflection.md	REFLECTION|1|425|Semantic reflection and typed visitation
+3	C	C0060	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__some_packages.md	wiki/spec/language/some_packages.md	SOME_PACKAGES|1|197|Per-value type packages with some
+3	C	C0061	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__state_contracts.md	wiki/spec/language/state_contracts.md	STATE_CONTRACTS|1|281|Invocation contracts and live facts
+3	C	C0062	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__language__termination.md	wiki/spec/language/termination.md	TERMINATION|1|266|Termination, ranking, and progress
+3	C	C0063	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__layouts__codecs.md	wiki/spec/layouts/codecs.md	CODECS|1|203|Codecs and format policies
+3	C	C0064	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__layouts__plans.md	wiki/spec/layouts/plans.md	PLANS|1|420|Layout policies and plans
+3	C	C0065	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__layouts__recasts.md	wiki/spec/layouts/recasts.md	RECASTS|1|180|Representation-compatible recasts
+3	C	C0066	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__packages__acceptance.md	wiki/spec/packages/acceptance.md	ACCEPTANCE|1|316|Package acceptance
+3	C	C0067	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__packages__boundaries.md	wiki/spec/packages/boundaries.md	BOUNDARIES|1|124|Package declaration and carried-type boundaries
+3	C	C0068	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__packages__locks.md	wiki/spec/packages/locks.md	LOCKS|1|158|Project locks
+3	C	C0069	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__packages__resolver_security.md	wiki/spec/packages/resolver_security.md	RESOLVER_SECURITY|1|333|Source resolver security
+3	C	C0070	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__packages__review.md	wiki/spec/packages/review.md	REVIEW|1|318|Compiler-derived package review
+3	C	C0071	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__packages__sources.md	wiki/spec/packages/sources.md	SOURCES|1|158|Package source selection
+3	C	C0072	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__packages__toolchain.md	wiki/spec/packages/toolchain.md	TOOLCHAIN|1|56|Core, ordinary libraries, and semantic bindings
+3	C	C0073	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__packages__topology__L0001-L0577.md	wiki/spec/packages/topology.md	TOPOLOGY|1|577|Checked boundary topology (before next heading) + Contract summary + Problem and decision + Ownership + 8 more
+3	C	C0074	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__packages__topology__L0578-L0724.md	wiki/spec/packages/topology.md	TOPOLOGY|578|724|First executable realization + Diagnostics and implementation acceptance + Alternatives and scope settlement + Implementation and amendments + 1 more
+3	C	C0075	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__proofs__classicality.md	wiki/spec/proofs/classicality.md	CLASSICALITY|1|189|Classicality audit of the proof rules
+3	C	C0076	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__proofs__contracts__L0001-L0528.md	wiki/spec/proofs/contracts.md	CONTRACTS|1|528|Mathematical proof contracts (before next heading) + Machines and bundles + Mathematical values and quantification + Citation and induction + 2 more
+3	C	C0077	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__proofs__contracts__L0529-L0686.md	wiki/spec/proofs/contracts.md	CONTRACTS|529|686|Axioms and receiving policy + Certified elaboration and review + Delivery obligations
+3	C	C0078	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__proofs__foundation.md	wiki/spec/proofs/foundation.md	FOUNDATION|1|262|Mathematical foundation
+3	C	C0079	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__proofs__inductive_profile.md	wiki/spec/proofs/inductive_profile.md	INDUCTIVE_PROFILE|1|199|W-based inductive profile
+3	C	C0080	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__proofs__kernel_metatheory.md	wiki/spec/proofs/kernel_metatheory.md	KERNEL_METATHEORY|1|559|Kernel metatheory
+3	C	C0081	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__proofs__mathematical_bindings.md	wiki/spec/proofs/mathematical_bindings.md	MATHEMATICAL_BINDINGS|1|281|Mathematical bindings and logical hypotheses
+3	C	C0082	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__proofs__quotients.md	wiki/spec/proofs/quotients.md	QUOTIENTS|1|370|Relations and quotients
+3	C	C0083	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__access.md	wiki/spec/resources/access.md	ACCESS|1|476|Access policies, views, and resident custody
+3	C	C0084	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__activation_storage.md	wiki/spec/resources/activation_storage.md	ACTIVATION_STORAGE|1|75|Runtime-sized activation storage
+3	C	C0085	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__allocation.md	wiki/spec/resources/allocation.md	ALLOCATION|1|103|Allocation strategies
+3	C	C0086	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__authority.md	wiki/spec/resources/authority.md	AUTHORITY|1|273|Authority values and qualification evidence
+3	C	C0087	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__bounded_growth.md	wiki/spec/resources/bounded_growth.md	BOUNDED_GROWTH|1|70|Bounded growth
+3	C	C0088	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__bounded_input.md	wiki/spec/resources/bounded_input.md	BOUNDED_INPUT|1|131|Bounded byte input
+3	C	C0089	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__carry.md	wiki/spec/resources/carry.md	CARRY|1|128|Carry demands and runtime preservation
+3	C	C0090	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__content_custody.md	wiki/spec/resources/content_custody.md	CONTENT_CUSTODY|1|312|Content conservation and custody
+3	C	C0091	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__device_access.md	wiki/spec/resources/device_access.md	DEVICE_ACCESS|1|82|Device custody and ordering
+3	C	C0092	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__entry_stacks.md	wiki/spec/resources/entry_stacks.md	ENTRY_STACKS|1|76|External-entry stack composition
+3	C	C0093	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__extents.md	wiki/spec/resources/extents.md	EXTENTS|1|164|Extent authority and mappings
+3	C	C0094	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__logical_work.md	wiki/spec/resources/logical_work.md	LOGICAL_WORK|1|201|Logical work and response bounds
+3	C	C0095	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__storage.md	wiki/spec/resources/storage.md	STORAGE|1|148|Provisioned storage and stack demand
+3	C	C0096	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__resources__typed_runs.md	wiki/spec/resources/typed_runs.md	TYPED_RUNS|1|190|Dense owned runs
+3	C	C0097	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__boundary_calls.md	wiki/spec/terminal-psi/boundary_calls.md	BOUNDARY_CALLS|1|384|Terminal Psi boundary calls and realization
+3	C	C0098	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__byte_views.md	wiki/spec/terminal-psi/byte_views.md	BYTE_VIEWS|1|459|Terminal Psi byte views
+3	C	C0099	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__calls_and_outcomes.md	wiki/spec/terminal-psi/calls_and_outcomes.md	CALLS_AND_OUTCOMES|1|376|Calls and outcomes
+3	C	C0100	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__control_flow.md	wiki/spec/terminal-psi/control_flow.md	CONTROL_FLOW|1|159|Control flow and ranking
+3	C	C0101	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__dynamic_dispatch.md	wiki/spec/terminal-psi/dynamic_dispatch.md	DYNAMIC_DISPATCH|1|168|Runtime callable dispatch and package evidence
+3	C	C0102	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__encoding__L0001-L0597.md	wiki/spec/terminal-psi/encoding.md	ENCODING|1|597|Terminal canonical encoding and identities (before next heading) + Canonical form + Field encodings + Scalar terms + 3 more
+3	C	C0103	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__encoding__L0598-L0868.md	wiki/spec/terminal-psi/encoding.md	ENCODING|598|868|Propositions + Operation rows + Terminator rows
+3	C	C0104	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__encoding__L0869-L1468.md	wiki/spec/terminal-psi/encoding.md	ENCODING|869|1468|Machine rows (before next heading) (part 1)
+3	C	C0105	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__encoding__L1469-L1563.md	wiki/spec/terminal-psi/encoding.md	ENCODING|1469|1563|Machine rows (before next heading) (part 2) + Deferred static reach summaries + Conditional suspension-carry summaries
+3	C	C0106	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__encoding__L1564-L2149.md	wiki/spec/terminal-psi/encoding.md	ENCODING|1564|2149|Module declaration tables (before next heading) + Structural declarations + Access-view inputs and reborrow custody + Boundary machines and provider candidates + 3 more
+3	C	C0107	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__encoding__L2150-L2577.md	wiki/spec/terminal-psi/encoding.md	ENCODING|2150|2577|Closed conformance applications + Suspension rows + Operation crash contracts + Canonical artifact + Debug map + Optimization execution + 4 more
+3	C	C0108	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__fact_validity.md	wiki/spec/terminal-psi/fact_validity.md	FACT_VALIDITY|1|165|Terminal fact validity
+3	C	C0109	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__integer_certificates.md	wiki/spec/terminal-psi/integer_certificates.md	INTEGER_CERTIFICATES|1|258|Integer goals and certificates
+3	C	C0110	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__loans.md	wiki/spec/terminal-psi/loans.md	LOANS|1|126|Loan resources and compatibility
+3	C	C0111	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__mathematical_values.md	wiki/spec/terminal-psi/mathematical_values.md	MATHEMATICAL_VALUES|1|187|Mathematical proof values
+3	C	C0112	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__observations.md	wiki/spec/terminal-psi/observations.md	TERMINAL_PSI_OBSERVATIONS|1|171|Terminal observations
+3	C	C0113	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__ownership.md	wiki/spec/terminal-psi/ownership.md	TERMINAL_PSI_OWNERSHIP|1|370|Structural claims and cleanup
+3	C	C0114	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__product.md	wiki/spec/terminal-psi/product.md	PRODUCT|1|324|Psi product
+3	C	C0115	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__structural_access__L0001-L0455.md	wiki/spec/terminal-psi/structural_access.md	STRUCTURAL_ACCESS|1|455|Structural access and stores (before next heading) + Referent identity + Construction and receiving checks + Write-only authority + 3 more
+3	C	C0116	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__structural_access__L0456-L0905.md	wiki/spec/terminal-psi/structural_access.md	STRUCTURAL_ACCESS|456|905|Store vocabulary + Conformance checks
+3	C	C0117	.agents/atlas/compiler-2026-11-10/grok/C/chapters/wiki__spec__terminal-psi__structural_predicates.md	wiki/spec/terminal-psi/structural_predicates.md	STRUCTURAL_PREDICATES|1|75|Structural predicates
+4	F	sites_001	.agents/atlas/compiler-2026-11-10/grok/F/sites_001.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_001.tsv	sites_001
+4	F	sites_002	.agents/atlas/compiler-2026-11-10/grok/F/sites_002.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_002.tsv	sites_002
+4	F	sites_003	.agents/atlas/compiler-2026-11-10/grok/F/sites_003.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_003.tsv	sites_003
+4	F	sites_004	.agents/atlas/compiler-2026-11-10/grok/F/sites_004.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_004.tsv	sites_004
+4	F	sites_005	.agents/atlas/compiler-2026-11-10/grok/F/sites_005.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_005.tsv	sites_005
+4	F	sites_006	.agents/atlas/compiler-2026-11-10/grok/F/sites_006.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_006.tsv	sites_006
+4	F	sites_007	.agents/atlas/compiler-2026-11-10/grok/F/sites_007.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_007.tsv	sites_007
+4	F	sites_008	.agents/atlas/compiler-2026-11-10/grok/F/sites_008.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_008.tsv	sites_008
+4	F	sites_009	.agents/atlas/compiler-2026-11-10/grok/F/sites_009.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_009.tsv	sites_009
+4	F	sites_010	.agents/atlas/compiler-2026-11-10/grok/F/sites_010.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_010.tsv	sites_010
+4	F	sites_011	.agents/atlas/compiler-2026-11-10/grok/F/sites_011.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_011.tsv	sites_011
+4	F	sites_012	.agents/atlas/compiler-2026-11-10/grok/F/sites_012.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_012.tsv	sites_012
+4	F	sites_013	.agents/atlas/compiler-2026-11-10/grok/F/sites_013.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_013.tsv	sites_013
+4	F	sites_014	.agents/atlas/compiler-2026-11-10/grok/F/sites_014.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_014.tsv	sites_014
+4	F	sites_015	.agents/atlas/compiler-2026-11-10/grok/F/sites_015.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_015.tsv	sites_015
+4	F	sites_016	.agents/atlas/compiler-2026-11-10/grok/F/sites_016.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_016.tsv	sites_016
+4	F	sites_017	.agents/atlas/compiler-2026-11-10/grok/F/sites_017.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_017.tsv	sites_017
+4	F	sites_018	.agents/atlas/compiler-2026-11-10/grok/F/sites_018.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_018.tsv	sites_018
+4	F	sites_019	.agents/atlas/compiler-2026-11-10/grok/F/sites_019.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_019.tsv	sites_019
+4	F	sites_020	.agents/atlas/compiler-2026-11-10/grok/F/sites_020.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_020.tsv	sites_020
+4	F	sites_021	.agents/atlas/compiler-2026-11-10/grok/F/sites_021.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_021.tsv	sites_021
+4	F	sites_022	.agents/atlas/compiler-2026-11-10/grok/F/sites_022.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_022.tsv	sites_022
+4	F	sites_023	.agents/atlas/compiler-2026-11-10/grok/F/sites_023.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_023.tsv	sites_023
+4	F	sites_024	.agents/atlas/compiler-2026-11-10/grok/F/sites_024.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_024.tsv	sites_024
+4	F	sites_025	.agents/atlas/compiler-2026-11-10/grok/F/sites_025.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_025.tsv	sites_025
+4	F	sites_026	.agents/atlas/compiler-2026-11-10/grok/F/sites_026.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_026.tsv	sites_026
+4	F	sites_027	.agents/atlas/compiler-2026-11-10/grok/F/sites_027.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_027.tsv	sites_027
+4	F	sites_028	.agents/atlas/compiler-2026-11-10/grok/F/sites_028.md	.agents/atlas/compiler-2026-11-10/grok/F/inputs/sites_028.tsv	sites_028
+5	D	batch_0001	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0001.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0001.txt	tests/omega/fail/arithmetic
+5	D	batch_0002	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0002.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0002.txt	tests/omega/fail/arithmetic
+5	D	batch_0003	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0003.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0003.txt	tests/omega/fail/arithmetic
+5	D	batch_0004	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0004.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0004.txt	tests/omega/fail/arrays
+5	D	batch_0005	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0005.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0005.txt	tests/omega/fail/asm
+5	D	batch_0006	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0006.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0006.txt	tests/omega/fail/asm
+5	D	batch_0007	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0007.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0007.txt	tests/omega/fail/atomics
+5	D	batch_0008	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0008.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0008.txt	tests/omega/fail/blockexec
+5	D	batch_0009	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0009.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0009.txt	tests/omega/fail/borrow
+5	D	batch_0010	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0010.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0010.txt	tests/omega/fail/borrow
+5	D	batch_0011	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0011.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0011.txt	tests/omega/fail/borrows
+5	D	batch_0012	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0012.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0012.txt	tests/omega/fail/borrows
+5	D	batch_0013	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0013.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0013.txt	tests/omega/fail/borrows
+5	D	batch_0014	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0014.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0014.txt	tests/omega/fail/borrows
+5	D	batch_0015	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0015.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0015.txt	tests/omega/fail/borrows
+5	D	batch_0016	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0016.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0016.txt	tests/omega/fail/borrows
+5	D	batch_0017	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0017.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0017.txt	tests/omega/fail/borrows
+5	D	batch_0018	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0018.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0018.txt	tests/omega/fail/borrows
+5	D	batch_0019	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0019.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0019.txt	tests/omega/fail/boundary
+5	D	batch_0020	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0020.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0020.txt	tests/omega/fail/build
+5	D	batch_0021	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0021.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0021.txt	tests/omega/fail/build
+5	D	batch_0022	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0022.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0022.txt	tests/omega/fail/build
+5	D	batch_0023	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0023.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0023.txt	tests/omega/fail/build
+5	D	batch_0024	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0024.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0024.txt	tests/omega/fail/calling
+5	D	batch_0025	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0025.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0025.txt	tests/omega/fail/calls
+5	D	batch_0026	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0026.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0026.txt	tests/omega/fail/calls
+5	D	batch_0027	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0027.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0027.txt	tests/omega/fail/calls
+5	D	batch_0028	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0028.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0028.txt	tests/omega/fail/capabilities
+5	D	batch_0029	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0029.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0029.txt	tests/omega/fail/cases
+5	D	batch_0030	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0030.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0030.txt	tests/omega/fail/collections
+5	D	batch_0031	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0031.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0031.txt	tests/omega/fail/compile_time
+5	D	batch_0032	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0032.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0032.txt	tests/omega/fail/comptime
+5	D	batch_0033	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0033.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0033.txt	tests/omega/fail/concurrency
+5	D	batch_0034	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0034.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0034.txt	tests/omega/fail/constants
+5	D	batch_0035	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0035.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0035.txt	tests/omega/fail/constraints
+5	D	batch_0036	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0036.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0036.txt	tests/omega/fail/contracts
+5	D	batch_0037	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0037.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0037.txt	tests/omega/fail/contracts
+5	D	batch_0038	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0038.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0038.txt	tests/omega/fail/contracts
+5	D	batch_0039	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0039.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0039.txt	tests/omega/fail/contracts
+5	D	batch_0040	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0040.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0040.txt	tests/omega/fail/control_flow
+5	D	batch_0041	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0041.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0041.txt	tests/omega/fail/core
+5	D	batch_0042	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0042.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0042.txt	tests/omega/fail/core
+5	D	batch_0043	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0043.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0043.txt	tests/omega/fail/core
+5	D	batch_0044	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0044.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0044.txt	tests/omega/fail/data
+5	D	batch_0045	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0045.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0045.txt	tests/omega/fail/dependent
+5	D	batch_0046	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0046.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0046.txt	tests/omega/fail/dependent
+5	D	batch_0047	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0047.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0047.txt	tests/omega/fail/domains
+5	D	batch_0048	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0048.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0048.txt	tests/omega/fail/domains
+5	D	batch_0049	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0049.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0049.txt	tests/omega/fail/domains
+5	D	batch_0050	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0050.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0050.txt	tests/omega/fail/domains
+5	D	batch_0051	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0051.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0051.txt	tests/omega/fail/domains
+5	D	batch_0052	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0052.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0052.txt	tests/omega/fail/drops
+5	D	batch_0053	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0053.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0053.txt	tests/omega/fail/drops
+5	D	batch_0054	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0054.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0054.txt	tests/omega/fail/effects
+5	D	batch_0055	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0055.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0055.txt	tests/omega/fail/expressions
+5	D	batch_0056	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0056.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0056.txt	tests/omega/fail/facts
+5	D	batch_0057	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0057.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0057.txt	tests/omega/fail/facts
+5	D	batch_0058	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0058.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0058.txt	tests/omega/fail/facts
+5	D	batch_0059	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0059.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0059.txt	tests/omega/fail/facts
+5	D	batch_0060	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0060.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0060.txt	tests/omega/fail/facts
+5	D	batch_0061	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0061.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0061.txt	tests/omega/fail/facts
+5	D	batch_0062	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0062.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0062.txt	tests/omega/fail/facts
+5	D	batch_0063	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0063.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0063.txt	tests/omega/fail/facts
+5	D	batch_0064	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0064.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0064.txt	tests/omega/fail/facts
+5	D	batch_0065	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0065.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0065.txt	tests/omega/fail/facts
+5	D	batch_0066	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0066.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0066.txt	tests/omega/fail/facts
+5	D	batch_0067	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0067.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0067.txt	tests/omega/fail/facts
+5	D	batch_0068	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0068.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0068.txt	tests/omega/fail/facts
+5	D	batch_0069	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0069.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0069.txt	tests/omega/fail/facts
+5	D	batch_0070	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0070.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0070.txt	tests/omega/fail/facts
+5	D	batch_0071	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0071.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0071.txt	tests/omega/fail/facts
+5	D	batch_0072	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0072.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0072.txt	tests/omega/fail/facts
+5	D	batch_0073	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0073.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0073.txt	tests/omega/fail/facts
+5	D	batch_0074	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0074.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0074.txt	tests/omega/fail/facts
+5	D	batch_0075	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0075.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0075.txt	tests/omega/fail/facts
+5	D	batch_0076	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0076.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0076.txt	tests/omega/fail/facts
+5	D	batch_0077	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0077.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0077.txt	tests/omega/fail/facts
+5	D	batch_0078	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0078.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0078.txt	tests/omega/fail/facts
+5	D	batch_0079	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0079.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0079.txt	tests/omega/fail/facts
+5	D	batch_0080	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0080.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0080.txt	tests/omega/fail/facts
+5	D	batch_0081	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0081.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0081.txt	tests/omega/fail/facts
+5	D	batch_0082	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0082.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0082.txt	tests/omega/fail/facts
+5	D	batch_0083	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0083.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0083.txt	tests/omega/fail/facts
+5	D	batch_0084	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0084.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0084.txt	tests/omega/fail/facts
+5	D	batch_0085	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0085.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0085.txt	tests/omega/fail/facts
+5	D	batch_0086	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0086.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0086.txt	tests/omega/fail/facts
+5	D	batch_0087	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0087.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0087.txt	tests/omega/fail/facts
+5	D	batch_0088	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0088.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0088.txt	tests/omega/fail/facts
+5	D	batch_0089	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0089.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0089.txt	tests/omega/fail/facts
+5	D	batch_0090	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0090.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0090.txt	tests/omega/fail/facts
+5	D	batch_0091	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0091.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0091.txt	tests/omega/fail/facts
+5	D	batch_0092	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0092.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0092.txt	tests/omega/fail/facts
+5	D	batch_0093	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0093.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0093.txt	tests/omega/fail/facts
+5	D	batch_0094	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0094.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0094.txt	tests/omega/fail/facts
+5	D	batch_0095	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0095.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0095.txt	tests/omega/fail/facts
+5	D	batch_0096	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0096.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0096.txt	tests/omega/fail/facts
+5	D	batch_0097	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0097.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0097.txt	tests/omega/fail/facts
+5	D	batch_0098	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0098.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0098.txt	tests/omega/fail/facts
+5	D	batch_0099	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0099.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0099.txt	tests/omega/fail/facts
+5	D	batch_0100	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0100.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0100.txt	tests/omega/fail/facts
+5	D	batch_0101	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0101.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0101.txt	tests/omega/fail/facts
+5	D	batch_0102	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0102.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0102.txt	tests/omega/fail/facts
+5	D	batch_0103	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0103.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0103.txt	tests/omega/fail/facts
+5	D	batch_0104	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0104.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0104.txt	tests/omega/fail/facts
+5	D	batch_0105	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0105.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0105.txt	tests/omega/fail/facts
+5	D	batch_0106	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0106.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0106.txt	tests/omega/fail/facts
+5	D	batch_0107	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0107.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0107.txt	tests/omega/fail/facts
+5	D	batch_0108	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0108.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0108.txt	tests/omega/fail/facts
+5	D	batch_0109	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0109.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0109.txt	tests/omega/fail/facts
+5	D	batch_0110	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0110.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0110.txt	tests/omega/fail/facts
+5	D	batch_0111	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0111.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0111.txt	tests/omega/fail/facts
+5	D	batch_0112	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0112.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0112.txt	tests/omega/fail/facts
+5	D	batch_0113	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0113.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0113.txt	tests/omega/fail/facts
+5	D	batch_0114	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0114.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0114.txt	tests/omega/fail/facts
+5	D	batch_0115	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0115.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0115.txt	tests/omega/fail/facts
+5	D	batch_0116	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0116.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0116.txt	tests/omega/fail/facts
+5	D	batch_0117	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0117.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0117.txt	tests/omega/fail/filesystem
+5	D	batch_0118	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0118.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0118.txt	tests/omega/fail/float
+5	D	batch_0119	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0119.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0119.txt	tests/omega/fail/float
+5	D	batch_0120	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0120.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0120.txt	tests/omega/fail/float
+5	D	batch_0121	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0121.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0121.txt	tests/omega/fail/generics
+5	D	batch_0122	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0122.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0122.txt	tests/omega/fail/generics
+5	D	batch_0123	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0123.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0123.txt	tests/omega/fail/generics
+5	D	batch_0124	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0124.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0124.txt	tests/omega/fail/generics
+5	D	batch_0125	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0125.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0125.txt	tests/omega/fail/generics
+5	D	batch_0126	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0126.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0126.txt	tests/omega/fail/generics
+5	D	batch_0127	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0127.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0127.txt	tests/omega/fail/generics
+5	D	batch_0128	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0128.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0128.txt	tests/omega/fail/host
+5	D	batch_0129	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0129.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0129.txt	tests/omega/fail/indexes
+5	D	batch_0130	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0130.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0130.txt	tests/omega/fail/inline_asm
+5	D	batch_0131	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0131.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0131.txt	tests/omega/fail/layouts
+5	D	batch_0132	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0132.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0132.txt	tests/omega/fail/layouts
+5	D	batch_0133	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0133.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0133.txt	tests/omega/fail/layouts
+5	D	batch_0134	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0134.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0134.txt	tests/omega/fail/machines
+5	D	batch_0135	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0135.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0135.txt	tests/omega/fail/memory
+5	D	batch_0136	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0136.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0136.txt	tests/omega/fail/modules
+5	D	batch_0137	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0137.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0137.txt	tests/omega/fail/multiplicity
+5	D	batch_0138	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0138.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0138.txt	tests/omega/fail/mutation
+5	D	batch_0139	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0139.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0139.txt	tests/omega/fail/operators
+5	D	batch_0140	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0140.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0140.txt	tests/omega/fail/optimizer
+5	D	batch_0141	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0141.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0141.txt	tests/omega/fail/ownership
+5	D	batch_0142	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0142.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0142.txt	tests/omega/fail/ownership
+5	D	batch_0143	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0143.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0143.txt	tests/omega/fail/ownership
+5	D	batch_0144	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0144.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0144.txt	tests/omega/fail/packages
+5	D	batch_0145	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0145.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0145.txt	tests/omega/fail/parse
+5	D	batch_0146	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0146.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0146.txt	tests/omega/fail/parser
+5	D	batch_0147	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0147.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0147.txt	tests/omega/fail/ports
+5	D	batch_0148	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0148.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0148.txt	tests/omega/fail/proofs
+5	D	batch_0149	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0149.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0149.txt	tests/omega/fail/proofs
+5	D	batch_0150	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0150.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0150.txt	tests/omega/fail/proofs
+5	D	batch_0151	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0151.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0151.txt	tests/omega/fail/proofs
+5	D	batch_0152	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0152.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0152.txt	tests/omega/fail/proofs
+5	D	batch_0153	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0153.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0153.txt	tests/omega/fail/proofs
+5	D	batch_0154	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0154.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0154.txt	tests/omega/fail/providers
+5	D	batch_0155	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0155.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0155.txt	tests/omega/fail/providers
+5	D	batch_0156	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0156.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0156.txt	tests/omega/fail/providers
+5	D	batch_0157	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0157.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0157.txt	tests/omega/fail/range
+5	D	batch_0158	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0158.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0158.txt	tests/omega/fail/ranges
+5	D	batch_0159	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0159.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0159.txt	tests/omega/fail/recast
+5	D	batch_0160	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0160.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0160.txt	tests/omega/fail/recast
+5	D	batch_0161	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0161.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0161.txt	tests/omega/fail/references
+5	D	batch_0162	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0162.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0162.txt	tests/omega/fail/reflection
+5	D	batch_0163	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0163.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0163.txt	tests/omega/fail/relax
+5	D	batch_0164	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0164.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0164.txt	tests/omega/fail/relevance
+5	D	batch_0165	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0165.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0165.txt	tests/omega/fail/resources
+5	D	batch_0166	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0166.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0166.txt	tests/omega/fail/slices
+5	D	batch_0167	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0167.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0167.txt	tests/omega/fail/slices
+5	D	batch_0168	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0168.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0168.txt	tests/omega/fail/slices
+5	D	batch_0169	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0169.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0169.txt	tests/omega/fail/structs
+5	D	batch_0170	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0170.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0170.txt	tests/omega/fail/structural
+5	D	batch_0171	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0171.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0171.txt	tests/omega/fail/targets
+5	D	batch_0172	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0172.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0172.txt	tests/omega/fail/tasks
+5	D	batch_0173	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0173.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0173.txt	tests/omega/fail/terminal_psi
+5	D	batch_0174	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0174.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0174.txt	tests/omega/fail/termination
+5	D	batch_0175	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0175.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0175.txt	tests/omega/fail/termination
+5	D	batch_0176	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0176.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0176.txt	tests/omega/fail/termination
+5	D	batch_0177	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0177.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0177.txt	tests/omega/fail/text
+5	D	batch_0178	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0178.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0178.txt	tests/omega/fail/time
+5	D	batch_0179	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0179.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0179.txt	tests/omega/fail/traits
+5	D	batch_0180	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0180.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0180.txt	tests/omega/fail/traits
+5	D	batch_0181	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0181.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0181.txt	tests/omega/fail/traits
+5	D	batch_0182	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0182.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0182.txt	tests/omega/fail/traits
+5	D	batch_0183	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0183.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0183.txt	tests/omega/fail/types
+5	D	batch_0184	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0184.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0184.txt	tests/omega/fail/wire
+5	D	batch_0185	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0185.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0185.txt	tests/omega/pass/arithmetic
+5	D	batch_0186	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0186.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0186.txt	tests/omega/pass/arithmetic
+5	D	batch_0187	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0187.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0187.txt	tests/omega/pass/arithmetic
+5	D	batch_0188	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0188.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0188.txt	tests/omega/pass/arrays
+5	D	batch_0189	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0189.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0189.txt	tests/omega/pass/asm
+5	D	batch_0190	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0190.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0190.txt	tests/omega/pass/atomics
+5	D	batch_0191	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0191.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0191.txt	tests/omega/pass/blockexec
+5	D	batch_0192	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0192.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0192.txt	tests/omega/pass/borrow
+5	D	batch_0193	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0193.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0193.txt	tests/omega/pass/borrow
+5	D	batch_0194	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0194.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0194.txt	tests/omega/pass/borrows
+5	D	batch_0195	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0195.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0195.txt	tests/omega/pass/borrows
+5	D	batch_0196	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0196.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0196.txt	tests/omega/pass/borrows
+5	D	batch_0197	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0197.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0197.txt	tests/omega/pass/borrows
+5	D	batch_0198	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0198.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0198.txt	tests/omega/pass/borrows
+5	D	batch_0199	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0199.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0199.txt	tests/omega/pass/borrows
+5	D	batch_0200	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0200.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0200.txt	tests/omega/pass/borrows
+5	D	batch_0201	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0201.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0201.txt	tests/omega/pass/borrows
+5	D	batch_0202	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0202.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0202.txt	tests/omega/pass/boundary
+5	D	batch_0203	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0203.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0203.txt	tests/omega/pass/build
+5	D	batch_0204	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0204.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0204.txt	tests/omega/pass/build
+5	D	batch_0205	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0205.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0205.txt	tests/omega/pass/build
+5	D	batch_0206	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0206.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0206.txt	tests/omega/pass/calling
+5	D	batch_0207	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0207.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0207.txt	tests/omega/pass/calls
+5	D	batch_0208	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0208.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0208.txt	tests/omega/pass/calls
+5	D	batch_0209	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0209.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0209.txt	tests/omega/pass/calls
+5	D	batch_0210	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0210.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0210.txt	tests/omega/pass/calls
+5	D	batch_0211	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0211.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0211.txt	tests/omega/pass/calls
+5	D	batch_0212	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0212.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0212.txt	tests/omega/pass/calls
+5	D	batch_0213	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0213.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0213.txt	tests/omega/pass/capabilities
+5	D	batch_0214	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0214.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0214.txt	tests/omega/pass/cases
+5	D	batch_0215	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0215.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0215.txt	tests/omega/pass/collections
+5	D	batch_0216	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0216.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0216.txt	tests/omega/pass/collections
+5	D	batch_0217	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0217.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0217.txt	tests/omega/pass/collections
+5	D	batch_0218	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0218.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0218.txt	tests/omega/pass/compile_time
+5	D	batch_0219	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0219.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0219.txt	tests/omega/pass/components
+5	D	batch_0220	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0220.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0220.txt	tests/omega/pass/comptime
+5	D	batch_0221	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0221.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0221.txt	tests/omega/pass/concurrency
+5	D	batch_0222	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0222.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0222.txt	tests/omega/pass/constants
+5	D	batch_0223	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0223.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0223.txt	tests/omega/pass/constraints
+5	D	batch_0224	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0224.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0224.txt	tests/omega/pass/contracts
+5	D	batch_0225	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0225.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0225.txt	tests/omega/pass/contracts
+5	D	batch_0226	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0226.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0226.txt	tests/omega/pass/control_flow
+5	D	batch_0227	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0227.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0227.txt	tests/omega/pass/control_flow
+5	D	batch_0228	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0228.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0228.txt	tests/omega/pass/control_flow
+5	D	batch_0229	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0229.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0229.txt	tests/omega/pass/control_flow
+5	D	batch_0230	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0230.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0230.txt	tests/omega/pass/core
+5	D	batch_0231	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0231.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0231.txt	tests/omega/pass/core
+5	D	batch_0232	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0232.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0232.txt	tests/omega/pass/data
+5	D	batch_0233	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0233.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0233.txt	tests/omega/pass/dependent
+5	D	batch_0234	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0234.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0234.txt	tests/omega/pass/dependent
+5	D	batch_0235	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0235.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0235.txt	tests/omega/pass/domains
+5	D	batch_0236	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0236.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0236.txt	tests/omega/pass/domains
+5	D	batch_0237	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0237.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0237.txt	tests/omega/pass/domains
+5	D	batch_0238	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0238.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0238.txt	tests/omega/pass/drops
+5	D	batch_0239	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0239.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0239.txt	tests/omega/pass/drops
+5	D	batch_0240	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0240.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0240.txt	tests/omega/pass/drops
+5	D	batch_0241	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0241.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0241.txt	tests/omega/pass/dungeon
+5	D	batch_0242	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0242.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0242.txt	tests/omega/pass/effects
+5	D	batch_0243	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0243.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0243.txt	tests/omega/pass/entry
+5	D	batch_0244	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0244.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0244.txt	tests/omega/pass/errors
+5	D	batch_0245	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0245.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0245.txt	tests/omega/pass/expressions
+5	D	batch_0246	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0246.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0246.txt	tests/omega/pass/expressions
+5	D	batch_0247	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0247.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0247.txt	tests/omega/pass/facts
+5	D	batch_0248	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0248.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0248.txt	tests/omega/pass/facts
+5	D	batch_0249	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0249.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0249.txt	tests/omega/pass/facts
+5	D	batch_0250	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0250.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0250.txt	tests/omega/pass/facts
+5	D	batch_0251	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0251.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0251.txt	tests/omega/pass/facts
+5	D	batch_0252	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0252.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0252.txt	tests/omega/pass/facts
+5	D	batch_0253	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0253.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0253.txt	tests/omega/pass/facts
+5	D	batch_0254	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0254.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0254.txt	tests/omega/pass/facts
+5	D	batch_0255	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0255.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0255.txt	tests/omega/pass/facts
+5	D	batch_0256	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0256.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0256.txt	tests/omega/pass/facts
+5	D	batch_0257	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0257.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0257.txt	tests/omega/pass/facts
+5	D	batch_0258	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0258.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0258.txt	tests/omega/pass/facts
+5	D	batch_0259	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0259.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0259.txt	tests/omega/pass/facts
+5	D	batch_0260	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0260.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0260.txt	tests/omega/pass/facts
+5	D	batch_0261	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0261.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0261.txt	tests/omega/pass/facts
+5	D	batch_0262	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0262.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0262.txt	tests/omega/pass/facts
+5	D	batch_0263	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0263.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0263.txt	tests/omega/pass/facts
+5	D	batch_0264	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0264.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0264.txt	tests/omega/pass/facts
+5	D	batch_0265	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0265.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0265.txt	tests/omega/pass/facts
+5	D	batch_0266	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0266.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0266.txt	tests/omega/pass/facts
+5	D	batch_0267	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0267.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0267.txt	tests/omega/pass/facts
+5	D	batch_0268	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0268.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0268.txt	tests/omega/pass/facts
+5	D	batch_0269	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0269.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0269.txt	tests/omega/pass/facts
+5	D	batch_0270	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0270.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0270.txt	tests/omega/pass/facts
+5	D	batch_0271	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0271.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0271.txt	tests/omega/pass/facts
+5	D	batch_0272	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0272.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0272.txt	tests/omega/pass/facts
+5	D	batch_0273	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0273.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0273.txt	tests/omega/pass/facts
+5	D	batch_0274	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0274.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0274.txt	tests/omega/pass/facts
+5	D	batch_0275	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0275.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0275.txt	tests/omega/pass/facts
+5	D	batch_0276	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0276.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0276.txt	tests/omega/pass/facts
+5	D	batch_0277	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0277.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0277.txt	tests/omega/pass/facts
+5	D	batch_0278	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0278.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0278.txt	tests/omega/pass/facts
+5	D	batch_0279	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0279.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0279.txt	tests/omega/pass/facts
+5	D	batch_0280	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0280.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0280.txt	tests/omega/pass/facts
+5	D	batch_0281	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0281.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0281.txt	tests/omega/pass/facts
+5	D	batch_0282	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0282.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0282.txt	tests/omega/pass/facts
+5	D	batch_0283	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0283.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0283.txt	tests/omega/pass/facts
+5	D	batch_0284	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0284.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0284.txt	tests/omega/pass/facts
+5	D	batch_0285	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0285.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0285.txt	tests/omega/pass/facts
+5	D	batch_0286	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0286.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0286.txt	tests/omega/pass/facts
+5	D	batch_0287	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0287.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0287.txt	tests/omega/pass/facts
+5	D	batch_0288	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0288.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0288.txt	tests/omega/pass/facts
+5	D	batch_0289	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0289.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0289.txt	tests/omega/pass/facts
+5	D	batch_0290	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0290.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0290.txt	tests/omega/pass/facts
+5	D	batch_0291	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0291.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0291.txt	tests/omega/pass/facts
+5	D	batch_0292	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0292.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0292.txt	tests/omega/pass/facts
+5	D	batch_0293	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0293.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0293.txt	tests/omega/pass/facts
+5	D	batch_0294	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0294.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0294.txt	tests/omega/pass/facts
+5	D	batch_0295	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0295.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0295.txt	tests/omega/pass/facts
+5	D	batch_0296	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0296.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0296.txt	tests/omega/pass/facts
+5	D	batch_0297	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0297.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0297.txt	tests/omega/pass/facts
+5	D	batch_0298	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0298.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0298.txt	tests/omega/pass/facts
+5	D	batch_0299	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0299.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0299.txt	tests/omega/pass/facts
+5	D	batch_0300	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0300.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0300.txt	tests/omega/pass/facts
+5	D	batch_0301	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0301.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0301.txt	tests/omega/pass/facts
+5	D	batch_0302	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0302.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0302.txt	tests/omega/pass/facts
+5	D	batch_0303	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0303.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0303.txt	tests/omega/pass/facts
+5	D	batch_0304	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0304.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0304.txt	tests/omega/pass/facts
+5	D	batch_0305	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0305.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0305.txt	tests/omega/pass/facts
+5	D	batch_0306	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0306.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0306.txt	tests/omega/pass/facts
+5	D	batch_0307	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0307.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0307.txt	tests/omega/pass/facts
+5	D	batch_0308	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0308.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0308.txt	tests/omega/pass/facts
+5	D	batch_0309	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0309.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0309.txt	tests/omega/pass/facts
+5	D	batch_0310	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0310.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0310.txt	tests/omega/pass/facts
+5	D	batch_0311	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0311.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0311.txt	tests/omega/pass/facts
+5	D	batch_0312	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0312.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0312.txt	tests/omega/pass/filesystem
+5	D	batch_0313	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0313.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0313.txt	tests/omega/pass/float
+5	D	batch_0314	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0314.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0314.txt	tests/omega/pass/float
+5	D	batch_0315	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0315.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0315.txt	tests/omega/pass/float
+5	D	batch_0316	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0316.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0316.txt	tests/omega/pass/formatting
+5	D	batch_0317	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0317.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0317.txt	tests/omega/pass/generics
+5	D	batch_0318	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0318.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0318.txt	tests/omega/pass/generics
+5	D	batch_0319	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0319.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0319.txt	tests/omega/pass/generics
+5	D	batch_0320	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0320.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0320.txt	tests/omega/pass/generics
+5	D	batch_0321	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0321.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0321.txt	tests/omega/pass/generics
+5	D	batch_0322	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0322.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0322.txt	tests/omega/pass/host
+5	D	batch_0323	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0323.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0323.txt	tests/omega/pass/host
+5	D	batch_0324	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0324.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0324.txt	tests/omega/pass/indexes
+5	D	batch_0325	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0325.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0325.txt	tests/omega/pass/inline_asm
+5	D	batch_0326	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0326.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0326.txt	tests/omega/pass/layouts
+5	D	batch_0327	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0327.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0327.txt	tests/omega/pass/layouts
+5	D	batch_0328	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0328.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0328.txt	tests/omega/pass/layouts
+5	D	batch_0329	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0329.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0329.txt	tests/omega/pass/locals
+5	D	batch_0330	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0330.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0330.txt	tests/omega/pass/machines
+5	D	batch_0331	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0331.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0331.txt	tests/omega/pass/math
+5	D	batch_0332	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0332.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0332.txt	tests/omega/pass/memory
+5	D	batch_0333	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0333.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0333.txt	tests/omega/pass/modules
+5	D	batch_0334	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0334.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0334.txt	tests/omega/pass/modules
+5	D	batch_0335	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0335.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0335.txt	tests/omega/pass/objc
+5	D	batch_0336	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0336.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0336.txt	tests/omega/pass/operators
+5	D	batch_0337	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0337.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0337.txt	tests/omega/pass/optimizer
+5	D	batch_0338	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0338.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0338.txt	tests/omega/pass/ownership
+5	D	batch_0339	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0339.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0339.txt	tests/omega/pass/ownership
+5	D	batch_0340	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0340.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0340.txt	tests/omega/pass/ownership
+5	D	batch_0341	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0341.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0341.txt	tests/omega/pass/ownership
+5	D	batch_0342	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0342.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0342.txt	tests/omega/pass/packages
+5	D	batch_0343	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0343.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0343.txt	tests/omega/pass/parameters
+5	D	batch_0344	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0344.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0344.txt	tests/omega/pass/parser
+5	D	batch_0345	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0345.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0345.txt	tests/omega/pass/patterns
+5	D	batch_0346	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0346.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0346.txt	tests/omega/pass/ports
+5	D	batch_0347	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0347.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0347.txt	tests/omega/pass/progress
+5	D	batch_0348	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0348.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0348.txt	tests/omega/pass/proofs
+5	D	batch_0349	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0349.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0349.txt	tests/omega/pass/proofs
+5	D	batch_0350	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0350.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0350.txt	tests/omega/pass/proofs
+5	D	batch_0351	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0351.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0351.txt	tests/omega/pass/providers
+5	D	batch_0352	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0352.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0352.txt	tests/omega/pass/providers
+5	D	batch_0353	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0353.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0353.txt	tests/omega/pass/providers
+5	D	batch_0354	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0354.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0354.txt	tests/omega/pass/providers
+5	D	batch_0355	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0355.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0355.txt	tests/omega/pass/range
+5	D	batch_0356	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0356.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0356.txt	tests/omega/pass/ranges
+5	D	batch_0357	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0357.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0357.txt	tests/omega/pass/recast
+5	D	batch_0358	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0358.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0358.txt	tests/omega/pass/recast
+5	D	batch_0359	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0359.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0359.txt	tests/omega/pass/references
+5	D	batch_0360	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0360.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0360.txt	tests/omega/pass/reflection
+5	D	batch_0361	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0361.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0361.txt	tests/omega/pass/register_allocation
+5	D	batch_0362	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0362.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0362.txt	tests/omega/pass/relevance
+5	D	batch_0363	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0363.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0363.txt	tests/omega/pass/resources
+5	D	batch_0364	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0364.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0364.txt	tests/omega/pass/slices
+5	D	batch_0365	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0365.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0365.txt	tests/omega/pass/slices
+5	D	batch_0366	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0366.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0366.txt	tests/omega/pass/slices
+5	D	batch_0367	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0367.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0367.txt	tests/omega/pass/slices
+5	D	batch_0368	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0368.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0368.txt	tests/omega/pass/storage
+5	D	batch_0369	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0369.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0369.txt	tests/omega/pass/structs
+5	D	batch_0370	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0370.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0370.txt	tests/omega/pass/structural
+5	D	batch_0371	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0371.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0371.txt	tests/omega/pass/targets
+5	D	batch_0372	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0372.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0372.txt	tests/omega/pass/tasks
+5	D	batch_0373	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0373.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0373.txt	tests/omega/pass/terminal_psi
+5	D	batch_0374	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0374.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0374.txt	tests/omega/pass/termination
+5	D	batch_0375	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0375.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0375.txt	tests/omega/pass/termination
+5	D	batch_0376	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0376.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0376.txt	tests/omega/pass/termination
+5	D	batch_0377	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0377.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0377.txt	tests/omega/pass/text
+5	D	batch_0378	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0378.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0378.txt	tests/omega/pass/text
+5	D	batch_0379	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0379.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0379.txt	tests/omega/pass/time
+5	D	batch_0380	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0380.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0380.txt	tests/omega/pass/traits
+5	D	batch_0381	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0381.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0381.txt	tests/omega/pass/traits
+5	D	batch_0382	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0382.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0382.txt	tests/omega/pass/traits
+5	D	batch_0383	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0383.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0383.txt	tests/omega/pass/types
+5	D	batch_0384	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0384.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0384.txt	tests/omega/pass/versioning
+5	D	batch_0385	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0385.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0385.txt	tests/omega/pass/wire
+5	D	batch_0386	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0386.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0386.txt	tests/omega/pass/write_only
+5	D	batch_0387	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0387.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0387.txt	tests/omega/run/arithmetic
+5	D	batch_0388	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0388.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0388.txt	tests/omega/run/borrows
+5	D	batch_0389	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0389.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0389.txt	tests/omega/run/calls
+5	D	batch_0390	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0390.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0390.txt	tests/omega/run/contained_health_loop_command_branch
+5	D	batch_0391	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0391.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0391.txt	tests/omega/run/contracts
+5	D	batch_0392	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0392.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0392.txt	tests/omega/run/core
+5	D	batch_0393	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0393.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0393.txt	tests/omega/run/domains
+5	D	batch_0394	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0394.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0394.txt	tests/omega/run/dyn_finite_family_correlated
+5	D	batch_0395	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0395.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0395.txt	tests/omega/run/dyn_finite_family_owned_carrier
+5	D	batch_0396	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0396.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0396.txt	tests/omega/run/dyn_finite_family_runtime_dispatch
+5	D	batch_0397	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0397.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0397.txt	tests/omega/run/facts
+5	D	batch_0398	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0398.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0398.txt	tests/omega/run/float
+5	D	batch_0399	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0399.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0399.txt	tests/omega/run/generics
+5	D	batch_0400	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0400.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0400.txt	tests/omega/run/layouts
+5	D	batch_0401	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0401.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0401.txt	tests/omega/run/nested_mut_alias_assignment_return
+5	D	batch_0402	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0402.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0402.txt	tests/omega/run/ownership
+5	D	batch_0403	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0403.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0403.txt	tests/omega/run/proofs
+5	D	batch_0404	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0404.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0404.txt	tests/omega/run/providers
+5	D	batch_0405	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0405.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0405.txt	tests/omega/run/ranges
+5	D	batch_0406	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0406.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0406.txt	tests/omega/run/slices
+5	D	batch_0407	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0407.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0407.txt	tests/omega/run/state_owned_nested_borrow
+5	D	batch_0408	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0408.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0408.txt	tests/omega/run/state_shared_nested_backing
+5	D	batch_0409	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0409.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0409.txt	tests/omega/run/stores
+5	D	batch_0410	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0410.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0410.txt	tests/omega/run/traits
+5	D	batch_0411	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0411.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0411.txt	tests/omega/run/variant_decimal_runtime_division
+5	D	batch_0412	.agents/atlas/compiler-2026-11-10/grok/D/batches/batch_0412.tsv	.agents/atlas/compiler-2026-11-10/grok/D/inputs/batch_0412.txt	tests/omega/run/variant_record_normalization_repeats
+6	A	slice_0146	.agents/atlas/compiler-2026-11-10/grok/A/slice_0146.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0146.tsv	DROP|area_08
+6	A	slice_0147	.agents/atlas/compiler-2026-11-10/grok/A/slice_0147.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0147.tsv	DROP|area_08
+6	A	slice_0148	.agents/atlas/compiler-2026-11-10/grok/A/slice_0148.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0148.tsv	DROP|area_09
+6	A	slice_0149	.agents/atlas/compiler-2026-11-10/grok/A/slice_0149.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0149.tsv	DROP|area_09
+6	A	slice_0150	.agents/atlas/compiler-2026-11-10/grok/A/slice_0150.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0150.tsv	DROP|area_10
+6	A	slice_0151	.agents/atlas/compiler-2026-11-10/grok/A/slice_0151.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0151.tsv	DROP|area_11
+6	A	slice_0152	.agents/atlas/compiler-2026-11-10/grok/A/slice_0152.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0152.tsv	DROP|area_11
+6	A	slice_0153	.agents/atlas/compiler-2026-11-10/grok/A/slice_0153.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0153.tsv	DROP|area_11
+6	A	slice_0154	.agents/atlas/compiler-2026-11-10/grok/A/slice_0154.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0154.tsv	DROP|area_13
+6	A	slice_0155	.agents/atlas/compiler-2026-11-10/grok/A/slice_0155.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0155.tsv	DROP|area_13
+6	A	slice_0156	.agents/atlas/compiler-2026-11-10/grok/A/slice_0156.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0156.tsv	DROP|area_13
+6	A	slice_0157	.agents/atlas/compiler-2026-11-10/grok/A/slice_0157.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0157.tsv	DROP|area_13
+6	A	slice_0158	.agents/atlas/compiler-2026-11-10/grok/A/slice_0158.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0158.tsv	DROP|area_13
+6	A	slice_0159	.agents/atlas/compiler-2026-11-10/grok/A/slice_0159.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0159.tsv	DROP|area_13
+6	A	slice_0160	.agents/atlas/compiler-2026-11-10/grok/A/slice_0160.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0160.tsv	DROP|area_14
+6	A	slice_0161	.agents/atlas/compiler-2026-11-10/grok/A/slice_0161.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0161.tsv	DROP|area_14
+6	A	slice_0162	.agents/atlas/compiler-2026-11-10/grok/A/slice_0162.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0162.tsv	DROP|area_14
+6	A	slice_0163	.agents/atlas/compiler-2026-11-10/grok/A/slice_0163.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0163.tsv	DROP|area_04
+6	A	slice_0164	.agents/atlas/compiler-2026-11-10/grok/A/slice_0164.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0164.tsv	DROP|area_01
+6	A	slice_0165	.agents/atlas/compiler-2026-11-10/grok/A/slice_0165.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0165.tsv	DROP|area_01
+6	A	slice_0166	.agents/atlas/compiler-2026-11-10/grok/A/slice_0166.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0166.tsv	DROP|area_02
+6	A	slice_0167	.agents/atlas/compiler-2026-11-10/grok/A/slice_0167.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0167.tsv	DROP|area_02
+6	A	slice_0168	.agents/atlas/compiler-2026-11-10/grok/A/slice_0168.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0168.tsv	DROP|area_03
+6	A	slice_0169	.agents/atlas/compiler-2026-11-10/grok/A/slice_0169.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0169.tsv	DROP|area_06
+6	A	slice_0170	.agents/atlas/compiler-2026-11-10/grok/A/slice_0170.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0170.tsv	DROP|area_07
+6	A	slice_0171	.agents/atlas/compiler-2026-11-10/grok/A/slice_0171.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0171.tsv	DROP|area_12
+6	A	slice_0172	.agents/atlas/compiler-2026-11-10/grok/A/slice_0172.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0172.tsv	DROP|area_15
+6	A	slice_0173	.agents/atlas/compiler-2026-11-10/grok/A/slice_0173.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0173.tsv	DROP|area_15
+6	A	slice_0174	.agents/atlas/compiler-2026-11-10/grok/A/slice_0174.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0174.tsv	UNUSED|area_08
+6	A	slice_0175	.agents/atlas/compiler-2026-11-10/grok/A/slice_0175.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0175.tsv	UNUSED|area_08
+6	A	slice_0176	.agents/atlas/compiler-2026-11-10/grok/A/slice_0176.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0176.tsv	UNUSED|area_08
+6	A	slice_0177	.agents/atlas/compiler-2026-11-10/grok/A/slice_0177.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0177.tsv	UNUSED|area_09
+6	A	slice_0178	.agents/atlas/compiler-2026-11-10/grok/A/slice_0178.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0178.tsv	UNUSED|area_09
+6	A	slice_0179	.agents/atlas/compiler-2026-11-10/grok/A/slice_0179.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0179.tsv	UNUSED|area_10
+6	A	slice_0180	.agents/atlas/compiler-2026-11-10/grok/A/slice_0180.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0180.tsv	UNUSED|area_10
+6	A	slice_0181	.agents/atlas/compiler-2026-11-10/grok/A/slice_0181.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0181.tsv	UNUSED|area_10
+6	A	slice_0182	.agents/atlas/compiler-2026-11-10/grok/A/slice_0182.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0182.tsv	UNUSED|area_11
+6	A	slice_0183	.agents/atlas/compiler-2026-11-10/grok/A/slice_0183.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0183.tsv	UNUSED|area_11
+6	A	slice_0184	.agents/atlas/compiler-2026-11-10/grok/A/slice_0184.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0184.tsv	UNUSED|area_11
+6	A	slice_0185	.agents/atlas/compiler-2026-11-10/grok/A/slice_0185.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0185.tsv	UNUSED|area_13
+6	A	slice_0186	.agents/atlas/compiler-2026-11-10/grok/A/slice_0186.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0186.tsv	UNUSED|area_13
+6	A	slice_0187	.agents/atlas/compiler-2026-11-10/grok/A/slice_0187.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0187.tsv	UNUSED|area_14
+6	A	slice_0188	.agents/atlas/compiler-2026-11-10/grok/A/slice_0188.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0188.tsv	UNUSED|area_14
+6	A	slice_0189	.agents/atlas/compiler-2026-11-10/grok/A/slice_0189.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0189.tsv	UNUSED|area_04
+6	A	slice_0190	.agents/atlas/compiler-2026-11-10/grok/A/slice_0190.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0190.tsv	UNUSED|area_04
+6	A	slice_0191	.agents/atlas/compiler-2026-11-10/grok/A/slice_0191.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0191.tsv	UNUSED|area_04
+6	A	slice_0192	.agents/atlas/compiler-2026-11-10/grok/A/slice_0192.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0192.tsv	UNUSED|area_05
+6	A	slice_0193	.agents/atlas/compiler-2026-11-10/grok/A/slice_0193.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0193.tsv	UNUSED|area_05
+6	A	slice_0194	.agents/atlas/compiler-2026-11-10/grok/A/slice_0194.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0194.tsv	UNUSED|area_05
+6	A	slice_0195	.agents/atlas/compiler-2026-11-10/grok/A/slice_0195.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0195.tsv	UNUSED|area_05
+6	A	slice_0196	.agents/atlas/compiler-2026-11-10/grok/A/slice_0196.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0196.tsv	UNUSED|area_05
+6	A	slice_0197	.agents/atlas/compiler-2026-11-10/grok/A/slice_0197.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0197.tsv	UNUSED|area_01
+6	A	slice_0198	.agents/atlas/compiler-2026-11-10/grok/A/slice_0198.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0198.tsv	UNUSED|area_01
+6	A	slice_0199	.agents/atlas/compiler-2026-11-10/grok/A/slice_0199.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0199.tsv	UNUSED|area_01
+6	A	slice_0200	.agents/atlas/compiler-2026-11-10/grok/A/slice_0200.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0200.tsv	UNUSED|area_02
+6	A	slice_0201	.agents/atlas/compiler-2026-11-10/grok/A/slice_0201.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0201.tsv	UNUSED|area_02
+6	A	slice_0202	.agents/atlas/compiler-2026-11-10/grok/A/slice_0202.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0202.tsv	UNUSED|area_02
+6	A	slice_0203	.agents/atlas/compiler-2026-11-10/grok/A/slice_0203.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0203.tsv	UNUSED|area_03
+6	A	slice_0204	.agents/atlas/compiler-2026-11-10/grok/A/slice_0204.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0204.tsv	UNUSED|area_03
+6	A	slice_0205	.agents/atlas/compiler-2026-11-10/grok/A/slice_0205.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0205.tsv	UNUSED|area_03
+6	A	slice_0206	.agents/atlas/compiler-2026-11-10/grok/A/slice_0206.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0206.tsv	UNUSED|area_03
+6	A	slice_0207	.agents/atlas/compiler-2026-11-10/grok/A/slice_0207.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0207.tsv	UNUSED|area_06
+6	A	slice_0208	.agents/atlas/compiler-2026-11-10/grok/A/slice_0208.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0208.tsv	UNUSED|area_06
+6	A	slice_0209	.agents/atlas/compiler-2026-11-10/grok/A/slice_0209.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0209.tsv	UNUSED|area_07
+6	A	slice_0210	.agents/atlas/compiler-2026-11-10/grok/A/slice_0210.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0210.tsv	UNUSED|area_07
+6	A	slice_0211	.agents/atlas/compiler-2026-11-10/grok/A/slice_0211.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0211.tsv	UNUSED|area_12
+6	A	slice_0212	.agents/atlas/compiler-2026-11-10/grok/A/slice_0212.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0212.tsv	UNUSED|area_15
+6	A	slice_0213	.agents/atlas/compiler-2026-11-10/grok/A/slice_0213.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0213.tsv	UNUSED|area_15
+6	A	slice_0214	.agents/atlas/compiler-2026-11-10/grok/A/slice_0214.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0214.tsv	SAMEJOB|area_08
+6	A	slice_0215	.agents/atlas/compiler-2026-11-10/grok/A/slice_0215.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0215.tsv	SAMEJOB|area_08
+6	A	slice_0216	.agents/atlas/compiler-2026-11-10/grok/A/slice_0216.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0216.tsv	SAMEJOB|area_08
+6	A	slice_0217	.agents/atlas/compiler-2026-11-10/grok/A/slice_0217.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0217.tsv	SAMEJOB|area_08
+6	A	slice_0218	.agents/atlas/compiler-2026-11-10/grok/A/slice_0218.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0218.tsv	SAMEJOB|area_09
+6	A	slice_0219	.agents/atlas/compiler-2026-11-10/grok/A/slice_0219.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0219.tsv	SAMEJOB|area_09
+6	A	slice_0220	.agents/atlas/compiler-2026-11-10/grok/A/slice_0220.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0220.tsv	SAMEJOB|area_09
+6	A	slice_0221	.agents/atlas/compiler-2026-11-10/grok/A/slice_0221.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0221.tsv	SAMEJOB|area_10
+6	A	slice_0222	.agents/atlas/compiler-2026-11-10/grok/A/slice_0222.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0222.tsv	SAMEJOB|area_10
+6	A	slice_0223	.agents/atlas/compiler-2026-11-10/grok/A/slice_0223.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0223.tsv	SAMEJOB|area_10
+6	A	slice_0224	.agents/atlas/compiler-2026-11-10/grok/A/slice_0224.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0224.tsv	SAMEJOB|area_10
+6	A	slice_0225	.agents/atlas/compiler-2026-11-10/grok/A/slice_0225.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0225.tsv	SAMEJOB|area_11
+6	A	slice_0226	.agents/atlas/compiler-2026-11-10/grok/A/slice_0226.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0226.tsv	SAMEJOB|area_11
+6	A	slice_0227	.agents/atlas/compiler-2026-11-10/grok/A/slice_0227.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0227.tsv	SAMEJOB|area_11
+6	A	slice_0228	.agents/atlas/compiler-2026-11-10/grok/A/slice_0228.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0228.tsv	SAMEJOB|area_11
+6	A	slice_0229	.agents/atlas/compiler-2026-11-10/grok/A/slice_0229.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0229.tsv	SAMEJOB|area_11
+6	A	slice_0230	.agents/atlas/compiler-2026-11-10/grok/A/slice_0230.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0230.tsv	SAMEJOB|area_11
+6	A	slice_0231	.agents/atlas/compiler-2026-11-10/grok/A/slice_0231.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0231.tsv	SAMEJOB|area_11
+6	A	slice_0232	.agents/atlas/compiler-2026-11-10/grok/A/slice_0232.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0232.tsv	SAMEJOB|area_13
+6	A	slice_0233	.agents/atlas/compiler-2026-11-10/grok/A/slice_0233.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0233.tsv	SAMEJOB|area_13
+6	A	slice_0234	.agents/atlas/compiler-2026-11-10/grok/A/slice_0234.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0234.tsv	SAMEJOB|area_13
+6	A	slice_0235	.agents/atlas/compiler-2026-11-10/grok/A/slice_0235.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0235.tsv	SAMEJOB|area_13
+6	A	slice_0236	.agents/atlas/compiler-2026-11-10/grok/A/slice_0236.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0236.tsv	SAMEJOB|area_13
+6	A	slice_0237	.agents/atlas/compiler-2026-11-10/grok/A/slice_0237.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0237.tsv	SAMEJOB|area_14
+6	A	slice_0238	.agents/atlas/compiler-2026-11-10/grok/A/slice_0238.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0238.tsv	SAMEJOB|area_14
+6	A	slice_0239	.agents/atlas/compiler-2026-11-10/grok/A/slice_0239.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0239.tsv	SAMEJOB|area_14
+6	A	slice_0240	.agents/atlas/compiler-2026-11-10/grok/A/slice_0240.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0240.tsv	SAMEJOB|area_04
+6	A	slice_0241	.agents/atlas/compiler-2026-11-10/grok/A/slice_0241.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0241.tsv	SAMEJOB|area_04
+6	A	slice_0242	.agents/atlas/compiler-2026-11-10/grok/A/slice_0242.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0242.tsv	SAMEJOB|area_04
+6	A	slice_0243	.agents/atlas/compiler-2026-11-10/grok/A/slice_0243.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0243.tsv	SAMEJOB|area_04
+6	A	slice_0244	.agents/atlas/compiler-2026-11-10/grok/A/slice_0244.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0244.tsv	SAMEJOB|area_04
+6	A	slice_0245	.agents/atlas/compiler-2026-11-10/grok/A/slice_0245.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0245.tsv	SAMEJOB|area_05
+6	A	slice_0246	.agents/atlas/compiler-2026-11-10/grok/A/slice_0246.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0246.tsv	SAMEJOB|area_05
+6	A	slice_0247	.agents/atlas/compiler-2026-11-10/grok/A/slice_0247.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0247.tsv	SAMEJOB|area_05
+6	A	slice_0248	.agents/atlas/compiler-2026-11-10/grok/A/slice_0248.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0248.tsv	SAMEJOB|area_05
+6	A	slice_0249	.agents/atlas/compiler-2026-11-10/grok/A/slice_0249.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0249.tsv	SAMEJOB|area_05
+6	A	slice_0250	.agents/atlas/compiler-2026-11-10/grok/A/slice_0250.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0250.tsv	SAMEJOB|area_05
+6	A	slice_0251	.agents/atlas/compiler-2026-11-10/grok/A/slice_0251.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0251.tsv	SAMEJOB|area_05
+6	A	slice_0252	.agents/atlas/compiler-2026-11-10/grok/A/slice_0252.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0252.tsv	SAMEJOB|area_05
+6	A	slice_0253	.agents/atlas/compiler-2026-11-10/grok/A/slice_0253.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0253.tsv	SAMEJOB|area_05
+6	A	slice_0254	.agents/atlas/compiler-2026-11-10/grok/A/slice_0254.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0254.tsv	SAMEJOB|area_05
+6	A	slice_0255	.agents/atlas/compiler-2026-11-10/grok/A/slice_0255.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0255.tsv	SAMEJOB|area_01
+6	A	slice_0256	.agents/atlas/compiler-2026-11-10/grok/A/slice_0256.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0256.tsv	SAMEJOB|area_01
+6	A	slice_0257	.agents/atlas/compiler-2026-11-10/grok/A/slice_0257.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0257.tsv	SAMEJOB|area_01
+6	A	slice_0258	.agents/atlas/compiler-2026-11-10/grok/A/slice_0258.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0258.tsv	SAMEJOB|area_01
+6	A	slice_0259	.agents/atlas/compiler-2026-11-10/grok/A/slice_0259.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0259.tsv	SAMEJOB|area_01
+6	A	slice_0260	.agents/atlas/compiler-2026-11-10/grok/A/slice_0260.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0260.tsv	SAMEJOB|area_02
+6	A	slice_0261	.agents/atlas/compiler-2026-11-10/grok/A/slice_0261.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0261.tsv	SAMEJOB|area_02
+6	A	slice_0262	.agents/atlas/compiler-2026-11-10/grok/A/slice_0262.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0262.tsv	SAMEJOB|area_02
+6	A	slice_0263	.agents/atlas/compiler-2026-11-10/grok/A/slice_0263.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0263.tsv	SAMEJOB|area_02
+6	A	slice_0264	.agents/atlas/compiler-2026-11-10/grok/A/slice_0264.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0264.tsv	SAMEJOB|area_02
+6	A	slice_0265	.agents/atlas/compiler-2026-11-10/grok/A/slice_0265.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0265.tsv	SAMEJOB|area_02
+6	A	slice_0266	.agents/atlas/compiler-2026-11-10/grok/A/slice_0266.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0266.tsv	SAMEJOB|area_02
+6	A	slice_0267	.agents/atlas/compiler-2026-11-10/grok/A/slice_0267.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0267.tsv	SAMEJOB|area_03
+6	A	slice_0268	.agents/atlas/compiler-2026-11-10/grok/A/slice_0268.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0268.tsv	SAMEJOB|area_03
+6	A	slice_0269	.agents/atlas/compiler-2026-11-10/grok/A/slice_0269.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0269.tsv	SAMEJOB|area_03
+6	A	slice_0270	.agents/atlas/compiler-2026-11-10/grok/A/slice_0270.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0270.tsv	SAMEJOB|area_03
+6	A	slice_0271	.agents/atlas/compiler-2026-11-10/grok/A/slice_0271.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0271.tsv	SAMEJOB|area_06
+6	A	slice_0272	.agents/atlas/compiler-2026-11-10/grok/A/slice_0272.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0272.tsv	SAMEJOB|area_06
+6	A	slice_0273	.agents/atlas/compiler-2026-11-10/grok/A/slice_0273.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0273.tsv	SAMEJOB|area_06
+6	A	slice_0274	.agents/atlas/compiler-2026-11-10/grok/A/slice_0274.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0274.tsv	SAMEJOB|area_06
+6	A	slice_0275	.agents/atlas/compiler-2026-11-10/grok/A/slice_0275.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0275.tsv	SAMEJOB|area_06
+6	A	slice_0276	.agents/atlas/compiler-2026-11-10/grok/A/slice_0276.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0276.tsv	SAMEJOB|area_07
+6	A	slice_0277	.agents/atlas/compiler-2026-11-10/grok/A/slice_0277.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0277.tsv	SAMEJOB|area_07
+6	A	slice_0278	.agents/atlas/compiler-2026-11-10/grok/A/slice_0278.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0278.tsv	SAMEJOB|area_07
+6	A	slice_0279	.agents/atlas/compiler-2026-11-10/grok/A/slice_0279.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0279.tsv	SAMEJOB|area_07
+6	A	slice_0280	.agents/atlas/compiler-2026-11-10/grok/A/slice_0280.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0280.tsv	SAMEJOB|area_07
+6	A	slice_0281	.agents/atlas/compiler-2026-11-10/grok/A/slice_0281.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0281.tsv	SAMEJOB|area_07
+6	A	slice_0282	.agents/atlas/compiler-2026-11-10/grok/A/slice_0282.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0282.tsv	SAMEJOB|area_07
+6	A	slice_0283	.agents/atlas/compiler-2026-11-10/grok/A/slice_0283.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0283.tsv	SAMEJOB|area_07
+6	A	slice_0284	.agents/atlas/compiler-2026-11-10/grok/A/slice_0284.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0284.tsv	SAMEJOB|area_12
+6	A	slice_0285	.agents/atlas/compiler-2026-11-10/grok/A/slice_0285.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0285.tsv	SAMEJOB|area_12
+6	A	slice_0286	.agents/atlas/compiler-2026-11-10/grok/A/slice_0286.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0286.tsv	SAMEJOB|area_12
+6	A	slice_0287	.agents/atlas/compiler-2026-11-10/grok/A/slice_0287.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0287.tsv	SAMEJOB|area_12
+6	A	slice_0288	.agents/atlas/compiler-2026-11-10/grok/A/slice_0288.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0288.tsv	SAMEJOB|area_12
+6	A	slice_0289	.agents/atlas/compiler-2026-11-10/grok/A/slice_0289.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0289.tsv	SAMEJOB|area_12
+6	A	slice_0290	.agents/atlas/compiler-2026-11-10/grok/A/slice_0290.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0290.tsv	SAMEJOB|area_15
+6	A	slice_0291	.agents/atlas/compiler-2026-11-10/grok/A/slice_0291.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0291.tsv	SAMEJOB|area_15
+6	A	slice_0292	.agents/atlas/compiler-2026-11-10/grok/A/slice_0292.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0292.tsv	SAMEJOB|area_15
+6	A	slice_0293	.agents/atlas/compiler-2026-11-10/grok/A/slice_0293.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0293.tsv	SAMEJOB|area_15
+6	A	slice_0294	.agents/atlas/compiler-2026-11-10/grok/A/slice_0294.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0294.tsv	SAMEJOB|area_15
+6	A	slice_0295	.agents/atlas/compiler-2026-11-10/grok/A/slice_0295.md	.agents/atlas/compiler-2026-11-10/grok/A/inputs/slice_0295.tsv	SAMEJOB|area_15
+7	E	unit_001	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_001.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_001.tsv	unit_001
+7	E	unit_002	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_002.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_002.tsv	unit_002
+7	E	unit_003	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_003.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_003.tsv	unit_003
+7	E	unit_004	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_004.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_004.tsv	unit_004
+7	E	unit_005	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_005.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_005.tsv	unit_005
+7	E	unit_006	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_006.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_006.tsv	unit_006
+7	E	unit_007	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_007.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_007.tsv	unit_007
+7	E	unit_008	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_008.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_008.tsv	unit_008
+7	E	unit_009	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_009.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_009.tsv	unit_009
+7	E	unit_010	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_010.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_010.tsv	unit_010
+7	E	unit_011	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_011.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_011.tsv	unit_011
+7	E	unit_012	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_012.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_012.tsv	unit_012
+7	E	unit_013	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_013.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_013.tsv	unit_013
+7	E	unit_014	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_014.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_014.tsv	unit_014
+7	E	unit_015	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_015.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_015.tsv	unit_015
+7	E	unit_016	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_016.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_016.tsv	unit_016
+7	E	unit_017	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_017.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_017.tsv	unit_017
+7	E	unit_018	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_018.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_018.tsv	unit_018
+7	E	unit_019	.agents/atlas/compiler-2026-11-10/grok/E/records/unit_019.md	.agents/atlas/compiler-2026-11-10/grok/E/inputs/unit_019.tsv	unit_019
+8	G	shard_0	.agents/atlas/compiler-2026-11-10/grok/G/shard_0.txt		0
+8	G	shard_1	.agents/atlas/compiler-2026-11-10/grok/G/shard_1.txt		1
+8	G	shard_2	.agents/atlas/compiler-2026-11-10/grok/G/shard_2.txt		2
+8	G	shard_3	.agents/atlas/compiler-2026-11-10/grok/G/shard_3.txt		3
+8	G	shard_4	.agents/atlas/compiler-2026-11-10/grok/G/shard_4.txt		4
+8	G	shard_5	.agents/atlas/compiler-2026-11-10/grok/G/shard_5.txt		5
+8	G	shard_6	.agents/atlas/compiler-2026-11-10/grok/G/shard_6.txt		6
+8	G	shard_7	.agents/atlas/compiler-2026-11-10/grok/G/shard_7.txt		7
+8	G	shard_8	.agents/atlas/compiler-2026-11-10/grok/G/shard_8.txt		8
+8	G	shard_9	.agents/atlas/compiler-2026-11-10/grok/G/shard_9.txt		9
+8	G	shard_10	.agents/atlas/compiler-2026-11-10/grok/G/shard_10.txt		10
+8	G	shard_11	.agents/atlas/compiler-2026-11-10/grok/G/shard_11.txt		11
+8	G	shard_12	.agents/atlas/compiler-2026-11-10/grok/G/shard_12.txt		12
+8	G	shard_13	.agents/atlas/compiler-2026-11-10/grok/G/shard_13.txt		13
+8	G	shard_14	.agents/atlas/compiler-2026-11-10/grok/G/shard_14.txt		14
+8	G	shard_15	.agents/atlas/compiler-2026-11-10/grok/G/shard_15.txt		15
+8	G	shard_16	.agents/atlas/compiler-2026-11-10/grok/G/shard_16.txt		16
+8	G	shard_17	.agents/atlas/compiler-2026-11-10/grok/G/shard_17.txt		17
+8	G	shard_18	.agents/atlas/compiler-2026-11-10/grok/G/shard_18.txt		18
+8	G	shard_19	.agents/atlas/compiler-2026-11-10/grok/G/shard_19.txt		19
+8	G	shard_20	.agents/atlas/compiler-2026-11-10/grok/G/shard_20.txt		20
+8	G	shard_21	.agents/atlas/compiler-2026-11-10/grok/G/shard_21.txt		21
+8	G	shard_22	.agents/atlas/compiler-2026-11-10/grok/G/shard_22.txt		22
+8	G	shard_23	.agents/atlas/compiler-2026-11-10/grok/G/shard_23.txt		23
+8	G	shard_24	.agents/atlas/compiler-2026-11-10/grok/G/shard_24.txt		24
+8	G	shard_25	.agents/atlas/compiler-2026-11-10/grok/G/shard_25.txt		25
+8	G	shard_26	.agents/atlas/compiler-2026-11-10/grok/G/shard_26.txt		26
+8	G	shard_27	.agents/atlas/compiler-2026-11-10/grok/G/shard_27.txt		27
+8	G	shard_28	.agents/atlas/compiler-2026-11-10/grok/G/shard_28.txt		28
+8	G	shard_29	.agents/atlas/compiler-2026-11-10/grok/G/shard_29.txt		29
+8	G	shard_30	.agents/atlas/compiler-2026-11-10/grok/G/shard_30.txt		30
+8	G	shard_31	.agents/atlas/compiler-2026-11-10/grok/G/shard_31.txt		31
+8	G	shard_32	.agents/atlas/compiler-2026-11-10/grok/G/shard_32.txt		32
+8	G	shard_33	.agents/atlas/compiler-2026-11-10/grok/G/shard_33.txt		33
+8	G	shard_34	.agents/atlas/compiler-2026-11-10/grok/G/shard_34.txt		34
+8	G	shard_35	.agents/atlas/compiler-2026-11-10/grok/G/shard_35.txt		35
+8	G	shard_36	.agents/atlas/compiler-2026-11-10/grok/G/shard_36.txt		36
+8	G	shard_37	.agents/atlas/compiler-2026-11-10/grok/G/shard_37.txt		37
+8	G	shard_38	.agents/atlas/compiler-2026-11-10/grok/G/shard_38.txt		38
+8	G	shard_39	.agents/atlas/compiler-2026-11-10/grok/G/shard_39.txt		39
+8	G	shard_40	.agents/atlas/compiler-2026-11-10/grok/G/shard_40.txt		40
+8	G	shard_41	.agents/atlas/compiler-2026-11-10/grok/G/shard_41.txt		41
+8	G	shard_42	.agents/atlas/compiler-2026-11-10/grok/G/shard_42.txt		42
+8	G	shard_43	.agents/atlas/compiler-2026-11-10/grok/G/shard_43.txt		43
+8	G	shard_44	.agents/atlas/compiler-2026-11-10/grok/G/shard_44.txt		44
+8	G	shard_45	.agents/atlas/compiler-2026-11-10/grok/G/shard_45.txt		45
+8	G	shard_46	.agents/atlas/compiler-2026-11-10/grok/G/shard_46.txt		46
+8	G	shard_47	.agents/atlas/compiler-2026-11-10/grok/G/shard_47.txt		47
+8	G	shard_48	.agents/atlas/compiler-2026-11-10/grok/G/shard_48.txt		48
+8	G	shard_49	.agents/atlas/compiler-2026-11-10/grok/G/shard_49.txt		49
+8	G	shard_50	.agents/atlas/compiler-2026-11-10/grok/G/shard_50.txt		50
+8	G	shard_51	.agents/atlas/compiler-2026-11-10/grok/G/shard_51.txt		51
+8	G	shard_52	.agents/atlas/compiler-2026-11-10/grok/G/shard_52.txt		52
+8	G	shard_53	.agents/atlas/compiler-2026-11-10/grok/G/shard_53.txt		53
+8	G	shard_54	.agents/atlas/compiler-2026-11-10/grok/G/shard_54.txt		54
+8	G	shard_55	.agents/atlas/compiler-2026-11-10/grok/G/shard_55.txt		55
+8	G	shard_56	.agents/atlas/compiler-2026-11-10/grok/G/shard_56.txt		56
+8	G	shard_57	.agents/atlas/compiler-2026-11-10/grok/G/shard_57.txt		57
+8	G	shard_58	.agents/atlas/compiler-2026-11-10/grok/G/shard_58.txt		58
+8	G	shard_59	.agents/atlas/compiler-2026-11-10/grok/G/shard_59.txt		59
+8	G	shard_60	.agents/atlas/compiler-2026-11-10/grok/G/shard_60.txt		60
+8	G	shard_61	.agents/atlas/compiler-2026-11-10/grok/G/shard_61.txt		61
+8	G	shard_62	.agents/atlas/compiler-2026-11-10/grok/G/shard_62.txt		62
+8	G	shard_63	.agents/atlas/compiler-2026-11-10/grok/G/shard_63.txt		63
+8	G	shard_64	.agents/atlas/compiler-2026-11-10/grok/G/shard_64.txt		64
+8	G	shard_65	.agents/atlas/compiler-2026-11-10/grok/G/shard_65.txt		65
+8	G	shard_66	.agents/atlas/compiler-2026-11-10/grok/G/shard_66.txt		66
+8	G	shard_67	.agents/atlas/compiler-2026-11-10/grok/G/shard_67.txt		67
+8	G	shard_68	.agents/atlas/compiler-2026-11-10/grok/G/shard_68.txt		68
+8	G	shard_69	.agents/atlas/compiler-2026-11-10/grok/G/shard_69.txt		69
+8	G	shard_70	.agents/atlas/compiler-2026-11-10/grok/G/shard_70.txt		70
+8	G	shard_71	.agents/atlas/compiler-2026-11-10/grok/G/shard_71.txt		71
+8	G	shard_72	.agents/atlas/compiler-2026-11-10/grok/G/shard_72.txt		72
+8	G	shard_73	.agents/atlas/compiler-2026-11-10/grok/G/shard_73.txt		73
+8	G	shard_74	.agents/atlas/compiler-2026-11-10/grok/G/shard_74.txt		74
+8	G	shard_75	.agents/atlas/compiler-2026-11-10/grok/G/shard_75.txt		75
+8	G	shard_76	.agents/atlas/compiler-2026-11-10/grok/G/shard_76.txt		76
+8	G	shard_77	.agents/atlas/compiler-2026-11-10/grok/G/shard_77.txt		77
+8	G	shard_78	.agents/atlas/compiler-2026-11-10/grok/G/shard_78.txt		78
+8	G	shard_79	.agents/atlas/compiler-2026-11-10/grok/G/shard_79.txt		79
+8	G	shard_80	.agents/atlas/compiler-2026-11-10/grok/G/shard_80.txt		80
+8	G	shard_81	.agents/atlas/compiler-2026-11-10/grok/G/shard_81.txt		81
+8	G	shard_82	.agents/atlas/compiler-2026-11-10/grok/G/shard_82.txt		82
+8	G	shard_83	.agents/atlas/compiler-2026-11-10/grok/G/shard_83.txt		83
+8	G	shard_84	.agents/atlas/compiler-2026-11-10/grok/G/shard_84.txt		84
+8	G	shard_85	.agents/atlas/compiler-2026-11-10/grok/G/shard_85.txt		85
+8	G	shard_86	.agents/atlas/compiler-2026-11-10/grok/G/shard_86.txt		86
+8	G	shard_87	.agents/atlas/compiler-2026-11-10/grok/G/shard_87.txt		87
+8	G	shard_88	.agents/atlas/compiler-2026-11-10/grok/G/shard_88.txt		88
+8	G	shard_89	.agents/atlas/compiler-2026-11-10/grok/G/shard_89.txt		89
+8	G	shard_90	.agents/atlas/compiler-2026-11-10/grok/G/shard_90.txt		90
+8	G	shard_91	.agents/atlas/compiler-2026-11-10/grok/G/shard_91.txt		91
+8	G	shard_92	.agents/atlas/compiler-2026-11-10/grok/G/shard_92.txt		92
+8	G	shard_93	.agents/atlas/compiler-2026-11-10/grok/G/shard_93.txt		93
+8	G	shard_94	.agents/atlas/compiler-2026-11-10/grok/G/shard_94.txt		94
+8	G	shard_95	.agents/atlas/compiler-2026-11-10/grok/G/shard_95.txt		95
+8	G	shard_96	.agents/atlas/compiler-2026-11-10/grok/G/shard_96.txt		96
+8	G	shard_97	.agents/atlas/compiler-2026-11-10/grok/G/shard_97.txt		97
+8	G	shard_98	.agents/atlas/compiler-2026-11-10/grok/G/shard_98.txt		98
+8	G	shard_99	.agents/atlas/compiler-2026-11-10/grok/G/shard_99.txt		99
+8	G	shard_100	.agents/atlas/compiler-2026-11-10/grok/G/shard_100.txt		100
+8	G	shard_101	.agents/atlas/compiler-2026-11-10/grok/G/shard_101.txt		101
+8	G	shard_102	.agents/atlas/compiler-2026-11-10/grok/G/shard_102.txt		102
+8	G	shard_103	.agents/atlas/compiler-2026-11-10/grok/G/shard_103.txt		103
+8	G	shard_104	.agents/atlas/compiler-2026-11-10/grok/G/shard_104.txt		104
+8	G	shard_105	.agents/atlas/compiler-2026-11-10/grok/G/shard_105.txt		105
+8	G	shard_106	.agents/atlas/compiler-2026-11-10/grok/G/shard_106.txt		106
+8	G	shard_107	.agents/atlas/compiler-2026-11-10/grok/G/shard_107.txt		107
+8	G	shard_108	.agents/atlas/compiler-2026-11-10/grok/G/shard_108.txt		108
+8	G	shard_109	.agents/atlas/compiler-2026-11-10/grok/G/shard_109.txt		109
+8	G	shard_110	.agents/atlas/compiler-2026-11-10/grok/G/shard_110.txt		110
+8	G	shard_111	.agents/atlas/compiler-2026-11-10/grok/G/shard_111.txt		111
+8	G	shard_112	.agents/atlas/compiler-2026-11-10/grok/G/shard_112.txt		112
+8	G	shard_113	.agents/atlas/compiler-2026-11-10/grok/G/shard_113.txt		113
+8	G	shard_114	.agents/atlas/compiler-2026-11-10/grok/G/shard_114.txt		114
+8	G	shard_115	.agents/atlas/compiler-2026-11-10/grok/G/shard_115.txt		115
+8	G	shard_116	.agents/atlas/compiler-2026-11-10/grok/G/shard_116.txt		116
+8	G	shard_117	.agents/atlas/compiler-2026-11-10/grok/G/shard_117.txt		117
+8	G	shard_118	.agents/atlas/compiler-2026-11-10/grok/G/shard_118.txt		118
+8	G	shard_119	.agents/atlas/compiler-2026-11-10/grok/G/shard_119.txt		119

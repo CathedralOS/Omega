@@ -1,0 +1,2 @@
+tests/omega/fail/filesystem/windows_directory_nth_requires_metadata
+tests/omega/fail/filesystem/windows_read_link_requires_metadata

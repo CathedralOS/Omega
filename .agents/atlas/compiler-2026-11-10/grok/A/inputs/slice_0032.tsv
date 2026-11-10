@@ -1,0 +1,8 @@
+A0240	ACCEPT	area_10	retention.rs:3556	GROUP: retention.rs (record 069): | 65. 3556: `operand_memberships::retained` returns `None` for any unlisted operation kind. Reader: a payload membership needed on an unlisted kind is lost silently.
+A0241	ACCEPT	area_10	retention.rs:3742	GROUP: retention.rs (record 069): | 66. 3742, 3783-3785: early returns leave results with fewer qualifications (inferred conservative).
+A0242	ACCEPT	area_10	retention.rs:3474	GROUP: retention.rs (record 069): | 67. 3474, 3490, 3814: `Err` from three membership sources is ignored.
+A0243	ACCEPT	area_10	retention.rs:5369	GROUP: retention.rs (record 069): | 68. 5369, 5393, 5547, 5647: a loan the facts cannot classify is emitted as `Unresolved`. Whether a later validator rejects `Unresolved` was not traced.
+A0244	ACCEPT	area_10	retention.rs:4881-4886	GROUP: retention.rs (record 069): | 69. 4881-4886: crossings outside the machine and state-block filter are not planned.
+A0245	ACCEPT	area_10	scalar_computations.rs:712-778	GROUP: scalar_computations.rs (record 069): | 70. 712-778: `consume_pure_call_arguments` checks nothing for non-`Body` callees, calls with structural arguments, or non-`Value` operands.
+A0246	ACCEPT	area_10	scalar_computations.rs:3104-3110	GROUP: scalar_computations.rs (record 069): | 71. 3104-3110, 3457-3459: no planned place loan means the store takes the non-loan path.
+A0247	ACCEPT	area_10	scalar_computations.rs:3568-3572	GROUP: scalar_computations.rs (record 069): | 72. 3568-3572: unknown field identity text becomes an empty spelling.

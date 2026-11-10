@@ -1,0 +1,3 @@
+U0215	UNUSED	area_03	stack_composition.rs:288	GROUP: **task-plans** | - `ComposedTaskStackDemand.evidence` is written and never read (`stack_composition.rs:288, 508`).
+U0216	UNUSED	area_03	-	GROUP: **task-plans** | - `unresolved_calls()` has no reader outside `stack_composition.rs` (u011; checked: 3 lines, all in that file).
+U0217	UNUSED	area_03	lib.rs:462	GROUP: **task-plans** | - `may_block` is hashed (`lib.rs:462`) and never validated.

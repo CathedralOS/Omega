@@ -1,0 +1,8 @@
+A0341	ACCEPT	area_13	ad:15936	17. ad:15936 `integer_bound_terms_equal` treats any two integer bounds as equal and ignores `offset` for symbols; one outside caller, not read [089; checked].
+A0342	ACCEPT	area_13	ad:23738-23746	18. ad:23738-23746 a stored integer write to a destination that does not accept integer literals is skipped [089].
+A0343	ACCEPT	area_13	br:2045	19. br:2045 a `dyn Trait` value that holds a borrow returned from a function would be classified view-free; not traced whether `dyn` can carry lifetimes [089; checked].
+A0344	ACCEPT	area_13	br:2877-2879	20. br:2877-2879, 3004-3006 a required reference with no lifetime name accepts any actual region [089].
+A0345	ACCEPT	area_13	cc:2765	21. cc:2765 `Assembly`/`AssemblyFact` statements are accepted without a rank-preservation check; whether assembly can write rank parameters is not decided in this file [090].
+A0346	ACCEPT	area_13	cc:2624-2626	22. cc:2624-2626 (2719-2721) a cycle member with no source-body witness is skipped, so the component is judged only by its other members; who supplies witnesses not traced [090].
+A0347	ACCEPT	area_13	cc:606-636	23. cc:606-636 an out-of-range index reads as "no unranked component"; reachable only with inconsistent adjacency [090].
+A0348	ACCEPT	area_13	calls:2062-2069	24. calls:2062-2069 `X.encode(..)`/`X.decode(..)` where `X` is spelled like any data definition returns with no diagnostic whether or not the method exists [090; checked].

@@ -1,0 +1,3 @@
+tests/omega/fail/reflection/schema_borrowed_facade_const
+tests/omega/fail/reflection/schema_borrowed_facade_const/foreign
+tests/omega/fail/reflection/schema_runtime_operand

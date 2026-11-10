@@ -1,0 +1,8 @@
+S0107	SAMEJOB	area_11	prf/obligations.rs:679	- **Condition-shape walkers (`== true`, `&&`, literal comparison), 5 in `checker.rs`:** `:1335`, `:1126`, `:4720`, `:6297`, `:3639`. `:1335` and `:1126` differ only in the equality test used and `!` handling. Unit 77 records two more over the same shapes: `prf/obligations.rs:679` and `:535`.
+S0108	SAMEJOB	area_11	prf/checker.rs:1275-1303	- **"Strongest lower/upper anchor" loop, 2:** `prf/checker.rs:1275-1303`, `:1530-1556`.
+S0109	SAMEJOB	area_11	prf/checker.rs:1415	- **Literal-bound helpers, 2 pairs:** `prf/checker.rs:1415`/`:1434` and `:4930`/`:4949`.
+S0110	SAMEJOB	area_11	prf/checker.rs:3366	- **`CallFrameResolver::new(program)` built separately:** `prf/checker.rs:3366`, `:3526`, `:3969`, `:5390`.
+S0111	SAMEJOB	area_11	md:10348	- **Type-reference descent (Reference/Constrained/FixedArray/Slice/Generic), 9 walkers:** `md:10348`, `:10434`, `:10531`, `:4602`, `:6453`; `prf/lib.rs:431`, `:647`; `prf/obligations.rs:243`, `:3849`.
+S0112	SAMEJOB	area_11	md:869-873	- **Kernel context construction that clones the whole declaration vector:** `md:869-873`, `:5252-5259`, `:6355-6358`, `:6784-6787`, `:6859-6862`, `:7303-7306`, `:7712-7715`, `:11448-11455`.
+S0113	SAMEJOB	area_11	md:912	- **Carrier classification:** `md:912`, `:1099`, `:12653`; a private `operand_carrier` in `pipeline/05.../shared.rs:2492` is a "suspected" third.
+S0114	SAMEJOB	area_11	fa/evidence.rs:868	- **`ProofObligationKind` mirror:** `fa/evidence.rs:868` repeats the seven variant names of `ProofObligation` (`prf/obligations.rs:3353`).

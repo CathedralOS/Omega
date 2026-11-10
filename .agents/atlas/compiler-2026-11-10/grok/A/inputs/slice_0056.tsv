@@ -1,0 +1,8 @@
+A0425	ACCEPT	area_14	dp:1478	GROUP: **dp (22)** | - dp:1478 `constant_subtree_meaning(..).unwrap_or(true)` — a non-constant arithmetic operand is not checked by this helper.
+A0426	ACCEPT	area_14	dp:582-588	GROUP: **dp (22)** | - dp:582-588 `And/Or/Bitwise*/Shift* => true` with no operand-type check — operands whose type has a user operator for that spelling.
+A0427	ACCEPT	area_14	dp:683	GROUP: **dp (22)** | - dp:683 any leaf node kind counts as meaningful.
+A0428	ACCEPT	area_14	dp:877-892	GROUP: **dp (22)** | - dp:877-892 `.all` over zero authored selection occurrences passes.
+A0429	ACCEPT	area_14	dp:1035	GROUP: **dp (22)** | - dp:1035 returns `Some(selected)` when the subject type is not found.
+A0430	ACCEPT	area_14	dp:5043	GROUP: **dp (22)** | - dp:5043 and dp:6250-6253 a comparison with no complement is "negated" to itself (reader: "not reachable from what I read").
+A0431	ACCEPT	area_14	dp:6605-6611	GROUP: **dp (22)** | - dp:6605-6611 a literal with no landing is accepted as the declared primitive.
+A0432	ACCEPT	area_14	dp:7502-7504	GROUP: **dp (22)** | - dp:7502-7504 no call-frame resolver: origin-based field stores skipped silently.

@@ -1,0 +1,3 @@
+tests/omega/fail/parse/machine_clause_garbage_rejected
+tests/omega/fail/parse/retired_standalone_boundary_requirement
+tests/omega/fail/parse/retired_trait_operator_requirement

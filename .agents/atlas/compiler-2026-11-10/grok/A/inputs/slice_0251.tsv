@@ -1,0 +1,8 @@
+S0284	SAMEJOB	area_05	CAND:596-631	49. **Block-merge replay closures.** `CAND:596-631` and `CAND:757-803`, differing in which provenance is extended.
+S0285	SAMEJOB	area_05	CAND:6847	50. **Ownership-frontier identity.** `CAND:6847` (3 sites) and `CAND:7461` (6 sites); same empty-facts fallback (`CAND:6864-6866`, `CAND:7483-7485`).
+S0286	SAMEJOB	area_05	CAND:1017-1068	51. **Effect counter walk.** `CAND:1017-1068` inline, `CAND:7590`, `CAND:10566-10577`; validator side `UV:6526-6535`.
+S0287	SAMEJOB	area_05	CAND:2837	52. **Inline obligation-fact checks.** `CAND:2837, 3189, 4139, 4185, 4226, 4515, 4615, 5985` (8 sites).
+S0288	SAMEJOB	area_05	CAND:404	53. **Rule-name tables.** `CAND:404`, `CAND:8403`, `CAND:8907` (plus `4806`, `5523`, `6493`).
+S0289	SAMEJOB	area_05	CO:1120	54. **Two storage-overlap models.** `Region`/`Projection` with `regions_overlap_at` (`CO:1120, 1133, 1197, 1213`) and `ReferenceOrigin` with `origins_overlap` (`CO:5137`). "Suspected duplicate job" (`unit_025_gap_009.md`, read both).
+S0290	SAMEJOB	area_05	CO:4774	55. **Move or copy live reference leaves.** `CO:4774` (`windows::transfer`), `CO:5932` (`establish_constructor`), `CO:5506` (`copy_reference_carriers`).
+S0291	SAMEJOB	area_05	CO:8321-8338	56. **Partial-move bookkeeping.** `CO:8321-8338`, `CO:8361-8383`, `CO:8386-8416`, also in `cleanup` and `block_parameters`; `UV:763-866` does its own and calls `CO` helpers at `UV:715` and `UV:872`.

@@ -1,0 +1,8 @@
+D0066	DROP	area_13	ad:7430-7440	9. ad:7430-7440 exact-cast fit returns false with no error [088].
+D0067	DROP	area_13	ad:11158	10. ad:11158 (11087-11090) an analysis that produced any diagnostic is discarded and replaced by "unbounded" [088].
+D0068	DROP	area_13	ad:11247-11250	11. ad:11247-11250 parameter/argument count mismatch joins an empty environment [088].
+D0069	DROP	area_13	ad:10885-10938	12. ad:10885-10938 round budget exhausted, no error [088].
+D0070	DROP	area_13	ad:18438	13. ad:18438 a relation with an unobservable side is skipped [089].
+D0071	DROP	area_13	ad:23738-23746	14. ad:23738-23746 no stored-integer write rows [089].
+D0072	DROP	area_13	ad:25073-25081	15. ad:25073-25081 erasure-formation check returns for non-direct operands [089].
+D0073	DROP	area_13	cc:2624-2626	16. cc:2624-2626, 2719-2721 member without witness skipped; result `Ok(None)` [090].

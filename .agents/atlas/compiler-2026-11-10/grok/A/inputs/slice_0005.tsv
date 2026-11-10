@@ -1,0 +1,8 @@
+A0033	ACCEPT	area_08	checks_borrows_resources.rs:100	GROUP: Borrow checks: | - `checks_borrows_resources.rs:100` "a call argument whose backing root disagrees with its supplier's parent lifetime root would carry no call-loan demand"; `:129-131` invalid operand returns silently.
+A0034	ACCEPT	area_08	checks_borrows_resources.rs:2940-2953	GROUP: Borrow checks: | - `checks_borrows_resources.rs:2940-2953` un-activated call-result or descriptor-load loans get no resource rows.
+A0035	ACCEPT	area_08	checks_borrows_resources.rs:5773	GROUP: Borrow checks: | - `checks_borrows_resources.rs:5773`: "a saved `UnretainedDerived` pointer without retained call inputs".
+A0036	ACCEPT	area_08	checks_borrows_resources.rs:4001-4013	GROUP: Borrow checks: | - `checks_borrows_resources.rs:4001-4013` last-chance retry: "a plain-observation capture whose specific rule ... failed, but where some stored loan owned by the same symbol is live at that statement, is accepted".
+A0037	ACCEPT	area_08	checks_content.rs:2283-2285	GROUP: Content: | - `checks_content.rs:2283-2285` checked-body target accepted without a result-claim check.
+A0038	ACCEPT	area_08	:2286-2288	GROUP: Content: | - `:2286-2288` "a result qualification on a call through a non-boundary public requirement signature".
+A0039	ACCEPT	area_08	:2307-2317	GROUP: Content: | - `:2307-2317` boundary trait requirement with no matching route accepted for results with no projection or a nested path.
+A0040	ACCEPT	area_08	:1258	GROUP: Content: | - `:1258` body-sourced replacements are not judged.

@@ -1,0 +1,8 @@
+A0397	ACCEPT	area_13	ce:32895-32909	73. ce:32895-32909 a `Distance` measure with no range is a member without proof [094].
+A0398	ACCEPT	area_13	ce:34118-34126	74. ce:34118-34126, 34129, 34152-34176, 35086-35098 a callee `requires` that is structurally false but matches a skip rule is not reported by this diagnostic (which only reports `Refuted`) [094].
+A0399	ACCEPT	area_13	ce:23648	75. Unsatisfiable hypotheses prove the goal, no comment at any site: ce:23648, 23664, 25753, 25775, 25951-25953, 28498, 29954, 31200-31204, 33443, 33480, 33557, 33587, 33631, 33637-33644 [094]; ce:37554, 37706, 43707 [095]; `is_contradictory` ce:53127 "open for the global effect" [095]. A wrong program passes only if the hypotheses are wrongly judged unsatisfiable. 39 occurrences of `requires_unsatisfiable` in the file (grep count, [094]).
+A0400	ACCEPT	area_13	ce:40706-40708	76. ce:40706-40708, 41730-41732 a `DynamicSlot` whose declared and instantiated parameter counts differ skips the argument type check and the `requires` proof [095].
+A0401	ACCEPT	area_13	ce:41529-41533	77. ce:41529-41533, 41537-41540, 41659 type-predicate binaries, operators with no spelling, and every other node kind return with no check [095].
+A0402	ACCEPT	area_13	ce:41770-41784	78. ce:41770-41784 a `Proposition` requirement tied to named evidence is skipped without proof here [095].
+A0403	ACCEPT	area_13	ce:46198	79. ce:46198 a crash transition produces no leaf arm, so a crashing branch is not required to carry the theorem's conclusion; callers not traced [095; checked].
+A0404	ACCEPT	area_13	ce:54329	80. ce:54329, 54342, 54377, 54419 `Some(true)` shortcuts in `prepared_predicate_proofs` not verified by the reader [095].

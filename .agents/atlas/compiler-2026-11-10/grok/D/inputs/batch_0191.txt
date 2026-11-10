@@ -1,0 +1,2 @@
+tests/omega/pass/blockexec/blocking_executor_custody_claims_compile
+tests/omega/pass/blockexec/runtime_selected_worker_body_exit

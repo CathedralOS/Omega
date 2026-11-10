@@ -1,0 +1,8 @@
+A0505	ACCEPT	area_14	ops:1939-1943	GROUP: **mpb, ops, pl (19)** | - ops:1939-1943 `continue` when no trait meaning and an operand is non-primitive.
+A0506	ACCEPT	area_14	ops:2075	GROUP: **mpb, ops, pl (19)** | - ops:2075 no fact when all operand types are `None`.
+A0507	ACCEPT	area_14	pl:448-455	GROUP: **mpb, ops, pl (19)** | - pl:448-455 a write path longer than the observed path does not overlap the case tag.
+A0508	ACCEPT	area_14	pl:708	GROUP: **mpb, ops, pl (19)** | - pl:708 `_ => false`: segments of different kinds count as disjoint.
+A0509	ACCEPT	area_14	pl:6026-6029	GROUP: **mpb, ops, pl (19)** | - pl:6026-6029, 6585 other expressions become their own root, so `Disjoint` from everything.
+A0510	ACCEPT	area_14	pl:1131-1139	GROUP: **mpb, ops, pl (19)** | - pl:1131-1139 with pl:4058-4121 unresolved receivers produce no "no field" diagnostic.
+A0511	ACCEPT	area_14	pl:94-103	GROUP: **mpb, ops, pl (19)** | - pl:94-103, 220-230 chains longer than 128 judged not to write ("practically unreachable").
+A0512	ACCEPT	area_14	pl:5169-5194	GROUP: **mpb, ops, pl (19)** | - pl:5169-5194 — "a data type whose first variant is zero-representable and later variants are not would be judged zeroable".

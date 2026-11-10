@@ -1,0 +1,1 @@
+tests/omega/pass/math/extent_no_wrap_requires_denotation

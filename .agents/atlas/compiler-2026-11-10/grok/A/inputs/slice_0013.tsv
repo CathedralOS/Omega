@@ -1,0 +1,8 @@
+A0093	ACCEPT	area_09	ETU:5116-5164	GROUP: Execution plans: | - ETU:5116-5164. Operation and binding kinds not listed contribute no transfers. No wrong program named.
+A0094	ACCEPT	area_09	CALLS:5678-5691	GROUP: Execution plans: | - CALLS:5678-5691. A projected mutable borrow rooted at an expression returns `StructuralResult` without the exact access check.
+A0095	ACCEPT	area_09	CALLS:6172-6174	GROUP: Execution plans: | - CALLS:6172-6174. Qualification rows with an unknown domain are removed from the plan rather than rejected.
+A0096	ACCEPT	area_09	CLEAN:929-991	GROUP: Execution plans: | - CLEAN:929-991. `consumed_claims` returns an empty list when no event matches: a hook on a path whose linear claim was never recorded is not refused here.
+A0097	ACCEPT	area_09	CTRL:398-402	GROUP: Execution plans: | - CTRL:398-402. Reference outputs skipped for checked families and descriptor-preserving interrupts.
+A0098	ACCEPT	area_09	CTRL:2546-2563	GROUP: Execution plans: | - CTRL:2546-2563; CTRL:1670. A byte-sequence predicate with no flow call, and an absent Guard root, record nothing and succeed.
+A0099	ACCEPT	area_09	CTRL:1881-1898	GROUP: Execution plans: | - CTRL:1881-1898. Remaining statement calls are accepted if retired, builtin with an empty write frame, or on another arm: a call wrongly marked retired would go unscheduled.
+A0100	ACCEPT	area_09	SEQ:1350	GROUP: Execution plans: | - SEQ:1350; SEQ:5502-5506; SEQ:7230-7232; SEQ:7208-7221 and 6770-6783; SEQ:9224-9228. Nothing planned for an erased dispatch subject; a loan not yet formed counts as retired; no releases when there is no normal completion or no loans; fact-only citations skipped. No wrong program identified for any.

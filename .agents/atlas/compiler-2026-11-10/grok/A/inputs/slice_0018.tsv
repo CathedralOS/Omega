@@ -1,0 +1,8 @@
+A0133	ACCEPT	area_09	FOC:111-114	GROUP: Flow: | - FOC:111-114. A case path counts as not inactive when evidence cannot be prepared.
+A0134	ACCEPT	area_09	FOW:67-69	GROUP: Flow: | - FOW:67-69; FOW:869-874, 909-911. An unresolved callee records no move events; a place-like expression with no ownership place is neither moved nor observed.
+A0135	ACCEPT	area_09	FP:1012	GROUP: Flow: | - FP:1012 (source mutability below an immutable root not checked); FP:1241 (any valid expression root is a stable subject).
+A0136	ACCEPT	area_09	FRP:526-531	GROUP: Flow: | - FRP:526-531, 858-860. A symbol-rooted place not explained as a local or parameter is accepted as its own storage.
+A0137	ACCEPT	area_09	FRB:1271-1281	GROUP: Flow: | - FRB:1271-1281, 1368-1391. No handbacks when argument sources or ending inputs are missing; a loan not recognized as owing is handed back.
+A0138	ACCEPT	area_09	FSV:518-541	GROUP: Flow: | - FSV:518-541. A lexical-region delivery that is skipped leaves the state with no row, and "A missing row is unreachable" (FSV:2764).
+A0139	ACCEPT	area_09	FT:3599-3602	GROUP: Flow: | - FT:3599-3602. Values are kept across a Unit call when `observation_places` is empty; the comment says "complete storage footprint is empty" (FT:2275-2278). A callee writing through a path not in `observation_places`.
+A0140	ACCEPT	area_09	FT:1085-1115	GROUP: Flow: | - FT:1085-1115. For a non-exact target a candidate keeps a membership if any one source context proves it (`any`, not `all`): a write through a reference local with several possible referents.

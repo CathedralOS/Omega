@@ -1,0 +1,8 @@
+A0381	ACCEPT	area_13	cs:6880	57. cs:6880 with no source metadata every symbol counts as toolchain-owned; reachable by synthetic or test programs, not traced [092].
+A0382	ACCEPT	area_13	ce:5365	58. ce:5365 `selected_binary_meaning` returns true for `And`, `Or`, `CaseMembership` with no overload check [093].
+A0383	ACCEPT	area_13	ce:7083-7123	59. ce:7083-7123 `+ - *` folded into polynomial arithmetic when the outside predicate `unselected_or_builtin_arithmetic` holds [093]. My check: that predicate is `all()` over authored selection occurrences, so it is true when there are none (ce:29175-29187), as [094] also says.
+A0384	ACCEPT	area_13	ce:7331-7340	60. ce:7331-7340 (7393-7408) `value_preserving_integer_cast` does not check that the target is at least as wide [093].
+A0385	ACCEPT	area_13	ce:8120-8126	61. ce:8120-8126, 8774-8780 `static_type_requirement_entailed` accepts without a value judgment; function outside the unit [093].
+A0386	ACCEPT	area_13	ce:12080-12097	62. ce:12080-12097 a struct literal with a matching `source_constructor` record gets `Proven` for all its predicates without judging [093].
+A0387	ACCEPT	area_13	ce:12610	63. ce:12610 `data_fact_holds_at_zero` accepts a data fact the judge did not prove [093].
+A0388	ACCEPT	area_13	ce:15229-15239	64. ce:15229-15239 a machine realizing a requirement whose `ensures` is an equation of two structural terms that is not actually satisfied is accepted through `owes_through_edge`, `boundary_qualification_authorization` or `law_checked` without `entailed`; callers of `check_law_conformance` not traced [093].

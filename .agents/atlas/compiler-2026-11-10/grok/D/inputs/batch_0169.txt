@@ -1,0 +1,2 @@
+tests/omega/fail/structs/affine_result_constructor_reuse
+tests/omega/fail/structs/local_record_policy_erasure

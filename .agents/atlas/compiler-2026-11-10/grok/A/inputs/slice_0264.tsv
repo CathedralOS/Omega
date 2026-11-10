@@ -1,0 +1,8 @@
+S0384	SAMEJOB	area_02	ff:103	Site to unique ordinal | ff:103 (linear scan); ff:45-101 (index) |
+S0385	SAMEJOB	area_02	ff:564	Interval exactness | ff:564; ff:675 | fast path vs "original full scan" (comment ff:489-490)
+S0386	SAMEJOB	area_02	ff:1750-1765	Address-field relocation split | ff:1750-1765; inline again at ff:3102-3116 | decode of the same two encodings three times in EM/image.rs:551-563, :711-723, :1125-1137
+S0387	SAMEJOB	area_02	ff:23607	Build a record, then re-derive it to check | ff:23607 vs ff:22850 (incoming location); ff:23684 vs ff:23135 (copy extent); ff:20279 vs :20371, ff:20726 vs :20824, ff:22138 vs :22234 (settlements) | two parallel case lists
+S0388	SAMEJOB	area_02	ff:12635-12648	Definition occurrence of a register | ff:12635-12648 (scan per call); ff:12547-12550 (table) |
+S0389	SAMEJOB	area_02	ff:18264	Resolve a structural home | ff:18264 (free fn); ff:18246 (indexed) | both end in ff:18321
+S0390	SAMEJOB	area_02	ff:19409-19499	Stack numbers | ff:19409-19499 (encoded effects); EM/object_artifact.rs:5295-5303 (call-stack rows); ff:24111 (frame + call) | three sources
+S0391	SAMEJOB	area_02	EM/object.rs:93-115	Append entry bridge + call relocation | EM/object.rs:93-115; EM/object.rs:714-748 |

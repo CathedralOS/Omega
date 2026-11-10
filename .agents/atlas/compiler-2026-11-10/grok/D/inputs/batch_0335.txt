@@ -1,0 +1,4 @@
+tests/omega/pass/objc/gui_provider_substitution
+tests/omega/pass/objc/native_gui_loop
+tests/omega/pass/objc/objc_get_class
+tests/omega/pass/objc/objc_msgsend_scalar

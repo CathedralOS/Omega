@@ -1,0 +1,1 @@
+tests/omega/pass/progress/provider_receiver_progress_installation

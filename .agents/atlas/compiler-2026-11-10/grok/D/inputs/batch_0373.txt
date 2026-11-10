@@ -1,0 +1,13 @@
+tests/omega/pass/terminal_psi/content_custody_exit
+tests/omega/pass/terminal_psi/debug_identity_complete_module
+tests/omega/pass/terminal_psi/inspection_scalar_library
+tests/omega/pass/terminal_psi/inspection_scalar_provider_scope
+tests/omega/pass/terminal_psi/integer_control_contract
+tests/omega/pass/terminal_psi/member_crash_contract_boundary
+tests/omega/pass/terminal_psi/portable_contract_component
+tests/omega/pass/terminal_psi/selected_empty_component
+tests/omega/pass/terminal_psi/selected_lowering_optimizer_component
+tests/omega/pass/terminal_psi/selected_optimizer_component
+tests/omega/pass/terminal_psi/structural_content_passthrough
+tests/omega/pass/terminal_psi/structural_scalar_trait_operator
+tests/omega/pass/terminal_psi/unsupported_optimizer_component

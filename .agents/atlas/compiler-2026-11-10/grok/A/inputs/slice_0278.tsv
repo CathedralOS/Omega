@@ -1,0 +1,8 @@
+S0493	SAMEJOB	area_07	S02/symbols.rs:2946	GROUP: **Across crates** | 17. **`symbol_key`.** `S02/symbols.rs:2946`, `S03/lowerer.rs:1724`, `S03/type_reference.rs:1854`, plus six outside the area. My grep: 9 definitions in 8 files (unit 044 wrote 10 in 9).
+S0494	SAMEJOB	area_07	BTE/const_evaluation.rs:1038	GROUP: **Build-time evaluation** | 18. Find calls in an expression: `BTE/const_evaluation.rs:1038`, `BTE/const_generic_expressions.rs:699`, `BTE/const_evaluation.rs:2461`.
+S0495	SAMEJOB	area_07	BTE/const_evaluation.rs:4422-4435	GROUP: **Build-time evaluation** | 19. Premise-discharge switch: `BTE/const_evaluation.rs:4422-4435, 4488-4500`; `BTE/const_initializers.rs:370-384, 1038-1060`.
+S0496	SAMEJOB	area_07	BTE/const_evaluation.rs:5114-5119	GROUP: **Build-time evaluation** | 20. Pick the callee machine for a constant call: `BTE/const_evaluation.rs:5114-5119` takes the first match; `BTE/const_initializers.rs:359-362` errors on two ("conflicting exact entries").
+S0497	SAMEJOB	area_07	BTE/const_evaluation.rs:120-202	GROUP: **Build-time evaluation** | 21. Round with publish and restore on failure: `BTE/const_evaluation.rs:120-202` and `:4888-4971` (near copies).
+S0498	SAMEJOB	area_07	BTE/const_evaluation.rs:2836	GROUP: **Build-time evaluation** | 22. Decode a machine result into an integer: `BTE/const_evaluation.rs:2836, 2906`; `BTE/const_initializers.rs:471`.
+S0499	SAMEJOB	area_07	BTE/evaluation_accounting.rs:160-184	GROUP: **Build-time evaluation** | 23. Receipt charge check: `BTE/evaluation_accounting.rs:160-184` and `:408-445`.
+S0500	SAMEJOB	area_07	BTE/layouts.rs:1622-1650	GROUP: **Build-time evaluation** | 24. Policy request, floor, failure admission, evaluate, validate: `BTE/layouts.rs:1622-1650, 4883-4952, 5617-5659`.

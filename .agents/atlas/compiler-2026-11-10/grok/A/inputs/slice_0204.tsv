@@ -1,0 +1,8 @@
+U0199	UNUSED	area_03	-	GROUP: **isa-aarch64** | - `AccessorScalarAccess` passes the request check (15007) and then always fails in `encode_unchecked` (15355) (u007-gap-005).
+U0200	UNUSED	area_03	frame_layout.rs:1165	GROUP: **machine-emission** | - `TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1` is never passed outside tests; branches at `frame_layout.rs:1165, 1532` (u010; checked: 2 occurrences in that file, 2 in the defining file).
+U0201	UNUSED	area_03	text_placement.rs:1303	GROUP: **machine-emission** | - `TextPlacementInput` has one variant, so the `UnsupportedRelocationShape` returns at `text_placement.rs:1303, 1397, 1434` cannot fire and `validate_placement_source` (381-385) always returns Ok (u010; checked: 14 occurrences, all in that file).
+U0202	UNUSED	area_03	function_realization.rs:641	GROUP: **machine-emission** | - `post_allocation_machine_optimization` is always `None` when built (`function_realization.rs:641`); the matching custody variant appears only in tests (`exit_contract.rs:3006-3027`) (u009, u010).
+U0203	UNUSED	area_03	lib.rs:22	GROUP: **machine-emission** | - `lib.rs:22` names `emit_installed_fatal_entry` and `emit_installed_interrupt_entry`; the functions are `…_bridge`, and the fatal one is private (u010).
+U0204	UNUSED	area_03	-	GROUP: **effects** | - `ExecutionScope::IsolatedProvider` is never constructed: 2 occurrences (u010; checked).
+U0205	UNUSED	area_03	-	GROUP: **effects** | - `ComponentEra*Receipt`: private fields, no constructor, 13 occurrences in 2 files (u010; checked for `ComponentEraEntryReceipt`: 2, both in `component_eras.rs`).
+U0206	UNUSED	area_03	provider_evidence.rs:414	GROUP: **effects** | - `provider_evidence.rs:414`: `encoder.len(0)` writes a constant zero count into the digest.

@@ -1,0 +1,16 @@
+tests/omega/pass/ownership/selected_storage_join_nested_exit
+tests/omega/pass/ownership/selected_storage_join_returned_owner_exit
+tests/omega/pass/ownership/selected_storage_join_scalar_result_exit
+tests/omega/pass/ownership/shared_array_view_compile
+tests/omega/pass/ownership/shared_float_view_compile
+tests/omega/pass/ownership/shared_record_view_compile
+tests/omega/pass/ownership/shared_scalar_view_compile
+tests/omega/pass/ownership/shared_view_member_read_compile
+tests/omega/pass/ownership/state_graph_construction_operand_moves_exit
+tests/omega/pass/ownership/state_param_loan_compile
+tests/omega/pass/ownership/two_member_loans_compile
+tests/omega/pass/ownership/view_param_subject_compile
+tests/omega/pass/ownership/view_reborrow_argument_compile
+tests/omega/pass/ownership/view_to_view_reborrow_compile
+tests/omega/pass/ownership/zero_case_generic_inventory
+tests/omega/pass/ownership/zero_case_qualified_inventory

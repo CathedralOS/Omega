@@ -1,0 +1,3 @@
+tests/omega/fail/references/rebound_local_reference_drops_referent_bound
+tests/omega/fail/references/rebound_parameter_reference_drops_referent_bound
+tests/omega/fail/references/twice_rebound_parameter_reference_drops_referent_bound

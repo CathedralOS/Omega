@@ -1,0 +1,2 @@
+tests/omega/pass/dungeon/runtime_ordered_room_dispatch_exit
+tests/omega/pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit

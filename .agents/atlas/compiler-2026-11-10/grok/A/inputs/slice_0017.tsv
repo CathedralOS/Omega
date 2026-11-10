@@ -1,0 +1,8 @@
+A0125	ACCEPT	area_09	FCP:775-777	GROUP: Flow: | - FCP:775-777; FCP:1394-1399; FCP:2068-2069, 2088. A source rooted in a temporary survives writes; a `ParameterReferent` incoming reference always survives a call; an unmatched mutation "does not affect the fact".
+A0126	ACCEPT	area_09	FC:420-424	GROUP: Flow: | - FC:420-424. A carry fact transfers when its rendered label equals the source's label even if the places differ.
+A0127	ACCEPT	area_09	FX:1433-1436	GROUP: Flow: | - FX:1433-1436. An exit with zero or several outgoing rows is recorded with invalid `returned_value` and `completed_storage`.
+A0128	ACCEPT	area_09	FE:601-604	GROUP: Flow: | - FE:601-604, 720. A projected pointer with no stored capture is kept with its referents dropped.
+A0129	ACCEPT	area_09	FM:1491-1500	GROUP: Flow: | - FM:1491-1500, 1512. A failed declaration lookup makes a place count as declared storage: a write through a reference-typed local would be recorded as a write to the local itself.
+A0130	ACCEPT	area_09	FM:4612	GROUP: Flow: | - FM:4612. `.or(Some(places))` keeps the unclosed places when alias closure fails, though the doc comment says "An unresolved origin requires full invalidation" (FM:4571): facts would be retired only at the directly written place.
+A0131	ACCEPT	area_09	FM:4593	GROUP: Flow: | - FM:4593; FM:3879, 3897, 4047-4051; FM:1283-1289. Non-assignment statements write nothing here; fact-only, byte-predicate and empty-frame calls write nothing; image-storage origins add no alias.
+A0132	ACCEPT	area_09	FO:1257-1269	GROUP: Flow: | - FO:1257-1269. A context with zero descriptor observation rows agrees.

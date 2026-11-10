@@ -1,0 +1,8 @@
+U0068	UNUSED	area_13	ad:10535	- `occurrence_integer_expressions_bounds` (ad:10535, `pub`): 0 call sites; only the definition, a re-export at `lib.rs:1905` and two in-file `use` lists (ad:13560, 26782) [088; checked].
+U0069	UNUSED	area_13	rs:251	- `form_opaque_representation_request` (rs:251, `pub`, re-exported rp:74): 0 external call sites, 1 internal (rs:417) [088; checked].
+U0070	UNUSED	area_13	ab:887	- `exact_access_entry_for_field` (ab:887, `pub(crate)`): 0 external, 1 internal (ab:1044). `RetainedFieldIdentity` (ab:875, `pub(crate)`): 0 uses outside the file [088; checked].
+U0071	UNUSED	area_13	calls:1432	- `unit_result_initializer_call_is_admitted` (calls:1432, `pub`): 1 internal call (calls:1407), 0 external; re-exported at `lib.rs:1505`, calls:2864, 39738 [090; checked].
+U0072	UNUSED	area_13	br:5188	- `check_conformance_refines` (br:5188): every path ends in `Err`, so selecting a conformance is never accepted (br:5222-5225) [089; checked].
+U0073	UNUSED	area_13	ce:31915	- `measure_constraints_cover_subject` (ce:31915): 1 call (ce:31737), always true as wired [094; checked].
+U0074	UNUSED	area_13	ce:44316	- ce:44316 compares `first_condition` with itself; it says nothing about the second statement [095; checked].
+U0075	UNUSED	area_13	br:4933	- `impl SchemaQueryAuthority {}` empty (br:4933); `Operand::CompletedCall` exists only under `cfg(test)` (ad:20817) [089].

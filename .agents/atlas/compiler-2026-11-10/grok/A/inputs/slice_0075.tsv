@@ -1,0 +1,8 @@
+A0577	ACCEPT	area_14	vcc:3938-3963	GROUP: **trw, vcc (28)** | - vcc:3938-3963 non-membership default-domain facts skipped.
+A0578	ACCEPT	area_14	vcc:4402-4408	GROUP: **trw, vcc (28)** | - vcc:4402-4408 arm pattern on an unresolvable type is not exhaustiveness-checked; the non-arm path errors.
+A0579	ACCEPT	area_14	vcc:4442-4451	GROUP: **trw, vcc (28)** | - vcc:4442-4451 arm naming a missing case returns silently.
+A0580	ACCEPT	area_14	vcc:5630-5638	GROUP: **trw, vcc (28)** | - vcc:5630-5638 — "a free identifier spelled like some unrelated enum case name … is not reported as out-of-scope by this check".
+A0581	ACCEPT	area_14	vcc:5591	GROUP: **trw, vcc (28)** | - vcc:5591 conformance roots accepted without further check.
+A0582	ACCEPT	area_14	vcc:7303	GROUP: **trw, vcc (28)** | - vcc:7303 mixed permission origins reported as no provenance, same as a constant.
+A0583	ACCEPT	area_14	vcc:7878-7880	GROUP: **trw, vcc (28)** | - vcc:7878-7880, 7900-7905 — a cast to a domain over a non-primitive carrier is not predicate-checked here.
+A0584	ACCEPT	area_14	vcc:8454-8456	GROUP: **trw, vcc (28)** | - vcc:8454-8456 any projected path of a reference slot counts as writable.
