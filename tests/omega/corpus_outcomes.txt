@@ -8138,32 +8138,35 @@ fail/facts/dynamic_trait_dispatch_through_parameter_rejected rejected 5040ms exp
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_dispatch_through_target_body_rejected rejected 4931ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from invoke_selected: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_call_result_rejected rejected 2112ms expected @ccdb99ca2214
+fail/facts/erased_reference_contract_through_call_result_rejected rejected 20517ms expected @c3d45d9923c7
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_const_name_rejected rejected 1832ms expected @ccdb99ca2214
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_const_name_rejected rejected 20274ms expected @c3d45d9923c7
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_field_rejected rejected 2419ms expected @ccdb99ca2214
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_field_rejected rejected 19743ms expected @c3d45d9923c7
 	cannot prove requires contract for call keep from exercise: holder.value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_local_rejected rejected 2102ms expected @ccdb99ca2214
+	cannot prove requires contract for call keep_record from record_exercise: holder.record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_local_rejected rejected 22778ms expected @c3d45d9923c7
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `witness == 7`
-fail/facts/erased_reference_contract_through_match_join_rejected rejected 2229ms expected @ccdb99ca2214
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_match_join_rejected rejected 26755ms expected @c3d45d9923c7
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_other_machine_rejected rejected 2423ms expected @ccdb99ca2214
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_other_machine_rejected rejected 31021ms expected @c3d45d9923c7
 	cannot prove requires contract for call relay from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_other_state_rejected rejected 2340ms expected @ccdb99ca2214
-	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+	cannot prove requires contract for call record_relay from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_other_state_rejected rejected 24904ms expected @c3d45d9923c7
 	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_parameter_rejected rejected 2161ms expected @ccdb99ca2214
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+	cannot prove requires contract for call record_exercise from record_run: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_parameter_rejected rejected 26074ms expected @c3d45d9923c7
 	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_target_body_rejected rejected 2261ms expected @ccdb99ca2214
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call record_exercise from record_run: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_target_body_rejected rejected 25900ms expected @c3d45d9923c7
+	cannot prove requires contract for call keep from X86Selected::selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
+	cannot prove requires contract for call keep from ArmSelected::selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
+	cannot prove requires contract for call keep_record from record_X86Selected::record_selected: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `record_selected`
+	cannot prove requires contract for call keep_record from record_ArmSelected::record_selected: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `record_selected`
 fail/facts/exact_integer_narrowing_through_call_result_rejected rejected 1637ms expected @ccdb99ca2214
 	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/exact_integer_narrowing_through_const_name_rejected rejected 1635ms expected @ccdb99ca2214
@@ -22777,19 +22780,15 @@ pass/facts/dynamic_trait_dispatch_through_other_machine_exit checked 6222ms chec
 pass/facts/dynamic_trait_dispatch_through_other_state_exit checked 6383ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_parameter_exit checked 6385ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_target_body_exit checked 6311ms check-target:macos_arm64 @281c0d530cb7
-pass/facts/erased_reference_contract_through_call_result_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_const_name_exit checked 3500ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_field_exit checked 3326ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_local_exit checked 3769ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_match_join_exit checked 3603ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_other_machine_exit rejected 3155ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-pass/facts/erased_reference_contract_through_other_state_exit rejected 3054ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-pass/facts/erased_reference_contract_through_parameter_exit checked 9765ms check-target:macos_arm64 @edd05427fd02
-pass/facts/erased_reference_contract_through_target_body_exit checked 3169ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/erased_reference_contract_through_call_result_exit checked 18471ms check-target:macos_arm64 @c3d45d9923c7
+pass/facts/erased_reference_contract_through_const_name_exit checked 18863ms check-target:macos_arm64 @c3d45d9923c7
+pass/facts/erased_reference_contract_through_field_exit checked 19268ms check-target:macos_arm64 @c3d45d9923c7
+pass/facts/erased_reference_contract_through_local_exit checked 18651ms check-target:macos_arm64 @c3d45d9923c7
+pass/facts/erased_reference_contract_through_match_join_exit checked 16709ms check-target:macos_arm64 @c3d45d9923c7
+pass/facts/erased_reference_contract_through_other_machine_exit checked 17298ms check-target:macos_arm64 @c3d45d9923c7
+pass/facts/erased_reference_contract_through_other_state_exit checked 25650ms check-target:macos_arm64 @c3d45d9923c7
+pass/facts/erased_reference_contract_through_parameter_exit checked 21370ms check-target:macos_arm64 @c3d45d9923c7
+pass/facts/erased_reference_contract_through_target_body_exit checked 22659ms check-target:macos_arm64 @c3d45d9923c7
 pass/facts/exact_integer_narrowing_through_call_result_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_const_name_exit checked 3674ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_field_exit checked 3324ms check-target:macos_arm64 @ccdb99ca2214
