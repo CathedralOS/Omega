@@ -553,13 +553,16 @@ pub(crate) mod execution {
                 None => rules.push((prefix, 1)),
             }
         }
-        rules
-            .iter()
-            .map(|(rule, count)| {
-                let hex: String = rule.iter().map(|byte| format!("{byte:02x}")).collect();
-                format!("accepted_obligation_rewrite rule={hex} commits={count}\n")
-            })
-            .collect()
+        let consuming: usize = rules.iter().map(|(_, count)| count).sum();
+        let mut census = format!(
+            "accepted_obligation_rewrite_step commits={} consuming={consuming}\n",
+            commits.len()
+        );
+        for (rule, count) in &rules {
+            let hex: String = rule.iter().map(|byte| format!("{byte:02x}")).collect();
+            census.push_str(&format!("accepted_obligation_rewrite rule={hex} commits={count}\n"));
+        }
+        census
     }
 
     type OptimizationRunOutput = (

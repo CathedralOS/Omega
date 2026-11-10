@@ -121,8 +121,7 @@ fn product_obligation_census(
             for operation in &block.operations {
                 owners.push((
                     (machine.id, operation.id),
-                    terminal_semantics::OperationSemanticTag::for_operation(&operation.kind)
-                        .name(),
+                    terminal_semantics::OperationSemanticTag::for_operation(&operation.kind).name(),
                 ));
                 carried_requires += match &operation.kind {
                     terminal_psi::OperationKind::CallDynamic {
