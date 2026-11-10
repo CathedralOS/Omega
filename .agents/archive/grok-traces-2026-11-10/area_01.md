@@ -36,6 +36,11 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 | 28 | pp/provider_settlement.rs:263-265 | REACHABLE | Completion-role validation runs only when semantic-role discovery is on. A compile with that flag off is not checked here. |
 | 29 | pp/provider_settlement/assumed_bindings.rs:51 | REACHABLE | Two assumed-bound requirements with no calling rows pass the calling check. Source signatures were still compared. |
 | 30 | pp/provider_settlement/completion.rs:30-33 | REACHABLE | A realization that is not authored gets an empty leaf list and is not path-reviewed. |
+| 31 | pp/provider_settlement/semantic_roles.rs:47-57 | REACHABLE | Only a trait whose path is exactly `Console` gets a completion role. Any other exit trait is not validated here. |
+| 32 | pp/service_declarations.rs:122-131 | REACHABLE | An absent service symbol returns false, and the only caller treats that as "not this authority." |
+| 33 | pp/service_schema/mod.rs:44 | UNDECIDED | A schema that is not a boundary trait gets no calling attachments from this loop. Whether one can still carry calling plans was not settled. |
+| 34 | ps/binding.rs:159 | REACHABLE | A qualification requirement that matches zero granted plans passes. Only two or more matches are an error. |
+| 35 | ps/binding/provider_instances.rs:81 | REACHABLE | An application with zero candidates is skipped, so a bad declaration result on that application is not read. |
 
 `orch/` is `omega/build-system/orchestration/src/`. `ba/` is `omega/compilation/backend/artifacts/boundary-applications/src/`. `cd/` is `omega/compilation/backend/artifacts/component-description/src/`. `nc/` is `omega/compilation/native-compiler/src/`. `pa/` is `omega/compilation/realization/provider-admission/src/`. `whr/` is `pa/provider_admission/terminal_authority_review/`.
 
@@ -43,7 +48,9 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 
 `ps/` is `omega/compilation/realization/provider-selection/src/`.
 
-Entries 31 onward are not written yet.
+`sd/` is `omega/compilation/realization/selected-dispatch/src/`.
+
+Entries 36 onward are not written yet.
 
 ## 1. `comp/product_execution.rs:473-491`
 
@@ -414,4 +421,58 @@ A native Build provider selected for an external-completion requirement is not p
 Digest: right about the empty list. I did not confirm that `Toolchain` is ever constructed.
 
 Not read: `checked_completion` after `:58`.
+
+## 31. `pp/provider_settlement/semantic_roles.rs:47-57`
+
+`PreparedCompletionRole::capture` (read `:42-80`). The trait path must be exactly `"Console"`, in the same package as the provider, the origin, and the owner (`:51-56`). Otherwise the function returns `None`. `validate` skips a `None` role (`:107`, read).
+
+An exit trait with any other path gets no role and is not checked by `validate`.
+
+Digest: right.
+
+Not read: `completion_declaration`.
+
+## 32. `pp/service_declarations.rs:122-131`
+
+`ServiceDeclarations::identifies` (read `:117-139`). No source entry for the symbol returns `Ok(false)` (`:122-123`). A nominal-identity mismatch also returns `Ok(false)` (`:125-130`). A schema mismatch is `Err` (`:133-136`).
+
+The caller is `dangerous_authority_class` (`omega/packages/review-evidence/src/capture/authority.rs:102-111`, read). `false` fails the `if`. If no role matches, the function returns `Ok(None)`. Search `.identifies\(`: I read this caller and did not find another in the lines I searched earlier. This is the use that decides the class.
+
+A checked service-reach definition whose symbol is missing from the review service list is not recorded as Process or Filesystem authority.
+
+Digest: right that callers decide. This caller treats false as "not this service."
+
+Not read: `project` after it receives `Ok(None)`.
+
+## 33. `pp/service_schema/mod.rs:44`
+
+`attach_requirement_calling` (read `:35-67`). Calling applications are copied only when `source` is `BoundaryTrait` (`:44`). Any other schema is returned with the applications `ServiceSchema::from_declaration` already had. I did not read `from_declaration` or a consumer that rejects a non-trait schema which still had calling plans in the input.
+
+Verdict UNDECIDED. What would decide it: `ServiceSchema::from_declaration` and `selected_calling_applications` when the schema is not a boundary trait.
+
+Digest: the branch matches. I did not trace the consumer.
+
+Not read: the eight other `attach_calling` call sites. This function is the one at `:44`.
+
+## 34. `ps/binding.rs:159`
+
+`validate_qualification_grants` (read `:140-170`). `[] | [_] => {}` (`:158-159`) accepts zero matching granted plans and exactly one. Two or more push a diagnostic (`:160-164`). The function then returns `Ok(())` when that list is empty (`:166-169`).
+
+An admitted qualification receipt whose requirement matches no granted selected plan passes. The error text only mentions a count of matches, and the zero arm does not fail.
+
+Digest: right that zero passes. I did not read the header, so I am not correcting the digest's remark about the header.
+
+Not read: the header at `binding.rs:1-17` and the issuer plumbing.
+
+## 35. `ps/binding/provider_instances.rs:81`
+
+`project_provider_instances` (read `:64-90`). Bindings other than `CheckedAdapter`, `CompilerIntrinsic`, and `Syscall` `continue` (`:64-72`). An application whose `candidates` is empty `continue`s (`:81-83`) before `declaration_application` is matched (`:84-89`). A `Err` on that declaration is not read for an empty candidate list.
+
+Search `project_provider_instances\(`: the subagent reported 2 hits. I read this function and the call was not re-grepped in this pass. The skip is in the function that publishes the rows.
+
+A checked-adapter application with zero candidates publishes nothing and no diagnostic from this loop.
+
+Digest: right about the empty-candidate skip. `:99` was not the line I read; the continue I read is `:81-83`.
+
+Not read: `generic_instances`.
 
