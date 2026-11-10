@@ -26,3 +26,10 @@ ordinary mutating boundary that shares a harmless helper’s name, deny the writ
 in the access policy, or try to write through a shared reference. Existing
 returned-view controls additionally check that the source remains borrowed and
 that a reference to a local value cannot escape.
+
+The same program also owns two qualified descriptors in alternative-case array
+slots. It updates both through a runtime-selected slot and checks the three old
+word values, both final contents, and the surrounding nonzero fields. The
+selection lends external bytes without replacing either descriptor or dropping
+its existing grant. The original single-descriptor and selected-view checks
+remain part of the exit-zero oracle.
