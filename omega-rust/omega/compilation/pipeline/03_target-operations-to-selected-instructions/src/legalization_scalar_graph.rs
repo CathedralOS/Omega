@@ -5047,8 +5047,9 @@ pub(crate) mod structural_case {
     fn source_identity(
         function: &PsiOptimizationFunction,
         source: PlaceId,
+        result: Result<(OperationId, &StructuralOperationResult), LegalizationError>,
     ) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
-        if let Ok((_, result)) = source_result(function, source) {
+        if let Ok((_, result)) = result {
             return Ok(result.structural_type);
         }
         if let Some((_, identity)) = super::literals::declaration_producer(function, source) {
@@ -5081,7 +5082,7 @@ pub(crate) mod structural_case {
         ),
         LegalizationError,
     > {
-        let root = source_identity(function, source)?;
+        let root = source_identity(function, source, source_result(function, source))?;
         let geometry = reference_source_geometry(root, path, &plan.structural_types)
             .ok_or(LegalizationError::custody())?;
         if !geometry.elements.is_empty()
@@ -5110,13 +5111,14 @@ pub(crate) mod structural_case {
 
     #[allow(clippy::type_complexity)]
     pub(crate) fn membership_layout(
-        function: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         source: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
         case: semantic_vocabulary::StructuralCaseId,
         plan: &AbstractOperationPlan,
     ) -> Result<(u32, u32, Vec<RuntimeElement>), LegalizationError> {
-        let identity = source_identity(function, source)?;
+        let function = function_inputs.function();
+        let identity = source_identity(function, source, function_inputs.source_result(source))?;
         let geometry = reference_source_geometry(identity, path, &plan.structural_types)
             .ok_or(LegalizationError::custody())?;
         if !geometry.readable
@@ -5159,7 +5161,7 @@ pub(crate) mod structural_case {
         plan: &AbstractOperationPlan,
     ) -> Result<(u32, calling_conventions::ValueShape, Vec<RuntimeElement>), LegalizationError>
     {
-        let identity = source_identity(function, source)?;
+        let identity = source_identity(function, source, source_result(function, source))?;
         if !result.qualification_establishments.is_empty() {
             return Err(LegalizationError::custody());
         }

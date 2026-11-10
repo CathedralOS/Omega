@@ -407,6 +407,7 @@ pub(crate) mod control_flow {
 
         struct SourceBlock {
             block: BlockId,
+            interval: Option<(usize, usize)>,
             parameters: Vec<(ValueId, Source)>,
             definitions: Vec<(ValueId, Source)>,
         }
@@ -424,6 +425,7 @@ pub(crate) mod control_flow {
                 graph: &TargetControlGraph,
                 optimized: &PsiOptimizationFunction,
             ) -> Self {
+                let dominators = SourceDominators::new(optimized);
                 let parameters = optimized
                     .parameters
                     .iter()
@@ -463,6 +465,7 @@ pub(crate) mod control_flow {
                             candidate.operations.iter().filter_map(definition).collect();
                         (!parameters.is_empty() || !definitions.is_empty()).then_some(SourceBlock {
                             block: candidate.block,
+                            interval: dominators.interval(candidate.block),
                             parameters,
                             definitions,
                         })
@@ -471,14 +474,20 @@ pub(crate) mod control_flow {
                 Self {
                     parameters,
                     blocks,
-                    dominators: SourceDominators::new(optimized),
+                    dominators,
                 }
             }
 
             pub(crate) fn available(&self, block: BlockId) -> Vec<(ValueId, Source)> {
                 let mut result = self.parameters.clone();
+                let interval = self.dominators.interval(block);
                 for candidate in &self.blocks {
-                    if self.dominators.dominates(candidate.block, block) {
+                    if candidate.block == block
+                        || interval.is_none()
+                        || candidate.interval.is_some_and(|(start, end)| {
+                            interval.is_some_and(|(entry, _)| start <= entry && entry < end)
+                        })
+                    {
                         result.extend_from_slice(&candidate.parameters);
                         if candidate.block != block {
                             result.extend_from_slice(&candidate.definitions);
@@ -713,6 +722,12 @@ pub(crate) mod control_flow {
                 }
                 let intervals = tree_intervals(&immediate);
                 Self { order, intervals }
+            }
+
+            fn interval(&self, block: BlockId) -> Option<(usize, usize)> {
+                self.order
+                    .get(&block)
+                    .map(|position| self.intervals[*position])
             }
 
             pub(crate) fn dominates(&self, candidate: BlockId, block: BlockId) -> bool {
@@ -5833,7 +5848,7 @@ pub(crate) mod unit {
                 && result.scalar_type == ScalarType::Boolean =>
             {
                 let (expected_tag, expected_offset, elements) = membership_layout(
-                    optimized,
+                    function_inputs,
                     *expected_source,
                     expected_path,
                     *expected_case,
