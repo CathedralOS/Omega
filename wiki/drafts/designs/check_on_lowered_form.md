@@ -3,7 +3,10 @@
 Architecture decision, 2026-11-10: how the compiler is built. Not a language
 change: the specification is untouched. Evidence was read and counted on `main`
 at `042971d0288`; nothing here was built or run, and no fixture outcome is
-claimed.
+claimed. Amended the same day after every line of `omega-rust` was read at
+`457adf4a11f`; [what that read changed](#what-the-full-read-changed) lists the
+amendments, and the records are in the
+[compiler atlas](../../../.agents/atlas/compiler-2026-11-10/README.md).
 
 The checker proves facts about source trees and then hands them to lowering,
 which turns the trees into explicit values, places, blocks and edges. Facts are
@@ -108,9 +111,23 @@ stale fact still rejects them.
    evidence. There is no fact hand-off, because the checker annotated the form
    that is emitted.
 
-Psi 00 through 04 and the Omega stages are unchanged. Psi 05, validation and
-Psi 06 are replaced. The current pipeline stays the shipping path until the
-replacement serves a construct family completely.
+Psi 00 through 04 and the Omega stages keep their structure. Psi 05,
+validation and Psi 06 are replaced. The current pipeline stays the shipping
+path until the replacement serves a construct family completely.
+
+Two conditions on the parts that stay, both from the full read:
+
+- **Identity is fixed before elaboration.** Decisions keyed on a name or on
+  text are not confined to the replaced stages: Psi 02, 03 and 04, the typed
+  trees and build-time evaluation hold at least 451 of the 2,004 such places
+  the read counted, and in the typed trees two types are the same when their
+  text renderings are equal. The elaboration takes symbols and type identities
+  from the typed trees, and refuses where the typed trees offer only a
+  spelling. It never passes a spelling on as an identity.
+- **Omega's own checks are not counted as independent.** Its stages mostly
+  check a result with a second hand-written derivation or with the same
+  builder. This record does not change Omega and does not lean on those checks
+  to catch a defect in the new checker.
 
 Much of the receiving side exists. `terminal-psi/semantics` (51,352 lines)
 already defines "judgments, operational analyses, and structural/scalar
@@ -147,12 +164,27 @@ specialization keys. Information derived from a body crosses only edges inside
 contract. Attached domains are part of the declared type and change only at a
 [named cast](named_domain_casts.md).
 
+Two more rules come from the full read, and are how this checker must differ
+from the code it replaces:
+
+- **No table is keyed by text.** Not by a name, a printed expression, a place
+  path string, or a formatted handle. Text is for diagnostics.
+- **Every step yields a row or a refusal with a reason.** An absent row is
+  never a verdict. The read counted 930 places where a step that cannot plan
+  or resolve something produces nothing and says nothing.
+
 ## Route one, before anything else is built on it
 
 [Compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering)
 requires "one working, independently checked route through the new mechanism"
 before variants are added. Route one is:
 
+- **Census first.** Before any new code, count on a corpus slice how many
+  operation obligations (bounds, overflow, a call's `requires`) reach the
+  product with evidence the kernel checked. Reading says none do: Omega 00
+  records every operation obligation in a unit as accepted, with no evidence
+  attached. The census turns that reading into a number that route one must
+  move.
 - **Subset.** Machines whose bodies use scalar locals, assignment, builtin
   arithmetic and comparison, direct calls with `requires` and `ensures`,
   `transition` arms and returns. No references, records, loops or generics.
@@ -165,7 +197,11 @@ before variants are added. Route one is:
   current checker is itself wrong.
 - **Measures.** Lines of code for the route against the code it would retire;
   verdict agreement; check time per program; lines added per row when one more
-  construct is added.
+  construct is added. Four more, each with a target the old code misses:
+  obligations discharged with kernel-checked evidence (all of the subset's);
+  decisions keyed on text (none); steps that drop without a refusal (none);
+  routes that can prove one kind of obligation (one; a call's `requires` has
+  about twenty today, tried in order).
 - **Stop rule.** If the route is not clearly smaller than what it replaces,
   or cannot reach agreement on the subset, the replacement stops and this
   record is withdrawn in favor of migrating in place.
@@ -187,9 +223,32 @@ code and are not yet confirmed by a run:
   (`flow_expression.rs` `invoke`).
 - Index segments compare by expression structure, so a fact on `a[i]` can
   outlive a change to `i` (`validation/src/places.rs`).
-- A checker verdict marks a lowered obligation source-checked, and Omega 00
-  accepts it; the interpreter still checks. A wrongly kept fact therefore
-  makes native code and the interpreter disagree.
+- Omega 00 turns every operation obligation reference in a unit into an
+  accepted fact, with no evidence attached
+  (`00_terminal-psi-to-abstract-operations/src/optimization.rs`
+  `source_checked_obligation_facts`); the interpreter still checks. A wrongly
+  kept fact therefore makes native code and the interpreter disagree. An
+  earlier wording said the back end read a list of source-checked obligations
+  from lowering; no reader of that list was found.
+
+The full read added places that accept on missing or mismatched input. Each
+was opened in the code; none has been traced to a wrongly accepted program,
+so they are the first things to trace, not confirmed holes:
+
+- A linear carry fact crosses a call when its place label text equals the
+  argument's spelling, even when the places differ (`flow_calls.rs:419`).
+- An `ensures` subject binds to a callee parameter by name alone
+  (`flow_calls.rs:1066`).
+- With no checked body to consult, the fence on a call's result domains
+  answers yes (`flow_calls.rs:546`).
+- A recognizer for two-arm guarded values compares the first arm's condition
+  with itself (`contract_entailment.rs:44316`).
+- A storage validity check answers "valid" when no storage graph exists
+  (`contract_entailment.rs:73357`).
+- An arena returns a shared dummy row for an invalid or stale handle, and a
+  writable one from `get_mut` (`psi/foundation/arena`, `arena.rs:1023`).
+- The default-domain driver skips its end-of-state window check when the
+  state has a crash transition (`domains_and_predicates.rs:13689`).
 
 Must-reject programs the corpus lacks, none under `facts/`: knowledge that
 survives a pause; a write through a partly overlapping window; a linear value
@@ -204,7 +263,15 @@ overwrites; a rank premise across a pause.
   keep a tree-level check. Unresolved.
 - **Evidence coverage.** Validation's automation "does not emit kernel
   evidence for every accepted obligation". How much of it can emit evidence
-  the admission kernel accepts is not measured.
+  the admission kernel accepts is not measured. The read narrowed what the
+  kernel sees today: integer range proofs have a certificate path the kernel
+  decides again and an older interval path it never sees
+  (`proof/src/checker.rs`), and the kernel's front end records an assumption
+  when it cannot build a derivation (reader-reported, `bounded_denotation.rs`).
+- **Identity of a type on the lowered form.** Terminal Psi compares identities
+  by text within one identity table (reader-reported). Whether that is a sound
+  key for the new checker's tables, or the checker needs dense ids resolved
+  once at elaboration, is not decided.
 - **Diagnostics.** Errors must name source constructs. `LoweredSourceCustody`
   carries source-to-Terminal correspondence today; whether it is enough for
   every diagnostic is not checked.
@@ -225,6 +292,40 @@ overwrites; a rank premise across a pause.
   to committer-date skew.
 - Step 6, "stage 06 reads environment rows", covers 8 of 148 references.
 - Obligations are not a second class of fact.
+- The one shared place relation that work added (`place_relation` in
+  `validation/src/places.rs`) has no caller outside its own file; 47 mentions
+  go to `canonical_place_segments_may_overlap` instead. The `check-rules`
+  advice that tells authors to call it describes a route nothing uses.
+
+## What the full read changed
+
+On 2026-11-10 all 2,211,695 lines of Rust under `omega-rust` were read once
+and recorded, then condensed per area. The digest writers opened 401 of the
+readers' claims in the code: 329 matched, 38 were partly right, 33 were wrong.
+The findings below are counts of places cited, not of defects.
+
+| Finding | Count | Where it is heaviest |
+| --- | --- | --- |
+| Decisions keyed on a name or on text | 2,004 | validation 508, Psi 05 227, Psi 02 155, typed trees 127, Psi 06 91 |
+| Steps that drop silently | 930 | validation 143, Psi 05 129, typed trees 61, Psi 06 56 |
+
+What that does to this record:
+
+- **It supports the diagnosis and widens it.** The stages to be replaced hold
+  826 of the 2,004 text-keyed places, and both checkers store facts under
+  strings: validation under place-path strings, Psi 05's range facts under the
+  printed expression. The same habit runs through the stages that stay, which
+  is why identity is now a condition on the decision.
+- **The shape axis is larger than the READMEs showed.** Validation's first
+  half alone computes integer type limits at 11 places and has six interval
+  arithmetic stacks and seven provers of "the measure strictly decreases".
+  Psi 05 has about 18 walkers of Boolean expressions.
+- **Refusals are often silent**, so a red row is frequently a missing plan row
+  and not a reported error. The row-or-refusal rule answers that.
+- **The kernel covers less than this record assumed**, so the census is now
+  the first step of route one.
+- **Nothing in the read measures the replacement.** It shows what the current
+  code is, not that the new checker will be smaller. The stop rule stands.
 
 ## Method
 
@@ -238,3 +339,14 @@ preserve-style commits, which avoids the file moves of the 2026-11-08
 consolidation. Reading: the specification chapters cited above, both stage
 READMEs, `TASKS.md`, and eight read-only sweeps of the code, the history and
 the corpus.
+
+The full read: 113 readers each read a unit of at most 22,000 lines at
+`457adf4a11f` and wrote a record with a file and line for each claim; 31 more
+covered ranges the first pass left unread; 15 writers condensed the records
+per area and tested claims in the code. The counts in
+[what the full read changed](#what-the-full-read-changed) are sums of the
+digests' per-crate counts. The seven places listed under "what must be closed
+regardless" were opened by the author of this record; statements marked
+reader-reported were not. The
+[atlas README](../../../.agents/atlas/compiler-2026-11-10/README.md) gives the
+method in full, what kinds of reader claims were wrong, and the known gaps.
