@@ -12,8 +12,8 @@ use semantic_vocabulary::{
     PropositionContext, PsiSemanticId, ScalarTerm, ScalarType,
 };
 use structure_elaboration::{
-    Body, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict, Target,
-    Unpositioned,
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
+    Target, Unpositioned,
 };
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
@@ -152,6 +152,7 @@ fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge
             result: Some(machine.result),
             requires: machine.requires,
             ensures: machine.ensures,
+            crashes: CrashCeiling::Authored(Vec::new()),
         });
     }
     let mut elaboration = structure_elaboration::lower_bodies(id(1), &bodies, &signatures).unwrap();

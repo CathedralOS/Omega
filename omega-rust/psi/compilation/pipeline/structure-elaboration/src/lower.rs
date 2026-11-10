@@ -20,29 +20,46 @@ Obligations are created, never discharged:
   "one exact obligation for every callee `requires` clause").
 - `NormalGuarantee` per `ensures` clause per normal exit (control_flow.md:
   "All normal returns ... must establish the published guarantees.").
+- `CrashCoverage` per crash site and cause (calls_and_outcomes.md: "The
+  verifier proves every site guard from independent entry/CFG facts and
+  checks same-cause coverage"). A site is a block whose terminator leaves
+  without a successor: a `Crash` with its one cause, or an `InvokeNoNormal`
+  with one obligation per cause among the callee's substituted routes.
 
 Each is created at the point before the construct it guards: the program point
 after the preceding operation, or the block entry when none precedes it.
+
+A crash is a `Crash` terminator carrying its cause and its site guard: the
+exact incoming conjunction of branch decisions on the path to it ("The guard
+retains the exact incoming conjunction"), each stated as the branch value
+equal to the Boolean its edge took. A call of a machine with no normal
+completion is an `InvokeNoNormal` terminator: there is no normal successor to
+return through ("A no-normal-result terminal transfer publishes no fictional
+result or normal-return guarantee"). Both edges go to `Destination::NoNormal`.
 */
 
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, OperationId,
-    ScalarQualificationSetId, ScalarType, ValueId,
+    BlockId, ContractId, CrashCause, EdgeId, IdTable, InvocationSite, MachineId, ObligationId,
+    OperationId, Proposition, ScalarQualificationSetId, ScalarTerm, ScalarType, ValueId,
 };
-use terminal_check_tables::edges::{Actual, Callee, Destination, EdgeRow, InvocationRow};
+use terminal_check_tables::edges::{
+    Actual, Callee, Destination, Disposition, EdgeRow, InvocationRow,
+};
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    Block, BoundaryParameterKind, ContractClause, MachineContract, Operation, OperationKind,
-    OperationResult, RegisterTargetApplicability, SuccessorEdge, TerminalMachine,
+    Block, BoundaryParameterKind, ContractClause, CrashPredicateTerm, MachineContract, Operation,
+    OperationKind, OperationResult, RegisterTargetApplicability, SuccessorEdge, TerminalMachine,
     TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
 use crate::body::{Body, Expression, ExpressionKind, Signature, Statement, Strict, Target};
-use crate::{MachineSources, SourceOrigin, Unpositioned};
+use crate::canonical;
+use crate::outcome::Outcome;
+use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse};
 
 #[derive(Debug)]
 pub(crate) struct Lowered {
@@ -55,12 +72,15 @@ pub(crate) fn machine(
     id: MachineId,
     body: &Body,
     signatures: &IdTable<MachineId, Signature>,
+    outcomes: &IdTable<MachineId, Outcome>,
 ) -> Checked<Lowered> {
     let signature = terminal_check_tables::row(signatures, id, id, Construct::Machine)?;
     let mut lowering = Lowering {
         id,
         signature,
         signatures,
+        outcomes,
+        path: Vec::new(),
         tables: MachineTables::default(),
         sources: MachineSources::default(),
         blocks: IdTable::default(),
@@ -117,6 +137,12 @@ struct Lowering<'a> {
     id: MachineId,
     signature: &'a Signature,
     signatures: &'a IdTable<MachineId, Signature>,
+    outcomes: &'a IdTable<MachineId, Outcome>,
+    /// The branch decisions on the path to the open block, in program order:
+    /// each the branch value equal to the Boolean its edge took. Every arm
+    /// completes the machine and short-circuit joins rejoin their own
+    /// branch, so the path to a statement is one sequence.
+    path: Vec<Proposition>,
     tables: MachineTables,
     sources: MachineSources,
     blocks: IdTable<BlockId, Draft>,
@@ -375,7 +401,9 @@ impl Lowering<'_> {
 
     fn statement(&mut self, statement: &Statement) -> Checked<()> {
         if !self.open() {
-            return Err(self.internal("a statement follows an unconditional arm"));
+            return Err(
+                self.internal("a statement follows an unconditional arm or a no-successor exit")
+            );
         }
         match statement {
             Statement::Bind { slot, value } => {
@@ -383,7 +411,12 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = Some(value);
                 Ok(())
             }
-            Statement::Evaluate(expression) => self.expression(expression).map(drop),
+            Statement::Evaluate(expression) => match self.no_normal(expression)? {
+                Some((callee, arguments)) => {
+                    self.invoke_no_normal(callee, arguments, expression.source)
+                }
+                None => self.expression(expression).map(drop),
+            },
             Statement::Arm {
                 guard: Some(guard),
                 target,
@@ -400,9 +433,14 @@ impl Lowering<'_> {
                     (rest, Vec::new()),
                     guard.source,
                 )?;
+                let taken = self.decision(condition, true)?;
+                let not_taken = self.decision(condition, false)?;
                 self.enter(arm);
+                self.path.push(taken);
                 self.complete(target, *source)?;
+                self.path.pop();
                 self.enter(rest);
+                self.path.push(not_taken);
                 Ok(())
             }
             Statement::Arm {
@@ -416,11 +454,170 @@ impl Lowering<'_> {
     fn complete(&mut self, target: &Target, source: SourceOrigin) -> Checked<()> {
         match target {
             Target::Unit => self.return_unit(source),
-            Target::Value(expression) => match self.expression(expression)? {
-                Value::Scalar(value) => self.return_value(value, expression.source),
-                Value::Unit => self.return_unit(expression.source),
+            Target::Crash(cause) => self.crash(*cause, source),
+            Target::Value(expression) => match self.no_normal(expression)? {
+                Some((callee, arguments)) => {
+                    self.invoke_no_normal(callee, arguments, expression.source)
+                }
+                None => match self.expression(expression)? {
+                    Value::Scalar(value) => self.return_value(value, expression.source),
+                    Value::Unit => self.return_unit(expression.source),
+                },
             },
         }
+    }
+
+    /// One branch decision on the path: the branch value equal to the Boolean
+    /// its edge took.
+    fn decision(&self, condition: ValueId, taken: bool) -> Checked<Proposition> {
+        canonical::equal(
+            ScalarTerm::Value {
+                id: condition,
+                scalar_type: ScalarType::Boolean,
+            },
+            ScalarTerm::Boolean(taken),
+            self.id,
+        )
+    }
+
+    fn outcome(&self, callee: MachineId) -> Checked<&'_ Outcome> {
+        terminal_check_tables::row(self.outcomes, callee, self.id, Construct::Machine)
+    }
+
+    /// The callee and arguments of a call in terminal position whose callee
+    /// has no normal completion; such a call is the block's terminator.
+    fn no_normal<'e>(
+        &self,
+        expression: &'e Expression,
+    ) -> Checked<Option<(MachineId, &'e [Expression])>> {
+        match &expression.kind {
+            ExpressionKind::Call { callee, arguments }
+                if !self.outcome(*callee)?.completes_normally =>
+            {
+                Ok(Some((*callee, arguments)))
+            }
+            ExpressionKind::Call { .. }
+            | ExpressionKind::Integer(_)
+            | ExpressionKind::Boolean(_)
+            | ExpressionKind::Slot(_)
+            | ExpressionKind::Strict { .. }
+            | ExpressionKind::Not(_)
+            | ExpressionKind::BitwiseNot(_)
+            | ExpressionKind::ShortCircuit { .. } => Ok(None),
+        }
+    }
+
+    /// The fate of each conserved obligation on an edge with no normal
+    /// successor. A crash abandons them (effects.md: "Crashes have explicit
+    /// no-successor abandonment, not a missing cleanup list"; `Fate::Abandoned`),
+    /// and a no-normal invocation consumes or transfers them. The subset
+    /// mints no conserved obligation, and this lowering does not track which
+    /// are live, so one existing here is refused rather than given a guessed
+    /// fate; with none, the edge has no dispositions.
+    fn no_successor_dispositions(&self) -> Checked<Vec<Disposition>> {
+        for raw in 1..=self.tables.obligations.len() as u64 {
+            let obligation = ObligationId::new(raw).ok_or_else(|| self.internal("obligation"))?;
+            let row = terminal_check_tables::row(
+                &self.tables.obligations,
+                obligation,
+                self.id,
+                Construct::Obligation(obligation),
+            )?;
+            if row.kind.is_conserved() {
+                return Err(refuse(
+                    self.id,
+                    Construct::Obligation(obligation),
+                    Unserved::Completion("conserved obligation at a no-successor edge"),
+                ));
+            }
+        }
+        Ok(Vec::new())
+    }
+
+    fn no_successor_edge(&mut self, source: SourceOrigin) -> Checked<EdgeId> {
+        let dispositions = self.no_successor_dispositions()?;
+        let edge = self.tables.edges.push(EdgeRow {
+            source: self.current()?,
+            destination: Destination::NoNormal,
+            dispositions,
+        });
+        self.sources.edges.push(source);
+        Ok(edge)
+    }
+
+    /// `crash Cause;`: one `CrashCoverage` obligation for this site and
+    /// cause, then the no-successor terminator. Its frontier lower bound is
+    /// empty because the subset holds no claims.
+    fn crash(&mut self, cause: CrashCause, source: SourceOrigin) -> Checked<()> {
+        let site = self.current()?;
+        let before = self.here()?;
+        let site_guard =
+            canonical::clauses(self.path.clone(), canonical::Repeated::Merge, self.id)?
+                .into_iter()
+                .map(CrashPredicateTerm::new)
+                .collect();
+        self.obligation(
+            ObligationKind::CrashCoverage { site, cause },
+            before,
+            source,
+        );
+        let edge = self.no_successor_edge(source)?;
+        self.terminate(Terminator::Crash {
+            edge,
+            cause,
+            site_guard,
+            frontier_lower_bound: Vec::new(),
+        })
+    }
+
+    /// A call of a machine with no normal completion, in terminal position:
+    /// the arguments, then the invocation as the block's terminator, with the
+    /// callee's routes substituted as its crash continuations and one
+    /// `CrashCoverage` obligation per surviving cause at this site.
+    fn invoke_no_normal(
+        &mut self,
+        callee: MachineId,
+        arguments: &[Expression],
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let mut actuals = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            actuals.push(self.scalar(argument)?);
+        }
+        let crash_continuations =
+            canonical::substituted_routes(&self.outcome(callee)?.crash_routes, &actuals, self.id)?;
+        let site = self.current()?;
+        let before = self.here()?;
+        let edge = self.no_successor_edge(source)?;
+        let requirements = self.invocation(
+            InvocationSite::InvokeNoNormal(edge),
+            callee,
+            &actuals,
+            before,
+            source,
+        )?;
+        for bucket in &crash_continuations {
+            self.obligation(
+                ObligationKind::CrashCoverage {
+                    site,
+                    cause: bucket.cause,
+                },
+                before,
+                source,
+            );
+        }
+        self.terminate(Terminator::InvokeNoNormal {
+            edge,
+            static_reach_binding: None,
+            callee,
+            arguments: actuals,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: requirements,
+            crash_continuations,
+        })
     }
 
     fn scalar(&mut self, expression: &Expression) -> Checked<ValueId> {
@@ -642,25 +839,22 @@ impl Lowering<'_> {
         Ok(Value::Scalar(result))
     }
 
-    fn call(
+    /// The invocation row of one call and its `CallRequirement` obligations,
+    /// one per callee `requires` clause, created at the point before it.
+    fn invocation(
         &mut self,
+        site: InvocationSite,
         callee: MachineId,
-        arguments: &[Expression],
-        result: Option<ScalarType>,
+        actuals: &[ValueId],
+        before: ProgramPoint,
         source: SourceOrigin,
-    ) -> Checked<Value> {
-        let mut actuals = Vec::with_capacity(arguments.len());
-        for argument in arguments {
-            actuals.push(self.scalar(argument)?);
-        }
+    ) -> Checked<Vec<ObligationId>> {
         let clauses =
             terminal_check_tables::row(self.signatures, callee, self.id, Construct::Machine)?
                 .requires
                 .len();
-        let before = self.here()?;
-        let operation = self.operation_identity(source);
         let invocation = self.tables.invocations.push(InvocationRow {
-            site: InvocationSite::Operation(operation),
+            site,
             callee: Callee::Machine(callee),
             actuals: actuals.iter().copied().map(Actual::Value).collect(),
             requirements: Vec::new(),
@@ -686,6 +880,52 @@ impl Lowering<'_> {
             })?
             .requirements
             .clone_from(&requirements);
+        Ok(requirements)
+    }
+
+    fn call(
+        &mut self,
+        callee: MachineId,
+        arguments: &[Expression],
+        result: Option<ScalarType>,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        // A call is an operation only when its callee may return and
+        // publishes no crash route. One with no normal completion is a
+        // terminator (`invoke_no_normal`), reached only in terminal position.
+        // One that may both return and crash needs a `CrashCoverage`
+        // obligation at the call operation, which that obligation's key (a
+        // block whose terminator crashes) cannot name: refused, and reported
+        // in the README, "Findings".
+        let outcome = self.outcome(callee)?;
+        let concerns = self.current.map_or(Construct::Machine, Construct::Block);
+        if !outcome.completes_normally {
+            return Err(refuse(
+                self.id,
+                concerns,
+                Unserved::Call("no-normal call inside an expression"),
+            ));
+        }
+        if !outcome.crash_routes.is_empty() {
+            return Err(refuse(
+                self.id,
+                concerns,
+                Unserved::Call("call that may crash and return"),
+            ));
+        }
+        let mut actuals = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            actuals.push(self.scalar(argument)?);
+        }
+        let before = self.here()?;
+        let operation = self.operation_identity(source);
+        let requirements = self.invocation(
+            InvocationSite::Operation(operation),
+            callee,
+            &actuals,
+            before,
+            source,
+        )?;
         let kind = match result {
             Some(_) => OperationKind::Call {
                 callee,
@@ -752,7 +992,12 @@ impl Lowering<'_> {
             block.operations = operations;
             blocks.push(block);
         }
+        let crash_routes =
+            terminal_check_tables::row(self.outcomes, self.id, self.id, Construct::Machine)?
+                .crash_routes
+                .clone();
         let contract = MachineContract {
+            crash_routes,
             requires: self.signature.requires.clone(),
             ensures,
             ..MachineContract::empty(
