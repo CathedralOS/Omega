@@ -168,7 +168,7 @@ pub(crate) mod byte_view {
                                         && super::unit::runtime_indices_rejoin(
                                             indices,
                                             &geometry.elements,
-                                            self.available.unwrap_or(&[]),
+                                            self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY),
                                         )
                                 })
                                 && self.integer_source(start, *expected_start, aliases)
@@ -259,7 +259,7 @@ pub(crate) mod control_flow {
         pub(crate) fn validate(
             target: &TargetControlTerminator,
             source: &AbstractOperation,
-            available: &[(ValueId, TargetUnitScalarArgumentSource)],
+            available: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
             custody: &reference_custody::Custody,
             caller: &PsiOptimizationFunction,
             native: &TargetOperationPlan,
@@ -310,7 +310,7 @@ pub(crate) mod control_flow {
                             || argument.placement != *placement
                             || Some(argument.source.scalar_type())
                                 != signature.scalar_parameter(position)
-                            || !available.iter().any(|(identity, source)| {
+                            || !available.matching(*value).any(|(identity, source)| {
                                 identity == value && source == &argument.source
                             })
                     })
@@ -394,7 +394,7 @@ pub(crate) mod control_flow {
                 .iter()
                 .map(|element| {
                     let (_, operand) = sources
-                        .iter()
+                        .matching(element.index)
                         .find(|(value, _)| *value == element.index)
                         .ok_or(crate::LegalizationError::custody())?;
                     Ok(target_operations::TargetStructuralRuntimeIndex {
@@ -405,19 +405,98 @@ pub(crate) mod control_flow {
                 .collect()
         }
 
-        struct SourceBlock {
-            block: BlockId,
-            interval: Option<(usize, usize)>,
-            parameters: Vec<(ValueId, Source)>,
-            definitions: Vec<(ValueId, Source)>,
+        type SourceRow = (ValueId, Source);
+
+        #[derive(Clone, Copy)]
+        enum SourceScope {
+            Function,
+            Block {
+                block: BlockId,
+                interval: Option<(usize, usize)>,
+                operation: bool,
+            },
         }
 
-        // Retain the source rows once, in the order used by every availability
-        // query. Empty blocks contribute no rows; duplicate definitions still do.
+        struct InputRow {
+            row: SourceRow,
+            scope: SourceScope,
+        }
+
+        // Keep every inherited source once. Per-block views select these rows
+        // without copying them and append only the results checked in that block.
         pub(crate) struct SourceInputs {
-            parameters: Vec<(ValueId, Source)>,
-            blocks: Vec<SourceBlock>,
+            rows: Vec<InputRow>,
+            by_value: Vec<usize>,
             dominators: SourceDominators,
+        }
+
+        struct InputScope<'inputs> {
+            inputs: &'inputs SourceInputs,
+            block: BlockId,
+            interval: Option<(usize, usize)>,
+        }
+
+        impl InputScope<'_> {
+            fn admits(&self, row: &InputRow) -> bool {
+                match row.scope {
+                    SourceScope::Function => true,
+                    SourceScope::Block {
+                        block,
+                        interval,
+                        operation,
+                    } => {
+                        (!operation || block != self.block)
+                            && (block == self.block
+                                || self.interval.is_none()
+                                || interval.is_some_and(|(start, end)| {
+                                    self.interval
+                                        .is_some_and(|(entry, _)| start <= entry && entry < end)
+                                }))
+                    }
+                }
+            }
+        }
+
+        pub(crate) struct AvailableSources<'inputs> {
+            inherited: Option<InputScope<'inputs>>,
+            local: Vec<SourceRow>,
+        }
+
+        pub(crate) static EMPTY: AvailableSources<'static> = AvailableSources {
+            inherited: None,
+            local: Vec::new(),
+        };
+
+        impl AvailableSources<'_> {
+            pub(crate) fn matching(
+                &self,
+                value: ValueId,
+            ) -> impl DoubleEndedIterator<Item = &SourceRow> {
+                self.inherited
+                    .iter()
+                    .flat_map(move |input| {
+                        let positions = &input.inputs.by_value;
+                        let first = positions
+                            .partition_point(|position| input.inputs.rows[*position].row.0 < value);
+                        let end = positions.partition_point(|position| {
+                            input.inputs.rows[*position].row.0 <= value
+                        });
+                        positions[first..end]
+                            .iter()
+                            .map(move |position| &input.inputs.rows[*position])
+                            .filter(move |row| input.admits(row))
+                            .map(|row| &row.row)
+                    })
+                    .chain(self.local.iter().filter(move |row| row.0 == value))
+            }
+
+            pub(crate) fn push(&mut self, row: SourceRow) {
+                self.local.push(row);
+            }
+
+            pub(crate) fn extend(&mut self, rows: impl IntoIterator<Item = SourceRow>) {
+                self.local.extend(rows);
+            }
         }
 
         impl SourceInputs {
@@ -426,75 +505,72 @@ pub(crate) mod control_flow {
                 optimized: &PsiOptimizationFunction,
             ) -> Self {
                 let dominators = SourceDominators::new(optimized);
-                let parameters = optimized
+                let mut rows: Vec<_> = optimized
                     .parameters
                     .iter()
                     .enumerate()
-                    .map(|(index, parameter)| {
-                        (
+                    .map(|(index, parameter)| InputRow {
+                        row: (
                             parameter.value,
                             Source::Parameter {
                                 parameter_index: index as u32,
                                 source_value: parameter.value,
                                 scalar_type: parameter.scalar_type,
                             },
-                        )
+                        ),
+                        scope: SourceScope::Function,
                     })
                     .collect();
-                let blocks = graph
-                    .blocks
-                    .iter()
-                    .filter_map(|candidate| {
-                        let parameters: Vec<_> = candidate
-                            .parameters
-                            .iter()
-                            .map(|parameter| {
-                                (
-                                    parameter.value,
-                                    Source::BlockParameter(
-                                        target_operations::TargetScalarBlockValue {
-                                            block: candidate.block,
-                                            value: parameter.value,
-                                            scalar_type: parameter.scalar_type,
-                                        },
-                                    ),
-                                )
-                            })
-                            .collect();
-                        let definitions: Vec<_> =
-                            candidate.operations.iter().filter_map(definition).collect();
-                        (!parameters.is_empty() || !definitions.is_empty()).then_some(SourceBlock {
+                for candidate in &graph.blocks {
+                    let interval = dominators.interval(candidate.block);
+                    rows.extend(candidate.parameters.iter().map(|parameter| InputRow {
+                        row: (
+                            parameter.value,
+                            Source::BlockParameter(target_operations::TargetScalarBlockValue {
+                                block: candidate.block,
+                                value: parameter.value,
+                                scalar_type: parameter.scalar_type,
+                            }),
+                        ),
+                        scope: SourceScope::Block {
                             block: candidate.block,
-                            interval: dominators.interval(candidate.block),
-                            parameters,
-                            definitions,
-                        })
-                    })
-                    .collect();
+                            interval,
+                            operation: false,
+                        },
+                    }));
+                    rows.extend(
+                        candidate
+                            .operations
+                            .iter()
+                            .filter_map(definition)
+                            .map(|row| InputRow {
+                                row,
+                                scope: SourceScope::Block {
+                                    block: candidate.block,
+                                    interval,
+                                    operation: true,
+                                },
+                            }),
+                    );
+                }
+                let mut by_value: Vec<_> = (0..rows.len()).collect();
+                by_value.sort_by_key(|position| rows[*position].row.0);
                 Self {
-                    parameters,
-                    blocks,
+                    rows,
+                    by_value,
                     dominators,
                 }
             }
 
-            pub(crate) fn available(&self, block: BlockId) -> Vec<(ValueId, Source)> {
-                let mut result = self.parameters.clone();
-                let interval = self.dominators.interval(block);
-                for candidate in &self.blocks {
-                    if candidate.block == block
-                        || interval.is_none()
-                        || candidate.interval.is_some_and(|(start, end)| {
-                            interval.is_some_and(|(entry, _)| start <= entry && entry < end)
-                        })
-                    {
-                        result.extend_from_slice(&candidate.parameters);
-                        if candidate.block != block {
-                            result.extend_from_slice(&candidate.definitions);
-                        }
-                    }
+            pub(crate) fn available(&self, block: BlockId) -> AvailableSources<'_> {
+                AvailableSources {
+                    inherited: Some(InputScope {
+                        inputs: self,
+                        block,
+                        interval: self.dominators.interval(block),
+                    }),
+                    local: Vec::new(),
                 }
-                result
             }
         }
 
@@ -1227,7 +1303,7 @@ pub(crate) mod control_flow {
             crate::legalization::scalar_graph_input::cleanup_calls::validate_target(
                 cleanup_calls,
                 source_terminator,
-                optimized,
+                function_inputs,
                 native,
                 plan,
                 unit,
@@ -1455,7 +1531,7 @@ pub(crate) mod control_flow {
                                         && argument.source.source_value() == *value
                                         && argument.source.scalar_type() == *scalar_type
                                         && available
-                                            .iter()
+                                            .matching(*value)
                                             .rev()
                                             .find(|(candidate, _)| candidate == value)
                                             .is_some_and(|(_, source)| source == &argument.source)
@@ -1507,7 +1583,7 @@ pub(crate) mod control_flow {
                                 cleanup_actions,
                                 &plan.structural_types,
                             ))
-                        && available.iter().any(|(identity, source)| {
+                        && available.matching(*value).any(|(identity, source)| {
                             identity == value && source.scalar_type() == *expected_type
                         })
                         && {
@@ -1525,8 +1601,7 @@ pub(crate) mod control_flow {
                                         && source.scalar_type() == *expected_type
                                         && source.source_value() == *value
                                         && available
-                                            .iter()
-                                            .filter(|(candidate, _)| candidate == value)
+                                            .matching(*value)
                                             .map(|(_, candidate)| candidate)
                                             .eq(std::iter::once(source))
                                 }
@@ -2023,7 +2098,7 @@ pub(crate) mod element_view {
                                     && super::unit::runtime_indices_rejoin(
                                         indices,
                                         &geometry.elements,
-                                        self.available.unwrap_or(&[]),
+                                        self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY),
                                     )
                             })
                             && self.integer_source(start, *expected_start, aliases)
@@ -2165,7 +2240,8 @@ pub(crate) mod element_view {
             if !super::unit::runtime_indices_rejoin(
                 indices,
                 &elements,
-                self.available.unwrap_or(&[]),
+                self.available
+                    .unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY),
             ) {
                 return Err("view runtime selectors do not rejoin available sources");
             }
@@ -2365,9 +2441,7 @@ pub(crate) mod expressions {
             let Some(sources) = self.available else {
                 return false;
             };
-            let mut definitions = sources
-                .iter()
-                .filter(|(value, _)| *value == parameter.value);
+            let mut definitions = sources.matching(parameter.value);
             matches!(definitions.next(),
                 Some((_, target_operations::TargetUnitScalarArgumentSource::BlockParameter(expected)))
                     if expected == parameter)
@@ -2391,9 +2465,7 @@ pub(crate) mod expressions {
             let Some(sources) = self.available else {
                 return false;
             };
-            let mut definitions = sources
-                .iter()
-                .filter(|(value, _)| *value == home.source_value);
+            let mut definitions = sources.matching(home.source_value);
             let Some((_, target_operations::TargetUnitScalarArgumentSource::Home(expected))) =
                 definitions.next()
             else {
@@ -2467,7 +2539,7 @@ pub(crate) mod expressions {
                         && crate::legalization::scalar_graph_input::element_views::byte_length_geometry(self.optimized, source, self.types)
                             .is_some_and(|(geometry, carrier)| {
                                 *length_byte_offset == if matches!(carrier, terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) { 8 } else { 0 }
-                                && super::unit::runtime_indices_rejoin(indices, &geometry.elements, self.available.unwrap_or(&[]))
+                                && super::unit::runtime_indices_rejoin(indices, &geometry.elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY))
                             })
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                             AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
@@ -2490,7 +2562,7 @@ pub(crate) mod expressions {
                     *length_byte_offset == 8 && *source_value == resolved
                         && crate::legalization::scalar_graph_input::element_views::length_geometry(self.optimized, source, self.types)
                             .is_some_and(|geometry| super::unit::runtime_indices_rejoin(
-                                indices, &geometry.elements, self.available.unwrap_or(&[])))
+                                indices, &geometry.elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY)))
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                             AbstractOperation::ElementViewLength { psi_operation: operation, result, source: expected }
                             if operation == psi_operation && result.value == resolved && expected == source))
@@ -2653,7 +2725,7 @@ pub(crate) mod expressions {
                     && self.optimized.block_nodes().any(|node|
                         matches!(&node.operation, AbstractOperation::BooleanConstant { result, value: actual, .. }
                             if *result == resolve(value, aliases) && actual == literal))
-                    && self.available.is_none_or(|sources| sources.iter().any(|(source, definition)|
+                    && self.available.is_none_or(|sources| sources.matching(value).any(|(source, definition)|
                         *source == value && matches!(definition,
                             target_operations::TargetUnitScalarArgumentSource::BooleanImmediate { value: actual, .. } if actual == literal)));
             }
@@ -2890,7 +2962,7 @@ pub(crate) mod hosted_scalar {
         native: ::target::NativeTarget,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
-        values: &[(ValueId, TargetUnitScalarArgumentSource)],
+        values: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
     ) -> Result<(), LegalizationError> {
         let (
             TargetUnitOperation::BoundarySettlement {
@@ -3013,7 +3085,7 @@ pub(crate) mod normalized_foreign {
         optimized: &PsiOptimizationFunction,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
-        values: &mut Vec<(ValueId, Source)>,
+        values: &mut crate::legalization_target::control_flow::sources::AvailableSources<'_>,
     ) -> Result<(), LegalizationError> {
         let (
             TargetUnitOperation::NormalizedForeignCall {
@@ -3264,7 +3336,7 @@ pub(crate) mod scalar_definitions {
         target: &TargetUnitOperation,
         abstracted: &AbstractOperation,
         scalar_parameters: &[ScalarAbiValue],
-        sources: &[(ValueId, Source)],
+        sources: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
     ) -> Result<(), LegalizationError> {
         let (
             TargetUnitOperation::ScalarDefinition {
@@ -3304,7 +3376,7 @@ pub(crate) mod scalar_definitions {
         {
             return Err(LegalizationError::custody());
         }
-        let mut definitions = sources.iter().filter(|(value, _)| value == source_value);
+        let mut definitions = sources.matching(*source_value);
         let definition = &definitions.next().ok_or(LegalizationError::custody())?.1;
         if definitions.next().is_some() {
             return Err(LegalizationError::custody());
@@ -3431,7 +3503,7 @@ pub(crate) mod scalar_definitions {
                         {
                             let source_type = |identity| {
                                 sources
-                                    .iter()
+                                    .matching(identity)
                                     .find(|(value, _)| *value == identity)
                                     .map(|(_, source)| source.scalar_type())
                             };
@@ -3444,7 +3516,7 @@ pub(crate) mod scalar_definitions {
                                 });
                         }
                         [left, right].iter().any(|operand| {
-                            !sources.iter().any(|(value, source)| {
+                            !sources.matching(**operand).any(|(value, source)| {
                                 value == *operand
                                     && source.scalar_type() == ScalarType::Integer(*scalar_type)
                             })
@@ -3465,7 +3537,7 @@ pub(crate) mod scalar_definitions {
                 use terminal_psi::TrappingIntegerOperation as T;
                 let typed = |operand: ValueId, expected| {
                     checker.available.is_some_and(|sources| {
-                        sources.iter().any(|(value, source)| {
+                        sources.matching(operand).any(|(value, source)| {
                             *value == operand
                                 && source.scalar_type() == ScalarType::Integer(expected)
                         })
@@ -3497,7 +3569,7 @@ pub(crate) mod scalar_definitions {
             } => {
                 if !source_type.can_exact_cast_to(*target_type)
                     || checker.available.is_none_or(|sources| {
-                        !sources.iter().any(|(value, source)| {
+                        !sources.matching(*operand).any(|(value, source)| {
                             value == operand
                                 && source.scalar_type() == ScalarType::Integer(*source_type)
                         })
@@ -3514,7 +3586,7 @@ pub(crate) mod scalar_definitions {
                 operand,
             } => {
                 if checker.available.is_none_or(|sources| {
-                    !sources.iter().any(|(value, source)| {
+                    !sources.matching(*operand).any(|(value, source)| {
                         value == operand
                             && source.scalar_type() == ScalarType::Integer(*scalar_type)
                     })
@@ -3540,7 +3612,7 @@ pub(crate) mod scalar_definitions {
             ) => {
                 if checker.available.is_none_or(|sources| {
                     [left, right].iter().any(|operand| {
-                        !sources.iter().any(|(value, source)| {
+                        !sources.matching(**operand).any(|(value, source)| {
                             value == *operand
                                 && source.scalar_type() == ScalarType::Integer(*scalar_type)
                         })
@@ -3562,10 +3634,10 @@ pub(crate) mod scalar_definitions {
                 if scalar_shape(ScalarType::Integer(*value_type)).is_none()
                     || scalar_shape(ScalarType::Integer(*count_type)).is_none()
                     || checker.available.is_none_or(|sources| {
-                        !sources.iter().any(|(identity, source)| {
+                        !sources.matching(*value).any(|(identity, source)| {
                             identity == value
                                 && source.scalar_type() == ScalarType::Integer(*value_type)
-                        }) || !sources.iter().any(|(identity, source)| {
+                        }) || !sources.matching(*count).any(|(identity, source)| {
                             identity == count
                                 && source.scalar_type() == ScalarType::Integer(*count_type)
                         })
@@ -3675,7 +3747,7 @@ pub(crate) mod unit {
         pub(crate) fn validate(
             target: &TargetUnitOperation,
             abstracted: &AbstractOperation,
-            sources: &[(ValueId, Source)],
+            sources: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
             optimized: &PsiOptimizationFunction,
             plan: &AbstractOperationPlan,
             unit: &PsiOptimizationUnit,
@@ -3708,7 +3780,7 @@ pub(crate) mod unit {
                         || rejected_case != er
                         || !same_result_home(result_home, optimized, result.place, plan)?
                         || !sources
-                            .iter()
+                            .matching(*ec)
                             .any(|(value, source)| value == ec && source == committed)
                     {
                         return Err(LegalizationError::custody());
@@ -3760,7 +3832,7 @@ pub(crate) mod unit {
                         || rejected_case != expected_rejected
                         || !same_result_home(result_home, optimized, result.place, plan)?
                         || !sources
-                            .iter()
+                            .matching(*committed_at)
                             .any(|(value, source)| value == committed_at && source == committed)
                     {
                         return Err(LegalizationError::custody());
@@ -3915,7 +3987,7 @@ pub(crate) mod unit {
                                         terminal_semantics::scalar_field_requires_evidence(
                                             &declaration.field_type,
                                         ) != range_obligation.is_some()
-                                            || !sources.iter().any(|(value, source)| {
+                                            || !sources.matching(*operand).any(|(value, source)| {
                                                 *value == *operand
                                                     && declaration.field_type.scalar_type()
                                                         == Some(source.scalar_type())
@@ -3956,7 +4028,7 @@ pub(crate) mod unit {
                         || u64::try_from(elements.len()).ok() != Some(count)
                         || !same_result_home(result_home, optimized, result.place, plan)?
                         || elements.iter().any(|element| {
-                            !sources.iter().any(|(value, source)| {
+                            !sources.matching(*element).any(|(value, source)| {
                                 value == element && source.scalar_type() == scalar_type
                             })
                         })
@@ -4132,7 +4204,7 @@ pub(crate) mod unit {
                                 value,
                                 range_obligation,
                             } => {
-                                if !sources.iter().any(|(source_value, source)| {
+                                if !sources.matching(*value).any(|(source_value, source)| {
                                     *source_value == *value
                                         && declared.field_type.scalar_type()
                                             == Some(source.scalar_type())
@@ -4310,7 +4382,7 @@ pub(crate) mod unit {
             target: &TargetUnitOperation,
             abstracted: &AbstractOperation,
             optimized: &PsiOptimizationFunction,
-            sources: &[(ValueId, Source)],
+            sources: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
             plan: &AbstractOperationPlan,
             custody: &scalar_graph_input::reference_custody::Custody,
         ) -> Result<(), LegalizationError> {
@@ -4619,7 +4691,7 @@ pub(crate) mod unit {
         pub(crate) fn validate(
             target: &TargetUnitOperation,
             abstracted: &AbstractOperation,
-            sources: &mut Vec<(ValueId, Source)>,
+            sources: &mut crate::legalization_target::control_flow::sources::AvailableSources<'_>,
             custody: &crate::legalization::scalar_graph_input::reference_custody::Custody,
             optimized: &PsiOptimizationFunction,
             native: &TargetOperationPlan,
@@ -4708,7 +4780,7 @@ pub(crate) mod unit {
                             || argument.placement != *placement
                             || Some(argument.source.scalar_type())
                                 != signature.scalar_parameter(position)
-                            || !sources.iter().any(|(source, definition)| {
+                            || !sources.matching(*value).any(|(source, definition)| {
                                 source == value && *definition == argument.source
                             })
                     })
@@ -4776,7 +4848,7 @@ pub(crate) mod unit {
                 }
             }
             if let Some(selector) = called.selector()
-                && !sources.iter().any(|(value, source)| {
+                && !sources.matching(selector).any(|(value, source)| {
                     *value == selector
                         && source.scalar_type() == target_operations::selector_carrier_type()
                 })
@@ -4798,7 +4870,7 @@ pub(crate) mod unit {
         pub(crate) fn validate(
             target: &TargetUnitOperation,
             abstracted: &AbstractOperation,
-            sources: &mut Vec<(ValueId, Source)>,
+            sources: &mut crate::legalization_target::control_flow::sources::AvailableSources<'_>,
         ) -> Result<(), LegalizationError> {
             match (target, abstracted) {
                 (
@@ -4837,7 +4909,7 @@ pub(crate) mod unit {
                             })
                         || policy.operands().any(|operand| {
                             !sources
-                                .iter()
+                                .matching(operand.source_value())
                                 .filter(|(value, _)| *value == operand.source_value())
                                 .map(|(_, source)| source)
                                 .eq(std::iter::once(&operand))
@@ -4875,12 +4947,12 @@ pub(crate) mod unit {
                         || left.scalar_type() != ScalarType::IeeeFloat(*format)
                         || right.scalar_type() != ScalarType::IeeeFloat(*format)
                         || !sources
-                            .iter()
+                            .matching(*expected_left)
                             .filter(|(value, _)| value == expected_left)
                             .map(|(_, source)| source)
                             .eq(std::iter::once(left))
                         || !sources
-                            .iter()
+                            .matching(*expected_right)
                             .filter(|(value, _)| value == expected_right)
                             .map(|(_, source)| source)
                             .eq(std::iter::once(right))
@@ -4915,7 +4987,7 @@ pub(crate) mod unit {
                         || operand.source_value() != *expected_operand
                         || operand.scalar_type() != *source_type
                         || !sources
-                            .iter()
+                            .matching(*expected_operand)
                             .filter(|(value, _)| value == expected_operand)
                             .map(|(_, source)| source)
                             .eq(std::iter::once(operand))
@@ -4968,7 +5040,7 @@ pub(crate) mod unit {
             target: &TargetUnitOperation,
             abstracted: &AbstractOperation,
             parameters: &[TargetStructuralParameter],
-            sources: &[(ValueId, Source)],
+            sources: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
             optimized: &optimization_unit::PsiOptimizationFunction,
             unit: &PsiOptimizationUnit,
         ) -> Result<(), LegalizationError> {
@@ -5078,7 +5150,7 @@ pub(crate) mod unit {
                 || !super::runtime_indices_rejoin(indices, &geometry.elements, sources)
                 || source.source_value() != value.value
                 || source.scalar_type() != value.scalar_type
-                || !(sources.iter().any(|(identity, expected)| {
+                || !(sources.matching(value.value).any(|(identity, expected)| {
                     *identity == value.value && source_is_exact(source, expected)
                 }) || preceding_ieee_literal(source, *expected_operation, optimized))
             {
@@ -5178,7 +5250,7 @@ pub(crate) mod unit {
         abstracted: &AbstractOperation,
         scalar_parameters: &[ScalarAbiValue],
         parameters: &[TargetStructuralParameter],
-        sources: &mut Vec<(ValueId, Source)>,
+        sources: &mut crate::legalization_target::control_flow::sources::AvailableSources<'_>,
         custody: &crate::legalization::scalar_graph_input::reference_custody::Custody,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
@@ -5513,7 +5585,7 @@ pub(crate) mod unit {
                         None,
                     ) if operand.scalar_type() == demand.scalar
                         && sources
-                            .iter()
+                            .matching(*value)
                             .any(|(identity, source)| identity == value && source == operand) => {}
                     _ => return Err(LegalizationError::custody()),
                 }
@@ -5572,9 +5644,11 @@ pub(crate) mod unit {
                     || gdt != expected_gdt
                     || task_state != expected_task
                     || scratch != expected_scratch
-                    || !sources.iter().any(|(identity, source)| {
-                        identity == expected_selector && source == selector
-                    })
+                    || !sources
+                        .matching(*expected_selector)
+                        .any(|(identity, source)| {
+                            identity == expected_selector && source == selector
+                        })
                     || result_home.defining_operation != *psi_operation
                     || result_home.source_value != result.value
                     || result_home.scalar_type != result.scalar_type
@@ -5637,9 +5711,11 @@ pub(crate) mod unit {
                     || gdt != expected_gdt
                     || kind != expected_kind
                     || scratch != expected_scratch
-                    || !sources.iter().any(|(identity, source)| {
-                        identity == expected_selector && source == selector
-                    })
+                    || !sources
+                        .matching(*expected_selector)
+                        .any(|(identity, source)| {
+                            identity == expected_selector && source == selector
+                        })
                     || result_home.defining_operation != *psi_operation
                     || result_home.source_value != result.value
                     || result_home.scalar_type != result.scalar_type
@@ -5703,7 +5779,7 @@ pub(crate) mod unit {
                         .zip(expected_event.inputs())
                         .any(|(operand, value)| {
                             !sources
-                                .iter()
+                                .matching(*value)
                                 .any(|(identity, source)| identity == value && source == operand)
                         })
                 {
@@ -5793,7 +5869,7 @@ pub(crate) mod unit {
                         .zip(operands)
                         .all(|(value, operand)| {
                             sources
-                                .iter()
+                                .matching(*value)
                                 .any(|(identity, source)| identity == value && source == operand)
                         })
                 {
@@ -6063,10 +6139,10 @@ pub(crate) mod unit {
                         custody,
                     )
                 && sources
-                    .iter()
+                    .matching(*expected_index)
                     .any(|(identity, actual)| identity == expected_index && actual == index)
                 && sources
-                    .iter()
+                    .matching(*expected_value)
                     .any(|(identity, actual)| identity == expected_value && actual == value) => {}
             (
                 TargetUnitOperation::StructuralByteSequenceFieldRead {
@@ -6097,7 +6173,7 @@ pub(crate) mod unit {
                     || Some(source.clone())
                         != byte_read(optimized, abstracted, &plan.structural_types)
                     || !sources
-                        .iter()
+                        .matching(*expected_index)
                         .any(|(identity, actual)| identity == expected_index && actual == index)
                 {
                     return Err(LegalizationError::custody());
@@ -6153,7 +6229,7 @@ pub(crate) mod unit {
                 )
                 .is_some()
                 && sources
-                    .iter()
+                    .matching(*expected_length)
                     .any(|(value, actual)| value == expected_length && actual == length) => {}
             (
                 TargetUnitOperation::StructuralByteViewFieldStore {
@@ -6212,7 +6288,7 @@ pub(crate) mod unit {
                         custody,
                     )
                 && sources
-                    .iter()
+                    .matching(*expected_length)
                     .any(|(value, actual)| value == expected_length && actual == length) => {}
             (
                 TargetUnitOperation::ByteSequenceWrite {
@@ -6238,10 +6314,10 @@ pub(crate) mod unit {
                 && obligation == expected_obligation
                 && checker.mutable_byte_view(view, *expected_destination)
                 && sources
-                    .iter()
+                    .matching(*expected_index)
                     .any(|(identity, source)| identity == expected_index && source == index)
                 && sources
-                    .iter()
+                    .matching(*expected_value)
                     .any(|(identity, source)| identity == expected_value && source == value) => {}
             (
                 TargetUnitOperation::ElementViewWrite {
@@ -6278,10 +6354,10 @@ pub(crate) mod unit {
                         && runtime_indices_rejoin(indices, &geometry.elements, sources)
                 })
                 && sources
-                    .iter()
+                    .matching(*expected_index)
                     .any(|(identity, source)| identity == expected_index && source == index)
                 && sources
-                    .iter()
+                    .matching(*expected_value)
                     .any(|(identity, source)| identity == expected_value && source == value) => {}
             (
                 TargetUnitOperation::EstablishPrimitiveLocal {
@@ -6301,7 +6377,7 @@ pub(crate) mod unit {
                 && value == expected_value
                 && crate::legalization::scalar_graph_input::scalar_shape(value.scalar_type)
                     == Some(*shape)
-                && sources.iter().any(|(identity, source)| {
+                && sources.matching(value.value).any(|(identity, source)| {
                     *identity == value.value && source.scalar_type() == value.scalar_type
                 }) => {}
             (
@@ -6318,7 +6394,7 @@ pub(crate) mod unit {
             ) if psi_operation == expected_operation
                 && destination == expected
                 && value == expected_value
-                && sources.iter().any(|(identity, source)| {
+                && sources.matching(value.value).any(|(identity, source)| {
                     *identity == value.value && source.scalar_type() == value.scalar_type
                 }) => {}
             (
@@ -6718,7 +6794,7 @@ pub(crate) mod unit {
                     || *field_byte_offset != offset
                     || !runtime_indices_rejoin(indices, &elements, sources)
                     || !sources
-                        .iter()
+                        .matching(value.value)
                         .any(|(identity, expected)| *identity == value.value && expected == source)
                 {
                     return Err(LegalizationError::custody());
@@ -6801,13 +6877,13 @@ pub(crate) mod unit {
     pub(crate) fn runtime_indices_rejoin(
         indices: &[target_operations::TargetStructuralRuntimeIndex],
         elements: &[RuntimeElement],
-        sources: &[(ValueId, Source)],
+        sources: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
     ) -> bool {
         indices.len() == elements.len()
             && indices.iter().zip(elements).all(|(index, element)| {
                 index.stride == element.stride
                     && index.operand.source_value() == element.index
-                    && sources.iter().any(|(identity, known)| {
+                    && sources.matching(element.index).any(|(identity, known)| {
                         *identity == element.index && *known == index.operand
                     })
             })
@@ -6885,7 +6961,7 @@ pub(crate) fn validate_target(
 
 pub(crate) struct Checker<'a> {
     function: &'a TargetFunction,
-    available: Option<&'a [(ValueId, target_operations::TargetUnitScalarArgumentSource)]>,
+    available: Option<&'a crate::legalization_target::control_flow::sources::AvailableSources<'a>>,
     optimized: &'a PsiOptimizationFunction,
     function_inputs: &'a crate::legalization_function_inputs::FunctionInputs<'a>,
     types: &'a [terminal_psi::StructuralTypeDeclaration],

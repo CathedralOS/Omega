@@ -50,12 +50,27 @@ pub(crate) mod address_joins {
         place: PlaceId,
         plan: &AbstractOperationPlan,
     ) -> Option<(BlockId, &'a StructuralParameterDeclaration)> {
-        let mut matching = super::structural_case::arrivals(function, place);
+        parameter_from_rows(
+            function.entry,
+            place,
+            plan,
+            super::structural_case::arrivals(function, place),
+            function.structural_places.iter(),
+        )
+    }
+
+    pub(crate) fn parameter_from_rows<'function>(
+        entry: BlockId,
+        place: PlaceId,
+        plan: &AbstractOperationPlan,
+        mut matching: impl Iterator<Item = (BlockId, &'function StructuralParameterDeclaration)>,
+        mut declarations: impl Iterator<Item = &'function terminal_psi::StructuralPlaceDeclaration>,
+    ) -> Option<(BlockId, &'function StructuralParameterDeclaration)> {
         let (block, parameter) = matching.next()?;
         (matching.next().is_none()
-            && block != function.entry
+            && block != entry
             && is_address_join_in(parameter, &plan.structural_types)
-            && function.structural_places.iter().any(|declaration| {
+            && declarations.any(|declaration| {
                 declaration.id == place
                     && declaration.kind
                         == (StructuralPlaceKind::BlockParameter {
@@ -388,18 +403,29 @@ pub(crate) mod aggregate_results {
                 call,
                 native,
                 plan,
+                || {
+                    crate::legalization::scalar_graph_input::address_joins::parameter(
+                        caller,
+                        argument.place,
+                        plan,
+                    )
+                },
             )
         }
 
-        pub(crate) fn reconstruct_at_owner(
+        pub(crate) fn reconstruct_at_owner<'caller>(
             argument: &terminal_psi::StructuralArgument,
             position: usize,
             owner: target_operations::CallSiteOwner,
-            caller: &PsiOptimizationFunction,
+            caller: &'caller PsiOptimizationFunction,
             callee: abstract_operations::AbstractCallSignature<'_>,
             call: &CallPlan,
             native: &TargetOperationPlan,
             plan: &AbstractOperationPlan,
+            address_join: impl FnOnce() -> Option<(
+                semantic_vocabulary::BlockId,
+                &'caller terminal_psi::StructuralParameterDeclaration,
+            )>,
         ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
             if matches!(owner, target_operations::CallSiteOwner::Installation { .. }) {
                 return Err(LegalizationError::custody());
@@ -421,13 +447,7 @@ pub(crate) mod aggregate_results {
             {
                 return Err(LegalizationError::custody());
             }
-            if crate::legalization::scalar_graph_input::address_joins::parameter(
-                caller,
-                argument.place,
-                plan,
-            )
-            .is_some()
-            {
+            if address_join().is_some() {
                 return crate::legalization::scalar_graph_input::address_joins::call_argument(
                     argument,
                     destination,
@@ -2901,11 +2921,12 @@ pub(crate) mod cleanup_calls {
 
     pub(crate) fn expected(
         operation: &AbstractOperation,
-        caller: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
     ) -> Result<Vec<(CallSiteOwner, LegalizedScalarCall)>, LegalizationError> {
+        let caller = function_inputs.function();
         let mut calls = Vec::new();
         for (edge, actions) in operation.cleanup_rosters() {
             for (ordinal, action) in actions.iter().enumerate() {
@@ -2967,6 +2988,7 @@ pub(crate) mod cleanup_calls {
                             &call_plan,
                             native,
                             plan,
+                            || function_inputs.address_join_parameter(semantic.place, plan),
                         )?;
                     let indices = crate::legalization::runtime_indices::projection(
                         caller,
@@ -3009,12 +3031,12 @@ pub(crate) mod cleanup_calls {
     pub(crate) fn validate_target(
         rows: &[TargetUnitOperation],
         operation: &AbstractOperation,
-        caller: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
     ) -> Result<(), LegalizationError> {
-        let expected = expected(operation, caller, native, plan, unit)?;
+        let expected = expected(operation, function_inputs, native, plan, unit)?;
         if rows.len() != expected.len() {
             return Err(LegalizationError::custody());
         }

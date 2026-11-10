@@ -16,6 +16,7 @@ pub(crate) struct FunctionInputs<'function> {
     values: Vec<&'function ValueDefinition>,
     declarations: Vec<&'function StructuralPlaceDeclaration>,
     arrivals: Vec<&'function StructuralParameterDeclaration>,
+    block_arrivals: Vec<(PlaceId, BlockId, &'function StructuralParameterDeclaration)>,
     trivial_locals: Vec<(PlaceId, BlockId, usize, &'function AbstractOperation)>,
     results: Vec<(PlaceId, OperationId, &'function StructuralOperationResult)>,
 }
@@ -25,11 +26,18 @@ impl<'function> FunctionInputs<'function> {
         let mut values: Vec<_> = function.parameters.iter().collect();
         let mut declarations: Vec<_> = function.structural_places.iter().collect();
         let mut arrivals: Vec<_> = function.structural_parameters.iter().collect();
+        let mut block_arrivals = Vec::new();
         let mut trivial_locals = Vec::new();
         let mut results = Vec::new();
         for block in &function.blocks {
             values.extend(&block.parameters);
             arrivals.extend(&block.structural_parameters);
+            block_arrivals.extend(
+                block
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| (parameter.place, block.id, parameter)),
+            );
             for (position, node) in block.nodes.iter().enumerate() {
                 values.extend(&node.definitions);
                 if let AbstractOperation::EstablishTrivialAffineLocal { place, .. } =
@@ -45,6 +53,7 @@ impl<'function> FunctionInputs<'function> {
         values.sort_by_key(|row| row.value);
         declarations.sort_by_key(|row| row.id);
         arrivals.sort_by_key(|row| row.place);
+        block_arrivals.sort_by_key(|row| row.0);
         trivial_locals.sort_by_key(|row| row.0);
         results.sort_by_key(|row| row.0);
         Self {
@@ -52,6 +61,7 @@ impl<'function> FunctionInputs<'function> {
             values,
             declarations,
             arrivals,
+            block_arrivals,
             trivial_locals,
             results,
         }
@@ -119,6 +129,28 @@ impl<'function> FunctionInputs<'function> {
             _ => return None,
         }
         Some(parameter)
+    }
+
+    pub(crate) fn address_join_parameter(
+        &self,
+        place: PlaceId,
+        plan: &abstract_operations::AbstractOperationPlan,
+    ) -> Option<(BlockId, &'function StructuralParameterDeclaration)> {
+        let first = self.block_arrivals.partition_point(|row| row.0 < place);
+        let declarations = self.declarations.partition_point(|row| row.id < place);
+        crate::legalization_scalar_graph::address_joins::parameter_from_rows(
+            self.function.entry,
+            place,
+            plan,
+            self.block_arrivals[first..]
+                .iter()
+                .take_while(|row| row.0 == place)
+                .map(|(_, block, parameter)| (*block, *parameter)),
+            self.declarations[declarations..]
+                .iter()
+                .take_while(|row| row.id == place)
+                .copied(),
+        )
     }
 
     pub(crate) fn source_result(
