@@ -11411,6 +11411,58 @@ pub(crate) mod write_frames {
             program.cleanup_selections().next().is_some()
         }
 
+        /// Whether no value that can die in `state` has cleanup able to write
+        /// caller storage, judged from types alone. A state that passes owes no
+        /// cleanup rows even when its origins cannot be walked, so an unrelated
+        /// origin failure does not make its footprint unknown.
+        pub(crate) fn state_has_no_cleanup_candidates(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            state: &State,
+            symbols: &TopLevelSymbols<'_>,
+        ) -> bool {
+            let mut inference = FrameInference::for_state(state.symbol);
+            let mut dying = Vec::new();
+            for parameter in program.state_parameters(state) {
+                push_value_cleanup_writes(
+                    program,
+                    parameter.name.as_str().to_owned(),
+                    parameter.type_reference,
+                    &[],
+                    0,
+                    symbols,
+                    &mut inference,
+                    &mut dying,
+                );
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::LocalData(local) = statement {
+                    push_value_cleanup_writes(
+                        program,
+                        local.name.as_str().to_owned(),
+                        local.type_reference,
+                        &[],
+                        0,
+                        symbols,
+                        &mut inference,
+                        &mut dying,
+                    );
+                }
+                match statement_cleanup_writes(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    symbols,
+                    &mut inference,
+                ) {
+                    Some(paths) => dying.extend(paths),
+                    None => return false,
+                }
+            }
+            dying.is_empty()
+        }
+
         /// Adds the writes of every value that may die when `state` exits.
         #[allow(clippy::too_many_arguments)]
         pub(crate) fn push_exit_cleanup_writes(
@@ -11520,6 +11572,22 @@ pub(crate) mod write_frames {
                     program, machine, state, assignment, symbols, inference,
                 )?;
             }
+            if let StatementNode::Call(call) = statement
+                && call.discards_result
+            {
+                let machine_symbols = super::demand::machine_symbols(program, machine)?;
+                for path in discarded_result_cleanup_writes(
+                    program,
+                    machine,
+                    call,
+                    &machine_symbols,
+                    symbols,
+                )? {
+                    if !dying.contains(&path) {
+                        dying.push(path);
+                    }
+                }
+            }
             for root in super::demand::statement_value_expression_roots(program, statement) {
                 for path in
                     temporary_cleanup_writes(program, machine, state, root, symbols, inference)?
@@ -11614,12 +11682,31 @@ pub(crate) mod write_frames {
             if !program_selects_cleanup(program) {
                 return Some(dying);
             }
-            let mut reference = crate::value_custody::places::declared_place_type_raw(
+            // The displaced value has the destination's declared type. Where the
+            // destination has none on record, the value stored there has the
+            // same type, so the right-hand side answers instead.
+            let Some(mut reference) = crate::value_custody::places::declared_place_type_raw(
                 program,
                 machine,
                 Some(state),
                 assignment.target,
-            )?;
+            )
+            .or_else(|| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    assignment.value,
+                )
+            }) else {
+                if crate::trace_flags::struct_trace() {
+                    eprintln!(
+                        "STRUCT displaced-cleanup-unknown-type machine={} state={}",
+                        machine.name, state.name
+                    );
+                }
+                return None;
+            };
             // Assigning to a place of reference type stores through it, so the
             // value that dies is the referent.
             while let Some(shell) = crate::reference_shell(program, reference) {
@@ -16705,6 +16792,14 @@ pub(crate) mod write_frames {
                 state: &State,
             ) -> Option<Vec<String>> {
                 if !super::cleanup_writes::program_selects_cleanup(self.program) {
+                    return Some(Vec::new());
+                }
+                if super::cleanup_writes::state_has_no_cleanup_candidates(
+                    self.program,
+                    machine,
+                    state,
+                    &self.tables.symbols,
+                ) {
                     return Some(Vec::new());
                 }
                 let mut inference = FrameInference::for_state(state.symbol);
