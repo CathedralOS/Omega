@@ -35,7 +35,10 @@ fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
 }
 
 fn integer(value: u128) -> Expression {
-    expression(ExpressionKind::Integer(IntegerValue::Unsigned(value)), Some(u32_type()))
+    expression(
+        ExpressionKind::Integer(IntegerValue::Unsigned(value)),
+        Some(u32_type()),
+    )
 }
 
 fn slot(slot: usize, scalar_type: ScalarType) -> Expression {
@@ -52,7 +55,12 @@ fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> 
     )
 }
 
-fn strict(operation: Strict, left: Expression, right: Expression, result: ScalarType) -> Expression {
+fn strict(
+    operation: Strict,
+    left: Expression,
+    right: Expression,
+    result: ScalarType,
+) -> Expression {
     expression(
         ExpressionKind::Strict {
             operation,
@@ -172,7 +180,10 @@ fn strict_operands_and_call_arguments_evaluate_left_to_right() {
     else {
         panic!("then the left call")
     };
-    assert_eq!((*callee, arguments.as_slice()), (id(2), [literal].as_slice()));
+    assert_eq!(
+        (*callee, arguments.as_slice()),
+        (id(2), [literal].as_slice())
+    );
     let OperationKind::Call { callee, .. } = &operations[2].kind else {
         panic!("then the right call")
     };
@@ -195,7 +206,10 @@ fn strict_operands_and_call_arguments_evaluate_left_to_right() {
             operation: operations[3].id
         }
     );
-    assert_eq!(row.created_at, ProgramPoint::AfterOperation(operations[2].id));
+    assert_eq!(
+        row.created_at,
+        ProgramPoint::AfterOperation(operations[2].id)
+    );
 }
 
 #[test]
@@ -212,9 +226,13 @@ fn greater_swaps_operands_without_reordering_evaluation() {
     };
     let (machine, _) = lower(
         body,
-        vec![signature(vec![u32_type(), u32_type()], Some(ScalarType::Boolean))],
+        vec![signature(
+            vec![u32_type(), u32_type()],
+            Some(ScalarType::Boolean),
+        )],
     );
-    let OperationKind::IntegerLessThan { left, right } = block(&machine, 1).operations[0].kind else {
+    let OperationKind::IntegerLessThan { left, right } = block(&machine, 1).operations[0].kind
+    else {
         panic!("a > b is b < a")
     };
     assert_eq!((left, right), (id::<ValueId>(2), id::<ValueId>(1)));
@@ -264,14 +282,20 @@ fn conjunction_evaluates_the_right_operand_only_on_the_true_edge() {
         panic!("block 2 holds only the right call")
     };
     // False: the join, carrying the false left value as the result.
-    assert_eq!((when_false.target, when_false.arguments.as_slice()), (id(3), [left].as_slice()));
+    assert_eq!(
+        (when_false.target, when_false.arguments.as_slice()),
+        (id(3), [left].as_slice())
+    );
     let Terminator::Jump {
         target, arguments, ..
     } = &right_block.terminator
     else {
         panic!("the right block jumps to the join")
     };
-    assert_eq!((*target, arguments.as_slice()), (id(3), [right_call.result.scalar().unwrap().id].as_slice()));
+    assert_eq!(
+        (*target, arguments.as_slice()),
+        (id(3), [right_call.result.scalar().unwrap().id].as_slice())
+    );
     let join = block(&machine, 3);
     let [result] = join.parameters.as_slice() else {
         panic!("the join's one parameter is the result")
@@ -413,7 +437,10 @@ fn a_unit_machine_completes_after_its_last_statement() {
         }],
     };
     let (machine, tables) = lower(body, vec![signature(vec![u32_type()], None)]);
-    assert!(matches!(block(&machine, 1).terminator, Terminator::ReturnUnit { .. }));
+    assert!(matches!(
+        block(&machine, 1).terminator,
+        Terminator::ReturnUnit { .. }
+    ));
     assert!(tables.places.is_empty() && tables.writes.is_empty());
 }
 
@@ -422,10 +449,20 @@ fn every_exact_operation_is_partial_by_the_policy_catalog() {
     use numerics::arithmetic::ArithmeticDomain;
     use numerics::integer_policy::{IntegerPolicyPrimitive as P, integer_policy_bridge};
     // Lowering mints an `OperationSafety` obligation for exactly these.
-    for primitive in [P::Add, P::Subtract, P::Multiply, P::Divide, P::Remainder, P::ShiftLeft, P::ShiftRight] {
-        assert!(!integer_policy_bridge(primitive, ArithmeticDomain::Exact)
-            .formation_conditions
-            .is_empty());
+    for primitive in [
+        P::Add,
+        P::Subtract,
+        P::Multiply,
+        P::Divide,
+        P::Remainder,
+        P::ShiftLeft,
+        P::ShiftRight,
+    ] {
+        assert!(
+            !integer_policy_bridge(primitive, ArithmeticDomain::Exact)
+                .formation_conditions
+                .is_empty()
+        );
     }
 }
 
@@ -438,5 +475,8 @@ fn a_value_machine_that_falls_off_its_end_is_refused() {
     let mut table: IdTable<MachineId, Signature> = IdTable::default();
     table.push(signature(Vec::new(), Some(u32_type())));
     let refusal = crate::lower::machine(id(1), &body, &table).unwrap_err();
-    assert_eq!(refusal.reason, terminal_check_tables::RefusalReason::Unsupported);
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::Unsupported
+    );
 }

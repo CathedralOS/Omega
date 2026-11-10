@@ -22,8 +22,8 @@ serve is refused when it is set, never ignored.
 
 use arena::Arena;
 use semantic_vocabulary::{
-    IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition,
-    ScalarTerm, ScalarType, ValueId,
+    IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition, ScalarTerm,
+    ScalarType, ValueId,
 };
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
@@ -92,7 +92,9 @@ fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<ScalarType> {
         BuiltinTypeAtom::U16 => integer(IntegerSign::Unsigned, 16, machine),
         BuiltinTypeAtom::U32 => integer(IntegerSign::Unsigned, 32, machine),
         BuiltinTypeAtom::U64 => integer(IntegerSign::Unsigned, 64, machine),
-        BuiltinTypeAtom::Address => Err(refuse(machine, Construct::Machine, Unserved::Type("addr"))),
+        BuiltinTypeAtom::Address => {
+            Err(refuse(machine, Construct::Machine, Unserved::Type("addr")))
+        }
         BuiltinTypeAtom::F32 | BuiltinTypeAtom::F64 => {
             Err(refuse(machine, Construct::Machine, Unserved::Type("float")))
         }
@@ -102,22 +104,31 @@ fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<ScalarType> {
             Construct::Machine,
             Unserved::Type("syscall result"),
         )),
-        BuiltinTypeAtom::Terminal | BuiltinTypeAtom::Never => {
-            Err(refuse(machine, Construct::Machine, Unserved::Type("terminal or never")))
-        }
+        BuiltinTypeAtom::Terminal | BuiltinTypeAtom::Never => Err(refuse(
+            machine,
+            Construct::Machine,
+            Unserved::Type("terminal or never"),
+        )),
         BuiltinTypeAtom::UInt | BuiltinTypeAtom::Int => Err(refuse(
             machine,
             Construct::Machine,
             Unserved::Type("anonymous integer"),
         )),
         BuiltinTypeAtom::AtomicBool | BuiltinTypeAtom::AtomicU32 | BuiltinTypeAtom::AtomicU64 => {
-            Err(refuse(machine, Construct::Machine, Unserved::Type("atomic")))
+            Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("atomic"),
+            ))
         }
     }
 }
 
 /// The integer type a literal landed on, through the same width table.
-fn landed_type(landed: numerics::literals::LandedIntegerType, machine: MachineId) -> Checked<ScalarType> {
+fn landed_type(
+    landed: numerics::literals::LandedIntegerType,
+    machine: MachineId,
+) -> Checked<ScalarType> {
     use numerics::literals::LandedIntegerType as Landed;
     match landed {
         Landed::I8 => integer(IntegerSign::Signed, 8, machine),
@@ -128,7 +139,11 @@ fn landed_type(landed: numerics::literals::LandedIntegerType, machine: MachineId
         Landed::U16 => integer(IntegerSign::Unsigned, 16, machine),
         Landed::U32 => integer(IntegerSign::Unsigned, 32, machine),
         Landed::U64 => integer(IntegerSign::Unsigned, 64, machine),
-        Landed::Addr => Err(refuse(machine, Construct::Machine, Unserved::Type("addr literal"))),
+        Landed::Addr => Err(refuse(
+            machine,
+            Construct::Machine,
+            Unserved::Type("addr literal"),
+        )),
     }
 }
 
@@ -179,7 +194,9 @@ impl<'t> Program<'t> {
         for (_, callee) in &self.calls {
             incoming[index(*callee)] += 1;
         }
-        let mut ready: Vec<usize> = (0..count).filter(|machine| incoming[*machine] == 0).collect();
+        let mut ready: Vec<usize> = (0..count)
+            .filter(|machine| incoming[*machine] == 0)
+            .collect();
         while let Some(machine) = ready.pop() {
             for (caller, callee) in &self.calls {
                 if index(*caller) == machine {
@@ -196,22 +213,42 @@ impl<'t> Program<'t> {
             None => Ok(()),
             Some(position) => {
                 let machine = MachineId::new(position as u64 + 1).expect("positions start at 1");
-                Err(refuse(machine, Construct::Machine, Unserved::Call("recursion")))
+                Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Call("recursion"),
+                ))
             }
         }
     }
 
-    fn declaration(&self, id: MachineId, symbol: SymbolHandle) -> Checked<(&'t Machine, &'t State)> {
+    fn declaration(
+        &self,
+        id: MachineId,
+        symbol: SymbolHandle,
+    ) -> Checked<(&'t Machine, &'t State)> {
         let typed = self.typed;
         if !symbol.is_valid() {
-            return Err(refuse(id, Construct::Machine, Unserved::Spelling("callee without a symbol")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("callee without a symbol"),
+            ));
         }
-        let machine = typed
-            .machine_by_symbol(symbol)
-            .ok_or_else(|| refuse(id, Construct::Machine, Unserved::Call("target is not a machine declaration")))?;
+        let machine = typed.machine_by_symbol(symbol).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("target is not a machine declaration"),
+            )
+        })?;
         let states = span(&typed.machine_states, machine.states, id, "state span")?;
         let [state] = states else {
-            return Err(refuse(id, Construct::Machine, Unserved::Machine("not exactly one state")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("not exactly one state"),
+            ));
         };
         Ok((machine, state))
     }
@@ -221,7 +258,9 @@ impl<'t> Program<'t> {
         if machine.lexical_region_origin.is_some() {
             return unserved("lexical region origin");
         }
-        if machine.assembly_target_requirement != language_core::inline_assembly::AsmTargetApplicability::Any {
+        if machine.assembly_target_requirement
+            != language_core::inline_assembly::AsmTargetApplicability::Any
+        {
             return unserved("assembly target");
         }
         if machine.attached_data_symbol.is_valid() || machine.attached_data_application.is_valid() {
@@ -239,7 +278,10 @@ impl<'t> Program<'t> {
         if machine.purpose != MachinePurpose::Runtime {
             return unserved("provider-default purpose");
         }
-        if machine.target.is_some() || machine.authored_target.is_some() || machine.target_family_interface {
+        if machine.target.is_some()
+            || machine.authored_target.is_some()
+            || machine.target_family_interface
+        {
             return unserved("target selection");
         }
         if !machine.body_is_present || machine.body_status != MachineBodyStatus::Complete {
@@ -253,8 +295,7 @@ impl<'t> Program<'t> {
             machine.service_reach_row,
             language_semantics::ServiceReachRowId::NULL
                 | language_semantics::ServiceReachRowTable::EMPTY_ROW
-        )
-            || machine.service_reach_is_installation_bound
+        ) || machine.service_reach_is_installation_bound
         {
             return unserved("service reach");
         }
@@ -282,9 +323,18 @@ impl<'t> Program<'t> {
         let (machine, state) = self.declaration(id, symbol)?;
         self.machine_shape(id, machine)?;
         if !state.contracts.is_empty() {
-            return Err(refuse(id, Construct::Machine, Unserved::Contract("contracts on a state")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("contracts on a state"),
+            ));
         }
-        let formals = span(&typed.state_parameters, state.parameters, id, "parameter span")?;
+        let formals = span(
+            &typed.state_parameters,
+            state.parameters,
+            id,
+            "parameter span",
+        )?;
         let mut parameters = Vec::with_capacity(formals.len());
         let mut slots = Vec::with_capacity(formals.len());
         for formal in formals {
@@ -299,18 +349,35 @@ impl<'t> Program<'t> {
         let result = self.result_type(id, state.return_type)?;
         let mut requires = Vec::new();
         let mut ensures = Vec::new();
-        for contract in span(&typed.signature_contracts, machine.contracts, id, "contract span")? {
+        for contract in span(
+            &typed.signature_contracts,
+            machine.contracts,
+            id,
+            "contract span",
+        )? {
             if contract.binding.is_some() {
-                return Err(refuse(id, Construct::Machine, Unserved::Contract("result binding")));
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Contract("result binding"),
+                ));
             }
             let clauses = match contract.kind {
                 SignatureContractKind::Requires => &mut requires,
                 SignatureContractKind::Ensures => &mut ensures,
                 SignatureContractKind::EnsuresForResultCase { .. } => {
-                    return Err(refuse(id, Construct::Machine, Unserved::Contract("outcome-specific ensures")));
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("outcome-specific ensures"),
+                    ));
                 }
                 SignatureContractKind::Crashes { .. } => {
-                    return Err(refuse(id, Construct::Machine, Unserved::Contract("crashes")));
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("crashes"),
+                    ));
                 }
             };
             for fact in span(&typed.proof_facts, contract.facts, id, "fact span")? {
@@ -319,10 +386,18 @@ impl<'t> Program<'t> {
                         clauses.push(self.clause(id, &slots, *expression)?);
                     }
                     ProofFact::Membership(_) => {
-                        return Err(refuse(id, Construct::Machine, Unserved::Contract("domain membership")));
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("domain membership"),
+                        ));
                     }
                     ProofFact::Proposition(_) => {
-                        return Err(refuse(id, Construct::Machine, Unserved::Contract("named proposition")));
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("named proposition"),
+                        ));
                     }
                 }
             }
@@ -338,16 +413,32 @@ impl<'t> Program<'t> {
 
     fn formal(&self, id: MachineId, formal: &StateParameter) -> Checked<ScalarType> {
         if !formal.symbol.is_valid() {
-            return Err(refuse(id, Construct::Machine, Unserved::Spelling("parameter without a symbol")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("parameter without a symbol"),
+            ));
         }
         if formal.is_const {
-            return Err(refuse(id, Construct::Machine, Unserved::Parameter("const parameter")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Parameter("const parameter"),
+            ));
         }
         if formal.is_mutable {
-            return Err(refuse(id, Construct::Machine, Unserved::Parameter("mutable parameter")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Parameter("mutable parameter"),
+            ));
         }
         if formal.relevance != language_core::BindingRelevance::Relevant {
-            return Err(refuse(id, Construct::Machine, Unserved::Parameter("erased parameter")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Parameter("erased parameter"),
+            ));
         }
         self.scalar_type(id, formal.type_reference)
     }
@@ -355,13 +446,21 @@ impl<'t> Program<'t> {
     fn scalar_type(&self, id: MachineId, handle: TypeReferenceHandle) -> Checked<ScalarType> {
         let typed = self.typed;
         if !handle.is_valid() {
-            return Err(refuse(id, Construct::Machine, Unserved::Type("missing type")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("missing type"),
+            ));
         }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         match typed.type_reference_table.type_reference(handle) {
             TypeReferenceNode::Named { symbol, .. } => {
                 if !symbol.is_valid() {
-                    return Err(refuse(id, Construct::Machine, Unserved::Spelling("type without a symbol")));
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Spelling("type without a symbol"),
+                    ));
                 }
                 match typed.symbols.builtin_type_atom(*symbol) {
                     Some(atom) => atom_type(atom, id),
@@ -381,7 +480,11 @@ impl<'t> Program<'t> {
 
     /// A state's result: the invalid handle and `Unit` are both a Unit
     /// machine, because that is how the typed trees record "no result".
-    fn result_type(&self, id: MachineId, handle: TypeReferenceHandle) -> Checked<Option<ScalarType>> {
+    fn result_type(
+        &self,
+        id: MachineId,
+        handle: TypeReferenceHandle,
+    ) -> Checked<Option<ScalarType>> {
         if !handle.is_valid() {
             return Ok(None);
         }
@@ -398,7 +501,12 @@ impl<'t> Program<'t> {
     // Contract clauses: a comparison of formals, literals and Booleans, or a
     // conjunction of those. Terms name formal `i` as value `i + 1`.
 
-    fn clause(&self, id: MachineId, slots: &[Slot], expression: ExpressionHandle) -> Checked<Proposition> {
+    fn clause(
+        &self,
+        id: MachineId,
+        slots: &[Slot],
+        expression: ExpressionHandle,
+    ) -> Checked<Proposition> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
@@ -448,14 +556,22 @@ impl<'t> Program<'t> {
             (left, right)
         };
         if left_type != right_type {
-            return Err(refuse(id, Construct::Machine, Unserved::Typing("clause operand types differ")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("clause operand types differ"),
+            ));
         }
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
             BinaryOperator::Equal => {
                 let key = |term: &ScalarTerm| {
                     terminal_codec::canonical_scalar_term_order_key(term).map_err(|_| {
-                        refuse(id, Construct::Machine, Unserved::Contract("unencodable term"))
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("unencodable term"),
+                        )
                     })
                 };
                 if key(&left)? <= key(&right)? {
@@ -500,8 +616,13 @@ impl<'t> Program<'t> {
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 let row = &slots[slot];
-                let value = ValueId::new(slot as u64 + 1)
-                    .ok_or_else(|| refuse(id, Construct::Machine, Unserved::Contract("formal identity")))?;
+                let value = ValueId::new(slot as u64 + 1).ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("formal identity"),
+                    )
+                })?;
                 Ok((
                     ScalarTerm::Value {
                         id: value,
@@ -520,7 +641,9 @@ impl<'t> Program<'t> {
                     ScalarType::Integer(integer),
                 ))
             }
-            ExpressionNode::Boolean(value) => Ok((ScalarTerm::Boolean(*value), ScalarType::Boolean)),
+            ExpressionNode::Boolean(value) => {
+                Ok((ScalarTerm::Boolean(*value), ScalarType::Boolean))
+            }
             _ => unserved("term other than a formal or literal"),
         }
     }
@@ -545,17 +668,29 @@ impl<'t> Program<'t> {
         };
         let scalar_type = match (landed, expected) {
             (Some(landed), Some(expected)) if landed != expected => {
-                return Err(refuse(id, Construct::Machine, Unserved::Typing("literal landed type")));
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("literal landed type"),
+                ));
             }
             (Some(scalar_type), _) | (None, Some(scalar_type)) => scalar_type,
             (None, None) => return unserved("anonymous integer literal without an expected type"),
         };
         let ScalarType::Integer(integer) = scalar_type else {
-            return Err(refuse(id, Construct::Machine, Unserved::Typing("integer literal in a non-integer place")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("integer literal in a non-integer place"),
+            ));
         };
         let value = match (integer.sign(), literal.is_negative()) {
-            (IntegerSign::Signed, _) => literal.value_i64().map(|value| IntegerValue::Signed(i128::from(value))),
-            (IntegerSign::Unsigned, false) => literal.value_u64().map(|value| IntegerValue::Unsigned(u128::from(value))),
+            (IntegerSign::Signed, _) => literal
+                .value_i64()
+                .map(|value| IntegerValue::Signed(i128::from(value))),
+            (IntegerSign::Unsigned, false) => literal
+                .value_u64()
+                .map(|value| IntegerValue::Unsigned(u128::from(value))),
             (IntegerSign::Unsigned, true) => None,
         };
         match value {
@@ -567,10 +702,18 @@ impl<'t> Program<'t> {
     fn slot_of(&self, id: MachineId, slots: &[Slot], path: &TableNamePath) -> Checked<usize> {
         let typed = self.typed;
         if !path.symbol.is_valid() {
-            return Err(refuse(id, Construct::Machine, Unserved::Spelling("name without a symbol")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("name without a symbol"),
+            ));
         }
         if typed.expression_table.name_path_members(path.members).len() != 1 {
-            return Err(refuse(id, Construct::Machine, Unserved::Expression("projected name path")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("projected name path"),
+            ));
         }
         // ponytail: linear over the body's slots; bodies in the subset hold a
         // handful of locals.
@@ -579,16 +722,26 @@ impl<'t> Program<'t> {
             .rposition(|slot| slot.symbol == path.symbol)
             .ok_or_else(|| {
                 let kind = typed.symbols.get(path.symbol).kind;
-                refuse(id, Construct::Machine, Unserved::Expression(symbol_kind(kind)))
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression(symbol_kind(kind)),
+                )
             })
     }
 
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
         let typed = self.typed;
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
-        let signature = terminal_check_tables::row(&self.signatures, id, id, Construct::Machine)?.clone();
+        let signature =
+            terminal_check_tables::row(&self.signatures, id, id, Construct::Machine)?.clone();
         let (_, state) = self.declaration(id, symbol)?;
-        let formals = span(&typed.state_parameters, state.parameters, id, "parameter span")?;
+        let formals = span(
+            &typed.state_parameters,
+            state.parameters,
+            id,
+            "parameter span",
+        )?;
         let mut slots: Vec<Slot> = formals
             .iter()
             .zip(&signature.parameters)
@@ -603,38 +756,73 @@ impl<'t> Program<'t> {
         let mut completed = false;
         for (position, statement) in statements.iter().enumerate() {
             if completed {
-                return Err(refuse(id, Construct::Machine, Unserved::Completion("statement after an unconditional arm")));
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Completion("statement after an unconditional arm"),
+                ));
             }
             let last = position + 1 == statements.len();
             let read = match statement {
                 StatementNode::Assembly(_) => {
-                    return Err(refuse(id, Construct::Machine, Unserved::Statement("assembly")));
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Statement("assembly"),
+                    ));
                 }
                 StatementNode::AssemblyFact(_) => {
-                    return Err(refuse(id, Construct::Machine, Unserved::Statement("assembly fact")));
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Statement("assembly fact"),
+                    ));
                 }
                 StatementNode::Assignment(assignment) => {
                     let ExpressionNode::Name(path) = self.node(id, assignment.target)? else {
-                        return Err(refuse(id, Construct::Machine, Unserved::Statement("assignment to a projected place")));
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Statement("assignment to a projected place"),
+                        ));
                     };
                     let slot = self.slot_of(id, &slots, path)?;
                     if !slots[slot].assignable {
-                        return Err(refuse(id, Construct::Machine, Unserved::Statement("assignment to an immutable binding")));
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Statement("assignment to an immutable binding"),
+                        ));
                     }
-                    let value = self.expression(id, &slots, assignment.value, Some(slots[slot].scalar_type))?;
+                    let value = self.expression(
+                        id,
+                        &slots,
+                        assignment.value,
+                        Some(slots[slot].scalar_type),
+                    )?;
                     if value.result != Some(slots[slot].scalar_type) {
-                        return Err(refuse(id, Construct::Machine, Unserved::Typing("assigned value type")));
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Typing("assigned value type"),
+                        ));
                     }
                     Statement::Bind { slot, value }
                 }
-                StatementNode::Call(call) => Statement::Evaluate(self.call_statement(id, &slots, call)?),
+                StatementNode::Call(call) => {
+                    Statement::Evaluate(self.call_statement(id, &slots, call)?)
+                }
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
                     let expression = self.expression(id, &slots, *expression, expected)?;
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if expression.result != Some(result) {
-                                return Err(refuse(id, Construct::Machine, Unserved::Typing("final value type")));
+                                return Err(refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Typing("final value type"),
+                                ));
                             }
                             completed = true;
                             Statement::Arm {
@@ -653,29 +841,47 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Transition(transition) => {
                     if transition.continuation.is_valid() {
-                        return Err(refuse(id, Construct::Machine, Unserved::Transition("continuation")));
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Transition("continuation"),
+                        ));
                     }
                     if !transition.proof_selectors.is_empty() {
-                        return Err(refuse(id, Construct::Machine, Unserved::Transition("proof selectors")));
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Transition("proof selectors"),
+                        ));
                     }
                     match transition.exit {
                         TransitionExit::Ordinary => {}
                         TransitionExit::Crash(_) => {
-                            return Err(refuse(id, Construct::Machine, Unserved::Transition("crash")));
+                            return Err(refuse(
+                                id,
+                                Construct::Machine,
+                                Unserved::Transition("crash"),
+                            ));
                         }
                     }
-                    let patterns = self.typed.statement_table.transition_patterns(transition.patterns);
+                    let patterns = self
+                        .typed
+                        .statement_table
+                        .transition_patterns(transition.patterns);
                     let condition = match (transition.guard, patterns) {
                         (TransitionGuardNode::Always, []) => None,
                         (TransitionGuardNode::When(guard), []) => Some(guard),
-                        (TransitionGuardNode::Always, [pattern]) => Some(self.value_pattern(id, pattern)?),
+                        (TransitionGuardNode::Always, [pattern]) => {
+                            Some(self.value_pattern(id, pattern)?)
+                        }
                         // Stage 03 keeps the arm's value test twice: as the
                         // transition guard and, as a separate copy, as the
                         // pattern's condition. The guard is evaluated once;
                         // the copy must read to the same computation.
                         (TransitionGuardNode::When(guard), [pattern]) => {
                             let condition = self.value_pattern(id, pattern)?;
-                            let read_guard = self.expression(id, &slots, guard, Some(ScalarType::Boolean))?;
+                            let read_guard =
+                                self.expression(id, &slots, guard, Some(ScalarType::Boolean))?;
                             let read_condition =
                                 self.expression(id, &slots, condition, Some(ScalarType::Boolean))?;
                             if !same_computation(&read_guard, &read_condition) {
@@ -688,15 +894,24 @@ impl<'t> Program<'t> {
                             Some(guard)
                         }
                         (_, [_, _, ..]) => {
-                            return Err(refuse(id, Construct::Machine, Unserved::Transition("tuple pattern")));
+                            return Err(refuse(
+                                id,
+                                Construct::Machine,
+                                Unserved::Transition("tuple pattern"),
+                            ));
                         }
                     };
                     let guard = match condition {
                         None => None,
                         Some(guard) => {
-                            let guard = self.expression(id, &slots, guard, Some(ScalarType::Boolean))?;
+                            let guard =
+                                self.expression(id, &slots, guard, Some(ScalarType::Boolean))?;
                             if guard.result != Some(ScalarType::Boolean) {
-                                return Err(refuse(id, Construct::Machine, Unserved::Typing("guard is not bool")));
+                                return Err(refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Typing("guard is not bool"),
+                                ));
                             }
                             Some(guard)
                         }
@@ -713,7 +928,11 @@ impl<'t> Program<'t> {
             body.push(read);
         }
         if !completed && signature.result.is_some() {
-            return Err(refuse(id, Construct::Machine, Unserved::Completion("value machine can fall off its end")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Completion("value machine can fall off its end"),
+            ));
         }
         Ok(Body {
             slots: slots.iter().map(|slot| slot.scalar_type).collect(),
@@ -745,7 +964,10 @@ impl<'t> Program<'t> {
         }
         // Stage 03 stores the value test as both the pattern's guard and its
         // condition, one handle.
-        match (destructure.guard.is_valid(), destructure.condition.is_valid()) {
+        match (
+            destructure.guard.is_valid(),
+            destructure.condition.is_valid(),
+        ) {
             (true, false) => Ok(destructure.guard),
             (false, true) => Ok(destructure.condition),
             (true, true) if destructure.guard == destructure.condition => Ok(destructure.condition),
@@ -754,17 +976,33 @@ impl<'t> Program<'t> {
         }
     }
 
-    fn local(&mut self, id: MachineId, slots: &[Slot], local: &TableLocalData) -> Checked<(Slot, Statement)> {
+    fn local(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        local: &TableLocalData,
+    ) -> Checked<(Slot, Statement)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
         match local.role {
-            language_core::LocalBindingRole::Value | language_core::LocalBindingRole::DispatchSubject => {}
-            language_core::LocalBindingRole::AtomicObservedResult => return unserved("atomic observed result"),
-            language_core::LocalBindingRole::RecordPattern => return unserved("record pattern binding"),
+            language_core::LocalBindingRole::Value
+            | language_core::LocalBindingRole::DispatchSubject => {}
+            language_core::LocalBindingRole::AtomicObservedResult => {
+                return unserved("atomic observed result");
+            }
+            language_core::LocalBindingRole::RecordPattern => {
+                return unserved("record pattern binding");
+            }
             language_core::LocalBindingRole::ArmPattern => return unserved("arm pattern binding"),
-            language_core::LocalBindingRole::DispatchObservation => return unserved("dispatch observation"),
+            language_core::LocalBindingRole::DispatchObservation => {
+                return unserved("dispatch observation");
+            }
         }
         if !local.symbol.is_valid() {
-            return Err(refuse(id, Construct::Machine, Unserved::Spelling("local without a symbol")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("local without a symbol"),
+            ));
         }
         if local.is_operand_capture || local.reflected_query_origin.is_some() {
             return unserved("operand capture or reflected query");
@@ -784,17 +1022,31 @@ impl<'t> Program<'t> {
         };
         let value = self.expression(id, slots, local.initial_value, declared)?;
         let Some(value_type) = value.result else {
-            return Err(refuse(id, Construct::Machine, Unserved::Typing("local bound to a Unit call")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("local bound to a Unit call"),
+            ));
         };
         if declared.is_some_and(|declared| declared != value_type) {
-            return Err(refuse(id, Construct::Machine, Unserved::Typing("local initializer type")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("local initializer type"),
+            ));
         }
         let slot = Slot {
             symbol: local.symbol,
             scalar_type: value_type,
             assignable: local.is_mutable,
         };
-        Ok((slot, Statement::Bind { slot: slots.len(), value }))
+        Ok((
+            slot,
+            Statement::Bind {
+                slot: slots.len(),
+                value,
+            },
+        ))
     }
 
     fn target(
@@ -806,16 +1058,26 @@ impl<'t> Program<'t> {
     ) -> Checked<Target> {
         let typed = self.typed;
         if !handle.is_valid() {
-            return Err(refuse(id, Construct::Machine, Unserved::Transition("missing target")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Transition("missing target"),
+            ));
         }
         let target = match typed.statement_table.transition_target(handle) {
             TransitionTargetNode::Terminal => {
                 if result.is_some() {
-                    return Err(refuse(id, Construct::Machine, Unserved::Typing("Unit arm in a value machine")));
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Typing("Unit arm in a value machine"),
+                    ));
                 }
                 return Ok(Target::Unit);
             }
-            TransitionTargetNode::Value(expression) => self.expression(id, slots, *expression, result)?,
+            TransitionTargetNode::Value(expression) => {
+                self.expression(id, slots, *expression, result)?
+            }
             TransitionTargetNode::Named {
                 operational_acknowledgement,
                 path,
@@ -825,29 +1087,59 @@ impl<'t> Program<'t> {
                 source_span,
                 authored_call_selection,
             } => {
-                if operational_acknowledgement.acknowledges_suspend || operational_acknowledgement.acknowledges_block {
-                    return Err(refuse(id, Construct::Machine, Unserved::Call("suspend or block acknowledgement")));
+                if operational_acknowledgement.acknowledges_suspend
+                    || operational_acknowledgement.acknowledges_block
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("suspend or block acknowledgement"),
+                    ));
                 }
                 if static_machine_parameter.is_valid() || !evidence_arguments.is_empty() {
-                    return Err(refuse(id, Construct::Machine, Unserved::Call("static or evidence call")));
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("static or evidence call"),
+                    ));
                 }
                 self.direct_selection(id, path.symbol, *authored_call_selection, None)?;
-                if typed.statement_table.name_path_members(path.members).len() != 1 || path.receiver_symbol.is_valid() {
-                    return Err(refuse(id, Construct::Machine, Unserved::Call("qualified or receiver call")));
+                if typed.statement_table.name_path_members(path.members).len() != 1
+                    || path.receiver_symbol.is_valid()
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("qualified or receiver call"),
+                    ));
                 }
                 let arguments = typed.statement_table.expression_handles(*arguments);
-                self.call(id, slots, path.symbol, arguments, SourceOrigin::of(*source_span))?
+                self.call(
+                    id,
+                    slots,
+                    path.symbol,
+                    arguments,
+                    SourceOrigin::of(*source_span),
+                )?
             }
         };
         if target.result != result {
-            return Err(refuse(id, Construct::Machine, Unserved::Typing("arm value type")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("arm value type"),
+            ));
         }
         Ok(Target::Value(target))
     }
 
     fn node(&self, id: MachineId, expression: ExpressionHandle) -> Checked<&'t ExpressionNode> {
         if !expression.is_valid() {
-            return Err(refuse(id, Construct::Machine, Unserved::Expression("missing expression")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("missing expression"),
+            ));
         }
         Ok(self.typed.expression_table.expression(expression))
     }
@@ -870,7 +1162,10 @@ impl<'t> Program<'t> {
         if !application.is_valid() {
             return Ok(());
         }
-        let application = self.typed.expression_table.static_machine_application(application);
+        let application = self
+            .typed
+            .expression_table
+            .static_machine_application(application);
         if !application.arguments.is_empty() || !application.selected_machine_arguments.is_empty() {
             return unserved("static application arguments");
         }
@@ -896,7 +1191,13 @@ impl<'t> Program<'t> {
         let owner = match self.typed.symbols.get(target).kind {
             SymbolKind::State => self.typed.symbols.get(target).parent,
             SymbolKind::Machine => target,
-            other => return Err(refuse(id, Construct::Machine, Unserved::Call(symbol_kind(other)))),
+            other => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call(symbol_kind(other)),
+                ));
+            }
         };
         if registration.is_valid() && registration != target && registration != owner {
             let state = self
@@ -922,20 +1223,30 @@ impl<'t> Program<'t> {
         &self,
         id: MachineId,
         target: SymbolHandle,
-        selection: Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+        selection: Option<
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        >,
         binding: Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
     ) -> Checked<()> {
         use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(occurrence) = selection {
-            let Some(selected) = self.typed.authored_declaration_selections().get(occurrence) else {
+            let Some(selected) = self.typed.authored_declaration_selections().get(occurrence)
+            else {
                 return unserved("authored selection missing from its ledger");
             };
             match selected.target() {
-                AuthoredDeclarationSelectionTarget::Resolved(resolved) if resolved.selected_symbol() == target => {}
-                AuthoredDeclarationSelectionTarget::Resolved(_) => return unserved("selection resolved to another declaration"),
-                AuthoredDeclarationSelectionTarget::Intrinsic(_) => return unserved("intrinsic selection"),
-                AuthoredDeclarationSelectionTarget::LateBound(_) => return unserved("late-bound selection"),
+                AuthoredDeclarationSelectionTarget::Resolved(resolved)
+                    if resolved.selected_symbol() == target => {}
+                AuthoredDeclarationSelectionTarget::Resolved(_) => {
+                    return unserved("selection resolved to another declaration");
+                }
+                AuthoredDeclarationSelectionTarget::Intrinsic(_) => {
+                    return unserved("intrinsic selection");
+                }
+                AuthoredDeclarationSelectionTarget::LateBound(_) => {
+                    return unserved("late-bound selection");
+                }
             }
         }
         match binding {
@@ -945,7 +1256,12 @@ impl<'t> Program<'t> {
         }
     }
 
-    fn call_statement(&mut self, id: MachineId, slots: &[Slot], call: &TableCall) -> Checked<Expression> {
+    fn call_statement(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCall,
+    ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if call.installed_interrupt_operation.is_some()
             || call.static_requirement_dispatch.is_some()
@@ -953,34 +1269,69 @@ impl<'t> Program<'t> {
         {
             return unserved("interrupt, requirement dispatch or reflected call");
         }
-        self.applies_nothing(id, call.target_symbol, call.authored_machine_application, &call.machine_arguments)?;
+        self.applies_nothing(
+            id,
+            call.target_symbol,
+            call.authored_machine_application,
+            &call.machine_arguments,
+        )?;
         self.direct_selection(id, call.target_symbol, call.authored_call_selection, None)?;
-        if call.receiver_root_symbol.is_valid() || call.receiver_symbol.is_valid() || !call.receiver.is_empty() {
+        if call.receiver_root_symbol.is_valid()
+            || call.receiver_symbol.is_valid()
+            || !call.receiver.is_empty()
+        {
             return unserved("receiver call");
         }
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
             return unserved("machine parameter or evidence");
         }
-        if call.operational_acknowledgement.acknowledges_suspend || call.operational_acknowledgement.acknowledges_block {
+        if call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
             return unserved("suspend or block acknowledgement");
         }
-        let arguments = self.typed.statement_table.expression_handles(call.arguments);
-        self.call(id, slots, call.target_symbol, arguments, SourceOrigin::of(call.source_span))
+        let arguments = self
+            .typed
+            .statement_table
+            .expression_handles(call.arguments);
+        self.call(
+            id,
+            slots,
+            call.target_symbol,
+            arguments,
+            SourceOrigin::of(call.source_span),
+        )
     }
 
-    fn call_expression(&mut self, id: MachineId, slots: &[Slot], call: &TableCallExpression, source: SourceOrigin) -> Checked<Expression> {
+    fn call_expression(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCallExpression,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if call.installed_interrupt_operation.is_some() {
             return unserved("installed interrupt operation");
         }
-        self.applies_nothing(id, call.target_symbol, call.authored_machine_application, &call.machine_arguments)?;
+        self.applies_nothing(
+            id,
+            call.target_symbol,
+            call.authored_machine_application,
+            &call.machine_arguments,
+        )?;
         if call.static_requirement_dispatch.is_some() {
             return unserved("static requirement dispatch");
         }
         if call.build_selection.is_valid() {
             return unserved("Build selection");
         }
-        self.direct_selection(id, call.target_symbol, call.authored_call_selection, call.authored_call_binding)?;
+        self.direct_selection(
+            id,
+            call.target_symbol,
+            call.authored_call_selection,
+            call.authored_call_binding,
+        )?;
         if call.quotient_operation.is_some()
             || call.private_layout_operation.is_some()
             || call.layout_query.is_some()
@@ -997,10 +1348,15 @@ impl<'t> Program<'t> {
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
             return unserved("machine parameter or evidence");
         }
-        if call.operational_acknowledgement.acknowledges_suspend || call.operational_acknowledgement.acknowledges_block {
+        if call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
             return unserved("suspend or block acknowledgement");
         }
-        let arguments = self.typed.expression_table.expression_handles(call.arguments);
+        let arguments = self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments);
         self.call(id, slots, call.target_symbol, arguments, source)
     }
 
@@ -1013,7 +1369,11 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         if !target.is_valid() {
-            return Err(refuse(id, Construct::Machine, Unserved::Spelling("callee without a symbol")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("callee without a symbol"),
+            ));
         }
         // A call names its callee's entry state; the machine is that state's
         // symbol parent, and must have exactly that one state.
@@ -1023,11 +1383,21 @@ impl<'t> Program<'t> {
                 let parent = self.typed.symbols.get(target).parent;
                 let (_, state) = self.declaration(id, parent)?;
                 if state.symbol != target {
-                    return Err(refuse(id, Construct::Machine, Unserved::Call("state other than the entry")));
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("state other than the entry"),
+                    ));
                 }
                 parent
             }
-            other => return Err(refuse(id, Construct::Machine, Unserved::Call(symbol_kind(other)))),
+            other => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call(symbol_kind(other)),
+                ));
+            }
         };
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
@@ -1037,13 +1407,18 @@ impl<'t> Program<'t> {
             .parameters
             .clone();
         if formals.len() != arguments.len() {
-            return Err(refuse(id, Construct::Machine, Unserved::Typing("argument count")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("argument count"),
+            ));
         }
         let mut read = Vec::with_capacity(arguments.len());
         for (argument, formal) in arguments.iter().zip(&formals) {
             read.push(self.expression(id, slots, *argument, Some(*formal))?);
         }
-        let signature = terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
+        let signature =
+            terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
         if signature.parameters.len() != read.len()
             || signature
                 .parameters
@@ -1051,7 +1426,11 @@ impl<'t> Program<'t> {
                 .zip(&read)
                 .any(|(formal, actual)| actual.result != Some(*formal))
         {
-            return Err(refuse(id, Construct::Machine, Unserved::Typing("argument types")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("argument types"),
+            ));
         }
         Ok(Expression {
             kind: ExpressionKind::Call {
@@ -1082,7 +1461,9 @@ impl<'t> Program<'t> {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
             }
-            ExpressionNode::Boolean(value) => (ExpressionKind::Boolean(*value), ScalarType::Boolean),
+            ExpressionNode::Boolean(value) => {
+                (ExpressionKind::Boolean(*value), ScalarType::Boolean)
+            }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 (ExpressionKind::Slot(slot), slots[slot].scalar_type)
@@ -1096,7 +1477,13 @@ impl<'t> Program<'t> {
                     (UnaryOperator::BitwiseNot, Some(integer @ ScalarType::Integer(_))) => {
                         (ExpressionKind::BitwiseNot(Box::new(operand)), integer)
                     }
-                    _ => return Err(refuse(id, Construct::Machine, Unserved::Typing("unary operand type"))),
+                    _ => {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Typing("unary operand type"),
+                        ));
+                    }
                 }
             }
             ExpressionNode::Binary(binary) => {
@@ -1203,7 +1590,11 @@ fn binary_expression(
             });
         }
         BinaryOperator::CaseMembership => {
-            return Err(refuse(id, Construct::Machine, Unserved::Expression("case membership")));
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("case membership"),
+            ));
         }
         BinaryOperator::Add => (Strict::Add, Operands::Arithmetic),
         BinaryOperator::Subtract => (Strict::Subtract, Operands::Arithmetic),
@@ -1227,7 +1618,8 @@ fn binary_expression(
         Operands::Arithmetic if integer(left_type) && left_type == right_type => left_type,
         Operands::Shift if integer(left_type) && integer(right_type) => left_type,
         Operands::Equality
-            if left_type == right_type && (integer(left_type) || left_type == ScalarType::Boolean) =>
+            if left_type == right_type
+                && (integer(left_type) || left_type == ScalarType::Boolean) =>
         {
             ScalarType::Boolean
         }
@@ -1316,15 +1708,27 @@ fn same_computation(left: &Expression, right: &Expression) -> bool {
 fn canonical(propositions: Vec<Proposition>, id: MachineId) -> Checked<Vec<Proposition>> {
     let mut keyed = Vec::with_capacity(propositions.len());
     for proposition in propositions {
-        let key = terminal_codec::canonical_proposition_order_key(&proposition)
-            .map_err(|_| refuse(id, Construct::Machine, Unserved::Contract("unencodable proposition")))?;
+        let key = terminal_codec::canonical_proposition_order_key(&proposition).map_err(|_| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("unencodable proposition"),
+            )
+        })?;
         keyed.push((key, proposition));
     }
     keyed.sort_by(|left, right| left.0.cmp(&right.0));
     if keyed.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-        return Err(refuse(id, Construct::Machine, Unserved::Contract("duplicate clause")));
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Contract("duplicate clause"),
+        ));
     }
-    Ok(keyed.into_iter().map(|(_, proposition)| proposition).collect())
+    Ok(keyed
+        .into_iter()
+        .map(|(_, proposition)| proposition)
+        .collect())
 }
 
 /// The refusal label for a name or callee that is not a slot or machine.
@@ -1372,8 +1776,7 @@ mod tests {
     use numerics::literals::{FloatFormat, IntegerLiteral};
     use symbols::{SymbolNameRef, SymbolTableBuilder, builtin_type_symbols};
     use typed_trees::expression::{
-        TableBinaryExpression, TableBorrowExpression, TableIndexedExpression,
-        TableRangeExpression,
+        TableBinaryExpression, TableBorrowExpression, TableIndexedExpression, TableRangeExpression,
     };
 
     fn machine() -> MachineId {
@@ -1384,8 +1787,13 @@ mod tests {
         let mut typed = typed.clone();
         let handle = typed.expression_table.insert(node);
         let mut program = Program::new(&typed);
-        let refusal = program.expression(machine(), &[], handle, None).unwrap_err();
-        assert_eq!(refusal.reason, terminal_check_tables::RefusalReason::Unsupported);
+        let refusal = program
+            .expression(machine(), &[], handle, None)
+            .unwrap_err();
+        assert_eq!(
+            refusal.reason,
+            terminal_check_tables::RefusalReason::Unsupported
+        );
         refusal.detail
     }
 
@@ -1416,15 +1824,30 @@ mod tests {
                 }),
                 "expression range",
             ),
-            (ExpressionNode::ArrayLiteral(arena::HandleSpan::empty()), "expression array literal"),
-            (ExpressionNode::ZeroValue(TypeReferenceHandle::invalid()), "expression zero value"),
-            (ExpressionNode::TypeExpression(TypeReferenceHandle::invalid()), "expression type expression"),
-            (ExpressionNode::UndeterminedNaN(FloatFormat::F32), "expression undetermined NaN"),
+            (
+                ExpressionNode::ArrayLiteral(arena::HandleSpan::empty()),
+                "expression array literal",
+            ),
+            (
+                ExpressionNode::ZeroValue(TypeReferenceHandle::invalid()),
+                "expression zero value",
+            ),
+            (
+                ExpressionNode::TypeExpression(TypeReferenceHandle::invalid()),
+                "expression type expression",
+            ),
+            (
+                ExpressionNode::UndeterminedNaN(FloatFormat::F32),
+                "expression undetermined NaN",
+            ),
             (
                 ExpressionNode::Integer(IntegerLiteral::from_value(3)),
                 "expression anonymous integer literal without an expected type",
             ),
-            (ExpressionNode::Name(TableNamePath::default()), "spelling name without a symbol"),
+            (
+                ExpressionNode::Name(TableNamePath::default()),
+                "spelling name without a symbol",
+            ),
         ];
         for (node, expected) in cases {
             assert_eq!(refused(&typed, node), expected);
@@ -1442,7 +1865,10 @@ mod tests {
         program.calls = vec![(m(1), m(2)), (m(2), m(3)), (m(1), m(3))];
         assert_eq!(program.refuse_recursion(), Ok(()));
         program.calls.push((m(3), m(2)));
-        assert_eq!(program.refuse_recursion().unwrap_err().detail, "call recursion");
+        assert_eq!(
+            program.refuse_recursion().unwrap_err().detail,
+            "call recursion"
+        );
         program.calls = vec![(m(1), m(1))];
         assert_eq!(program.refuse_recursion().unwrap_err().machine, m(1));
     }
@@ -1451,7 +1877,9 @@ mod tests {
     fn case_membership_is_refused_after_its_operands_read() {
         let mut typed = TypedTrees::default();
         let left = typed.expression_table.insert(ExpressionNode::Boolean(true));
-        let right = typed.expression_table.insert(ExpressionNode::Boolean(false));
+        let right = typed
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
         let node = ExpressionNode::Binary(TableBinaryExpression {
             left,
             operator: BinaryOperator::CaseMembership,
@@ -1488,20 +1916,27 @@ mod tests {
         let builtin = named(&mut typed, u32_slot);
         let nominal = named(&mut typed, impostor);
         let unresolved = named(&mut typed, SymbolHandle::invalid());
-        let reference = typed.type_reference_table.insert(TypeReferenceNode::Reference {
-            referee: builtin,
-            access: ReferenceAccess::Shared,
-            lifetime: None,
-        });
+        let reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: builtin,
+                access: ReferenceAccess::Shared,
+                lifetime: None,
+            });
         let program = Program::new(&typed);
         assert_eq!(
             program.scalar_type(machine(), builtin),
-            Ok(ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()))
+            Ok(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
+            ))
         );
         let detail = |handle| program.scalar_type(machine(), handle).unwrap_err().detail;
         assert_eq!(detail(nominal), "type nominal type");
         assert_eq!(detail(unresolved), "spelling type without a symbol");
         assert_eq!(detail(reference), "type reference");
-        assert_eq!(program.result_type(machine(), TypeReferenceHandle::invalid()), Ok(None));
+        assert_eq!(
+            program.result_type(machine(), TypeReferenceHandle::invalid()),
+            Ok(None)
+        );
     }
 }

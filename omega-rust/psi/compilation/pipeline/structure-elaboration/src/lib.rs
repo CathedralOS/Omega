@@ -182,7 +182,11 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
     // is re-read on every step.
     while bodies.len() < program.symbols.len() {
         let next = MachineId::new(bodies.len() as u64 + 1).ok_or_else(|| {
-            refuse(entry, Construct::Machine, Unserved::Machine("identity overflow"))
+            refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Machine("identity overflow"),
+            )
         })?;
         let body = program.body(next)?;
         bodies.push(body);
@@ -193,7 +197,11 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
     let mut sources = IdTable::default();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
-            refuse(entry, Construct::Machine, Unserved::Machine("identity overflow"))
+            refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Machine("identity overflow"),
+            )
         })?;
         let body = terminal_check_tables::row(&bodies, id, id, Construct::Machine)?;
         let lowered = lower::machine(id, body, &program.signatures)?;

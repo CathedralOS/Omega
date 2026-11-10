@@ -28,12 +28,18 @@ struct NoEffects;
 
 impl TerminalEffectHandler for NoEffects {
     fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new("the scalar subset performs no effect"))
+        Err(TerminalEffectRejection::new(
+            "the scalar subset performs no effect",
+        ))
     }
 }
 
 fn first_line(text: impl std::fmt::Debug) -> String {
-    format!("{text:?}").replace(['\t', '\n'], " ").chars().take(400).collect()
+    format!("{text:?}")
+        .replace(['\t', '\n'], " ")
+        .chars()
+        .take(400)
+        .collect()
 }
 
 fn probe(main: &Path) -> String {
@@ -63,7 +69,11 @@ fn probe(main: &Path) -> String {
             &[profile],
             compiler::CompilationProduct::Check,
         )?;
-        fixture_package_inputs::check_fixture(&mut prepared, profile.target_name(), Default::default())
+        fixture_package_inputs::check_fixture(
+            &mut prepared,
+            profile.target_name(),
+            Default::default(),
+        )
     })();
     let checked = match checked {
         Ok(checked) => checked,
@@ -123,7 +133,10 @@ fn probe(main: &Path) -> String {
             Err(error) => return format!("load-refused\t{}\t{summary}", first_line(error)),
         };
     match execution.resume(&mut WorkMeter::with_budget(10_000_000), &mut NoEffects) {
-        Ok(status) => format!("ran\t{}\t{summary}\texpected={expected}", first_line(status)),
+        Ok(status) => format!(
+            "ran\t{}\t{summary}\texpected={expected}",
+            first_line(status)
+        ),
         Err(error) => format!("run-failed\t{}\t{summary}", first_line(error)),
     }
 }
@@ -151,7 +164,10 @@ fn dump_transitions(typed: &typed_trees::TypedTrees) {
                     TransitionGuardNode::When(guard) => kind(guard),
                 };
                 eprintln!("dump {} guard {guard}", machine.name);
-                for pattern in typed.statement_table.transition_patterns(transition.patterns) {
+                for pattern in typed
+                    .statement_table
+                    .transition_patterns(transition.patterns)
+                {
                     eprintln!(
                         "dump   pattern subject {} guard {} condition {}",
                         kind(pattern.subject),
@@ -167,8 +183,8 @@ fn dump_transitions(typed: &typed_trees::TypedTrees) {
 fn main() {
     for argument in std::env::args().skip(1) {
         let main = Path::new(&argument);
-        let line = std::panic::catch_unwind(|| probe(main))
-            .unwrap_or_else(|_| "panicked\t-".to_owned());
+        let line =
+            std::panic::catch_unwind(|| probe(main)).unwrap_or_else(|_| "panicked\t-".to_owned());
         println!("{argument}\t{line}");
     }
 }

@@ -32,7 +32,9 @@ use semantic_vocabulary::{
 use terminal_check_tables::edges::{Actual, Callee, Destination, EdgeRow, InvocationRow};
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
-use terminal_check_tables::{Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason};
+use terminal_check_tables::{
+    Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
+};
 use terminal_psi::{
     Block, BoundaryParameterKind, ContractClause, MachineContract, Operation, OperationKind,
     OperationResult, RegisterTargetApplicability, SuccessorEdge, TerminalMachine,
@@ -90,7 +92,9 @@ pub(crate) fn machine(
     }
     if lowering.open() {
         match signature.result {
-            None => lowering.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?,
+            None => {
+                lowering.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?
+            }
             Some(_) => return Err(lowering.internal("a value machine fell off its last statement")),
         }
     }
@@ -152,9 +156,7 @@ impl Lowering<'_> {
         Refusal {
             reason: RefusalReason::Unsupported,
             machine: self.id,
-            concerns: self
-                .current
-                .map_or(Construct::Machine, Construct::Block),
+            concerns: self.current.map_or(Construct::Machine, Construct::Block),
             detail: format!("completion {detail}"),
         }
     }
@@ -217,8 +219,16 @@ impl Lowering<'_> {
         })
     }
 
-    fn obligation(&mut self, kind: ObligationKind, created_at: ProgramPoint, source: SourceOrigin) -> ObligationId {
-        let obligation = self.tables.obligations.push(ObligationRow { kind, created_at });
+    fn obligation(
+        &mut self,
+        kind: ObligationKind,
+        created_at: ProgramPoint,
+        source: SourceOrigin,
+    ) -> ObligationId {
+        let obligation = self
+            .tables
+            .obligations
+            .push(ObligationRow { kind, created_at });
         self.sources.obligations.push(source);
         obligation
     }
@@ -230,7 +240,11 @@ impl Lowering<'_> {
     /// The obligation guarding `operation`, created at the point before it.
     fn safety(&mut self, operation: OperationId, source: SourceOrigin) -> Checked<ObligationId> {
         let before = self.here()?;
-        Ok(self.obligation(ObligationKind::OperationSafety { operation }, before, source))
+        Ok(self.obligation(
+            ObligationKind::OperationSafety { operation },
+            before,
+            source,
+        ))
     }
 
     fn emit(
@@ -242,7 +256,10 @@ impl Lowering<'_> {
         let (result, value) = match result {
             Some(scalar_type) => {
                 let value = self.value(scalar_type, ValueOrigin::Operation(operation));
-                (OperationResult::Scalar(declaration(value, scalar_type)), Value::Scalar(value))
+                (
+                    OperationResult::Scalar(declaration(value, scalar_type)),
+                    Value::Scalar(value),
+                )
             }
             None => (OperationResult::Unit, Value::Unit),
         };
@@ -290,7 +307,12 @@ impl Lowering<'_> {
         })
     }
 
-    fn jump(&mut self, target: BlockId, arguments: Vec<ValueId>, source: SourceOrigin) -> Checked<()> {
+    fn jump(
+        &mut self,
+        target: BlockId,
+        arguments: Vec<ValueId>,
+        source: SourceOrigin,
+    ) -> Checked<()> {
         let edge = self.edge(Destination::Block(target), source)?;
         self.terminate(Terminator::Jump {
             edge,
@@ -357,8 +379,15 @@ impl Lowering<'_> {
             } => {
                 let condition = self.scalar(guard)?;
                 let arm = self.block(*source);
-                let rest = self.block(SourceOrigin::Unpositioned(Unpositioned::DispatchContinuation));
-                self.branch(condition, (arm, Vec::new()), (rest, Vec::new()), guard.source)?;
+                let rest = self.block(SourceOrigin::Unpositioned(
+                    Unpositioned::DispatchContinuation,
+                ));
+                self.branch(
+                    condition,
+                    (arm, Vec::new()),
+                    (rest, Vec::new()),
+                    guard.source,
+                )?;
                 self.enter(arm);
                 self.complete(target, *source)?;
                 self.enter(rest);
@@ -423,7 +452,11 @@ impl Lowering<'_> {
             ExpressionKind::Not(operand) => {
                 let operand = self.scalar(operand)?;
                 let operation = self.operation_identity(source);
-                self.emit(operation, expression.result, OperationKind::BooleanNot { operand })
+                self.emit(
+                    operation,
+                    expression.result,
+                    OperationKind::BooleanNot { operand },
+                )
             }
             ExpressionKind::BitwiseNot(operand) => {
                 let operand = self.scalar(operand)?;
@@ -442,7 +475,14 @@ impl Lowering<'_> {
                 let left = self.scalar(left_expression)?;
                 let right = self.scalar(right)?;
                 let operand_type = self.result_type(left_expression)?;
-                self.strict(*operation, operand_type, left, right, expression.result, source)
+                self.strict(
+                    *operation,
+                    operand_type,
+                    left,
+                    right,
+                    expression.result,
+                    source,
+                )
             }
             ExpressionKind::ShortCircuit {
                 conjunction,
@@ -534,7 +574,11 @@ impl Lowering<'_> {
             return Err(self.internal("an equality produced no value"));
         };
         let negation = self.operation_identity(source);
-        self.emit(negation, result, OperationKind::BooleanNot { operand: equal })
+        self.emit(
+            negation,
+            result,
+            OperationKind::BooleanNot { operand: equal },
+        )
     }
 
     /// `left && right` / `left || right`: the left value decides on one edge
@@ -548,7 +592,8 @@ impl Lowering<'_> {
         right: &Expression,
     ) -> Checked<Value> {
         let decided = self.scalar(left)?;
-        let evaluate_right = self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitRight));
+        let evaluate_right =
+            self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitRight));
         let join = self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin));
         let result = self.value(
             ScalarType::Boolean,
@@ -596,14 +641,10 @@ impl Lowering<'_> {
         for argument in arguments {
             actuals.push(self.scalar(argument)?);
         }
-        let clauses = terminal_check_tables::row(
-            self.signatures,
-            callee,
-            self.id,
-            Construct::Machine,
-        )?
-        .requires
-        .len();
+        let clauses =
+            terminal_check_tables::row(self.signatures, callee, self.id, Construct::Machine)?
+                .requires
+                .len();
         let before = self.here()?;
         let operation = self.operation_identity(source);
         let invocation = self.tables.invocations.push(InvocationRow {
@@ -664,8 +705,8 @@ impl Lowering<'_> {
             // (README, "Findings").
             Some(scalar_type) => {
                 let next = self.tables.values.len() as u64 + 1;
-                let value = ValueId::new(next)
-                    .ok_or_else(|| self.internal("result identity overflow"))?;
+                let value =
+                    ValueId::new(next).ok_or_else(|| self.internal("result identity overflow"))?;
                 TerminalMachineResult::Scalar(declaration(value, scalar_type))
             }
         };
@@ -688,7 +729,8 @@ impl Lowering<'_> {
         let mut drafts = std::mem::take(&mut self.blocks);
         let mut blocks = Vec::with_capacity(drafts.len());
         for position in 1..=drafts.len() as u64 {
-            let block = BlockId::new(position).ok_or_else(|| self.internal("block identity overflow"))?;
+            let block =
+                BlockId::new(position).ok_or_else(|| self.internal("block identity overflow"))?;
             let draft = drafts
                 .get_mut(block)
                 .ok_or_else(|| self.internal("block is past the end"))?;
