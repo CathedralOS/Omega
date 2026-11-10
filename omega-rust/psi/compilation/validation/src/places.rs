@@ -514,6 +514,74 @@ pub mod storage_path_relations {
                 .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
     }
 
+    /*
+        How two places relate. A write at one place and a fact, loan or
+        obligation at another ask this one question, so that every keep-or-kill
+        decision gives the same answer for the same two places
+        (wiki/drafts/designs/fact_transport.md).
+
+        `Prefix` and `Extends` are containment by path: every shared segment is
+        the same segment and one path is longer. A range that covers an index is
+        `MayOverlap`, which a caller must treat as not contained.
+    */
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum PlaceRelation {
+        Disjoint,
+        Equal,
+        /// The left place contains the right one.
+        Prefix,
+        /// The right place contains the left one.
+        Extends,
+        MayOverlap,
+    }
+
+    impl PlaceRelation {
+        pub const fn may_overlap(self) -> bool {
+            !matches!(self, Self::Disjoint)
+        }
+    }
+
+    pub fn place_relation(
+        program: &dyn crate::CheckingInput,
+        left: &crate::CanonicalPlace,
+        right: &crate::CanonicalPlace,
+    ) -> PlaceRelation {
+        if left.root != right.root {
+            return PlaceRelation::Disjoint;
+        }
+        place_segments_relation(program, &left.segments, &right.segments)
+    }
+
+    pub fn place_segments_relation(
+        program: &dyn crate::CheckingInput,
+        left: &[PlaceSegment],
+        right: &[PlaceSegment],
+    ) -> PlaceRelation {
+        if !canonical_place_segments_may_overlap(program, left, right) {
+            return PlaceRelation::Disjoint;
+        }
+        if !left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
+        {
+            return PlaceRelation::MayOverlap;
+        }
+        match left.len().cmp(&right.len()) {
+            std::cmp::Ordering::Equal => PlaceRelation::Equal,
+            std::cmp::Ordering::Less => PlaceRelation::Prefix,
+            std::cmp::Ordering::Greater => PlaceRelation::Extends,
+        }
+    }
+
+    pub fn canonical_places_may_overlap(
+        program: &dyn crate::CheckingInput,
+        left: &crate::CanonicalPlace,
+        right: &crate::CanonicalPlace,
+    ) -> bool {
+        place_relation(program, left, right).may_overlap()
+    }
+
     pub fn canonical_place_segments_may_overlap(
         program: &dyn crate::CheckingInput,
         left: &[PlaceSegment],
@@ -653,6 +721,32 @@ pub mod storage_path_relations {
         segments: &[PlaceSegment],
     ) -> bool {
         canonical_place_segments_may_overlap(program, &place.segments, segments)
+    }
+    #[cfg(test)]
+    mod relation_tests {
+        use super::*;
+
+        #[test]
+        fn relation_names_disjoint_equal_and_both_containments() {
+            let program = typed_trees::TypedTrees::default();
+            let at = |index| PlaceSegment::FixedIndex { index };
+            let relation = |left: &[PlaceSegment], right: &[PlaceSegment]| {
+                place_segments_relation(&program, left, right)
+            };
+            assert_eq!(relation(&[at(0)], &[at(1)]), PlaceRelation::Disjoint);
+            assert_eq!(relation(&[at(0)], &[at(0)]), PlaceRelation::Equal);
+            assert_eq!(relation(&[at(0)], &[at(0), at(1)]), PlaceRelation::Prefix);
+            assert_eq!(relation(&[at(0), at(1)], &[at(0)]), PlaceRelation::Extends);
+            // A range covering an index shares storage with it, but is not a
+            // path prefix of it.
+            let range = PlaceSegment::FixedRange { start: 0, end: 4 };
+            assert_eq!(relation(&[range], &[at(2)]), PlaceRelation::MayOverlap);
+            assert_eq!(relation(&[range], &[at(4)]), PlaceRelation::Disjoint);
+            assert_eq!(
+                relation(&[PlaceSegment::OpaqueRange], &[at(0)]),
+                PlaceRelation::MayOverlap
+            );
+        }
     }
 }
 pub use captured_ownership::ownership_place_from_expression_in_state;
