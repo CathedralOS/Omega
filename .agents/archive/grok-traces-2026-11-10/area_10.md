@@ -16,7 +16,12 @@ Paths: a bare file name is under `omega-rust/psi/compilation/pipeline/06_checked
 | 8 | `attached_unit.rs:13701` | UNDECIDED | A returned byte or element view is left out of the origin list. |
 | 9 | `attached_unit.rs:15256-15268` | UNDECIDED | `Ok(false)` is ignored at every caller; later argument lowering was not read. |
 | 10 | `attached_unit.rs:11984-11992` | UNDECIDED | Normal and scalar returns emit the deferred release; the invocation-completion path does not. |
-| 11–93 | see digest | not reached | Tracing continues. |
+| 11 | `attached_unit.rs:11666-11670` | CLOSED | Later literals are not emitted, and a missing prebuilt place is an error. |
+| 12 | `attached_unit.rs:8792-8802, 8827-8833` | CLOSED | The fallback is the same expression or recipe with an invalid owner, never another owner's row. |
+| 13 | `attached_unit.rs:12242-12244` | UNDECIDED | A quotient whose type was not emitted is omitted from the catalog. |
+| 14 | `attached_unit.rs:4491-4531` | UNDECIDED | A missing link omits the establishment; consumers of the shorter list were not read. |
+| 15 | `emission.rs:1355-1357` | UNDECIDED | No transfer rows return an empty claim list; two of three callers were not read. |
+| 16–93 | see digest | not reached | Tracing continues. |
 
 ## 1. Scalar ensures that name a structural result
 
@@ -141,9 +146,45 @@ Read `MachineEmission::lower_step` from `11764` through `11992`. `ReleaseReferen
 
 The invocation-completion arm (`10871-10881`, read) sets `completes_normally = false`, pushes the block, and does not call either function. `take_invocation_completion` (`operation_emission.rs:1683-1720`, read) builds `InvokeNoNormal` or starts an `External` outcome. Not read: the rest of that match, and whether a `defer_to_exit` release can sit in a plan that takes this arm. What would decide it: that combination. On the normal and scalar-return arms the release is emitted later; the digest's "not traced" is the invocation arm.
 
+## 11. Literals after an external completion
+
+Verdict: CLOSED.
+
+Read `establish_call_literals` from `11637` through `11672`. Literals are collected, then an `External` completion breaks the loop (`11666-1170`). The external call's own literals are collected before the break. Search `establish_call_literals(`: one call, the ordinary emitter at `10595`.
+
+The schedule loop (`10789-10798`, read) stops after a step that sets `invocation_completion`. An external call does that and returns (`unit_operation_frame.rs:604-630`, read). Later steps, including later literal calls, do not run. `literal_argument_places` (`14125-14148`, read) is what consumes the prebuilt places, via `argument_places` (`12869-12894`, read) and `emit_call_through_frame` (`12131-12135`, read). A request past the prebuilt slice returns `Unsupported` ("byte-sequence literal argument place is absent") at `14139-14143`. The digest is right that later literals are not pre-established. They are also not emitted, and a use of a missing place is an error.
+
+## 12. Scoped lookup falls back to an unscoped row
+
+Verdict: CLOSED.
+
+Read `expression_in` (`8783-8802`) and `recipe_in` (`8818-8833`). After the owner match fails, both look for the same handle with an invalid scope. A valid owner does not receive another owner's scoped row. `expression` (`8770-8780`) and `recipe` (`8805-8815`) return an id only when every match is the same id.
+
+Search `expression_in(`: the definition, `retain_expression_in` (`8593-8599`, read), and `scalar_computations.rs:7576-7580` (read), which returns `Unsupported` when the lookup is `None`. Search `recipe_in(`: the definition, `scalar_lowering.rs:2376` (read `2363-2405`), and test asserts at `9049` and `9084`. On `None`, the contract leaf requires an admitted constant value or returns `Unsupported` (`2388-2395`). The test `constant_entries_keep_shared_expression_scopes_distinct` (`9043-9058`, read) expects two owners to keep different ids and expects the unscoped `recipe` lookup to be `None`. The digest matches the fallback. It does not cross owners.
+
+## 13. Quotient type missing from `type_ids`
+
+Verdict: UNDECIDED.
+
+Read `quotients::retain` from `12215` through `12244`. A closed data definition with a quotient whose stored type identity is not in `type_ids` is skipped (`12242-12244`). Search `quotients::retain(`: the definition and the call at `17200`. That call was not read. Not read: a consumer that lowers a quotient operation for a type absent from `type_ids`. What would decide it: whether such an operation can be reached. The digest matches the skip.
+
+## 14. Establishment omitted when a link is missing
+
+Verdict: UNDECIDED.
+
+Read `call_result_qualification_establishments` from `4455` through `4517`. A domain with no structural-domain plan (`4491-4493`), a plan with no routes (`4495-4496`), a domain not established at this call (`4509-4510`), or a callee with no trait signature (`4514-4516`) adds no row. Search of the function name: the definition and `Prepared::emit` at `1765` (read `1730-1774`), which calls it only when `issuer.is_valid()`.
+
+Not read: the lines after `4517`, and any consumer of `qualification_establishments`. What would decide it: whether a missing row is treated as "no obligation" by a checker that should have rejected the result. The digest's "omitted on any missing link" matches the four `continue`s. The "conservative" part was not established.
+
+## 15. Owned operand with no transfer rows
+
+Verdict: UNDECIDED.
+
+Read `lower_owned_operand_claims` from `1320` through `1357`. No matching `owned_transfer_paths` row returns `Ok(Vec::new())` (`1355-1356`). An invalid expression is an error (`1334-1335`). Search `lower_owned_operand_claims(`: the definition and three calls. Read only `lower_owned_transfer_claims` (`5145-5174`), which returns that vector unchanged. Not read: `unit_structural_values.rs:8008`, `emission_cleanup.rs:2898`, and whatever consumes the empty vector. What would decide it: those consumers. The digest matches the empty return.
+
 ## Entries not reached
 
-11 through 93.
+16 through 93.
 
 ## What I did not read
 
@@ -156,4 +197,7 @@ The invocation-completion arm (`10871-10881`, read) sets `completes_normally = f
 - Entry binding of `target_machine_families`, and consumers of `reference_sources`.
 - `emit_call` after line `1070`, and `prepare_borrowed_argument` at `unit_operation_frame.rs:1723` and `unit_structural_values.rs:4263`.
 - The remainder of `PendingInvocationOutcome` after `operation_emission.rs:1720`.
-- Entries 11–93. Background traces were not copied in.
+- `quotients::retain` after `12244`, and its call at `17200`.
+- `call_result_qualification_establishments` after `4517`, and consumers of `qualification_establishments`.
+- `lower_owned_operand_claims` after `1357`, plus the calls at `unit_structural_values.rs:8008` and `emission_cleanup.rs:2898`.
+- Entries 16–93. Background traces were not copied in.
