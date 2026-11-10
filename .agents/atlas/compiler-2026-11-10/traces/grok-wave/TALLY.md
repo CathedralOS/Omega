@@ -1,6 +1,6 @@
 # Grok wave tally, 2026-11-10
 
-This is a resume record, not a finished verdict tally. No slice report has come back yet, so every entry is still without a verdict. The wave stopped launching because the platform refused more background workers.
+This is a resume record, not a finished verdict tally. One slice report is saved. The platform still refuses a 101st concurrent worker.
 
 ## Launch refusal
 
@@ -14,23 +14,36 @@ The highest number that works is 100 workers at once. A retry of one more worker
 
 Peak workers running at once: 100. That is the accepted set below. The four refused launches are not counted in the peak.
 
-## Workers left running
+## Fast workers
 
-Not cancelled. Slices slice_0001 through slice_0064 were already running when the cost instruction arrived, on the parent model. Slices slice_0065 onward that were accepted use `composer-2.5` with fast mode off.
+This run's model is `grok-4.7-high-fast`. Slices slice_0001 through slice_0064 inherited that model. A follow-up to slice_0001 (`bc-f034c986-a460-5285-b52a-3dfc92c8c6be`) asking it to stop was refused:
+
+```
+Error: Sub-agent is currently running. You may send the follow-up message when it has completed.
+```
+
+There is no cancel tool for a running background worker, so those 64 were not stopped and were not started a second time. Slices slice_0065 onward that were accepted already use `composer-2.5` with fast mode off.
+
+## Workers left running
 
 Accepted and still in flight:
 
 - slice_0001 through slice_0071
-- slice_0073 through slice_0082
+- slice_0072 (relaunched on `composer-2.5` after slice_0073 finished; agent bc-e81cc7e0-15a1-5289-b61e-a6bc28fa7735)
+- slice_0074 through slice_0082
 - slice_0084 through slice_0098
 - slice_0100
 - slice_0102 through slice_0104
 
-That is 64 earlier workers plus 36 `composer-2.5` workers, 100 in all.
+slice_0073 has finished and its report is saved. The in-flight set is again 100.
+
+## Saved
+
+- `slices/slice_0073.md` ends with `SLICE COMPLETE`. Verdicts were not edited.
 
 ## Not started
 
-Refused twice: slice_0072, slice_0083, slice_0099, slice_0101.
+Refused twice, still not running: slice_0083, slice_0099, slice_0101.
 
 Not attempted after the cap: slice_0105 through slice_0304.
 
@@ -40,13 +53,13 @@ A later run can start those on `composer-2.5` with fast mode off, and only as sl
 
 | Kind | Entries | With a verdict | Without a verdict |
 | --- | --- | --- | --- |
-| ACCEPT | 1115 | 0 | 1115 |
+| ACCEPT | 1115 | 8 | 1107 |
 | DROP | 247 | 0 | 247 |
 | UNUSED | 265 | 0 | 265 |
 | SAMEJOB | 626 | 0 | 626 |
-| Total | 2253 | 0 | 2253 |
+| Total | 2253 | 8 | 2245 |
 
-Counts per digest are in the comment block at the top of `worklist.tsv`. No verdict table is filled in, because no worker report has been saved.
+Counts per digest are in the comment block at the top of `worklist.tsv`. The only saved verdicts are the eight in `slices/slice_0073.md`.
 
 ## How the list was cut
 
