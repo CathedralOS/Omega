@@ -179,6 +179,12 @@ tokens, and its suffix is the `%`, `|` or `!` immediately following the second
 `>`; no `>>` token is added. The suffixed forms are builtin integer operations
 only, so a `machine` declaration cannot bind one.
 
+`as` and its [cast entries](domains.md#grouping) form one postfix cast: after
+`as`, an optional carrier type and then every following `=D`, `+D` or `-D` entry
+belong to the cast. A `+` or `-` directly after a cast therefore begins an
+entry, never an addition or subtraction, and arithmetic on a cast result is
+written `(x as -Km) + y` or `(x as u32) + y`.
+
 Grouping is separate from the evaluation schedule. One declaration binds at
 most one fixed token. Distinct normalized operand/domain shapes may share a
 token; duplicate participating token/shape candidates reject. A second spelling
@@ -290,12 +296,16 @@ No realization can redefine its arithmetic contract. Merely naming a declaration
 A qualified declaration such as `Domain::operation` establishes its semantic
 home. An unqualified name may establish the same home through one unique
 declared-domain constraint across the operand tuple. Resolution considers the
-complete operand tuple's binding qualifications, not incidental flow facts.
+complete operand tuple's declared types and written casts, not flow facts. A
+declaration applies only when its instantiated parameter types equal the
+operands' complete qualified types, and builtin operators accept unqualified
+operands only ([operands](domains.md#operands)).
 Association with a domain grants no authority to establish its membership;
 the domain's access policy independently controls establishment. Inactive same-carrier
 declarations may coexist; competing participating meanings at a use reject.
 [Domain semantic roles](domains.md#semantic-roles-and-operators) separately
-determine whether their theories compose into one operation meaning.
+determine which contributions one type may carry; no two declarations compose
+into one operation meaning.
 
 Operator families are closed by default. An open family designates a dispatch-
 owner operand position, with one owner per implementation key. A third party

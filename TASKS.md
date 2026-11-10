@@ -84,8 +84,10 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Lowering, checker, and data-flow
 
-- **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/drafts/designs/operation_arithmetic_policy.md) (`+%`, `+|`, `+!`) and core policy domains.
-  Acceptance: the draft's fixtures pass `--both`; `source/psi` has no `in Trapping`.
+- **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/drafts/designs/operation_arithmetic_policy.md).
+  Acceptance: draft fixtures pass `--both`; `source/psi` has no `in Trapping`.
+
+- **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
 
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.

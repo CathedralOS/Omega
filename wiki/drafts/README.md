@@ -148,6 +148,11 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Named domain casts](designs/named_domain_casts.md): a type gains or loses
+  a domain only through `as =Keep -Remove +Add`, which accounts for every
+  attached domain; implicit weakening, annotation-attached domains and
+  whole-type cast targets are retired; delete when the board item lands.
+
 - [Operation arithmetic policy](designs/operation_arithmetic_policy.md):
   `%`, `|` and `!` suffixes choose wrapping, saturating or trapping arithmetic
   at one operation, the three policy domains become core domains that forward
