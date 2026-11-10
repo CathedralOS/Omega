@@ -22,7 +22,7 @@ serve is refused when it is set, never ignored.
 
 use arena::Arena;
 use semantic_vocabulary::{
-    IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition, PsiSemanticId,
+    IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition,
     ScalarTerm, ScalarType, ValueId,
 };
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
@@ -63,7 +63,7 @@ struct Slot {
 
 /// Reads a span of a typed-tree arena, refusing an invalid span instead of
 /// reading it as empty.
-fn span<'a, T>(
+fn span<'a, T: Default>(
     arena: &'a Arena<T>,
     span: arena::HandleSpan<T>,
     machine: MachineId,
@@ -525,7 +525,7 @@ impl<'t> Program<'t> {
         if !path.symbol.is_valid() {
             return Err(refuse(id, Construct::Machine, Unserved::Spelling("name without a symbol")));
         }
-        if typed.expression_table.name_path_members(path.members).len() != 1 || path.receiver_symbol.is_valid() {
+        if typed.expression_table.name_path_members(path.members).len() != 1 {
             return Err(refuse(id, Construct::Machine, Unserved::Expression("projected name path")));
         }
         // ponytail: linear over the body's slots; bodies in the subset hold a
@@ -722,7 +722,7 @@ impl<'t> Program<'t> {
                 if static_machine_parameter.is_valid() || !evidence_arguments.is_empty() || authored_call_selection.is_some() {
                     return Err(refuse(id, Construct::Machine, Unserved::Call("static, evidence or selected call")));
                 }
-                if typed.expression_table.name_path_members(path.members).len() != 1 || path.receiver_symbol.is_valid() {
+                if typed.statement_table.name_path_members(path.members).len() != 1 || path.receiver_symbol.is_valid() {
                     return Err(refuse(id, Construct::Machine, Unserved::Call("qualified or receiver call")));
                 }
                 let arguments = typed.statement_table.expression_handles(*arguments);

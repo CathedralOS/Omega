@@ -27,7 +27,7 @@ after the preceding operation, or the block entry when none precedes it.
 
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, OperationId,
-    PsiSemanticId, ScalarQualificationSetId, ScalarType, ValueId,
+    ScalarQualificationSetId, ScalarType, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination, EdgeRow, InvocationRow};
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
@@ -42,6 +42,7 @@ use terminal_psi::{
 use crate::body::{Body, Expression, ExpressionKind, Signature, Statement, Strict, Target};
 use crate::{MachineSources, SourceOrigin, Unpositioned};
 
+#[derive(Debug)]
 pub(crate) struct Lowered {
     pub machine: TerminalMachine,
     pub tables: MachineTables,
@@ -684,11 +685,11 @@ impl Lowering<'_> {
                 return Err(self.internal("ensures on a machine with no normal exit"));
             }
         };
-        let mut blocks = Vec::with_capacity(self.blocks.len());
-        for position in 1..=self.blocks.len() as u64 {
+        let mut drafts = std::mem::take(&mut self.blocks);
+        let mut blocks = Vec::with_capacity(drafts.len());
+        for position in 1..=drafts.len() as u64 {
             let block = BlockId::new(position).ok_or_else(|| self.internal("block identity overflow"))?;
-            let draft = self
-                .blocks
+            let draft = drafts
                 .get_mut(block)
                 .ok_or_else(|| self.internal("block is past the end"))?;
             let operations = std::mem::take(&mut draft.operations);
