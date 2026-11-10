@@ -5355,6 +5355,42 @@ mod statements {
             } else {
                 storage_writes.clone()
             };
+            // Assignments and declarations take their destination from the
+            // branches above, which do not see the values that die inside the
+            // statement; their cleanup may store through held exclusive references.
+            let storage_writes = match (storage_writes, build.call_frames) {
+                (Some(mut writes), Some(frames))
+                    if (statement.as_assignment().is_some()
+                        || statement.as_local_data().is_some())
+                        && frames
+                            .statement_cleanup_write_frame(machine, statement)
+                            .complete_paths()
+                            .is_none_or(|paths| !paths.is_empty()) =>
+                {
+                    let frame = frames.statement_cleanup_write_frame(machine, statement);
+                    let cleanup = crate::flow::frame_storage_writes(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        statement_index,
+                        &frame,
+                        build.call_frames,
+                    );
+                    if ::validation::trace_flags::struct_trace() {
+                        eprintln!(
+                            "FLOW statement-cleanup-writes caller={} state={} statement={statement_index} frame={frame:?} places={cleanup:?}",
+                            machine.name, state.name
+                        );
+                    }
+                    cleanup.map(|cleanup| {
+                        for place in cleanup {
+                            crate::shared::collections::push_unique(&mut writes, place);
+                        }
+                        writes
+                    })
+                }
+                (writes, _) => writes,
+            };
             let operand_writes = build
                 .control
                 .statements
