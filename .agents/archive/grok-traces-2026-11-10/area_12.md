@@ -297,7 +297,20 @@ Digest: both unchecked claims match what was searched and read.
 
 ## Entries not reached
 
-21 onward. The open list continues with the formal-actual grant (`codec/mathematical_proof_actual.rs:776`), installation bytes, `count()`, dangling identity keys, callback admission, `encode_module`, the checked proof-term note, structural wire tags, then semantics, terminal psi, and typed trees.
+21 onward, in digest order: `codec/mathematical_proof_actual.rs:776`; `codec/sections.rs:95-104`; `codec/module_wire.rs:3395`; `codec/semantic_module.rs:323`, `:433`, `:522-531`; `:74-80`; `:4072-4076`; `codec/term_wire.rs:1543-1548` (the digest already checked this one); `codec/structural_wire.rs:1901-1905` and `:1942-1945`; `codec/term_wire.rs:754-760` and `:893`. Then every open bullet under terminal-psi/semantics, terminal-psi, and typed-trees in the digest. Those sites were not opened for this report.
+
+## Commit
+
+Entries 1–20 are commit `b7b57ae4351c7fcdc600e580457eeabd9eaebbb0`.
+
+## Counts
+
+| verdict | count |
+| --- | --- |
+| REACHABLE | 6 |
+| CLOSED | 6 |
+| UNDECIDED | 8 |
+| not reached | the entries listed above |
 
 ## What I did not read
 
