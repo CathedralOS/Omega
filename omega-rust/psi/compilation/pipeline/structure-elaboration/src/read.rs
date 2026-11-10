@@ -23,11 +23,12 @@ serve is refused when it is set, never ignored.
 
 use arena::Arena;
 use semantic_vocabulary::{
-    IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition, ScalarTerm,
-    ScalarType, ValueId,
+    CrashCause, IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition,
+    ScalarTerm, ScalarType, ValueId,
 };
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
+use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
@@ -43,7 +44,10 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use crate::body::{Body, Expression, ExpressionKind, Signature, Statement, Strict, Target};
+use crate::body::{
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target,
+};
+use crate::canonical::{self, Repeated};
 use crate::{SourceOrigin, Unserved, refuse};
 
 pub(crate) struct Program<'t> {
@@ -79,6 +83,14 @@ enum ResultTerm {
     Named(ValueId, ScalarType),
     /// Why this clause cannot name `result`.
     Absent(&'static str),
+}
+
+/// The closed crash cause of a `crashes` clause or `crash` statement.
+fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
+    match cause {
+        typed_trees::signature::CrashCause::Trap => CrashCause::Trap,
+        typed_trees::signature::CrashCause::Abort => CrashCause::Abort,
+    }
 }
 
 /// Reads a span of a typed-tree arena, refusing an invalid span instead of
@@ -392,6 +404,8 @@ impl<'t> Program<'t> {
         };
         let mut requires = Vec::new();
         let mut ensures = Vec::new();
+        let mut routes = Vec::new();
+        let mut crash_clauses = false;
         for contract in span(
             &typed.signature_contracts,
             machine.contracts,
@@ -424,21 +438,43 @@ impl<'t> Program<'t> {
                         Unserved::Contract("outcome-specific ensures"),
                     ));
                 }
-                SignatureContractKind::Crashes { .. } => {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Contract("crashes"),
-                    ));
+                // effects.md, "Guarded crashes": "Each `crashes` clause names
+                // one cause (`Trap` or `Abort`); its route guards are
+                // alternatives, and an empty route list means `true`." Route
+                // guards describe invocation entry, so they cannot name
+                // `result`.
+                SignatureContractKind::Crashes { cause } => {
+                    crash_clauses = true;
+                    let cause = crash_cause(cause);
+                    if facts.is_empty() {
+                        routes.push((cause, CrashRouteGuard::Truth));
+                    }
+                    for fact in facts {
+                        let guard = self.clause(id, &entry, self.fact(id, fact)?)?;
+                        routes.push((
+                            cause,
+                            CrashRouteGuard::Predicate(CrashPredicateTerm::new(guard)),
+                        ));
+                    }
                 }
             }
         }
-        let requires = canonical(requires, id)?;
+        // effects.md: "On a public checked body omitted `crashes` means no
+        // crash route, exactly as `crashes none`. Private checked bodies may
+        // omit any of the three to request inference." Stage 01 publishes no
+        // contract for `crashes none`, so on a private body it reads as an
+        // omission (README, "Findings").
+        let crashes = match (crash_clauses, machine.is_public) {
+            (true, _) | (false, true) => CrashCeiling::Authored(canonical::routes(routes)),
+            (false, false) => CrashCeiling::Inferred,
+        };
+        let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         Ok(Signature {
             parameters,
             result,
             requires,
             ensures,
+            crashes,
         })
     }
 
@@ -574,7 +610,8 @@ impl<'t> Program<'t> {
                         other => conjuncts.push(other),
                     }
                 }
-                return canonical(conjuncts, id).map(Proposition::Conjunction);
+                return canonical::clauses(conjuncts, Repeated::Refuse, id)
+                    .map(Proposition::Conjunction);
             }
             BinaryOperator::Equal
             | BinaryOperator::Less
@@ -613,22 +650,7 @@ impl<'t> Program<'t> {
         }
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
-            BinaryOperator::Equal => {
-                let key = |term: &ScalarTerm| {
-                    terminal_codec::canonical_scalar_term_order_key(term).map_err(|_| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Contract("unencodable term"),
-                        )
-                    })
-                };
-                if key(&left)? <= key(&right)? {
-                    Ok(Proposition::Equal(left, right))
-                } else {
-                    Ok(Proposition::Equal(right, left))
-                }
-            }
+            BinaryOperator::Equal => canonical::equal(left, right, id),
             _ if !ordered => unserved("ordering of Booleans"),
             BinaryOperator::Less => Ok(Proposition::LessThan(left, right)),
             BinaryOperator::LessOrEqual => Ok(Proposition::LessOrEqual(left, right)),
@@ -925,16 +947,6 @@ impl<'t> Program<'t> {
                             Unserved::Transition("proof selectors"),
                         ));
                     }
-                    match transition.exit {
-                        TransitionExit::Ordinary => {}
-                        TransitionExit::Crash(_) => {
-                            return Err(refuse(
-                                id,
-                                Construct::Machine,
-                                Unserved::Transition("crash"),
-                            ));
-                        }
-                    }
                     let patterns = self
                         .typed
                         .statement_table
@@ -987,7 +999,18 @@ impl<'t> Program<'t> {
                             Some(guard)
                         }
                     };
-                    let target = self.target(id, &slots, transition.target, signature.result)?;
+                    // A `crash Cause;` statement, or an arm `-> crash Cause`,
+                    // is a transition whose exit is the crash and whose target
+                    // is the terminal node stage 01 gives it.
+                    let target = match transition.exit {
+                        TransitionExit::Ordinary => {
+                            self.target(id, &slots, transition.target, signature.result)?
+                        }
+                        TransitionExit::Crash(cause) => {
+                            self.crash_target(id, transition.target)?;
+                            Target::Crash(crash_cause(cause))
+                        }
+                    };
                     completed = guard.is_none();
                     Statement::Arm {
                         guard,
@@ -1202,6 +1225,25 @@ impl<'t> Program<'t> {
             ));
         }
         Ok(Target::Value(target))
+    }
+
+    /// A crash exit carries no target of its own: stage 01 gives it the
+    /// terminal node. Any other target is refused, not ignored.
+    fn crash_target(
+        &self,
+        id: MachineId,
+        handle: typed_trees::statement::TransitionTargetHandle,
+    ) -> Checked<()> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Transition(what)));
+        if !handle.is_valid() {
+            return unserved("crash without a target");
+        }
+        match self.typed.statement_table.transition_target(handle) {
+            TransitionTargetNode::Terminal => Ok(()),
+            TransitionTargetNode::Value(_) | TransitionTargetNode::Named { .. } => {
+                unserved("crash with a value or call target")
+            }
+        }
     }
 
     fn node(&self, id: MachineId, expression: ExpressionHandle) -> Checked<&'t ExpressionNode> {
@@ -1772,34 +1814,6 @@ fn same_computation(left: &Expression, right: &Expression) -> bool {
                 _,
             ) => false,
         }
-}
-
-/// Sorts propositions into Terminal Psi's canonical order and refuses a
-/// duplicate, which canonical order cannot hold ("strictly increase").
-fn canonical(propositions: Vec<Proposition>, id: MachineId) -> Checked<Vec<Proposition>> {
-    let mut keyed = Vec::with_capacity(propositions.len());
-    for proposition in propositions {
-        let key = terminal_codec::canonical_proposition_order_key(&proposition).map_err(|_| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("unencodable proposition"),
-            )
-        })?;
-        keyed.push((key, proposition));
-    }
-    keyed.sort_by(|left, right| left.0.cmp(&right.0));
-    if keyed.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Contract("duplicate clause"),
-        ));
-    }
-    Ok(keyed
-        .into_iter()
-        .map(|(_, proposition)| proposition)
-        .collect())
 }
 
 /// The refusal label for a name or callee that is not a slot or machine.

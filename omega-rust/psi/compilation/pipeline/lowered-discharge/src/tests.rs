@@ -152,6 +152,7 @@ fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge
             result: Some(machine.result),
             requires: machine.requires,
             ensures: machine.ensures,
+            crashes: structure_elaboration::CrashCeiling::Authored(Vec::new()),
         });
     }
     let mut elaboration = structure_elaboration::lower_bodies(id(1), &bodies, &signatures).unwrap();
