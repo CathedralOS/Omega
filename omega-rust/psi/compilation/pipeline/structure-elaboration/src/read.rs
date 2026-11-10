@@ -953,13 +953,23 @@ impl<'t> Program<'t> {
         if !target.is_valid() {
             return Err(refuse(id, Construct::Machine, Unserved::Spelling("callee without a symbol")));
         }
-        if self.typed.symbols.get(target).kind != SymbolKind::Machine {
-            let kind = symbol_kind(self.typed.symbols.get(target).kind);
-            return Err(refuse(id, Construct::Machine, Unserved::Call(kind)));
-        }
+        // A call names its callee's entry state; the machine is that state's
+        // symbol parent, and must have exactly that one state.
+        let machine = match self.typed.symbols.get(target).kind {
+            SymbolKind::Machine => target,
+            SymbolKind::State => {
+                let parent = self.typed.symbols.get(target).parent;
+                let (_, state) = self.declaration(id, parent)?;
+                if state.symbol != target {
+                    return Err(refuse(id, Construct::Machine, Unserved::Call("state other than the entry")));
+                }
+                parent
+            }
+            other => return Err(refuse(id, Construct::Machine, Unserved::Call(symbol_kind(other)))),
+        };
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
-        let callee = self.machine(target)?;
+        let callee = self.machine(machine)?;
         self.calls.push((id, callee));
         let formals = terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?
             .parameters
