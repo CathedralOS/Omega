@@ -636,13 +636,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         eprintln!("corpus: {e}");
         2u8
     })?;
+    // The harness refuses an empty filter, so a whole sweep names the three
+    // tiers every fixture name starts with. Listing each fixture instead made
+    // one environment string of about a megabyte, which Linux will not pass
+    // to a child process (its limit is 128 KiB per string).
     if filter.trim().is_empty() && sweep {
-        filter = selected_fixture_names(&root, "")
-            .map_err(|e| {
-                eprintln!("corpus: {e}");
-                2u8
-            })?
-            .join(",");
+        filter = "pass/,fail/,run/".to_owned();
     }
     if selected > SELECTION_BUDGET && !sweep {
         eprintln!(
