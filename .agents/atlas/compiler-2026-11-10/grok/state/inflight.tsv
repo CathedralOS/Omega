@@ -6,8 +6,10 @@ B1-004	B	bc-018591f3-52c3-569f-a4bd-a92eef6623c4	.agents/atlas/compiler-2026-11-
 B1-005	B	bc-e99fed2f-647d-5b09-ba67-c3252ab22110	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_005.md	running
 B1-006	B	bc-661a18d9-e774-501c-a604-82e468a1b692	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_006.md	running
 B1-008	B	bc-3ef65a6e-c4d1-5ab6-a978-c63c5e0d1c8f	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_008.md	running
-B1-009	B	bc-f833c9b5-c3bb-5182-aea7-4efbd3e56867	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_009.md	running
-B1-010	B	bc-91d2877d-e8bf-5445-88e7-0e313402d844	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_010.md	running
+B1-009	B	bc-f833c9b5-c3bb-5182-aea7-4efbd3e56867	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_009.md	done
+B1-010	B	bc-91d2877d-e8bf-5445-88e7-0e313402d844	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_010.md	done
+B1-007	B	bc-d6201878-668a-5b69-8590-d09b15c32018	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_007.md	running
+B1-011	B	bc-8e3c8fd7-e154-585f-b3f2-59c61daa482f	.agents/atlas/compiler-2026-11-10/grok/B/notes/b1_011.md	running
 slice_0001	A	bc-11b2960c-5929-5c29-9a26-d84aa571b4a9	.agents/atlas/compiler-2026-11-10/grok/A/slice_0001.md	running
 slice_0002	A	bc-714175b1-29e7-5e70-a50f-67dcebc0f579	.agents/atlas/compiler-2026-11-10/grok/A/slice_0002.md	running
 slice_0003	A	bc-2aa55c0c-ba98-50e8-895e-2a31184537b7	.agents/atlas/compiler-2026-11-10/grok/A/slice_0003.md	running
