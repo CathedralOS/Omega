@@ -25,6 +25,11 @@ Numbering follows the open bullets in digest order. A bullet that names several 
 | 13 | ST/inspection.rs:406-408 | CLOSED | An invalid expression becomes an empty snapshot name, and every snapshot caller found is a test or JSON dump. |
 | 14 | codec/foundation_validation.rs:11215-11218 | REACHABLE | A wrapping integer add with a scalar result is admitted even when the operands are not integers of that carrier. |
 | 15 | codec/foundation_validation.rs:142-166 | CLOSED | Every static call kind is passed through `validate_module_invocation_entry`, which checks structural arguments and claims. |
+| 16 | codec/foundation_validation.rs:292-361 | REACHABLE | A dynamic call with no table row keeps a structural argument whose place type is not the slot's. |
+| 17 | codec/foundation_validation.rs:10483-10502 | REACHABLE | A boundary-application demand may name an ordinary operation that merely exists. |
+| 18 | codec/foundation_validation.rs:4613 | REACHABLE | A machine `requires` atom, case membership, byte or float comparison, or content equation is not term-checked. |
+| 19 | codec/foundation_validation.rs:3027 and 3190 | REACHABLE | A proof-scope call whose callee id is 0 is not resolved and is not rejected. |
+| 20 | codec/foundation_validation.rs:9401-9415 | REACHABLE | Task-activation carry flags and crossings are not checked against the frames. |
 
 ## 1. Prefix-position cache
 
@@ -230,9 +235,69 @@ Read in full: `validate_call_tail` (`codec/foundation_validation.rs:29-59`) and 
 
 Digest: the old claim that this file never checks those arguments does not match. The correction in the digest does.
 
+## 16. Dynamic call with no table row
+
+Verdict: REACHABLE.
+
+Search: `validate_call_dynamic(` — definition `codec/foundation_validation.rs:168`, call `:11107` inside `validate_operation_foundation`. `validate_dynamic_descriptor_results` — `semantic_module.rs:1254`, called from `decode_module` at `:4114`.
+
+Read in full: `validate_call_dynamic` (`codec/foundation_validation.rs:168-370`). Read the `None` row skip (`semantic_module.rs:1265-1268`) and the `CallDynamic` arm (`foundation_validation.rs:11107`).
+
+Counts and the result shape are checked against the slot (`:226-229`). Structural types are compared only inside the table-row loop (`:354-360`), and `flatten` drops a `None` row (`:297`). A missing table, or a table whose row for the slot is `None`, skips that comparison. `validate_dynamic_descriptor_results` allows the `None` (`semantic_module.rs:1266-1268`) and does not require a table to exist. A dynamic call whose slot has one structural parameter, and which has no row, is accepted when that argument's place has a different type or is not declared, as long as the count matches.
+
+Digest: "count only" matches the structural arguments when no row exists. Claims that are present are still compared with the slot (`codec/foundation_validation.rs:285-290`). A missing claim transfer is not required even when a row exists; that is wider than the digest's "no row" case.
+
+## 17. Boundary application demand
+
+Verdict: REACHABLE.
+
+Search: `validate_boundary_application_operations(` — definition `codec/foundation_validation.rs:10483`, call `:10286` inside `validate_structural_foundation` (`:10256`), which `decode_module` runs (`semantic_module.rs:4109`).
+
+Read in full: `validate_boundary_application_operations` (`codec/foundation_validation.rs:10483-10503`).
+
+The function binary-searches demands by operation id and rejects a missing or repeated id (`:10490-10501`). It never reads `operation.kind`. A demand whose operation id is an ordinary operation that exists in some block, such as an integer constant, is accepted. Nothing in this function requires a `BoundaryCall`.
+
+Digest: matches the function that was read.
+
+## 18. Proposition variants left out of term checking
+
+Verdict: REACHABLE.
+
+Search: the match is `scalar_observations::validate` at `codec/foundation_validation.rs:4551-4614`. `Proposition` variants are `psi/foundation/semantic-vocabulary/src/proposition.rs:1806-1847` (read). `scalar_observations::machine` calls `validate` (`foundation_validation.rs:4392`). `validate_machine` calls `machine` (`:2309`), and `decode_module` runs `validate_machine` for every machine (`:10473-10474`).
+
+Read: the match (`:4551-4614`) and the call loop (`:4361-4392`).
+
+The wildcard is `_ => {}` (`:4613`). The arms that do check terms are integer-math comparisons, `StructuralIdentity`, `Equal`, `LessThan`, `LessOrEqual`, `ScalarIeeeFloatComparison`, `Conjunction`, `Disjunction`, and `Implication`. Not named, so skipped: `Truth`, `Falsehood`, `Atom`, `IeeeFloatComparison`, `ByteSequenceEqual`, `StructuralCaseMembership`, `ContentConservation`. `Truth` and `Falsehood` carry no terms. An `Atom` whose proposition id has no application, a case membership whose place is not in the machine, a byte or float comparison with an unknown root, or a content equation whose places are unknown, is accepted on a machine `requires` list.
+
+Digest: matches. `Truth` and `Falsehood` are also in the wildcard and have nothing to check.
+
+## 19. Zero proof-scope ids
+
+Verdict: REACHABLE.
+
+Search: `owner.0 != 0` — `codec/foundation_validation.rs:3027`. `identity.0 != 0` — `:3190`. `proof_scope::validate(` — definition `:2892`, call `scalar_applications::validate` at `:3536`, which `validate_structural_foundation` runs (`:10257`).
+
+Read: the declaration closure (`:2896-2901`), the pending-owner loop (`:3026-3029`), and the call-identity loop (`:3188-3193`). The rest of `proof_scope::validate` was not read.
+
+`declaration` rejects an id that is not in the scope (`:2897-2900`). Both loops skip that check when the id's number is 0. A proof-scope call whose callee id is 0, or a pending-evaluation condition whose owner id is 0, is accepted.
+
+Digest: matches the two skips that were read.
+
+## 20. Task activation carry and crossings
+
+Verdict: REACHABLE.
+
+Search: `carry_obligations` in `foundation_validation.rs` — 0 matches. The field is `TP/terminal_module.rs:973` (read with the struct at `:903-906`). `.crossings` in `foundation_validation.rs` — 1 match, `:9401`. `task_activation::validate(` — definition `:9208`, call `:10258`.
+
+Read: the empty-bundle return (`:9208-9216`), the frame-call check (`:9381-9384`), and the crossing loop (`:9401-9415`). The body from `:9217` to `:9359` was not read. The identifier search shows `carry_obligations` is not read anywhere in the file, including that unread span.
+
+A demand can set `carry_obligations.preserve_cpu` false while a crossing sets `preserve_cpu` true (`TP/terminal_module.rs:896` and `:904`). The crossing loop checks a non-zero identity and live place ids. It does not look at a frame. The frame loop checks that a frame call names a frame. Neither side compares the two lists. A task-activation demand with one frame and one crossing whose CPU-preservation flag disagrees with `carry_obligations` is accepted.
+
+Digest: both unchecked claims match what was searched and read.
+
 ## Entries not reached
 
-16 onward. The open list continues with dynamic calls (`codec/foundation_validation.rs:168-370`), boundary demands, proposition variants, zero proof-scope ids, task activation, then the rest of the codec, semantics, terminal psi, and typed trees.
+21 onward. The open list continues with the formal-actual grant (`codec/mathematical_proof_actual.rs:776`), installation bytes, `count()`, dangling identity keys, callback admission, `encode_module`, the checked proof-term note, structural wire tags, then semantics, terminal psi, and typed trees.
 
 ## What I did not read
 
