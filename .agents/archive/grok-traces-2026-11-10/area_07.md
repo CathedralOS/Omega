@@ -298,6 +298,8 @@ The earlier count of 13 undecided rows was short by one. The rows are 4, 5a, 5b,
 
 Entries not reached: 21 through 61. Sub-sites are counted as their own rows.
 
+Content through entry 20 is commit `4b4fb1aa4aa49639d7964c86caef0a4eb577330b` on `work/grok-traces-2026-11-10`. The commit that adds this sentence is the child of that commit.
+
 ## What I did not read
 
 `parse_transition_guard_node`, any consumer of `TransitionGuardNode::Always`, the resolution of a domain name that starts with `?::`, and everything from entry 21 on: the rest of stage 01, stage 02 except the symbol assignment and the zero-gate setter, stage 03 except `lower_named_type_reference`, and stage 04 except `preparation.rs:415-437`. No compiler was built or run.
