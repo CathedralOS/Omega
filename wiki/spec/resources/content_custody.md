@@ -228,18 +228,26 @@ because a guarantee is checked against its own body and not against the
 consumed parent. A relation stated only in `ensures` is therefore not enough.
 
 Named decision: `translation-coordinate-space`, settled 2026-11-10. A
-correspondence that is a translation is carried by the coordinate space. A
-contiguous mapping from virtual address `v` to `v + Delta` is the interval of
-its virtual addresses in a space indexed by `Delta`:
+correspondence that is a translation is carried by the coordinate space. Within
+one virtual and one physical address space, a contiguous mapping from virtual
+address `v` to physical address `v + Delta` is the interval of its virtual
+addresses in a space indexed by those two address spaces and by `Delta`:
 
 ```omega
-data Translated<Delta: i64> { }
+data Translated<Virtual, Physical, Delta: Int> { }
 
-data Mapping<Delta: i64> [linear] { virtual_base: u64; length: u64; }
+data Mapping<Virtual, Physical, Delta: Int> [linear] {
+    virtual_base: u64;
+    length: u64;
+}
 
-machine Installed::content<Delta: i64>(mapping: &Mapping<Delta>)
-    -> IntervalSet<Translated<Delta>>
-satisfies Content<Mapping<Delta>, IntervalSet<Translated<Delta>>>::project
+machine Installed::content<Virtual, Physical, Delta: Int>(
+    mapping: &Mapping<Virtual, Physical, Delta>
+) -> IntervalSet<Translated<Virtual, Physical, Delta>>
+satisfies Content<
+    Mapping<Virtual, Physical, Delta>,
+    IntervalSet<Translated<Virtual, Physical, Delta>>
+>::project
 {
     IntervalSet {
         start: embed(mapping.virtual_base) as Nat,
@@ -248,27 +256,50 @@ satisfies Content<Mapping<Delta>, IntervalSet<Translated<Delta>>>::project
 }
 ```
 
-The names are illustrative. A split conserves `Installed::content` in the
-parent's space, so both children are `Mapping<Delta>` for the parent's
-`Delta` and recombine to it. Children that exchanged their backing would be
-translations by `Delta + n` and `Delta - n`. Those are different spaces, so
-`separate` rejects them whatever their contract says. The existing interval
-algebra carries the association; no further algebra and no added trust in the
-mapping package is involved.
+The names are illustrative. An interval `I` in that space denotes the relation
+of every `v` in `I` to `v + Delta`. A split conserves `Installed::content` in
+the parent's space, so both children keep the parent's `Delta`, and the
+relation they denote together is the parent's. A child given the other child's
+backing has two choices, and both reject. If it keeps the parent's `Delta`,
+the predicate tying its physical base to its virtual base fails. If it takes
+the `Delta` that describes its new backing, it is in a different space, and
+`separate` rejects it whatever its contract says. The existing interval algebra
+carries the association; no further algebra and no added trust in the mapping
+package is involved. The indexed content and the physical-base predicate are
+both required: an offset label with no tie to the actual backing proves
+nothing.
+
+`Delta` is the exact mathematical integer `embed(physical) - embed(virtual)`.
+For 64-bit addresses it ranges over the whole of `-(2^64 - 1)` to `2^64 - 1`,
+which no 64-bit signed carrier holds, so it is proof data and never a wrapped
+machine difference. Executable code that must retain or compare an offset
+stores an ordinary representation of it, such as a sign and a `u64` magnitude
+with one form of zero, with the equation relating that representation to the
+index. Virtual and physical range bounds remain separate obligations.
+
+The address-space identities are part of the space. Equal virtual intervals
+and equal offsets in two different address-space instances are different
+content and cannot stand in for each other. A surrounding type that already
+fixes both spaces need not repeat them as parameters, but their identity still
+takes part in the conserved content.
 
 The virtual range and the physical backing stay their own claims with their
-own conservation, and an ordinary predicate on the mapping ties each physical
-base to its virtual base plus `Delta`. A mapping made of several contiguous
-runs holds one such claim per run, so the description grows with the number of
-runs and not with the number of pages. Rights, installation evidence and
-release obligations remain ordinary linear data and domains under
-[mapping and reclamation](extents.md#mapping-and-reclamation).
+own conservation. A mapping made of several contiguous runs holds one such
+claim per run, each in its own space, so the description grows with the number
+of runs and not with the number of pages. A collection may own runs with
+different offsets; combining two of them into one translation claim requires
+an established common offset and the other compatibility conditions. Rights,
+installation evidence and release obligations remain ordinary linear data and
+domains under [mapping and reclamation](extents.md#mapping-and-reclamation). A
+split preserves the installed association; a remap changes it only through
+that lifecycle.
 
-A correspondence that is not a union of translations still requires one joint
-algebra that preserves associations in a compact canonical form with decidable
-containment, restriction, equality, and separation. Owned decomposition of such
-a correspondence rejects until that algebra is specified; it cannot enumerate
-pages as a substitute for the required compact model.
+This decision establishes the translation construction only. Any other
+correspondence needs a specified compact content representation with decidable
+containment, restriction, equality, and separation, and checked operations
+that preserve its association and custody. Owned decomposition of such a
+correspondence rejects until that is specified; it cannot enumerate pages as a
+substitute for the required compact model.
 
 Algebra values and denominators are pure proof data, not authority. Equal
 denominators allow arithmetic but do not by themselves establish compatible

@@ -158,7 +158,7 @@ rights under a new mapping era.
 Owned virtual-to-physical decomposition carries the association in conserved
 content under [related content](content_custody.md#independent-and-related-content):
 a mapping that is a union of translations projects each contiguous run into a
-coordinate space indexed by its offset. Independent interval/quantity
+coordinate space indexed by its two address spaces and its exact offset. Independent interval/quantity
 conservation of the two address ranges cannot preserve that association.
 
 Page tables, translation policy, activation, shootdowns, and teardown belong
