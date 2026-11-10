@@ -26,7 +26,12 @@ Paths: a bare file name is under `omega-rust/psi/compilation/pipeline/06_checked
 | 18 | `emission.rs:1855-1858` | CLOSED | Both callers pass `Some`, so the universal-dominator arm does not run. |
 | 19 | `emission.rs:4546` | CLOSED | A target absent from this function's block list is not a block the analysis covers. |
 | 20 | `emission.rs:5248` | UNDECIDED | A runtime byte index is checked only at element 0. |
-| 21–93 | see digest | not reached | Tracing continues. |
+| 21 | `emission.rs:8245-8253` | UNDECIDED | A borrowed view passes on access alone; whether a plan can overstate its length was not read. |
+| 22 | `emission.rs:9646` | UNDECIDED | An integer comparison reports no short-circuit without looking at its operands. |
+| 23 | `emission_cleanup.rs:1194-1196` | CLOSED | The only caller has just found the place in the frontier. |
+| 24 | `emission_cleanup.rs:872-895, 919` | UNDECIDED | Case edges and external completion do not transfer arguments; whether those lists can be non-empty was not read. |
+| 25 | `emission_cleanup.rs:2044` | UNDECIDED | The remaining terminators get no discards from this pass. |
+| 26–93 | see digest | not reached | Tracing continues. |
 
 ## 1. Scalar ensures that name a structural result
 
@@ -219,15 +224,45 @@ Verdict: UNDECIDED.
 
 Read `require_unrestricted_byte_region` from `5212` through `5252`. A fixed index checks every offset (`5226-5236`). A runtime index checks that the region path is disjoint from the receiving qualifications (`5238-5246`) and then checks only `FixedIndex(0)` (`5248-5249`). Callers of this function were not searched. Not read: whether a byte sequence can carry a different qualification on an element other than 0. What would decide it: that layout. The digest matches the single probe.
 
+## 21. Borrowed byte view ignores capacity
+
+Verdict: UNDECIDED.
+
+Read `readable_byte_source_bound` in full (`emission.rs:8227-8256`). `BoundedOwned` and `BoundedView` require the shape capacity to equal `maximum_length`. `BorrowedView` returns true from access alone (`8245-8253`). Search `readable_byte_source_bound(`: the definition and two calls, both read. A whole source that fails the test is `Unsupported` at `8151-8156`. A field that fails is `Unsupported` at `8174-8184`. A true result keeps the plan capacity (`8158`). Line `7922` is the concatenation operation's `capacity_obligation` (`7917-7923`, read), not this test. The digest is wrong about that line.
+
+Not read: the producer of a byte plan whose source is a borrowed view. What would decide it: whether that plan can state a capacity the view is not known to have. If it can, this branch accepts it. The bounded arms would have rejected a mismatched capacity.
+
+## 22. Integer comparison hides short-circuit
+
+Verdict: UNDECIDED.
+
+Read `contains_short_circuit` in full (`emission.rs:9631-9654`) and `direct_expression_contains_short_circuit` (`9656-9664`). `IntegerComparison` returns false and does not inspect its operands (`9646`). `Equal` does inspect its operands (`9648-9649`). Callers of `contains_short_circuit` were not read. What would decide it: an integer comparison whose operand is a boolean `And` or `Or`, and a caller that treats false as "safe to emit." The digest matches the arm.
+
+## 23. Restore when the root is absent
+
+Verdict: CLOSED.
+
+Read `restore_path` in full (`emission_cleanup.rs:1193-1212`). It returns when the place is not in the frontier (`1194-1196`). Search `restore_path(`: the definition and one call, at `832` (read `804-832`). That call is inside `frontier.iter().any(|root| root.place == *destination)` (`813-814`). The frontier is not changed between that test and the call. The early return does not run on this path. The digest matches the function.
+
+## 24. Case and external completion skip transfer
+
+Verdict: UNDECIDED.
+
+Read the terminator match from `840` through `919`. `Jump`, `Conditional`, and `InvokeNoNormal` run structural arguments through `transfer` (`847-848`, `860-861`, `915-916`). `StructuralCase` runs cleanup only (`885-894`). `ExternalCompletion` does nothing (`919`). Not read: the constructors of those two terminators, so it is not shown that their argument lists can be non-empty. What would decide it: a non-empty argument list on either terminator. The digest matches these two arms. `InvokeNoNormal` does transfer, which the digest does not claim otherwise.
+
+## 25. No discards on the remaining exits
+
+Verdict: UNDECIDED.
+
+Read the exit match from `2011` through `2044`. Jumps, conditionals, case edges, and returns call `complete_disposals`. The final arm does nothing (`2044`). `InvokeNoNormal`, `Crash`, and `ExternalCompletion` are not named in the arms that were read, so they fall through. The function was not read from its start, and `custody_flow::solve` was not read. What would decide it: a managed place still live at one of those exits, and no other pass discarding it. The digest matches the empty arm.
+
 ## Counts
 
-Reached 1–20. REACHABLE: 0. CLOSED: 4 (11, 12, 18, 19). UNDECIDED: 16. Not reached: 21–93 (73 entries).
-
-Trace commit: `fcf87d0c2fb977349b5d43c9d19e0d459bda583c` on `work/grok-traces-2026-11-10`.
+Reached 1–25. REACHABLE: 0. CLOSED: 5 (11, 12, 18, 19, 23). UNDECIDED: 20. Not reached: 26–93 (68 entries).
 
 ## Entries not reached
 
-21 through 93.
+26 through 93.
 
 ## What I did not read
 
@@ -246,4 +281,8 @@ Trace commit: `fcf87d0c2fb977349b5d43c9d19e0d459bda583c` on `work/grok-traces-20
 - `selections::destinations` callers and the producer of `selection_place_bindings`.
 - Whether a checked formal can be missing from the type list passed to `endpoint_use`.
 - Callers of `require_unrestricted_byte_region`, and whether byte elements can differ.
-- Entries 21–93. Background traces were not copied in.
+- Callers of `contains_short_circuit`, and whether an integer comparison operand can be a short-circuit boolean.
+- Constructors of `StructuralCase` and `ExternalCompletion` argument lists.
+- `complete_carriers` from its start, and `custody_flow::solve`.
+- The producer of a byte plan whose source is a borrowed view.
+- Entries 26–93. Leads from the two later traces were not copied in unless the lines above were read.
