@@ -91,7 +91,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **CASE-TYPE.** Implement the [case projection type](wiki/drafts/designs/case_projection_type.md).
 
-- **CALLABLE-REACH.** Require [explicit reach on callable types](wiki/drafts/designs/explicit_callable_reach.md).
+- **OPEN-CALLABLE-CONTRACTS.** Close [callable contracts](wiki/drafts/designs/open_callable_contracts.md) at runtime and boundary positions.
 
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.

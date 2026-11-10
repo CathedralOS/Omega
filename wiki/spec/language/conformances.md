@@ -218,7 +218,7 @@ binder spelling `Order satisfies Ranked<T>`, exposes exact selections for
 specialization, and a runtime value carries callable descriptors under their
 checked envelopes. A record holding an open generic callable family is not
 runtime-materializable until that family is closed. The normalized field type
-records whether its contract is open; a refinement of the record supplies the
+records whether its contract is [open](effects.md#open-callable-contracts); a refinement of the record supplies the
 finite bounds that runtime construction checks, and omission is never
 reinterpreted by where the record is used. Contracts stay per operation.
 

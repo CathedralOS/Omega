@@ -457,8 +457,8 @@ named machine in a field with the callable contract the consumer needs.
 ```omega
 data Counter { value: u64; }
 data CounterOps {
-    clear: machine(counter: &mut Counter) reaches none terminates;
-    value: machine(counter: &Counter) -> u64 reaches none terminates;
+    clear: machine(counter: &mut Counter) reaches none crashes none terminates;
+    value: machine(counter: &Counter) -> u64 reaches none crashes none terminates;
 }
 
 machine clear(counter: &mut Counter) terminates { counter.value = 0; }
@@ -469,9 +469,10 @@ machine inspect(operations: &CounterOps, counter: &Counter) -> u64 terminates {
 }
 ```
 
-A callable type always says which services its machines may reach.
-`reaches none` admits only service-free machines; leaving the clause out
-rejects, so a field never promises that by accident.
+A callable type always says which services its machines may reach and how
+they may crash. `reaches none` admits only service-free machines and
+`crashes none` only crash-free ones. Leaving either clause out rejects, so a
+field never promises that by accident.
 
 Construct `CounterOps { clear: clear, value: value }` and pass it to `inspect`.
 Another record can choose other machines with the same contracts. A field may
@@ -496,7 +497,8 @@ data Reader<'a, some S> {
     state: &'a mut S;
     read: machine(state: &mut S, output: &mut [u8]) -> u64
         requires output.len > 0
-        reaches none;
+        reaches none
+        crashes none;
 }
 
 data Constant { byte: u8; }
@@ -566,7 +568,9 @@ different state:
 ```omega
 data Job<P, R, some S> [linear] {
     state: Extent in Granted & Resident<P, S>;
-    run: machine(state: Extent in Granted & Resident<P, S>) -> R reaches none;
+    run: machine(state: Extent in Granted & Resident<P, S>) -> R
+        reaches none
+        crashes none;
 }
 ```
 
@@ -684,7 +688,8 @@ data LoggingProxy { }
 data LoggerOps {
     write: machine(proxy: &LoggingProxy, text: &[u8])
         reaches LoggingService
-        suspends;
+        suspends
+        crashes none;
 }
 
 machine component_write(proxy: &LoggingProxy, text: &[u8])
@@ -755,9 +760,10 @@ machine visit<T, S satisfies Step<T>>(item: &mut T) {
 `visit` reaches whatever the selected `S::apply` reaches. Each member has its own
 row, so calling one operation does not add the services of every other member.
 
-Suspension, blocking and crashes keep their separate defaults: an omitted clause
-on a requirement forbids that behavior. Opening service reach does not permit
-a callback to park, block or crash.
+Suspension and blocking keep their own default: an omitted clause on a
+requirement forbids that behavior, so opening service reach does not permit a
+callback to park or block. Crashes follow reach: an omitted `crashes` clause
+leaves the selection's crash routes open, and `crashes none` forbids them.
 
 Calls through the requirement acknowledge its statically retained operational
 envelope with `suspend` and `block`. A concrete or transparent refinement that
