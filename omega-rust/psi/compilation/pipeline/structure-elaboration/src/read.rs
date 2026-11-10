@@ -799,19 +799,42 @@ impl<'t> Program<'t> {
     /// static or selected arguments, bindings, lifetimes, inputs, conformance
     /// or contract source. Stage 03 records one for every authored call; one
     /// that applies anything is a generic or static call and is refused.
-    fn applies_nothing(&self, application: typed_trees::static_applications::StaticMachineApplicationHandle) -> bool {
+    fn applies_nothing(
+        &self,
+        id: MachineId,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+        machine_arguments: &[typed_trees::expression::StaticMachineArgument],
+    ) -> Checked<()> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if !machine_arguments.is_empty() {
+            return unserved("static machine arguments");
+        }
         if !application.is_valid() {
-            return true;
+            return Ok(());
         }
         let application = self.typed.expression_table.static_machine_application(application);
-        application.arguments.is_empty()
-            && application.input_selections.is_empty()
-            && application.selected_machine_arguments.is_empty()
-            && application.bindings.is_empty()
-            && application.lifetime_bindings.is_empty()
-            && application.conformance_selection.is_none()
-            && !application.callable_contract_source.is_valid()
-            && !application.registration_operation.is_valid()
+        if !application.arguments.is_empty() || !application.selected_machine_arguments.is_empty() {
+            return unserved("static application arguments");
+        }
+        if !application.input_selections.is_empty() {
+            return unserved("static application input selections");
+        }
+        if !application.bindings.is_empty() {
+            return unserved("static application bindings");
+        }
+        if !application.lifetime_bindings.is_empty() {
+            return unserved("static application lifetime bindings");
+        }
+        if application.conformance_selection.is_some() {
+            return unserved("static application conformance");
+        }
+        if application.callable_contract_source.is_valid() {
+            return unserved("static application contract source");
+        }
+        if application.registration_operation.is_valid() {
+            return unserved("static application registration");
+        }
+        Ok(())
     }
 
     /// A call is direct only when its authored selection, if recorded,
@@ -848,13 +871,12 @@ impl<'t> Program<'t> {
     fn call_statement(&mut self, id: MachineId, slots: &[Slot], call: &TableCall) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if call.installed_interrupt_operation.is_some()
-            || !self.applies_nothing(call.authored_machine_application)
             || call.static_requirement_dispatch.is_some()
-            || !call.machine_arguments.is_empty()
             || call.reflected_field_origin.is_some()
         {
-            return unserved("static or reflected call");
+            return unserved("interrupt, requirement dispatch or reflected call");
         }
+        self.applies_nothing(id, call.authored_machine_application, &call.machine_arguments)?;
         self.direct_selection(id, call.target_symbol, call.authored_call_selection, None)?;
         if call.receiver_root_symbol.is_valid() || call.receiver_symbol.is_valid() || !call.receiver.is_empty() {
             return unserved("receiver call");
@@ -874,9 +896,7 @@ impl<'t> Program<'t> {
         if call.installed_interrupt_operation.is_some() {
             return unserved("installed interrupt operation");
         }
-        if !self.applies_nothing(call.authored_machine_application) || !call.machine_arguments.is_empty() {
-            return unserved("static machine application");
-        }
+        self.applies_nothing(id, call.authored_machine_application, &call.machine_arguments)?;
         if call.static_requirement_dispatch.is_some() {
             return unserved("static requirement dispatch");
         }
