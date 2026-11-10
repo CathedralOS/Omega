@@ -21,7 +21,12 @@ Paths: a bare file name is under `omega-rust/psi/compilation/pipeline/06_checked
 | 13 | `attached_unit.rs:12242-12244` | UNDECIDED | A quotient whose type was not emitted is omitted from the catalog. |
 | 14 | `attached_unit.rs:4491-4531` | UNDECIDED | A missing link omits the establishment; consumers of the shorter list were not read. |
 | 15 | `emission.rs:1355-1357` | UNDECIDED | No transfer rows return an empty claim list; two of three callers were not read. |
-| 16–93 | see digest | not reached | Tracing continues. |
+| 16 | `emission.rs:436-444` | UNDECIDED | A selection whose chosen and remaining claims are equal is not reserved. |
+| 17 | `emission.rs:1714-1716` | UNDECIDED | A formal whose type is not in the type list is treated as storage. |
+| 18 | `emission.rs:1855-1858` | CLOSED | Both callers pass `Some`, so the universal-dominator arm does not run. |
+| 19 | `emission.rs:4546` | CLOSED | A target absent from this function's block list is not a block the analysis covers. |
+| 20 | `emission.rs:5248` | UNDECIDED | A runtime byte index is checked only at element 0. |
+| 21–93 | see digest | not reached | Tracing continues. |
 
 ## 1. Scalar ensures that name a structural result
 
@@ -182,9 +187,45 @@ Verdict: UNDECIDED.
 
 Read `lower_owned_operand_claims` from `1320` through `1357`. No matching `owned_transfer_paths` row returns `Ok(Vec::new())` (`1355-1356`). An invalid expression is an error (`1334-1335`). Search `lower_owned_operand_claims(`: the definition and three calls. Read only `lower_owned_transfer_claims` (`5145-5174`), which returns that vector unchanged. Not read: `unit_structural_values.rs:8008`, `emission_cleanup.rs:2898`, and whatever consumes the empty vector. What would decide it: those consumers. The digest matches the empty return.
 
+## 16. Selection destinations
+
+Verdict: UNDECIDED.
+
+Read `selections::destinations` in full (`426-447`) and `reserve` (`409-423`), which reserves each returned identity. A binding is skipped when the machine, state, statement, expression, or decision differs, and when `selected == remaining` (`436-443`). Search `selections::destinations(`: the definition and three calls at `scalar_computations.rs:2488`, `2734`, and `5947`. Those calls were not read. Not read: the producer of `selection_place_bindings`. What would decide it: whether `selected == remaining` can hide a claim that still has to move. The digest matches the skip.
+
+## 17. Unmatched formal type becomes storage
+
+Verdict: UNDECIDED.
+
+Read `endpoint_use` in full (`1703-1728`). No row with the formal's type identity returns `EndpointUse::Storage` (`1714-1715`). Two rows are an error (`1717-1718`). An owned formal or a canonical view descriptor whose row exists is `Value`; every other found row is also `Storage` (`1720-1727`). The `Storage` arm of frontier planning errors when the path tip is missing (`1681-1687`, read) and otherwise pushes that tip (`1690`).
+
+Search `endpoint_use(`: the definition, `unit_operation_frame.rs:1808` (read `1794-1813`), and `scalar_computations.rs:988` (read `981-993`). Neither caller was read above the call. Not read: whether a checked formal can be absent from the type list while its path tip still resolves. What would decide it: that absence. If it can happen, an owned formal is copied as storage instead of as its declared value type. The digest matches the fallback.
+
+## 18. Dominators with no entry
+
+Verdict: CLOSED.
+
+Read `block_dominators` from `1841` through `1858`. `None` builds one universal set per block (`1855-1857`). Search `block_dominators(`: the definition and two calls. `emission_cleanup.rs:1924` passes `Some(entry_position)` (read `1923-1924`). `unit_composed_control.rs:6165-6168` passes `Some(entry)` (read `6164-6168`). No other call was found. The universal arm is not entered. The digest's checked note matches.
+
+## 19. Unknown jump targets dropped
+
+Verdict: CLOSED.
+
+Read `forward_from` from `4456` through `4548`. `identities` is the id of every block in the slice (`4491`). Successor targets equal to the root, or absent from that list, are dropped (`4544-4547`). A target that is not in the list is not one of the blocks whose demand vector was allocated (`4489`, length `blocks.len()`). Dropping it does not skip a block this function analyzes. Other terminators contribute no successors (`4540`). Search of `forward_from(` was not made; the function is private to this module and its only caller in the read region is the loop at `4450`. The digest matches the `filter_map`.
+
+## 20. Runtime byte index probes element 0
+
+Verdict: UNDECIDED.
+
+Read `require_unrestricted_byte_region` from `5212` through `5252`. A fixed index checks every offset (`5226-5236`). A runtime index checks that the region path is disjoint from the receiving qualifications (`5238-5246`) and then checks only `FixedIndex(0)` (`5248-5249`). Callers of this function were not searched. Not read: whether a byte sequence can carry a different qualification on an element other than 0. What would decide it: that layout. The digest matches the single probe.
+
+## Counts
+
+Reached 1–20. REACHABLE: 0. CLOSED: 4 (11, 12, 18, 19). UNDECIDED: 16. Not reached: 21–93 (73 entries).
+
 ## Entries not reached
 
-16 through 93.
+21 through 93.
 
 ## What I did not read
 
@@ -200,4 +241,7 @@ Read `lower_owned_operand_claims` from `1320` through `1357`. No matching `owned
 - `quotients::retain` after `12244`, and its call at `17200`.
 - `call_result_qualification_establishments` after `4517`, and consumers of `qualification_establishments`.
 - `lower_owned_operand_claims` after `1357`, plus the calls at `unit_structural_values.rs:8008` and `emission_cleanup.rs:2898`.
-- Entries 16–93. Background traces were not copied in.
+- `selections::destinations` callers and the producer of `selection_place_bindings`.
+- Whether a checked formal can be missing from the type list passed to `endpoint_use`.
+- Callers of `require_unrestricted_byte_region`, and whether byte elements can differ.
+- Entries 21–93. Background traces were not copied in.
