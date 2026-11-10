@@ -35,7 +35,7 @@ pub mod values;
 use std::num::NonZeroU64;
 
 pub use semantic_vocabulary::{
-    BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, OperationId,
+    BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, OperationId, PlaceId,
     PsiSemanticId, ValueId,
 };
 
@@ -71,8 +71,12 @@ check_id!(
     "One entry of the forward write log (`bindings::WriteRow`)."
 );
 check_id!(
-    MaySetId,
-    "One may-set row: what one value may denote or select (`may_sets::MaySetRow`)."
+    ReferentSetId,
+    "The places one installed reference may denote (`may_sets::ReferentSet`)."
+);
+check_id!(
+    SelectionSetId,
+    "The machines one callable selector value may select (`may_sets::SelectionSet`)."
 );
 check_id!(
     InvocationId,
@@ -133,8 +137,8 @@ pub enum RefusalReason {
     NotConserved,
     /// Two live obligations or accesses conflict (overlap, aliasing, access).
     Conflict,
-    /// An identity is not in the table it was looked up in: it came from
-    /// another machine or was never minted.
+    /// An identity is past the end of the table it was looked up in. This
+    /// catches only out-of-range identities; see `row`.
     ForeignIdentity,
 }
 
@@ -153,7 +157,16 @@ pub struct Refusal {
 /// Every later checking step returns `Checked<T>`: a row or a refusal.
 pub type Checked<T> = Result<T, Refusal>;
 
-/// Looks up a row, refusing an identity the table did not mint.
+/// Looks up a row, refusing an identity past the end of the table.
+///
+/// It cannot tell an identity minted by another machine's table: identities
+/// are machine-local integers with no machine tag, so a foreign identity that
+/// is in range resolves to the wrong row. The rule that prevents this is
+/// structural, not checked here: identities never cross `MachineTables`, and
+/// every checking API takes exactly one `MachineTables` and only identities
+/// read from it. Crossing machines goes through an `InvocationRow` and the
+/// callee's `Summary`, which hold `MachineId`s and positions, never the
+/// callee's local identities.
 pub fn row<Id: PsiSemanticId, T>(
     table: &IdTable<Id, T>,
     identity: Id,
@@ -164,7 +177,7 @@ pub fn row<Id: PsiSemanticId, T>(
         reason: RefusalReason::ForeignIdentity,
         machine,
         concerns,
-        detail: String::from("identity is not in this machine's table"),
+        detail: String::from("identity is past the end of this machine's table"),
     })
 }
 
@@ -176,8 +189,12 @@ pub struct MachineTables {
     pub values: IdTable<ValueId, values::ValueRow>,
     pub knowledge: IdTable<KnowledgeId, values::KnowledgeRow>,
     pub places: IdTable<ExactPlaceId, bindings::PlaceRow>,
+    /// The `ExactPlaceId` of each root `PlaceId`. Elaboration mints root
+    /// `PlaceId`s densely too, so interning a root is one index.
+    pub roots: IdTable<PlaceId, ExactPlaceId>,
     pub writes: IdTable<WriteId, bindings::WriteRow>,
-    pub may_sets: IdTable<MaySetId, may_sets::MaySetRow>,
+    pub referent_sets: IdTable<ReferentSetId, may_sets::ReferentSet>,
+    pub selection_sets: IdTable<SelectionSetId, may_sets::SelectionSet>,
     pub obligations: IdTable<ObligationId, obligations::ObligationRow>,
     pub edges: IdTable<EdgeId, edges::EdgeRow>,
     pub invocations: IdTable<InvocationId, edges::InvocationRow>,
@@ -204,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn an_identity_from_another_table_is_refused() {
+    fn an_identity_past_the_end_is_refused() {
         let machine = MachineId::new(1).unwrap();
         let mut small: IdTable<ExactPlaceId, ()> = IdTable::default();
         let mut large: IdTable<ExactPlaceId, ()> = IdTable::default();

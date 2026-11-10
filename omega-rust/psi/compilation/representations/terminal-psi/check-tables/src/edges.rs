@@ -6,7 +6,6 @@ published contract with one term per axis; it is the second extension point:
 a lane adds a field here, with its citation and a README row, never a table.
 */
 
-use language_core::CarryPolicy;
 use semantic_vocabulary::{
     BlockId, CrashCause, InvocationSite, MachineId, ObligationId, PropositionId, ServiceId,
     ValueId,
@@ -95,9 +94,10 @@ pub struct InvocationRow {
 pub enum Callee {
     /// A direct call of one machine.
     Machine(MachineId),
-    /// A call through a callable value; its candidates are that value's
-    /// may-set. calls_and_outcomes.md: "Indirect calls through machine values
-    /// retain these same argument, result, proof and custody rules."
+    /// A call through a callable selector value; its candidates are that
+    /// value's `ValueRow::selects`. calls_and_outcomes.md: "Indirect calls
+    /// through machine values retain these same argument, result, proof and
+    /// custody rules."
     Selected { callable: ValueId },
 }
 
@@ -111,9 +111,9 @@ pub enum Actual {
 ///
 /// `wiki/spec/language/effects.md`: "A machine's service reach, direct
 /// synchronous invocations, possible suspension, worker blocking, and crashes
-/// are independent contract axes." Termination, carry and the result relation
-/// are the remaining axes; each field keeps its own algebra and no field is
-/// derived from another.
+/// are independent contract axes." Termination and the result relation are
+/// the remaining authored axes; each field keeps its own algebra and no field
+/// is derived from another.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Summary {
     /// Whether callers outside this body's verification unit may use it.
@@ -138,10 +138,9 @@ pub struct Summary {
     /// One row per cause it may crash with; empty means `crashes none`.
     pub crash_routes: Vec<CrashRoute>,
     pub termination: Termination,
-    /// calls_and_outcomes.md: "Terminal retains provider-independent carry
-    /// demand." The most restrictive demand, per axis, on what an invocation
-    /// may retain across its possible suspension.
-    pub carry: CarryPolicy,
+    // No carry term: the specification defines carry on values, claims and
+    // suspension crossings but not as a callee's published term. The crate
+    // README lists it under "Open" for the suspension lane.
 }
 
 /// calls_and_outcomes.md: "A callee-body fact is available only when the body

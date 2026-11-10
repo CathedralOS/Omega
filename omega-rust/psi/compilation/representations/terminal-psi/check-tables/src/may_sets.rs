@@ -1,42 +1,46 @@
 /*
-May-sets: what a reference value may denote and which machine a callable
-value may select. A value never changes, so its may-set is fixed; block
-parameters receive the union over their arrivals. Unknown is a member of the
-vocabulary, and it means everything.
+May-sets: what a reference may denote and which machine a callable may select.
+They join by union, and unknown means everything.
+
+The two are keyed on different things because the lowered form represents
+them differently:
+
+- A reference is a structural place, not a value. Terminal foundation
+  validation requires it: "reference establishment requires a structural
+  result" whose type shape is `StructuralTypeShape::Reference`
+  (`terminal-psi/codec/src/foundation_validation.rs:7306-7310`). A reference
+  place can be rewritten, so its referent set belongs to the write that
+  installed the reference: `bindings::Content::Reference`.
+- A callable selector is a scalar value: `SelectImplementation { table }`
+  produces a scalar result that `CallDynamic { selector, .. }` consumes
+  (`terminal-psi/semantics/src/descriptors.rs:12795-12803` reads it through
+  `result.scalar_ref()`). A value never changes, so its selection set is a
+  column of its row: `values::ValueRow::selects`.
 */
 
-use semantic_vocabulary::{MachineId, ValueId};
+use semantic_vocabulary::MachineId;
 
 use crate::ExactPlaceId;
 
-/// One value's may-set.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MaySetRow {
-    pub value: ValueId,
-    pub denotes: Denotes,
-}
+/// The places one installed reference may denote.
+/// `wiki/spec/language/lifetimes.md`: "an unresolved dynamic selection
+/// conservatively retains all possible sources." A member place stands for
+/// itself and everything beneath it; `wiki/spec/terminal-psi/ownership.md`:
+/// "an unresolved projection conservatively pins its whole spelled root."
+pub type ReferentSet = MaySet<ExactPlaceId>;
 
-/// The two things a may-set ranges over.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Denotes {
-    /// The places a reference may denote. `wiki/spec/language/lifetimes.md`:
-    /// "an unresolved dynamic selection conservatively retains all possible
-    /// sources." A member place stands for itself and everything beneath it;
-    /// `wiki/spec/terminal-psi/ownership.md`: "an unresolved projection
-    /// conservatively pins its whole spelled root."
-    Places(MaySet<ExactPlaceId>),
-    /// The machines a callable value may select. `wiki/spec/language/effects.md`,
-    /// "Known dynamic selections": "Joins retain all possible demands and only
-    /// guarantees justified for every possible selection; an unknown
-    /// alternative contributes the requirement ceiling." So `Unknown` here is
-    /// answered by the callable type's published contract, never by a body.
-    Machines(MaySet<MachineId>),
-}
+/// The machines one callable selector value may select.
+/// `wiki/spec/language/effects.md`, "Known dynamic selections": "Joins retain
+/// all possible demands and only guarantees justified for every possible
+/// selection; an unknown alternative contributes the requirement ceiling." So
+/// `Unknown` here is answered by the callable type's published contract,
+/// never by a body.
+pub type SelectionSet = MaySet<MachineId>;
 
 /// A finite set of candidates, or every candidate.
 ///
-/// Invariant: `Members` is sorted and has no duplicates; build it with
-/// `MaySet::of`. An empty `Members` is a proved empty set, not an unknown one.
+/// Build `Members` with `MaySet::of`, which sorts and removes duplicates. An
+/// empty `Members` is a proved empty set, not an unknown one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaySet<T> {
     Members(Vec<T>),
