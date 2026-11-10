@@ -321,7 +321,7 @@ pub fn function_analysis(function: &PsiOptimizationFunction) -> FunctionAnalysis
     }
     FunctionAnalysis {
         definitions,
-        dominators: super::dominators(
+        dominators: dominators(
             function.entry,
             function.blocks.iter().map(|block| block.id),
             &predecessors,
@@ -567,6 +567,37 @@ pub(crate) fn matches_constant_kind(value: FoldedFieldValue, kind: ObservedField
 }
 
 pub type Establishment = RootProducer;
+
+pub fn dominators(
+    entry: BlockId,
+    block_ids: impl Iterator<Item = BlockId>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+) -> super::DominatorSets {
+    let blocks: Vec<_> = block_ids.collect::<BTreeSet<_>>().into_iter().collect();
+    let entry_position = blocks.binary_search(&entry).ok();
+    // The entry's incoming row and extra map rows were never consulted. Missing
+    // nonentry rows or foreign predecessors retain the original invariant errors.
+    let incoming: Vec<Vec<_>> = blocks
+        .iter()
+        .map(|block| {
+            if *block == entry {
+                Vec::new()
+            } else {
+                predecessors
+                    .get(block)
+                    .expect("all blocks indexed")
+                    .iter()
+                    .map(|predecessor| {
+                        blocks
+                            .binary_search(predecessor)
+                            .expect("predecessor block is declared")
+                    })
+                    .collect()
+            }
+        })
+        .collect();
+    super::dominance::solve(blocks, entry_position, incoming)
+}
 
 pub(crate) fn descended_type(
     unit: &PsiOptimizationUnit,

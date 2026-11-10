@@ -3,7 +3,6 @@
 //! the equations retain the original greatest fixed point.
 
 use semantic_vocabulary::BlockId;
-use std::collections::{BTreeMap, BTreeSet};
 
 pub struct DominatorSets {
     blocks: Vec<BlockId>,
@@ -49,34 +48,13 @@ impl std::fmt::Debug for DominatorSet<'_> {
     }
 }
 
-pub fn dominators(
-    entry: BlockId,
-    block_ids: impl Iterator<Item = BlockId>,
-    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+// The public entry resolves every predecessor against this same sorted roster.
+// Only its in-range ordinals enter the solver.
+pub(super) fn solve(
+    blocks: Vec<BlockId>,
+    entry_position: Option<usize>,
+    incoming: Vec<Vec<usize>>,
 ) -> DominatorSets {
-    let blocks: Vec<_> = block_ids.collect::<BTreeSet<_>>().into_iter().collect();
-    let entry_position = blocks.binary_search(&entry).ok();
-    // The entry's incoming row and extra map rows were never consulted. Missing
-    // nonentry rows or foreign predecessors retain the original invariant errors.
-    let incoming: Vec<Vec<_>> = blocks
-        .iter()
-        .map(|block| {
-            if *block == entry {
-                Vec::new()
-            } else {
-                predecessors
-                    .get(block)
-                    .expect("all blocks indexed")
-                    .iter()
-                    .map(|predecessor| {
-                        blocks
-                            .binary_search(predecessor)
-                            .expect("predecessor block is declared")
-                    })
-                    .collect()
-            }
-        })
-        .collect();
     let mut outgoing = vec![Vec::new(); blocks.len()];
     for (target, predecessors) in incoming.iter().enumerate() {
         for predecessor in predecessors {
@@ -162,6 +140,8 @@ fn reverse_postorder(outgoing: &[Vec<usize>], entry: Option<usize>) -> Vec<usize
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dominators;
+    use std::collections::{BTreeMap, BTreeSet};
 
     fn block(position: usize) -> BlockId {
         BlockId::new(101 + position as u64 * 3).unwrap()
