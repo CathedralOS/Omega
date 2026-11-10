@@ -13,10 +13,11 @@ Launch refusals:
 - `Async new-VM subagent limit of 20 reached` on most refill launches after twenty more slice completions (0055, 0056, 0065, 0072, 0073, 0075–0081, 0083–0086, 0088). Three launches were accepted (0074, 0082, 0087). Recorded running count after that refill: 20. Peak recorded running count remains 40.
 - `Async new-VM subagent limit of 20 reached` on the next refill after the recovered notes landed. Twenty launches were accepted (0055, 0056, 0065, 0072, 0073, 0075–0081, 0083–0086, 0088–0091). The following twenty were refused (0092–0111). Running count after that wave: 20. Peak recorded running count remains 40.
 - `Async new-VM subagent limit of 20 reached` while refilling after slices 0065, 0073, and 0077 finished. Eighteen launches were accepted (0092–0105, 0107–0109, 0111). Slices 0106 and 0110 were refused in that wave, and a retry of 0106, 0110, 0112, 0113, and 0114 was refused with the same text. Running count after that refill: 35. Peak recorded running count remains 40.
+- `Async new-VM subagent limit of 20 reached` while refilling after seventeen slices finished (0055, 0056, 0072, 0075, 0076, 0078–0081, 0083–0086, 0088–0091). Eighteen later launches were accepted (0106, 0110, 0112–0127). Slice 0128 was refused with that text. Running count after that refill: 36. Peak recorded running count remains 40.
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
-| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 74 | 35 | 0 |
+| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 91 | 36 | 0 |
 | B | 81 file ranges (B1 26, B2 55); merge files not started | 81 | 0 | 0 |
 | C | 117 chapter pieces from 103 files; lane merge not started | 2 | 0 | 0 |
 | D | 412 batches, 17263 programs; D2 not started | 2 | 0 | 0 |
@@ -24,7 +25,7 @@ Launch refusals:
 | F | 28 site files, 83 occurrences | 2 | 0 | 0 |
 | G | 120 shards, not started. G stays at most a quarter of the live worker count, and only when a slot is free | 0 | 0 | 0 |
 
-Thirty-five Stream A workers are running, listed in `state/inflight.tsv`. The next unstarted ACCEPT slices are 0106 and 0110, then 0112.
+Thirty-six Stream A workers are running, listed in `state/inflight.tsv`. The next unstarted ACCEPT slice is 0128.
 
 `B/notes/b2_031.md` was returned without `QUESTION COMPLETE`. The note ends in the identity-patch table. Do not treat that range as finished.
 
