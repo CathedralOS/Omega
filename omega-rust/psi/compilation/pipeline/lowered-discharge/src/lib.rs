@@ -44,7 +44,9 @@ Kinds outside `OperationSafety`, `CallRequirement`, `NormalGuarantee` and
 yet.
 */
 
+mod crashes;
 mod graph;
+mod joins;
 mod minted;
 mod places;
 mod prove;
@@ -65,9 +67,9 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, InvocationSite, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType,
-    StructuralCaseId, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, InvocationSite,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use structure_elaboration::Elaboration;
 use terminal_check_tables::edges::{Actual, Callee, Destination};
@@ -150,6 +152,10 @@ pub struct MachineDischarge {
     /// One verdict per use of storage, in block and operation order, a
     /// block's terminator last.
     pub uses: Vec<StorageUse>,
+    /// Joins whose inferred predicate some arrival could not establish. Each
+    /// predicate was replaced by `Truth`, which every arrival establishes,
+    /// so the join contributes nothing downstream (`joins`).
+    pub weakened_joins: Vec<BlockId>,
 }
 
 impl MachineDischarge {
@@ -279,6 +285,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
                     ))
                 }),
                 uses: Vec::new(),
+                weakened_joins: Vec::new(),
             });
             continue;
         }
@@ -350,12 +357,33 @@ fn machine(
         context,
     } = prepare(machines, structural_types, domains, id, tables, knowledge)?;
     let mut storage = places::Storage::new(id, lowered, structural_types, domains, &graph, tables)?;
-    // Certificates first; a published clause is then decided from its exits.
     let mut decided: Vec<Option<Checked<Discharged>>> =
-        Vec::with_capacity(tables.obligations.len());
-    for (obligation, row) in tables.obligations.iter() {
+        (0..tables.obligations.len()).map(|_| None).collect();
+    // Join predicates first: each is checked on every arrival before it may
+    // justify anything downstream.
+    if knowledge == Knowledge::All {
+        joins::infer(lowered, id, tables, &graph, &context)?;
+    }
+    let weakened_joins = joins::check(
+        &joins::Machine {
+            machines,
+            lowered,
+            storage: &storage,
+            id,
+            types: &types,
+            graph: &graph,
+            context: &context,
+            relations: knowledge != Knowledge::LiteralIntervals,
+        },
+        tables,
+        &mut decided,
+    )?;
+    // Certificates next; a published clause is then decided from its exits.
+    for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
+        if decided[index].is_some() {
+            continue;
+        }
         if let ObligationKind::PublishedGuarantee { .. } = row.kind {
-            decided.push(None);
             continue;
         }
         let verdict = goal(
@@ -374,7 +402,7 @@ fn machine(
             )
             .map(Discharged::Certificate)
         });
-        decided.push(Some(verdict));
+        decided[index] = Some(verdict);
     }
     let mut verdicts = IdTable::default();
     for ((obligation, row), verdict) in tables.obligations.iter().zip(&decided) {
@@ -441,6 +469,7 @@ fn machine(
     Ok(MachineDischarge {
         verdicts: settled,
         uses,
+        weakened_joins,
     })
 }
 
@@ -548,13 +577,20 @@ fn fill_knowledge(
             id,
             Construct::Invocation(invocation),
         )?;
-        let InvocationSite::Operation(operation) = row.site else {
-            return Err(refusal(
-                RefusalReason::Unsupported,
-                id,
-                Construct::Invocation(invocation),
-                "invocation outside an operation",
-            ));
+        // A call with no normal completion is a terminator. Its callee's
+        // guarantees "apply only on normal return" (calls_and_outcomes.md), and
+        // it has none, so it adds no knowledge.
+        let operation = match row.site {
+            InvocationSite::Operation(operation) => operation,
+            InvocationSite::InvokeNoNormal(_) => continue,
+            _ => {
+                return Err(refusal(
+                    RefusalReason::Unsupported,
+                    id,
+                    Construct::Invocation(invocation),
+                    "invocation outside an operation or a no-normal call",
+                ));
+            }
         };
         let callee = callee(id, invocation, &row.callee)?;
         let actuals = scalar_actuals(&row.actuals);
@@ -1124,13 +1160,17 @@ fn goal(
             concerns,
             "a published clause is decided from its exits, not proved",
         )),
+        ObligationKind::ArrivalInvariant { edge } => {
+            joins::arrival_goal(lowered, id, obligation, edge, tables)
+        }
+        ObligationKind::CrashCoverage { site, cause } => {
+            crashes::coverage_goal(lowered, id, obligation, site, cause)
+        }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }
         | ObligationKind::DomainDebt { .. }
         | ObligationKind::EstablishmentDebt { .. }
-        | ObligationKind::ArrivalInvariant { .. }
-        | ObligationKind::CrashCoverage { .. }
         | ObligationKind::WellFoundedness { .. }
         | ObligationKind::RankComparison { .. } => Err(refusal(
             RefusalReason::Unsupported,

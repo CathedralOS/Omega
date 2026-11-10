@@ -16,6 +16,8 @@ checks that the rows to decide are the ones the lowered form owes;
 [graph.rs](src/graph.rs) answers dominance between program points;
 [places.rs](src/places.rs) says what a place holds when a field read observes
 it; [prove.rs](src/prove.rs) is the one prover.
+[joins.rs](src/joins.rs) infers and checks join predicates;
+[crashes.rs](src/crashes.rs) states crash-site coverage.
 
 ## What it decides
 
@@ -25,6 +27,9 @@ it; [prove.rs](src/prove.rs) is the one prover.
 | `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
 | `NormalGuarantee` | this machine's `ensures` clause at that position, with `result` replaced by the value that exit returns | the same, on the exit edge |
 | `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)) | the same, before the operation |
+| `PublishedGuarantee` | not proved: held when every return edge's `NormalGuarantee` for the clause is discharged | - |
+| `ArrivalInvariant` | the destination join's inferred predicate, its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
+| `CrashCoverage` | the site guard's clauses (a `Crash` terminator's; a call site has none) and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none) | the same, before the crashing terminator or call |
 
 Any other kind is refused as `Unsupported`; elaboration mints none yet.
 
@@ -77,8 +82,10 @@ already carries every identity:
 | `PublishedGuarantee` | each `ensures` clause of the contract names its published identity | the entry block |
 | `NormalGuarantee` | every return terminator owes one per `ensures` clause, naming its own edge and the clause's published identity | that return edge |
 | `DataDomain` | counted by `Storage::owed_are_minted` from the writes the place walk finds | the point before the operation |
+| `CrashCoverage` | a `Crash` terminator owes one for its cause; an `InvokeNoNormal` terminator, or a `Call` or `CallUnit` with crash continuations, one per cause among them | the point before the terminator or the call |
+| `ArrivalInvariant` | a `Jump`, or a `Conditional` successor, that passes scalar arguments owes one for its edge | that edge |
 
-A row of the first four kinds that nothing owes is refused as well, and so is
+A row of the first four kinds, or of the last two, that nothing owes is refused as well, and so is
 a row owed twice. The point matters as much as the kind: it selects the
 knowledge a proof may use, so a row moved past a guard, or past its own call
 where the callee's `ensures` is already known, would be proved from facts
@@ -766,3 +773,39 @@ Limits of what was built:
   the fixture (its `main` ends in terminal calls), and `judge` does not use
   carried proofs.
 - No timing was taken.
+
+## Facts across a join
+
+A branch fact holds on its edge only, and "A fact from one arm does not
+survive the join" (`fact_validity.md`). So after `transition total > 9000 ||
+total < 3`, the false edge says only that the `||` join's Boolean parameter
+`p` is `false`, and a use of `total <= 9000` there learned nothing. The
+specification's mechanism is a block predicate checked on every arrival
+before it justifies anything downstream (`fact_validity.md`, "Premise
+availability"; `control_flow.md`, "Equality relations"). [joins.rs](src/joins.rs)
+builds one per join, so no shape of join is special:
+
+- Lowering mints an `ArrivalInvariant` obligation per edge into a block with
+  parameters.
+- The predicate is inferred as the disjunction over arrivals of what each
+  arrival knows and the join does not, in the predicate's scope (formals and
+  the join's parameters): `p == a` with the argument `a` unfolded through the
+  Boolean and literal definitions on that edge, and each path fact
+  transported into its denotation. For the example: `(p == (9000 < total)
+  and 9000 < total) or (p == (total < 3) and total <= 9000)`.
+- Each arrival obligation is that predicate with `p` replaced by the edge's
+  argument, proved by the same prover and decided by the kernel. Only then is
+  the predicate a `BlockInvariant` knowledge row at the join's entry. If any
+  arrival is unproved, the predicate becomes `Truth` and the join is listed in
+  `MachineDischarge::weakened_joins`; a weaker predicate is still a valid one,
+  so this never rejects a program, but nothing downstream relies on the join.
+- At the use, the prover splits over the predicate's disjunction. In each
+  alternative `p == (...)` is a definition of `p`, so the branch fact `p ==
+  false` transports through it (`ValueEqualityTransport`, the existing rule)
+  into `total <= 9000`.
+
+The prover's transport now takes any proved definition of a Boolean value,
+not only an operation's result equation, and a goal whose transported
+denotation is `Truth` or a known fact closes by the same rule. A join on a
+cycle gets no predicate: cyclic cuts need induction, which this route does not
+do.
