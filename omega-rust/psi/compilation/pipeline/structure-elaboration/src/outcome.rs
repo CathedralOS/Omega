@@ -189,9 +189,18 @@ impl Walk<'_> {
             ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
                 self.expression(machine, operand)
             }
-            ExpressionKind::Strict { left, right, .. }
-            | ExpressionKind::ShortCircuit { left, right, .. } => {
+            ExpressionKind::Strict { left, right, .. } => {
                 Ok(self.expression(machine, left)? && self.expression(machine, right)?)
+            }
+            // The right operand may be skipped, so the expression completes
+            // whenever its left operand does; the right operand's causes are
+            // still reachable.
+            ExpressionKind::ShortCircuit { left, right, .. } => {
+                if !self.expression(machine, left)? {
+                    return Ok(false);
+                }
+                self.expression(machine, right)?;
+                Ok(true)
             }
             ExpressionKind::Call { callee, arguments } => {
                 for argument in arguments {
