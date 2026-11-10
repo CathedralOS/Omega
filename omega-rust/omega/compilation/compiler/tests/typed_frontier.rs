@@ -56,8 +56,7 @@ fn ordinary_diagnostics(fixture: &str) -> Vec<String> {
             check_fixture(&mut prepared, profile.target_name(), Default::default())
         })();
         checked
-            .err()
-            .expect("the ordinary check rejects this fixture")
+            .expect_err("the ordinary check rejects this fixture")
             .into_iter()
             .map(|diagnostic| diagnostic.message)
             .collect()

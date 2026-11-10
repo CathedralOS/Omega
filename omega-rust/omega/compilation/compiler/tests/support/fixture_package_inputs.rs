@@ -967,7 +967,7 @@ fn dangerous_service_bindings(
 /// belongs to the check recorded here only when that check itself rejected.
 enum FrontierRecord {
     Reached {
-        frontier: compiler::TypedFrontier,
+        frontier: Box<compiler::TypedFrontier>,
         rejected: bool,
     },
     Stopped,
@@ -1017,19 +1017,19 @@ fn record_frontier_check(
 pub enum FixtureFrontierCheck {
     /// The current checker accepted and fixture review finished.
     Accepted {
-        frontier: compiler::TypedFrontier,
+        frontier: Box<compiler::TypedFrontier>,
         checked: Box<compiler::CheckedCompilation>,
     },
     /// Psi 04 completed and the current checker then rejected the program.
     Rejected {
-        frontier: compiler::TypedFrontier,
+        frontier: Box<compiler::TypedFrontier>,
         diagnostics: Vec<Diagnostic>,
     },
     /// The current checker accepted, then this harness's own fixture
     /// acceptance (entry, service or permission policy) refused. The trees
     /// are the accepted check's.
     ReviewRefused {
-        frontier: compiler::TypedFrontier,
+        frontier: Box<compiler::TypedFrontier>,
         diagnostics: Vec<Diagnostic>,
     },
     /// No typed frontier exists: discovery, the Build, Psi 00 through 03 or

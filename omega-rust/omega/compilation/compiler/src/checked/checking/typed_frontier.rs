@@ -46,12 +46,14 @@ pub enum CurrentCheckerVerdict {
 pub enum TypedFrontierCheck {
     /// Psi 00 through 04 completed for the Product program.
     Reached {
-        frontier: TypedFrontier,
+        frontier: Box<TypedFrontier>,
         verdict: CurrentCheckerVerdict,
     },
     /// The compilation stopped before Psi 04 produced the Product's frozen
-    /// typed trees: a parse, name or type error, a Build that failed, or a
-    /// refusal in Psi 04 itself. There are no trees to compare on.
+    /// typed trees: a parse error or another refusal in Psi 00 through 03, a
+    /// Build that failed, or a refusal in Psi 04 itself. There are no trees to
+    /// compare on. Most unknown-type and type-mismatch errors are not here:
+    /// Psi 05 and validation report them, after Psi 04.
     StoppedBeforeTypedFrontier(CompileFailure),
 }
 
@@ -65,11 +67,11 @@ impl TypedFrontierCheck {
     ) -> Self {
         match (frontier, result) {
             (Some(frontier), Ok(checked)) => Self::Reached {
-                frontier,
+                frontier: Box::new(frontier),
                 verdict: CurrentCheckerVerdict::Accepted(Box::new(checked)),
             },
             (Some(frontier), Err(failure)) => Self::Reached {
-                frontier,
+                frontier: Box::new(frontier),
                 verdict: CurrentCheckerVerdict::Rejected(failure),
             },
             (None, Err(failure)) => Self::StoppedBeforeTypedFrontier(failure),
