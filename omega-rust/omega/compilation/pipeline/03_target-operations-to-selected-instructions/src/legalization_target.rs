@@ -631,58 +631,6 @@ pub(crate) mod control_flow {
             intervals
         }
 
-        #[cfg(test)]
-        mod tree_tests {
-            use super::tree_intervals;
-
-            #[test]
-            fn subtree_intervals_match_parent_walk() {
-                assert!(tree_intervals(&[]).is_empty());
-                let mut trees = vec![vec![0]];
-                for count in 1..=8 {
-                    for parents in &trees {
-                        let intervals = tree_intervals(parents);
-                        for (candidate, &(start, end)) in intervals.iter().enumerate() {
-                            for (descendant, &(entry, _)) in intervals.iter().enumerate() {
-                                let mut position = descendant;
-                                let expected = loop {
-                                    if position == candidate {
-                                        break true;
-                                    }
-                                    if position == 0 {
-                                        break false;
-                                    }
-                                    position = parents[position];
-                                };
-                                assert_eq!(
-                                    start <= entry && entry < end,
-                                    expected,
-                                    "parents={parents:?}, candidate={candidate}, descendant={descendant}"
-                                );
-                            }
-                        }
-                    }
-                    trees = trees
-                        .into_iter()
-                        .flat_map(|parents| {
-                            (0..count).map(move |parent| {
-                                let mut next = parents.clone();
-                                next.push(parent);
-                                next
-                            })
-                        })
-                        .collect();
-                }
-                let parents: Vec<_> = (0_usize..8192)
-                    .map(|position| position.saturating_sub(1))
-                    .collect();
-                let intervals = tree_intervals(&parents);
-                for (position, interval) in intervals.iter().enumerate() {
-                    assert_eq!(*interval, (position, 8192));
-                }
-            }
-        }
-
         impl SourceDominators {
             pub(crate) fn new(function: &PsiOptimizationFunction) -> Self {
                 let blocks = function
@@ -779,6 +727,57 @@ pub(crate) mod control_flow {
                 };
                 let (start, end) = self.intervals[candidate];
                 start <= self.intervals[position].0 && self.intervals[position].0 < end
+            }
+        }
+        #[cfg(test)]
+        mod tree_tests {
+            use super::tree_intervals;
+
+            #[test]
+            fn subtree_intervals_match_parent_walk() {
+                assert!(tree_intervals(&[]).is_empty());
+                let mut trees = vec![vec![0]];
+                for count in 1..=8 {
+                    for parents in &trees {
+                        let intervals = tree_intervals(parents);
+                        for (candidate, &(start, end)) in intervals.iter().enumerate() {
+                            for (descendant, &(entry, _)) in intervals.iter().enumerate() {
+                                let mut position = descendant;
+                                let expected = loop {
+                                    if position == candidate {
+                                        break true;
+                                    }
+                                    if position == 0 {
+                                        break false;
+                                    }
+                                    position = parents[position];
+                                };
+                                assert_eq!(
+                                    start <= entry && entry < end,
+                                    expected,
+                                    "parents={parents:?}, candidate={candidate}, descendant={descendant}"
+                                );
+                            }
+                        }
+                    }
+                    trees = trees
+                        .into_iter()
+                        .flat_map(|parents| {
+                            (0..count).map(move |parent| {
+                                let mut next = parents.clone();
+                                next.push(parent);
+                                next
+                            })
+                        })
+                        .collect();
+                }
+                let parents: Vec<_> = (0_usize..8192)
+                    .map(|position| position.saturating_sub(1))
+                    .collect();
+                let intervals = tree_intervals(&parents);
+                for (position, interval) in intervals.iter().enumerate() {
+                    assert_eq!(*interval, (position, 8192));
+                }
             }
         }
     }
