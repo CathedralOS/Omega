@@ -20022,8 +20022,7 @@ pass/build/interrupt_return_cathedral_ack checked 87729ms check-target:linux_x86
 pass/build/interrupt_return_debug_marker checked 82959ms check-target:linux_x86_64 @b8802407f2c4
 pass/build/interrupt_return_helper_debug_marker checked 81840ms check-target:linux_x86_64 @b8802407f2c4
 pass/build/layout_query_constant_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/named_map_target_family_rows_exit rejected 16933ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Gate::open),parameters(),result-dispatch())` has duplicate canonical realizations
+pass/build/named_map_target_family_rows_exit checked 40091ms check-target:macos_arm64 @a4f3937d72ab
 pass/build/native_component_case_cycle checked 6940ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/native_component_case_loan_cycle checked 7041ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/native_component_reuse checked 7177ms check-target:macos_arm64 @ccdb99ca2214
@@ -20062,10 +20061,8 @@ pass/build/runtime_main_source_builder_is_ordinary_exit checked 16326ms check-ta
 pass/build/runtime_opaque_by_value_selected_exit checked 16099ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/runtime_retained_const_application_exit checked 4046ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/runtime_static_service_exclusion_exit checked 4365ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/same_leaf_runner_entry_left_exit rejected 973ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	product entry `left::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
-pass/build/same_leaf_runner_entry_right_exit rejected 771ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	product entry `right::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
+pass/build/same_leaf_runner_entry_left_exit checked 40012ms check-target:macos_arm64 @a4f3937d72ab
+pass/build/same_leaf_runner_entry_right_exit checked 40083ms check-target:macos_arm64 @a4f3937d72ab
 pass/build/segment_selector_reload checked 77704ms check-target:linux_x86_64 @2b8a1382008c
 pass/build/selected_const_array_length_exit rejected 6094ms regressed-from:checked+check-target:macos_arm64 @b23365ced206+wt
 	fixed-array length `[u8; slot_count()]`: const evaluation of `slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-61` has non-hermetic source origin `User`"))
@@ -20076,8 +20073,7 @@ pass/build/selected_const_array_length_exit rejected 6094ms regressed-from:check
 	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-25` has non-hermetic source origin `User`"))
 pass/build/separate_build_product_imports_exit checked 8375ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/sibling_module_slot_family_rows_exit rejected 16789ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(gate::Gate::open),parameters(),result-dispatch())` has duplicate canonical realizations
+pass/build/sibling_module_slot_family_rows_exit checked 39605ms check-target:macos_arm64 @a4f3937d72ab
 pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/task_register_activation checked 74734ms check-target:linux_x86_64 @2b8a1382008c
 pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @4b50ded92ae9
@@ -20662,8 +20658,7 @@ pass/compile_time/const_overload_selected_dependency_exit checked 3628ms check-t
 pass/components/independent_same_spelling_packages checked 9944ms check-target:macos_arm64 @230151eef4fe
 pass/comptime/const_joint_ranked_call_component checked 2290ms check-target:macos_arm64 @6416b0fdfbe3
 pass/comptime/const_recursive_counter_survives_unrelated_writes checked 3764ms check-target:macos_arm64 @c5cc3d874922+wt
-pass/comptime/provider_boundary_range_endpoint_exit rejected 32220ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
+pass/comptime/provider_boundary_range_endpoint_exit checked 26731ms check-target:macos_arm64 @a4f3937d72ab
 pass/comptime/range_endpoint_requires_discharge_exit checked 16565ms check-target:macos_arm64 @ccdb99ca2214
 pass/comptime/runtime_const_array_anonymous_expression_exit checked 3661ms check-target:macos_arm64 @ccdb99ca2214
 pass/comptime/runtime_const_array_call_arguments_exit checked 15198ms check-target:macos_arm64 @c5cc3d874922+wt
@@ -21660,7 +21655,7 @@ pass/expressions/match_float_subjects checked 6955ms check-target:macos_arm64 @c
 pass/expressions/match_fresh_owned checked 2173ms @ccdb99ca2214
 pass/expressions/match_operand_anonymous_operation_exit checked 11179ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_ordered_duplicate_patterns checked 2994ms @ccdb99ca2214
-pass/expressions/match_owned_authored_state_subject checked 43608ms check-target:macos_arm64 @602404d45977
+pass/expressions/match_owned_authored_state_subject checked 21377ms check-target:macos_arm64 @a4f3937d72ab
 pass/expressions/match_owned_call_product_arms checked 17896ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_call_return_values checked 12527ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_computed_arm_arguments checked 13915ms check-target:macos_arm64 @ccdb99ca2214
@@ -26249,8 +26244,7 @@ pass/layouts/runtime_run_qualified_element_exit checked 25609ms check-target:mac
 pass/layouts/runtime_run_zero_sized_element_exit checked 21724ms check-target:macos_arm64 @089c0a150e63
 pass/layouts/runtime_selected_reference_parent_restoration_exit checked 3203ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_selected_scalar_reference_codec_exit checked 3248ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/runtime_size_of_align_of_exit rejected 108773ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	native artifact native artifact lowering failed: TargetFamily("selected providers realize a cyclic synchronous `invokes` graph: Console -> Console; break one edge with a mailbox, queue, scheduler handoff, or other new activation")
+pass/layouts/runtime_size_of_align_of_exit checked 26018ms check-target:macos_arm64 @a4f3937d72ab
 pass/layouts/runtime_sparse_fragmented_bits_exit checked 82604ms check-target:macos_arm64 @911f6617ba9e
 pass/layouts/runtime_stored_returned_encoded_reference_exit checked 3747ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_target_layout_byte_offset_exit checked 3302ms check-target:macos_arm64 @ccdb99ca2214
@@ -26410,8 +26404,7 @@ pass/modules/runtime_public_generic_dependency_exit checked 3766ms check-target:
 pass/modules/runtime_qualified_static_mutation_exit checked 11796ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/same_name_generic_record_operator_exit checked 3512ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/same_name_record_field_reads_exit checked 3101ms check-target:macos_arm64 @ccdb99ca2214
-pass/modules/same_name_requirement_calls_exit rejected 1205ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	product entry `right::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
+pass/modules/same_name_requirement_calls_exit checked 26186ms check-target:macos_arm64 @a4f3937d72ab
 pass/modules/same_name_service_callback_exit checked 3711ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/selected_constant_array_alias_computed_extent checked 2711ms @ccdb99ca2214
 pass/modules/selected_constant_array_alias_computed_extent_exit checked 11750ms check-target:macos_arm64 @ccdb99ca2214
@@ -26764,8 +26757,7 @@ pass/proofs/dynamic_float_input_boolean_disjunction_exit checked 8482ms check-ta
 pass/proofs/dynamic_float_input_single_relations_exit checked 8482ms check-target:macos_arm64 @da76dcbec7ab
 pass/proofs/embed_collection_length checked 2465ms @ccdb99ca2214
 pass/proofs/embed_returned_length checked 2389ms @ccdb99ca2214
-pass/proofs/embedded_address_bounds_exit rejected 12259ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
+pass/proofs/embedded_address_bounds_exit checked 12916ms check-target:macos_arm64 @a4f3937d72ab
 pass/proofs/embedded_successor_call_requirement_exit checked 3945ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/embedded_successor_transports_upper_bound_exit checked 3751ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/erased_mathematical_initializers checked 2617ms @ccdb99ca2214
@@ -26926,9 +26918,7 @@ pass/providers/applied_header_dependent_const_carrier_exit rejected 1202ms check
 	const parameter `Count` of `Parent` requires an integer literal argument
 pass/providers/applied_requirement_calls_exit checked 3582ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_requirement_computed_const_exit checked 10784ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/providers/applied_routed_index_forwarding_exit rejected 1322ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	provider choice must supply the declaration's complete static application
-	inspection main admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 390, end: 405 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/providers/applied_routed_index_forwarding_exit/build.omg", line: 8, column: 12 }) }]
+pass/providers/applied_routed_index_forwarding_exit checked 34971ms check-target:macos_arm64 terminal-inspections:match @a4f3937d72ab
 pass/providers/applied_trait_member_implicit_inference_exit checked 1699ms check-target:macos_arm64 @f56bc7223ee4
 pass/providers/applied_type_index_forwarding_exit checked 12882ms check-target:macos_arm64 @25bbaead8c14+wt
 pass/providers/assumed_result_bound_call_result_exit checked 3131ms check-target:linux_x86_64 @ccdb99ca2214
@@ -26944,8 +26934,7 @@ pass/providers/authored_same_stack_demand rejected 5ms regressed-from:checked @c
 	tests/omega/pass/providers/authored_same_stack_demand/main.omg:15:5: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
 pass/providers/authored_same_stack_import rejected 274ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	tests/omega/pass/providers/authored_same_stack_import/main.omg:29:125: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
-pass/providers/bare_byte_array_boundary_argument rejected 12064ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Sink::take),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,array\\(named\\(name\\(u8\\)\\)\\,literal\\(7\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/providers/bare_byte_array_boundary_argument checked 26424ms check-target:macos_arm64 @a4f3937d72ab
 pass/providers/binding_formal_type_const_operands checked 2272ms @ccdb99ca2214
 pass/providers/binding_param_capability checked 3258ms @ccdb99ca2214
 pass/providers/binding_where_record checked 5374ms @911f6617ba9e
@@ -27030,15 +27019,12 @@ pass/providers/module_named_operator_result_domain_satisfaction checked 251786ms
 pass/providers/named_boundary_applied_issuance checked 2394ms @ccdb99ca2214
 pass/providers/named_boundary_issuance_ordinary_guarantee checked 2294ms @ccdb99ca2214
 pass/providers/named_boundary_mutable_issuance checked 2612ms @ccdb99ca2214
-pass/providers/named_foreign_record_result_contract rejected 22916ms check-target:uefi_x86_64 regressed-from:checked+check-target:uefi_x86_64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
+pass/providers/named_foreign_record_result_contract checked 38756ms check-target:uefi_x86_64 @a4f3937d72ab
 pass/providers/named_provider_namespace_independence_exit checked 3059ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/nested_binding_borrowed_call_exit checked 4311ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/occurrence_region_binding_exit rejected 3051ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	executed provider choice lost its complete static application
+pass/providers/occurrence_region_binding_exit checked 15753ms check-target:macos_arm64 @a4f3937d72ab
 pass/providers/occurrence_region_binding_forwarding_exit checked 17304ms check-target:macos_arm64 @6b1c338126fa
-pass/providers/occurrence_region_binding_projected_type_exit rejected 3125ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	executed provider choice lost its complete static application
+pass/providers/occurrence_region_binding_projected_type_exit checked 14331ms check-target:macos_arm64 @a4f3937d72ab
 pass/providers/opaque_write_only_checked_alternative rejected 3147ms expected check-target:macos_arm64 native-rejection:match @1f01fe627c9b
 	opaque native provider for `named-callable(path(nominal\\(package-owner\\(32:022ee875fc99b747ac0df8ee125dbbfafecd3221b4839d4cc6d46242a17a5aca\\)\\,path\\(ErasedWrite::write\\)\\)),parameters(parameter\\(mutable\\(yes\\)\\,const\\(no\\)\\,ref-write\\(constrained\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:022ee875fc99b747ac0df8ee125dbbfafecd3221b4839d4cc6d46242a17a5aca\\\\\\)\\\\\\,path\\\\\\(Storage\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(package:022ee875fc99b747ac0df8ee125dbbfafecd3221b4839d4cc6d46242a17a5aca:product::Storage::Issued\\)\\)\\)\\)\\)),result-dispatch())` requires an admitted write-only non-observation judgment bound to its exact selected implementation and receipt
 pass/providers/owned_array_operand_epochs_exit checked 3906ms check-target:macos_arm64 @ccdb99ca2214
@@ -27055,8 +27041,7 @@ pass/providers/reference_dispatch_on_demand checked 7928ms check-target:macos_ar
 pass/providers/requirement_service_unsupplied_linux checked 15010ms check-target:linux_x86_64 provider-choice-controls:match terminal-inspections:match @61e05af8c148
 pass/providers/resource_profile_initialization_coverage_exit checked 37622ms check-target:macos_arm64 @6fd07112da3c
 pass/providers/resource_profile_roles checked 12696ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/resource_profile_supply_observation rejected 25162ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @25bbaead8c14+wt
-	constant checking: target `alpha_bootstrap` has no provider realization in this compiler
+pass/providers/resource_profile_supply_observation checked 24966ms check-target:macos_arm64 @a4f3937d72ab
 pass/providers/runtime_adapter_dispatch_exit rejected 277ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	static type argument `Build` selects generic data without its complete type/lifetime arguments
 pass/providers/runtime_boundary_address_model_exit checked 3309ms check-target:macos_arm64 @ccdb99ca2214
@@ -27072,10 +27057,8 @@ pass/providers/runtime_checked_completion_forwarding_exit checked 5044ms check-t
 pass/providers/runtime_closed_provider_and_assumed_chain_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_foreign_allocation_across_component_exit checked 10338ms check-target:macos_arm64 @c989b75f08a9
 pass/providers/runtime_foreign_allocation_overflow_zero_exit checked 19893ms check-target:macos_arm64 @2be83686053c
-pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit rejected 12569ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Measure::measure),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:3f2c5661e5d2637d19b14265b39528f1136931314c0fa586389ddd4806de99b4\\\\\\)\\\\\\,path\\\\\\(Words\\\\\\)\\\\\\)\\)\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/providers/runtime_foreign_leaf_slice_element_argument_exit rejected 12855ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Measure::measure),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 24186ms check-target:macos_arm64 @a4f3937d72ab
+pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 26633ms check-target:macos_arm64 @a4f3937d72ab
 pass/providers/runtime_foreign_owned_allocation_release_exit checked 18526ms check-target:macos_arm64 @2be83686053c
 pass/providers/runtime_generic_boundary_relay_exit checked 12378ms check-target:linux_x86_64 @25bbaead8c14+wt
 pass/providers/runtime_generic_boundary_relay_places_exit checked 4079ms check-target:linux_x86_64 @2fbf0edf0329+wt
@@ -27097,14 +27080,8 @@ pass/providers/runtime_qualified_fixed_array_foreign_exit checked 3368ms check-t
 pass/providers/runtime_requirement_service_declared_exit checked 15003ms check-target:macos_arm64 provider-choice-controls:match terminal-inspections:match @61e05af8c148
 pass/providers/runtime_result_domain_requirement_overload_exit checked 14397ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_transitive_provider_slot_exit checked 12946ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/same_name_requirement_dispatch_exit rejected 11911ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `context`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `context`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `context`
-pass/providers/same_name_requirement_right_dispatch_exit rejected 12517ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `context`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `context`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `context`
+pass/providers/same_name_requirement_dispatch_exit checked 23443ms check-target:macos_arm64 @a4f3937d72ab
+pass/providers/same_name_requirement_right_dispatch_exit checked 26748ms check-target:macos_arm64 @a4f3937d72ab
 pass/providers/same_target_internal checked 3433ms @ccdb99ca2214
 pass/providers/scalar_membership_boundary_exit checked 4706ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/scalar_membership_foreign checked 30143ms check-target:macos_arm64 @e8e0e531e729
@@ -27126,8 +27103,7 @@ pass/providers/structural_result_field_guarantee_exit checked 4145ms check-targe
 pass/providers/table_leaf_dispatch_parameter_exit checked 6147ms check-target:macos_arm64 @7ebdc5f3adcb
 pass/providers/target_contract_adjacency_exit checked 3257ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/target_family_entry checked 3097ms @ccdb99ca2214
-pass/providers/token_machine_family_override_exit rejected 333259ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @12385533695f
-	provider choice transport: Semantic(MalformedStructuralOperation { machine: "named-callable(path(nominal\\\\(package-owner\\\\(32:a82aa27cdf8ceaf98375d6bbcb031185b76243c232aba825c6562b8b1b4ce5fa\\\\)\\\\,path\\\\(WindowsFilesystemNativeProvider::directory_nth\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,ref\\\\(constrained\\\\(slice\\\\(named\\\\(name\\\\(u8\\\\)\\\\)\\\\)\\\\,declared-domain\\\\(name\\\\(package:a82aa27cdf8ceaf98375d6bbcb031185b76243c232aba825c6562b8b1b4ce5fa:product::[u8]::Path\\\\)\\\\)\\\\)\\\\)\\\\)\\\\,parameter\\\\(mutable\\\\(no\\\\)\\\\,const\\\\(no\\\\)\\\\,named\\\\(name\\\\(u64\\\\)\\\\)\\\\)),result-dispatch())", operation: OperationId(134), reason: "leaf copy memberships do not follow from every current payload source: source=PlaceId(414), path=[], requested=StructuralTypeId(238)/[StructuralDomainId(2)]/[], current=None, history=[], phase=targets, machine_present=false" })
+pass/providers/token_machine_family_override_exit checked 63153ms check-target:macos_arm64 provider-choice-controls:match terminal-inspections:match @a4f3937d72ab
 pass/providers/uncalled_boundary_provider_exit checked 3494ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unreached_console_provider_rows checked 16889ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unused_named_provider_candidates checked 3791ms check-target:macos_arm64 @ccdb99ca2214
@@ -27559,8 +27535,7 @@ pass/targets/imported_target_family_heads_exit checked 4334ms check-target:macos
 pass/targets/per_target_import_satisfies checked 2452ms @ccdb99ca2214
 pass/targets/portable_family_entry_installations_exit checked 4245ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:trap terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/targets/private_target_supplies_remain_disclosed checked 12103ms check-target:macos_arm64 @ccdb99ca2214
-pass/targets/provider_family_private_contracts_exit rejected 19662ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a562d4060f10+wt
-	selected provider requirement `named-callable(path(nominal\\(package-owner\\(32:a2d44e6ee660d3c9cd7a0ade7fc1e4ee9f8753ed092ad7a7d12733358fafb8ae\\)\\,path\\(Value::read\\)\\)),parameters(),result-dispatch())` has duplicate canonical realizations
+pass/targets/provider_family_private_contracts_exit checked 12391ms check-target:macos_arm64 @a4f3937d72ab
 pass/targets/retained_target_family_bodies checked 3392ms check-target:macos_arm64 @ccdb99ca2214
 pass/targets/retained_target_provider_family_exit checked 11853ms check-target:macos_arm64 @ccdb99ca2214
 pass/targets/runtime_closed_generic_attached_family_exit checked 3617ms check-target:macos_arm64 @ccdb99ca2214
@@ -28123,10 +28098,7 @@ run/arithmetic/pinned_dividend_across_console_calls checked 10070ms check-target
 run/borrows/affine_produced_membership_move checked 3029ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/call_result_mutable_window_field_exit checked 15123ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/computed_element_view_state_extent checked 3181ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/conditional_disjoint_field_loans_exit rejected 9336ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
+run/borrows/conditional_disjoint_field_loans_exit checked 25391ms check-target:macos_arm64 @a4f3937d72ab
 run/borrows/conditional_returned_descriptor_origins checked 3069ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/direct_runtime_index_write checked 11454ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/dynamic_ancestor_static_byte_child_exit checked 10424ms check-target:macos_arm64 @ccdb99ca2214
@@ -28207,14 +28179,8 @@ run/calls/recursive_machine_transition_scalar_arguments_exit checked 4449ms chec
 run/calls/resultless_scalar_parameters checked 9529ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/retained_implicit_entry_selection checked 1850ms check-target:macos_arm64 @44449d36ba89
 run/calls/returned_reference_case_write_then_view_exit checked 2962ms check-target:macos_arm64 @8fce926f9735
-run/calls/runtime_float_distinct_operand_calls_exit rejected 54993ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-run/calls/runtime_float_normalized_operand_single_evaluation_exit rejected 65975ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
+run/calls/runtime_float_distinct_operand_calls_exit checked 24724ms check-target:macos_arm64 @a4f3937d72ab
+run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 23451ms check-target:macos_arm64 @a4f3937d72ab
 run/calls/saved_scalar_dispatch_guard_arguments_exit checked 5019ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/scalar_contract_route_exit checked 2744ms check-target:macos_arm64 @d2accacf8da6
 run/calls/scalar_guard_after_borrow_parameters_exit checked 5636ms check-target:macos_arm64 @ccdb99ca2214
