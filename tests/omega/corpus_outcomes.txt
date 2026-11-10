@@ -25548,9 +25548,7 @@ pass/filesystem/windows_namespace_rename_exit checked 310804ms check-target:wind
 pass/filesystem/windows_native_create_write_close_exit checked 327777ms check-target:windows_x86_64 @e1cfe02f1a9b
 pass/filesystem/windows_raw_argument_failures_exit checked 327836ms check-target:windows_x86_64 @e1cfe02f1a9b
 pass/filesystem/windows_raw_bounded_view_exit checked 326461ms check-target:windows_x86_64 @e1cfe02f1a9b
-pass/filesystem/windows_raw_canonical_path_exit rejected 431272ms check-target:windows_x86_64 terminal-inspections:failed regressed-from:checked+check-target:windows_x86_64+terminal-inspections:match @e1cfe02f1a9b
-	cannot prove requires contract for call inspect from find: position < 1024 && position >= 4 (needs fact `position < 1024 && position >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	inspection Main::main admission: [Diagnostic { severity: Error, message: "cannot prove requires contract for call inspect from find: position < 1024 && position >= 4 (needs fact `position < 1024 && position >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/filesystem/windows_raw_canonical_path_exit checked 286713ms check-target:windows_x86_64 terminal-inspections:match @d79b5aa12a7c
 pass/filesystem/windows_raw_directory_count_exit checked 466128ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_directory_nth_exit checked 433584ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_file_control_exit checked 384589ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
