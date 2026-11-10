@@ -438,10 +438,33 @@ immutable source/oracle bytes.
 
 `--filter` matches comma-separated `tier/group/name` fragments (also
 `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
-deterministic hash slice for splitting the run across sessions.
+deterministic hash slice for splitting the run across sessions. Shards count
+from zero: `k` runs from `0` to `N-1`, and the gate rejects anything else,
+because the runner ignores a shard it cannot use and would run every fixture.
 `OMEGA_CORPUS_JOBS` overrides the worker count, which defaults to the CPU
 count -- cap it when several sessions measure at once, since N concurrent runs
 otherwise request N times the machine.
+
+### Re-recording the whole ledger
+
+A whole-ledger re-record measures every fixture at one commit, so that the
+ledger says what the compiler does today. Only the user starts one. From a
+clean checkout of that commit on a test VM:
+
+```bash
+~/omega-agent/bin/vm-heavy ledger-sweep sh tools/ledger_sweep.sh ~/omega-agent/ledger-sweep 40
+```
+
+Name the tiers in `--filter` (`pass/,fail/,run/`), as the script does: with an
+empty filter the gate passes every fixture name to the runner in one
+environment string, which Linux refuses. Each invocation spends about six
+minutes rebuilding and verifying the runner, and xtask stops a runner at 1800
+seconds, so forty shards of about 440 fixtures is the size that fits. On the
+two test VMs that is about 22 minutes a shard. To split the work, give each
+host its own `todo.txt` and merge the ledgers by taking each fixture's block
+from the host that stamped it with the new commit. The script's header carries
+the measurements behind these numbers, and the
+[host build budget](build_slot.md#on-the-test-vms) the rule for sharing a VM.
 
 Golden history distance is optional reporting metadata. Each ancestry lookup
 has a two-second budget; unavailable or slow history is reported as an

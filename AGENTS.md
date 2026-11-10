@@ -236,7 +236,9 @@ machine. Before the first build on a host you share with its owner or with
 other agents, apply the [host build budget](tools/build_slot.md): cap the total
 load of all agents so the machine never reaches 100%, run at the lowest
 operating-system priority on a workstation its owner is using, and write the
-budget into every worker prompt.
+budget into every worker prompt. On the test VMs, run one heavy job per machine
+and never change the settings of a job that is already running; the remote shim
+refuses a second build or corpus run while one is active.
 
 ## The Psi/Omega firewall
 
