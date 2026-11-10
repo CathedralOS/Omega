@@ -1,0 +1,25 @@
+// FAIL CANARY.
+// This control used to pin that a selection row was retired. The
+// operation-record decision (wiki/spec/language/conformances.md,
+// "Implementations are operation records") brought the row back, so the same
+// program now pins the rule that remains: one slot holds one selection.
+// `CounterSink` fills `Sink::put` with the existing `Counter::put` and also
+// declares an inline `put`, so the slot is filled twice and the block rejects.
+trait Sink<S, T> {
+    machine put(sink: &mut S, value: T);
+}
+
+data Counter {
+    value: i32;
+}
+
+machine Counter::put(counter: &mut Counter, value: i32) satisfies Sink<Counter, i32>::put {
+    counter.value = value;
+}
+
+CounterSink satisfies Sink<Counter, i32> {
+    Sink::put = Counter::put;
+    machine put(counter: &mut Counter, value: i32) { counter.value = value; }
+}
+
+machine main() {}
