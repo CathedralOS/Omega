@@ -1106,7 +1106,7 @@ pub(crate) mod expression {
                     ) {
                         self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Bool)?;
                     }
-                    Ok(self
+                    let lowered = self
                         .target()
                         .insert(typed::expression::ExpressionNode::Binary(
                             typed::expression::TableBinaryExpression {
@@ -1114,7 +1114,12 @@ pub(crate) mod expression {
                                 operator: lower_binary_operator(binary.operator),
                                 right,
                             },
-                        )))
+                        ));
+                    // The operand carrier is not known yet; preparation types
+                    // the suffixed form once the whole program is lowered.
+                    self.target()
+                        .retain_policy_operation(lowered, binary.policy);
+                    Ok(lowered)
                 }
 
                 fn lower_nonbinary_node(
@@ -2785,6 +2790,7 @@ pub(crate) mod expression {
                         _ => operand,
                     };
                     let equality = resolved::expression::TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: observed_operand(left),
                         operator: resolved::expression::BinaryOperator::Equal,
                         right: observed_operand(right),

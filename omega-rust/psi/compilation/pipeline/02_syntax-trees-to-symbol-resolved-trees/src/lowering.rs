@@ -1085,6 +1085,7 @@ pub(crate) mod expression {
                     ));
                     let equality = expression_table(lowerer).insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: projected,
                             operator: BinaryOperator::Equal,
                             right: expected,
@@ -1093,6 +1094,7 @@ pub(crate) mod expression {
                     condition = if condition.is_valid() {
                         expression_table(lowerer).insert(ExpressionNode::Binary(
                             TableBinaryExpression {
+                                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                 left: condition,
                                 operator: BinaryOperator::And,
                                 right: equality,
@@ -1107,6 +1109,7 @@ pub(crate) mod expression {
                 condition = if condition.is_valid() {
                     expression_table(lowerer).insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: condition,
                             operator: BinaryOperator::And,
                             right: guard,
@@ -1234,6 +1237,7 @@ pub(crate) mod expression {
         let right = lower_expression_into_table(lowerer, syntax_trees, binary.right)?;
         Ok(
             expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: binary.policy,
                 left,
                 operator: lower_binary_operator(binary.operator),
                 right,

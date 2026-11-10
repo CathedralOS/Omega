@@ -454,7 +454,8 @@ pub mod snapshot {
                 },
                 ExpressionNode::Binary(binary) => ExpressionSnapshot::Binary {
                     left: Box::new(snapshot_expression_handle(syntax_trees, binary.left)),
-                    operator: snapshot_binary_operator(binary.operator),
+                    operator: snapshot_policy_operator(binary.operator, binary.policy)
+                        .unwrap_or_else(|| snapshot_binary_operator(binary.operator)),
                     right: Box::new(snapshot_expression_handle(syntax_trees, binary.right)),
                 },
                 ExpressionNode::Boolean(value) => ExpressionSnapshot::Boolean { value: *value },
@@ -661,6 +662,43 @@ pub mod snapshot {
                 name: snapshot_identifier(syntax_trees, &field.name),
                 value: snapshot_expression_handle(syntax_trees, field.value),
             }
+        }
+
+        /// A suffixed policy operator snapshots under its own name, so two
+        /// parsers that disagree about a suffix do not compare equal.
+        fn snapshot_policy_operator(
+            operator: BinaryOperator,
+            policy: numerics::arithmetic::ArithmeticDomain,
+        ) -> Option<&'static str> {
+            use numerics::arithmetic::ArithmeticDomain;
+            Some(match (operator, policy) {
+                (BinaryOperator::Add, ArithmeticDomain::Wrapping) => "add_wrapping",
+                (BinaryOperator::Add, ArithmeticDomain::Saturating) => "add_saturating",
+                (BinaryOperator::Add, ArithmeticDomain::Trapping) => "add_trapping",
+                (BinaryOperator::Subtract, ArithmeticDomain::Wrapping) => "subtract_wrapping",
+                (BinaryOperator::Subtract, ArithmeticDomain::Saturating) => "subtract_saturating",
+                (BinaryOperator::Subtract, ArithmeticDomain::Trapping) => "subtract_trapping",
+                (BinaryOperator::Multiply, ArithmeticDomain::Wrapping) => "multiply_wrapping",
+                (BinaryOperator::Multiply, ArithmeticDomain::Saturating) => "multiply_saturating",
+                (BinaryOperator::Multiply, ArithmeticDomain::Trapping) => "multiply_trapping",
+                (BinaryOperator::Divide, ArithmeticDomain::Wrapping) => "divide_wrapping",
+                (BinaryOperator::Divide, ArithmeticDomain::Saturating) => "divide_saturating",
+                (BinaryOperator::Divide, ArithmeticDomain::Trapping) => "divide_trapping",
+                (BinaryOperator::Modulo, ArithmeticDomain::Wrapping) => "modulo_wrapping",
+                (BinaryOperator::Modulo, ArithmeticDomain::Saturating) => "modulo_saturating",
+                (BinaryOperator::Modulo, ArithmeticDomain::Trapping) => "modulo_trapping",
+                (BinaryOperator::ShiftLeft, ArithmeticDomain::Wrapping) => "shift_left_wrapping",
+                (BinaryOperator::ShiftLeft, ArithmeticDomain::Saturating) => {
+                    "shift_left_saturating"
+                }
+                (BinaryOperator::ShiftLeft, ArithmeticDomain::Trapping) => "shift_left_trapping",
+                (BinaryOperator::ShiftRight, ArithmeticDomain::Wrapping) => "shift_right_wrapping",
+                (BinaryOperator::ShiftRight, ArithmeticDomain::Saturating) => {
+                    "shift_right_saturating"
+                }
+                (BinaryOperator::ShiftRight, ArithmeticDomain::Trapping) => "shift_right_trapping",
+                _ => return None,
+            })
         }
 
         fn snapshot_binary_operator(operator: BinaryOperator) -> &'static str {

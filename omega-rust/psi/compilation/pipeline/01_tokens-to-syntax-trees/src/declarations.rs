@@ -343,7 +343,14 @@ pub(crate) mod const_item {
         let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
         let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
+        let initializer = input;
         let (value, input) = parse_expression_handle(syntax_trees, input)?;
+        crate::grammar::expressions::parse_expression::reject_policy_operators(
+            syntax_trees,
+            value,
+            initializer,
+            "a constant initializer",
+        )?;
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         Ok((
             ConstDefinition {
@@ -2014,6 +2021,17 @@ pub(crate) mod operator {
             }
         }
 
+        // A bindable arithmetic token followed by a policy suffix lexes as one
+        // suffixed operator; name the rule instead of listing spellings.
+        let policy_form = symbol.len() > 1
+            && symbol.ends_with(['%', '|', '!'])
+            && OperatorSpelling::from_symbol(&symbol[..symbol.len() - 1])
+                .is_some_and(|base| matches!(base.symbol(), "+" | "-" | "*" | "/" | "%"));
+        if policy_form {
+            return Err(input.error_here(
+                "a suffixed policy operator such as `+%`, `+|` or `+!` is a compiler-owned integer primitive; a declaration cannot bind one",
+            ));
+        }
         match OperatorSpelling::from_symbol(&symbol) {
             Some(spelling) => Ok((spelling, rest)),
             None => Err(input.error_here(format!(

@@ -1,0 +1,349 @@
+/*
+We type the suffixed policy operators (`a +% b`, `a +| b`, `a +! b`): an
+arithmetic or shift operator whose suffix chooses Wrapping, Saturating or
+Trapping for that one operation while its operands and result stay plain
+integers (wiki/spec/language/numeric_values.md#policy-operators).
+
+The specification defines a suffixed operator as exactly what the bare
+operator means for two operands qualified with that policy. So this pass
+writes that definition down instead of adding a second arithmetic: once the
+operand carrier `T` is known, `a +% b` becomes
+
+    ((a as T in Wrapping) + (b as T in Wrapping)) as T
+
+and checking, lowering, interpretation and native realization see only the
+policy-qualified arithmetic they already implement. An anonymous operand is
+left bare so it lands to the carrier like the literal in `counter + 1`; a
+shift's count keeps its own type.
+*/
+
+use diagnostics::Diagnostic;
+use numerics::arithmetic::ArithmeticDomain;
+use symbols::BuiltinTypeAtom;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, PolicyOperation, TableBinaryExpression,
+    TableCastExpression,
+};
+use typed_trees::name::Identifier;
+use typed_trees::references::DeclarationSelection;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+
+/// What one operand contributes to the operation's carrier.
+#[derive(Clone, Copy)]
+enum Operand {
+    /// A bare fixed-width integer type.
+    Carrier(TypeReferenceHandle),
+    /// An untyped number that lands to the other operand's carrier.
+    Anonymous,
+}
+
+struct Elaboration {
+    expression: ExpressionHandle,
+    policy: ArithmeticDomain,
+    carrier: TypeReferenceHandle,
+    cast_left: bool,
+    cast_right: bool,
+}
+
+pub(crate) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    if program.expression_table.policy_operations().is_empty() {
+        return Ok(());
+    }
+    let mut pending = program.expression_table.take_policy_operations();
+    pending.sort_by_key(|operation| operation.expression.arena_index());
+    pending.dedup_by_key(|operation| operation.expression.arena_index());
+    let mut reached = vec![false; pending.len()];
+    let mut elaborations = Vec::with_capacity(pending.len());
+    let mut diagnostics = Vec::new();
+
+    let values =
+        validation::collect_executable_value_origins(program, &DeclarationSelection::all());
+    let mut expressions = Vec::new();
+    for (_, value) in values.values.iter() {
+        let checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            ..
+        } = value.origin
+        else {
+            continue;
+        };
+        let Some((machine, state)) = program
+            .machine_by_symbol(machine_symbol)
+            .zip(program.state_by_symbol(state_symbol))
+        else {
+            continue;
+        };
+        expressions.clear();
+        validation::expression_traversal::collect_expression_tree(
+            program,
+            value.expression,
+            &mut expressions,
+        );
+        for expression in expressions.iter().copied() {
+            let Ok(index) = pending.binary_search_by_key(&expression.arena_index(), |operation| {
+                operation.expression.arena_index()
+            }) else {
+                continue;
+            };
+            if std::mem::replace(&mut reached[index], true) {
+                continue;
+            }
+            match plan(program, machine, state, pending[index]) {
+                Ok(elaboration) => elaborations.push(elaboration),
+                Err(diagnostic) => diagnostics.push(diagnostic),
+            }
+        }
+    }
+
+    // A suffixed operator outside executable code (a contract, a decreases
+    // measure, a constant initializer) has no typed elaboration here. Reject
+    // it instead of letting it check as the bare Exact operator.
+    for (operation, reached) in pending.iter().zip(&reached) {
+        if !reached {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "the policy operator `{}` is supported only in executable machine code; contracts and constant expressions cannot use a suffixed operator yet",
+                    spelling(program, *operation),
+                ))
+                .with_source_span(program.expression_table.source_span(operation.expression)),
+            );
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    for elaboration in elaborations {
+        rewrite(program, elaboration);
+    }
+    Ok(())
+}
+
+fn spelling(program: &TypedTrees, operation: PolicyOperation) -> String {
+    let base = program
+        .expression_table
+        .binary_node(operation.expression)
+        .map_or("?", |binary| binary.operator.display_name());
+    format!("{base}{}", operation.policy.operator_suffix())
+}
+
+fn plan(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    operation: PolicyOperation,
+) -> Result<Elaboration, Diagnostic> {
+    let span = program.expression_table.source_span(operation.expression);
+    let spelling = spelling(program, operation);
+    let Some(binary) = program.expression_table.binary_node(operation.expression) else {
+        return Err(Diagnostic::error(format!(
+            "the policy operator `{spelling}` lost its operation before typing"
+        ))
+        .with_source_span(span));
+    };
+    let is_shift = matches!(
+        binary.operator,
+        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+    );
+    let left = operand(program, machine, state, binary.left, &spelling, "left")
+        .map_err(|diagnostic| diagnostic.with_source_span(span))?;
+    if is_shift {
+        // The count keeps its own type and its policy row; only the shifted
+        // value names the carrier.
+        let Operand::Carrier(carrier) = left else {
+            return Err(Diagnostic::error(format!(
+                "`{spelling}` needs an integer-typed value to shift: an anonymous number has no carrier to wrap, clamp or trap at"
+            ))
+            .with_source_span(span));
+        };
+        return Ok(Elaboration {
+            expression: operation.expression,
+            policy: operation.policy,
+            carrier,
+            cast_left: true,
+            cast_right: false,
+        });
+    }
+    let right = operand(program, machine, state, binary.right, &spelling, "right")
+        .map_err(|diagnostic| diagnostic.with_source_span(span))?;
+    let (carrier, cast_left, cast_right) = match (left, right) {
+        (Operand::Carrier(left), Operand::Carrier(right)) => {
+            if program.type_reference_table.type_symbol(left)
+                != program.type_reference_table.type_symbol(right)
+            {
+                return Err(Diagnostic::error(format!(
+                    "`{spelling}` needs both operands in one fixed-width integer carrier, found `{}` and `{}`; convert one operand explicitly",
+                    program.display_type_reference(left),
+                    program.display_type_reference(right),
+                ))
+                .with_source_span(span));
+            }
+            (left, true, true)
+        }
+        (Operand::Carrier(carrier), Operand::Anonymous) => (carrier, true, false),
+        (Operand::Anonymous, Operand::Carrier(carrier)) => (carrier, false, true),
+        (Operand::Anonymous, Operand::Anonymous) => {
+            return Err(Diagnostic::error(format!(
+                "`{spelling}` needs at least one integer-typed operand: a wholly anonymous calculation has no carrier to wrap, clamp or trap at"
+            ))
+            .with_source_span(span));
+        }
+    };
+    Ok(Elaboration {
+        expression: operation.expression,
+        policy: operation.policy,
+        carrier,
+        cast_left,
+        cast_right,
+    })
+}
+
+fn operand(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    spelling: &str,
+    side: &str,
+) -> Result<Operand, Diagnostic> {
+    let Some(reference) =
+        validation::expression_result_type_reference(program, machine, state, expression)
+    else {
+        if validation::has_anonymous_numeric_results(program, expression) {
+            return Ok(Operand::Anonymous);
+        }
+        return Err(Diagnostic::error(format!(
+            "`{spelling}` could not determine the type of its {side} operand; bind it to an integer-typed local first"
+        )));
+    };
+    let table = &program.type_reference_table;
+    match table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. }
+            if matches!(
+                program.symbols.builtin_type_atom(*symbol),
+                Some(
+                    BuiltinTypeAtom::I8
+                        | BuiltinTypeAtom::I16
+                        | BuiltinTypeAtom::I32
+                        | BuiltinTypeAtom::I64
+                        | BuiltinTypeAtom::U8
+                        | BuiltinTypeAtom::U16
+                        | BuiltinTypeAtom::U32
+                        | BuiltinTypeAtom::U64
+                )
+            ) =>
+        {
+            Ok(Operand::Carrier(reference))
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            // Spell the type the way source writes it: `u32 in Km & Wrapping`.
+            let domains = table
+                .constraints(*constraints)
+                .iter()
+                .map(|constraint| {
+                    let name = constraint.display_name();
+                    name.strip_prefix("in ").unwrap_or(&name).to_owned()
+                })
+                .collect::<Vec<_>>()
+                .join(" & ");
+            Err(Diagnostic::error(format!(
+                "`{spelling}` takes unqualified integer operands, but its {side} operand has type `{} in {domains}`; a suffixed operator neither reads nor removes a domain, so cast the domain away first",
+                program.display_type_reference(*base_type),
+            )))
+        }
+        _ => Err(Diagnostic::error(format!(
+            "`{spelling}` is a fixed-width integer operation, but its {side} operand has type `{}`",
+            program.display_type_reference(reference),
+        ))),
+    }
+}
+
+fn rewrite(program: &mut TypedTrees, elaboration: Elaboration) {
+    let Elaboration {
+        expression,
+        policy,
+        carrier,
+        cast_left,
+        cast_right,
+    } = elaboration;
+    let Some(binary) = program.expression_table.binary_node(expression).copied() else {
+        return;
+    };
+    retain_policy_type(program, carrier, policy);
+    let span = program.expression_table.source_span(expression);
+    let label = program.display_type_reference(carrier);
+    let cast = |program: &mut TypedTrees, value: ExpressionHandle, domain| {
+        let mut target_label = arena::HandleSpan::empty();
+        program
+            .expression_table
+            .push_name_path_member(&mut target_label, Identifier::generated(label.clone()));
+        TableCastExpression {
+            value,
+            target_type: carrier,
+            result_type: TypeReferenceHandle::invalid(),
+            target_label,
+            domain,
+            semantic_domain: arena::HandleSpan::empty(),
+            semantic_domain_arguments: arena::HandleSpan::empty(),
+            semantic_domain_symbol: symbols::SymbolHandle::invalid(),
+            semantic_domain_id: language_semantics::SemanticDomainId::NULL,
+            form: language_core::cast_form::CastForm::Value,
+        }
+    };
+    let qualify = |program: &mut TypedTrees, value: ExpressionHandle, needed: bool| {
+        if !needed {
+            return value;
+        }
+        let node = ExpressionNode::Cast(cast(program, value, policy));
+        let qualified = program.expression_table.insert(node);
+        program.expression_table.set_source_span(qualified, span);
+        qualified
+    };
+    let left = qualify(program, binary.left, cast_left);
+    let right = qualify(program, binary.right, cast_right);
+    let operation =
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator: binary.operator,
+                right,
+            }));
+    program.expression_table.set_source_span(operation, span);
+    // The authored operator occurrence follows the operation it selected.
+    program
+        .expression_table
+        .move_authored_selection_occurrences(expression, operation);
+    let plain = cast(program, operation, ArithmeticDomain::Exact);
+    *program.expression_table.expression_mut(expression) = ExpressionNode::Cast(plain);
+}
+
+/// The checker finds a policy-qualified result type by lookup, so the
+/// `T in Policy` shell has to exist before the casts that name it.
+fn retain_policy_type(
+    program: &mut TypedTrees,
+    carrier: TypeReferenceHandle,
+    policy: ArithmeticDomain,
+) {
+    let symbol = program.type_reference_table.type_symbol(carrier);
+    if program
+        .type_reference_table
+        .find_arithmetic_result_type_reference(symbol, policy)
+        .is_some()
+    {
+        return;
+    }
+    let constraints = program
+        .type_reference_table
+        .insert_constraints([TypeConstraintNode::ArithmeticDomain(policy)]);
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: carrier,
+            constraints,
+        });
+}

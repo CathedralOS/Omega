@@ -2950,6 +2950,7 @@ pub(crate) mod trait_defaults {
         let equality = syntax
             .expressions
             .insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 left,
                 operator: BinaryOperator::Equal,
                 right,

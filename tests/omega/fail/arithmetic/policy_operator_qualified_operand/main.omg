@@ -1,0 +1,21 @@
+// Negative twin of `wrapping_unsigned` in
+// run/arithmetic/policy_operators_match_policy_domains: the same wrapping add,
+// but one operand already carries a policy domain. A suffixed operator neither
+// reads nor removes a domain, so the qualified operand rejects until a cast
+// removes its domain.
+use omega_language_std::console;
+data Main { }
+
+machine wrapping_unsigned(a: u32 in Wrapping, b: u32) -> u32 {
+    a +% b
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let sum: u32 = wrapping_unsigned(4294967295 as u32 in Wrapping, 2);
+    transition sum == 1 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+}

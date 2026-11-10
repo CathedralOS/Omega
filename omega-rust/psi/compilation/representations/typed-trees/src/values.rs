@@ -2857,6 +2857,16 @@ pub mod expression {
         pub domain: SymbolHandle,
     }
 
+    /// A suffixed policy operator (`a +% b`, `a +| b`, `a +! b`) that typing
+    /// lowered as its base `Binary`. The operand carrier is unknown until the
+    /// whole program is typed, so preparation reads these rows once and
+    /// rewrites each operation onto the existing policy-qualified arithmetic.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub struct PolicyOperation {
+        pub expression: ExpressionHandle,
+        pub policy: numerics::arithmetic::ArithmeticDomain,
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct ExpressionTable {
         expressions: Arena<ExpressionNode>,
@@ -2867,6 +2877,8 @@ pub mod expression {
         /// Original checked computation of a materialized static value. This
         /// provenance edge preserves invocation custody without executing it again.
         materialization_sources: Vec<ExpressionHandle>,
+        /// Suffixed policy operators not yet elaborated, in insertion order.
+        policy_operations: Vec<PolicyOperation>,
 
         constructed_value_types: Arena<crate::types::TypeReferenceHandle>,
         constructed_value_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
@@ -3198,6 +3210,7 @@ pub mod expression {
                 source_spans: Vec::with_capacity(capacity.expressions),
                 pattern_components: Vec::with_capacity(capacity.expressions),
                 materialization_sources: Vec::new(),
+                policy_operations: Vec::new(),
                 constructed_value_types: Arena::default(),
                 constructed_value_type_handles: Vec::new(),
                 construction_required_types: Arena::default(),
@@ -3231,6 +3244,7 @@ pub mod expression {
             self.expression_roots.reset_retain_capacity();
             self.source_spans.clear();
             self.materialization_sources.clear();
+            self.policy_operations.clear();
             self.constructed_value_types.reset_retain_capacity();
             self.constructed_value_type_handles.clear();
             self.construction_required_types.reset_retain_capacity();
@@ -3536,6 +3550,28 @@ pub mod expression {
             handle
         }
 
+        /// Records that `expression`, a `Binary`, was written with a policy
+        /// suffix. Exact is the bare operator and records nothing.
+        pub fn retain_policy_operation(
+            &mut self,
+            expression: ExpressionHandle,
+            policy: numerics::arithmetic::ArithmeticDomain,
+        ) {
+            if policy != numerics::arithmetic::ArithmeticDomain::Exact {
+                self.policy_operations
+                    .push(PolicyOperation { expression, policy });
+            }
+        }
+
+        pub fn policy_operations(&self) -> &[PolicyOperation] {
+            &self.policy_operations
+        }
+
+        /// Hands the pending rows to their elaboration and leaves none behind.
+        pub fn take_policy_operations(&mut self) -> Vec<PolicyOperation> {
+            std::mem::take(&mut self.policy_operations)
+        }
+
         pub fn materialization_source(&self, handle: ExpressionHandle) -> ExpressionHandle {
             self.materialization_sources
                 .get(source_span_index(handle))
@@ -3682,6 +3718,21 @@ pub mod expression {
                         .into_iter()
                         .map(StoredAuthoredSelectionOccurrenceId::new),
                 );
+        }
+
+        /// Hands an expression's authored selection occurrences to the
+        /// expression that now holds its operation, so a rewrite that wraps
+        /// an authored operator keeps one owner for each occurrence.
+        pub fn move_authored_selection_occurrences(
+            &mut self,
+            from: ExpressionHandle,
+            to: ExpressionHandle,
+        ) {
+            let moved = std::mem::replace(
+                &mut self.authored_selection_occurrences[source_span_index(from)],
+                HandleSpan::empty(),
+            );
+            self.authored_selection_occurrences[source_span_index(to)] = moved;
         }
 
         pub fn authored_selection_occurrences(

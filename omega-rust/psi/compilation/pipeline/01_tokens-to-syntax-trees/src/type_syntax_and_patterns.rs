@@ -175,6 +175,7 @@ pub(crate) mod patterns {
                     )
                 }
                 ExpressionNode::Binary(binary) => ExpressionNode::Binary(TableBinaryExpression {
+                    policy: binary.policy,
                     left: rewrite_expression(syntax_trees, binary.left, subject, fields, captures),
                     operator: binary.operator,
                     right: rewrite_expression(
