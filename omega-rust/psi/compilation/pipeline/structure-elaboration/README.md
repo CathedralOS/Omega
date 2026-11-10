@@ -132,4 +132,24 @@ worked around by adding to `terminal-check-tables`.
    in `CallRequirement` are canonical positions, not authored ones.
 6. **The machine declaration is left `None`.** `CheckedMachineDeclaration`
    holds identity-table text; producing it is identity work this route does
-   not do.
+   not do. The codec and the interpreter accept the module without it.
+7. **A value arm's test is stored twice.** For `true -> X` on a captured
+   subject, stage 03 keeps a `When(subject == true)` guard and, as a separate
+   expression copy, a non-structural pattern whose `guard` and `condition` are
+   one handle. The reader evaluates the guard once and refuses the arm unless
+   the copy reads to the same computation (`same_computation`, over slots,
+   literal values, operators and callee identities).
+8. **Calls name the callee's entry state.** `target_symbol` and transition
+   paths hold the `State` symbol; the machine is that symbol's parent, and the
+   reader checks that the machine's one state is exactly that symbol. Every
+   authored call also carries an authored selection occurrence and a static
+   application whose registered operation is that state; both are accepted
+   only when they resolve to exactly the callee and apply nothing.
+9. **Stage 04 leaves some literals unlanded.** An integer literal with no
+   landing takes the type its context expects (initializer, assignment,
+   argument, return, arm result, or the other operand), per
+   [literals and expected types](../../../../../wiki/spec/language/domains.md#literals-and-expected-types);
+   with no expected type it is refused.
+10. **Every machine carries a reach row.** A machine with no reach holds
+    `ServiceReachRowTable::EMPTY_ROW`, not `NULL`; both are accepted, any other
+    row is refused.
