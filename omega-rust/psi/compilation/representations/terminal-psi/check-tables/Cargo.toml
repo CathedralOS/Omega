@@ -1,0 +1,15 @@
+[package]
+name = "terminal-check-tables"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_check_tables"
+path = "src/lib.rs"
+
+# Types only. This crate must never depend on Psi 05, validation or Psi 06:
+# it is the contract the checker on the lowered form is built against.
+[dependencies]
+semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
+language-core = { path = "../../../../foundation/language-core" }

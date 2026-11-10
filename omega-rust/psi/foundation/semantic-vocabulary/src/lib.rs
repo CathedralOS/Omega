@@ -1141,6 +1141,19 @@ mod id_table {
             })
         }
 
+        /// Appends one row and mints its identity: the next in this table's run,
+        /// starting at 1 when empty, so a table built by pushing is dense by
+        /// construction.
+        pub fn push(&mut self, value: T) -> Id {
+            if self.values.is_empty() {
+                self.first = 1;
+            }
+            let identity = Id::new(self.first + self.values.len() as u64)
+                .expect("a pushed identity is nonzero");
+            self.values.push(value);
+            identity
+        }
+
         fn position(&self, identity: Id) -> Option<usize> {
             let offset = identity.get().checked_sub(self.first)?;
             usize::try_from(offset)
