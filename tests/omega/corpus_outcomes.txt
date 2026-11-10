@@ -2124,8 +2124,10 @@ fail/boundary/named_target_foreign_provider_missing_member rejected 3879ms expec
 	build selects provider `ProbeProvider` for slot `Probe`, but no candidate exists in the loaded dependency closure
 fail/boundary/opaque_result_requires_representation rejected 3524ms expected @ccdb99ca2214
 	`main` uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application; add `Build::select_representation<Token, <conformance>>(builder)`; in state `main::entry`, statement 0
-fail/boundary/requirement_case_precondition_unproved rejected 13880ms expected @57a69f8b8ad1
-	cannot prove requires contract for call fill from main: chosen == constructor:78:package:0f4fb3c3aaa826e755e2f71895ab48a8976b5b928cf24c7833be8a4f629a45dd::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/boundary/requirement_case_precondition_unproved rejected 12328ms expected @572b35d8a518
+	cannot prove requires contract for call fill from main: chosen == constructor:78:package:5f6b218dad4b9fd0283a44d947463ff005d8837eb47711d147a030a545880ea8::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/boundary/requirement_float_precondition_unproved rejected 8702ms expected @572b35d8a518
+	cannot prove requires contract for call observe from main: 7.25 == 7.0 (needs fact `value == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/acquired_generator_output_final_check_refused rejected 2858ms expected published:none @ccdb99ca2214
 	scalar constant `GENERATED` is invalid: const value `-1` does not fit `u32`
 fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
@@ -16480,7 +16482,7 @@ fail/packages/std_mount_path_rejected rejected 579ms expected @ccdb99ca2214
 	package-aware import `omega::language::std::console` in tests/omega/fail/packages/std_mount_path_rejected/main.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
 fail/parse/machine_clause_garbage_rejected rejected 7ms expected @2fc408782574
 	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:22: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
-fail/parse/retired_standalone_boundary_requirement rejected 28ms @409a3e82132d+wt
+fail/parse/retired_standalone_boundary_requirement rejected 2877ms @572b35d8a518
 	tests/omega/fail/parse/retired_standalone_boundary_requirement/main.omg:6:10: standalone `boundary requirement Owner::operation(...);` declarations are retired; declare the operation as a member of a boundary trait (`boundary trait Owner { machine operation(...) reaches ...; }`), using a one-member trait when it needs independent provider selection
 fail/parse/retired_trait_operator_requirement rejected 680ms expected @c2cfe5f3dece+wt
 	tests/omega/fail/parse/retired_trait_operator_requirement/main.omg:5:5: the `operator` introducer is retired: a trait requirement binds operator syntax as an ordinary machine -- write `machine + name(...)`, or `machine name(...)` without a token
@@ -19950,10 +19952,11 @@ pass/borrows/writeonly_record_field_store_variants checked 18054ms check-target:
 pass/boundary/interleaved_structural_crash_formal_exit checked 4048ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/later_state_requirement_scalar_result_exit checked 93308ms check-target:macos_arm64 @c989b75f08a9
 pass/boundary/named_target_foreign_provider_exit checked 3648ms check-target:macos_arm64 @ccdb99ca2214
-pass/boundary/native_provider_unoffered_read checked 3963ms check-target:linux_x86_64 @ccdb99ca2214
+pass/boundary/native_provider_unoffered_read checked 14302ms check-target:linux_x86_64 @572b35d8a518
 pass/boundary/nested_projected_structural_crash_formal_exit checked 3354ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/requirement_case_precondition_exit checked 23311ms check-target:macos_arm64 @57a69f8b8ad1
-pass/boundary/static_foreign_scalar_result_locals_exit checked 17698ms check-target:macos_arm64 @ccdb99ca2214
+pass/boundary/requirement_float_precondition_exit checked 15007ms check-target:macos_arm64 @572b35d8a518
+pass/boundary/static_foreign_scalar_result_locals_exit checked 32660ms check-target:macos_arm64 @572b35d8a518
 pass/boundary/static_opaque_qualifier_exit checked 4171ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/acquired_generator_completed_output_set checked 15684ms check-target:macos_arm64 published:files/companion.txt,files/generated.omg @ccdb99ca2214
 pass/build/activation_borrowed_field_rebind_exit checked 19378ms check-target:macos_arm64 @3a020eca642a
