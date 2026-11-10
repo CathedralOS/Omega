@@ -213,8 +213,9 @@ Dated cost and failure evidence, superseded by a later run.
   proven route.
 
 - [What each stage may trust](designs/stage_trust.md): hand-off audit,
-  compiler rules for stage outputs and `"validated"` claims, and an owner
-  proposal to gate native runtime-check removal on kernel-checked evidence.
+  compiler rules for stage outputs and `"validated"` claims, and the rule that
+  the checker accepts only kernel-verified proofs and rejects the rest at
+  compile time, at no runtime cost.
 
 - [Fact transport](designs/fact_transport.md): the evidence behind that
   decision. Its design section is superseded; see the corrections there.
