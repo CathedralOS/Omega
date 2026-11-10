@@ -14,14 +14,14 @@ Launch refusals:
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
-| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 2 | 1 | 0 |
-| B | 81 file ranges (B1 26, B2 55); merge files not started | 3 | 17 | 0 |
+| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 3 | 0 | 0 |
+| B | 81 file ranges (B1 26, B2 55); merge files not started | 6 | 20 | 0 |
 | C | 117 chapter pieces from 103 files; lane merge not started | 0 | 0 | 0 |
-| D | 412 batches, 17263 programs; D2 not started | 1 | 1 | 0 |
-| E | 19 units, 591 files, 7 excluded | 0 | 1 | 0 |
+| D | 412 batches, 17263 programs; D2 not started | 1 | 0 | 0 |
+| E | 19 units, 591 files, 7 excluded | 0 | 0 | 0 |
 | F | 28 site files, 83 occurrences | 2 | 0 | 0 |
 | G | 120 shards, not started. A–F already have workers. G stays at most 5 while the cap is 20, and only when a slot is free | 0 | 0 | 0 |
 
 Running agent ids are in `state/inflight.tsv`.
 
-Returned and not yet copied onto the branch (text is in the coordinator transcript): `b1_001`, `b1_002`, `b1_003`, `b1_004`, `b1_006`, `C0001`, `C0002`, `unit_001`. Each of those returns ended with its completion line.
+Returned and not yet copied onto the branch (text is in the coordinator transcript): `b1_001`, `b1_002`, `b1_003`, `b1_004`, `b1_006`, `b1_011` through `b1_014`, `b1_016` through `b1_026`, `batch_0001`, `C0001`, `C0002`, `unit_001`, `unit_002`. Each of those returns ended with its completion line. `b1_007`, `b1_015`, and `slice_0001` are copied.
