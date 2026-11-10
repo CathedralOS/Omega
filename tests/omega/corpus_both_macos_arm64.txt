@@ -111,7 +111,7 @@ pass/calls/returned_nested_record_newer_child_exit built 1292ms exit:0 interpret
 pass/calls/runtime_composed_index_case_pool_transition_exit built 97058ms exit:0 interpreter-exit:0 interpreter:agrees @0d7ffb4708e0
 pass/calls/runtime_guarded_reference_return_crash built 6701ms exit:signal signal:5 stdout:match stderr:match interpreter:trapped interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
 pass/calls/runtime_guarded_reference_return_machine_crash built 6678ms exit:signal signal:5 stdout:match stderr:match interpreter:trapped interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
-pass/calls/runtime_indexed_case_pool_transition_exit built 117067ms exit:0 interpreter-exit:0 interpreter:agrees @22eb1d2ec091
+pass/calls/runtime_indexed_case_pool_transition_exit built 94221ms exit:0 interpreter-exit:0 interpreter:agrees @ca144d83595b
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit built 1389ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/calls/runtime_owned_state_scalar_field_store_exit built 13934ms exit:70 interpreter-exit:70 interpreter:agrees @33b180036351
 pass/calls/static_machine_required_input_crash_refinement_exit built 1270ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
