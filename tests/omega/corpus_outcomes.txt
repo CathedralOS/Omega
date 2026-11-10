@@ -28197,6 +28197,7 @@ run/calls/runtime_float_normalized_operand_single_evaluation_exit rejected 65975
 	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
 	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
 run/calls/saved_scalar_dispatch_guard_arguments_exit checked 5019ms check-target:macos_arm64 @ccdb99ca2214
+run/calls/scalar_contract_route_exit checked 2744ms check-target:macos_arm64 @d2accacf8da6
 run/calls/scalar_guard_after_borrow_parameters_exit checked 5636ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/selected_provider_range_arguments checked 6040ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/calls/static_boundary_terminal_arguments checked 2950ms check-target:macos_arm64 @ccdb99ca2214
