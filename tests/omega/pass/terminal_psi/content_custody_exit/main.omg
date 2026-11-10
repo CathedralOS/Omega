@@ -23,7 +23,7 @@ satisfies Content<Region, CountedQuantity<ByteUnit>>::project
 }
 
 public boundary trait PortIo {
-    machine read_status(region: Region in Owned) -> u8;
+    machine read_status(region: Region in Owned) -> u8 reaches none crashes none;
 }
 
 public RegionPort satisfies PortIo {

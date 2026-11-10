@@ -2227,16 +2227,17 @@ fail/build/explicit_provider_storage_extent rejected 4088ms expected @ccdb99ca22
 	Build helper scalar completion: scalar predicate is false: index `16` of `table.slots`
 fail/build/float_default_wrong_value rejected 9816ms expected @6b1c338126fa
 	Build did not return normally: Crashed(TerminalCrash { site: Edge(EdgeId(15)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
-fail/build/generated_declaration_continuation_domain rejected 905ms unexpected @ccdb99ca2214
-	tests/omega/fail/build/generated_declaration_continuation_domain/kit/.omega/generated/generated.omg:4:28: explicit domain subject binders are retired; use `self` in the domain's `requires` predicates
+fail/build/generated_declaration_continuation_domain rejected 53283ms expected @b3bfe3d87507
+	cannot prove requires contract for call checked from Reader::read: 0 in u64::Positive in state `read`
+	cannot prove requires contract for call checked from Reader::read: 0 in u64::Positive in state `read`
 fail/build/generated_resolution_source_location rejected 629ms expected @ccdb99ca2214
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/generated_scalar_constant_range_refused rejected 1248ms expected published:none @ccdb99ca2214
 	scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
 fail/build/generated_source_base_reference_refused rejected 126276ms expected published:none @e9460cb64926
 	machine `Main::main` state `main` uses `ANSWER`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/build/generated_source_undeclared_call_refused rejected 1180ms unexpected published:none @ccdb99ca2214
-	tests/omega/fail/build/generated_source_undeclared_call_refused/.omega/generated/generated.omg:16:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
+fail/build/generated_source_undeclared_call_refused rejected 56835ms expected published:none @b3bfe3d87507
+	machine `later` state `entry`: value call `generated_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/build/generated_source_unsealed_handoff_refused rejected 1402ms expected published:none @ccdb99ca2214
 	staging entry is not sealed: generated source still has a live writer or was never created at OperationId(35) in MachineId(7)/BlockId(40) at Some(OperationId(35))
 fail/build/generic_const_zero_context_requires_establishment rejected 1849ms expected @911f6617ba9e
@@ -2295,8 +2296,41 @@ fail/build/opaque_representation_double_selection rejected 577ms expected @ccdb9
 	build selects opaque representation `Token` more than once
 fail/build/optional_wrong_home rejected 3525ms expected @7790304360ab
 	machine `default_is_none` ensures contract proof fact `zero_value<type>() == Optional::Some` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
-fail/build/package_local_calling_copy rejected 23684ms unexpected @d83ddecd7693+wt
-	\\\\?\\tests\\omega\\fail\\build\\package_local_calling_copy\\calling.omg:86:13: expected `:` after data field `where` (alternatives are spelled `case where;`)
+fail/build/package_local_calling_copy rejected 100478ms expected @b3bfe3d87507
+	duplicate data `SystemVEightbyteClass`
+	duplicate data `ValueClass`
+	duplicate data `ValueShape`
+	duplicate data `ValueField`
+	duplicate data `CallbackBinderIdentity`
+	duplicate data `AbiValueClass`
+	duplicate data `AbiValueShape`
+	duplicate data `NativePlace`
+	duplicate data `NativeCallbackDemandIdentity`
+	duplicate data `NativeParameterOrigin`
+	duplicate data `NativeParameterShape`
+	duplicate data `NativeParameterIdentity`
+	duplicate data `BoundarySignature`
+	duplicate data `MachineRegister`
+	duplicate data `IndirectPointerLocation`
+	duplicate data `ValueLocation`
+	duplicate data `ValuePlacement`
+	duplicate data `CallingConvention`
+	duplicate data `RegisterSet`
+	duplicate data `EntryControl`
+	duplicate data `CallbackMaterialization`
+	duplicate data `CallPlan`
+	duplicate data `MachineRegime`
+	duplicate data `MachineStateSet`
+	duplicate data `EntryStack`
+	duplicate data `Preemption`
+	duplicate data `StatePlan`
+	duplicate data `BoundaryEntryPlan`
+	duplicate data `CallingPolicyRejection`
+	duplicate data `BoundaryPlanResult`
+	cannot form specification operator `==` in data `NativePlace` default-domain predicate: no exact selected meaning for operand types [NativePlace, <unavailable>]
+	cannot form specification operator `==` in data `NativePlace` default-domain predicate: no exact selected meaning for operand types [NativePlace, <unavailable>]
+	cannot form specification operator `>=` in data `NativePlace` case `Field` predicate: no exact selected meaning for operand types [<unavailable>, <unavailable>]
+	cannot form specification operator `<=` in data `NativePlace` case `Field` predicate: no exact selected meaning for operand types [<unavailable>, <unavailable>]
 fail/build/package_owned_callable_identity rejected 1474ms @946b56944a1b
 	build selects provider `other_clock::clock::DependencyClock` for slot `clock::Clock`, but no candidate exists in the loaded dependency closure
 fail/build/policy_array_entry_context_zero_invalid_element rejected 2043ms expected @911f6617ba9e
@@ -3694,8 +3728,8 @@ fail/control_flow/dispatch_boundary_ordinary_result rejected 93ms expected @ccdb
 	transition dispatch in `choose::entry` can fall through: no arm matches when every guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the `true`/`false` pair)
 fail/control_flow/dispatch_boundary_separated_crash rejected 118ms expected @ccdb99ca2214
 	transition dispatch in `choose::entry` can fall through: no arm matches when every guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the `true`/`false` pair)
-fail/control_flow/distinct_constant_aggregate_dispatch_incomplete rejected 7ms unexpected @ccdb99ca2214
-	tests/omega/fail/control_flow/distinct_constant_aggregate_dispatch_incomplete/main.omg:11:31: expected `:`, found keyword `as`
+fail/control_flow/distinct_constant_aggregate_dispatch_incomplete rejected 29535ms expected @b3bfe3d87507
+	transition pattern matrix in `main::entry` does not cover (`Interval::Point`, `Interval::Empty`); add an arm or `_`
 fail/control_flow/implicit_entry_parameter_capture rejected 562ms expected @ccdb99ca2214
 	machine `finish` state `entry` uses `input`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/control_flow/linear_result_repeated_successor_arguments rejected 5899ms expected @ee4dbb4b2d56
@@ -3740,8 +3774,8 @@ fail/control_flow/state_result_differs_from_machine_result rejected 1250ms unexp
 fail/control_flow/static_terminal_unit_linear_cleanup rejected 5177ms expected @ccdb99ca2214
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive$specialized$1e62f5525cb4ab6f$0` state `entry`
-fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 14400ms unexpected @ccdb99ca2214
-	tests/omega/fail/control_flow/sum_tuple_matrix_uncovered_rejected/main.omg:1:1: call target must be a path or member access
+fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 73359ms expected @b3bfe3d87507
+	transition pattern matrix in `Main::main` does not cover (`Direction::Right`, `Outcome::Miss`); add an arm or `_`
 fail/control_flow/terminal_unit_linear_local_cleanup rejected 3070ms expected @ccdb99ca2214
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`
 fail/control_flow/termination_countdown_stalled_decrease rejected 3497ms expected @898dd1bf8987
@@ -16606,10 +16640,11 @@ fail/proofs/declaration_predicate_wrapping rejected 696ms expected @911f6617ba9e
 	data `Wrapped` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/proofs/declaration_predicate_wrapping_interval rejected 709ms expected @911f6617ba9e
 	data `Wrapped` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/proofs/declaration_synthesized_equality_missing_selection rejected 4ms unexpected @ccdb99ca2214
-	tests/omega/fail/proofs/declaration_synthesized_equality_missing_selection/main.omg:9:22: implicit `self` is retired; name the explicit parameter or domain subject
-fail/proofs/declaration_synthesized_equality_value_context rejected 4ms unexpected @ccdb99ca2214
-	tests/omega/fail/proofs/declaration_synthesized_equality_value_context/main.omg:13:22: implicit `self` is retired; name the explicit parameter or domain subject
+fail/proofs/declaration_synthesized_equality_missing_selection rejected 20322ms expected @b3bfe3d87507
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Packet` values with `==`: structural equality is synthesized only through a named implementation -- declare `PacketEquality satisfies Equatable<Packet> { }` to synthesize structural equality, or use `core::Identity<Packet>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/proofs/declaration_synthesized_equality_value_context rejected 48316ms expected @b3bfe3d87507
+	construction value is not proven in domain `Input::Incorrect` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove initializer of `invalid` in main is in domain `Input::Incorrect`; an annotation cannot establish routed qualification
 fail/proofs/declaration_view_call_stale_field rejected 3169ms expected @90edc8a280a9+wt
 	cannot prove requires contract for call consume from caller: (counter as Counter).value >= 1 && addr::Bound == 18446744073709551616 (needs fact `counter.value >= 1 && addr::Bound == 18446744073709551616` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/declaration_view_call_wrong_bound rejected 1662ms expected @ccdb99ca2214
@@ -19975,11 +20010,8 @@ pass/build/explicit_provider_readiness_exit checked 7307ms check-target:macos_ar
 pass/build/explicit_provider_scalar_completion_exit checked 5814ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/explicit_provider_storage_extent_exit checked 6876ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/freestanding_unselected_completion checked 17475ms @ccdb99ca2214
-pass/build/generated_declaration_continuation_exit rejected 874ms check-target:macos_arm64 @ccdb99ca2214
-	tests/omega/pass/build/generated_declaration_continuation_exit/kit/.omega/generated/generated.omg:4:28: explicit domain subject binders are retired; use `self` in the domain's `requires` predicates
-pass/build/generated_source_selects_authored rejected 1413ms published:none regressed-from:checked+published:files/generated.omg @ccdb99ca2214
-	tests/omega/pass/build/generated_source_selects_authored/.omega/generated/generated.omg:16:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
-	published outputs [] differ from expected_published.txt [files/generated.omg]
+pass/build/generated_declaration_continuation_exit checked 98650ms check-target:macos_arm64 @b3bfe3d87507
+pass/build/generated_source_selects_authored checked 134304ms published:files/generated.omg @b3bfe3d87507
 pass/build/initial_build_core_identity_exit checked 3259ms check-target:macos_arm64 @0992bbc6a472
 pass/build/installed_entry_ram_live_stack_exit checked 10648ms check-target:macos_arm64 @f6fb7ca6e997
 pass/build/installed_entry_ram_stack_occurrence_exit checked 4719ms check-target:macos_arm64 @ccdb99ca2214
@@ -20922,8 +20954,7 @@ pass/control_flow/runtime_cyclic_reference_and_claim_rotation_exit rejected 1587
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "rotate_envelopes", reason: "retained parent is reestablished inside its own loan lifetime", gap: None })
 pass/control_flow/runtime_diamond_join_borrowed_record_exit checked 15880ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_diamond_join_owned_record_exit checked 16700ms check-target:macos_arm64 @ccdb99ca2214
-pass/control_flow/runtime_dispatch_boundary_total_exit rejected 248ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target.windows_x86_64:0+terminal-target-artifact:unchanged+terminal-targets:match @ccdb99ca2214
-	tests/omega/pass/control_flow/runtime_dispatch_boundary_total_exit/main.omg:1:1: call target must be a path or member access
+pass/control_flow/runtime_dispatch_boundary_total_exit checked 75486ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @b3bfe3d87507
 pass/control_flow/runtime_entry_loan_with_view_field_forwarded_exit checked 17570ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit checked 11564ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 16378ms check-target:macos_arm64 @ccdb99ca2214
@@ -20988,8 +21019,7 @@ pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 6228ms check
 	tests/omega/pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit/main.omg:1:1: call target must be a path or member access
 pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_tuple_case_destructure_exit checked 57466ms check-target:macos_arm64 @7899446a0dc7
-pass/control_flow/runtime_tuple_transition_exit rejected 10834ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	tests/omega/pass/control_flow/runtime_tuple_transition_exit/main.omg:1:1: call target must be a path or member access
+pass/control_flow/runtime_tuple_transition_exit checked 106538ms check-target:macos_arm64 @b3bfe3d87507
 pass/control_flow/runtime_two_index_state_loans_exit checked 6540ms check-target:macos_arm64 @911f6617ba9e
 pass/control_flow/runtime_wrapping_division_reused_inputs_exit checked 11920ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/saved_case_predicate_disjoint_effects_exit checked 3585ms check-target:macos_arm64 @ccdb99ca2214
@@ -21547,8 +21577,7 @@ pass/drops/structural_return_drops_unreturned_local_exit checked 21055ms check-t
 pass/drops/transfer_cleanup_into_state checked 23734ms @ee4dbb4b2d56
 pass/drops/transfer_cleanup_state checked 21027ms @ee4dbb4b2d56
 pass/drops/wildcard_owned_structural_return_cleanup_exit checked 20356ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/dungeon/runtime_ordered_room_dispatch_exit rejected 6992ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	tests/omega/pass/dungeon/runtime_ordered_room_dispatch_exit/main.omg:1:1: call target must be a path or member access
+pass/dungeon/runtime_ordered_room_dispatch_exit checked 134816ms check-target:macos_arm64 @b3bfe3d87507
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 12469ms check-target:macos_arm64 @ccdb99ca2214
 pass/effects/boundary_explicit_capability_rows checked 2431ms @ccdb99ca2214
 pass/effects/checked_boundary_unused_callback checked 2354ms @ccdb99ca2214
@@ -26720,8 +26749,7 @@ pass/proofs/constant_boolean_return_join_exit checked 3250ms check-target:macos_
 pass/proofs/constructor_aggregate_guarantees_follow_evaluation_exit checked 15947ms check-target:macos_arm64 @dfa4806d53e9
 pass/proofs/copied_descriptor_keeps_capture_extent checked 2816ms @ccdb99ca2214
 pass/proofs/core_identity_ieee_reflexivity_exit checked 16415ms check-target:macos_arm64 identity-formation-controls:match terminal-inspections:match @245a25f49fe9
-pass/proofs/declaration_call_requires rejected 31ms regressed-from:checked @911f6617ba9e
-	tests/omega/pass/proofs/declaration_call_requires/main.omg:8:30: implicit `self` is retired; name the explicit parameter or domain subject
+pass/proofs/declaration_call_requires checked 50241ms @b3bfe3d87507
 pass/proofs/declaration_constructed_data_identity checked 11911ms @089c0a150e63
 pass/proofs/declaration_predicate_calls_exit checked 7959ms check-target:macos_arm64 @911f6617ba9e
 pass/proofs/declaration_synthesized_equality_value_context checked 14587ms check-target:macos_arm64 @089c0a150e63
@@ -27579,8 +27607,7 @@ pass/targets/unreached_family_missing_member_exit checked 2962ms check-target:ma
 pass/targets/unreached_foreign_body_caller_exit checked 17675ms check-target:macos_arm64 @ccdb99ca2214
 pass/tasks/ordinary_named_task_runtime_compile checked 2844ms @ccdb99ca2214
 pass/tasks/task_runtime_machine_selection_compile checked 11135ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/terminal_psi/content_custody_exit rejected 9699ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	tests/omega/pass/terminal_psi/content_custody_exit/main.omg:26:55: boundary-trait machine requirement `PortIo::read_status` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
+pass/terminal_psi/content_custody_exit checked 64415ms check-target:macos_arm64 @b3bfe3d87507
 pass/terminal_psi/debug_identity_complete_module checked 14117ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/terminal_psi/inspection_scalar_library checked 6952ms terminal-inspections:match @ccdb99ca2214
 pass/terminal_psi/inspection_scalar_provider_scope checked 7881ms terminal-inspections:match @ccdb99ca2214
