@@ -26,6 +26,11 @@ This file is updated as entries are decided. Entries not listed in the table are
 | 18 | `current_ownership.rs:3490` | CLOSED | Empty blocks are rejected before this ordinal is computed. |
 | 19 | `current_ownership.rs:6461` | UNDECIDED | The wildcard was not compared with the descriptor-loan operation list. |
 | 20 | `current_ownership.rs:5824` | UNDECIDED | One caller rechecks live references; the other four callers were not read. |
+| 21 | `current_ownership.rs:4302` | UNDECIDED | A missing effect summary returns every live reference; how the summary map is filled was not read. |
+| 22 | `current_ownership.rs:6008` | CLOSED | Only control operations lack an operation id, and they have no result to pin. |
+| 23 | `current_ownership.rs:6636` | UNDECIDED | Two ordinary arguments skip the overlap test; no later double-use check was read. |
+| 24 | `current_ownership.rs:7458` | CLOSED | Only a fence has no location, and a fence does not name storage. |
+| 25 | `current_ownership.rs:9530` | UNDECIDED | Non-owned roots return success; both callers still pass an owned access. |
 
 ## 1. `candidates.rs:1581-1586`
 
@@ -233,15 +238,65 @@ At `:2518` the no-op is followed by a test that any live reference still borrowi
 
 What would decide it: those four unread callers. If each either rejects a missing contract first or checks that no live reference remains, this `Ok(())` is harmless.
 
+## 21. `current_ownership.rs:4302-4308`
+
+**UNDECIDED.**
+
+Searches: `remaining_at_return(` — definition `:4294`, caller `:7393` only.
+
+Read: the missing-summary return (`:4302-4308`) and `validate_normal_return` (`:7379-7410`). Did not read the constructor that fills `self.functions`.
+
+The only caller requires the returned list to equal the non-owned entry references (`:7387-7409`). Returning every live reference therefore fails when any extra reference is live. It accepts only when the live set is already exactly those entry borrows.
+
+What would decide it: whether `self.functions` can lack an entry for a function that does have stored reference effects. If absence means the summary failed open, a return can be accepted without that summary. If absence means the function has no reference operations, the compare is the whole check.
+
+## 22. `current_ownership.rs:6008-6019`
+
+**CLOSED.**
+
+Searches: `fn psi_operation` — `operations.rs:1089`. The guard is the start of `apply_operation` (`current_ownership.rs:6008`).
+
+Read: the guard (`:6008-6019`) and the whole `psi_operation` match (`operations.rs:1089-1180`). `None` is only `Jump`, `Conditional`, `StructuralCase`, `Return`, `ReturnUnit`, `ReturnStructural`, `ExternalCompletion`, `InvokeNoNormal`, and `Crash` (`:1171-1179`). The pin test matches a place whose producer operation id equals that id (`current_ownership.rs:6014`). Those nine have no operation id, so they cannot be that producer. Every operation that carries `psi_operation` returns `Some` (`operations.rs:1091-1170`) and is tested.
+
+## 23. `current_ownership.rs:6636-6669`
+
+**UNDECIDED.**
+
+Searches: the loop is inside `apply_operation`, which starts at `:5995`. No separate caller search; this is one arm of that function.
+
+Read: the ordinary-storage push (`:6623-6630`) and the overlap condition (`:6633-6669`). Did not read the code above `:6599` that classifies an argument as ordinary, and did not read a later double-move check.
+
+The condition requires at least one of the two arguments to be something other than `CallRegion::OrdinaryStorage` (`:6644-6645`), or a descriptor dependency. Two ordinary arguments are not compared.
+
+What would decide it: the caller that builds those arguments, and whether passing the same owned place twice as ordinary storage is rejected by `value_use.moving` (`:7913`) or by another overlap test. That code was not read for this entry.
+
+## 24. `current_ownership.rs:7458-7460`
+
+**CLOSED.**
+
+Searches: `fn location` on the atomic event — `atomic.rs:315`. `fn validate_atomic_access` — `current_ownership.rs:7447`.
+
+Read: `validate_atomic_access` through the `None` return (`:7447-7460`) and `AbstractAtomicEvent::location` (`atomic.rs:315-325`). Load, store, read-modify-write, swap, and both compare-exchanges return `Some`. Only `Fence` returns `None`. A fence has no place (`atomic.rs:327-328`). Skipping the storage-authority check does not accept an event that names storage.
+
+## 25. `current_ownership.rs:9530-9542`
+
+**UNDECIDED.**
+
+Searches: `.moving(` — `:7913` and `:8585`. Definition `:9525`.
+
+Read: `moving` through the early `Ok` (`:9525-9542`), the call that requires `argument.access == Owned` (`:7912-7916`), and the structural-return call that builds an `Owned` access (`:8585-8591`). Did not read `projection_stays_in_inline_storage`, and did not finish the structural-return checks after `:8615` against a root whose contract is not `Owned`.
+
+What would decide it: whether an owned-access operand whose source contract is missing, not `Owned`, or whose path leaves inline storage can pass the later owned-place test. If those operands are rejected earlier, the `Ok(())` is harmless. If not, moving out of a borrowed root or through an indirection is accepted.
+
 ## Counts so far
 
 | Verdict | Count |
 | --- | --- |
 | REACHABLE | 0 |
-| CLOSED | 14 |
-| UNDECIDED | 6 |
+| CLOSED | 16 |
+| UNDECIDED | 9 |
 
-Entries not reached: 21 through 120.
+Entries not reached: 26 through 120.
 
 ## What I did not read
 
@@ -253,7 +308,10 @@ Entries not reached: 21 through 120.
 - `structural_transfers::validate` after `unit_validation.rs:9207` (entry 14).
 - `apply_operation` from `current_ownership.rs:5995` to `:6414`, and the descriptor-loan operation list at `:1368-1406` (entry 19).
 - `discard_subtree` callers at `:2707`, `:3471`, `:3500`, and `:4946` (entry 20).
-- Entries 21 through 120.
+- The constructor that fills the reference-effect map (entry 21).
+- The classifier above `current_ownership.rs:6599` and any double-move check for ordinary arguments (entry 23).
+- `projection_stays_in_inline_storage` and the rest of the structural return after `:8615` (entry 25).
+- Entries 26 through 120.
 - Subagent drafts: nothing from them is copied here.
 
-Pushed through entry 15 as `1257527861f7cc7ec55ea7d8767eab752a69d1d5`. The final SHA is written on the last push.
+Pushed through entry 20 as `c8babc6d520401ddf340b24267096b08cfc41a15`. The final SHA is written on the last push.
