@@ -1482,8 +1482,16 @@ pub(crate) mod construction_destinations {
         if let ExpressionNode::StructLiteral(literal) =
             program.expression_table.expression(value).clone()
         {
+            // An application with a runtime value index is not final here.
+            // Stage 04 snapshots a computed operand into its own local and
+            // replaces a specialized one, then records the application it
+            // produced. Recording the authored application now would leave
+            // the literal checked against operands that no longer exist.
             let exact_template = matches!(program.type_reference_table.type_reference(carrier),
-            TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol);
+            TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol)
+                && !program
+                    .type_application_value_indices(carrier)
+                    .has_runtime_values();
             if !exact_template
                 && program
                     .closed_data_constructor_definition(destination, literal.type_symbol)

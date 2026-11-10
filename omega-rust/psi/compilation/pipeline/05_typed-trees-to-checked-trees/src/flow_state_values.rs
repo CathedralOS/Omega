@@ -266,6 +266,25 @@ mod callable_inputs {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 match fact {
                     ProofFact::Expression(expression) => {
+                        /*
+                            A stated case is this input's case edge: the meet
+                            keeps a case only when every arrival states it.
+                        */
+                        if let Some(binary) = program.expression_table.binary_node(*expression)
+                            && let Some(variant) =
+                                validation::applied_declaration_case_membership_variant(
+                                    program,
+                                    required.symbol,
+                                    formals,
+                                    *expression,
+                                    binary,
+                                )
+                            && let Some(place) =
+                                validation::canonical_place_from_expression(program, binary.left)
+                                    .and_then(|place| rebind_place(formals, parameters, &place))
+                        {
+                            state.cases.push((place, variant));
+                        }
                         let Some(expression) = crate::values::lower_parameter_boolean_expression(
                             program,
                             operators,
@@ -350,6 +369,41 @@ mod callable_inputs {
             state
                 .bounds
                 .push(super::ParameterBounds::new(parameter.symbol, bounds));
+        }
+        /*
+            A direct caller delivers a field's value as a field row, so a stated
+            field bound must arrive in that same row for the meet to compare them.
+        */
+        let mut field_places: Vec<CanonicalPlace> = Vec::new();
+        for binding in state.predicates.iter().flat_map(|row| &row.bindings) {
+            if !binding.place.segments.is_empty() && !field_places.contains(&binding.place) {
+                field_places.push(binding.place.clone());
+            }
+        }
+        for place in field_places {
+            let Some(primitive) =
+                validation::canonical_place_type_reference(program, destination.symbol, 0, &place)
+                    .and_then(|reference| {
+                        validation::field_domains::readable_type_reference(program, reference)
+                    })
+                    .and_then(|reference| program.primitive_type_reference(reference))
+            else {
+                continue;
+            };
+            let bounds = state
+                .predicates
+                .iter()
+                .filter_map(|row| row.integer_interval_at_place(&place, primitive, |_| None))
+                .reduce(|previous, incoming| facts::IntegerRange {
+                    minimum: previous.minimum.max(incoming.minimum),
+                    maximum: previous.maximum.min(incoming.maximum),
+                })
+                .filter(|range| range.minimum <= range.maximum);
+            if let Some(bounds) = bounds {
+                state
+                    .fields
+                    .push(fields::FieldValue::declared_bounds(place, bounds));
+            }
         }
         state
     }
@@ -633,14 +687,8 @@ pub(super) mod lexical_regions {
                 predicates: Vec::new(),
                 entry_paths: crate::published::facts::boolean_predicates::EntryPaths::unknown(),
                 argument_edges: ArgumentInputs::Edges(Vec::new()),
-                cases: Vec::new(),
+                cases,
             },
-        );
-        super::deliver_argument_edge(
-            program,
-            build,
-            destination,
-            super::ArgumentEdge { source, cases },
         );
     }
 }
@@ -970,6 +1018,23 @@ pub(super) mod fields {
     }
 
     impl FieldValue {
+        /* One arrival's stated integer bound for a named field. */
+        pub(super) fn declared_bounds(
+            place: validation::CanonicalPlace,
+            bounds: facts::IntegerRange,
+        ) -> Self {
+            Self {
+                root: place.root,
+                segments: place.segments,
+                literal: ExpressionHandle::invalid(),
+                predicates: Vec::new(),
+                integer_bounds: Some(bounds),
+                deliveries: Vec::new(),
+                bounds_growth: 0,
+                bounds_shrink: 0,
+            }
+        }
+
         /*
             Record the edge this row was first built from, so later meets recompute
             the join over per-edge deliveries instead of treating this one as
@@ -2720,20 +2785,22 @@ pub(super) struct StateValues {
     qualifications: Vec<qualifications::QualifiedInput>,
     predicates: Vec<BoundPredicate>,
     entry_paths: EntryPaths,
-    /*
-        Selected cases delivered by same-machine transition predecessors.
-        Scalar deliveries are joined independently in `StateValues::values`.
-    */
+    /* The selected cases each arrival delivered, one edge per predecessor. */
     argument_edges: ArgumentInputs,
-    /* Cases every recorded edge agrees on, keyed by the destination parameter. */
-    cases: Vec<(SymbolHandle, SymbolHandle)>,
+    /*
+        On a stored row, the cases every recorded edge agrees on. On an arriving
+        value, that one edge's cases. Keyed by exact destination place.
+    */
+    cases: Vec<SelectedCase>,
 }
 
-/* One same-machine transition edge's completed argument cases. */
+type SelectedCase = (CanonicalPlace, SymbolHandle);
+
+/* One arrival's completed argument cases, replaced when that arrival revisits. */
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ArgumentEdge {
     source: fields::BoundsSource,
-    cases: Vec<(SymbolHandle, SymbolHandle)>,
+    cases: Vec<SelectedCase>,
 }
 
 /*
@@ -2782,15 +2849,15 @@ fn join(
     source: fields::BoundsSource,
     incoming: StateValues,
 ) {
-    if !delivers_here(program, build, Some(machine), destination, || {
-        Delivery::Join {
-            destination: destination.symbol,
-            source,
-            incoming: incoming.clone(),
-        }
+    if !delivers_here(program, build, machine, destination, || Delivery::Join {
+        destination: destination.symbol,
+        source,
+        incoming: incoming.clone(),
     }) {
         return;
     }
+    let mut incoming = incoming;
+    let edge_cases = std::mem::take(&mut incoming.cases);
     let state = incoming.state;
     let mut changed = false;
     let thresholds = build.integer_literal_thresholds_at(program);
@@ -2841,8 +2908,29 @@ fn join(
                 .and_then(|row| row.bounds.as_ref());
             changed |= bound.join(program, destination, next, thresholds.as_slice());
         }
+        if let ArgumentInputs::Edges(edges) = &mut previous.argument_edges {
+            match edges.iter_mut().find(|edge| edge.source == source) {
+                Some(edge) if same_cases(&edge.cases, &edge_cases) => {}
+                Some(edge) => edge.cases = edge_cases,
+                None => {
+                    edges.push(ArgumentEdge {
+                        source,
+                        cases: edge_cases,
+                    });
+                    build.new_state_field_input_height =
+                        build.new_state_field_input_height.saturating_add(1);
+                    changed = true;
+                }
+            }
+            let joined = joined_cases(edges);
+            if !same_cases(&joined, &previous.cases) {
+                previous.cases = joined;
+                changed = true;
+            }
+        }
     } else {
         changed = true;
+        build.new_state_field_input_height = build.new_state_field_input_height.saturating_add(1);
         build.new_state_field_input_height += fields::height(&incoming.fields, thresholds.len());
         build.new_state_field_input_height += incoming.predicates.len();
         build.new_state_field_input_height = build
@@ -2854,11 +2942,15 @@ fn join(
             .fold(build.new_state_field_input_height, |height, bound| {
                 height.saturating_add(bound.height(thresholds.len()))
             });
-        let mut incoming = incoming;
         incoming.field_sources.push(source);
         for field in &mut incoming.fields {
             field.seed_delivery(source);
         }
+        incoming.cases = edge_cases.clone();
+        incoming.argument_edges = ArgumentInputs::Edges(vec![ArgumentEdge {
+            source,
+            cases: edge_cases,
+        }]);
         build.push_state_value_input(incoming);
     }
     if changed && !build.dirty_state_value_inputs.contains(&state) {
@@ -3040,6 +3132,17 @@ pub(super) fn record_transition(
         statement_index,
         contexts,
     ));
+    let cases = capture_argument_cases(
+        program,
+        semantic,
+        build,
+        state,
+        destination,
+        statement_index,
+        arguments,
+        captured_operands,
+        contexts,
+    );
     join(
         program,
         build,
@@ -3056,26 +3159,6 @@ pub(super) fn record_transition(
             predicates,
             entry_paths,
             argument_edges: ArgumentInputs::Edges(Vec::new()),
-            cases: Vec::new(),
-        },
-    );
-    let cases = capture_argument_cases(
-        program,
-        semantic,
-        build,
-        state,
-        destination,
-        statement_index,
-        arguments,
-        captured_operands,
-        contexts,
-    );
-    deliver_argument_edge(
-        program,
-        build,
-        destination,
-        ArgumentEdge {
-            source: fields::BoundsSource::transition(state.symbol, target),
             cases,
         },
     );
@@ -3145,15 +3228,6 @@ pub(super) fn record_invocation<'plans>(
             cases: Vec::new(),
         },
     );
-    deliver_argument_edge(
-        program,
-        build,
-        destination,
-        ArgumentEdge {
-            source,
-            cases: Vec::new(),
-        },
-    );
 }
 
 /*
@@ -3172,7 +3246,7 @@ fn capture_argument_cases(
     arguments: &[ExpressionHandle],
     captured_operands: &[FlowOperandFact],
     contexts: HandleSpan<FlowSemanticContextRef>,
-) -> Vec<(SymbolHandle, SymbolHandle)> {
+) -> Vec<SelectedCase> {
     let parameters = program.state_parameters(destination);
     let mut cases = Vec::new();
     if parameters.len() != arguments.len()
@@ -3190,24 +3264,25 @@ fn capture_argument_cases(
         let Some(captured) = completed_argument_facts(program, build, operand, contexts) else {
             continue;
         };
-        let mut observations = captured
-            .places
-            .iter()
-            .map(|place| selected_case_at(program, semantic, &captured.contexts, &place.projected));
-        if let Some(Some(variant)) = observations.next()
-            && observations.all(|observed| observed == Some(variant))
-        {
-            cases.push((parameter.symbol, variant));
+        let mut places = captured.places.iter().map(|place| {
+            selected_cases_under(program, semantic, &captured.contexts, &place.projected)
+        });
+        let Some(mut agreed) = places.next() else {
+            continue;
+        };
+        for other in places {
+            agreed.retain(|case| other.contains(case));
         }
+        cases.extend(agreed.into_iter().map(|(segments, variant)| {
+            (
+                CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(parameter.symbol),
+                    segments,
+                },
+                variant,
+            )
+        }));
     }
-    cases.sort_by_key(|(parameter, variant)| {
-        (
-            parameter.arena_index(),
-            parameter.generation(),
-            variant.arena_index(),
-            variant.generation(),
-        )
-    });
     cases
 }
 
@@ -3282,13 +3357,18 @@ fn completed_argument_facts(
     Some(CompletedArgumentFacts { contexts, places })
 }
 
-fn selected_case_at(
+/*
+    Selected cases at `root` or a named field or case payload under it, relative
+    to `root`. Two live facts that disagree at one place select nothing there.
+    An index or range is meaningful only in the caller, so it is not transported.
+*/
+fn selected_cases_under(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
-    place: &CanonicalPlace,
-) -> Option<SymbolHandle> {
-    let mut found = None;
+    root: &CanonicalPlace,
+) -> Vec<(Vec<facts::PlaceSegment>, SymbolHandle)> {
+    let mut found: Vec<(Vec<facts::PlaceSegment>, Option<SymbolHandle>)> = Vec::new();
     for fact in contexts.iter().flat_map(|context| {
         semantic
             .context_view(semantic.contexts.get(*context))
@@ -3313,93 +3393,44 @@ fn selected_case_at(
         else {
             continue;
         };
-        if fact_place != *place {
+        if fact_place.root != root.root || !fact_place.segments.starts_with(&root.segments) {
             continue;
         }
-        if found.is_some_and(|existing| existing != variant) {
-            return None;
+        let relative = &fact_place.segments[root.segments.len()..];
+        if !relative.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::Case { .. }
+            )
+        }) {
+            continue;
         }
-        found = Some(variant);
+        match found.iter_mut().find(|row| row.0 == relative) {
+            Some(row) if row.1 != Some(variant) => row.1 = None,
+            Some(_) => {}
+            None => found.push((relative.to_vec(), Some(variant))),
+        }
     }
     found
+        .into_iter()
+        .filter_map(|(segments, variant)| Some((segments, variant?)))
+        .collect()
 }
 
-fn deliver_argument_edge(
-    program: &dyn ::validation::CheckingInput,
-    build: &mut FlowBuildContext,
-    destination: &typed_trees::state::State,
-    incoming: ArgumentEdge,
-) {
-    if !delivers_here(program, build, None, destination, || Delivery::Edge {
-        destination: destination.symbol,
-        incoming: incoming.clone(),
-    }) {
-        return;
-    }
-    let ArgumentEdge { source, cases } = incoming;
-    let index = ensure_input_row(program, build, destination);
-    let row = &mut build.state_value_inputs[index];
-    let ArgumentInputs::Edges(edges) = &mut row.argument_edges else {
-        return;
-    };
-    let mut added = false;
-    if let Some(edge) = edges.iter_mut().find(|edge| edge.source == source) {
-        if edge.cases == cases {
-            return;
-        }
-        edge.cases = cases;
-    } else {
-        edges.push(ArgumentEdge { source, cases });
-        added = true;
-    }
-    let cases = joined_cases(edges);
-    if added {
-        build.new_state_field_input_height = build.new_state_field_input_height.saturating_add(1);
-    }
-    let row = &mut build.state_value_inputs[index];
-    let changed = cases != row.cases;
-    row.cases = cases;
-    let state = destination.symbol;
-    if changed && !build.dirty_state_value_inputs.contains(&state) {
-        build.dirty_state_value_inputs.push(state);
-    }
+fn same_cases(left: &[SelectedCase], right: &[SelectedCase]) -> bool {
+    left.len() == right.len() && left.iter().all(|case| right.contains(case))
 }
 
-fn ensure_input_row(
-    program: &dyn ::validation::CheckingInput,
-    build: &mut FlowBuildContext,
-    destination: &typed_trees::state::State,
-) -> usize {
-    if let Some(index) = build.reached_state_index(destination.symbol) {
-        return index;
-    }
-    build.push_state_value_input(StateValues {
-        state: destination.symbol,
-        field_sources: Vec::new(),
-        values: program
-            .state_parameters(destination)
-            .iter()
-            .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
-            .collect(),
-        bounds: Vec::new(),
-        fields: Vec::new(),
-        qualifications: Vec::new(),
-        predicates: Vec::new(),
-        entry_paths: EntryPaths::unknown(),
-        argument_edges: ArgumentInputs::Edges(Vec::new()),
-        cases: Vec::new(),
-    })
-}
-
-fn joined_cases(edges: &[ArgumentEdge]) -> Vec<(SymbolHandle, SymbolHandle)> {
+/* A case survives only when every arrival edge selects it at the same place. */
+fn joined_cases(edges: &[ArgumentEdge]) -> Vec<SelectedCase> {
     let Some(first) = edges.first() else {
         return Vec::new();
     };
     first
         .cases
         .iter()
-        .copied()
         .filter(|case| edges.iter().all(|edge| edge.cases.contains(case)))
+        .cloned()
         .collect()
 }
 
@@ -3532,9 +3563,18 @@ pub(super) fn append_entry_context(
         semantic.append_ref(&mut refs, fact);
         semantic.append_context(point, refs);
     }
-    for (parameter, variant) in &input.cases {
+    for (selected, variant) in &input.cases {
         let mut refs = HandleSpan::empty();
-        let place = semantic.append_symbol_place(*parameter);
+        let mut segments = HandleSpan::empty();
+        for segment in &selected.segments {
+            semantic
+                .place_segments
+                .append_to_span(&mut segments, *segment);
+        }
+        let place = semantic.append_place(facts::Place {
+            root: selected.root,
+            segments,
+        });
         let fact = semantic.append_transfer_at_point(
             FactPlace::Place(place),
             point,
@@ -3550,7 +3590,7 @@ pub(super) fn append_entry_context(
 
 /*
     One value-input delivery a state visit made, kept with the exact arguments
-    `join` or `deliver_argument_edge` received so a group run can repeat it.
+    `join` received so a group run can repeat it.
 */
 #[derive(Clone, Debug)]
 pub(super) struct InputDelivery(Delivery);
@@ -3561,10 +3601,6 @@ enum Delivery {
         destination: SymbolHandle,
         source: fields::BoundsSource,
         incoming: StateValues,
-    },
-    Edge {
-        destination: SymbolHandle,
-        incoming: ArgumentEdge,
     },
     /* The destination does not resolve back to the state that received it. */
     Unreplayable,
@@ -3596,7 +3632,7 @@ pub(super) struct InputRecording {
 fn delivers_here(
     program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
-    machine: Option<&typed_trees::machine::Machine>,
+    machine: &typed_trees::machine::Machine,
     destination: &typed_trees::state::State,
     delivery: impl FnOnce() -> Delivery,
 ) -> bool {
@@ -3614,7 +3650,7 @@ fn delivers_here(
     let location = build.state_location(program, destination.symbol);
     let resolves = location.is_some_and(|(owner, state)| {
         let owner = &program.machines()[owner];
-        machine.is_none_or(|machine| std::ptr::eq(owner, machine))
+        std::ptr::eq(owner, machine)
             && std::ptr::eq(&program.machine_states(owner)[state], destination)
     });
     let recording = build
@@ -3644,31 +3680,27 @@ pub(super) fn replay_delivery(
     build: &mut FlowBuildContext,
     delivery: &InputDelivery,
 ) -> bool {
-    let destination = match &delivery.0 {
-        Delivery::Join { destination, .. } | Delivery::Edge { destination, .. } => *destination,
-        Delivery::Unreplayable => return false,
+    let Delivery::Join {
+        destination,
+        source,
+        incoming,
+    } = &delivery.0
+    else {
+        return false;
     };
-    let Some((owner, state)) = build.state_location(program, destination) else {
+    let Some((owner, state)) = build.state_location(program, *destination) else {
         return false;
     };
     let machine = &program.machines()[owner];
     let destination = &program.machine_states(machine)[state];
-    match &delivery.0 {
-        Delivery::Join {
-            source, incoming, ..
-        } => join(
-            program,
-            build,
-            machine,
-            destination,
-            *source,
-            incoming.clone(),
-        ),
-        Delivery::Edge { incoming, .. } => {
-            deliver_argument_edge(program, build, destination, incoming.clone())
-        }
-        Delivery::Unreplayable => unreachable!("rejected above"),
-    }
+    join(
+        program,
+        build,
+        machine,
+        destination,
+        *source,
+        incoming.clone(),
+    );
     true
 }
 

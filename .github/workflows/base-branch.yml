@@ -1,0 +1,27 @@
+name: Base branch
+
+# The compiler and lint workflows run only for pull requests against `main`,
+# so a pull request opened against any other branch gets no checks and no
+# warning. On 2026-11-09 thirteen pull requests sat like that for a day. This
+# job runs for every pull request and fails when the base is not `main`, so the
+# mistake shows as a red check the moment the pull request is opened.
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  base-is-main:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require main as the base
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$BASE" != "main" ]; then
+            echo "::error::This pull request targets '$BASE'. CI and landing run only for pull requests against main: rebase onto main, change the base, then push so every check starts."
+            exit 1
+          fi

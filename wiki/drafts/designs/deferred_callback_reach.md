@@ -33,7 +33,7 @@ and `dropped by`. Delete it when implementation and acceptance are complete.
   open, empty or finitely bounded. Omission does not infer a callable signature,
   choose an implementation, grant authority or expose a private body.
 - Runtime machine-value types keep finite ceilings and state them; an omitted
-  clause rejects under `explicit-callable-reach`. Suspension/blocking bounds, public declarations and dependency rules
+  clause rejects under `open-callable-contracts`. Suspension/blocking bounds, public declarations and dependency rules
   are unchanged, as are termination, proof admission, custody and crashes.
   [Conditional callback carry](conditional_callback_carry.md) separately extends
   suspension-permission checking; it does not widen service reach or other axes.

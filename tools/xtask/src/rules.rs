@@ -26,6 +26,8 @@ const SOURCE_CONTEXT_BASELINE: &str = "tools/stage06_source_context.txt";
 const SEMANTIC_IDS: &str = "omega-rust/psi/foundation/semantic-vocabulary/src/identity.rs";
 const DENSE_MAP_BASELINE: &str = "tools/dense_id_maps.txt";
 const CACHE_STATE_BASELINE: &str = "tools/cache_state.txt";
+const PLACE_TRANSPORT_BASELINE: &str = "tools/place_transport.txt";
+const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
 const DANGLING_BASELINE: &str = "tools/dangling_task_ids.txt";
 const TASK_BOARDS: &[&str] = &[
     "TASKS.md",
@@ -700,6 +702,55 @@ fn is_cache_type(ident: &str) -> bool {
         pos = after;
     }
     false
+}
+
+/// The keyword and name of a `fn`, `struct` or `enum` declared on this line.
+fn declared_item(line: &str) -> Option<(&'static str, &str)> {
+    let mut rest = line.trim_start();
+    if let Some(after) = rest.strip_prefix("pub") {
+        rest = after.trim_start();
+        if rest.starts_with('(') {
+            rest = rest.split_once(')')?.1.trim_start();
+        }
+    }
+    for modifier in ["const ", "unsafe ", "async "] {
+        if let Some(after) = rest.strip_prefix(modifier) {
+            rest = after.trim_start();
+        }
+    }
+    ["fn", "struct", "enum"].into_iter().find_map(|keyword| {
+        let after = rest.strip_prefix(keyword)?.strip_prefix(' ')?;
+        let name = after
+            .trim_start()
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .next()?;
+        (!name.is_empty()).then_some((keyword, name))
+    })
+}
+
+/// Copies of the machinery the fact-transport design replaces with one of
+/// each: functions that compare or re-root places, and types that spell a
+/// place a new way.
+pub fn count_place_transport(text: &str) -> usize {
+    if !["overlap", "rebase", "Place", "Path", "Projection"]
+        .iter()
+        .any(|word| text.contains(word))
+    {
+        return 0;
+    }
+    product_text(text)
+        .lines()
+        .filter_map(declared_item)
+        .filter(|(keyword, name)| {
+            if *keyword == "fn" {
+                name.contains("overlap") || name.contains("rebase")
+            } else {
+                ["Place", "Path", "Projection"]
+                    .iter()
+                    .any(|word| name.contains(word))
+            }
+        })
+        .count()
 }
 
 pub fn count_cache_state(text: &str) -> usize {
@@ -1665,6 +1716,19 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
         ],
         advice: "Derived data is computed once by its owner, not cached (AGENTS.md): have the producing stage publish it as a table its consumers index.",
     },
+    RatchetSpec {
+        baseline: PLACE_TRANSPORT_BASELINE,
+        flag: "update-place-transport",
+        noun: "place-transport copies",
+        header: &[
+            "Functions named *overlap* or *rebase*, and struct or enum types named",
+            "*Place*, *Path* or *Projection*, per non-test file under",
+            "omega-rust/psi/compilation. Counts may only fall: facts travel on one place",
+            "key, one overlap relation and one formal-to-actual map",
+            "(wiki/drafts/designs/fact_transport.md).",
+        ],
+        advice: "Do not add another place comparison, rebaser or path type. The checker on the lowered form names places by terminal_check_tables::ExactPlaceId (wiki/drafts/designs/check_on_lowered_form.md); existing tree-level code keeps using validation::storage_path_relations::canonical_place_segments_may_overlap until it is replaced.",
+    },
 ];
 
 pub fn compute_ratchet_counts(
@@ -1677,6 +1741,13 @@ pub fn compute_ratchet_counts(
         1 => contract_files(root),
         2 | 3 => stage06_files(root),
         4 | 5 => product_rust_files(root),
+        6 => product_rust_files(root)
+            .into_iter()
+            .filter(|path| {
+                path.strip_prefix(root)
+                    .is_ok_and(|rel| rel.starts_with(PSI_COMPILATION_ROOT))
+            })
+            .collect(),
         _ => Vec::new(),
     };
     let mut counts = BTreeMap::new();
@@ -1692,6 +1763,7 @@ pub fn compute_ratchet_counts(
             3 => count_source_context(&text),
             4 => count_dense_id_maps(&text, semantic_ids),
             5 => count_cache_state(&text),
+            6 => count_place_transport(&text),
             _ => 0,
         };
         if c > 0
@@ -1947,6 +2019,20 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn place_transport_counts_comparisons_rebasers_and_place_types() {
+        let text = "\
+pub(super) fn owner_path_overlaps(a: u8) -> bool { true }
+fn rebase_place(a: u8) {}
+pub struct CapturedPlaceSegment;
+enum CheckedPath { A }
+fn unrelated() {}
+struct Ledger;
+// fn commented_overlap() {}
+";
+        assert_eq!(count_place_transport(text), 4);
+    }
 
     #[test]
     fn ratchets_and_dangling_ids_match_checked_in_baselines() {

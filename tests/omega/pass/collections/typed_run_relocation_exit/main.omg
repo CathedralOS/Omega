@@ -7,6 +7,8 @@ use omega::language::core::layout;
 use omega::language::core::process_exit;
 use omega::language::core::drop;
 use omega::language::core::run;
+use omega::language::core::content;
+use omega::language::core::nat;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
 // from its reviewed external provider. It does not strengthen std::Console.
@@ -101,7 +103,7 @@ TestRoots satisfies ExtentRootProvider {
 TestVacant satisfies VacantContentTransfer {
     machine transfer(storage: Extent in Granted) -> Extent
         ensures result in Granted,
-            Granted::content(old(&storage)) == Granted::content(&result)
+            core::Identity<IntervalSet<Nat>>(Granted::content(old(&storage)), Granted::content(&result))
     { storage }
 }
 

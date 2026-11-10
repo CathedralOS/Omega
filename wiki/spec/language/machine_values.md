@@ -16,8 +16,8 @@ by a `requires machine` requirement, without a declaration name:
 ```omega
 data Counter { value: u64; }
 data CounterOps {
-    clear: machine(counter: &mut Counter) reaches none terminates;
-    value: machine(counter: &Counter) -> u64 reaches none terminates;
+    clear: machine(counter: &mut Counter) reaches none crashes none terminates;
+    value: machine(counter: &Counter) -> u64 reaches none crashes none terminates;
 }
 
 machine clear(counter: &mut Counter) terminates { counter.value = 0; }
@@ -31,12 +31,11 @@ The same type form is usable for locals, parameters, results, fields, arrays and
 other ordinary containers. Parameter names in its contract bind that callable's
 formal arguments; `result` denotes its result. Lifetime binders and ordinary
 `requires`, `ensures`, reach, invocation, suspension, blocking, crash, progress,
-resource and custody contracts retain their meanings. Runtime callable service
-reach has a fixed finite ceiling that the type must state: `reaches none` means
-empty, and a callable type with no `reaches` clause rejects under
-[explicit callable reach](effects.md#deferred-requirement-reach).
-The deferred omission rule for static requirements does not apply to callable
-types. Other axes retain their existing omission rules.
+resource and custody contracts retain their meanings. A runtime callable has
+fixed finite service and crash ceilings that the type must state: `reaches none`
+and `crashes none` mean empty, and a callable type that omits either clause is
+an [open callable contract](effects.md#open-callable-contracts), which a
+runtime position rejects. Other axes retain their existing omission rules.
 
 In a callable-valued context, a named machine reference selects an exact closed
 declaration application. A qualified named implementation member is eligible;

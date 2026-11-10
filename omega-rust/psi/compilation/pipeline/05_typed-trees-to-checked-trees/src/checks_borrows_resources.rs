@@ -5455,16 +5455,8 @@ pub(in crate::checks::borrows) mod retained_backing {
             else {
                 return None;
             };
-            let (position, parameter) = parameters
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| {
-                    !parameter.is_const
-                        && program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                })
-                .nth(index as usize)?;
+            let (position, parameter) =
+                validation::reference_result_custody::origin_formal(program, parameters, index)?;
             let operand = operands.get(receiver_offset + position)?;
             let backings = projected_operand_places(
                 program,

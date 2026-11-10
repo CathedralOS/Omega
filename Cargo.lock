@@ -2590,6 +2590,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-check-tables"
+version = "0.1.0"
+dependencies = [
+ "language-core",
+ "semantic-vocabulary",
+]
+
+[[package]]
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [

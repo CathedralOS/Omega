@@ -350,10 +350,11 @@ public machine Duration::checked_multiply(duration: &Duration, factor: u32) -> D
 // remainder of the seconds division redistributes into the nanoseconds.
 public machine Duration::divide(duration: &Duration, divisor: u32) -> DurationResult {
     // ENTRY-ONLY discipline: entry lets evaluate eagerly, so a zero divisor
-    // is clamped to 1 and the real zero case routes to the Overflow arm,
+    // is raised to 1 and the real zero case routes to the Overflow arm,
     // ignoring the harmlessly-computed values.
     let divisor_is_zero: bool = divisor == 0;
-    let safe_divisor_narrow: u32 = clamp_u32(divisor, 1, 4294967295);
+    let safe_divisor_floor: u32 in Saturating = ((divisor as u32 in Saturating) - 1) + 1;
+    let safe_divisor_narrow: u32 = safe_divisor_floor as u32;
     let safe_divisor: u64 = widen_u32_to_u64(safe_divisor_narrow);
     let seconds_quotient: u64 = duration.seconds / safe_divisor;
     let seconds_remainder: u64 = duration.seconds % safe_divisor;
@@ -912,9 +913,9 @@ public data Time { }
 // in, (seconds, subsecond_nanoseconds) out. All conversion math lives here,
 // per D11 -- the lowering layer only delivers raw u64s.
 //
-// The `clamp` IS the calibration guard (O2's proof bound, D5): frequency in
-// [1, 18_446_744_073] proves the divisor nonzero AND that
-// `remainder * 1_000_000_000` fits u64 (remainder < frequency). Every real
+// Saturating arithmetic is the calibration guard: subtracting one and adding
+// it back raises a zero frequency to one, so the divisor is nonzero, and
+// `remainder * 1_000_000_000` saturates instead of wrapping. Every real
 // host passes through unchanged (windows QPF 10^7 or 10^6-ish, POSIX 10^9,
 // the interpreter's virtual 1000); a host reporting 0 or an absurd frequency
 // measures degraded instead of faulting. Re-read per call: Time stays
@@ -927,13 +928,16 @@ invokes
 {
     let ticks: u64 = TimeHost::monotonic_ticks();
     let frequency_raw: u64 = TimeHost::monotonic_ticks_per_second();
-    let frequency: u64 = clamp_u64(frequency_raw, 1, 18446744073);
+    // Saturating subtract-then-add leaves every value but zero unchanged and
+    // turns zero into one, which is the nonzero divisor the reads below need.
+    let frequency_floor: u64 in Saturating = ((frequency_raw as u64 in Saturating) - 1) + 1;
+    let frequency: u64 = frequency_floor as u64;
     let whole_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
-    // Fits u64 by the clamp bound, but the interval fold cannot multiply
-    // variable bounds -- Wrapping spelling (the checked_multiply idiom).
-    let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
-    let scaled: u64 = scaled_wrapped as u64;
+    // A remainder this large means an absurd frequency; the product saturates
+    // instead of wrapping, so the reading degrades without faulting.
+    let scaled_saturated: u64 in Saturating = (remainder as u64 in Saturating) * 1000000000;
+    let scaled: u64 = scaled_saturated as u64;
     let subnanos_wide: u64 = scaled / frequency;
     // The remainder's initializer fact survives narrowing and establishes
     // Instant's normalization predicate; the quotient is already < 10^9.
@@ -957,12 +961,15 @@ invokes
     let raw: u64 = TimeHost::wall_clock_raw();
     let units_raw: u64 = TimeHost::wall_clock_units_per_second();
     let offset: u64 = TimeHost::wall_clock_epoch_offset_seconds();
-    // The same clamp-as-calibration-guard as `now()` (D5 proof bound).
-    let units: u64 = clamp_u64(units_raw, 1, 18446744073);
+    // The same saturating calibration guard as `now()`.
+    // Saturating subtract-then-add leaves every value but zero unchanged and
+    // turns zero into one, which is the nonzero divisor the reads below need.
+    let units_floor: u64 in Saturating = ((units_raw as u64 in Saturating) - 1) + 1;
+    let units: u64 = units_floor as u64;
     let platform_seconds: u64 = raw / units;
     let remainder: u64 = raw % units;
-    let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
-    let scaled: u64 = scaled_wrapped as u64;
+    let scaled_saturated: u64 in Saturating = (remainder as u64 in Saturating) * 1000000000;
+    let scaled: u64 = scaled_saturated as u64;
     let subnanos_wide: u64 = scaled / units;
     let subsecond: u32 = (subnanos_wide % 1000000000) as u32;
     let is_after_epoch: bool = platform_seconds >= offset;
@@ -1002,11 +1009,14 @@ invokes
 {
     let ticks: u64 = TimeHost::monotonic_ticks();
     let frequency_raw: u64 = TimeHost::monotonic_ticks_per_second();
-    let frequency: u64 = clamp_u64(frequency_raw, 1, 18446744073);
+    // Saturating subtract-then-add leaves every value but zero unchanged and
+    // turns zero into one, which is the nonzero divisor the reads below need.
+    let frequency_floor: u64 in Saturating = ((frequency_raw as u64 in Saturating) - 1) + 1;
+    let frequency: u64 = frequency_floor as u64;
     let now_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
-    let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
-    let scaled: u64 = scaled_wrapped as u64;
+    let scaled_saturated: u64 in Saturating = (remainder as u64 in Saturating) * 1000000000;
+    let scaled: u64 = scaled_saturated as u64;
     let subnanos_wide: u64 = scaled / frequency;
     let now_subsecond_wide: u64 =
         subnanos_wide % 1000000000;
@@ -1050,11 +1060,11 @@ invokes
 }
 
 // Sleep for (approximately, never less than the platform grants) the given
-// duration, through the millisecond host op. ONE clamped chunk: durations
-// above u32 maximum milliseconds (~49.7 days) saturate -- the clamped request
-// is RETURNED so the caller can observe it. All-entry lets; the clamps
-// carry the narrowing proofs (4294968 * 1000 + 999 just exceeds u32 maximum,
-// hence the second clamp).
+// duration, through the millisecond host op. ONE saturated chunk: durations
+// above u32 maximum milliseconds (~49.7 days) saturate -- the saturated request
+// is RETURNED so the caller can observe it. All-entry lets; the Saturating
+// multiply and add cannot overflow, and the narrowing saturates at u32
+// maximum.
 public machine Time::sleep_for(time: &mut Time, duration: Duration) -> u32
 reaches
     TimeHost
@@ -1062,15 +1072,11 @@ invokes
     TimeHost
 blocks
 {
-    let seconds_capped: u64 = clamp_u64(duration.seconds, 0, 4294968);
-    let seconds_scaled: u64 in Wrapping = (seconds_capped as u64 in Wrapping) * 1000;
+    let seconds_scaled: u64 in Saturating = (duration.seconds as u64 in Saturating) * 1000;
     let subsecond_milliseconds: u32 = duration.subsecond_nanoseconds / 1000000;
-    let total_wide: u64 in Wrapping =
-        (seconds_scaled as u64 in Wrapping)
-        + (widen_u32_to_u64(subsecond_milliseconds) as u64 in Wrapping);
-    let total: u64 = total_wide as u64;
-    let capped: u64 = clamp_u64(total, 0, 4294967295);
-    let milliseconds: u32 = narrow_u64_to_u32_exact(capped);
+    let total: u64 in Saturating =
+        seconds_scaled + (widen_u32_to_u64(subsecond_milliseconds) as u64 in Saturating);
+    let milliseconds: u32 = narrow_u64_to_u32_saturating(total as u64);
     block TimeHost::sleep(milliseconds);
     milliseconds
 }

@@ -438,7 +438,7 @@ data Guard<T> dropped by release_guard<T> {
 ```
 
 These separate examples show selection, not a complete resource implementation.
-The selected machine has an explicit mutable reference parameter for the carrier
+The selected machine takes the carrier by value as its one parameter
 and must meet the [cleanup contract](ownership.md#consumers-and-cleanup).
 Name resolution is exact: no overload guessing, trait/satisfier discovery, or
 lookup by the name `drop`. This clause introduces no `Drop` trait or boundary
@@ -668,8 +668,13 @@ let short = 7 as +Positive::Small;
 
 Naming an alias names its expansion: for `Socket::Usable` below, `-Usable`
 removes `Connected` and `Authenticated`, and the same cast may not also name
-either constituent. A data declaration's default domain belongs to the carrier.
-It is not an attached domain, and no cast names or removes it.
+either constituent.
+
+A data declaration's default domain is never removed. It belongs to the
+carrier: no cast names it, and no type spells the value without it, so every
+machine that receives a value of a data type receives it in that domain. A
+property that a helper must be able to receive false belongs in a named
+domain, which a [mutable view](#mutable-views) can remove and owe back.
 
 ### Carrier casts
 
@@ -762,21 +767,64 @@ the existing rules.
 ### Mutable views
 
 A cast applies to a reference by accounting for the domains displayed on its
-referent, with the same syntax: `(&value) as =Km -Positive`. The cast preserves
-the referent, lifetime and access mode, and it changes neither the stored
-owner's declared type nor the carrier's default domain. Adding a domain to a
-view follows [temporary qualified views](#temporary-qualified-views).
+referent, with the same syntax: `&value as =Km -Positive`. A borrow groups
+before `as`, so no parentheses are needed. The cast preserves the referent,
+lifetime and access mode, and it changes neither the stored owner's declared
+type nor the carrier's default domain. Adding a domain to a view follows
+[temporary qualified views](#temporary-qualified-views). Through a shared
+reference any removal a by-value cast permits is accepted and nothing is owed,
+because nothing can be written.
 
-Through a mutable reference a cast may remove only predicate-only domains with
-no access or cleanup policy, as in `(&mut value) as -Positive`. The lender still
-owes every removed domain, and its predicates must hold again before the
-storage is handed back under [contract-based repair](dependent_values.md#contract-based-repair).
-Removing a semantic or routed domain through a mutable reference rejects,
-because a writer holding the weaker view could store a value the owner's type
-does not describe and no predicate would detect it. This restriction is
-deliberately conservative. An exact carrier conversion applies to values and
-never through a reference; [representation recasts](../layouts/recasts.md) are
-a separate facility with their own footprint and access rules.
+Named decision: `mutable-view-reestablishment`, settled 2026-11-09. Through a
+mutable reference, `-D` is accepted exactly when the lender could write
+`as +D` on that place itself when the loan ends. The end of the loan is that
+`+D`: it is not written, and it is checked by the same
+[establishment rules](#domain-only-casts) for whatever the place then holds.
+
+```omega
+machine reset(n: &mut i32) ensures n == 1 { n = 1; }
+machine scribble(n: &mut i32) { n = 0; }
+
+let mut trip: i32 in Km & Positive = 5 as +Km +Positive;
+
+reset(&mut trip as -Km -Positive);
+// `Km` returns with nothing to prove. `Positive` is proved by `n == 1`.
+
+scribble(&mut trip as -Km -Positive);
+measure(trip);
+// Rejected: `Positive` is not re-established for `trip` after `scribble`.
+```
+
+The rule has no cases of its own; each row follows from what `+D` requires:
+
+| `D` | Re-establishment when the loan ends |
+| --- | --- |
+| Has neither predicates nor establishment routes | Nothing to prove. |
+| Has predicates | Prove them for the current contents. |
+| Has establishment routes | Accepted only where `+D` is accepted, which is inside its authorized routes. Elsewhere the removal rejects. |
+
+A removal that a by-value cast would reject stays rejected: owned claims,
+cleanup selections and access policies are not removed through a reference
+either. A domain kept with `=D` is part of the callee's parameter type, so the
+callee maintains it on every write and the lender owes nothing for it.
+
+Each removed domain is a debt on the lender's place under
+[invariant windows](dependent_values.md#invariant-windows) and
+[contract-based repair](dependent_values.md#contract-based-repair). The place
+may be invalid for that domain after the loan. Until the debt closes it cannot
+be used under the domain, passed where the domain is required or handed back
+to its own owner. A callee guarantee or the lender's own later writes may
+supply the proof. An open debt at the lender's completion or handback rejects,
+and the diagnostic names the domain, the place and the cast that removed it.
+A callee that removes further domains and lends again owes only what it
+removed.
+
+The owner's declared type is unchanged for the whole loan, and exclusivity
+means nothing else observes the place while a debt may be open. Earlier facts
+about the contents do not return; only fresh proof about the current contents
+does. An exact carrier conversion applies to values and never through a
+reference; [representation recasts](../layouts/recasts.md) are a separate
+facility with their own footprint and access rules.
 
 ### Grouping
 

@@ -216,7 +216,6 @@ mod assembly {
     use super::prover::{
         live_contexts_prove_boolean_expression, semantic_contexts_prove_boolean_expression,
     };
-    use crate::flow::canonical_place_segments_may_overlap;
     use crate::published::labels::machine_name;
     use crate::published::places::place_at;
 
@@ -465,12 +464,11 @@ mod assembly {
         written_place: &CanonicalPlace,
     ) -> bool {
         place_at(program, state_symbol, statement_index, expression).is_some_and(|read_place| {
-            (read_place.root) == (written_place.root)
-                && canonical_place_segments_may_overlap(
-                    program,
-                    &read_place.segments,
-                    &written_place.segments,
-                )
+            ::validation::storage_path_relations::canonical_places_may_overlap(
+                program,
+                &read_place,
+                written_place,
+            )
         })
     }
 
