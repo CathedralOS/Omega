@@ -8,10 +8,12 @@ checker, to every hand-off between stages.
 Today a wrongly accepted program runs as native code with its safety checks
 removed, and nothing between the checker and the executable would notice. The
 back half takes every proof obligation as accepted without evidence and then
-emits unguarded arithmetic, division and indexing on the strength of it. This
-record sets one rule for every hand-off: what a stage may take on faith, what
-it must be given proof of, and what counts as a check. Its first consequence
-is that a fact with no checked evidence can no longer remove a runtime check.
+emits unguarded arithmetic, division and indexing on the strength of it. That
+trust is what the specification asks of the back half, so the repair is at the
+front: the checker must accept only what the proof kernel has verified, and
+reject the rest at compile time. This record sets rules for every hand-off:
+what a stage may take on faith, what counts as a check, and what the checker
+owes the stages that trust it. No rule here costs runtime speed.
 
 ## What happens to a proof obligation today
 
@@ -89,13 +91,32 @@ Hand-offs are of three kinds, and each kind has one rule.
    stage on every compile is not the goal. Two conditions make the trust
    safe: the producer returns a row or a refusal and never drops silently, and
    every validator that exists runs in the corpus harness on every program.
-2. **A claim that removes a runtime check.** Never on faith. A fact may
-   license unguarded code only when it carries evidence the proof kernel
-   accepted, and the stage that removes the check verifies that evidence or a
-   fingerprint of it sealed at acceptance. A fact without it keeps its check:
-   the back half emits the guarded form and the crash route. Missing evidence
-   then costs speed and never safety, and native code cannot do what the
-   interpreter would refuse to do.
+2. **A claim that removes a runtime check.** The guarantee is made real at
+   the front, and the back half then trusts it. The checker accepts an
+   obligation only when the proof kernel has verified a proof of it. An
+   obligation it cannot prove is a compile error: the program is rejected, and
+   it is never compiled with a slower guarded fallback. Once the checker has
+   accepted, the back half removes every check the accepted facts license and
+   re-proves nothing, exactly as the ratified `psi-execution-admission`
+   decision in
+   [`product.md`](../../spec/terminal-psi/product.md#publication-and-separate-consumption)
+   says: *"Reuse checked judgments for optimization and lowering under the
+   selected installation contracts"*, and *"receipt does not require kernel
+   replay"*.
+
+   This costs no runtime speed and changes no specification text. It is a rule
+   about how the checker is built, and it applies to the checker on the lowered
+   form ([check on the lowered form](check_on_lowered_form.md)); the current
+   checker does not meet it (the census found 0 of 814 accepted operation
+   obligations with kernel-checked evidence). The cost moves to the prover: it
+   must prove everything a valid program needs, or it rejects programs the
+   current checker accepts. Route one's gate measures that.
+
+   An earlier wording of this rule had the back half keep the runtime check
+   and emit a guarded form when evidence was missing. That is withdrawn: it
+   contradicted `psi-execution-admission` (*"This contract provides no guarded
+   native lowering route"*), and it paid for a checker defect with runtime
+   speed instead of fixing the checker.
 3. **Bytes that leave the compiler.** An executable or an artifact is read
    back by a decoder that shares no builder with its writer before it is
    called validated. Where that does not exist yet, the result is called
@@ -120,15 +141,19 @@ Three supporting rules:
    obligations by kind and by how they were accepted. Extend it across the
    boundary: how many accepted facts in Omega 00 have a real fingerprint
    (today: none), and how many guards rule 2 would put back, per program.
-2. **Carry the evidence.** Route one's prover emits evidence for every
-   obligation of the scalar subset; publication seals its fingerprint with the
-   obligation; Omega 00 fills the fact's fingerprint from it and refuses a
-   fact whose fingerprint does not match. This is added to spine piece 3 and
-   to the gate.
-3. **No evidence, no removal.** Omega 01 and 03 key every check removal on a
-   verified fingerprint. Facts without one get the guarded form. The measured
-   cost from step 1 decides whether this ships before or with the wave; the
-   rule itself is not conditional.
+2. **Make the checker's acceptance kernel-checked.** Route one's prover emits
+   a certificate for every obligation of the scalar subset and counts an
+   obligation as discharged only when the kernel accepted that certificate.
+   Within one compile the evidence travels in memory beside `TerminalModule`,
+   so Omega 00 can fill `AcceptedObligationFact::proof_bundle_fingerprint` and
+   the census can count it. An artifact re-read from bytes (including a
+   compiler-storage cache read) has no in-memory evidence, which is explicit:
+   never an error and never filled from an earlier build. The fingerprint is a
+   record for measurement and audit; the back half does not gate on it.
+3. **A failed proof is a compile error.** When the checker on the lowered form
+   becomes the shipping path for a program, an obligation it cannot discharge
+   rejects the program with a diagnostic naming the source construct. Nothing
+   in back-half trust, optimization or instruction selection changes.
 4. **Run what exists.** Every validator and replay that exists runs in the
    corpus harness for every program, including the Omega 02 to 03 audit, the
    06 to 07 validator and the full native replay. The `--validator` options
@@ -147,11 +172,17 @@ steps 1 and 4.
 
 ## Open questions
 
-- **Cost of rule 2.** Unknown until measured. If almost every obligation
-  lacks evidence for a long time, native code carries almost every guard for
-  that time.
-- **What the interpreter checks.** Rule 2 assumes it checks everything the
-  native guards would. Not opened for this record.
+- **How much the prover can prove.** Rule 2 rejects what it cannot prove, so
+  its strength decides how many valid programs compile. Today it cannot prove
+  shift-left representability or bounds on multiplication, and relations
+  between two values are being added. Unmeasured until route one's comparison.
+- **What the interpreter checks.** Opened since this record was written
+  ([notes](../../../.agents/atlas/compiler-2026-11-10/reviews/interpreter_checks.md)):
+  it checks exact-arithmetic
+  overflow, division and remainder by zero, shift counts, index and subslice
+  bounds, case tags and integer width, but a failed check stops the run as a
+  malformed artifact and is not a program crash, and the declared range of a
+  bounded-integer field is not checked on a store into the field.
 - **Constant folding.** Whether Omega 01's constant propagation refuses
   overflow and a zero divisor was not established.
 - **An independent decoder for ELF and PE.** None exists; Mach-O's is in the

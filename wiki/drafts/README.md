@@ -148,6 +148,14 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Activation storage plans](designs/activation_storage_plans.md): suspension
+  preserves the unfinished computation and its storage layout is a
+  compile-time `ActivationStorage` argument at the start site, `Fixed` or
+  `Split`; delete when the board item lands.
+- [Translation coordinate spaces](designs/translation_coordinate_space.md): an
+  installed mapping splits under the existing interval algebra by projecting
+  each contiguous run into a space indexed by its offset; includes the
+  implementation limits observed; delete when the canary passes.
 - [Owned cleanup consumers](designs/owned_cleanup.md): the machine selected
   with `dropped by` takes its subject by value, and a consuming pattern in the
   type's own package is what takes such a value apart; delete when the board
@@ -204,9 +212,10 @@ Dated cost and failure evidence, superseded by a later run.
   then check on that form, replacing Psi 05, validation and Psi 06 after one
   proven route.
 
-- [What each stage may trust](designs/stage_trust.md): architecture decision
-  for every hand-off from source to executable. A fact without checked
-  evidence keeps its runtime check; "validated" means an independent check.
+- [What each stage may trust](designs/stage_trust.md): hand-off audit,
+  compiler rules for stage outputs and `"validated"` claims, and the rule that
+  the checker accepts only kernel-verified proofs and rejects the rest at
+  compile time, at no runtime cost.
 
 - [Fact transport](designs/fact_transport.md): the evidence behind that
   decision. Its design section is superseded; see the corrections there.

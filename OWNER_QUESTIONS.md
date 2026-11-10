@@ -67,4 +67,139 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None at present.
+### Q1 - May a consumer re-verify a carried proof instead of searching for it again?
+
+Decision name: `specialization-certificate-reuse`.
+
+This asks for a confirmation of a reading, not a new rule. Read in context, the
+two clauses below appear to agree; the line between "a result" and "a proof"
+is ours, so the owner should confirm it before the checker is built on it.
+
+**Customer.** Rebuilding the checker on the lowered form
+([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md))
+retires stage 05's source-text hash cache for dependency-body judgments
+(`05_typed-trees-to-checked-trees/src/checking.rs`), and
+[what each stage may trust](wiki/drafts/designs/stage_trust.md) makes the
+checker accept an obligation only when the proof kernel has verified a proof
+of it. Generic specializations and dependency checks then need one settled
+rule for what proof work may be carried forward and what must be repeated in
+each consumer.
+
+**The two clauses.**
+
+- [Generic declarations](wiki/spec/language/generics.md#closed-applications-and-canonical-identity):
+  *"Root Build controls recorded proof-discovery effort. An unresolved
+  obligation may need a larger search allowance or an explicit theorem, but an
+  unequal key is not evidence of mathematical inequality. Carry checked
+  derivations through specialization and published artifacts without
+  re-searching under a consumer's smaller discovery budget. Ordinary formation,
+  custody and trust obligations remain in force."* The paragraphs before it
+  are about proof effort never changing identity: *"A caller's proof budget
+  cannot change inferred arguments, declaration matching, or specialization
+  keys."*
+- [Validation subjects](wiki/spec/build/validation_subjects.md#what-this-rule-does-not-do)
+  (ratified 2026-11-08): *"No result is reused: a consumer checks every
+  dependency declaration it needs afresh, and the full-package gate is a claim
+  about the library, not evidence a consumer consumes in place of checking."*
+  The same chapter says what a check of a demanded declaration is: *"a generic
+  body under its requirements, a selected conformance with its laws, a lemma
+  with valid evidence"*, and *"no fact used to accept a product may come from
+  an unchecked declaration."*
+
+**The reading to confirm.** The first clause is about proof search and the
+second about checking. A consumer does not search again for a proof that was
+already found: the derivation is carried through specialization, with concrete
+arguments substituted. A consumer does check again: it works out for itself
+what must be proved from its own program, and runs the carried derivation
+through the proof kernel against that goal. A derivation that no longer fits
+(the program changed, an assumption is missing, it is attached to another
+obligation) fails that check and is never accepted on the strength of having
+passed before. A pass verdict from an earlier compile is never used in place
+of checking.
+
+**If the reading is wrong, the alternatives are:**
+
+- **Search again in every consumer.** "No result is reused" also forbids
+  carried derivations, so each specialized body is proved from scratch in each
+  consumer, and the generics clause's discovery-budget sentence is amended to
+  match.
+- **Trust a checked template for every admitted use.** Checking a generic body
+  under its requirements suffices for all concrete selections, with only the
+  instantiation bounds re-checked and no derivation re-verified per use.
+
+**Not asked here.** How a separately built, host-trusted artifact is consumed
+is governed by `psi-execution-admission` in
+[Psi product](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+(*"receipt does not require kernel replay"*) and is not changed by this
+question, which concerns a dependency checked from source.
+
+**Withdrawn.** An earlier entry, `evidence-gated-check-removal`, asked whether
+native code should keep a runtime check when an obligation lacks
+kernel-checked evidence. It is withdrawn without a ruling: the compiler will
+not trade runtime speed for a checker defect. Kernel-checked evidence is the
+checker's own acceptance bar and a failed proof is a compile error, which
+needs no change to `psi-execution-admission`.
+
+### Q2 - What source forms spell a brand, a stored theorem selection, an explicit choice between conflicting parent selections, and a computed record offered to Build?
+
+Decision name: `operation-record-source-forms`.
+
+**Customer.** `OPERATION-RECORD-IMPLEMENTATIONS` on [TASKS.md](TASKS.md) is a
+human-set priority item, and `OWNED-ACTIVATIONS` is sequenced after it. Its
+acceptance list in
+[operation-record implementations](wiki/drafts/designs/operation_record_implementations.md#acceptance)
+(ratified 2026-11-09 as documentation) names four behaviors that an author
+must be able to write: *"a branded pair is two"*, *"a stored theorem selection
+yields two"*, *"conflicting parents reject without an explicit choice"*, and *"A
+computed record offered to Build is checked for slots, realization and
+admission"*. The product requirement is the one the design states: a library
+that reuses existing machines in an implementation, and that keeps two policies
+with identical selections apart on purpose, without forwarding members.
+Implementation of the decided parts (selection rows, structural identity,
+static callable selections, the schema as a record type) is proceeding; these
+four acceptance cases cannot be written as programs.
+
+**Gap.** Contracts checked and found silent on the source form:
+
+- [Conformances](wiki/spec/language/conformances.md#implementations-are-operation-records):
+  *"a deliberately distinct policy carries an explicit brand"*. No section of
+  `conformances.md`, `machine_values.md`, `domains.md` or
+  [chapter 14](wiki/language_guide/chapter_14_traits.md) gives a declaration,
+  field or clause that is a brand, or says how a brand enters identity.
+- The same section: *"A strict proof is irrelevant, a stored theorem selection
+  retains its declaration identity"*. Traits declare laws today as resultless
+  `machine name(...) ensures ...;` requirements
+  (`source/library/core/algebra.omg`). Nothing says which source form makes a
+  law field a strict proof and which makes it a stored selection, so a row
+  `Trait::law = some_lemma;` has no defined sort.
+- The same section: *"a diamond duplicates nothing and conflicting selections
+  need an explicit choice"*. A diamond has one originating requirement and so
+  one slot; the text does not say what a conflict is in that case or how the
+  choice is written. Qualified rows (`Left::set = a; Right::set = b;`) already
+  separate same-named requirements of different origins.
+- The same section and
+  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection):
+  *"Build may consume a computed record"*. `Build::select_provider<Slot,
+  Provider>(builder)` takes a named implementation as a static argument. The
+  text does not say whether a `const` record of the schema is admissible as
+  `Provider` or whether another Build operation is meant.
+
+**Questions for Zac.**
+
+- **(a) Brand:** What is a brand in source: a field of the schema, a clause on
+  the `satisfies` block, a declared marker type, or an ordinary relevant field
+  the author adds? Does it take part in identity as a relevant field value?
+- **(b) Law evidence:** Is `Trait::law = lemma;` a strict proof, so identity
+  ignores which lemma was cited, with a separate form for a stored theorem
+  selection? If so, what is that form?
+- **(c) Explicit choice:** Is the choice a qualified row naming the parent
+  whose selection wins, and is a conflict two parent implementations selecting
+  different machines for one originating requirement?
+- **(d) Computed record to Build:** Is a `const` value of the schema admissible
+  wherever `select_provider` takes a named implementation, checked for slots,
+  realization and admission as today?
+
+One reading the implementer applies meanwhile, stated so it can be corrected:
+structural identity unifies two all-row `satisfies` blocks with the same
+selections, and does not unify a block with an inline member body with any
+other, because *"An inline body still declares a new machine"*.

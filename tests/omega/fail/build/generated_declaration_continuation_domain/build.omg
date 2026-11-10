@@ -3,8 +3,8 @@ machine build(builder: &mut Build) {
     Build::depend_as(builder, "kit", Source::Path { location: "kit" });
     let source: BuildPath = BuildSource::resolve(&builder.source, "kit/generated.txt");
     let reader: i32 = BuildSource::open(&builder.source, source, 0);
-    let mut bytes: [u8; 526];
-    _ = BuildSource::read(&builder.source, reader, &mut bytes, 526);
+    let mut bytes: [u8; 522];
+    _ = BuildSource::read(&builder.source, reader, &mut bytes, 522);
     _ = BuildSource::close(&builder.source, reader);
     let output: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");
     let writer: i32 = BuildOutput::create(&mut builder.output, output, 0);

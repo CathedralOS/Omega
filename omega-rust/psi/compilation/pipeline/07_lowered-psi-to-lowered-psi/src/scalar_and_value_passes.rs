@@ -334,6 +334,31 @@ pub(crate) mod copy_propagation {
                 retained_values.insert(value);
             });
         }
+        // A qualification row names its jump argument by position, so the
+        // receiving block keeps every parameter: collapsing an earlier one
+        // would shift that position. When those blocks cannot be identified
+        // the pass leaves the module unchanged.
+        let module = &after.semantic_module;
+        let Some(qualified) =
+            terminal_semantics::scalar_demand::qualification_parameter_blocks(module)
+        else {
+            return Ok(before);
+        };
+        for machine in &module.machines {
+            let first = qualified.partition_point(|(owner, _)| *owner < machine.id);
+            let last = qualified.partition_point(|(owner, _)| *owner <= machine.id);
+            for (_, block) in &qualified[first..last] {
+                if let Some(block) = machine.block(block) {
+                    retained_values.extend(block.parameters.iter().map(|parameter| parameter.id));
+                }
+            }
+        }
+        // A return row also binds its source by identity. That source is often
+        // itself a parameter fed by one same-typed argument, which this pass
+        // would otherwise replace in the jump while the row kept the old name.
+        for returned in &module.scalar_qualifications.returns {
+            retained_values.extend([returned.source, returned.result]);
+        }
         for machine in &mut after.semantic_module.machines {
             copies::propagate(
                 machine,
