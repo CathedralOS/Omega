@@ -1469,11 +1469,13 @@ pub use proof_contracts::{
 };
 pub use value_custody::field_domains::readable_fixed_array_elements;
 pub use value_custody::partial_affine_residuals::{
-    CaseSelectedCleanupRegion, CleanupCaseCondition, CleanupCaseReachability, reconstruct,
-    reconstruct_case_selected_regions,
+    CaseSelectedCleanupPartition, CaseSelectedCleanupRegion, CleanupCaseCondition,
+    CleanupCaseReachability, CleanupPartitionArm, CleanupPartitionNode, reconstruct,
+    reconstruct_case_selected_cleanup_partition, reconstruct_case_selected_regions,
 };
 pub use value_custody::places::binding_observations::{
     place_has_immutable_denotation, stable_slice_descriptor_place,
+    value_reads_have_immutable_denotation,
 };
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;

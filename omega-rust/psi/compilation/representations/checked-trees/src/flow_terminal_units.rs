@@ -1703,6 +1703,7 @@ pub(crate) mod unit_effect_plans {
             source: CheckedUnitStructuralArgumentPlan,
         },
         ContinuationCleanup {
+            partitions: arena::HandleSpan<crate::CheckedCleanupPartitionRef>,
             boundary: CheckedUnitCleanupBoundary,
             selected_regions: Vec<CheckedUnitStructuralArgumentPlan>,
             cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,

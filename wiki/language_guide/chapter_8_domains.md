@@ -49,14 +49,20 @@ choices affect a multi-step update.
 
 ## Establishing and qualifying domains
 
-For a predicate-only domain, prove its conditions before qualifying the value:
+A value gains a domain only through a cast that names it. `as +Small` adds the
+domain, and for a predicate-only domain the checker proves its conditions at
+that cast:
 
 ```omega
 domain u16::Small requires self <= 10;
 
-let small: u16::Small = 7;
-let rejected: u16::Small = 11; // Rejected: 11 exceeds 10.
+let small: u16::Small = 7 as +Small;
+let rejected: u16::Small = 11 as +Small; // Rejected: 11 exceeds 10.
+let bare: u16::Small = 7;                // Rejected: no cast adds `Small`.
 ```
+
+The annotation on `bare` does not add the domain for you. Declared types say
+what a place holds; only a cast changes what a value carries.
 
 For runtime input, a branch can establish the same fact:
 
@@ -68,7 +74,7 @@ data SmallResult {
 
 machine classify(value: u16) -> SmallResult {
     transition value <= 10 {
-        true -> SmallResult::Accepted { value: value as u16::Small }
+        true -> SmallResult::Accepted { value: value as +Small }
         false -> SmallResult::TooLarge
     }
 }
@@ -84,36 +90,80 @@ Knowing the numbers are equal does not change their carrier.
 
 ## Qualification and conversion
 
-`as` performs a compiler-derived exact coercion or explicit erasure. It can
-widen a number, narrow one whose range is proved, or add a proved domain:
+`as` does two separate jobs. With a carrier type it performs a compiler-derived
+exact conversion: it can widen a number or narrow one whose range is proved.
+With domain entries it changes which domains the value carries:
 
 ```omega
 let byte: u8 = 7;
 let widened: u16 = byte as u16;
-let small: u16::Small = widened as u16::Small;
+let small: u16::Small = widened as +Small;
 ```
 
 It never silently rounds, saturates or calls a user conversion. Use a named
 machine when the operation needs runtime validation, allocation, scaling or
 another policy choice.
 
+A domain cast lists every domain involved, each with one of three marks:
+
+| Entry | Meaning |
+| --- | --- |
+| `+D` | The value lacks `D`; the result carries it. |
+| `-D` | The value carries `D`; the result does not. |
+| `=D` | The value carries `D`; the result keeps it. |
+
 A predicate-free domain can attach a meaning without restricting the number:
 
 ```omega
 domain i32::Km;
+domain i32::Positive requires self > 0;
 
-let distance: i32::Km = 5;
-let raw: i32 = distance as i32;
+let distance: i32::Km = 5 as +Km;
+let raw: i32 = distance as -Km;
+
+let trip: i32 in Km & Positive = 5 as +Km +Positive;
+let length: i32::Km = trip as =Km -Positive;
+let lost: i32::Km = trip as =Km;   // Rejected: `Positive` is unaccounted for.
 ```
 
-The second line explicitly forgets the unit. It does not multiply by 1,000;
-converting kilometres to metres needs the unit library's conversion operation.
-A direct cast between unrelated meanings such as `Km` and `Degrees` rejects.
+`distance as -Km` forgets the unit. It does not multiply by 1,000; converting
+kilometres to metres needs the unit library's conversion operation. Likewise
+`distance as -Km +Miles`, for a similar `Miles` tag, only relabels the number;
+no cast converts between units.
 
-Predicate-only facts with no access policy can weaken implicitly. Semantic
-meaning and non-owning provenance need explicit erasure. Owned claims need
-consumption or transfer, and access restrictions remain attached to governed
-storage even when its displayed type omits the domain.
+Nothing is dropped silently, including a predicate-only domain such as
+`Positive`: every domain the value carries appears in the cast as `=` or `-`,
+so the line shows both what survives and what is given up. Removing a domain
+discards no fact; `length` is still known to exceed zero. Mentioning a domain
+the value lacks with `=` or `-`, or adding one it already carries, rejects.
+
+A carrier conversion takes a value with no domains and may add some to its
+result. To move a qualified value to another carrier, remove its domains first:
+`small as -Small as u32`. Because `+` and `-` after a cast always belong to the
+cast, put parentheses around a cast before doing arithmetic on it:
+`(distance as -Km) + 1`.
+
+Owned claims need consumption or transfer, not a cast, and access restrictions
+remain attached to governed storage even when its displayed type omits the
+domain.
+
+The same cast works on a reference, so a helper can take a plainer view of
+your value. Through `&mut` you may remove a domain only if you could add it
+back yourself, because that is what happens when the loan ends:
+
+```omega
+machine reset(n: &mut i32) ensures n == 1 { n = 1; }
+
+let mut trip: i32 in Km & Positive = 5 as +Km +Positive;
+reset(&mut trip as -Km -Positive);
+```
+
+Afterwards `trip` is `i32 in Km & Positive` again without another cast. `Km`
+comes back for free. `Positive` must be proved for the new contents, here by
+`reset`'s guarantee; if the helper proves nothing, repair the value yourself
+before using it. A domain with an authorized establishment route cannot be
+removed this way outside that route, since you could not add it back. See
+[domain casts](../spec/language/domains.md#mutable-views).
 
 ## Defaults and zero
 
@@ -128,7 +178,7 @@ data Config {
     rank: u8::Rank;
 }
 
-let ready: Config = Config { rank: 1, .. };  // explicitly default zero-valid level
+let ready: Config = Config { rank: 1 as +Rank, .. };  // zero-valid level defaults
 ```
 
 `..` opts into zero defaults for omitted runtime fields. `rank` still needs a
@@ -167,7 +217,9 @@ domain Player::Alive::InCutscene
 ```
 
 It requires both `Alive` and the additional fact. If the parent has a restricted
-establishment route, the child keeps it.
+establishment route, the child keeps it. A value carrying the child carries its
+ancestors too, and a cast names each: `player as =Alive -Alive::InCutscene`
+keeps the parent and removes the child.
 
 Use `&` for facts that must hold together, and `|` for a known union:
 
@@ -183,7 +235,8 @@ alias can name an intersection:
 public domain Socket::Usable = Socket::Connected & Socket::Authenticated;
 ```
 
-The alias expands to the same facts. It creates no new evidence. Ordered domain
+The alias expands to the same facts. It creates no new evidence, and naming
+it in a cast names both of its domains. Ordered domain
 matches permit overlap: the first matching arm wins. To reuse one condition
 across unrelated domains, name a pure total Boolean machine and use
 `predicate(self) == true` in each domain.
@@ -203,16 +256,19 @@ though an access policy may still restrict its establishment and use.
 
 ## Select operators through domains
 
-Declared qualifications can select an operator meaning. For cyclic degrees:
+The builtin operators and comparisons work on plain values only. A qualified
+value either has an operator declared for its exact type or is cast first.
+For cyclic degrees:
 
 ```omega
 domain u32::Degrees requires self < 360;
 
 machine + Degrees::add(left: u32::Degrees, right: u32::Degrees) -> u32::Degrees
-ensures (result as u32) == ((left as u32) + (right as u32)) % 360
+ensures (result as -Degrees)
+     == ((left as -Degrees) + (right as -Degrees)) % 360
 {
-    let sum: u32 = (left as u32) + (right as u32);
-    (sum % 360) as u32::Degrees
+    let sum: u32 = (left as -Degrees) + (right as -Degrees);
+    (sum % 360) as +Degrees
 }
 ```
 
@@ -220,15 +276,27 @@ The operands bound the intermediate sum at 718, so its Exact addition is safe.
 Remainder supplies the angular wrap. The contract states that relation as well
 as the result's range.
 
-Operator selection follows binding-site qualifications: declared types,
-explicit casts and entry requirements. Learning a range fact from a branch
-does not silently switch a plain integer's `+` to degree addition.
+Operator selection reads declared types and written casts. A `requires` or a
+range fact learned from a branch proves something about a plain integer; it
+does not switch that integer's `+` to degree addition.
 
-Independent meanings can compose, such as a unit and an overflow policy.
-Competing meanings for the same role reject. The selected operator must satisfy
-the whole combination; adding a domain never runs unrelated overloads in an
-arbitrary order. See [domain operators](../spec/language/domains.md) and
-[operator selection](chapter_5_expressions_evaluation.md).
+An operator applies only when its parameter types match the operands' complete
+types. A value may carry independent meanings, such as a unit and an overflow
+policy, but the pair has no `+` unless one is declared for exactly that pair;
+nothing combines the unit's `+` with the policy's. Competing meanings for the
+same role reject. A domain can also declare an operator against a plain
+operand, so common comparisons need no cast:
+
+```omega
+machine > Positive::greater(left: i32::Positive, right: i32) -> bool
+ensures result == ((left as -Positive) > right)
+{
+    (left as -Positive) > right
+}
+```
+
+See [domain operators](../spec/language/domains.md#semantic-roles-and-operators)
+and [operator selection](chapter_5_expressions_evaluation.md).
 
 ## Domains on strings and encodings
 
@@ -242,12 +310,13 @@ FixedVec<u8, 64> in Utf8   // inline capacity with a live length
 ```
 
 The domain changes none of those storage shapes. A quoted literal supplies
-bytes; qualifying it as UTF-8 proves the encoding. Known bytes can be checked
+bytes; qualifying it with `as +Utf8` proves the encoding. Known bytes can be checked
 at compile time, while incoming bytes need a runtime validator.
 
 ### Slice UTF-8 at character boundaries
 
-Reading a byte is ordinary byte access. A slice that retains `Utf8` must start
+Reading a byte is ordinary byte access, through the encoding library's index
+operator or on a view cast with `as -Utf8`. A slice that retains `Utf8` must start
 and end at character boundaries. For example, UTF-8 encodes `é` in two bytes:
 taking both preserves the character, while taking only its first byte does not
 produce valid UTF-8.
@@ -309,7 +378,7 @@ public data Counter {
 }
 
 public machine create_cell(value: u32) -> Cell in Controlled {
-    Cell { value: value }
+    Cell { value: value } as +Controlled
 }
 
 public machine read_cell(cell: &Cell in Controlled) -> u32 {
@@ -321,7 +390,7 @@ public machine set_cell(cell: &write Cell in Controlled, value: u32) {
 }
 
 // Ordinary helper; not separately listed as a domain writer.
-machine write_cell(cell: &write Cell, value: u32) {
+machine write_cell(cell: &write Cell in Controlled, value: u32) {
     cell.value = value;
 }
 ```
@@ -338,8 +407,10 @@ counter.cell.value = 9;              // Missing write authorization.
 write_cell(&write counter.cell, 9);  // No authorized delegation to the helper.
 ```
 
-`create` establishes the qualification. `read` observes the cell, and `set`
-lends its authorized write-only access to `write_cell`. The helper cannot read
+`create_cell` is the authorized route, so its `as +Controlled` is accepted; the
+same cast anywhere else rejects. `read_cell` observes the cell, and `set_cell`
+lends its authorized write-only access to `write_cell`, whose parameter names
+the same qualified type. The helper cannot read
 the old contents. Merely sharing a file or namespace grants no access.
 
 An omitted list adds no restriction; an empty list permits nobody. Multiple

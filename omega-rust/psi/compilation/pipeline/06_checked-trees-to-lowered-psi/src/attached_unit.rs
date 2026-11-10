@@ -5546,8 +5546,8 @@ pub(crate) mod inner {
                     }) {
                         let mut region = region.clone();
                         if matches!(
-                            region.action,
-                            terminal_psi::TerminalAffineCleanupAction::RetireHome(_)
+                            region.action.physical(),
+                            Some(terminal_psi::TerminalAffineCleanupAction::RetireHome(_))
                         ) {
                             if region.selected_region.as_ref().is_some_and(|selected| {
                                 selected.place != root.place
@@ -5581,7 +5581,12 @@ pub(crate) mod inner {
             ) -> Result<Vec<CleanupRegion>, LoweringError> {
                 use terminal_psi::TerminalAffineCleanupAction as Action;
                 let mut remaining = Vec::new();
+                let mut partial_owners = Vec::new();
                 for region in regions {
+                    if region.action.physical().is_none() {
+                        remaining.push(region);
+                        continue;
+                    }
                     let place = region.action.place();
                     let retired = evaluation
                         .selection_cleanups
@@ -5595,8 +5600,11 @@ pub(crate) mod inner {
                         continue;
                     }
                     let partition = evaluation.normal_discard_regions(place, types, operations)?;
-                    match &region.action {
-                        Action::DiscardRoot(_) => {
+                    match region.action.physical() {
+                        Some(Action::DiscardRoot(_)) => {
+                            if let Some(leaf) = &region.partition_leaf {
+                                partial_owners.push(leaf.owner);
+                            }
                             for mut part in partition {
                                 part.declaration_order = region.declaration_order;
                                 part.selected_region = selected_residual(&region, &part)?;
@@ -5608,13 +5616,18 @@ pub(crate) mod inner {
                                 remaining.push(part);
                             }
                         }
-                        Action::DiscardResidual(discard)
+                        Some(Action::DiscardResidual(discard))
                             if retired.iter().any(|path| {
                                 path.starts_with(&discard.path) || discard.path.starts_with(path)
                             }) =>
                         {
+                            if let Some(leaf) = &region.partition_leaf {
+                                partial_owners.push(leaf.owner);
+                            }
                             for part in &partition {
-                                let Action::DiscardResidual(residual) = &part.action else {
+                                let Some(Action::DiscardResidual(residual)) =
+                                    part.action.physical()
+                                else {
                                     continue;
                                 };
                                 if !residual.path.starts_with(&discard.path) {
@@ -5631,7 +5644,7 @@ pub(crate) mod inner {
                                 remaining.push(selected);
                             }
                         }
-                        Action::InvokeNominal(cleanup)
+                        Some(Action::InvokeNominal(cleanup))
                             if retired.iter().any(|path| {
                                 path.starts_with(&cleanup.path) || cleanup.path.starts_with(path)
                             }) =>
@@ -5643,6 +5656,25 @@ pub(crate) mod inner {
                         _ => remaining.push(region),
                     }
                 }
+                // This consumer selected a smaller residual schedule. Keep its
+                // old strict history checks; the full checked tree no longer
+                // describes that complete sequence of actions.
+                partial_owners.sort_by_key(|owner| (owner.arena_index(), owner.generation()));
+                partial_owners.dedup();
+                remaining.retain_mut(|region| {
+                    if region.partition_leaf.as_ref().is_some_and(|leaf| {
+                        partial_owners
+                            .binary_search_by_key(
+                                &(leaf.owner.arena_index(), leaf.owner.generation()),
+                                |owner| (owner.arena_index(), owner.generation()),
+                            )
+                            .is_ok()
+                    }) {
+                        region.partition_leaf = None;
+                        return region.action.physical().is_some();
+                    }
+                    true
+                });
                 Ok(remaining)
             }
 
@@ -5789,6 +5821,7 @@ pub(crate) mod inner {
                             exit,
                             plan,
                             catalog.control.actions.span_or_empty(plan.actions),
+                            plan.partitions,
                             catalog,
                             parameters,
                             evaluation,
@@ -5897,6 +5930,7 @@ pub(crate) mod inner {
                 exit,
                 plan,
                 catalog.control.actions.span_or_empty(plan.actions),
+                plan.partitions,
                 catalog,
                 parameters,
                 evaluation,
@@ -5916,6 +5950,7 @@ pub(crate) mod inner {
             exit: FlowClaimJoinExit,
             selected_exit: &checked_trees::CheckedNormalExitCleanupPlan,
             selected_actions: &[checked_trees::CheckedNormalCleanupAction],
+            partitions: arena::HandleSpan<checked_trees::CheckedCleanupPartitionRef>,
             catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
             parameters: &[StructuralParameterDeclaration],
             evaluation: &Evaluation,
@@ -5953,11 +5988,17 @@ pub(crate) mod inner {
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
+            let selected = crate::unit::unit_cleanup::select_cleanup_partition_sequence(
+                cleanup_control,
+                cleanup_control.partition_refs.span_or_empty(partitions),
+                &actions,
+            )?;
             let mut rows = lower_regions(
                 identities,
                 claims,
                 checked,
-                actions,
+                selected.actions.iter().map(std::borrow::Cow::as_ref),
+                &selected.partitions,
                 cleanup_control
                     .normal_exit_regions
                     .span_or_empty(selected_exit.selected_regions),
@@ -5966,8 +6007,26 @@ pub(crate) mod inner {
                 evaluation,
                 operations,
             )?;
-            for (row, order) in rows.iter_mut().zip(declaration_orders) {
-                row.declaration_order = order;
+            let mut orders = declaration_orders.into_iter();
+            for row in &mut rows {
+                row.declaration_order = if let Some(leaf) = row
+                    .partition_leaf
+                    .as_ref()
+                    .filter(|leaf| leaf.leaf_count == 0)
+                {
+                    owner_order::declaring_order(
+                        checked,
+                        exit.state_symbol,
+                        source,
+                        &cleanup_control.partitions.get(leaf.owner).source,
+                    )?
+                } else {
+                    orders
+                        .next()
+                        .ok_or(LoweringError::InvalidCleanupPartition {
+                            reason: "cleanup action order lost its source association",
+                        })?
+                };
             }
             rows = remaining_partition::retain(evaluation, rows, catalog.types, operations)?;
             let mut regions = crate::unit::unit_cleanup::lower_reference_completion_regions(
@@ -5984,6 +6043,9 @@ pub(crate) mod inner {
                         claims,
                         checked,
                         cleanup_control.actions.span_or_empty(owner.actions),
+                        cleanup_control
+                            .partition_refs
+                            .span_or_empty(owner.partitions),
                         std::slice::from_ref(&owner.owner),
                         catalog,
                         parameters,
@@ -6028,6 +6090,7 @@ pub(crate) mod inner {
                 checked_trees::CheckedNormalResultCompletion::Value {
                     computation,
                     actions,
+                    partitions,
                 } => {
                     let mut actions = for_planned_actions(
                         identities,
@@ -6037,6 +6100,7 @@ pub(crate) mod inner {
                         exit,
                         plan,
                         control.actions.span_or_empty(*actions),
+                        *partitions,
                         catalog,
                         parameters,
                         evaluation,
@@ -6103,6 +6167,7 @@ pub(crate) mod inner {
             )],
             checked: &CheckedTrees,
             actions: impl IntoIterator<Item = &'actions checked_trees::CheckedNormalCleanupAction>,
+            partition_refs: &[checked_trees::CheckedCleanupPartitionRef],
             selected_regions: &[checked_trees::CheckedUnitStructuralArgumentPlan],
             catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
             parameters: &[StructuralParameterDeclaration],
@@ -6113,6 +6178,7 @@ pub(crate) mod inner {
                 identities,
                 checked,
                 actions,
+                partition_refs,
                 selected_regions,
                 catalog.control,
                 catalog.types,
@@ -11021,9 +11087,12 @@ pub(crate) mod inner {
                                 moved,
                             )
                         });
-                        let contextual_disposal = normal_regions
-                            .iter()
-                            .any(|region| region.action.place() == place.id);
+                        let contextual_disposal = normal_regions.iter().any(|region| {
+                            region
+                                .action
+                                .physical()
+                                .is_some_and(|action| action.place() == place.id)
+                        });
                         (place.id, *discard && !retired && !contextual_disposal)
                     })
                     .collect::<Vec<_>>();
@@ -11200,7 +11269,9 @@ pub(crate) mod inner {
                         )?
                     } else {
                         let cleanup_actions = if cleanup_regions.iter().any(|region| {
-                            !region.conditions.is_empty() || region.selected_region.is_some()
+                            region.partition_leaf.is_some()
+                                || !region.conditions.is_empty()
+                                || region.selected_region.is_some()
                         }) {
                             let return_position = scalar_return
                                 .as_ref()
@@ -11235,7 +11306,7 @@ pub(crate) mod inner {
                         } else {
                             cleanup_regions
                                 .into_iter()
-                                .map(|region| region.action)
+                                .filter_map(|region| region.action.into_physical())
                                 .collect()
                         };
                         let terminator = if let Some((source, _)) = &scalar_return {
@@ -11296,6 +11367,7 @@ pub(crate) mod inner {
                 mut block_entry_claims,
                 mut claim_introductions,
                 selected_cleanup_groups,
+                mut completed_cleanup_frontiers,
                 mut scalar_block_invariants,
                 mut source_calls,
                 quotient_adaptations,
@@ -11434,6 +11506,7 @@ pub(crate) mod inner {
                 &selected_cleanup_groups,
                 structural_types,
                 crate::emission::continuation_specialization::CompanionRows {
+                    completed_cleanup_frontiers: &mut completed_cleanup_frontiers,
                     source_returns: &mut source_returns,
                     continuation_value_uses: &[],
                     claim_introductions: &mut claim_introductions,
@@ -11455,6 +11528,7 @@ pub(crate) mod inner {
             )?;
             if completes_normally {
                 crate::emission::affine_cleanup::complete(
+                    &completed_cleanup_frontiers,
                     &parameter_cleanup,
                     &machine.structural_parameters,
                     &crate::emission::affine_cleanup::no_code_type_ids(checked, type_ids),
@@ -11830,38 +11904,6 @@ pub(crate) mod inner {
                             complete,
                         )?;
                         self.staged_structural_arguments[operation][argument] = Some(captured);
-                        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-                        return Ok(());
-                    }
-                    argument_schedule::Step::Endpoint {
-                        operation,
-                        argument,
-                    } => {
-                        let source_value_count =
-                            self.retained_scalar_prefix
-                                .ok_or(LoweringError::Unsupported(
-                                    "endpoint staging has no source prefix",
-                                ))?;
-                        {
-                            let (mut environment, emission) =
-                                self.frame(source_value_count).split();
-                            emission.evaluation.window_endpoints(
-                                identities,
-                                checked,
-                                plan.machine,
-                                plan.state,
-                                &plan.operations[operation],
-                                argument,
-                                source_value_count,
-                                emission.values,
-                                emission.next_value,
-                                emission.next_block,
-                                emission.next_edge,
-                                emission.operations,
-                                emission.calls,
-                                &mut environment,
-                            )
-                        }?;
                         self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                         return Ok(());
                     }
@@ -12528,9 +12570,11 @@ pub(crate) mod inner {
                 projected_qualifications: Vec::new(),
                 additional_input_qualifications: Vec::new(),
             }];
-            let selected = regions
-                .iter()
-                .any(|region| !region.conditions.is_empty() || region.selected_region.is_some());
+            let selected = regions.iter().any(|region| {
+                region.partition_leaf.is_some()
+                    || !region.conditions.is_empty()
+                    || region.selected_region.is_some()
+            });
             let capture_operation_end = operations.len();
             let mut operation_start = capture_operation_end;
             let cleanup_actions = if selected {
@@ -12558,7 +12602,10 @@ pub(crate) mod inner {
                 )?;
                 Vec::new()
             } else {
-                regions.into_iter().map(|region| region.action).collect()
+                regions
+                    .into_iter()
+                    .filter_map(|region| region.action.into_physical())
+                    .collect()
             };
             let arrival = Block {
                 id: arrival_block,

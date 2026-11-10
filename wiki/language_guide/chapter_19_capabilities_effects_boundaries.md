@@ -11,7 +11,8 @@ This interface lets a reader fill a caller-owned buffer:
 boundary trait Readable {
     machine read(path: [u8]::Utf8, out: &mut Vec<u8>) -> ReadResult
     reaches Readable
-    suspends;
+    suspends
+    crashes none;
 }
 
 machine read_config(path: [u8]::Utf8, out: &mut Vec<u8>) -> ReadResult
@@ -27,8 +28,9 @@ are imported. `reaches Readable` records service use. `suspends` permits waiting
 and `suspend` marks that possibility at the call. The caller also supplies
 the input facts and runtime authority required by the selected API.
 
-A boundary requirement declares its reach explicitly. Use `reaches none` for
-an empty row. The trait name is added only when the declaration names it.
+A boundary requirement declares its reach and its crash routes explicitly. Use
+`reaches none` for an empty row and `crashes none` when it cannot crash; a
+missing clause rejects instead of meaning "none". The trait name is added only when the declaration names it.
 
 ## Select a provider
 
@@ -46,10 +48,85 @@ Omega implementation proves its guarantees. An opaque foreign implementation
 needs explicit trust in those guarantees. Selecting either still leaves
 runtime authority and resource requirements to be met.
 
-One boundary-trait application names one static provider slot. Use distinct
-applications such as `LoggingService<Interactive>` and `LoggingService<Audit>`
-when the program needs two roles. Multiple files, sessions or windows are
-ordinary runtime values returned by those services.
+One boundary-trait application names one static provider slot. Multiple
+files, sessions or windows are ordinary runtime values returned by those
+services, not extra slots.
+
+### Two providers for one contract
+
+When a program needs two independently selected providers of the same
+operations, write the contract once as an ordinary trait and give each role
+its own boundary trait. The names here are illustrative:
+
+```omega
+boundary trait TimeObservation {}
+
+trait TickSource {
+    machine now() -> u64
+        reaches TimeObservation
+        crashes none;
+}
+
+boundary trait WallClock: TickSource {}
+boundary trait SteadyClock: TickSource {}
+```
+
+`TickSource` states the operation once and is not a service by itself. Each
+wrapper is its own slot, so Build selects them independently and the program
+calls `WallClock::now()` or `SteadyClock::now()`:
+
+```omega
+machine build(builder: &mut Build) {
+    Build::select_provider<WallClock, HostWallClock>(builder);
+    Build::select_provider<SteadyClock, HostSteadyClock>(builder);
+}
+```
+
+An indexed application such as `LoggingService<Audit>` also names a second
+slot. Prefer it only when other types need to be indexed by the role.
+
+### Code that should run against a substitute
+
+A machine that calls `WallClock::now()` is tied to that slot, and nothing at
+its call site can point it elsewhere. Code meant to be reused, or tested
+against a simulation, should take the operations it needs as a parameter and
+leave slot calls to the outer layer of the application.
+
+Give that contract a state parameter. A substitute such as a simulated clock
+has to keep its state somewhere, and nothing is captured:
+
+```omega
+trait ClockOps<S> {
+    machine now(state: &mut S) -> u64 crashes none;
+}
+
+data NoState {}
+FromWallClock satisfies ClockOps<NoState>
+{
+    machine now(state: &mut NoState) -> u64 { WallClock::now() }
+}
+
+data SimClock { ticks: u64; }
+Simulated satisfies ClockOps<SimClock>
+{
+    machine now(state: &mut SimClock) -> u64 {
+        state.ticks = state.ticks +% 1;
+        state.ticks
+    }
+}
+
+data Entry { at: u64; }
+
+machine stamp<S, C satisfies ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
+    entry.at = C::now(clock);
+}
+```
+
+`stamp` reaches whatever the selected `now` reaches. `stamp<SimClock, Simulated>`
+therefore reaches no service at all, and the checker proves it, so a test
+built on it cannot touch the real clock. `stamp<NoState, FromWallClock>`
+reaches `TimeObservation`. The bridge calls through the slot instead of naming
+a provider's machine directly, so the provider's admission still applies.
 
 Application code usually follows this path:
 
@@ -109,7 +186,7 @@ A reusable helper can accept callbacks using services defined by its clients:
 
 ```omega
 public boundary trait MotorControl {
-    machine set_speed(speed: u32) reaches MotorControl;
+    machine set_speed(speed: u32) reaches MotorControl crashes none;
 }
 
 machine command_motor(speed: u32) {
@@ -317,7 +394,8 @@ boundary trait WindowProcedure:
         message: u32,
         word: WParam,
         long: LParam,
-    ) -> LResult;
+    ) -> LResult
+    crashes none;
 }
 
 boundary machine ApplicationWindow::dispatch(

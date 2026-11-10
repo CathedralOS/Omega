@@ -1,30 +1,10 @@
 // glibc div returns an 8-byte pair packed in one SysV integer result register.
-use omega::language::core::external_binding;
 
 public data DivisionResult { quotient: i32; remainder: i32; }
 public boundary trait AllocationProbe {
     machine statistics(numerator: i32, denominator: i32) -> DivisionResult reaches;
     machine exit_with(code: i32) reaches;
 }
-data AllocationProvider {}
-linux_x86_64 machine statistics_binding() -> ForeignBinding<9, 3, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "div", version: "GLIBC_2.2.5",
-        },
-    }
-}
-linux_x86_64 machine exit_binding() -> ForeignBinding<9, 4, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5",
-        },
-    }
-}
-linux_x86_64 machine AllocationProvider::statistics(numerator: i32, denominator: i32) -> DivisionResult
-satisfies AllocationProbe::statistics via statistics_binding();
-linux_x86_64 machine AllocationProvider::exit_with(code: i32)
-satisfies AllocationProbe::exit_with via exit_binding();
 
 machine relay(result: DivisionResult) -> DivisionResult { result }
 machine collect(numerator: i32, denominator: i32) -> DivisionResult {

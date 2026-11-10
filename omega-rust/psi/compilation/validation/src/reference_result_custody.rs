@@ -2314,15 +2314,6 @@ pub(crate) mod captured_returns {
                     if parameters.len() != operands.len() {
                         return Err("returned invocation changes its actual parameter roster");
                     }
-                    let structural_inputs = parameters
-                        .iter()
-                        .zip(call.argument_operands().handles())
-                        .enumerate()
-                        .filter(|(_, (parameter, _))| {
-                            super::super::is_mutable_structural_parameter(self.program, parameter)
-                        })
-                        .map(|(position, (parameter, operand))| (position, parameter, operand))
-                        .collect::<Vec<_>>();
                     let sources = self
                         .target_sources(call.target_symbol, active)
                         .ok_or("returned invocation has no checked origin relation")?;
@@ -2345,10 +2336,14 @@ pub(crate) mod captured_returns {
                         else {
                             return Err("returned invocation has an independent, non-input origin");
                         };
-                        let &(position, parameter, input) =
-                            structural_inputs
-                                .get(index as usize)
+                        let (position, parameter) =
+                            super::super::origin_formal(self.program, parameters, index)
                                 .ok_or("returned invocation origin has no matching input")?;
+                        let input = call
+                            .argument_operands()
+                            .handles()
+                            .nth(position)
+                            .ok_or("returned invocation origin has no matching input")?;
                         let operand = &operands[position];
                         if operand.state_symbol != state.symbol
                             || operand.statement_index != call.statement_index
@@ -2482,13 +2477,8 @@ pub(crate) mod captured_returns {
                         independent.push(candidate);
                         continue;
                     };
-                    let (position, parameter) = parameters
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, parameter)| {
-                            super::super::is_mutable_structural_parameter(self.program, parameter)
-                        })
-                        .nth(*index as usize)?;
+                    let (position, parameter) =
+                        super::super::origin_formal(self.program, parameters, *index)?;
                     let operand = operands.get(position)?;
                     if operand.state_symbol != state.symbol
                         || operand.statement_index != call.statement_index
@@ -3218,8 +3208,9 @@ pub(crate) mod captured_returns {
             Captures, CheckedReferenceOriginProjection, CheckedStructuralValueKind,
             CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
             ExpressionHandle, StoredCarrierSource, SymbolHandle, TypeReferenceHandle,
-            is_mutable_structural_parameter, loan_place_segments, stored_carrier_sources,
+            loan_place_segments, stored_carrier_sources,
         };
+        use crate::reference_result_custody::origin_formal;
 
         impl<'capture> Captures<'capture> {
             pub(crate) fn call_paths(
@@ -3246,13 +3237,8 @@ pub(crate) mod captured_returns {
                             continue;
                         }
                     };
-                    let (position, parameter) = parameters
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, parameter)| {
-                            is_mutable_structural_parameter(self.program, parameter)
-                        })
-                        .nth(parameter_index as usize)?;
+                    let (position, parameter) =
+                        origin_formal(self.program, parameters, parameter_index)?;
                     let operand = operands.get(position)?;
                     let present = if crate::reference_shell(self.program, parameter.type_reference)
                         .is_some()
@@ -3387,14 +3373,11 @@ pub(crate) mod captured_returns {
                             CheckedUnitStructuralArgumentSourcePlan::Parameter {
                                 parameter_index,
                             } => {
-                                let parameter = self
-                                    .program
-                                    .state_parameters(state)
-                                    .iter()
-                                    .filter(|parameter| {
-                                        is_mutable_structural_parameter(self.program, parameter)
-                                    })
-                                    .nth(parameter_index as usize)?;
+                                let (_, parameter) = origin_formal(
+                                    self.program,
+                                    self.program.state_parameters(state),
+                                    parameter_index,
+                                )?;
                                 self.ingress_present(state, parameter.symbol)?
                             }
                             _ => return None,
@@ -6845,14 +6828,58 @@ const MAX_REFERENCE_ORIGIN_LEAVES: usize = 4096;
 const MAX_REFERENCE_ORIGIN_VISITS: usize = MAX_REFERENCE_ORIGIN_LEAVES * 2;
 const MAX_REFERENCE_ORIGIN_DEPTH: usize = 128;
 
-pub(crate) fn is_mutable_structural_parameter(
+/*
+    Whether a formal owns a slot in the caller's structural argument roster.
+    Published reference origins count only these slots, and lowering indexes
+    the same dense roster, so the rule has to be this one predicate: an erased
+    formal has no runtime slot, and counting it shifts every later origin.
+*/
+pub fn is_mutable_structural_parameter(
     program: &dyn CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     !parameter.is_const
+        && (!parameter.relevance.is_erased() || parameter.is_mutable)
         && program
             .primitive_type_reference(parameter.type_reference)
             .is_none()
+}
+
+/*
+    The authored position and formal named by a published origin's structural
+    index. `None` when the callee has no such slot; callers must refuse then,
+    because an origin that names no input proves nothing about the result.
+*/
+pub fn origin_formal<'parameters>(
+    program: &dyn CheckingInput,
+    parameters: &'parameters [typed_trees::signature::StateParameter],
+    index: u32,
+) -> Option<(usize, &'parameters typed_trees::signature::StateParameter)> {
+    parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| is_mutable_structural_parameter(program, parameter))
+        .nth(usize::try_from(index).ok()?)
+}
+
+/*
+    The inverse of `origin_formal`: the structural index a published origin
+    carries for the formal `symbol`. The side that publishes an origin and the
+    sides that read it count the same roster here, so an index names the same
+    input on both. Counting an erased formal on one side only made the origin
+    of the second of two inputs behind an erased one name no input at all.
+*/
+pub fn origin_index<'parameters>(
+    program: &dyn CheckingInput,
+    parameters: &'parameters [typed_trees::signature::StateParameter],
+    symbol: SymbolHandle,
+) -> Option<(u32, &'parameters typed_trees::signature::StateParameter)> {
+    let (index, parameter) = parameters
+        .iter()
+        .filter(|parameter| is_mutable_structural_parameter(program, parameter))
+        .enumerate()
+        .find(|(_, parameter)| parameter.symbol == symbol)?;
+    Some((u32::try_from(index).ok()?, parameter))
 }
 
 fn reference_origin_expansion_is_bounded(
@@ -8771,10 +8798,7 @@ pub fn transient_call_record_loans(
                         return true;
                     }
                 };
-                let Some(parameter) = parameters
-                    .iter()
-                    .filter(|parameter| is_mutable_structural_parameter(program, parameter))
-                    .nth(parameter_index as usize)
+                let Some((_, parameter)) = origin_formal(program, parameters, parameter_index)
                 else {
                     return false;
                 };
@@ -9125,12 +9149,8 @@ pub fn source_leaf(
     else {
         return None;
     };
-    let (position, parameter) = program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| is_mutable_structural_parameter(program, parameter))
-        .nth(parameter_index as usize)?;
+    let (position, parameter) =
+        origin_formal(program, program.state_parameters(state), parameter_index)?;
     if stored_loan_parts(program, parameter.type_reference).is_some()
         || !is_reference_record(program, parameter.type_reference)
         || !matches!(
@@ -9163,17 +9183,8 @@ fn reference_sources_parameter(
         else {
             return None;
         };
-        let (position, _) = program
-            .state_parameters(state)
-            .iter()
-            .enumerate()
-            .filter(|(_, formal)| {
-                !formal.is_const
-                    && program
-                        .primitive_type_reference(formal.type_reference)
-                        .is_none()
-            })
-            .nth(parameter_index as usize)?;
+        let (position, _) =
+            origin_formal(program, program.state_parameters(state), parameter_index)?;
         if parameter.is_some_and(|prior| prior != position) {
             return None;
         }

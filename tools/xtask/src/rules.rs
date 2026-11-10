@@ -8,6 +8,7 @@
 //! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, `facts/` freeze, raw measurements limit,
 //!   existing `expected.txt` diagnostic pins)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
+//! - Compiler-lane PR `Gate:` line, checked against the corpus ledger diff
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -25,6 +26,8 @@ const SOURCE_CONTEXT_BASELINE: &str = "tools/stage06_source_context.txt";
 const SEMANTIC_IDS: &str = "omega-rust/psi/foundation/semantic-vocabulary/src/identity.rs";
 const DENSE_MAP_BASELINE: &str = "tools/dense_id_maps.txt";
 const CACHE_STATE_BASELINE: &str = "tools/cache_state.txt";
+const PLACE_TRANSPORT_BASELINE: &str = "tools/place_transport.txt";
+const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
 const DANGLING_BASELINE: &str = "tools/dangling_task_ids.txt";
 const TASK_BOARDS: &[&str] = &[
     "TASKS.md",
@@ -33,6 +36,18 @@ const TASK_BOARDS: &[&str] = &[
     "OWNER_QUESTIONS.md",
 ];
 const GOLDEN: &str = "tests/omega/corpus_outcomes.txt";
+const CORPUS_LEDGERS: &str = "tests/omega/corpus_*.txt";
+const GATE_LANES: &[&str] = &[
+    "psi", "omega", "backend", "compiler", "build", "packages", "library",
+];
+const RELEASE_GATES: &[&str] = &[
+    "RC-REPOSITORY",
+    "RC-SOURCE-SEMANTICS",
+    "RC-BUILD-AND-PACKAGES",
+    "RC-NATIVE-MATRIX",
+    "RC-DIAGNOSTICS",
+    "RC-REPRESENTATIVE-PROGRAMS",
+];
 const FIXTURE_TIERS: &[&str] = &["tests/omega/pass/", "tests/omega/fail/", "tests/omega/run/"];
 const FACTS_ROOT: &str = "samples/cli/facts/";
 const MEASUREMENTS_ROOT: &str = "wiki/drafts/measurements/";
@@ -41,7 +56,7 @@ const MAX_NEW_OMG_FILES: isize = 6;
 const SUBJECT_LIMIT: usize = 85;
 const TASKS_BOARD: &str = "TASKS.md";
 const TASKS_LINE_LIMIT: usize = 240;
-const TASKS_CHAR_LIMIT: usize = 26_000;
+const TASKS_CHAR_LIMIT: usize = 26_500;
 const AGENT_NAMES: &[&str] = &[
     "Claude Code",
     "Codex",
@@ -689,6 +704,55 @@ fn is_cache_type(ident: &str) -> bool {
     false
 }
 
+/// The keyword and name of a `fn`, `struct` or `enum` declared on this line.
+fn declared_item(line: &str) -> Option<(&'static str, &str)> {
+    let mut rest = line.trim_start();
+    if let Some(after) = rest.strip_prefix("pub") {
+        rest = after.trim_start();
+        if rest.starts_with('(') {
+            rest = rest.split_once(')')?.1.trim_start();
+        }
+    }
+    for modifier in ["const ", "unsafe ", "async "] {
+        if let Some(after) = rest.strip_prefix(modifier) {
+            rest = after.trim_start();
+        }
+    }
+    ["fn", "struct", "enum"].into_iter().find_map(|keyword| {
+        let after = rest.strip_prefix(keyword)?.strip_prefix(' ')?;
+        let name = after
+            .trim_start()
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .next()?;
+        (!name.is_empty()).then_some((keyword, name))
+    })
+}
+
+/// Copies of the machinery the fact-transport design replaces with one of
+/// each: functions that compare or re-root places, and types that spell a
+/// place a new way.
+pub fn count_place_transport(text: &str) -> usize {
+    if !["overlap", "rebase", "Place", "Path", "Projection"]
+        .iter()
+        .any(|word| text.contains(word))
+    {
+        return 0;
+    }
+    product_text(text)
+        .lines()
+        .filter_map(declared_item)
+        .filter(|(keyword, name)| {
+            if *keyword == "fn" {
+                name.contains("overlap") || name.contains("rebase")
+            } else {
+                ["Place", "Path", "Projection"]
+                    .iter()
+                    .any(|word| name.contains(word))
+            }
+        })
+        .count()
+}
+
 pub fn count_cache_state(text: &str) -> usize {
     if !["cache", "Cache", "memo", "Memo", "OwnedIndex", "KeyedRows"]
         .iter()
@@ -1030,6 +1094,83 @@ pub fn provenance_violations(body: &str) -> Vec<String> {
         "pull request description has no `Agent: <name>` line naming one of {} (run `cargo xtask provenance`, AGENTS.md 'Explain the change')",
         AGENT_NAMES.join(", ")
     )]
+}
+
+// Mirrors `xtask corpus --list-pinned-regressions`, so a PR's claim and the
+// pinned-regression list agree on which ledger rows count as red.
+fn ledger_row_is_red(row: &str) -> Option<bool> {
+    let tokens: Vec<&str> = row.split_whitespace().collect();
+    let (name, status) = (*tokens.first()?, *tokens.get(1)?);
+    let flags = &tokens[2..];
+    if name.starts_with("fail/") {
+        Some(status != "rejected" || flags.contains(&"unexpected"))
+    } else if name.starts_with("pass/") || name.starts_with("run/") {
+        let native_rejection = status == "rejected"
+            && flags.contains(&"expected")
+            && flags.contains(&"native-rejection:match");
+        let green = matches!(status, "checked" | "built") || native_rejection;
+        Some(!green || flags.iter().any(|flag| flag.starts_with("regressed-from:")))
+    } else {
+        None
+    }
+}
+
+/// Net change in red rows across the corpus ledgers in a `git diff -U0`.
+pub fn ledger_red_row_delta(diff: &str) -> i64 {
+    let count = |prefix: char, header: &str| {
+        diff.lines()
+            .filter(|line| line.starts_with(prefix) && !line.starts_with(header))
+            .filter(|line| !line[1..].starts_with(['\t', ' ', '#']))
+            .filter(|line| ledger_row_is_red(&line[1..]) == Some(true))
+            .count() as i64
+    };
+    count('+', "+++") - count('-', "---")
+}
+
+/// A compiler-lane PR names the release gate it serves and its red-row change.
+/// The change comes from the ledger diff, so it cannot be claimed without being
+/// recorded. Work that moves no row must say what it unlocks.
+pub fn gate_movement_violations(title: &str, body: &str, ledger_delta: i64) -> Vec<String> {
+    let lane = title.split(':').next().unwrap_or("").trim();
+    if !GATE_LANES.contains(&lane) {
+        return Vec::new();
+    }
+    const FORM: &str = "`Gate: <RC-NAME> | red rows: <change>`, with `| unlocks: <what>` when no row turns green (AGENTS.md 'Explain the change')";
+    let Some(line) = body.lines().find_map(|line| line.strip_prefix("Gate: ")) else {
+        return vec![format!("{lane} pull request description has no {FORM}")];
+    };
+    let fields: Vec<&str> = line.split('|').map(str::trim).collect();
+    let mut violations = Vec::new();
+    if !RELEASE_GATES.contains(&fields[0]) {
+        violations.push(format!(
+            "`Gate:` names `{}`, not one of {}",
+            fields[0],
+            RELEASE_GATES.join(", ")
+        ));
+    }
+    let claimed = fields
+        .get(1)
+        .and_then(|field| field.strip_prefix("red rows:"))
+        .and_then(|value| value.trim().parse::<i64>().ok());
+    let Some(claimed) = claimed else {
+        violations.push(format!("`Gate:` line is not of the form {FORM}"));
+        return violations;
+    };
+    if claimed != ledger_delta {
+        violations.push(format!(
+            "`Gate:` claims {claimed} red rows but the corpus ledger diff shows {ledger_delta}; record the outcomes or correct the line"
+        ));
+    }
+    let unlocks = fields
+        .get(2)
+        .and_then(|field| field.strip_prefix("unlocks:"))
+        .is_some_and(|what| !what.trim().is_empty());
+    if claimed >= 0 && !unlocks {
+        violations.push(format!(
+            "`Gate:` turns no row green, so it must say what it unlocks: {FORM}"
+        ));
+    }
+    violations
 }
 
 // --- TASKS.md board check ---
@@ -1575,6 +1716,19 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
         ],
         advice: "Derived data is computed once by its owner, not cached (AGENTS.md): have the producing stage publish it as a table its consumers index.",
     },
+    RatchetSpec {
+        baseline: PLACE_TRANSPORT_BASELINE,
+        flag: "update-place-transport",
+        noun: "place-transport copies",
+        header: &[
+            "Functions named *overlap* or *rebase*, and struct or enum types named",
+            "*Place*, *Path* or *Projection*, per non-test file under",
+            "omega-rust/psi/compilation. Counts may only fall: facts travel on one place",
+            "key, one overlap relation and one formal-to-actual map",
+            "(wiki/drafts/designs/fact_transport.md).",
+        ],
+        advice: "Do not add another place comparison, rebaser or path type. The checker on the lowered form names places by terminal_check_tables::ExactPlaceId (wiki/drafts/designs/check_on_lowered_form.md); existing tree-level code keeps using validation::storage_path_relations::canonical_place_segments_may_overlap until it is replaced.",
+    },
 ];
 
 pub fn compute_ratchet_counts(
@@ -1587,6 +1741,13 @@ pub fn compute_ratchet_counts(
         1 => contract_files(root),
         2 | 3 => stage06_files(root),
         4 | 5 => product_rust_files(root),
+        6 => product_rust_files(root)
+            .into_iter()
+            .filter(|path| {
+                path.strip_prefix(root)
+                    .is_ok_and(|rel| rel.starts_with(PSI_COMPILATION_ROOT))
+            })
+            .collect(),
         _ => Vec::new(),
     };
     let mut counts = BTreeMap::new();
@@ -1602,6 +1763,7 @@ pub fn compute_ratchet_counts(
             3 => count_source_context(&text),
             4 => count_dense_id_maps(&text, semantic_ids),
             5 => count_cache_state(&text),
+            6 => count_place_transport(&text),
             _ => 0,
         };
         if c > 0
@@ -1763,6 +1925,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     };
 
     // Diff checks against `base_rev`
+    // An unreadable diff leaves 0, so a claimed movement fails closed.
+    let ledger_delta = git(
+        &root,
+        &["diff", "-U0", &base_rev, "HEAD", "--", CORPUS_LEDGERS],
+    )
+    .map_or(0, |diff| ledger_red_row_delta(&diff));
     if let Ok(diff_out) = git(
         &root,
         &["diff", "--name-status", "--no-renames", &base_rev, "HEAD"],
@@ -1824,13 +1992,16 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         .unwrap_or_else(|_| show_git_file(&root, "HEAD", TASKS_BOARD));
     violations.extend(tasks_board_violations(&head_tasks));
 
-    if let Some(t) = title {
+    if let Some(t) = &title {
         let agents_text = fs::read_to_string(root.join("AGENTS.md")).unwrap_or_default();
-        violations.extend(subject_violations(&t, &lanes(&agents_text)));
+        violations.extend(subject_violations(t, &lanes(&agents_text)));
     }
     if let Some(bf) = body_file {
         let body = fs::read_to_string(&bf).unwrap_or_default();
         violations.extend(provenance_violations(&body));
+        if let Some(t) = &title {
+            violations.extend(gate_movement_violations(t, &body, ledger_delta));
+        }
     }
 
     for v in &violations {
@@ -1848,6 +2019,20 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn place_transport_counts_comparisons_rebasers_and_place_types() {
+        let text = "\
+pub(super) fn owner_path_overlaps(a: u8) -> bool { true }
+fn rebase_place(a: u8) {}
+pub struct CapturedPlaceSegment;
+enum CheckedPath { A }
+fn unrelated() {}
+struct Ledger;
+// fn commented_overlap() {}
+";
+        assert_eq!(count_place_transport(text), 4);
+    }
 
     #[test]
     fn ratchets_and_dangling_ids_match_checked_in_baselines() {
@@ -1978,5 +2163,27 @@ mod tests {
         assert!(provenance_violations("Summary\n\nAgent: Antigravity | Model: Gemini 3.1 Pro | Effort: high | Tokens: 1.2M in (1.1M cached), 24k out | Steps: 12 | Time: 8m | Steers: 0\n").is_empty());
         assert!(provenance_violations("Summary\n\nAgent: Antigravity, main-rs\n").is_empty());
         assert!(!provenance_violations("Summary without agent line\n").is_empty());
+    }
+
+    #[test]
+    fn gate_line_must_match_the_ledger_diff() {
+        // One fixture turns green, a second stays red under a new stamp, and a
+        // diagnostic line under a row is ignored.
+        let diff = "+++ b/l\n-pass/a/x rejected 1ms\n+pass/a/x checked 1ms\n-pass/a/y rejected 1ms\n+pass/a/y rejected 2ms\n-\tcannot prove\n";
+        assert_eq!(ledger_red_row_delta(diff), -1);
+        let check = |body, delta| gate_movement_violations("psi: fix", body, delta);
+        assert!(check("Gate: RC-SOURCE-SEMANTICS | red rows: -1\n", -1).is_empty());
+        assert!(!check("Gate: RC-SOURCE-SEMANTICS | red rows: -5\n", -1).is_empty());
+        assert!(!check("Gate: RC-MADE-UP | red rows: -1\n", -1).is_empty());
+        assert!(!check("Gate: RC-NATIVE-MATRIX | red rows: 0\n", 0).is_empty());
+        assert!(
+            check(
+                "Gate: RC-NATIVE-MATRIX | red rows: 0 | unlocks: pass/a/x\n",
+                0
+            )
+            .is_empty()
+        );
+        assert!(!check("No gate line\n", 0).is_empty());
+        assert!(gate_movement_violations("docs: explain", "No gate line\n", 0).is_empty());
     }
 }

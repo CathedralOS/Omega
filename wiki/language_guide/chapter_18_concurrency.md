@@ -300,6 +300,43 @@ connection. Use task-per-connection when its stack plans and population fit
 your storage budget. The [blocking-executor package](../../source/library/blocking-executor/README.md)
 describes the bounded-worker building blocks and provider work.
 
+## Step an activation yourself
+
+A task hands the right to resume its activation to a runtime. You can hold that
+right instead and run a producer one piece at a time. The producer is an
+ordinary machine that pauses with the same `suspend` marker; there is no `yield`
+keyword. The names below illustrate the planned core library:
+
+```omega
+data Announcement { first: u32; second: u32; }
+
+machine announce(out: &mut Emitter<u32>, job: Announcement) suspends {
+    suspend Emitter::emit(out, job.first);
+    suspend Emitter::emit(out, job.second);
+}
+
+machine drain(generator: Generator<u32>) suspends {
+    transition suspend Generator::next(move generator) {
+        Next::Item { value, generator } -> suspend handle(value, move generator)
+        Next::Finished -> done()
+    }
+    machine handle(value: u32, generator: Generator<u32>) suspends {
+        use_value(value);
+        suspend drain(move generator)
+    }
+    machine done() {}
+}
+```
+
+Each `next` runs `announce` on its own fixed stack until it emits or returns,
+then control comes back to `drain` with the item and the generator to continue.
+The generator is linear. Finish it, answer an item with stop so the producer runs
+its cleanup, or move it to another owner; a paused activation is never dropped.
+A producer that waits on something other than its own emits makes `next` wait
+too, which is why it carries `suspend` here. Schedulers and tasks are libraries
+over the same stepping operation. See
+[owned activations](../spec/build/task_runtime.md#owned-activations-and-typed-replies).
+
 ## Safe points and response time
 
 A scheduler can preempt and restore a task's register and stack state between

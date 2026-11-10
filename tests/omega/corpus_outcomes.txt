@@ -1299,6 +1299,10 @@ fail/borrows/empty_array_snapshot_requires_read_authority rejected 325ms expecte
 	machine `snapshot` state `entry` reads through index projection of write-only parameter `rows`; `&write` permits admitted fixed-array element replacement but never observation
 fail/borrows/erased_cast_borrow_overlaps_mutable_borrow rejected 5526ms expected @f2672d675498
 	state `both` receives `t` as both mutable and read-only
+fail/borrows/erased_input_before_returned_reference_live_source_write rejected 6684ms expected @7e859cc5b918
+	statement 1 mutates `one` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/borrows/erased_input_before_second_returned_reference_live_source_write rejected 6691ms expected @7e859cc5b918
+	statement 1 mutates `two` while local borrow `chosen` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 2406ms expected @ccdb99ca2214
 	statement 3 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/exclusive_reference_array_copy rejected 1965ms expected @ccdb99ca2214
@@ -2568,9 +2572,9 @@ fail/calls/closed_constructor_generic_field_recast_not_identity rejected 17514ms
 	cannot prove requires contract for call take from Main::main: view.value > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/calls/closed_constructor_inline_projection_divergence_unknown rejected 108363ms expected @0d0c11daa127
 	specification call `projected` is not denotational: the selected machine is not unconditionally terminating
-fail/calls/closed_constructor_projection_reference_result_rejected rejected 16430ms expected @ccdb99ca2214
+fail/calls/closed_constructor_projection_reference_result_rejected rejected 13084ms expected @c1f462d311c1
 	fact-position projection from call `zero` is not denotational: the selected call closure observes or mutates hidden state, uses atomic/external machinery, or contains a non-checked target
-	specification call `View::zero` has no observation-free, reach-free, crash-free value denotation: the selected closure contains runtime observations or mutable storage
+	specification call `View::zero` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/calls/closed_constructor_projection_runtime_receiver_rejected rejected 15980ms expected @ccdb99ca2214
 	fact-position projection from call `zero` is not denotational: only one direct free call with non-call runtime arguments is admitted
 fail/calls/closed_constructor_requires_alias_write_rejected rejected 33087ms expected @e3a0a3c77bb4
@@ -2593,6 +2597,8 @@ fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 17163ms 
 	cannot prove requires contract: machine `Main::main` state `main` value call to `take` violates required fact `core::Identity<Point>(point, Point.zero())`: the instantiated fact is structurally false
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/calls/composed_index_case_selector_write_retires rejected 28131ms expected @a9b71e8de5dd
+	cannot prove requires contract for call keep from take: addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && key <= 8191 - next && owner.slots[next + key] == constructor:78:package:bbfa6a54f926133547d32f7eb71fa55510a3d0ffca4361ddde6ff5cb00dc9116::Slot10:name:Empty (needs fact `addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && key <= 8191 - next && owner.slots[next + key] == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/computed_zero_requires_argument_rejected rejected 15362ms expected @ccdb99ca2214
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false (`0 != 0`)
 fail/calls/const_boundary_rejects_other_bound rejected 742ms expected @101f66e2f97e
@@ -2674,6 +2680,8 @@ fail/calls/immutable_arg_for_mut_param_rejected rejected 14508ms unexpected @ccd
 	store in machine `handle` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/calls/immutable_local_requires_argument_rejected rejected 15177ms expected @ccdb99ca2214
 	cannot prove requires contract for call scale from Main::main: d != 0 (needs fact `divisor != 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/calls/indexed_case_pool_transition_without_guard rejected 25580ms expected @a9b71e8de5dd
+	cannot prove requires contract for call take from reserve: addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && owner.slots[next] == constructor:78:package:13aa8f08a8d51d8bd69e69ee1f5ae060ad7345394229859c1e183ddbcbec2367::Slot10:name:Empty (needs fact `addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && owner.slots[next] == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/indexed_case_successor_unproved_bound rejected 2919ms expected @ccdb99ca2214
 	cannot prove index `index` is within unknown slice length of `cells` in read::entry
 fail/calls/member_literal_requires_argument_rejected rejected 15050ms expected @ccdb99ca2214
@@ -3062,7 +3070,7 @@ fail/collections/stored_reference_array_sibling_extent rejected 2529ms expected 
 	cannot prove requires contract for call observe from main: windows[0].len == windows[1].len (needs fact `windows[0].len == windows[1].len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/collections/stored_reference_array_stale_extent rejected 5130ms expected @645f21c6d94f
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && saved == 1 (needs fact `windows[0].len == 1 && saved == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/collections/typed_run_relocation_stable rejected 4674ms expected @3d4c787d6167
+fail/collections/typed_run_relocation_stable rejected 2210ms expected @96c6b89f7ad7
 	run relocation requires address: movable for the retained element type
 fail/collections/typed_run_sum_array_double_drop rejected 9401ms expected @089c0a150e63
 	cannot use `value` in machine `released` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
@@ -3480,6 +3488,10 @@ fail/contracts/overwritten_requirement_cannot_rule_out_branch rejected 2011ms ex
 	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/contracts/primitive_float_equality_not_reflexive rejected 6594ms expected @ceec2d4e7d8b
 	cannot prove ensures contract for exit from wrong_reflexivity at statement 0: result == value
+fail/contracts/private_arrival_field_case rejected 3664ms expected @3cc4d80d3988
+	machine `read_field` state `entry` statement 0: cannot prove selected case for payload access `r.slot.value`: captured source `r.slot::Present.value` has no live case evidence: the current source does not select its required case
+fail/contracts/private_arrival_open_callable_case rejected 3807ms expected @3cc4d80d3988
+	machine `read_root` state `entry` statement 0: cannot prove selected case for payload access `s.value`: captured source `s::Present.value` has no live case evidence: the current source does not select its required case
 fail/contracts/private_counter_callable_input_alternatives rejected 7939ms expected @edd05427fd02
 	cannot prove requires contract for call require_zero from zero_or_one: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call require_zero from zero_or_any: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -3708,8 +3720,8 @@ fail/control_flow/qualified_case_wrong_carrier rejected 1904ms expected @ccdb99c
 	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
 	machine `read` state `entry` uses `shapes`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `read` state `entry` uses `shapes`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/control_flow/saved_case_predicate_guard_write_retires rejected 2644ms expected @ccdb99ca2214
-	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/control_flow/saved_case_predicate_guard_write_retires rejected 2161ms expected @0c71efeee94c
+	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 fail/control_flow/saved_case_predicate_local_write_retires rejected 7066ms expected @b45dc4f7989c
 	machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected rejected 3096ms expected @ccdb99ca2214
@@ -5127,8 +5139,8 @@ fail/drops/borrowed_replacement_old_hook_prerequisite rejected 10332ms expected 
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: holder.token does not establish drop_token clause `token.value == 7`
 fail/drops/borrowed_selected_cleanup_missing_child_requirement rejected 11058ms expected @b45dc4f7989c
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 1: elements[__hoist_2].child does not establish drop_child clause `child.value == 7`
-fail/drops/borrowed_temporary_projection_retains_owner_disposition rejected 7713ms expected @ee4dbb4b2d56
-	cannot automatically dispose borrowed temporary `named(name(nominal\\(package-owner\\(32:e9c1cb83be99d2d9adcf0d52daa2bbeee8120717bff12c4e2a43536f4df3fe1b\\)\\,path\\(Pair\\)\\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
+fail/drops/borrowed_temporary_projection_retains_owner_disposition rejected 2941ms expected @c1f462d311c1
+	cannot automatically dispose borrowed temporary `named(name(nominal\\(package-owner\\(32:8d44e36f462095dcdd2d00f875736f93d9b1cb027b033b6e280d86da85fbd53d\\)\\,path\\(Pair\\)\\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
 fail/drops/claim_bearing_temporary_hook_prerequisite rejected 8775ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Pair.second does not establish drop_receipt clause `receipt.code == 7`
 fail/drops/claim_bearing_temporary_requires_disposition rejected 1384ms expected @ccdb99ca2214
@@ -11639,23 +11651,23 @@ fail/facts/runtime_index_application_computed_result_through_parameter_rejected 
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_computed_result_through_target_body_rejected rejected 801ms expected @ccdb99ca2214
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_call_result_rejected rejected 2311ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_call_result_rejected rejected 8235ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_const_name_rejected rejected 3692ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_const_name_rejected rejected 7621ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_field_rejected rejected 2005ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_field_rejected rejected 7575ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_local_rejected rejected 1937ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_local_rejected rejected 7564ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_match_join_rejected rejected 2104ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_match_join_rejected rejected 8245ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_other_machine_rejected rejected 3194ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_other_machine_rejected rejected 8239ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_other_state_rejected rejected 3141ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_other_state_rejected rejected 8217ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_parameter_rejected rejected 3074ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_parameter_rejected rejected 8815ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_computed_through_target_body_rejected rejected 1824ms expected @911f6617ba9e
+fail/facts/runtime_index_application_computed_through_target_body_rejected rejected 8190ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_contract_index_through_call_result_rejected rejected 2286ms expected @4a93353f8274+wt
@@ -11825,28 +11837,28 @@ fail/facts/runtime_index_application_qualified_computed_through_parameter_reject
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_qualified_computed_through_target_body_rejected rejected 595ms expected @ccdb99ca2214
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_call_result_rejected rejected 1832ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_call_result_rejected rejected 8089ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_const_name_rejected rejected 2067ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_const_name_rejected rejected 6276ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_field_rejected rejected 1840ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_field_rejected rejected 8045ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_local_rejected rejected 3296ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_local_rejected rejected 8804ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_match_join_rejected rejected 3482ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_match_join_rejected rejected 8468ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_other_machine_rejected rejected 1937ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_other_machine_rejected rejected 7126ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_other_state_rejected rejected 1849ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_other_state_rejected rejected 7036ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_selected_operator_through_parameter_rejected rejected 3575ms expected @911f6617ba9e
+fail/facts/runtime_index_application_selected_operator_through_parameter_rejected rejected 7924ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_selected_operator_through_target_body_rejected rejected 3854ms expected @25f8bb78090b
@@ -13043,15 +13055,15 @@ fail/facts/state_transition_ranking_bound_through_target_body_rejected rejected 
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/static_callback_reach_boundary_schema rejected 1322ms expected @ccdb99ca2214
 	machine `TraversalCode::traverse$specialized$e7faf60c2b169585$0` state `traverse` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`value <= 37 && 38 <= 37`)
-fail/facts/static_callback_reach_captured_schema rejected 1477ms expected @ccdb99ca2214
+fail/facts/static_callback_reach_captured_schema rejected 7307ms expected @e219f82df288
 	machine argument `quiet` for `Selected` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
-fail/facts/static_callback_reach_captured_scope rejected 1575ms expected @ccdb99ca2214
+fail/facts/static_callback_reach_captured_scope rejected 8058ms expected @e219f82df288
 	machine argument `quiet` for `Selected` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
-fail/facts/static_callback_reach_captured_selection rejected 1270ms expected @ccdb99ca2214
+fail/facts/static_callback_reach_captured_selection rejected 6406ms expected @e219f82df288
 	machine argument `quiet` for `Selected` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
-fail/facts/static_callback_reach_captured_shadow rejected 1312ms expected @ccdb99ca2214
+fail/facts/static_callback_reach_captured_shadow rejected 6255ms expected @e219f82df288
 	generic machine `choose` cannot bind `Operations` to conformance `Selected`: expected a complete `Getter` implementation with the instantiated trait arguments
-fail/facts/static_callback_reach_captured_unused rejected 1189ms expected @ccdb99ca2214
+fail/facts/static_callback_reach_captured_unused rejected 6326ms expected @e219f82df288
 	machine argument `quiet` for `Selected` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
 fail/facts/static_callback_reach_evidence_scope rejected 1091ms expected @ccdb99ca2214
 	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [Operations], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:c0958f5b7dc477d30d95f0f69e746eb3d2df0b1d64e08817a96d5d2e25ed3d58\\\\)\\\\,path\\\\(MarkerCode\\\\)\\\\)))"), required Some("named(name(nominal\\\\(package-owner\\\\(32:c0958f5b7dc477d30d95f0f69e746eb3d2df0b1d64e08817a96d5d2e25ed3d58\\\\)\\\\,path\\\\(OtherMarkerCode\\\\)\\\\)))")
@@ -19501,6 +19513,7 @@ pass/borrows/data_copy_property checked 3567ms @ccdb99ca2214
 pass/borrows/disjoint_branch_closure_with_grandchild checked 3747ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/dynamic_window_return_custody_exit checked 3289ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/enum_selected_view_reference_exit checked 16593ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/erased_input_before_returned_reference_exit checked 7151ms check-target:macos_arm64 @7e859cc5b918
 pass/borrows/exclusive_array_parameter_shared_lend_exit checked 16453ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/explicit_lifetime_select checked 3214ms @ccdb99ca2214
 pass/borrows/fixed_array_reference_backing_exit checked 3715ms check-target:macos_arm64 @ccdb99ca2214
@@ -20231,6 +20244,7 @@ pass/calls/runtime_case_terminal_payload_result_exit checked 3223ms check-target
 pass/calls/runtime_closed_constructor_requires_exit checked 38418ms check-target:macos_arm64 @089c0a150e63
 pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit checked 2845ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_completed_operand_then_shared_borrow_exit checked 2803ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_composed_index_case_pool_transition_exit checked 67973ms check-target:macos_arm64 @0c71efeee94c
 pass/calls/runtime_computed_case_subject_affine_argument_exit checked 3444ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_computed_case_terminal_payload_result_exit checked 3387ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_constant_tail_requires_argument_exit checked 25115ms check-target:macos_arm64 @089c0a150e63
@@ -20283,6 +20297,7 @@ pass/calls/runtime_guarded_terminal_reference_result_exit checked 3695ms check-t
 pass/calls/runtime_guarded_terminal_reference_write_exit checked 3680ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 3556ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_heterogeneous_case_argument_exit checked 3931ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_indexed_case_pool_transition_exit checked 65306ms check-target:macos_arm64 @0c71efeee94c
 pass/calls/runtime_indexed_module_guard_operands_exit checked 3503ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_indexed_scalar_calls_exit checked 16334ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_inherited_membership_argument_snapshot_exit checked 3542ms check-target:macos_arm64 @ccdb99ca2214
@@ -20602,7 +20617,7 @@ pass/collections/runtime_whole_array_value_copy_exit checked 5630ms check-target
 pass/collections/shared_slice_view_dropped_receiver checked 86576ms check-target:macos_arm64 @898dd1bf8987
 pass/collections/std_option_runtime_match_exit checked 17317ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/std_option_surface checked 2089ms @ccdb99ca2214
-pass/collections/typed_run_relocation_exit checked 41222ms check-target:macos_arm64 @3d4c787d6167
+pass/collections/typed_run_relocation_exit checked 18527ms check-target:macos_arm64 @96c6b89f7ad7
 pass/collections/typed_run_sum_array_exit checked 28553ms check-target:macos_arm64 @089c0a150e63
 pass/collections/view_record_element_member_read_exit checked 20495ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/zero_length_byte_array_admission checked 2088ms @ccdb99ca2214
@@ -20657,8 +20672,7 @@ pass/constants/const_data_param checked 3254ms @ccdb99ca2214
 pass/constants/constant_bound_distance checked 3990ms @ccdb99ca2214
 pass/constants/direct_named_implementation_initializer_exit checked 7376ms check-target:macos_arm64 @923ef974b33c
 pass/constants/lexical_const_shadow checked 4267ms @ccdb99ca2214
-pass/constants/machine_const_indices rejected 807ms regressed-from:checked @ccdb99ca2214
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form specification operator `+` in closed const argument: no exact selected meaning", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(26), span: Span { start: 358, end: 359 } }), resolved_location: None })
+pass/constants/machine_const_indices checked 15490ms @602404d45977
 pass/constants/mathematical_constant_domain_selection rejected 806ms regressed-from:checked @ccdb99ca2214
 	constant initializer: constant initializer lost its selected construction field
 pass/constants/nested_const_projection checked 3735ms @ccdb99ca2214
@@ -20745,6 +20759,7 @@ pass/contracts/nested_case_guarantee_disjunction_exit checked 16442ms check-targ
 pass/contracts/normal_return_contextual_call_arguments_exit checked 7019ms check-target:macos_arm64 @25bbaead8c14+wt
 pass/contracts/opaque_call_preserves_model checked 4237ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/policy_field_ensures checked 3562ms @ccdb99ca2214
+pass/contracts/private_arrival_cases_exit checked 4374ms check-target:macos_arm64 @3cc4d80d3988
 pass/contracts/proof_fact_indexed_domain_application checked 11823ms @089c0a150e63
 pass/contracts/range_requires_discharge checked 3350ms @ccdb99ca2214
 pass/contracts/recurrent_call_prefix_preserves_model checked 3269ms check-target:macos_arm64 @ccdb99ca2214
@@ -20923,8 +20938,7 @@ pass/control_flow/runtime_index_state_grandchild_loan_exit checked 19148ms check
 pass/control_flow/runtime_index_state_loan_forwarding_exit checked 18208ms check-target:macos_arm64 @911f6617ba9e
 pass/control_flow/runtime_index_state_loan_snapshot_exit checked 18147ms check-target:macos_arm64 @911f6617ba9e
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 50126ms check-target:macos_arm64 @911f6617ba9e
-pass/control_flow/runtime_indexed_edge_regions_exit rejected 3771ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
+pass/control_flow/runtime_indexed_edge_regions_exit checked 17358ms check-target:macos_arm64 @602404d45977
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 12133ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_later_state_shared_array_loan checked 3086ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_local_record_array_byte_render_exit rejected 251352ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e1cfe02f1a9b
@@ -21437,8 +21451,7 @@ pass/drops/runtime_borrowed_temporary_selected_first_child_cleanup_exit checked 
 pass/drops/runtime_borrowed_temporary_shared_cohort_cleanup_exit checked 15355ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_case_selected_cleanup_continuations_exit checked 13830ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit checked 14652ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_cleanup_case_evidence_exit rejected 29628ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(24), callee: Some(MachineId(30)), operation: OperationId(281), reason: "callee stored-reference effects are unresolved" }
+pass/drops/runtime_cleanup_case_evidence_exit checked 17250ms check-target:macos_arm64 @cd110dbe60a3
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 13445ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_composed_nominal_output_hook_exit checked 12676ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_composed_nominal_return_hook_exit checked 21012ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -21474,7 +21487,7 @@ pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 40039ms check-t
 pass/drops/runtime_nested_nominal_producer_loans_exit checked 36001ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 60977ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_array_replacement_exit checked 52055ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_nominal_case_observation_exit checked 9931ms check-target:macos_arm64 @6c3dcb823e47
+pass/drops/runtime_nominal_case_observation_exit checked 2658ms check-target:macos_arm64 @fb1a2e2bda83
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 43820ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_alias_exit checked 42431ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit checked 55727ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -21489,8 +21502,7 @@ pass/drops/runtime_owned_replacement_reestablishment_exit checked 59851ms check-
 pass/drops/runtime_owner_scoped_generic_cleanup_exit rejected 10290ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	statement 2 mutates `envelope.destination` while local borrow `entry` is still active (borrowed at statement 2)
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit checked 35302ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_projected_nominal_cleanup_exit rejected 75295ms check-target:macos_arm64 terminal-runtime.exercise_unit_projection:unrequested terminal-inspections:match regressed-from:checked+check-target:macos_arm64+terminal-runtime.exercise_unit_projection:unrequested+terminal-inspections:match @ee4dbb4b2d56
-	provider completion for `named-callable(path(nominal\\(package-owner\\(32:600f2862e30c29e822721795509368d120444dfb862ee0f53f5f1871a4c2a06c\\)\\,path\\(PosixConsoleIo::write\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(named\\(name\\(i32\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` disagrees with its exact retained requirement contract
+pass/drops/runtime_projected_nominal_cleanup_exit checked 39577ms check-target:macos_arm64 terminal-runtime.exercise_unit_projection:unrequested terminal-inspections:match @2be83686053c
 pass/drops/runtime_projected_nominal_core_exit checked 34574ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_projected_reference_siblings_exit checked 16340ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_projected_reference_transition_cleanup_exit checked 11348ms check-target:macos_arm64 @ccdb99ca2214
@@ -21501,8 +21513,7 @@ pass/drops/runtime_replaced_record_scalar_exit checked 4441ms check-target:macos
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 50051ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 36188ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_scalar_temporary_residual_partition_exit checked 3713ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_case_mutation_bindings_exit rejected 40517ms check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(26), callee: Some(MachineId(8)), operation: OperationId(262), reason: "callee stored-reference effects are unresolved" }
+pass/drops/runtime_selected_case_mutation_bindings_exit checked 17100ms check-target:macos_arm64 @cd110dbe60a3
 pass/drops/runtime_selected_case_mutation_complement_exit checked 9940ms check-target:macos_arm64 @6c3dcb823e47
 pass/drops/runtime_selected_linear_residual_death_exit incomplete 41387ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	`main` calls `scenario`; `scenario` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: statement sequence: local data: structural value: operand custody)); in state `scenario::entry`, statement 1
@@ -21530,8 +21541,7 @@ pass/drops/state_loan_restores_nominal_cleanup_prerequisite rejected 10666ms che
 pass/drops/statement_result_cleanup_without_expression_home_exit checked 21672ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/statically_skipped_claim_bearing_temporary checked 2400ms @ccdb99ca2214
 pass/drops/structural_return_drop_local checked 18724ms @ee4dbb4b2d56
-pass/drops/structural_return_drops_unreturned_local_exit rejected 18620ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	provider completion for `named-callable(path(nominal\\(package-owner\\(32:44bb00f09afc250dc0f84df27b513f67ed5eb0c26a402e0c0c031922dcdf5970\\)\\,path\\(PosixConsoleIo::write\\)\\)),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(named\\(name\\(i32\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` disagrees with its exact retained requirement contract
+pass/drops/structural_return_drops_unreturned_local_exit checked 21055ms check-target:macos_arm64 @2be83686053c
 pass/drops/transfer_cleanup_into_state checked 23734ms @ee4dbb4b2d56
 pass/drops/transfer_cleanup_state checked 21027ms @ee4dbb4b2d56
 pass/drops/wildcard_owned_structural_return_cleanup_exit checked 20356ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -21617,8 +21627,7 @@ pass/expressions/match_float_subjects checked 6955ms check-target:macos_arm64 @c
 pass/expressions/match_fresh_owned checked 2173ms @ccdb99ca2214
 pass/expressions/match_operand_anonymous_operation_exit checked 11179ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_ordered_duplicate_patterns checked 2994ms @ccdb99ca2214
-pass/expressions/match_owned_authored_state_subject rejected 12666ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "completed arrival has no established block", gap: None })
+pass/expressions/match_owned_authored_state_subject checked 43608ms check-target:macos_arm64 @602404d45977
 pass/expressions/match_owned_call_product_arms checked 17896ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_call_return_values checked 12527ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/match_owned_computed_arm_arguments checked 13915ms check-target:macos_arm64 @ccdb99ca2214
@@ -21675,8 +21684,7 @@ pass/expressions/runtime_owned_match_multiple_projected_claims_exit rejected 190
 pass/expressions/runtime_owned_match_parameter_claim_replacement_exit checked 20673ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/expressions/runtime_owned_match_pattern_claim_replacement_exit checked 16152ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/expressions/runtime_owned_match_pattern_replacement_exit checked 3244ms check-target:macos_arm64 @ccdb99ca2214
-pass/expressions/runtime_owned_match_skipped_pattern_residual_cleanup_exit rejected 14240ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(12), callee: Some(MachineId(19)), operation: OperationId(152), reason: "callee stored-reference effects are unresolved" }
+pass/expressions/runtime_owned_match_skipped_pattern_residual_cleanup_exit checked 17087ms check-target:macos_arm64 @cd110dbe60a3
 pass/expressions/runtime_temporary_record_field_call_exit checked 3659ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/runtime_widened_comparison_exit checked 16091ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/scalar_match_boundary_composition_exit checked 20817ms check-target:macos_arm64 @ccdb99ca2214
@@ -21929,17 +21937,13 @@ pass/facts/body_bearing_comparison_ordered_field_calls_exit checked 14845ms chec
 pass/facts/body_bearing_comparison_saved_field_result_exit checked 14337ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_stronger_fields_exit checked 14518ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_call_result_exit checked 13336ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/facts/body_bearing_comparison_through_const_name_exit rejected 13296ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "completed call scalar operands disagree with the target signature", gap: None })
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \\"main\\", reason: \\"completed call scalar operands disagree with the target signature\\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/body_bearing_comparison_through_const_name_exit checked 33918ms check-target:macos_arm64 terminal-inspections:match @602404d45977
 pass/facts/body_bearing_comparison_through_field_exit checked 13528ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_local_exit checked 13360ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_match_join_exit checked 11615ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_other_machine_exit checked 13168ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_through_other_state_exit checked 13156ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/facts/body_bearing_comparison_through_parameter_exit rejected 12585ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "completed call scalar operands disagree with the target signature", gap: None })
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \\"main\\", reason: \\"completed call scalar operands disagree with the target signature\\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/body_bearing_comparison_through_parameter_exit checked 31290ms check-target:macos_arm64 terminal-inspections:match @602404d45977
 pass/facts/body_bearing_comparison_through_target_body_exit checked 12074ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/borrowed_content_partition_through_call_result_exit checked 7668ms check-target:macos_arm64 @a5b74c596d2d
 pass/facts/borrowed_content_partition_through_const_name_exit checked 7707ms check-target:macos_arm64 @a5b74c596d2d
@@ -25003,16 +25007,11 @@ pass/facts/state_transition_ranking_bound_through_other_state_exit checked 7107m
 pass/facts/state_transition_ranking_bound_through_parameter_exit checked 7727ms check-target:macos_arm64 @d352d5e8e77e
 pass/facts/state_transition_ranking_bound_through_target_body_exit checked 7333ms check-target:macos_arm64 @d352d5e8e77e
 pass/facts/static_callback_reach_boundary_schema checked 11247ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/facts/static_callback_reach_captured_schema rejected 12258ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	artifact control missing independent capture declaration refused for another reason: MalformedStructuralFoundation("proof scope callable differs from its emitted declaration")
-pass/facts/static_callback_reach_captured_scope rejected 12033ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	artifact control missing independent capture declaration refused for another reason: MalformedStructuralFoundation("proof scope callable differs from its emitted declaration")
-pass/facts/static_callback_reach_captured_selection rejected 11412ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	artifact control missing independent capture declaration refused for another reason: MalformedStructuralFoundation("proof scope callable differs from its emitted declaration")
-pass/facts/static_callback_reach_captured_shadow rejected 10736ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	artifact control missing independent capture declaration refused for another reason: MalformedStructuralFoundation("proof scope callable differs from its emitted declaration")
-pass/facts/static_callback_reach_captured_unused rejected 8519ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	artifact control missing independent capture declaration refused for another reason: MalformedStructuralFoundation("proof scope callable differs from its emitted declaration")
+pass/facts/static_callback_reach_captured_schema checked 74396ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
+pass/facts/static_callback_reach_captured_scope checked 77425ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
+pass/facts/static_callback_reach_captured_selection checked 74347ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
+pass/facts/static_callback_reach_captured_shadow checked 75792ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
+pass/facts/static_callback_reach_captured_unused checked 33038ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
 pass/facts/static_callback_reach_evidence_scope checked 11389ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/static_callback_reach_private_helper checked 10397ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/static_callback_reach_recursive_component checked 7483ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
@@ -25878,8 +25877,7 @@ pass/generics/runtime_const_data_array_length_exit checked 12374ms check-target:
 pass/generics/runtime_const_data_machine_call_exit rejected 6944ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form specification operator `*` in closed const argument: no exact selected meaning", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 502, end: 503 } }), resolved_location: None })
 pass/generics/runtime_const_data_multiple_instances_exit checked 12362ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_const_data_symbolic_expression_exit rejected 8662ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form specification operator `+` in closed const argument: no exact selected meaning", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 465, end: 466 } }), resolved_location: None })
+pass/generics/runtime_const_data_symbolic_expression_exit checked 30322ms check-target:macos_arm64 @602404d45977
 pass/generics/runtime_const_data_where_fact_exit checked 67646ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_const_extent_guard_floors_exit checked 7775ms check-target:macos_arm64 @b31668d9a31f
 pass/generics/runtime_const_extent_index_walk_exit checked 5103ms check-target:macos_arm64 @ddc17fff6a3c
@@ -26004,27 +26002,27 @@ pass/host/runtime_console_bounded_line_nul_crlf_exit checked 355575ms check-targ
 pass/host/runtime_console_bounded_line_partial_eof_exit checked 336605ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/host/runtime_console_byte_echo_exit checked 330384ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/host/runtime_console_byte_payload_bounds_exit checked 12295ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_binary_output_exit checked 3303ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_binding_record_result_exit checked 20386ms check-target:macos_arm64 @e1cfe02f1a9b
-pass/host/runtime_descriptor_binding_state_forwarding_input_exit checked 30581ms check-target:macos_arm64 @e1cfe02f1a9b
-pass/host/runtime_descriptor_boolean_loan_output_exit checked 3554ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_case_atomic_input_exit checked 4297ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_case_replacement_exit checked 16830ms check-target:macos_arm64 @e1cfe02f1a9b
+pass/host/runtime_descriptor_binary_output_exit checked 20028ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_binding_record_result_exit checked 20017ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_binding_state_forwarding_input_exit checked 17575ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_boolean_loan_output_exit checked 21544ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_case_atomic_input_exit checked 21058ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_case_replacement_exit checked 17368ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_descriptor_direct_array_exit checked 61127ms check-target:macos_arm64 @33592c4ca518
-pass/host/runtime_descriptor_exclusive_atomic_record_exit checked 3569ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_float_loan_input_exit checked 26704ms check-target:macos_arm64 @e1cfe02f1a9b
-pass/host/runtime_descriptor_immutable_primitive_loans_exit checked 28462ms check-target:macos_arm64 @e1cfe02f1a9b
-pass/host/runtime_descriptor_local_array_loan_input_exit checked 3340ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_mutable_view_input_exit checked 16886ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_exclusive_atomic_record_exit checked 20204ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_float_loan_input_exit checked 30617ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_immutable_primitive_loans_exit checked 16739ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_local_array_loan_input_exit checked 19184ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_mutable_view_input_exit checked 50823ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_descriptor_nested_array_window_exit checked 54664ms check-target:macos_arm64 @33592c4ca518
 pass/host/runtime_descriptor_nested_case_array_exit checked 21754ms check-target:macos_arm64 @7531da20d199
-pass/host/runtime_descriptor_nested_record_loan_input_exit checked 4388ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_nested_record_loan_input_exit checked 17641ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_descriptor_output_streams_exit checked 53751ms check-target:macos_arm64 @33592c4ca518
-pass/host/runtime_descriptor_padded_prefix_loans_exit checked 3191ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_record_array_input_exit checked 16834ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_record_loan_input_exit checked 3182ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_reference_record_prefix_exit checked 3554ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_scalar_input_exit checked 3705ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_padded_prefix_loans_exit checked 19891ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_record_array_input_exit checked 47175ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_record_loan_input_exit checked 18754ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_reference_record_prefix_exit checked 19999ms check-target:macos_arm64 @2be83686053c
+pass/host/runtime_descriptor_scalar_input_exit checked 20580ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_encoded_record_view_observation_exit checked 12498ms check-target:macos_arm64 @0fab8dbb32c3
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11523ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 86236ms check-target:windows_x86_64 @c989b75f08a9
@@ -26036,7 +26034,7 @@ pass/host/runtime_native_scalar_reference_ingress_exit checked 4001ms check-targ
 pass/host/runtime_returned_scalar_field_reference_sibling_exit checked 3596ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_scalar_reference_backing_export_exit checked 4123ms check-target:linux_x86_64 @ccdb99ca2214
 pass/host/runtime_semantic_gui_reach_exit checked 26552ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 3315ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 22295ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_windows_bitmap_client_cleanup_exit checked 18172ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_windows_gui_argument_failures_exit checked 15063ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/scalar_reference_mixed_backing_foreign_export rejected 3491ms expected check-target:linux_x86_64 native-rejection:match @ccdb99ca2214
@@ -26101,7 +26099,7 @@ pass/layouts/empty_cases_sum_layout_compile checked 3776ms @ccdb99ca2214
 pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
 pass/layouts/extent_view_external_content checked 12345ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
 pass/layouts/extent_view_external_write checked 14953ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
-pass/layouts/extent_view_preserves_grant_exit checked 19864ms check-target:macos_arm64 @e9afae5fccb7
+pass/layouts/extent_view_preserves_grant_exit checked 7330ms check-target:macos_arm64 @b790c20c9878
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
 pass/layouts/fixed_layout_closed_requirement_policy_exit checked 10253ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_computed_alias_policy_exit checked 9415ms check-target:macos_arm64 @6d8ad13849e1
@@ -26233,8 +26231,7 @@ pass/layouts/runtime_sparse_fragmented_bits_exit checked 82604ms check-target:ma
 pass/layouts/runtime_stored_returned_encoded_reference_exit checked 3747ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_target_layout_byte_offset_exit checked 3302ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_target_layout_forwarded_integer_exit checked 5237ms check-target:macos_arm64 @44138b464cd4+wt
-pass/layouts/runtime_target_layout_queries_exit rejected 3897ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
+pass/layouts/runtime_target_layout_queries_exit checked 23990ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @602404d45977
 pass/layouts/runtime_transition_scalar_reference_codec_exit checked 3084ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/single_bool_array_layout_compile checked 2950ms @ccdb99ca2214
 pass/layouts/single_byte_member_layout_compile checked 2755ms @ccdb99ca2214
@@ -26495,12 +26492,12 @@ pass/ownership/domain_member_view_compile checked 2451ms @ccdb99ca2214
 pass/ownership/domain_mut_param_loan_compile checked 2772ms @ccdb99ca2214
 pass/ownership/double_loan_chain_compile checked 2628ms @ccdb99ca2214
 pass/ownership/element_view_forward_compile checked 2218ms @ccdb99ca2214
-pass/ownership/free_machine_record_result_claims_exit checked 8008ms check-target:macos_arm64 @b17a1e9569d9
+pass/ownership/free_machine_record_result_claims_exit checked 18689ms check-target:macos_arm64 @2be83686053c
 pass/ownership/indexed_element_loan_compile checked 2346ms @ccdb99ca2214
 pass/ownership/invariant_member_loan_compile checked 6093ms @911f6617ba9e
 pass/ownership/invariant_record_move_compile checked 4318ms @911f6617ba9e
 pass/ownership/invariant_record_view_compile checked 5258ms @911f6617ba9e
-pass/ownership/linear_ambiguous_state_result_mapping checked 8006ms check-target:macos_arm64 @b17a1e9569d9
+pass/ownership/linear_ambiguous_state_result_mapping checked 17601ms check-target:macos_arm64 @2be83686053c
 pass/ownership/linear_assignment_establishes checked 14416ms @ee4dbb4b2d56
 pass/ownership/linear_bare_establish checked 4689ms @b17a1e9569d9
 pass/ownership/linear_boundary_consume checked 14170ms @ee4dbb4b2d56
@@ -26526,8 +26523,8 @@ pass/ownership/linear_state_graph_call_arguments_exit checked 14507ms check-targ
 pass/ownership/linear_state_graph_claim_transport_exit checked 16262ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/linear_submit_outcome checked 4095ms @ccdb99ca2214
 pass/ownership/linear_sum_obligation checked 3308ms @ccdb99ca2214
-pass/ownership/linear_transfer_and_consume checked 115967ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/ownership/linear_transparent_record_frontier checked 50969ms check-target:macos_arm64 @b17a1e9569d9
+pass/ownership/linear_transfer_and_consume checked 34221ms check-target:macos_arm64 @2be83686053c
+pass/ownership/linear_transparent_record_frontier checked 32021ms check-target:macos_arm64 @2be83686053c
 pass/ownership/local_element_loan_compile checked 2452ms @ccdb99ca2214
 pass/ownership/local_shared_view_compile checked 2854ms @ccdb99ca2214
 pass/ownership/match_selected_parameter_moves_exit checked 3504ms check-target:macos_arm64 @ccdb99ca2214
@@ -26555,10 +26552,8 @@ pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 11724ms chec
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 13261ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 12785ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_case_inventory_insert_exit checked 11227ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_borrowed_case_restore_variants_exit rejected 13672ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(10)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
-pass/ownership/runtime_borrowed_case_result_restore_exit rejected 13552ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(13)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
+pass/ownership/runtime_borrowed_case_restore_variants_exit checked 14589ms check-target:macos_arm64 @cd110dbe60a3
+pass/ownership/runtime_borrowed_case_result_restore_exit checked 15185ms check-target:macos_arm64 @cd110dbe60a3
 pass/ownership/runtime_borrowed_content_partition_exit checked 12661ms check-target:macos_arm64 @089c0a150e63
 pass/ownership/runtime_borrowed_content_partition_nested_reverse_exit checked 14800ms check-target:macos_arm64 @089c0a150e63
 pass/ownership/runtime_borrowed_match_repeated_repair_exit checked 15406ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26581,8 +26576,7 @@ pass/ownership/runtime_captured_replacement_selector_exit checked 25789ms check-
 pass/ownership/runtime_captured_selector_call_exit checked 12576ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_captured_selector_partial_cleanup_exit checked 12975ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 11656ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_case_alternative_custody_exit rejected 14587ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(12)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
+pass/ownership/runtime_case_alternative_custody_exit checked 17691ms check-target:macos_arm64 @cd110dbe60a3
 pass/ownership/runtime_complete_array_reference_store_exit checked 3703ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_completed_case_claim_return_exit checked 2842ms check-target:macos_arm64 @ab6bb7225261
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 16393ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26591,14 +26585,13 @@ pass/ownership/runtime_declared_linear_local_assignment_exit checked 89924ms che
 pass/ownership/runtime_effectful_singleton_selector_cleanup_exit checked 14456ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_empty_record_local_transfers_exit checked 13500ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_exclusive_argument_before_descriptor_retarget_exit checked 16467ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_first_match_linear_consumption_exit checked 5248ms check-target:macos_arm64 @b17a1e9569d9
+pass/ownership/runtime_first_match_linear_consumption_exit checked 17015ms check-target:macos_arm64 @2be83686053c
 pass/ownership/runtime_first_match_pattern_consumption_exit checked 3503ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_fixed_selector_collection_capture_exit checked 12826ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_fixed_selector_owned_argument_exit incomplete 73575ms check-target:macos_arm64 @ee4dbb4b2d56
 	`main` has no executable body: this compiler does not lower a statement of it yet (call result argument: owned projected storage); in state `main::entry`, statement 2
 pass/ownership/runtime_generic_borrowed_case_restore_exit checked 4289ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_generic_linear_case_restore_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(13)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
+pass/ownership/runtime_generic_linear_case_restore_exit checked 8990ms check-target:macos_arm64 @cd110dbe60a3
 pass/ownership/runtime_inactive_case_carrier_transfer_exit checked 2944ms check-target:macos_arm64 @ab6bb7225261
 pass/ownership/runtime_index_before_descriptor_retarget_exit checked 13700ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_indexed_recoverable_replacement_exit checked 13473ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26642,7 +26635,7 @@ pass/ownership/runtime_selected_conditional_carrier_exit checked 15305ms check-t
 pass/ownership/runtime_selected_constructed_argument_exit checked 3145ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_selected_field_replacement_exit checked 25916ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_selected_linear_reselection_exit checked 12618ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/ownership/runtime_selected_linear_temporary_exit checked 6720ms check-target:macos_arm64 @b17a1e9569d9
+pass/ownership/runtime_selected_linear_temporary_exit checked 16432ms check-target:macos_arm64 @2be83686053c
 pass/ownership/runtime_selected_projection_completion_exit checked 4076ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_selected_reference_local_exit checked 3241ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 23900ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26961,29 +26954,29 @@ pass/providers/closed_boundary_callback_contract checked 19818ms check-target:li
 pass/providers/closed_callback_repeated_application checked 22019ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/component_owner_provider_override_compile checked 3351ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/const_generic_entry_record_field_exit checked 18191ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/consuming_trait_requirement_external_sink_exit checked 8201ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/providers/consuming_trait_requirement_external_sink_exit checked 18865ms check-target:macos_arm64 @2be83686053c
 pass/providers/cross_package_public_slot_exit checked 3802ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/direct_boundary_array_snapshot_exit checked 13126ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/direct_foreign_tables_exit checked 3679ms check-target:windows_x86_64 @ccdb99ca2214
 pass/providers/external_boundary_contract_exit checked 3622ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/external_boundary_requirement_via_exit checked 20380ms check-target:macos_arm64 @a562d4060f10+wt
+pass/providers/external_boundary_requirement_via_exit checked 21133ms check-target:macos_arm64 @2be83686053c
 pass/providers/external_leaf_dllimport_compile checked 3165ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/finite_requirement_boolean_const_exit checked 9568ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/finite_requirement_correlated_tuple_exit checked 8288ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/finite_requirement_direct_provider_exit checked 10288ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/finite_requirement_forwarded_const_exit checked 8474ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/float_operator_demands_its_provider_exit checked 11563ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/providers/foreign_address_result_release_exit checked 20459ms check-target:linux_x86_64 @a562d4060f10+wt
+pass/providers/foreign_address_result_release_exit checked 17850ms check-target:linux_x86_64 @2be83686053c
 pass/providers/foreign_indirect_record_distinct_exit rejected 20381ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a562d4060f10+wt
 	native artifact fragment object publication failed: foreign-call custody: InvalidForeignCallArgument { caller: MachineId(7), owner: Operation(OperationId(218)) }
-pass/providers/foreign_indirect_record_relay_exit checked 22698ms check-target:linux_x86_64 @a562d4060f10+wt
-pass/providers/foreign_indirect_record_result_exit checked 18346ms check-target:linux_x86_64 @a562d4060f10+wt
+pass/providers/foreign_indirect_record_relay_exit checked 19532ms check-target:linux_x86_64 @2be83686053c
+pass/providers/foreign_indirect_record_result_exit checked 19302ms check-target:linux_x86_64 @2be83686053c
 pass/providers/foreign_multiregister_result_exit checked 16373ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/foreign_out_parameter_write_observed_exit checked 11767ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/foreign_owned_record_exit checked 11565ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/foreign_packed_record_reuse_exit checked 17433ms check-target:linux_x86_64 @a562d4060f10+wt
+pass/providers/foreign_packed_record_reuse_exit checked 19970ms check-target:linux_x86_64 @2be83686053c
 pass/providers/foreign_record_result_exit checked 13682ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/foreign_register_record_reuse_exit checked 17445ms check-target:linux_x86_64 @a562d4060f10+wt
+pass/providers/foreign_register_record_reuse_exit checked 18412ms check-target:linux_x86_64 @2be83686053c
 pass/providers/generic_boundary_multiple_arguments_compile checked 3213ms @ccdb99ca2214
 pass/providers/generic_owned_outcome_exit checked 11262ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/generic_provider_structural_result_composition_exit checked 4197ms check-target:macos_arm64 @ccdb99ca2214
@@ -27003,7 +26996,7 @@ pass/providers/inline_provider_owner_lifetime_telescope_unapplied rejected 3335m
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Reading::read),parameters(),result-dispatch())` has no admitted installation for selected provider `ReadingProvider` adapter `named-callable(path(ReadingProvider::read),parameters(),result-dispatch())`
 pass/providers/inline_provider_owner_static_telescope_unapplied rejected 2999ms expected check-target:macos_arm64 native-rejection:match @ccdb99ca2214
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Reading::read),parameters(),result-dispatch())` has no admitted installation for selected provider `ReadingProvider` adapter `named-callable(path(ReadingProvider::read),parameters(),result-dispatch())`
-pass/providers/kernel_import_result_chain_exit checked 18637ms check-target:linux_x86_64 @a562d4060f10+wt
+pass/providers/kernel_import_result_chain_exit checked 18968ms check-target:linux_x86_64 @2be83686053c
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 11568ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/linear_structural_provider_pure_exit checked 74877ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/providers/linear_structural_provider_return_exit rejected 81587ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @10b4c36f3bb2
@@ -27054,12 +27047,12 @@ pass/providers/runtime_boundary_qualified_state_exit checked 7306ms check-target
 pass/providers/runtime_checked_completion_forwarding_exit checked 5044ms check-target:macos_arm64 @fa76e9a8d5e2
 pass/providers/runtime_closed_provider_and_assumed_chain_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_foreign_allocation_across_component_exit checked 10338ms check-target:macos_arm64 @c989b75f08a9
-pass/providers/runtime_foreign_allocation_overflow_zero_exit checked 3109ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/runtime_foreign_allocation_overflow_zero_exit checked 19893ms check-target:macos_arm64 @2be83686053c
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit rejected 12569ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Measure::measure),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:3f2c5661e5d2637d19b14265b39528f1136931314c0fa586389ddd4806de99b4\\\\\\)\\\\\\,path\\\\\\(Words\\\\\\)\\\\\\)\\)\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit rejected 12855ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Measure::measure),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/providers/runtime_foreign_owned_allocation_release_exit checked 4441ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/runtime_foreign_owned_allocation_release_exit checked 18526ms check-target:macos_arm64 @2be83686053c
 pass/providers/runtime_generic_boundary_relay_exit checked 12378ms check-target:linux_x86_64 @25bbaead8c14+wt
 pass/providers/runtime_generic_boundary_relay_places_exit checked 4079ms check-target:linux_x86_64 @2fbf0edf0329+wt
 pass/providers/runtime_generic_case_extraction_exit checked 13437ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -27332,8 +27325,7 @@ pass/slices/runtime_boolean_alias_guard_transport_exit checked 3726ms check-targ
 pass/slices/runtime_borrowed_noncopy_array_argument_exit checked 3136ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 11151ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_byte_view_guarded_state_contract_exit checked 11310ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_call_endpoint_argument_exit rejected 12141ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18179, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(26), requested: StructuralArgument { place: PlaceId(104), path: [], access: Owned }, requested_type: StructuralTypeId(26), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+pass/slices/runtime_call_endpoint_argument_exit checked 28481ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_call_endpoint_field_transition_exit checked 12097ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_call_endpoint_order_exit checked 12461ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_call_endpoint_view_exit checked 14438ms check-target:macos_arm64 @ccdb99ca2214
@@ -27359,8 +27351,7 @@ pass/slices/runtime_helper_stored_view_return_exit rejected 3031ms check-target:
 	statement 3 creates local borrow `windows` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 4)
 pass/slices/runtime_imported_range_views_exit checked 3789ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_imported_slice_provider_composition_exit checked 8229ms check-target:macos_arm64 @93ac4da811fe
-pass/slices/runtime_inclusive_call_endpoint_order_exit rejected 12556ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18197, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(30), requested: StructuralArgument { place: PlaceId(106), path: [], access: Owned }, requested_type: StructuralTypeId(30), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+pass/slices/runtime_inclusive_call_endpoint_order_exit checked 29369ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12614ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_indexed_descriptor_replacement_call_exit checked 4113ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_indexed_record_field_range_exit checked 8680ms check-target:macos_arm64 @ccdb99ca2214
@@ -27383,8 +27374,7 @@ pass/slices/runtime_mutable_slice_result_shared_observation_exit checked 3253ms 
 pass/slices/runtime_mutable_slice_result_whole_forward_exit checked 3660ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_mutable_subslice_state_forwarding_exit checked 3631ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_namespace_range_contract_exit checked 3892ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_nested_descriptor_scalar_store_exit rejected 3454ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
+pass/slices/runtime_nested_descriptor_scalar_store_exit checked 15376ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_nested_machine_field_window_exit checked 2891ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_stored_view_element_replacement_exit checked 2945ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_stored_view_return_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
@@ -27448,8 +27438,7 @@ pass/slices/state_projected_selector_bounds checked 2535ms @ccdb99ca2214
 pass/slices/state_record_array_mutable_view_exit checked 13579ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/state_record_array_shared_child_view_exit checked 12021ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/static_data_computed_index_hoists checked 5067ms @911f6617ba9e
-pass/slices/stored_element_view_branching_value rejected 3042ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
+pass/slices/stored_element_view_branching_value checked 15794ms check-target:macos_arm64 @602404d45977
 pass/slices/stored_element_view_runtime_destination rejected 3106ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
 pass/slices/stored_element_window_field_exit checked 6719ms check-target:macos_arm64 @ccdb99ca2214
@@ -27897,14 +27886,14 @@ pass/text/view_field_literal_store_outlives_helper_exit checked 11984ms check-ta
 pass/text/zii_default_string_equality_exit checked 74648ms check-target:macos_arm64 @911f6617ba9e
 pass/time/runtime_checked_time_arith_exit checked 48581ms check-target:macos_arm64 @ccdb99ca2214
 pass/time/runtime_clock_out_parameter_loans_exit checked 4342ms check-target:macos_arm64 @ccdb99ca2214
-pass/time/runtime_clock_padded_out_parameter_prefix_exit checked 3777ms check-target:macos_arm64 @ccdb99ca2214
+pass/time/runtime_clock_padded_out_parameter_prefix_exit checked 16036ms check-target:macos_arm64 @2be83686053c
 pass/time/runtime_clock_shared_import_slots_exit checked 22098ms check-target:macos_arm64 @a562d4060f10+wt
 pass/time/runtime_duration_core_exit checked 49541ms check-target:macos_arm64 @ccdb99ca2214
 pass/time/runtime_duration_units_and_scaling_exit checked 50624ms check-target:macos_arm64 @ccdb99ca2214
-pass/time/runtime_fs_mtime_system_time_interop_exit timeout 1200000ms regressed-from:checked+check-target:macos_arm64 @e1cfe02f1a9b
-pass/time/runtime_kernel_clock_wait_loans_exit checked 3559ms check-target:linux_x86_64 @ccdb99ca2214
+pass/time/runtime_fs_mtime_system_time_interop_exit checked 46059ms check-target:macos_arm64 @1ff9f0cd20bd
+pass/time/runtime_kernel_clock_wait_loans_exit checked 13533ms check-target:linux_x86_64 @2be83686053c
 pass/time/runtime_std_time_host_binding_exit checked 32450ms check-target:macos_arm64 @5b3c6034e84f
-pass/time/runtime_time_elapsed_since_exit timeout 1200000ms regressed-from:checked+check-target:macos_arm64 @e1cfe02f1a9b
+pass/time/runtime_time_elapsed_since_exit checked 19620ms check-target:macos_arm64 @1ff9f0cd20bd
 pass/time/runtime_time_host_native_darwin_exit checked 32180ms check-target:macos_arm64 @5b3c6034e84f
 pass/time/runtime_time_host_native_darwin_x86_64_exit checked 19924ms check-target:macos_x86_64 @ccdb99ca2214
 pass/time/runtime_time_host_native_windows_exit checked 18645ms check-target:windows_x86_64 @ccdb99ca2214
@@ -28167,8 +28156,7 @@ run/calls/named_transition_scalar_borrow_plain_guard_exit checked 6510ms check-t
 run/calls/named_transition_suffixed_float_arguments_exit checked 5626ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/named_transition_zero_argument_guard_exit checked 5812ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/nested_case_terminal_process_exit checked 10410ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/nested_range_call_operands rejected 3157ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6435, generation: 1 }), established: StructuralArgument { place: PlaceId(24), path: [], access: Owned }, established_type: StructuralTypeId(12), requested: StructuralArgument { place: PlaceId(29), path: [], access: Owned }, requested_type: StructuralTypeId(12), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+run/calls/nested_range_call_operands checked 15760ms check-target:macos_arm64 @602404d45977
 run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
 run/calls/nested_static_implementation_shadow checked 3219ms check-target:macos_arm64 @02eca83b1303
 run/calls/ordered_literal_call_operands checked 3697ms check-target:macos_arm64 @ccdb99ca2214
@@ -28280,8 +28268,7 @@ run/domains/structural_predicate_casts checked 2784ms check-target:macos_arm64 @
 run/domains/structural_qualification_cast_transitions checked 9941ms check-target:macos_arm64 @787d97e293d7
 run/domains/structural_qualification_cast_values checked 3182ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/structural_qualification_nested_values checked 3172ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/vacuous_tag_call_arguments rejected 3167ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "completed call scalar operands disagree with the target signature", gap: None })
+run/domains/vacuous_tag_call_arguments checked 10514ms check-target:macos_arm64 @602404d45977
 run/domains/zero_case_default_domain checked 2349ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_case_default_payload checked 2278ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_field_call_formation_exit checked 2966ms check-target:macos_arm64 @ccdb99ca2214

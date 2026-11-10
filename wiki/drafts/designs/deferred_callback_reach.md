@@ -32,8 +32,8 @@ and `dropped by`. Delete it when implementation and acceptance are complete.
 - Forwarding preserves the exact originating contract and whether its reach is
   open, empty or finitely bounded. Omission does not infer a callable signature,
   choose an implementation, grant authority or expose a private body.
-- Runtime machine-value types keep finite ceilings; their omitted reach remains
-  empty. Suspension/blocking bounds, public declarations and dependency rules
+- Runtime machine-value types keep finite ceilings and state them; an omitted
+  clause rejects under `open-callable-contracts`. Suspension/blocking bounds, public declarations and dependency rules
   are unchanged, as are termination, proof admission, custody and crashes.
   [Conditional callback carry](conditional_callback_carry.md) separately extends
   suspension-permission checking; it does not widen service reach or other axes.

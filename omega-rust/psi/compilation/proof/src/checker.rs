@@ -5587,9 +5587,103 @@ mod measurement {
         pub kernel_arena_slots: u64,
         pub certificate_proof_nodes: u64,
         pub check_elapsed_microseconds: u64,
+        /// Obligations by `ROUTE_KINDS` row and `ROUTES` column.
+        pub routes: [[u32; ROUTES.len()]; ROUTE_KINDS.len()],
+    }
+
+    /// The census in `check_on_lowered_form.md` counts an obligation as
+    /// evidence-backed only when proof admission decided it again from a
+    /// certificate. The columns say how each obligation was settled, weakest
+    /// route first when one obligation made several certificate attempts:
+    /// `interval_fallback` (a certificate was uncovered and interval reasoning
+    /// accepted), `certificate_core_refused` (admission checked the certificate
+    /// rules but the mathematical core refused the family),
+    /// `certificate_kernel_judged` (admission and the core both decided it),
+    /// `no_certificate` (accepted with no attempt: skipped as overwritten, a
+    /// float or named-constraint check, or no integer range), `diagnosed`, and
+    /// `decided_elsewhere` (not decided by this checker at all).
+    pub const ROUTES: [&str; 6] = [
+        "certificate_kernel_judged",
+        "certificate_core_refused",
+        "interval_fallback",
+        "no_certificate",
+        "diagnosed",
+        "decided_elsewhere",
+    ];
+
+    pub const ROUTE_KINDS: [&str; 7] = [
+        "bounded_assignment",
+        "bounded_call_argument",
+        "bounded_initializer",
+        "bounded_state_return",
+        "bounded_value",
+        "bounded_transition_argument",
+        "guarded_transition",
+    ];
+
+    /// Certificate counters before one obligation, compared after it.
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) struct CertificateAttempts {
+        certified: u32,
+        uncovered: u32,
+        refusals: u32,
     }
 
     impl ProofPlanMeasurements {
+        pub(crate) const fn attempts(&self) -> CertificateAttempts {
+            CertificateAttempts {
+                certified: self.certificate_certified,
+                uncovered: self.certificate_uncovered,
+                refusals: self.kernel_refusals,
+            }
+        }
+
+        pub(crate) fn record_route(
+            &mut self,
+            obligation: &ProofObligation,
+            decided_here: bool,
+            diagnosed: bool,
+            before: CertificateAttempts,
+        ) {
+            let kind = match obligation {
+                ProofObligation::BoundedAssignment(_) => 0,
+                ProofObligation::BoundedCallArgument(_) => 1,
+                ProofObligation::BoundedInitializer(_) => 2,
+                ProofObligation::BoundedStateReturn(_) => 3,
+                ProofObligation::BoundedValue(_) => 4,
+                ProofObligation::BoundedTransitionArgument(_) => 5,
+                ProofObligation::GuardedTransition(_) => 6,
+            };
+            let route = if !decided_here {
+                5
+            } else if diagnosed {
+                4
+            } else if self.certificate_uncovered > before.uncovered {
+                2
+            } else if self.kernel_refusals > before.refusals {
+                1
+            } else if self.certificate_certified > before.certified {
+                0
+            } else {
+                3
+            };
+            self.routes[kind][route] += 1;
+        }
+
+        pub fn render_routes(&self) -> String {
+            let mut rendered = String::new();
+            for (kind, row) in ROUTE_KINDS.iter().zip(&self.routes) {
+                for (route, count) in ROUTES.iter().zip(row) {
+                    if *count != 0 {
+                        rendered.push_str(&format!(
+                            "proof_obligation_route kind={kind} route={route} count={count}\n"
+                        ));
+                    }
+                }
+            }
+            rendered
+        }
+
         pub const fn obligations(&self) -> u32 {
             self.bounded_assignments
                 + self.bounded_call_arguments
@@ -5674,6 +5768,7 @@ mod measurement {
         pub(crate) fn emit_if_requested(&self) {
             if std::env::var_os("OMEGA_PROOF_MEASUREMENTS").is_some() {
                 eprintln!("proof_plan_measurements {}", self.render());
+                eprint!("{}", self.render_routes());
             }
         }
 
@@ -6491,6 +6586,7 @@ fn check_proof_plan_inner(
             ProofObligation::BoundedValue(_) | ProofObligation::GuardedTransition(_)
         );
         let diagnostics_before = diagnostics.len();
+        let attempts_before = measurements.attempts();
         let mut consultation = if decided_here {
             derivation_cache
                 .as_deref_mut()
@@ -6530,9 +6626,11 @@ fn check_proof_plan_inner(
                 BoundedTransitionArgument => check_bounded_transition_argument
             }
         );
+        let diagnosed = diagnostics.len() != diagnostics_before;
         if decided_here {
-            measurements.record_outcome(diagnostics.len() != diagnostics_before);
+            measurements.record_outcome(diagnosed);
         }
+        measurements.record_route(obligation, decided_here, diagnosed, attempts_before);
     }
 
     measurements.check_elapsed_microseconds =

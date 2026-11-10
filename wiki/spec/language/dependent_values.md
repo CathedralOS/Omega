@@ -58,7 +58,7 @@ indices do not reinterpret them or turn arbitrary runtime data into nominal type
 
 Prove a dependency statically, establish it through a visible guard or contracted
 decode/validator, or reject the use. `as` follows
-[domain qualification](domains.md#exact-coercion-and-erasure). The compiler does
+[domain casts](domains.md#domain-casts). The compiler does
 not insert residual checks to make an unproved refinement true. An explicit
 runtime check owns its ordinary false outcome; a decoder establishes only the
 predicates it checks, not firmware truth or routed authority.
@@ -90,7 +90,7 @@ Field qualifications may also carry
 [domain-owned read/write restrictions](domains.md#domain-owned-read-and-write-authority).
 Establishing validity does not grant access forbidden by that policy. It remains
 attached to the governed field through parent borrows, projections, whole-place
-replacement, and qualification forgetting. Invariant windows permit temporary
+replacement, and domain removal. Invariant windows permit temporary
 invalidity only under otherwise-authorized access; they do not waive a reader or
 writer restriction. Fresh construction and policy installation follow the domain
 establishment rules, not an implicit file-local or constructor privilege.
@@ -156,7 +156,7 @@ partially established storage still needs establishment before a readable borrow
 a qualified machine name grants no construction or validity exception.
 
 That predicate-fact rule does not authorize dropping a governed subject's access
-policy. Forgetting the displayed domain or invalidating a flow predicate cannot
+policy. Removing the displayed domain or invalidating a flow predicate cannot
 create a reader/writer grant; retained restrictions follow their governed lifetime.
 
 #### Lent storage retains its declared domains
@@ -166,7 +166,9 @@ Named clarification: `lender-domain-restoration`, ratified 2026-11-03.
 A local declared `value: T in D` has the same restoration obligation for `D`
 as a stored field declared with that qualification. Lending it does not turn
 that obligation into an expiring input fact. A mutable loan, including a view
-whose displayed type omits `D`, retains the original storage's obligations.
+whose displayed type omits `D` after a written
+[cast on the reference](domains.md#mutable-views), retains the original
+storage's obligations.
 Writes may open the ordinary invariant window. The owner's required predicates
 must hold before its qualified storage is consumed as valid or handed back to
 it. A borrower's internal calls and terminal transfers check the receiving
@@ -188,17 +190,21 @@ returned. No encoding name is compiler-known. A predicate-free domain has no
 predicate debt, but its establishment provenance, access policy, custody and
 carry restrictions still apply. An unrestricted empty tag promises no hidden
 invariant; protocols relying on restricted witnesses or mutations must declare
-the corresponding routes and access policy. Erasure cannot bypass them.
+the corresponding routes and access policy. A cast cannot bypass them.
 
 ### Contract-based repair
 
 Ratified 2026-11-05: existing `requires` and `ensures` compose repairs of a
-lender's named predicate qualification. No new repair syntax is introduced.
+lender's named qualification. No new repair syntax is introduced.
 The receiving machine must establish its own parameter/default domains and
 entry requirements from the current contents. It may receive a weaker view
 while the original owner's stronger qualification remains owed, provided
 exclusive custody and the exact restoration obligation remain attached to
-that storage until handback. Weakening a view never cancels that obligation.
+that storage until handback. The caller writes the weaker view as a
+[cast on the mutable reference](domains.md#mutable-views), which can remove
+any domain the lender could add again itself when the loan ends. That cast
+never cancels the obligation: each removed domain is re-established by its own
+`+D` rules for the current contents.
 
 A helper's checked normal-completion guarantees may discharge the enclosing
 machine's restoration promise. At a terminal call, prove the successor's

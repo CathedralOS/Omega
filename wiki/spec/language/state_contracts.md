@@ -130,7 +130,9 @@ Arrival substitution is simultaneous and identity-based. Scalar arguments retain
 their evaluation snapshots; facts about referenced storage must survive writes
 from later arguments. A same-named formal cannot alias an unrelated caller value.
 Every reachable predecessor participates in a join. Unknown input cannot be
-omitted to preserve a convenient invariant. A minimum collection length is not
+omitted to preserve a convenient invariant. A join merges facts; predecessors
+supplying one value agree on its exact declared domain set under
+[literals and expected types](domains.md#literals-and-expected-types). A minimum collection length is not
 an exact extent, and declaration initializers are not recurring loop invariants.
 
 ## Unreachable branches

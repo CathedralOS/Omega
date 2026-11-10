@@ -254,28 +254,7 @@ pub(crate) mod binding_observations {
         if !crate::place_has_builtin_coordinates(program, machine, Some(state), expression) {
             return false;
         }
-        let Some(place) = crate::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            before,
-            expression,
-        ) else {
-            return false;
-        };
-        if place.root.as_symbol().is_none()
-            || !(0..=place.segments.len()).all(|length| {
-                crate::canonical_place_type_reference(
-                    program,
-                    state.symbol,
-                    before,
-                    &crate::CanonicalPlace {
-                        root: place.root,
-                        segments: place.segments[..length].to_vec(),
-                    },
-                )
-                .is_some_and(|reference| crate::reference_shell(program, reference).is_none())
-            })
-        {
+        if !immutable_read_place(program, state, before, expression) {
             return false;
         }
         let mut nodes = Vec::new();
@@ -286,27 +265,91 @@ pub(crate) mod binding_observations {
             .into_iter()
             .all(|node| match expression_table(program).expression(node) {
                 ExpressionNode::Name(path) => {
-                    let symbol = path.head_symbol;
-                    let reference =
-                        if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
-                            (!parameter.is_mutable).then_some(parameter.type_reference)
-                        } else {
-                            program.state_local_declaration(state, symbol).and_then(
-                                |(position, local)| {
-                                    (position < before && !local.is_mutable)
-                                        .then_some(local.type_reference)
-                                },
-                            )
-                        };
-                    reference.is_some_and(|reference| {
-                        crate::reference_shell(program, reference).is_none()
-                            && binding_is_unchanged_value(program, state, symbol)
-                    })
+                    immutable_binding(program, state, before, path.head_symbol)
                 }
                 ExpressionNode::Member(_)
                 | ExpressionNode::Indexed(_)
                 | ExpressionNode::Integer(_) => true,
                 _ => false,
+            })
+    }
+
+    // Check that the values read by an expression cannot change. The caller
+    // separately checks the operations; stable inputs alone do not make a call pure.
+    pub fn value_reads_have_immutable_denotation(
+        program: &dyn CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &State,
+        before: usize,
+        expression: ExpressionHandle,
+    ) -> bool {
+        let mut nodes = Vec::new();
+        crate::queries::expression_traversal::collect_expression_tree(
+            program, expression, &mut nodes,
+        );
+        nodes
+            .into_iter()
+            .all(|node| match expression_table(program).expression(node) {
+                ExpressionNode::Name(path) => {
+                    crate::place_has_builtin_coordinates(program, machine, Some(state), node)
+                        && immutable_read_place(program, state, before, node)
+                        && immutable_binding(program, state, before, path.head_symbol)
+                }
+                ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                    crate::place_has_builtin_coordinates(program, machine, Some(state), node)
+                        && immutable_read_place(program, state, before, node)
+                }
+                _ => true,
+            })
+    }
+
+    fn immutable_binding(
+        program: &dyn CheckingInput,
+        state: &State,
+        before: usize,
+        symbol: SymbolHandle,
+    ) -> bool {
+        let reference = if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
+            (!parameter.is_mutable).then_some(parameter.type_reference)
+        } else {
+            program
+                .state_local_declaration(state, symbol)
+                .and_then(|(position, local)| {
+                    (position < before && !local.is_mutable).then_some(local.type_reference)
+                })
+        };
+        reference.is_some_and(|reference| {
+            crate::reference_shell(program, reference).is_none()
+                && binding_is_unchanged_value(program, state, symbol)
+        })
+    }
+
+    fn immutable_read_place(
+        program: &dyn CheckingInput,
+        state: &State,
+        before: usize,
+        expression: ExpressionHandle,
+    ) -> bool {
+        let Some(place) = crate::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            before,
+            expression,
+        ) else {
+            return false;
+        };
+        place.root.as_symbol().is_some()
+            && (0..=place.segments.len()).all(|length| {
+                crate::canonical_place_type_reference(
+                    program,
+                    state.symbol,
+                    before,
+                    &crate::CanonicalPlace {
+                        root: place.root,
+                        segments: place.segments[..length].to_vec(),
+                    },
+                )
+                .is_some_and(|reference| crate::reference_shell(program, reference).is_none())
             })
     }
 
@@ -514,6 +557,74 @@ pub mod storage_path_relations {
                 .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
     }
 
+    /*
+        How two places relate. A write at one place and a fact, loan or
+        obligation at another ask this one question, so that every keep-or-kill
+        decision gives the same answer for the same two places
+        (wiki/drafts/designs/fact_transport.md).
+
+        `Prefix` and `Extends` are containment by path: every shared segment is
+        the same segment and one path is longer. A range that covers an index is
+        `MayOverlap`, which a caller must treat as not contained.
+    */
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum PlaceRelation {
+        Disjoint,
+        Equal,
+        /// The left place contains the right one.
+        Prefix,
+        /// The right place contains the left one.
+        Extends,
+        MayOverlap,
+    }
+
+    impl PlaceRelation {
+        pub const fn may_overlap(self) -> bool {
+            !matches!(self, Self::Disjoint)
+        }
+    }
+
+    pub fn place_relation(
+        program: &dyn crate::CheckingInput,
+        left: &crate::CanonicalPlace,
+        right: &crate::CanonicalPlace,
+    ) -> PlaceRelation {
+        if left.root != right.root {
+            return PlaceRelation::Disjoint;
+        }
+        place_segments_relation(program, &left.segments, &right.segments)
+    }
+
+    pub fn place_segments_relation(
+        program: &dyn crate::CheckingInput,
+        left: &[PlaceSegment],
+        right: &[PlaceSegment],
+    ) -> PlaceRelation {
+        if !canonical_place_segments_may_overlap(program, left, right) {
+            return PlaceRelation::Disjoint;
+        }
+        if !left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
+        {
+            return PlaceRelation::MayOverlap;
+        }
+        match left.len().cmp(&right.len()) {
+            std::cmp::Ordering::Equal => PlaceRelation::Equal,
+            std::cmp::Ordering::Less => PlaceRelation::Prefix,
+            std::cmp::Ordering::Greater => PlaceRelation::Extends,
+        }
+    }
+
+    pub fn canonical_places_may_overlap(
+        program: &dyn crate::CheckingInput,
+        left: &crate::CanonicalPlace,
+        right: &crate::CanonicalPlace,
+    ) -> bool {
+        place_relation(program, left, right).may_overlap()
+    }
+
     pub fn canonical_place_segments_may_overlap(
         program: &dyn crate::CheckingInput,
         left: &[PlaceSegment],
@@ -653,6 +764,32 @@ pub mod storage_path_relations {
         segments: &[PlaceSegment],
     ) -> bool {
         canonical_place_segments_may_overlap(program, &place.segments, segments)
+    }
+    #[cfg(test)]
+    mod relation_tests {
+        use super::*;
+
+        #[test]
+        fn relation_names_disjoint_equal_and_both_containments() {
+            let program = typed_trees::TypedTrees::default();
+            let at = |index| PlaceSegment::FixedIndex { index };
+            let relation = |left: &[PlaceSegment], right: &[PlaceSegment]| {
+                place_segments_relation(&program, left, right)
+            };
+            assert_eq!(relation(&[at(0)], &[at(1)]), PlaceRelation::Disjoint);
+            assert_eq!(relation(&[at(0)], &[at(0)]), PlaceRelation::Equal);
+            assert_eq!(relation(&[at(0)], &[at(0), at(1)]), PlaceRelation::Prefix);
+            assert_eq!(relation(&[at(0), at(1)], &[at(0)]), PlaceRelation::Extends);
+            // A range covering an index shares storage with it, but is not a
+            // path prefix of it.
+            let range = PlaceSegment::FixedRange { start: 0, end: 4 };
+            assert_eq!(relation(&[range], &[at(2)]), PlaceRelation::MayOverlap);
+            assert_eq!(relation(&[range], &[at(4)]), PlaceRelation::Disjoint);
+            assert_eq!(
+                relation(&[PlaceSegment::OpaqueRange], &[at(0)]),
+                PlaceRelation::MayOverlap
+            );
+        }
     }
 }
 pub use captured_ownership::ownership_place_from_expression_in_state;
@@ -4821,7 +4958,16 @@ pub(crate) mod declared_carriers {
                 let right = program
                     .type_reference_table
                     .type_reference_handles(*right_arguments);
-                left_symbol == right_symbol
+                // Reused declarations can retain different symbol handles for
+                // the same nominal owner. Its canonical identity retains source
+                // ownership and instantiated schema identity; arguments still
+                // compare recursively in their original substitution scopes.
+                let same_owner = left_symbol == right_symbol
+                    || program
+                        .normalized_nominal_type_identity(*left_symbol)
+                        .zip(program.normalized_nominal_type_identity(*right_symbol))
+                        .is_some_and(|(left, right)| left.is_valid() && left == right);
+                same_owner
                     && left.len() == right.len()
                     && left
                         .iter()

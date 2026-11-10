@@ -4344,6 +4344,27 @@ pub(crate) mod requirement_instances {
                                 ) => applied_type_identity(self, *left, lexical_owner, &[])
                                     .zip(applied_type_identity(self, *right, lexical_owner, &[]))
                                     .is_some_and(|(left, right)| left == right),
+                                // Without this arm two calls selecting one operand
+                                // each get their own instance under one canonical
+                                // identity, which lowering rejects as a duplicate.
+                                (
+                                    static_applications::StaticMachineBindingValue::Machine(left),
+                                    static_applications::StaticMachineBindingValue::Machine(right),
+                                )
+                                | (
+                                    static_applications::StaticMachineBindingValue::Conformance(
+                                        left,
+                                    ),
+                                    static_applications::StaticMachineBindingValue::Conformance(
+                                        right,
+                                    ),
+                                ) => self.same_static_machine_operand(
+                                    left,
+                                    self.static_machine_application(existing.application)
+                                        .lexical_owner,
+                                    right,
+                                    lexical_owner,
+                                ),
                                 (left, right) => left == right,
                             }
                         })
@@ -6458,11 +6479,7 @@ pub(crate) mod trait_scopes {
                     .ok_or("selected public view has no declaring trait scope")?;
                 return self
                     .applied_callable_signature(&scope, signature.symbol)
-                    .or_else(|| {
-                        (scope.substitutions.is_empty()
-                            && scope.declaration.lifetime_parameters.is_empty())
-                        .then_some(signature)
-                    })
+                    .or_else(|| scope.keeps_declared_signatures(self).then_some(signature))
                     .ok_or("selected public view has no prepared applied signature");
             }
             if requirement_application.is_valid() {

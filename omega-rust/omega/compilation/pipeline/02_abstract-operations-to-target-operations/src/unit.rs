@@ -813,7 +813,7 @@ pub(crate) mod boundary_call {
             (OperationId, StructuralTypeDeclaration, Vec<u8>),
         >,
         scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
-        scalar_homes: &mut BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+        scalar_homes: &mut crate::control_flow::ScalarHomes,
         booleans: &BTreeMap<ValueId, (OperationId, bool)>,
         ieee_float_constants: &BTreeMap<
             ValueId,
@@ -1405,7 +1405,7 @@ pub(crate) mod known_integers {
 
     pub(crate) fn insert_scalar_home(
         integers: &mut BTreeMap<ValueId, KnownUnitInteger>,
-        scalar_homes: &mut BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+        scalar_homes: &mut crate::control_flow::ScalarHomes,
         home: TargetUnitScalarHomeRequirement,
     ) -> Result<(), LoweringError> {
         match home.scalar_type {
@@ -1413,7 +1413,10 @@ pub(crate) mod known_integers {
                 insert_known_unit_integer(integers, home.source_value, KnownUnitInteger::Home(home))
             }
             ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
-                if scalar_homes.insert(home.source_value, home).is_some() {
+                if std::sync::Arc::make_mut(scalar_homes)
+                    .insert(home.source_value, home)
+                    .is_some()
+                {
                     return Err(LoweringError::DuplicateValue(home.source_value));
                 }
                 Ok(())

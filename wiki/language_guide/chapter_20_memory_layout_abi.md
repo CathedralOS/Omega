@@ -60,7 +60,7 @@ requires
     self in Command::None;
 
 public machine empty_command() -> Command in Command::Inert {
-    Command::None
+    Command::None as +Command::Inert
 }
 ```
 
@@ -151,9 +151,10 @@ window. If holes must remain, use an explicit shape such as `Optional<T>`.
 
 With ordinary native layout on Stable RAM, the live region can be borrowed as
 `&[T]` or `&mut [T]`. Qualified floats remain dense floats suitable for SIMD:
-reading `&[f32 in Km]` as `&[f32]` follows qualification erasure. Writing through
-an unqualified mutable view must preserve or restore the original predicates
-before returning it. Casting does not discard access restrictions.
+a shared `&[f32 in Km]` can be read as `&[f32]` once the removal is written.
+A mutable view may omit only domains its lender could add again, and writing
+through it must preserve or restore the original predicates before returning it.
+Casting does not discard access restrictions.
 
 Splitting and merging runs take constant runtime work: they update descriptors.
 Swaps move data, and disposal runs required cleanup for each element that needs it.

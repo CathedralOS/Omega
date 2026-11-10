@@ -66,9 +66,12 @@ and exact qualification-change edges participate in semantic identity. A change
 names the machine, edge, argument position, source value and fresh destination
 parameter. It either strictly adds same-carrier membership or strictly erases
 membership to a subset, including the bare set. Equal sets and simultaneous
-removal/replacement with unrelated atoms reject. Source-derived erasure must
-retain the explicit `as` occurrence under the [erasure contract](../language/domains.md#exact-coercion-and-erasure);
-an ordinary transfer cannot imply it. Neither direction alters payload bits or
+removal/replacement with unrelated atoms reject. Source-derived addition and
+erasure must each retain the explicit `as` occurrence under
+[domain casts](../language/domains.md#domain-casts);
+an ordinary transfer cannot imply either. A source cast that both removes and
+adds domains is not one such edge; its Terminal form is open under
+`NAMED-DOMAIN-CASTS`. Neither direction alters payload bits or
 changes the original source retroactively. Every
 incoming edge is checked independently. A result annotation, ordinary constant,
 load or arithmetic operation cannot establish membership by itself.
@@ -271,8 +274,11 @@ While parked:
 - Later operations have not executed.
 - No return, crash, cleanup, or affine-disposition edge commits.
 
-Parking transfers scheduling custody of the still-live activation. It creates no
-source-visible continuation value. Resumption continues the same incomplete call;
+Parking transfers execution custody of the still-live activation to its owner: a
+runtime, or source holding the activation's linear
+[execution claim](../build/task_runtime.md#owned-activations-and-typed-replies).
+The suspending call itself receives no continuation value. Resumption continues
+the same incomplete call;
 normal completion then establishes the result and reaches its continuation.
 Budget suspension likewise preserves the completed prefix without repeating a
 paid invocation or transfer.

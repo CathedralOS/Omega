@@ -121,6 +121,46 @@ uses one to relate two spellings of an index.
 See [conformance declarations](../spec/language/conformances.md#declaration-and-selection)
 for lifetime parameters and complete member matching.
 
+### Build an implementation from existing machines
+
+An implementation is an ordinary record of selected machines and the evidence
+its trait's laws require. Select an existing machine for a member instead of
+wrapping it. A selection keeps that machine's identity, so laws already proved
+about it apply:
+
+```omega
+trait Codec<T> {
+    machine encode(value: &T, out: &mut [u8]) -> u64;
+    machine decode(input: &[u8], out: &mut T) -> bool;
+}
+
+WireCodec satisfies Codec<Message> {
+    Codec::encode = lib_a::encode;
+    Codec::decode = lib_b::decode;
+}
+```
+
+One trait declaration serves compile-time and runtime use:
+
+```omega
+machine save_static<T, Format satisfies Codec<T>>(value: &T, out: &mut [u8]) -> u64 {
+    Format::encode(value, out)
+}
+
+machine save_dynamic<T>(format: &Codec<T>, value: &T, out: &mut [u8]) -> u64 {
+    (format.encode)(value, out)
+}
+```
+
+`save_static` receives the implementation as compile-time information and calls
+`lib_a::encode` directly. `save_dynamic` receives a runtime record and calls
+through its field, so no second record type restates the interface. Two
+implementations that select the same machines are the same implementation
+whatever they are named; add an explicit brand when a policy must stay distinct.
+A record whose member is still generic can only be used the compile-time way
+until its type arguments are fixed. See
+[operation records](../spec/language/conformances.md#implementations-are-operation-records).
+
 ### Domain establishment requirements
 
 A domain's access policy may name an exact trait requirement as an issuer. This does not make
@@ -417,8 +457,8 @@ named machine in a field with the callable contract the consumer needs.
 ```omega
 data Counter { value: u64; }
 data CounterOps {
-    clear: machine(counter: &mut Counter) terminates;
-    value: machine(counter: &Counter) -> u64 terminates;
+    clear: machine(counter: &mut Counter) reaches none crashes none terminates;
+    value: machine(counter: &Counter) -> u64 reaches none crashes none terminates;
 }
 
 machine clear(counter: &mut Counter) terminates { counter.value = 0; }
@@ -428,6 +468,11 @@ machine inspect(operations: &CounterOps, counter: &Counter) -> u64 terminates {
     (operations.value)(counter)
 }
 ```
+
+A callable type always says which services its machines may reach and how
+they may crash. `reaches none` admits only service-free machines and
+`crashes none` only crash-free ones. Leaving either clause out rejects, so a
+field never promises that by accident.
 
 Construct `CounterOps { clear: clear, value: value }` and pass it to `inspect`.
 Another record can choose other machines with the same contracts. A field may
@@ -451,7 +496,9 @@ matches its own state. This example reads from two small, unrelated sources:
 data Reader<'a, some S> {
     state: &'a mut S;
     read: machine(state: &mut S, output: &mut [u8]) -> u64
-        requires output.len > 0;
+        requires output.len > 0
+        reaches none
+        crashes none;
 }
 
 data Constant { byte: u8; }
@@ -521,7 +568,9 @@ different state:
 ```omega
 data Job<P, R, some S> [linear] {
     state: Extent in Granted & Resident<P, S>;
-    run: machine(state: Extent in Granted & Resident<P, S>) -> R;
+    run: machine(state: Extent in Granted & Resident<P, S>) -> R
+        reaches none
+        crashes none;
 }
 ```
 
@@ -639,7 +688,8 @@ data LoggingProxy { }
 data LoggerOps {
     write: machine(proxy: &LoggingProxy, text: &[u8])
         reaches LoggingService
-        suspends;
+        suspends
+        crashes none;
 }
 
 machine component_write(proxy: &LoggingProxy, text: &[u8])
@@ -710,9 +760,10 @@ machine visit<T, S satisfies Step<T>>(item: &mut T) {
 `visit` reaches whatever the selected `S::apply` reaches. Each member has its own
 row, so calling one operation does not add the services of every other member.
 
-Suspension, blocking and crashes keep their separate defaults: an omitted clause
-on a requirement forbids that behavior. Opening service reach does not permit
-a callback to park, block or crash.
+Suspension and blocking keep their own default: an omitted clause on a
+requirement forbids that behavior, so opening service reach does not permit a
+callback to park or block. Crashes follow reach: an omitted `crashes` clause
+leaves the selection's crash routes open, and `crashes none` forbids them.
 
 Calls through the requirement acknowledge its statically retained operational
 envelope with `suspend` and `block`. A concrete or transparent refinement that

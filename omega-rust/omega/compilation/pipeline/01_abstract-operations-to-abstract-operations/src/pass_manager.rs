@@ -527,6 +527,46 @@ pub(crate) mod execution {
         })
     }
 
+    /// Census for `check_on_lowered_form.md` and `stage_trust.md`: committed
+    /// rewrites in one pass step that consumed an accepted obligation fact, by
+    /// rule. Such a rewrite removes or folds a check on the strength of that
+    /// fact, so the count is how many checks would return if a fact without
+    /// checked evidence had to keep its check. Rule identities are digests of
+    /// the rule names in `proof_check_elision.rs` and `rules.rs`; the first
+    /// eight bytes are printed.
+    fn accepted_obligation_rewrite_census(commits: &[PsiOptimizationCommit]) -> String {
+        let mut rules: Vec<([u8; 8], usize)> = Vec::new();
+        for commit in commits {
+            let consumes = commit.declaration.consumed_facts().iter().any(|fact| {
+                matches!(
+                    fact,
+                    optimization_core::OptimizationFactReference::AcceptedObligation(_)
+                )
+            });
+            if !consumes {
+                continue;
+            }
+            let mut prefix = [0; 8];
+            prefix.copy_from_slice(&commit.rule.bytes()[..8]);
+            match rules.iter_mut().find(|(rule, _)| *rule == prefix) {
+                Some((_, count)) => *count += 1,
+                None => rules.push((prefix, 1)),
+            }
+        }
+        let consuming: usize = rules.iter().map(|(_, count)| count).sum();
+        let mut census = format!(
+            "accepted_obligation_rewrite_step commits={} consuming={consuming}\n",
+            commits.len()
+        );
+        for (rule, count) in &rules {
+            let hex: String = rule.iter().map(|byte| format!("{byte:02x}")).collect();
+            census.push_str(&format!(
+                "accepted_obligation_rewrite rule={hex} commits={count}\n"
+            ));
+        }
+        census
+    }
+
     type OptimizationRunOutput = (
         PsiOptimizationUnit,
         Vec<PsiOptimizationCommit>,
@@ -665,6 +705,9 @@ pub(crate) mod execution {
             let Some((candidate, validated)) = chosen else {
                 if dispatched.len() != registry.len() {
                     return Err(OptimizationRunError::RegistryCoverageMismatch);
+                }
+                if std::env::var_os("OMEGA_PROOF_MEASUREMENTS").is_some() {
+                    eprint!("{}", accepted_obligation_rewrite_census(&commits));
                 }
                 let decisions = recorded_decisions.finish();
                 let pass_manifest = build_pass_manifest(

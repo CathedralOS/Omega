@@ -15,6 +15,7 @@ Local subagents share one physical machine (CPU, RAM, disk, and process table):
    Local named branches are banned. Reuse a worker's fixed `.agents/worktree/worker-N` slot across slices (`cargo xtask worktree release`) so its `target/` cache stays warm.
 3. **Host build concurrency ([host-setup.md](host-setup.md)):**
    - Agent slots and expensive-build slots are separate. Keep each worktree's `CARGO_TARGET_DIR` independent (`CARGO_PROFILE_DEV_OPT_LEVEL=1`).
+   - Before dispatching, fix the [host build budget](../../../../tools/build_slot.md#on-a-workstation-someone-is-using) and write it into every worker prompt: cap the total build load of all workers so the machine never reaches 100% (one expensive build at a time unless a shared limit caps the total), and on a workstation its owner is using run at the lowest OS priority. Worker subagents do not inherit the coordinator's environment.
    - Where supported, share verification builds as per-wave generations (`--cli` / `--runner`) built once at the wave base.
 
 ## 2. Launching & Communicating with Local Subagents

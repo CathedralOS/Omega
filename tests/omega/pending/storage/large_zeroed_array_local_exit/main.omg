@@ -1,0 +1,41 @@
+// Expected exit: 0
+// Current refusal: zeroed structural backing or erased establishment cannot be materialized
+// A zero-initialised local record holding 131,073 `u64` cells runs natively
+// and is refused by the interpreter, so `omega run --both` exits 201 instead
+// of comparing the two engines:
+//
+//   native:      exit 0
+//   interpreter: Execution(ExecutionSite { operation_tag:
+//                Some(EstablishZeroedStructural), cause:
+//                UnsupportedSemanticVariant("zeroed structural backing or
+//                erased establishment cannot be materialized") })
+//
+// The interpreter lists one zeroed leaf per cell and gives up past
+// `MAX_ZEROED_LEAVES`, 131,072, in
+// terminal-psi/semantics/src/structural.rs. No specification names that
+// ceiling and native realization has none, so a program is valid on one
+// engine and refused on the other by its size alone.
+//
+// Variants that bound the refusal:
+//
+//   - `[u64 in Wrapping; 131072]` exits 0 on both engines;
+//   - 131,200, 196,608 and 262,144 `u64` cells are refused the same way;
+//   - `[u8; 131073]` exits 0 on both engines, so the count is of cells the
+//     interpreter lists one by one, not of bytes.
+//
+// Expected after the interpreter establishes the storage: exit 0 on both
+// engines.
+data Big {
+    cells: [u64 in Wrapping; 131073];
+}
+
+machine main() crashes Trap {
+    let mut big: Big;
+    big.cells[5] = 7;
+    transition big.cells[5] == 7 && big.cells[6] == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

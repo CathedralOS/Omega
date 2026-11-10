@@ -685,6 +685,8 @@ pub(crate) mod interrupt_installation {
 }
 pub use installed_interrupts::PreparedInstalledInterruptHelpers;
 mod legalization;
+mod legalization_descriptor_inputs;
+mod legalization_function_inputs;
 mod legalization_reference_custody;
 mod legalization_scalar_graph;
 mod legalization_source;

@@ -59,6 +59,30 @@ waive cleanup. Physical layout and case-literal construction are unchanged.
 The [pattern specification](../spec/language/patterns.md#data-and-case-decomposition)
 owns the full rule.
 
+The case-only view has a type you can name, `Command::case`, so a helper can
+take just that part instead of the whole value:
+
+```omega
+machine is_lookup(operation: &Command::case) -> bool {
+    match operation {
+        Command::GetUser { user_id as _ } -> true
+        Command::CountUsers -> false
+    }
+}
+
+machine routes_to_user(command: &Command) -> bool {
+    match command {
+        Command { command_id as _, case as operation } -> is_lookup(operation)
+    }
+}
+```
+
+`Command::case` is always used behind a reference and is still a view of the
+original `Command`: it copies nothing, keeps the original borrow, and gives the
+helper no way to reach `command_id`. The helper sees only what its own contract
+states, so a fact about the whole value that it needs becomes one of its
+`requires` clauses.
+
 ## Irrefutable bindings
 
 When a pattern only decomposes the value, a local binding avoids a one-arm outer

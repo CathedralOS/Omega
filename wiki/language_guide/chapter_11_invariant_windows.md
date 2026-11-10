@@ -60,13 +60,18 @@ fields; it cannot justify an overflowing addition or a dangling reference.
 
 ## Split a repair across helpers
 
-Some properties belong on completed operations rather than every intermediate
-value. Put those in a named domain. The rule for choosing: a property goes in
-the default domain only if every holder of a plain value may assume it at all
-times. If a helper will ever see the value mid-repair, the property belongs in
-a named domain from the start, because a helper taking `&mut Pair` receives a
-valid `Pair` and no promise to fix it later changes that. Moving a property out
-of the default domain afterwards changes public signatures. Here `Pair` is
+A data type's default domain is never left. No cast removes it and no
+parameter type asks for the value without it, so every machine that receives a
+`Pair` receives a valid one, and a promise to fix it later does not change
+that. Where a property lives is therefore a rule, not a preference:
+
+- It belongs in the default domain only if it holds whenever another machine
+  can see the value.
+- If a helper must be able to receive the value with the property false,
+  because that helper is doing the repair, it belongs in a named domain.
+
+Decide this when you declare the type, since moving a property out of the
+default domain afterwards changes public signatures. Here `Pair` is
 valid with any two `u32` fields, while `Pair::Ordered` adds a relationship
 between them:
 
@@ -100,8 +105,9 @@ makes the fields equal and proves `Ordered`; its postcondition fulfills
 `reset`'s promise. This remains an in-place update of the same pair.
 
 If the lender stores `Pair in Pair::Ordered`, the loan must return ordered.
-Passing a weaker `&mut Pair` view lets helpers perform the repair, but retains
-that handback obligation. If `Ordered` were instead part of `Pair`'s default
+Passing a weaker view, written `&mut pair as -Pair::Ordered`, lets helpers perform
+the repair, but retains that handback obligation: when the loan ends `Ordered`
+is established again for whatever the pair then holds. If `Ordered` were instead part of `Pair`'s default
 domain, `finish` would need it on entry as well. Its future postcondition
 cannot justify receiving an invalid value.
 

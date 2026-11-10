@@ -60,14 +60,16 @@ is the contract, and `Counter` is an ordinary type argument. The named
 implementation intentionally saturates; its guard proves representability.
 Selecting it creates no counter and supplies no hidden argument. Another named
 implementation may satisfy the same trait application with different machines.
-Authored implementations declare their member machines inside the block.
-To reuse an existing machine, a member calls or transitions to it through the
-ordinary machine rules; there is no requirement-to-machine assignment syntax.
+An authored implementation supplies each member either by declaring a machine
+inside the block or by selecting an existing one with a selection row,
+`Trait::member = Existing::machine;`. An inline body declares a new machine. A
+selection retains the selected declaration's identity, contract and laws and
+introduces no forwarding machine.
 
-Named decision: `inline-conformance-members`, settled 2026-10-16. Reference
-rows (`Trait::member = Existing::machine;`) are retired, not an alternate
-implementation form.
-Defaults and authorized core synthesis remain unchanged.
+Named decision: `operation-record-implementations`, settled 2026-11-09. It
+supersedes `inline-conformance-members` (2026-10-16), which had retired
+selection rows. [Implementations are operation records](#implementations-are-operation-records)
+states the model. Authorized core synthesis remains unchanged.
 
 The conformance has its own package-scoped name, visibility, binder telescope,
 instantiated trait application, complete row map, laws, and provenance. It is
@@ -170,6 +172,69 @@ Published compatibility reporting identifies the declaration change and its
 affected applications. A selected runtime-bearing row creates an exact static
 realization dependency under [component publication](../build/component_publication.md);
 proof-only evidence retains its proof dependency without pinning runtime code.
+
+## Implementations are operation records
+
+Named decision: `operation-record-implementations`, settled 2026-11-09;
+[the design draft](../../drafts/designs/operation_record_implementations.md)
+records the migration. A trait declares its named callable requirements, whose
+identities are preserved, and an ordinary record schema holding one selected
+operation per requirement plus the evidence its laws require. An implementation
+is a value of that schema. A `satisfies` block constructs a named one; ordinary
+code may also construct, pass, project and return such values, including from
+compile-time evaluation. There is no separate implementation-map value model.
+Text in this chapter that speaks of maps, rows and evidence binders describes
+these values under their declaration spelling.
+
+```omega
+const WireCodec: Codec<Message> = Codec {
+    encode: lib_a::encode,
+    decode: lib_b::decode,
+    round_trip: proofs::wire_round_trip,
+};
+```
+
+Fields hold [static callable selections](machine_values.md#static-callable-selections).
+A field is either a structural selection or a selection bound to a named
+requirement, which preserves requirement-routed invocation, token binding and
+domain access routes. Selection stays explicit: constructing or importing an
+implementation makes nothing an ambient default.
+
+Identity is the schema application plus its canonical relevant field values. A
+name creates no identity and grants no authority: two names for one value are
+one implementation, separately declared machines are different selections even
+with identical bodies, and a deliberately distinct policy carries an explicit
+brand. Law fields contain evidence whose identity follows its logical sort. A
+strict proof is irrelevant, a stored theorem selection retains its declaration
+identity, and a relevant witness stays relevant when erased; citing a theorem to
+supply evidence stores no reference to it. A consumer may index a type by an
+operations subrecord and carry the laws as erased evidence. Value identity,
+artifact dependencies and admission provenance remain separate.
+
+Construction proves the schema's laws for the selected operations, and replacing
+an operation re-establishes them under ordinary invariant rules. One schema
+serves static and runtime use: a static parameter of the schema, including the
+binder spelling `Order satisfies Ranked<T>`, exposes exact selections for
+specialization, and a runtime value carries callable descriptors under their
+checked envelopes. A record holding an open generic callable family is not
+runtime-materializable until that family is closed. The normalized field type
+records whether its contract is [open](effects.md#open-callable-contracts); a refinement of the record supplies the
+finite bounds that runtime construction checks, and omission is never
+reinterpreted by where the record is used. Contracts stay per operation.
+
+A default is constructor computation over already-selected prerequisite
+operations, never over the record under construction, and captures nothing; a
+default that needs runtime-selected siblings takes the record or a context as an
+explicit argument. Parent traits contribute one slot per originating requirement,
+so a diamond duplicates nothing and conflicting selections need an explicit
+choice. Transparent refinements are domains over the record. Adapters are checked
+transformations from record to record. Operator tokens stay bound to named
+requirements; a static selection chooses the operation and a runtime record uses
+explicit field calls. Build may consume a computed record and still checks exact
+slots, realizations and admission separately: packing a selection into a record
+registers no provider and manufactures no satisfaction, establishment or cleanup
+authority. Related types remain explicit parameters and hidden types use
+[`some`](some_packages.md); no associated-type surface is introduced.
 
 ## Complete row identity
 

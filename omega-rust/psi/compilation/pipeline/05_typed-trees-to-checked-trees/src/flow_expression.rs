@@ -3395,17 +3395,11 @@ mod returned_regions {
                 let CheckedReferenceOriginRoot::Parameter { index } = origin.source.root else {
                     return None;
                 };
-                let (position, parameter) = parameters
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, parameter)| {
-                        !parameter.is_const
-                            && self
-                                .program
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_none()
-                    })
-                    .nth(usize::try_from(index).ok()?)?;
+                let (position, parameter) = validation::reference_result_custody::origin_formal(
+                    self.program,
+                    parameters,
+                    index,
+                )?;
                 let (_, actual) = inputs.get(position)?;
                 let projection = validation::reference_result_custody::origin_place_segments(
                     self.program,
@@ -3559,16 +3553,11 @@ mod returned_regions {
             {
                 return None;
             }
-            let (index, parameter) = parameters
-                .iter()
-                .filter(|parameter| {
-                    !parameter.is_const
-                        && program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                })
-                .enumerate()
-                .find(|(_, parameter)| parameter.symbol == origin.source.root)?;
+            let (index, parameter) = validation::reference_result_custody::origin_index(
+                program,
+                parameters,
+                origin.source.root,
+            )?;
             let (entry_reference_hops, projection, endpoint, extent) =
                 validation::reference_result_custody::parameter_reference_origin_path(
                     program,
@@ -3587,9 +3576,7 @@ mod returned_regions {
             origins.push(checked_trees::CheckedReturnedReferencePlan {
                 path: output,
                 source: checked_trees::CheckedReferenceOriginSourcePlan {
-                    root: CheckedReferenceOriginRoot::Parameter {
-                        index: u32::try_from(index).ok()?,
-                    },
+                    root: CheckedReferenceOriginRoot::Parameter { index },
                     entry_reference_hops,
                     path: projection,
                     extent,

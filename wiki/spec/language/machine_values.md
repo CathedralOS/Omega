@@ -16,8 +16,8 @@ by a `requires machine` requirement, without a declaration name:
 ```omega
 data Counter { value: u64; }
 data CounterOps {
-    clear: machine(counter: &mut Counter) terminates;
-    value: machine(counter: &Counter) -> u64 terminates;
+    clear: machine(counter: &mut Counter) reaches none crashes none terminates;
+    value: machine(counter: &Counter) -> u64 reaches none crashes none terminates;
 }
 
 machine clear(counter: &mut Counter) terminates { counter.value = 0; }
@@ -31,10 +31,11 @@ The same type form is usable for locals, parameters, results, fields, arrays and
 other ordinary containers. Parameter names in its contract bind that callable's
 formal arguments; `result` denotes its result. Lifetime binders and ordinary
 `requires`, `ensures`, reach, invocation, suspension, blocking, crash, progress,
-resource and custody contracts retain their meanings. Runtime callable service
-reach has a fixed finite ceiling: omission and `reaches none` both mean empty.
-The deferred omission rule for static requirements does not apply to callable
-types. Other axes retain their existing omission rules.
+resource and custody contracts retain their meanings. A runtime callable has
+fixed finite service and crash ceilings that the type must state: `reaches none`
+and `crashes none` mean empty, and a callable type that omits either clause is
+an [open callable contract](effects.md#open-callable-contracts), which a
+runtime position rejects. Other axes retain their existing omission rules.
 
 In a callable-valued context, a named machine reference selects an exact closed
 declaration application. A qualified named implementation member is eligible;
@@ -82,7 +83,9 @@ mixing compatible machines from different named implementations is permitted
 unless a published record predicate or explicit evidence relates them. Field
 completeness is not a proof of cross-operation laws, matching allocators, or a
 shared implementation identity. Such relationships must be stated and proved.
-Static trait laws do not appear automatically on construction of a record.
+Static trait laws do not appear on a record that does not carry them; a trait's
+[schema](conformances.md#implementations-are-operation-records) carries its laws
+as fields, and construction proves them.
 
 Callable addresses do not automatically supply executable equality, ordering,
 hashing, or proof identity. Ordinary conformance synthesis needs its published
@@ -91,6 +94,26 @@ derivation; it cannot compare descriptors or hidden witness tags as a shortcut.
 In proposition contexts, a call must independently satisfy the ordinary proof
 admission rules. A stored callable's signature or absence of effects does not
 establish totality, termination, mathematical identity or a rewrite law.
+
+## Static callable selections
+
+Decision `operation-record-implementations` (2026-11-09) adds a static value
+form beside the runtime one. A static callable selection is an exact machine
+declaration with its supplied static arguments, its complete contract, any
+remaining generic parameters, and any binding to a named requirement. It may be
+a field of an ordinary static record, a static argument, or the result of
+compile-time evaluation. It is a canonical static atom whose identity is the
+declaration and static application, never an address, generated code, a body
+comparison or behavioral equivalence. It has no runtime representation: a
+consumer taking the record as a static parameter calls the selected declaration
+under its exact published contract, with reach, suspension, blocking, crash,
+termination, carry and result relations projected per selected field.
+
+The same record schema may be materialized at runtime, where each field is the
+callable descriptor described above. Materialization requires every selection's
+static arguments closed and a finite published envelope; an open generic family
+has no descriptor. [Implementations](conformances.md#implementations-are-operation-records)
+are records of these selections.
 
 ## Static selection remains distinct
 
