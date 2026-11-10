@@ -180,9 +180,7 @@ impl<'t> Program<'t> {
             incoming[index(*callee)] += 1;
         }
         let mut ready: Vec<usize> = (0..count).filter(|machine| incoming[*machine] == 0).collect();
-        let mut settled = 0;
         while let Some(machine) = ready.pop() {
-            settled += 1;
             for (caller, callee) in &self.calls {
                 if index(*caller) == machine {
                     incoming[index(*callee)] -= 1;
@@ -192,11 +190,12 @@ impl<'t> Program<'t> {
                 }
             }
         }
+        // Kahn's algorithm settles every machine exactly when there is no
+        // cycle, so a remaining incoming edge is the whole test.
         match incoming.iter().position(|edges| *edges != 0) {
-            None if settled == count => Ok(()),
-            unsettled => {
-                let machine = MachineId::new(unsettled.unwrap_or(0) as u64 + 1)
-                    .expect("positions start at 1");
+            None => Ok(()),
+            Some(position) => {
+                let machine = MachineId::new(position as u64 + 1).expect("positions start at 1");
                 Err(refuse(machine, Construct::Machine, Unserved::Call("recursion")))
             }
         }
@@ -599,7 +598,7 @@ impl<'t> Program<'t> {
                                 target: Target::Value(expression),
                             }
                         }
-                        _ => Statement::Evaluate(expression),
+                        (false, _) | (true, None) => Statement::Evaluate(expression),
                     }
                 }
                 StatementNode::LocalData(local) => {
@@ -1103,6 +1102,22 @@ mod tests {
         for (node, expected) in cases {
             assert_eq!(refused(&typed, node), expected);
         }
+    }
+
+    #[test]
+    fn a_call_cycle_is_refused_as_recursion() {
+        let typed = TypedTrees::default();
+        let mut program = Program::new(&typed);
+        for _ in 0..3 {
+            program.symbols.push(SymbolHandle::invalid());
+        }
+        let m = |raw| MachineId::new(raw).unwrap();
+        program.calls = vec![(m(1), m(2)), (m(2), m(3)), (m(1), m(3))];
+        assert_eq!(program.refuse_recursion(), Ok(()));
+        program.calls.push((m(3), m(2)));
+        assert_eq!(program.refuse_recursion().unwrap_err().detail, "call recursion");
+        program.calls = vec![(m(1), m(1))];
+        assert_eq!(program.refuse_recursion().unwrap_err().machine, m(1));
     }
 
     #[test]
