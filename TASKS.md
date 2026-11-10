@@ -91,6 +91,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **CASE-TYPE.** Implement the [case projection type](wiki/drafts/designs/case_projection_type.md).
 
+- **SUBSTITUTABLE-SERVICES.** Add a fixture selecting different providers for two wrapper slots, and a clock ops trait with a bridge, per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md#two-providers-for-one-contract).
+
 - **OPEN-CALLABLE-CONTRACTS.** Close [callable contracts](wiki/drafts/designs/open_callable_contracts.md) at runtime and boundary positions.
 
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
