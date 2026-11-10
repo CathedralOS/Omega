@@ -72,7 +72,8 @@ data Slot {
 }
 ```
 
-Constructing `Found` proves the range. In a `Found { index }` arm, the caller
+Constructing `Found` takes an index cast with `as +TableIndex`, and that cast
+proves the range. In a `Found { index }` arm, the caller
 can use that bound when indexing a sixteen-entry collection. Ordinary borrow
 and indexing requirements still apply.
 

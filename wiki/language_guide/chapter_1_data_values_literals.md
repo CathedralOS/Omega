@@ -322,7 +322,7 @@ and backslashes use `\"` and `\\`. Raw newlines and codepoint escapes are not
 accepted inside quotes; encoders and normalizers are library operations.
 
 Establish a text domain explicitly when needed, for example
-`"hi" as [u8]::Utf8` under the imported domain's checked rules. Source UTF-8
+`"hi" as +Utf8` under the imported domain's checked rules. Source UTF-8
 framing alone does not establish that qualification.
 
 ## Parameters

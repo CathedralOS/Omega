@@ -41,16 +41,17 @@ not an exact ratio.
   that policy today. No new arithmetic is specified; the existing overflow,
   quotient, remainder and shift-count rows are the single definition.
 - Operands are one bare fixed-integer carrier and the result is that bare
-  carrier. Predicate-only qualifications weaken implicitly; units, policies
-  and other semantic qualifications must be erased with `as` first.
+  carrier. An operand carrying any domain is first cast under
+  [named domain casts](named_domain_casts.md).
 - A `!` form is a `Trap` site that contributes a crash route, removable by
   path facts. Its normal return establishes that the result equals the exact
   mathematical result.
 - The suffixed forms are compiler-owned integer primitives: not bindable by a
   `machine` declaration, no float forms, no compound assignment.
-- The three policy domains stay, with unchanged role, composition and
-  erasure. Their unsuffixed integer operators are defined as the suffixed
-  operation on the erased operands with the result requalified.
+- The three policy domains stay, with unchanged role. Their unsuffixed
+  integer operators are declared for two qualified operands and for one
+  qualified with one plain operand, as the suffixed operation on the operands
+  with the domain removed and the result requalified.
 - Integer `as` is untouched. It was already Exact under every policy, and the
   wrapping, saturating and trapping narrowings are already named machines in
   `core/numeric_conversion.omg`. Array reads are untouched too: they always
@@ -100,7 +101,7 @@ Each with a negative twin, within the repository's fixture caps:
   rules out overflow publishes none.
 - The exact-result fact from a `!` operation discharges a following Exact
   operation's obligation.
-- A unit-qualified or policy-qualified operand rejects until erased; a wholly
+- An operand carrying any domain rejects until a cast removes it; a wholly
   anonymous tree rejects.
 - `a + !b` and a nested static argument list closing with `>>` still parse as
   before.
