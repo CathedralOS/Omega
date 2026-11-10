@@ -1,6 +1,6 @@
 # Progress
 
-Returned worker files were copied from the coordinator transcript onto this branch. Five Stream A workers are still running. Refused slices stay unstarted until a launch is accepted.
+Returned worker files were copied from the coordinator transcript onto this branch. The five workers that were still marked running have finished and their files are on the branch. Refused slices stay unstarted until a launch is accepted.
 
 Base: `8febfc42316bdcede60caa33ddd10a641f0dee8b`
 Branch: `work/grok-mega-2026-11-10`
@@ -14,7 +14,7 @@ Launch refusals:
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
-| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 66 | 5 | 0 |
+| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 71 | 0 | 0 |
 | B | 81 file ranges (B1 26, B2 55); merge files not started | 81 | 0 | 0 |
 | C | 117 chapter pieces from 103 files; lane merge not started | 2 | 0 | 0 |
 | D | 412 batches, 17263 programs; D2 not started | 2 | 0 | 0 |
@@ -22,7 +22,7 @@ Launch refusals:
 | F | 28 site files, 83 occurrences | 2 | 0 | 0 |
 | G | 120 shards, not started. G stays at most a quarter of the live worker count, and only when a slot is free | 0 | 0 | 0 |
 
-Running agent ids are in `state/inflight.tsv`: slices 0041, 0053, 0074, 0082, and 0087.
+No Stream A worker is running. The next launch wave starts at the refused slices 0055, 0056, and 0065.
 
 `B/notes/b2_031.md` was returned without `QUESTION COMPLETE`. The note ends in the identity-patch table. Do not treat that range as finished.
 

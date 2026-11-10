@@ -139,10 +139,10 @@ A-slice_0050	A	bc-a3bd3730-73c6-5868-ad11-8b203c3181eb	.agents/atlas/compiler-20
 A-slice_0051	A	bc-f75745be-958f-59be-940b-71bb3e03eacc	.agents/atlas/compiler-2026-11-10/grok/A/slice_0051.md	done
 A-slice_0058	A	bc-cdcbd326-4af9-5d14-bca1-eb98d9a93400	.agents/atlas/compiler-2026-11-10/grok/A/slice_0058.md	done
 A-slice_0059	A	bc-d536a7b8-af9e-56f7-b622-03acbf2e3c6b	.agents/atlas/compiler-2026-11-10/grok/A/slice_0059.md	done
-A-slice_0041	A	bc-a792a578-3603-5b8b-9764-b2ed61d383d8	.agents/atlas/compiler-2026-11-10/grok/A/slice_0041.md	running
+A-slice_0041	A	bc-a792a578-3603-5b8b-9764-b2ed61d383d8	.agents/atlas/compiler-2026-11-10/grok/A/slice_0041.md	done
 A-slice_0048	A	bc-de4760a1-37cb-5ca0-a108-708029ced466	.agents/atlas/compiler-2026-11-10/grok/A/slice_0048.md	done
 A-slice_0052	A	bc-52428f12-8f55-5c3b-b93c-d5b03ca82c17	.agents/atlas/compiler-2026-11-10/grok/A/slice_0052.md	done
-A-slice_0053	A	bc-74df7b79-ce28-5367-99b2-f33bd651cca2	.agents/atlas/compiler-2026-11-10/grok/A/slice_0053.md	running
+A-slice_0053	A	bc-74df7b79-ce28-5367-99b2-f33bd651cca2	.agents/atlas/compiler-2026-11-10/grok/A/slice_0053.md	done
 A-slice_0054	A	bc-9af2d814-a055-551e-ac60-50c07f3950f1	.agents/atlas/compiler-2026-11-10/grok/A/slice_0054.md	done
 A-slice_0057	A	bc-a88152d7-4659-59de-b57c-a7666b41b073	.agents/atlas/compiler-2026-11-10/grok/A/slice_0057.md	done
 A-slice_0060	A	bc-c841034c-5463-50f6-8ca5-f15cc7f9dd6c	.agents/atlas/compiler-2026-11-10/grok/A/slice_0060.md	done
@@ -156,6 +156,6 @@ A-slice_0068	A	bc-7af022c1-df54-5fde-abbd-17c725174528	.agents/atlas/compiler-20
 A-slice_0069	A	bc-4180e318-c14f-5dfe-8349-ec390d3a1f2f	.agents/atlas/compiler-2026-11-10/grok/A/slice_0069.md	done
 A-slice_0070	A	bc-f2d3ae3b-f7aa-5cd1-860c-3dca81731380	.agents/atlas/compiler-2026-11-10/grok/A/slice_0070.md	done
 A-slice_0071	A	bc-ff32e76b-5308-5adc-a2b8-c2858dee6a04	.agents/atlas/compiler-2026-11-10/grok/A/slice_0071.md	done
-A-slice_0074	A	bc-3df00fb1-5605-5554-b445-f31dcc914ada	.agents/atlas/compiler-2026-11-10/grok/A/slice_0074.md	running
-A-slice_0082	A	bc-a5ae1829-8bc2-569d-a62a-8b3c1515fe92	.agents/atlas/compiler-2026-11-10/grok/A/slice_0082.md	running
-A-slice_0087	A	bc-745a8deb-ff11-5cd3-89f1-96c1be770d7b	.agents/atlas/compiler-2026-11-10/grok/A/slice_0087.md	running
+A-slice_0074	A	bc-3df00fb1-5605-5554-b445-f31dcc914ada	.agents/atlas/compiler-2026-11-10/grok/A/slice_0074.md	done
+A-slice_0082	A	bc-a5ae1829-8bc2-569d-a62a-8b3c1515fe92	.agents/atlas/compiler-2026-11-10/grok/A/slice_0082.md	done
+A-slice_0087	A	bc-745a8deb-ff11-5cd3-89f1-96c1be770d7b	.agents/atlas/compiler-2026-11-10/grok/A/slice_0087.md	done
