@@ -2915,7 +2915,7 @@ pub(crate) mod cleanup_calls {
     use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractOperationPlan};
     use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
-    use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+    use optimization_unit::PsiOptimizationUnit;
     use target_operations::{CallSiteOwner, TargetOperationPlan, TargetUnitOperation};
     use terminal_psi::{StructuralArgument, TerminalAffineCleanupAction};
 
@@ -3657,7 +3657,7 @@ pub(crate) mod ieee_float_arithmetic {
         native: ::target::NativeTarget,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
-        sources: &mut Vec<(ValueId, TargetUnitScalarArgumentSource)>,
+        sources: &mut crate::legalization_target::control_flow::sources::AvailableSources<'_>,
     ) -> Result<(), LegalizationError> {
         if let (
             TargetUnitOperation::IeeeFloatClassify {
@@ -3715,7 +3715,7 @@ pub(crate) mod ieee_float_arithmetic {
                 || arguments.as_slice() != [argument.source_value()]
                 || argument.scalar_type() != operand
                 || !sources
-                    .iter()
+                    .matching(argument.source_value())
                     .filter(|(value, _)| *value == argument.source_value())
                     .map(|(_, available)| available)
                     .eq(std::iter::once(argument))
@@ -3768,7 +3768,7 @@ pub(crate) mod ieee_float_arithmetic {
         let exactly_available = |value: &ValueId, source: &TargetUnitScalarArgumentSource| {
             source.source_value() == *value
                 && sources
-                    .iter()
+                    .matching(*value)
                     .filter(|(identity, _)| identity == value)
                     .map(|(_, available)| available)
                     .eq(std::iter::once(source))

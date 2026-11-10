@@ -3039,14 +3039,7 @@ pub(crate) mod scalar_graph {
                     parameters: block.parameters.clone(),
                     structural_parameters: block.structural_parameters.clone(),
                     instructions,
-                    terminator: terminator::project(
-                        last,
-                        optimized,
-                        plan,
-                        native,
-                        unit,
-                        &function_inputs,
-                    )?,
+                    terminator: terminator::project(last, &function_inputs, plan, native, unit)?,
                 })
             })
             .collect::<Result<Vec<_>, LegalizationError>>()?;

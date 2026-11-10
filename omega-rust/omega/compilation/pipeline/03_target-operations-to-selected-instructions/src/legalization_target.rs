@@ -251,10 +251,8 @@ pub(crate) mod control_flow {
         use crate::legalization::scalar_graph_input::{self as input, reference_custody};
         use abstract_operations::{AbstractOperation, AbstractOperationPlan};
         use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
-        use semantic_vocabulary::{InvocationSite, ValueId};
-        use target_operations::{
-            TargetControlTerminator, TargetOperationPlan, TargetUnitScalarArgumentSource,
-        };
+        use semantic_vocabulary::InvocationSite;
+        use target_operations::{TargetControlTerminator, TargetOperationPlan};
 
         pub(crate) fn validate(
             target: &TargetControlTerminator,
@@ -2944,7 +2942,7 @@ pub(crate) mod expressions {
 }
 pub(crate) mod hosted_scalar {
     use super::{
-        AbstractOperation, AbstractOperationPlan, PsiOptimizationUnit, TargetUnitOperation, ValueId,
+        AbstractOperation, AbstractOperationPlan, PsiOptimizationUnit, TargetUnitOperation,
     };
     use crate::LegalizationError;
     use crate::legalization::scalar_graph_input::i32_type;
@@ -2953,7 +2951,7 @@ pub(crate) mod hosted_scalar {
     };
     use target_operations::{
         BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution,
-        TargetBoundaryResult, TargetUnitScalarArgumentSource,
+        TargetBoundaryResult,
     };
 
     pub(crate) fn validate(
@@ -3052,7 +3050,7 @@ pub(crate) mod hosted_scalar {
             || argument.parameter_index != 0
             || expected.parameters.as_slice() != [argument.placement.clone()]
             || !values
-                .iter()
+                .matching(*value)
                 .any(|(identity, expected)| identity == value && *expected == argument.source)
         {
             return Err(LegalizationError::custody());
@@ -3063,7 +3061,6 @@ pub(crate) mod hosted_scalar {
 pub(crate) mod normalized_foreign {
     use super::{
         AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit, TargetUnitOperation,
-        ValueId,
     };
     use crate::LegalizationError;
     use crate::legalization::scalar_graph_input::normalized_foreign::{
@@ -3296,7 +3293,7 @@ pub(crate) mod normalized_foreign {
                             Source::Home(home) => home.shape != *shape,
                             _ => false,
                         }
-                        || !values.iter().any(|(identity, expected)| {
+                        || !values.matching(*value).any(|(identity, expected)| {
                             identity == value && *expected == argument.source
                         })
                 })
@@ -3728,7 +3725,7 @@ pub(crate) mod unit {
     pub(crate) mod aggregate_results {
         use super::{
             AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
-            Source, TargetUnitOperation, ValueId,
+            TargetUnitOperation,
         };
         use crate::LegalizationError;
         use crate::legalization::scalar_graph_input;
@@ -4370,12 +4367,10 @@ pub(crate) mod unit {
         use super::aggregate_results::owned_projected_field_source;
         use super::{
             AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, TargetUnitOperation,
-            ValueId,
         };
         use crate::LegalizationError;
         use crate::legalization::scalar_graph_input;
         use scalar_graph_input::borrowed_windows::moved;
-        use target_operations::TargetUnitScalarArgumentSource as Source;
         use terminal_psi::StructuralAccess;
 
         pub(crate) fn validate(
@@ -4475,8 +4470,7 @@ pub(crate) mod unit {
     pub(crate) mod direct_calls {
         use super::{
             AbstractOperation, AbstractOperationPlan, LegalizationError, PsiOptimizationFunction,
-            PsiOptimizationUnit, Source, TargetOperationPlan, TargetUnitOperation, ValueId,
-            callee_plan,
+            PsiOptimizationUnit, Source, TargetOperationPlan, TargetUnitOperation, callee_plan,
         };
         use target_operations::{NativeCallOrigin, TargetCallResult};
 
@@ -4862,7 +4856,7 @@ pub(crate) mod unit {
         }
     }
     pub(crate) mod ieee_float {
-        use super::super::{AbstractOperation, TargetUnitOperation, ValueId};
+        use super::super::{AbstractOperation, TargetUnitOperation};
         use super::Source;
         use crate::legalization::scalar_graph_input::{LegalizationError, ScalarType, ValueShape};
         use semantic_vocabulary::IeeeFloatFormat;
@@ -5029,7 +5023,6 @@ pub(crate) mod unit {
         use crate::LegalizationError;
         use abstract_operations::AbstractOperation;
         use optimization_unit::PsiOptimizationUnit;
-        use semantic_vocabulary::ValueId;
         use target_operations::{
             TargetStructuralParameter, TargetUnitOperation,
             TargetUnitScalarArgumentSource as Source,
