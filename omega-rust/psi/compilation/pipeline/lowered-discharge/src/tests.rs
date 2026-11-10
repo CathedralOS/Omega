@@ -3023,3 +3023,258 @@ fn a_sum_local_nothing_was_stored_into_is_unestablished() {
     );
     assert_eq!(verdicts, [Err(RefusalReason::Unestablished)]);
 }
+mod reuse {
+    // Saving a proof and reusing it: the consumer recomputes its goal and
+    // hypotheses from its own program; the saved evidence supplies only the
+    // certificate, and the kernel decides it. No search runs on reuse.
+    use super::*;
+    use crate::prove::SEARCHES;
+    use crate::{reverify, reverify_at_call};
+
+    fn searches() -> usize {
+        SEARCHES.with(std::cell::Cell::get)
+    }
+
+    /// `add(a, b) requires a <= bound, b <= 100 { return a + b }`.
+    fn add(bound: u128) -> Machine {
+        add_of_formals(vec![at_most(1, bound), at_most(2, 100)])
+    }
+
+    /// The saved certificate of `machine`'s first obligation of kind `select`.
+    fn saved(
+        machines: Vec<Machine>,
+        machine: u64,
+        select: impl Fn(&ObligationKind) -> bool,
+    ) -> (ObligationId, proof_admission::CertificateEnvelope) {
+        let (elaboration, result) = run(machines);
+        let (obligation, verdict) = verdicts(&elaboration, &result, machine, select)[0];
+        (obligation, certificate(verdict).certificate.clone())
+    }
+
+    #[test]
+    fn the_same_obligation_reverifies_without_search() {
+        // Shows: a saved proof is accepted for the same obligation of the same
+        // program, decided by the kernel against the consumer's own goal and
+        // hypotheses, and no prover is started.
+        let (obligation, certificate) = saved(vec![add(10)], 1, safety);
+        let mut consumer = lower(vec![add(10)]).unwrap();
+        let before = searches();
+        let evidence = reverify(&mut consumer, id(1), obligation, &certificate).unwrap();
+        assert_eq!(searches(), before, "reuse started a prover");
+        assert!(matches!(
+            evidence.fact.route,
+            AcceptedFactRoute::CertificateDerived { .. }
+        ));
+    }
+
+    #[test]
+    fn a_stale_proof_is_refused() {
+        // Shows: when the program changes so the goal differs (a guarantee
+        // `a <= 10` becomes `a <= 9`, still true under `a <= 5`), the old
+        // proof does not carry over: its conclusion is not the new goal.
+        let program = |bound| vec![guaranteeing(vec![at_most(1, 5)], at_most(1, bound))];
+        let (obligation, certificate) = saved(program(10), 1, guarantee);
+        let mut consumer = lower(program(9)).unwrap();
+        assert!(reverify(&mut consumer, id(1), obligation, &certificate).is_err());
+        // The new program's own goal is provable; only the stale proof fails.
+        let (_, result) = run(program(9));
+        let verdicts = &result.machines.get(id(1)).unwrap().verdicts;
+        assert!(verdicts.get(obligation).unwrap().is_ok());
+    }
+
+    #[test]
+    fn a_proof_whose_assumption_is_gone_is_refused() {
+        // Shows: the proof cited the entry `requires a <= 10`; without it the
+        // consumer has no such hypothesis and the kernel refuses the citation.
+        let (obligation, certificate) = saved(vec![add(10)], 1, safety);
+        let mut consumer = lower(vec![add_of_formals(vec![at_most(2, 100)])]).unwrap();
+        assert!(reverify(&mut consumer, id(1), obligation, &certificate).is_err());
+    }
+
+    #[test]
+    fn a_proof_for_another_obligation_is_refused() {
+        // Shows: two exact adds in one program; the first add's proof does not
+        // prove the second add's safety goal.
+        let program = || {
+            vec![Machine {
+                locals: vec![u32_type()],
+                requires: vec![at_most(1, 10)],
+                ..machine(
+                    vec![u32_type()],
+                    vec![
+                        Statement::Bind {
+                            slot: 1,
+                            value: strict(Strict::Add, slot(0, u32_type()), unsigned(1)),
+                        },
+                        returns(strict(Strict::Add, slot(1, u32_type()), unsigned(2))),
+                    ],
+                )
+            }]
+        };
+        let (elaboration, result) = run(program());
+        let safeties = verdicts(&elaboration, &result, 1, safety);
+        assert_eq!(safeties.len(), 2);
+        let first = certificate(safeties[0].1).certificate.clone();
+        let mut consumer = lower(program()).unwrap();
+        assert!(reverify(&mut consumer, id(1), safeties[1].0, &first).is_err());
+    }
+
+    #[test]
+    fn a_proof_from_another_machine_holds_only_where_goal_and_hypotheses_agree() {
+        // Shows: machines 2 and 3 have the same shape. Where machine 3 assumes
+        // more loosely (`a <= 100` instead of `a <= 10`), machine 2's proof is
+        // refused there. Where machine 3 is the same program, the proof is
+        // accepted, and that is correct: it proves machine 3's own goal from
+        // machine 3's own hypotheses, which are the same propositions over
+        // machine 3's own values; where it was found does not matter.
+        let program = |third: u128| {
+            let invoke = |callee| Statement::Evaluate(call(callee, vec![unsigned(1), unsigned(2)]));
+            vec![
+                machine(Vec::new(), vec![invoke(2), invoke(3), returns(unsigned(0))]),
+                add(10),
+                add(third),
+            ]
+        };
+        let (obligation, certificate) = saved(program(100), 2, safety);
+        let mut looser = lower(program(100)).unwrap();
+        assert!(reverify(&mut looser, id(3), obligation, &certificate).is_err());
+        let mut same = lower(program(10)).unwrap();
+        assert!(reverify(&mut same, id(3), obligation, &certificate).is_ok());
+    }
+
+    #[test]
+    fn a_guarantee_over_formals_reverifies_at_each_call_by_substitution() {
+        // Shows: `clamp(x) requires x <= 10 ensures x <= 11` is proved once,
+        // over its formal. At each call the consumer substitutes the actual
+        // into the guarantee, the requires and the certificate, and the kernel
+        // re-decides it with no search. A third call whose actual breaks the
+        // requires is refused: the instance holds only under the requires.
+        // This is substitution of actuals for formals, not type-parameter
+        // instantiation.
+        let clamp = Machine {
+            requires: vec![at_most(1, 10)],
+            ensures: vec![at_most(1, 11)],
+            ..machine(vec![u32_type()], vec![returns(slot(0, u32_type()))])
+        };
+        let caller = Machine {
+            requires: vec![at_most(1, 3)],
+            ..machine(
+                vec![u32_type()],
+                vec![
+                    Statement::Evaluate(call(2, vec![slot(0, u32_type())])),
+                    Statement::Evaluate(call(2, vec![unsigned(7)])),
+                    returns(call(2, vec![unsigned(20)])),
+                ],
+            )
+        };
+        let (elaboration, result) = run(vec![caller, clamp]);
+        let (_, proved) = verdicts(&elaboration, &result, 2, guarantee)[0];
+        let saved = certificate(proved).certificate.clone();
+        let tables = elaboration.tables.machines.get(id(1)).unwrap();
+        let calls: Vec<_> = tables.invocations.keys().collect();
+        assert_eq!(calls.len(), 3);
+        let before = searches();
+        for call in &calls[..2] {
+            reverify_at_call(&elaboration, &result, id(1), *call, 0, &saved).unwrap();
+        }
+        assert_eq!(searches(), before, "reuse started a prover");
+        let refused = reverify_at_call(&elaboration, &result, id(1), calls[2], 0, &saved);
+        assert_eq!(
+            refused.unwrap_err().reason,
+            RefusalReason::Unproved(UnprovedCause::NoDerivation)
+        );
+    }
+
+    #[test]
+    #[ignore = "timing: run with --ignored --nocapture on a quiet host"]
+    fn finding_against_reusing_a_proof() {
+        // Wall time to find and check every proof (`discharge`) against
+        // re-verifying the saved ones (`reverify`), same `Instant` method,
+        // on the largest program these tests build. Both include lowering.
+        use std::time::Instant;
+        let program = || {
+            vec![
+                Machine {
+                    locals: vec![u32_type(); 4],
+                    requires: vec![at_most(1, 10), at_most(2, 10)],
+                    ..machine(
+                        vec![u32_type(), u32_type()],
+                        vec![
+                            Statement::Bind {
+                                slot: 2,
+                                value: strict(
+                                    Strict::Add,
+                                    slot(0, u32_type()),
+                                    slot(1, u32_type()),
+                                ),
+                            },
+                            Statement::Bind {
+                                slot: 3,
+                                value: strict(Strict::Multiply, slot(2, u32_type()), unsigned(3)),
+                            },
+                            Statement::Bind {
+                                slot: 4,
+                                value: strict(
+                                    Strict::Subtract,
+                                    slot(2, u32_type()),
+                                    slot(0, u32_type()),
+                                ),
+                            },
+                            Statement::Bind {
+                                slot: 5,
+                                value: call(2, vec![slot(1, u32_type())]),
+                            },
+                            guarded(
+                                compare(Strict::NotEqual, slot(1, u32_type()), unsigned(0)),
+                                strict(Strict::Divide, slot(3, u32_type()), slot(1, u32_type())),
+                            ),
+                            returns(strict(
+                                Strict::Add,
+                                slot(4, u32_type()),
+                                slot(5, u32_type()),
+                            )),
+                        ],
+                    )
+                },
+                Machine {
+                    requires: vec![at_most(1, 10)],
+                    ensures: vec![at_most(1, 11)],
+                    ..machine(vec![u32_type()], vec![returns(slot(0, u32_type()))])
+                },
+            ]
+        };
+        const ROUNDS: u32 = 200;
+        let mut saved = Vec::new();
+        let mut obligations = 0;
+        let started = Instant::now();
+        for _ in 0..ROUNDS {
+            let mut elaboration = lower(program()).unwrap();
+            let result = discharge(&mut elaboration).unwrap();
+            saved.clear();
+            obligations = 0;
+            for (machine, discharged) in result.machines.iter() {
+                for (obligation, verdict) in discharged.verdicts.iter() {
+                    obligations += 1;
+                    if let Ok(Discharged::Certificate(evidence)) = verdict {
+                        saved.push((machine, obligation, evidence.certificate.clone()));
+                    }
+                }
+            }
+        }
+        let finding = started.elapsed();
+        let started = Instant::now();
+        for _ in 0..ROUNDS {
+            let mut elaboration = lower(program()).unwrap();
+            for (machine, obligation, certificate) in &saved {
+                reverify(&mut elaboration, *machine, *obligation, certificate).unwrap();
+            }
+        }
+        let reusing = started.elapsed();
+        eprintln!(
+            "timing rounds={ROUNDS} obligations={obligations} certificates={} discharge_total_us={} reverify_total_us={}",
+            saved.len(),
+            finding.as_micros(),
+            reusing.as_micros(),
+        );
+    }
+}

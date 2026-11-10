@@ -135,6 +135,13 @@ struct Fact {
     axiom: Option<usize>,
 }
 
+#[cfg(test)]
+thread_local! {
+    /// How many provers were started on this thread: the reuse tests assert
+    /// that re-verifying a saved proof starts none.
+    pub(crate) static SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 pub(crate) struct Prover<'a> {
     context: &'a PropositionContext,
     assumptions: &'a [Proposition],
@@ -269,6 +276,8 @@ impl<'a> Prover<'a> {
         values: &'a IdTable<ValueId, ValueRow>,
         relations: bool,
     ) -> Self {
+        #[cfg(test)]
+        SEARCHES.with(|searches| searches.set(searches.get() + 1));
         let mut facts = Vec::new();
         for (index, assumption) in assumptions.iter().enumerate() {
             let proof = node(assumption.clone(), ProofRule::Assumption { index });

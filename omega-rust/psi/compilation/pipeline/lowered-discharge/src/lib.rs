@@ -37,8 +37,10 @@ refused as `Unsupported`; elaboration mints none of them yet.
 mod graph;
 mod places;
 mod prove;
+mod reuse;
 mod verdict;
 
+pub use reuse::{reverify, reverify_at_call};
 pub use verdict::{AcceptedClosure, RouteVerdict, UnestablishedUse, UnprovedObligation, judge};
 
 #[cfg(test)]
@@ -300,9 +302,67 @@ fn machine(
             "knowledge rows already present",
         ));
     }
-    let types = tables.values.map(|_, row| row.scalar_type);
-    let graph = Graph::new(id, lowered, tables)?;
+    let Prepared {
+        types,
+        graph,
+        context,
+    } = prepare(machines, structural_types, id, tables, knowledge)?;
     let storage = places::Storage::new(id, lowered, structural_types, &graph, tables)?;
+    // Certificates first; a published clause is then decided from its exits.
+    let mut decided: Vec<Option<Checked<Discharged>>> =
+        Vec::with_capacity(tables.obligations.len());
+    for (obligation, row) in tables.obligations.iter() {
+        if let ObligationKind::PublishedGuarantee { .. } = row.kind {
+            decided.push(None);
+            continue;
+        }
+        let verdict =
+            goal(machines, lowered, id, obligation, &row.kind, tables, &types).and_then(|goal| {
+                decide(
+                    &context,
+                    &graph,
+                    tables,
+                    id,
+                    obligation,
+                    row.created_at,
+                    goal,
+                    knowledge != Knowledge::LiteralIntervals,
+                )
+                .map(Discharged::Certificate)
+            });
+        decided.push(Some(verdict));
+    }
+    let mut verdicts = IdTable::default();
+    for ((obligation, row), verdict) in tables.obligations.iter().zip(&decided) {
+        verdicts.push(match (verdict, row.kind) {
+            (Some(verdict), _) => verdict.clone(),
+            (None, ObligationKind::PublishedGuarantee { clause }) => {
+                published(tables, id, obligation, clause, &decided)
+            }
+            (None, _) => Err(refusal(
+                RefusalReason::Unsupported,
+                id,
+                Construct::Obligation(obligation),
+                "obligation left undecided",
+            )),
+        });
+    }
+    let uses = storage.uses(tables)?;
+    Ok(MachineDischarge { verdicts, uses })
+}
+
+/// Fills one machine's knowledge table from its lowered form: entry
+/// `requires`, result equations and field-read equations, branch
+/// conditions, dispatch bindings and callee guarantees.
+fn fill_knowledge(
+    machines: &[TerminalMachine],
+    id: MachineId,
+    lowered: &TerminalMachine,
+    tables: &mut MachineTables,
+    knowledge: Knowledge,
+    types: &IdTable<ValueId, ScalarType>,
+    storage: &places::Storage<'_>,
+) -> Checked<()> {
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         push_knowledge(
             tables,
@@ -315,7 +375,7 @@ fn machine(
     }
     for block in &lowered.blocks {
         for operation in &block.operations {
-            if let Some(equation) = result_equation(id, operation, &types)? {
+            if let Some(equation) = result_equation(id, operation, types)? {
                 push_knowledge(
                     tables,
                     equation,
@@ -411,6 +471,34 @@ fn machine(
         }
     }
 
+    Ok(())
+}
+
+/// What deciding one machine's obligations needs: value types, dominance,
+/// and the proposition context; filling the knowledge table on the way.
+pub(crate) struct Prepared {
+    pub(crate) types: IdTable<ValueId, ScalarType>,
+    pub(crate) graph: Graph,
+    pub(crate) context: PropositionContext,
+}
+
+/// Fills `tables.knowledge` from the lowered form and builds what deciding
+/// needs. Knowledge already present is kept: it is this machine's own.
+pub(crate) fn prepare(
+    machines: &[TerminalMachine],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    id: MachineId,
+    tables: &mut MachineTables,
+    knowledge: Knowledge,
+) -> Checked<Prepared> {
+    let lowered = terminal_machine(machines, id, id)?;
+    let fill = tables.knowledge.is_empty();
+    let types = tables.values.map(|_, row| row.scalar_type);
+    let graph = Graph::new(id, lowered, tables)?;
+    if fill {
+        let storage = places::Storage::new(id, lowered, structural_types, &graph, tables)?;
+        fill_knowledge(machines, id, lowered, tables, knowledge, &types, &storage)?;
+    }
     let context = PropositionContext::from_value_types(
         types
             .iter()
@@ -424,47 +512,11 @@ fn machine(
             "value types do not form a proposition context",
         )
     })?;
-    // Certificates first; a published clause is then decided from its exits.
-    let mut decided: Vec<Option<Checked<Discharged>>> =
-        Vec::with_capacity(tables.obligations.len());
-    for (obligation, row) in tables.obligations.iter() {
-        if let ObligationKind::PublishedGuarantee { .. } = row.kind {
-            decided.push(None);
-            continue;
-        }
-        let verdict =
-            goal(machines, lowered, id, obligation, &row.kind, tables, &types).and_then(|goal| {
-                decide(
-                    &context,
-                    &graph,
-                    tables,
-                    id,
-                    obligation,
-                    row.created_at,
-                    goal,
-                    knowledge != Knowledge::LiteralIntervals,
-                )
-                .map(Discharged::Certificate)
-            });
-        decided.push(Some(verdict));
-    }
-    let mut verdicts = IdTable::default();
-    for ((obligation, row), verdict) in tables.obligations.iter().zip(&decided) {
-        verdicts.push(match (verdict, row.kind) {
-            (Some(verdict), _) => verdict.clone(),
-            (None, ObligationKind::PublishedGuarantee { clause }) => {
-                published(tables, id, obligation, clause, &decided)
-            }
-            (None, _) => Err(refusal(
-                RefusalReason::Unsupported,
-                id,
-                Construct::Obligation(obligation),
-                "obligation left undecided",
-            )),
-        });
-    }
-    let uses = storage.uses(tables)?;
-    Ok(MachineDischarge { verdicts, uses })
+    Ok(Prepared {
+        types,
+        graph,
+        context,
+    })
 }
 
 /// A published `ensures` clause holds when every `Destination::Return` edge
@@ -780,12 +832,70 @@ fn decide(
     goal: Proposition,
     relations: bool,
 ) -> Checked<Evidence> {
-    let unproved = |cause: UnprovedCause, detail: String| Refusal {
+    let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
+    let mut prover = prove::Prover::new(
+        context,
+        &hypotheses.assumptions,
+        &hypotheses.axioms,
+        &tables.values,
+        relations,
+    );
+    let proof = prover.prove(&goal).map_err(|reason| {
+        // Classified by the goal's form, not by which search path failed
+        // last, so the outcome does not depend on search order.
+        let cause = if prove::has_rules_for(&goal) {
+            UnprovedCause::NoDerivation
+        } else {
+            UnprovedCause::NoRuleForGoalForm
+        };
+        unproved(id, obligation, cause, reason.to_owned())
+    })?;
+    let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Obligation(obligation),
+            "obligation identity is not an evidence identity",
+        )
+    })?;
+    let certificate = CertificateEnvelope {
+        identity,
+        proof_system_marker: ProofSystemMarker::CURRENT,
+        proof,
+    };
+    verify(context, id, obligation, goal, hypotheses, certificate)
+}
+
+fn unproved(
+    id: MachineId,
+    obligation: ObligationId,
+    cause: UnprovedCause,
+    detail: String,
+) -> Refusal {
+    Refusal {
         reason: RefusalReason::Unproved(cause),
         machine: id,
         concerns: Construct::Obligation(obligation),
         detail,
-    };
+    }
+}
+
+/// The knowledge available where an obligation sits, split as the kernel
+/// takes it: assumptions and semantic axioms, with their rows.
+pub(crate) struct Hypotheses {
+    pub(crate) assumption_rows: Vec<KnowledgeId>,
+    pub(crate) axiom_rows: Vec<KnowledgeId>,
+    pub(crate) assumptions: Vec<Proposition>,
+    pub(crate) axioms: Vec<Proposition>,
+}
+
+pub(crate) fn hypotheses(
+    graph: &Graph,
+    tables: &MachineTables,
+    id: MachineId,
+    obligation: ObligationId,
+    point: ProgramPoint,
+) -> Checked<Hypotheses> {
     let mut assumption_rows = Vec::new();
     let mut axiom_rows = Vec::new();
     let mut assumptions = Vec::new();
@@ -818,30 +928,25 @@ fn decide(
             }
         }
     }
-    let mut prover = prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
-    let proof = prover.prove(&goal).map_err(|reason| {
-        // Classified by the goal's form, not by which search path failed
-        // last, so the outcome does not depend on search order.
-        let cause = if prove::has_rules_for(&goal) {
-            UnprovedCause::NoDerivation
-        } else {
-            UnprovedCause::NoRuleForGoalForm
-        };
-        unproved(cause, reason.to_owned())
-    })?;
-    let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            id,
-            Construct::Obligation(obligation),
-            "obligation identity is not an evidence identity",
-        )
-    })?;
-    let certificate = CertificateEnvelope {
-        identity,
-        proof_system_marker: ProofSystemMarker::CURRENT,
-        proof,
-    };
+    Ok(Hypotheses {
+        assumption_rows,
+        axiom_rows,
+        assumptions,
+        axioms,
+    })
+}
+
+/// Has the kernel decide `certificate` for `goal` under `hypotheses`. The
+/// only acceptance path: an obligation is discharged exactly when this
+/// returns evidence.
+pub(crate) fn verify(
+    context: &PropositionContext,
+    id: MachineId,
+    obligation: ObligationId,
+    goal: Proposition,
+    hypotheses: Hypotheses,
+    certificate: CertificateEnvelope,
+) -> Checked<Evidence> {
     let fact = verify_obligation(
         context,
         &Obligation {
@@ -849,15 +954,22 @@ fn decide(
             proposition: goal.clone(),
             class: ObligationClass::Derivable,
         },
-        &assumptions,
-        &axioms,
+        &hypotheses.assumptions,
+        &hypotheses.axioms,
         EvidenceRoute::CertificateDerived(certificate.clone()),
     )
-    .map_err(|error| unproved(UnprovedCause::KernelRefused, format!("kernel {error:?}")))?;
+    .map_err(|error| {
+        unproved(
+            id,
+            obligation,
+            UnprovedCause::KernelRefused,
+            format!("kernel {error:?}"),
+        )
+    })?;
     Ok(Evidence {
         goal,
-        assumptions: assumption_rows,
-        axioms: axiom_rows,
+        assumptions: hypotheses.assumption_rows,
+        axioms: hypotheses.axiom_rows,
         certificate,
         fact,
     })

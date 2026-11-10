@@ -383,3 +383,20 @@ obligation and one per unestablished use of storage; a program with such a
 use is `route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
 so that comparison can count what branch facts buy; the checker uses
 `discharge`.
+
+## Reusing a saved proof (experiment)
+
+[reuse.rs](src/reuse.rs) is an experiment the owner asked to see before
+anything is built on it; no production path calls it. `reverify` takes a saved
+certificate for one obligation and has the kernel decide it for the goal and
+hypotheses the consumer computes from its own lowered program, through the same
+`verify` as `discharge`. It runs no search and cannot reach the prover. A stale
+proof, a missing assumption, or a proof attached to another obligation or
+machine fails because the kernel checks the certificate's conclusion against
+the consumer's goal and each citation against the consumer's own hypotheses.
+`reverify_at_call` moves a guarantee proved over a callee's formals to one
+call by substituting the actuals into the guarantee, the `requires` and the
+certificate; the call's own requirements must already be discharged there.
+That is substitution of actuals for formals, not type-parameter
+instantiation. Certificates have no byte form yet, so a saved proof lives in
+memory.
