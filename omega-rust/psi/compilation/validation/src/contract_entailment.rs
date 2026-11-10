@@ -71749,7 +71749,7 @@ pub(crate) mod structural_judgment {
                 };
                 // Neither operand is refuted here, so everything the right operand
                 // publishes holds only where the left one is false.
-                if let Some(conditional) = conditional.as_deref_mut()
+                if let Some(conditional) = conditional
                     && let Some(left) =
                         judge.bound_observed_condition(binary.left, scope, parameters, &mut operand)
                 {
