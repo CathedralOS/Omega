@@ -13,12 +13,12 @@ public machine generated_check() {
         true -> later(pair)
         _ -> done()
     }
-    state later(pair: GeneratedPair) {
+    machine later(pair: GeneratedPair) {
         let observed: i32 = generated_offset();
         transition observed == pair.right {
             true -> done()
             _ -> done()
         }
     }
-    state done() {}
+    machine done() {}
 }
