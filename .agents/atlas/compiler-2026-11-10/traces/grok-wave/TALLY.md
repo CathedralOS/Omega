@@ -25,6 +25,8 @@ Error: Sub-agent is currently running. You may send the follow-up message when i
 There is no cancel tool for a running background worker, so those 64 were not stopped while they were running. Their reports are not saved. Each one is started again on `composer-2.5` with fast mode off after it finishes.
 
 - slice_0001 fast worker `bc-f034c986-a460-5285-b52a-3dfc92c8c6be` finished. Report discarded. Composer-2.5 rerun: `bc-4f1621d5-1c6b-572b-bd87-519d6a6eefac`.
+- Fast reports discarded for slice_0014, slice_0015, slice_0020, slice_0023, slice_0028, slice_0031, slice_0033, and slice_0039. Each is running again on composer-2.5.
+- Composer-2.5 reports saved for slice_0002, slice_0005, slice_0011, slice_0016, and slice_0017. Those were the reruns, not the fast first passes.
 
 Slices slice_0065 onward that were accepted already use `composer-2.5` with fast mode off.
 
@@ -55,15 +57,24 @@ A later run can start those on `composer-2.5` with fast mode off, and only as sl
 
 ## Work list
 
-| Kind | Entries | With a verdict | Without a verdict |
-| --- | --- | --- | --- |
-| ACCEPT | 1115 | 8 | 1107 |
-| DROP | 247 | 0 | 247 |
-| UNUSED | 265 | 0 | 265 |
-| SAMEJOB | 626 | 0 | 626 |
-| Total | 2253 | 8 | 2245 |
+| Verdict | Saved rows |
+| --- | --- |
+| REACHABLE | 41 |
+| CLOSED | 66 |
+| UNDECIDED | 9 |
+| LOST FAILURE | 0 |
+| NOT MY CASE | 0 |
+| NO CALLERS | 0 |
+| TEST ONLY | 0 |
+| HAS CALLERS | 0 |
+| SAME JOB | 0 |
+| DIFFERENT JOBS | 0 |
+| Total saved | 116 |
+| Work list | 2253 |
 
-Counts per digest are in the comment block at the top of `worklist.tsv`. The only saved verdicts are the eight in `slices/slice_0073.md`.
+Saved reports, all ending in `SLICE COMPLETE`: slice_0002, slice_0005, slice_0011, slice_0016, slice_0017, slice_0065, slice_0073, slice_0075, slice_0077, slice_0083, slice_0099, slice_0101, slice_0105, slice_0106, slice_0107, slice_0108. Fast-model reports are not in this set. Slice 0105's worker omitted the completion line; it was added after every entry already had a verdict.
+
+Composer-2.5 reruns now in flight for fast slices whose first reports were discarded: slice_0001, slice_0014, slice_0015, slice_0020, slice_0023, slice_0028, slice_0031, slice_0033, slice_0039. Newly started, also on composer-2.5: slice_0109 through slice_0120. No new launch was refused in this batch. The earlier cap error is unchanged.
 
 ## How the list was cut
 
