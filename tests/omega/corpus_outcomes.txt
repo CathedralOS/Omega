@@ -2593,8 +2593,8 @@ fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 17163ms 
 	cannot prove requires contract: machine `Main::main` state `main` value call to `take` violates required fact `core::Identity<Point>(point, Point.zero())`: the instantiated fact is structurally false
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/calls/composed_index_case_selector_write_retires rejected 27619ms expected @0c71efeee94c
-	cannot prove requires contract for call keep from take: addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && key <= 8191 - next && owner.slots[next + key] == constructor:78:package:ca88b97baa52fc0a9c01e42b237ff0c6473428e2154ae3ee039a8626f4e0b9c0::Slot10:name:Empty (needs fact `addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && key <= 8191 - next && owner.slots[next + key] == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/calls/composed_index_case_selector_write_retires rejected 28131ms expected @a9b71e8de5dd
+	cannot prove requires contract for call keep from take: addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && key <= 8191 - next && owner.slots[next + key] == constructor:78:package:bbfa6a54f926133547d32f7eb71fa55510a3d0ffca4361ddde6ff5cb00dc9116::Slot10:name:Empty (needs fact `addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && key <= 8191 - next && owner.slots[next + key] == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/computed_zero_requires_argument_rejected rejected 15362ms expected @ccdb99ca2214
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false (`0 != 0`)
 fail/calls/const_boundary_rejects_other_bound rejected 742ms expected @101f66e2f97e
@@ -2676,8 +2676,8 @@ fail/calls/immutable_arg_for_mut_param_rejected rejected 14508ms unexpected @ccd
 	store in machine `handle` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/calls/immutable_local_requires_argument_rejected rejected 15177ms expected @ccdb99ca2214
 	cannot prove requires contract for call scale from Main::main: d != 0 (needs fact `divisor != 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/calls/indexed_case_pool_transition_without_guard rejected 25759ms expected @0c71efeee94c
-	cannot prove requires contract for call take from reserve: addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && owner.slots[next] == constructor:78:package:87874658f0d97544e1feb1580c10d3e8491a9a6f9bb5aa48decfd29bbf35e98d::Slot10:name:Empty (needs fact `addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && owner.slots[next] == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/calls/indexed_case_pool_transition_without_guard rejected 25580ms expected @a9b71e8de5dd
+	cannot prove requires contract for call take from reserve: addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && owner.slots[next] == constructor:78:package:13aa8f08a8d51d8bd69e69ee1f5ae060ad7345394229859c1e183ddbcbec2367::Slot10:name:Empty (needs fact `addr::Bound == 18446744073709551616 && next < 8192 && key < 8192 && owner.slots[next] == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/indexed_case_successor_unproved_bound rejected 2919ms expected @ccdb99ca2214
 	cannot prove index `index` is within unknown slice length of `cells` in read::entry
 fail/calls/member_literal_requires_argument_rejected rejected 15050ms expected @ccdb99ca2214
