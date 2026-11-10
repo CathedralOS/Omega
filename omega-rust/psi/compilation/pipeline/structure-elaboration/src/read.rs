@@ -652,9 +652,6 @@ impl<'t> Program<'t> {
                     statement
                 }
                 StatementNode::Transition(transition) => {
-                    if !self.typed.statement_table.transition_patterns(transition.patterns).is_empty() {
-                        return Err(refuse(id, Construct::Machine, Unserved::Transition("pattern")));
-                    }
                     if transition.continuation.is_valid() {
                         return Err(refuse(id, Construct::Machine, Unserved::Transition("continuation")));
                     }
@@ -667,9 +664,21 @@ impl<'t> Program<'t> {
                             return Err(refuse(id, Construct::Machine, Unserved::Transition("crash")));
                         }
                     }
-                    let guard = match transition.guard {
-                        TransitionGuardNode::Always => None,
-                        TransitionGuardNode::When(guard) => {
+                    let patterns = self.typed.statement_table.transition_patterns(transition.patterns);
+                    let condition = match (transition.guard, patterns) {
+                        (TransitionGuardNode::Always, []) => None,
+                        (TransitionGuardNode::When(guard), []) => Some(guard),
+                        (TransitionGuardNode::Always, [pattern]) => Some(self.value_pattern(id, pattern)?),
+                        (TransitionGuardNode::When(_), [_]) => {
+                            return Err(refuse(id, Construct::Machine, Unserved::Transition("guard beside a pattern")));
+                        }
+                        (_, [_, _, ..]) => {
+                            return Err(refuse(id, Construct::Machine, Unserved::Transition("tuple pattern")));
+                        }
+                    };
+                    let guard = match condition {
+                        None => None,
+                        Some(guard) => {
                             let guard = self.expression(id, &slots, guard, Some(ScalarType::Boolean))?;
                             if guard.result != Some(ScalarType::Boolean) {
                                 return Err(refuse(id, Construct::Machine, Unserved::Typing("guard is not bool")));
@@ -695,6 +704,36 @@ impl<'t> Program<'t> {
             slots: slots.iter().map(|slot| slot.scalar_type).collect(),
             statements: body,
         })
+    }
+
+    /// A value pattern on a scalar subject is its condition. Stage 01 gives a
+    /// value arm such as `true -> ...` one non-structural pattern with no head
+    /// and no fields whose condition is `subject == value`
+    /// (`01_tokens-to-syntax-trees/src/bodies_and_transitions.rs`,
+    /// `retain_value_pattern`); the condition already names the captured
+    /// subject, so it is the arm's whole guard. Any other pattern destructures
+    /// and is refused.
+    fn value_pattern(
+        &self,
+        id: MachineId,
+        pattern: &typed_trees::statement::TransitionPattern,
+    ) -> Checked<ExpressionHandle> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Transition(what)));
+        let destructure = &pattern.pattern;
+        if pattern.is_structural
+            || destructure.head.is_valid()
+            || !destructure.fields.is_empty()
+            || destructure.application_type.is_valid()
+            || !destructure.proof_selectors.is_empty()
+        {
+            return unserved("destructuring pattern");
+        }
+        match (destructure.guard.is_valid(), destructure.condition.is_valid()) {
+            (true, false) => Ok(destructure.guard),
+            (false, true) => Ok(destructure.condition),
+            (true, true) => unserved("pattern with a guard and a condition"),
+            (false, false) => unserved("pattern without a condition"),
+        }
     }
 
     fn local(&mut self, id: MachineId, slots: &[Slot], local: &TableLocalData) -> Checked<(Slot, Statement)> {
