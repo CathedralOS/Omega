@@ -92,6 +92,9 @@ object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
 package-compilation = { path = "../../packages/package-compilation", features = ["test-support"] }
 language-core = { path = "../../../psi/foundation/language-core" }
+# Route one corpus probe (examples/structure_elaboration_corpus.rs).
+structure-elaboration = { path = "../../../psi/compilation/pipeline/structure-elaboration" }
+terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels
