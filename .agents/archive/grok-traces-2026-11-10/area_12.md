@@ -20,6 +20,11 @@ Numbering follows the open bullets in digest order. A bullet that names several 
 | 8 | SRT/storage_and_indexes.rs:104-108 | UNDECIDED | Index equality is always true and the trees derive `Eq`; no branch on that equality was read. |
 | 9 | SRT/storage_and_indexes.rs:63 and 152 | UNDECIDED | `as u32` wraps only past 2^32 elements; one arena cannot get there, a concatenated statement vector can, and no such program was shown. |
 | 10 | ST/lib.rs:1724 | CLOSED | A call, cast, or member is reported nameless, then both callers' evaluator rejects that shape. |
+| 11 | ST/control_flow_and_names.rs:759-764 | CLOSED | A repeated generation is a second copy of a page the counter already issued, and a conflicting text fails record decode. |
+| 12 | ST/declarations.rs:735-741 | UNDECIDED | `Default` is syscall 0 and `Use`; no caller of those defaults was found. |
+| 13 | ST/inspection.rs:406-408 | CLOSED | An invalid expression becomes an empty snapshot name, and every snapshot caller found is a test or JSON dump. |
+| 14 | codec/foundation_validation.rs:11215-11218 | REACHABLE | A wrapping integer add with a scalar result is admitted even when the operands are not integers of that carrier. |
+| 15 | codec/foundation_validation.rs:142-166 | CLOSED | Every static call kind is passed through `validate_module_invocation_entry`, which checks structural arguments and claims. |
 
 ## 1. Prefix-position cache
 
@@ -163,9 +168,71 @@ Only a name, or a binary or unary that reaches a name, returns true (`ST/lib.rs:
 
 Digest: the function does answer false for a call, cast, or member. Both cited callers reject that shape rather than accepting a nameless initializer.
 
+## 11. Second source page with the same generation
+
+Verdict: CLOSED.
+
+Search: `retain_from` and `adopt` — definitions at `ST/control_flow_and_names.rs:757` and `:768`; production `copies.rs:1052` (`destination.text.retain_from`) and `ST/lib.rs:1810` plus `:1871-1876` (`adopt`). The other hits are tests (`control_flow_and_names.rs:831`, `:923`, `:942`).
+
+Read in full: `retain`, `retain_from`, `adopt`, `source_text` (`ST/control_flow_and_names.rs:746-798`) and `Record::read` (`:879-908`). Read the conflict test (`:948-962`).
+
+`retain` takes the next process-wide generation and panics if the counter would wrap (`:748-754`). `retain_from` and `adopt` insert only when `binary_search` says the generation is absent (`:759-764`, `:770-775`). A generation that is already present keeps the text already stored. `Record::read` remaps generations (`:889`) and rejects a non-increasing original (`:896-899`). The test builds a second page with the same generation and different text and expects decode to fail (`:959-961`).
+
+Digest: the in-memory skip is real. It does not replace a live page with different text.
+
+## 12. Default syscall zero and default use
+
+Verdict: UNDECIDED.
+
+Search: `ExternalBinding::default` and `Item::default()` — 1 match, the `Item` impl body at `ST/declarations.rs:743`. No call.
+
+Read: `Default for ExternalBinding` (`ST/declarations.rs:735-738`) returns `Syscall { number: 0 }`. `Default for Item` (`:740-744`) returns `Use`. `ExternalBinding` does not derive `Default`; the impl is hand-written. I did not read the `compiler_storage::Record` derive to see whether it fills a missing variant from `Default`.
+
+What would decide it: a reader or constructor that uses these defaults when the source did not write a syscall or a use.
+
+Digest: the defaults match the code. Nothing read shows them becoming an accepted binding.
+
+## 13. Invalid expression snapshots as an empty name
+
+Verdict: CLOSED.
+
+Search: `snapshot_expression_handle(` — 48 matches, all in `ST/inspection.rs` (the definition at `:402` and snapshot builders). `SyntaxTrees::snapshot` callers outside that file: `ST/lib.rs:1086`, `:1141`, `:1217` (read `:1075-1086`, a test that panics on a mismatch) and `pipeline/01_tokens-to-syntax-trees/src/tests.rs` via `snapshot_json` (grep lines `:278`, `:5495`, `:5580`, `:5650`, `:5709`, not opened; the path is `tests.rs`). `psi-compiler/src/lib.rs:446` is `assert_eq!` on two snapshots (grep line only).
+
+Read: the invalid-handle arm (`ST/inspection.rs:406-408`) returns `ExpressionSnapshot::Name { path: Vec::new() }`. `snapshot` (`:2668`) and `snapshot_json` (`:2683-2684`) only build that snapshot.
+
+An invalid handle renders as an empty name in a snapshot. No production acceptance branch was found that reads it.
+
+Digest: “display only” matches the callers that were found.
+
+## 14. Operation catch-all checks only a scalar result
+
+Verdict: REACHABLE.
+
+Search: `validate_operation_foundation(` — 2 matches, definition `codec/foundation_validation.rs:10877` and the call ` :2322`. `WrappingIntegerAdd` in that file — 0 matches. In `terminal-psi` — wire and semantics files only (`block_wire.rs:1626`, `term_wire.rs:2551`, `control_flow.rs:1535`, `sem/scalars.rs`, `sem/lib.rs:399`, `sem/substitution.rs:861`, `TP/types_and_values.rs:1606`). Not in `foundation_validation.rs`.
+
+Read: `validate_operation_foundation` from `:10877` through the start of the match `:10923`, and the wildcard `:11215-11220`. Read `decode_module` (`semantic_module.rs:4093-4119`), the call `validate_machine` for every machine (`foundation_validation.rs:10472-10474`), and the per-operation loop (`:2320-2328`). The match arms between `:10924` and `:11214` were not read one by one; the identifier search is what shows this kind has no arm.
+
+Every decoded module runs this check (`semantic_module.rs:4109`). The wildcard rejects a result that is not `OperationResult::Scalar` (`foundation_validation.rs:11216-11217`) and then returns `Ok(())` (`:11221`). A wrapping integer add whose result is a scalar is therefore accepted here even when the two operands are missing or are booleans, or the scalar carrier is not the integer width the operation uses. A non-scalar result of that operation is rejected by this same arm.
+
+Digest: the catch-all description matches. The kinds that fall through were not listed in the digest; wrapping integer add is one of them.
+
+## 15. Static calls and structural arguments
+
+Verdict: CLOSED.
+
+The digest marks this open item corrected. The correction holds.
+
+Search: `validate_module_invocation_entry(` — definition `codec/foundation_validation.rs:61`, call `:2332`. `fn module_invocation` — `TP/control_flow.rs:387` (read).
+
+Read in full: `validate_call_tail` (`codec/foundation_validation.rs:29-59`) and `validate_module_invocation_entry` (`:61-126`). Read the call from `validate_machine` (`:2331-2336`) and `OperationKind::module_invocation` (`TP/control_flow.rs:387-472`).
+
+`validate_machine` runs `validate_module_invocation_entry` for every `machine.module_invocations()` after the per-operation pass. That function always ends in `validate_call_tail` (`:119-125`), which always calls `validate_structural_arguments` (`:36-42`) and `validate_claim_actions` (`:43-49`). `module_invocation` returns inputs for `Call`, `CallUnit`, `CallStructuralScalar`, `CallStructuralWithScalarArguments`, and `CallStructural` (`TP/control_flow.rs:398-471`). Other kinds return `None` (`:472`). `Call` passes empty structural-argument and claim slices (`:410-411`) because that variant has no such fields. The other four pass the slices they store.
+
+Digest: the old claim that this file never checks those arguments does not match. The correction in the digest does.
+
 ## Entries not reached
 
-11 onward. The open list continues with the second syntax-tree page (`ST/control_flow_and_names.rs:759-764`), the syscall/use defaults, the inspection renderer, then the codec, semantics, terminal psi, and typed trees.
+16 onward. The open list continues with dynamic calls (`codec/foundation_validation.rs:168-370`), boundary demands, proposition variants, zero proof-scope ids, task activation, then the rest of the codec, semantics, terminal psi, and typed trees.
 
 ## What I did not read
 
@@ -176,4 +243,6 @@ Digest: the function does answer false for a call, cast, or member. Both cited c
 - Any checker of the copied target-family contracts.
 - The stage 04–06 and validation callers of `machine_parameter_contract_view`, and the check of a unit temporary after `infer_hoist_temp_type`.
 - The function body around `symbols.rs:4078`, and every `==` on `SymbolResolvedTrees`.
-- No codec, semantics, terminal-psi, or typed-trees open entry yet. Notes under `/tmp/area12/` were not used for these verdicts.
+- The `Record` derive for `ExternalBinding` and `Item`.
+- The operation-foundation match arms between `codec/foundation_validation.rs:10924` and `:11214`, and `activation_storage::validate_module`.
+- Codec entries after 15, and all semantics, terminal-psi, and typed-trees open entries. Notes under `/tmp/area12/` were used as a map for entry 14's kind list and were checked against the grep and the lines cited above; they were not copied as verdicts.
