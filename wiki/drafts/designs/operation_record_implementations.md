@@ -51,7 +51,7 @@ reflection selection contexts because conformance evidence was not a value.
 7. Construction proves the laws for the selected operations. Replacing an
    operation re-establishes them.
 8. One schema serves static and runtime use. A static parameter exposes exact
-   selections; the binder spelling `Order satisfies Ranked<T>` denotes one. A
+   selections; the parameter `const Order: Ranked<T>` denotes one. A
    runtime value carries callable descriptors under checked envelopes. An open
    generic callable family is not runtime-materializable. The normalized field
    type records whether its contract is open, a record refinement supplies the
@@ -87,7 +87,7 @@ WireCodec satisfies Codec<Message> {
     Codec::decode = lib_b::decode;
 }
 
-machine save_static<T, Format satisfies Codec<T>>(value: &T, out: &mut [u8]) -> u64 {
+machine save_static<T, const Format: Codec<T>>(value: &T, out: &mut [u8]) -> u64 {
     Format::encode(value, out)
 }
 

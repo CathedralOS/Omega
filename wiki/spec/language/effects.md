@@ -99,7 +99,7 @@ its inherited constraints.
 
 Named decision: `open-callable-contracts`, settled 2026-11-09. It subsumes
 `explicit-callable-reach`. A callable contract is the signature and clauses of
-a `requires machine` requirement, a trait member or a callable type. It has one
+a callable type, a trait member or a machine-shaped logical hypothesis. It has one
 meaning wherever it is written:
 
 | Omitted clause | Meaning in a callable contract |
@@ -330,7 +330,7 @@ This is the reach row of
 [static binder contract dependencies](#static-binder-contract-dependencies).
 A static callable invocation contributes the selected operation's reach
 dependency automatically. Structural and nominal machine binders use the same
-rule. A call such as `S::apply` through `S satisfies ElementStep<T>` contributes
+rule. A call such as `S::apply` through `const S: ElementStep<T>` contributes
 a projection keyed by that evidence binder, the exact requirement member and
 its substitutions. Different members of one conformance retain distinct rows.
 Evidence selects an implementation; it does not attach operations to a data type.
@@ -491,9 +491,9 @@ field selection, a call, or a first-class value of the unapplied relation, and
 it does not introduce a `requires` projection.
 
 ```omega
-public machine forward<machine F>(x: u64) -> u64
-requires machine F(value: u64) -> u64
-    ensures result >= value;
+public machine forward<const F: machine(value: u64) -> u64 ensures result >= value>(
+    x: u64
+) -> u64
 ensures F::ensures(x, result)
 {
     F(x)
@@ -521,7 +521,7 @@ operational axis is a finite Boolean OR of a fixed contribution and exact
 callback-binder projections,
 bounded by the respective requirement permissions. The compiler derives this
 summary from checked calls; there is no authored effect variable or new marker.
-Forwarded [callback requirements](generics.md#forwarded-callback-requirements)
+Inferred [callable parameter types](generics.md#inferred-callable-parameter-types)
 retain the same exact origins and substitutions.
 
 A public generic declares `suspends` and/or `blocks` whenever its body under
@@ -556,9 +556,7 @@ suspend. A narrower originating callback contract can state that guarantee
 directly.
 
 ```omega
-public machine apply<machine F>(value: u32) -> u32
-requires machine F(value: u32) -> u32
-    suspends;
+public machine apply<const F: machine(value: u32) -> u32 suspends>(value: u32) -> u32
 suspends
 {
     suspend F(value)

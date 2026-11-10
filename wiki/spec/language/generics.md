@@ -15,14 +15,14 @@ Requirement spelling follows [unified requirement clauses](state_contracts.md#re
 the spelling does not merge static admission with runtime entry obligations or
 flatten nested callable contracts.
 
-An explicit `requires machine Step(...)` or `requires machine Step satisfies
-Trait::requirement` clause can determine the kind of Step introduced without
-a kind marker in the generic list. Retaining `machine Step` there is also legal.
-The clause declares an originating contract, not a contract guessed from an
-invocation's shape or the current consumer set. An explicitly kinded `machine`
-binder on a wrapper may instead acquire exact
-[forwarded requirements](#forwarded-callback-requirements). Missing or conflicting
-kinds/contracts reject. Neither route infers whole-trait conformance evidence.
+A static callable parameter is written `const Step: machine(...)` for a
+structural contract or `const Step: Trait::requirement` for a nominal one
+under [typed static parameters](#typed-static-parameters).
+The type is an originating contract, not a contract guessed from an
+invocation's shape or the current consumer set. A `const Step: machine`
+parameter on a wrapper may instead acquire its exact type by
+[inference](#inferred-callable-parameter-types). Missing or conflicting
+contracts reject. Neither route infers whole-trait conformance evidence.
 
 ## Generic machine requirements
 
@@ -30,13 +30,13 @@ Named decision: `generic-requirement-evidence-binders`, settled 2026-11-03.
 
 A machine requirement admits the same generic binder kinds as an ordinary
 machine, including a named implementation parameter such as
-`Order satisfies Ordering<T>`. This applies to members of ordinary and boundary
+`const Order: Ordering<T>`. This applies to members of ordinary and boundary
 traits and to static callable requirements; declaring a requirement does not
 remove a binder kind that its checked implementation may use.
 
 ```omega
 boundary trait Sorting {
-    machine sort<T, Order satisfies Ordering<T>>(
+    machine sort<T, const Order: Ordering<T>>(
         items: &mut [T]
     )
         crashes none;
@@ -550,12 +550,12 @@ A wrapper publishes a selected callback's result guarantee only through an
 authored [result relation](effects.md#callback-result-relations) claim.
 
 A required member operation belongs to a named trait and is supplied through an
-explicit conformance binder, for example `Order satisfies Ranked<Element>`.
-That binder is a static parameter of the trait's
+explicit implementation parameter, for example `const Order: Ranked<Element>`.
+It is a static parameter of the trait's
 [operation-record schema](conformances.md#implementations-are-operation-records).
 There is no anonymous member requirement inferred or carried by a
-`requires machine T::member(...)` clause. A structural contract for an independently
-bound machine parameter is the distinct form below.
+`T::member(...)` clause. A structural contract for an independently
+supplied callable parameter is the distinct form below.
 
 [Named conformances](conformances.md#declaration-and-selection) owns whole-map
 selection and explicit arguments to generic conformance applications. Expected
@@ -575,138 +575,211 @@ its crash ceiling like any other public machine. A conformance evidence binder r
 separate dependency for each called requirement member and exact application.
 Calling `Order::compare` cannot substitute the reach of another row in `Order`.
 
-## Static machine binder categories
+<a id="static-machine-binder-categories"></a>
+## Typed static parameters
 
-The table describes declaration-supply roles. Mathematical proof applications
-add the separately checked [logical-evidence supply](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
-for machine-shaped theorem hypotheses; it is not executable callback selection.
+Named decision: `typed-static-parameters`, settled 2026-11-10;
+[the design draft](../../drafts/designs/typed_static_parameters.md) records the
+migration. A generic parameter list has one binder form, `name: Type`,
+optionally marked `const`. A machine, an implementation and a machine
+description are ordinary typed values passed through that form. What were
+separate binder species are types:
 
-| Category | Declaration contract | Permitted use |
+| Role | Parameter | Permitted use |
 | --- | --- | --- |
-| Structural callable | `requires machine Key(card: &Card) -> u64` | Static calls under that complete callable contract. |
-| Nominal callable | `requires machine Handler satisfies HookProcedure::call` | Static calls or contextual realization under that exact requirement. |
-| Declaration identity | A trait's `machine Requirement` binder without a callable clause | Identity relationships only; no invocation. |
+| Structural callable | `const Key: machine(card: &Card) -> u64` | Static calls under that complete callable contract. |
+| Nominal callable | `const Handler: HookProcedure::call` | Static calls or contextual realization under that exact requirement. |
+| Declaration identity | `const Requirement: reflect::CallableInfo` | Identity relationships only; no invocation. |
+| Implementation | `const Order: Ranked<T>` | Calls to its exact selections, written `Order::member(...)`. |
+| Inferred callable | `const F: machine` | As inferred under [inferred callable parameter types](#inferred-callable-parameter-types). |
 
-A callable binder needs a complete originating or forwarded contract.
-The compiler cannot invent an originating contract from direct invocations,
-matching signatures, visible conformances or the current consumer set, even
-with one whole-program instantiation. Missing or ambiguous contracts reject.
-[Forwarding](#forwarded-callback-requirements) propagates an already declared
-contract from an exact callee application; it does not discover one by shape.
-If only one implementation is intended, source can call that machine directly
-without introducing a generic abstraction.
+```omega
+machine apply<const F: machine(value: u32) -> u32>(x: u32) -> u32 {
+    F(x)
+}
 
-The nominal form inherits the exact requirement's complete shape, conditions,
-operational ceilings, and any boundary calling/entry plan; it does not repeat
-the signature. Both nominal and structural callable invocations contribute
-reach dependencies under the requirement's open or finite bound. The consumer
-authors neither a forwarding clause nor a second row argument.
-The generic body checks suspension/blocking against the requirement's upper
-bound. Applications substitute published
+machine sort<T, const Order: Ranked<T>>(items: &mut [T]) { ... }
+
+machine install<const Handler: HookProcedure::call>(slot: &mut HookSlot) { ... }
+```
+
+`const` says when the value is known. It does not require the selected machine
+to execute during compilation, to be effect-free or to be inlined, and forming
+a selection performs none of its effects. An optimizer's prediction of a
+runtime callable's target never satisfies `const`. Value binders and runtime
+indices keep the rules of [value binders](#value-binders-and-const-requirements):
+a non-`const` index has an exact runtime value subject and is never a
+specialization key. The generic list and the ordinary parameter list stay
+separate; this decision unifies only what the generic list contains.
+
+### Callable parameter types
+
+A structural callable type is the signature and clauses of a
+[callable contract](effects.md#open-callable-contracts). A callable parameter
+needs a complete originating or inferred type. The compiler cannot invent one
+from direct invocations, matching signatures, visible conformances or the
+current consumer set, even with one whole-program instantiation. Missing or
+ambiguous types reject. If only one implementation is intended, source can call
+that machine directly without introducing a generic abstraction.
+
+A requirement path in type position, `Trait<Arguments>::member`, is the type of
+a callable selection bound to that exact requirement. It inherits the
+requirement's complete shape, conditions, operational ceilings, and any
+boundary calling/entry plan, and does not repeat the signature. A machine with
+a matching signature is not a value of that type; only a selection
+[bound to the requirement](conformances.md#binding-a-machine-to-a-requirement)
+is, and nothing about an argument position creates that binding. A
+signature-free requirement path must identify one overload independently of
+its satisfiers. A path in type position resolves by the kind of its left-hand
+name: a trait gives a requirement type, and a data or scalar type gives a
+[case projection](patterns.md#case-projection-type) or a domain-qualified type.
+
+Both nominal and structural callable invocations contribute reach and crash
+dependencies under the type's open or finite bound. The consumer authors
+neither a forwarding clause nor a second row argument. The generic body checks
+suspension/blocking against the type's upper bound. Applications substitute
+published
 [operational dependencies](effects.md#static-callback-operational-dependencies)
 to determine their caller envelope. Declaration selection obeys ordinary
-visibility and direct-dependency rules, including nested contracts. A signature-free requirement
-path must identify one overload independently of its satisfiers.
+visibility and direct-dependency rules, including nested contracts.
 
-A declaration-identity binder accepts one exact free-machine or signature-free
-trait-requirement declaration. Types, conformances, runtime values, and overloaded
-requirement families reject. No default, law, or consumer may invoke that binder
-without a callable contract. This category expresses relationships such as a
-private callback slot's selected requirement; it is not missing-contract inference.
+An open callable contract may appear wherever a value is static: a `const`
+parameter, a `const` local, a field of a static record or a compile-time
+result. Runtime materialization requires the closed form and a finite envelope.
+Static selection supplies no purity, termination or proof admissibility of its
+own.
 
-Each invocation of a static-machine argument becomes a direct selected call
-after specialization. The binder is not a runtime function value or hidden
+A callable type may take static parameters of its own, written
+`machine<const Inner: ...>(...) -> ...`. Such a type is a family: it is usable
+only where the value is static, and it is applied with explicit arguments
+under [nested callable types](#nested-contracts-and-proof-families).
+
+Prose elsewhere that speaks of a static machine binder or an evidence binder
+means a `const` parameter of callable type or of implementation type.
+
+### Declaration identity
+
+`reflect::CallableInfo` is the type of a parameter that identifies a machine or
+requirement without permission to call it. It accepts one exact free-machine or
+signature-free trait-requirement description from
+[`reflect::callable`](reflection.md#typed-declaration-selectors). Types,
+conformances, runtime values and overloaded requirement families reject. No
+default, law or consumer may invoke through it. This role expresses
+relationships such as a private callback slot's selected requirement; it is not
+missing-contract inference.
+
+A `CallableInfo` is a canonical static argument. Independently obtained
+descriptions of the same exact declaration and application denote the same
+argument; descriptor allocation, display metadata and graph-local handles do
+not distinguish them. A generic declaration family and a closed executable
+application remain different descriptions.
+
+### Static calls
+
+Each invocation of a static callable argument becomes a direct selected call
+after specialization. The parameter is not a runtime function value or hidden
 callable argument. Stateful behavior uses ordinary context data passed through
 explicit parameters with their normal ownership and access contracts. Authors
 construct that data and explicitly select
 the named callback declaration. No anonymous body/environment association or
-free-variable capture inference is provided. Dynamic selection still uses
+free-variable capture inference is provided. Dynamic selection uses
 [runtime machine values](machine_values.md), operations records and
-[some packages](some_packages.md). The static binder remains a separate choice.
+[some packages](some_packages.md), and the same callable type may type a
+runtime parameter when it is closed.
 
-A static machine binder is a declaration argument, not itself a field type.
-Once its executable application is closed, it may construct or return a
-machine value through ordinary callable-contract refinement. It may also
-be observed with `address_of<Selected<Arguments>>()` under
+A static selection whose executable application is closed may construct or
+return a machine value through ordinary callable-contract refinement. It may
+also be observed with `address_of<Selected<Arguments>>()` under
 [address exposure](counts_and_addresses.md#address-exposure). That query
 creates an entry demand, not a callable value or an implicit callback selection.
 [Private callback realization](../build/private_callbacks.md) remains contextual:
 an exact selected requirement and destination authorize the private ABI entry
 relocation; an exposed numeric address cannot replace that relationship.
 
-## Forwarded callback requirements
+### Retired spellings
 
-Named decision: `forwarded-static-callback-requirements`, ratified 2026-11-06.
+`<machine F>` with `requires machine F(...);` is written
+`<const F: machine(...)>`. `<machine F>` with
+`requires machine F satisfies Trait::member;` is written
+`<const F: Trait::member>`. A `machine Requirement` binder with no clause is
+written `<const Requirement: reflect::CallableInfo>`. `<Order satisfies Ranked<T>>`
+is written `<const Order: Ranked<T>>`. `satisfies` remains the spelling of
+declarations and of the binding expression. Mathematical declarations keep
+their machine-shaped hypotheses and binders under
+[logical hypotheses](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use);
+this decision covers executable code.
 
-A wrapper passing an explicitly kinded `machine F` binder as a static argument
-to an exact selected callee may omit a repeated callable requirement for `F`.
-Infer the callee's complete requirement after substituting the wrapper's
-arguments, retaining the exact nominal requirement or authored structural
-contract and its nested binders. This applies to public and private checked
-wrappers; it does not depend on the wrapper's current consumers.
-Retain omitted reach as a deferred dependency, explicit empty reach as an empty
-bound, and named ceilings as finite bounds throughout forwarding.
+<a id="forwarded-callback-requirements"></a>
+## Inferred callable parameter types
+
+`const F: machine` leaves a callable parameter's type to be inferred and
+published. It replaces `forwarded-static-callback-requirements` (2026-11-06),
+whose behavior it keeps as ordinary parameter-type inference, with one change
+noted below.
 
 ```omega
 public trait ElementStep<T> {
     machine apply(item: &mut T) terminates;
 }
 
-public machine apply_one<T, F>(item: &mut T)
-requires machine F satisfies ElementStep<T>::apply;
+public machine apply_one<T, const F: ElementStep<T>::apply>(item: &mut T)
 terminates
 {
     F(item);
 }
 
-public machine visit_one<T, machine F>(item: &mut T)
+public machine visit_one<T, const F: machine>(item: &mut T)
 terminates
 {
     apply_one<T, F>(item);
 }
 ```
 
-`visit_one` publishes the inferred requirement
-`requires machine F satisfies ElementStep<T>::apply;`. A wrapper passing `F`
-to `for_each<T, F>` inherits that callee's exact requirement in the same way.
-Neither example searches for an implementation; the consumer still selects `F`
-with its required exact nominal satisfaction edge.
+`visit_one` publishes `const F: ElementStep<T>::apply`. Neither machine
+searches for an implementation; the consumer still supplies a selection bound
+to that requirement.
 
-`ElementStep::apply` leaves service reach to the selected implementation. Both
-wrappers publish that same dependency; forwarding does not collapse it to empty.
-The termination promise and the suspension/blocking restrictions are unchanged.
+- A typed use supplies a constraint: passing the parameter as a static argument
+  to an exact selected callee contributes that callee's published parameter
+  type, after substituting the wrapper's arguments and retaining nested
+  parameters.
+- Every use participates, independent of source order.
+- A bare call `F(item)`, a matching machine signature or a visible conformance
+  is not an origin. Recursive forwarding needs an exact originating type; a
+  cycle alone cannot invent one.
+- The inferred type is published with exact substitutions, origin provenance
+  and ordinary visibility checks, independently of the implementations current
+  callers select. Public consumers check it without reading the wrapper's
+  private body. Changing a use can change that public contract and requires
+  ordinary dependent revalidation. Inferred and authored copies normalize
+  identically, and diagnostics expose the inferred type and the use that
+  requires it.
+- An authored type is the bound. A use checks against it and cannot strengthen
+  it to admit an otherwise invalid body.
+- Structural constraints from several uses combine: the selection must satisfy
+  all of them, including nested preconditions, guarantees, progress and
+  operational permissions. Incompatible shapes reject.
+- One parameter carries one nominal route. Uses that require two different
+  requirement types reject; the wrapper takes two parameters, or a record
+  holding both views. This changes the 2026-11-06 rule, under which one binder
+  satisfied the conjunction of several nominal requirements.
 
-Collect requirements from every forwarding use, independent of source order.
-The selected callback must satisfy their conjunction, including nested
-preconditions, guarantees, progress and operational permissions. Keep distinct
-nominal requirement identities even when signatures match. Incompatible binder
-kinds or callable shapes reject; failure to establish any required contract
-rejects the application. An explicit originating callable contract remains the
-body's bound: a forwarding use cannot silently strengthen it to admit an
-otherwise invalid body.
-
-Forwarded requirements may pass through further wrappers. Recursive forwarding
-must have an exact originating contract; a cycle alone cannot invent one.
-A bare call `F(item)`, a matching machine signature or a visible conformance is
-not an origin. Identity-only trait binders stay noncallable. No inference of
-callback implementations, trait maps, boundary authority or arbitrary runtime
-entry predicates is introduced.
-
-Publish the normalized requirements with exact substitutions, origin
-provenance and ordinary visibility checks. Public consumers check the
-published contract without reading the wrapper's private body. Changing a
-forwarding use can change that public contract and requires ordinary dependent
-revalidation. Inferred and authored copies of the same requirement normalize
-identically; binder renaming or wrapper extraction alone does not change it.
-Diagnostics expose the inferred clause and the forwarding use that requires it.
+Omitted reach stays a deferred dependency, explicit empty reach an empty bound,
+and named ceilings finite bounds through inference. In the example,
+`ElementStep::apply` leaves service reach to the selected implementation and
+both machines publish that same dependency; inference does not collapse it to
+empty. The termination promise and the suspension/blocking restrictions are
+unchanged. No inference of callback implementations, trait maps, boundary
+authority or arbitrary runtime entry predicates is introduced, and a
+`CallableInfo` parameter stays noncallable.
 
 A wrapper's machine contract also retains the callee's
 [conditional suspension-carry obligations](effects.md#conditional-suspension-carry).
-Re-express conditions over the wrapper's exact callback binders and substitute
+Re-express conditions over the wrapper's exact callable parameters and substitute
 the corresponding resource subjects and provenance. These rows constrain the
-enclosing application; they do not strengthen F's originating requirement.
+enclosing application; they do not strengthen the parameter's originating type.
 Preserve scoped local acquisitions as such rather than exposing a caller-supplied
-permission for them. Ordinary forwarding cannot discard an unresolved condition.
+permission for them. Ordinary inference cannot discard an unresolved condition.
 
 ## Invocation-lifetime families
 
@@ -739,30 +812,29 @@ member projection obligations, not a different generic matching judgment.
 
 ## Nested contracts and proof families
 
-A structural machine contract may bind machine parameters of its own:
+A callable type may bind static parameters of its own:
 
 ```omega
-machine forward<machine Schema, machine Selected>(value: Stream<Selected>) -> Stream<Selected>
-requires machine Schema<machine Inner>(value: Stream<Inner>) -> Stream<Inner>
-    requires machine Inner(index: Nat) -> Rat;
-;
-requires machine Selected(index: Nat) -> Rat;
-{
+machine forward<
+    const Schema: machine<const Inner: machine(index: Nat) -> Rat>(
+        value: Stream<Inner>
+    ) -> Stream<Inner>,
+    const Selected: machine(index: Nat) -> Rat
+>(value: Stream<Selected>) -> Stream<Selected> {
     Schema<Selected>(value)
 }
 ```
 
-Each callable contract has its own terminator: `Inner` ends first, then the
-standalone semicolon closes `Schema`. `Selected` belongs to `forward`, not to
-`Schema`. These delimiters do not separate ordinary predicate clauses.
-Operational clauses such as `suspends`, `blocks`, and `terminates` add no
-terminators of their own. Only the complete bodyless callable ends with `;`,
-under [machine header delimiters](state_contracts.md#machine-header-delimiters).
+`Inner` belongs to the type of `Schema`; `Selected` belongs to `forward`. Each
+callable type carries its own clauses, so nesting needs no terminators. The
+machine-shaped hypotheses of a mathematical declaration keep one terminator
+for each nested bodyless callable under
+[machine header delimiters](state_contracts.md#machine-header-delimiters).
 
-Here `Stream` denotes an appropriate proof-only family. Refinement is binder-
+Here `Stream` denotes an appropriate proof-only family. Refinement is
 positional: renaming `Inner` changes no contract, but changing its nested shape,
 conditions, reach, operational/crash ceilings, or termination guarantee can.
-Forwarding a distinct machine binder uses the same complete refinement judgment.
+Forwarding a distinct callable parameter uses the same complete refinement judgment.
 Specialization substitutes the outer selections and continues through nested
 applications until executable calls are direct; it creates no runtime dictionary.
 
@@ -793,13 +865,13 @@ declaration supply, full level telescopes and constraints.
 
 ## Publication and assumptions
 
-Public machine-binder identity retains its category and complete normalized
-requirements: recursively alpha-normalized structural contracts, exact nominal
-trait/requirements, or explicitly noncallable declaration identity. Forwarded
-contracts carry the same identity obligations as authored ones; their conjunction
-is retained without signature-based merging. Closed applications retain exact
-selections.
-Renaming binders is stable; changing a nested contract or its authority is not.
+A public callable parameter's identity is its complete normalized type: a
+recursively alpha-normalized structural contract, one exact nominal
+requirement, or the noncallable `reflect::CallableInfo`. Inferred types carry
+the same identity obligations as authored ones; structural constraints from
+several uses are retained without signature-based merging. Closed applications
+retain exact selections.
+Renaming parameters is stable; changing a nested contract or its authority is not.
 Private nominal requirements and missing checked contract evidence reject public
 review under [package boundaries](../packages/boundaries.md).
 

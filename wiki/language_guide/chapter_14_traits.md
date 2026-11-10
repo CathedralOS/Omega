@@ -100,7 +100,7 @@ by name. `public` makes a conformance available to dependent packages.
 For example, a generic `comes_first` uses the selected comparison:
 
 ```omega
-machine comes_first<T, Order satisfies Ranked<T>>(left: &T, right: &T) -> bool {
+machine comes_first<T, const Order: Ranked<T>>(left: &T, right: &T) -> bool {
     Order::before(left, right)
 }
 
@@ -143,7 +143,7 @@ WireCodec satisfies Codec<Message> {
 One trait declaration serves compile-time and runtime use:
 
 ```omega
-machine save_static<T, Format satisfies Codec<T>>(value: &T, out: &mut [u8]) -> u64 {
+machine save_static<T, const Format: Codec<T>>(value: &T, out: &mut [u8]) -> u64 {
     Format::encode(value, out)
 }
 
@@ -209,12 +209,55 @@ for adapters and admission.
 
 ## Individual machine requirements
 
-A local generic requirement may need only one exact machine signature rather
-than a reusable trait name. A static machine binder states that structural
-contract, for example `requires machine Key(card: &Card) -> u64`. This is distinct
-from an anonymous member requirement such as `requires machine T::member(...)`,
-which is not a supported source form. See
-[static machine binders](../spec/language/generics.md#static-machine-binder-categories).
+A generic machine may need one machine rather than a whole implementation. The
+parameter's type says which kind:
+
+```omega
+machine score<const Key: machine(card: &Card) -> u64>(card: &Card) -> u64 { Key(card) }
+machine tidy<T, const F: Tidy<T>::clear>(item: &mut T) { F(item); }
+```
+
+`Key` is structural: any selectable machine with that contract fits. `F` is
+nominal: it accepts only a machine bound to `Tidy<T>::clear`. There is no
+anonymous member requirement on a type such as `T::member(...)`. See
+[typed static parameters](../spec/language/generics.md#typed-static-parameters).
+
+### Binding a machine to a requirement
+
+A machine is bound to a requirement only where source says so:
+
+```omega
+trait Tidy<T> { machine clear(item: &mut T); }
+trait Reset<T> { machine clear(item: &mut T); }
+
+machine zero(item: &mut u32) { item = 0; }                        // plain
+
+machine wipe(item: &mut u32) satisfies Tidy<u32>::clear { ... }   // declared edge
+
+const zero_tidy = (zero satisfies Tidy<u32>::clear);              // binding expression
+const zero_reset = (zero satisfies Reset<u32>::clear);
+
+tidy<u32, wipe>(&mut x);          // accepted
+tidy<u32, zero_tidy>(&mut x);     // accepted
+tidy<u32, zero>(&mut x);          // rejected: `zero` is not bound
+tidy<u32, zero_reset>(&mut x);    // rejected: bound to another requirement
+```
+
+A selection row in a conformance block, `Tidy::clear = zero;`, is the third
+form. A field type, a generic argument, a result type and an assignment accept
+a binding that exists; they never create one.
+
+| | Declared edge or inline member | Row or `(m satisfies R)` |
+| --- | --- | --- |
+| Body checked | As a conformer, with the requirement's authority | Already valid without the requirement |
+| Calling the name | Goes through the requirement | Direct; only the bound value is routed |
+| Requirements | One | Any number, one binding each |
+
+A bound value keeps its route when it is copied, returned or passed as a
+structural callable. An operand is a plain declaration the author can select:
+a parameter or field that was handed in cannot be bound again, so code that
+must present it under another requirement writes an adapter machine and binds
+that. See [binding](../spec/language/conformances.md#binding-a-machine-to-a-requirement).
 
 ## Operator requirements
 
@@ -253,7 +296,7 @@ Ascending satisfies Ordered<Card> {
     }
 }
 
-machine choose<Element, Order satisfies Ordered<Element>>(
+machine choose<Element, const Order: Ordered<Element>>(
     left: Element,
     right: Element
 ) -> bool {
@@ -312,7 +355,7 @@ trait CounterLike<T> {
 Bundles are useful for APIs that need a coherent family of operations.
 
 ```omega
-machine Metrics::sample<T, Counters satisfies CounterLike<T>>(
+machine Metrics::sample<T, const Counters: CounterLike<T>>(
     source: &T,
     out: &mut CounterSnapshot
 )
@@ -355,7 +398,7 @@ trait CallingPolicy {
     ) -> BoundaryPlanResult;
 }
 
-trait Calling<Policy satisfies CallingPolicy>
+trait Calling<const Policy: CallingPolicy>
 {
 }
 
@@ -438,7 +481,7 @@ ordinary static argument. The compiler therefore resolves concrete machine
 targets without searching visible declarations.
 
 ```omega
-machine Metrics::sample<T, Counters satisfies CounterLike<T>>(
+machine Metrics::sample<T, const Counters: CounterLike<T>>(
     source: &T,
     out: &mut CounterSnapshot
 )
@@ -652,7 +695,7 @@ contract check over that existing conformance. A machine declaration cannot
 `satisfies LocalLogger<T>`, while a generic evidence binder may require it:
 
 ```omega
-machine record<L, Logging satisfies LocalLogger<L>>(logger: &L)
+machine record<L, const Logging: LocalLogger<L>>(logger: &L)
 {
     Logging::write(logger, "record");
 }
@@ -752,7 +795,7 @@ trait Step<T> {
     machine apply(item: &mut T);
 }
 
-machine visit<T, S satisfies Step<T>>(item: &mut T) {
+machine visit<T, const S: Step<T>>(item: &mut T) {
     S::apply(item);
 }
 ```
@@ -799,8 +842,8 @@ Generic code can require the relationship directly.
 machine Network::send<
     T,
     Message,
-    Encoding satisfies WireEncodable<T, Message>,
-    MessageShape satisfies WireMessage<Message>
+    const Encoding: WireEncodable<T, Message>,
+    const MessageShape: WireMessage<Message>
 >(
     network: &mut Network,
     value: &T
@@ -845,7 +888,7 @@ trait SettableCounter<T> {
     machine set(counter: &mut T, value: i32);
 }
 
-machine reset_counter<T, Setter satisfies SettableCounter<T>>(
+machine reset_counter<T, const Setter: SettableCounter<T>>(
     value: &mut T
 )
 {
