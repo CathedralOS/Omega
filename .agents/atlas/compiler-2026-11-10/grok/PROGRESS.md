@@ -19,18 +19,19 @@ Launch refusals:
 - C0008 returned `CHAPTER COMPLETE` on a stub that pointed at a file the worker did not include. The stub was not kept. C0036 and C0044 were refused with `Async new-VM subagent limit of 20 reached` while later launches in the same wave were accepted. Peak recorded running count remains 40.
 - `Async new-VM subagent limit of 20 reached` for C0062–C0066 after C0059–C0061 were accepted. A retry of C0062 was refused with the same text.
 - `Async new-VM subagent limit of 20 reached` for C0081, C0082, and C0084–C0091 after C0062–C0080 and C0083 were accepted. A retry of C0082 was accepted. Retries of C0081 and C0084 were refused with the same text. Running count after that refill: 39. Peak recorded running count remains 40.
+- C0008 again returned a pointer instead of the rules. C0076 returned a summary that pointed at a file. Both returns were discarded and the chapters were relaunched. `Async new-VM subagent limit of 20 reached` for C0100–C0103 and C0105–C0106 after C0097–C0099 and C0104 were accepted. A retry of C0100 was refused with the same text. Running count: 35. Peak recorded running count remains 40.
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
 | A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 145 | 0 | 0 |
 | B | 81 file ranges (B1 26, B2 55); merge files not started | 81 | 0 | 0 |
-| C | 117 chapter pieces from 103 files; lane merge not started | 43 | 39 | 0 |
+| C | 117 chapter pieces from 103 files; lane merge not started | 65 | 35 | 0 |
 | D | 412 batches, 17263 programs; D2 not started | 2 | 0 | 0 |
 | E | 19 units, 591 files, 7 excluded | 2 | 0 | 0 |
 | F | 28 site files, 83 occurrences | 2 | 0 | 0 |
 | G | 120 shards, not started. G stays at most a quarter of the live worker count, and only when a slot is free | 0 | 0 | 0 |
 
-ACCEPT slices 0001–0145 are on the branch. Forty-three spec chapters are on the branch. C0008 is still being rerun after a stub return and is not on the branch. Next unstarted spec chapter is C0081. Running count: 39. Peak recorded running count remains 40.
+ACCEPT slices 0001–0145 are on the branch. Sixty-five spec chapters are on the branch. C0008 and the first proof-contracts slice are being rerun after pointer returns and are not on the branch. Next unstarted spec chapter is C0100. Running count: 35. Peak recorded running count remains 40.
 
 `B/notes/b2_031.md` was returned without `QUESTION COMPLETE`. The note ends in the identity-patch table. Do not treat that range as finished.
 
