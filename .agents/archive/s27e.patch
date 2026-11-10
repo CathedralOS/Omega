@@ -1,0 +1,61 @@
+diff --git a/samples/cli/facts/record_view_invariant_window/README.md b/samples/cli/facts/record_view_invariant_window/README.md
+index 4983f246247..9aec747b5f6 100644
+--- a/samples/cli/facts/record_view_invariant_window/README.md
++++ b/samples/cli/facts/record_view_invariant_window/README.md
+@@ -106,17 +106,20 @@ python tools/corpus_gate.py --runner <verified-runner> --both --filter facts/rec
+ python tools/corpus_gate.py --runner <verified-runner> --filter facts/record_view_invariant_window
+ ```
+ 
+-Source-bound Linux runs at `68e606e356f09913e8639c10aab41cec80f8413c`
+-measure 14/14 positive samples with native exit 0 and 17/17 sensitive
+-reject controls. The corpus pins measure 14 checked positives, 18 rejections
+-matching their intended diagnostics, and 14 native/Terminal agreements at exit
+-0. Scoped validation and stage-04 Clippy pass. Matched frozen producers compare
+-99 affected checking fixtures and 65 affected both-engine fixtures against
+-fixed base `37dabdc19193fe27968bb97d5922118db61b68db`, with zero lost or gained
+-outcomes in either comparison. Raw logs, profiles, source identities and
+-receipts remain in the owning claim's evidence. Pinned qualification and
+-other-host execution are separate acceptance records.
+-
++Source-bound optimized producers at
++`a0fce4c76d06cba6a1d4c957dd979c615d54bd3d` measure 14/14 positive
++samples with native exit 0 and 17/17 sensitive sample rejects on Linux and
++Windows x86-64. Explicit public `omega run --both` replays measure 14/14
++native/Terminal agreements at exit 0 on both hosts. The corpus pins measure
++14 checked positives, 18 rejections matching their intended diagnostics, and
++14 native/Terminal agreements per host. Linux validation and stage-04 Clippy
++pass. Matched frozen producers compare 99 affected checking fixtures and 65
++affected both-engine fixtures against fixed base
++`37dabdc19193fe27968bb97d5922118db61b68db`, with zero lost or gained outcomes
++in either comparison. Scoped native records retain their actual producer and
++consumer identities, with byte-preserving content guards. Raw logs, profiles,
++accepted locks and qualification receipts remain in the owning claim's evidence.
++Final-checkpoint replay and independent review are separate acceptance records.
+ The comparison retains pre-existing failures, including atomic
+ `prior_is_not_zero` accepting and three `case_where` positive refusals. It does
+ not establish those controls or case obligations. The named customer's package
+diff --git a/tests/omega/corpus_both_windows_x86_64.txt b/tests/omega/corpus_both_windows_x86_64.txt
+index 238d16e479e..decb916975e 100644
+--- a/tests/omega/corpus_both_windows_x86_64.txt
++++ b/tests/omega/corpus_both_windows_x86_64.txt
+@@ -4623,6 +4623,20 @@ pass/facts/record_layout_geometry_through_other_machine_exit built 2257ms exit:0
+ pass/facts/record_layout_geometry_through_other_state_exit built 2256ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+ pass/facts/record_layout_geometry_through_parameter_exit built 2258ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+ pass/facts/record_layout_geometry_through_target_body_exit built 2714ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
++pass/facts/record_view_invariant_window_disjoint_element_exit built 3674ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_field_alias_exit built 3725ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_independent_field_exit built 3541ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_local_field_alias_exit built 3750ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_raw_current_exit built 3701ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_through_call_result_exit built 3842ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_through_const_name_exit built 3595ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_through_field_exit built 3621ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_through_local_exit built 3811ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_through_match_join_exit built 3647ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_through_other_machine_exit built 3569ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_through_other_state_exit built 3776ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_through_parameter_exit built 2622ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
++pass/facts/record_view_invariant_window_through_target_body_exit built 2617ms exit:0 interpreter-exit:0 interpreter:agrees @a0fce4c76d06
+ pass/facts/recoverable_replacement_window_through_call_result_exit built 3304ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+ pass/facts/recoverable_replacement_window_through_const_name_exit built 3501ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+ pass/facts/recoverable_replacement_window_through_field_exit built 2478ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

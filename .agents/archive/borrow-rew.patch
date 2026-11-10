@@ -1,0 +1,92 @@
+diff --git a/omega-rust/psi/compilation/checking/src/borrow_contracts.rs b/omega-rust/psi/compilation/checking/src/borrow_contracts.rs
+index 588331eae74..0710f0bf6ce 100644
+--- a/omega-rust/psi/compilation/checking/src/borrow_contracts.rs
++++ b/omega-rust/psi/compilation/checking/src/borrow_contracts.rs
+@@ -500,6 +500,22 @@ pub fn carried_reference_paths(
+     })
+ }
+ 
++/// Exact carrier of each physical result leaf. Borrowed backing and the
++/// descriptor which names it have different lifetimes, even when both are
++/// represented by reference shells. Consumers use this same declared frontier.
++pub fn carried_reference_types(
++    program: &dyn crate::CheckingInput,
++    type_reference: TypeReferenceHandle,
++) -> Option<Vec<(Vec<BorrowOwnerSegment>, TypeReferenceHandle)>> {
++    carried_lifetimes(program, type_reference).map(|leaves| {
++        leaves
++            .into_iter()
++            .filter(|leaf| !leaf.lifetime_only)
++            .map(|leaf| (leaf.owner_path, leaf.reference))
++            .collect()
++    })
++}
++
+ /// Translate retained nominal loan selectors without reconstructing a borrow.
+ /// Runtime selectors require their own evaluated capture and cannot be inferred.
+ pub fn structural_owner_path(
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/escape.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/escape.rs
+index 024888fdd61..2ad4c8d075d 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/escape.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/escape.rs
+@@ -21,6 +21,8 @@ pub(super) fn check_view_return_escape(
+         ) else {
+             continue;
+         };
++        let result_carriers =
++            validation::borrow_contracts::carried_reference_types(program, state.return_type);
+         let mut reported: Vec<facts::PlaceRoot> = Vec::new();
+         for loan in facts
+             .borrow
+@@ -48,6 +50,19 @@ pub(super) fn check_view_return_escape(
+                     }
+                 }
+                 facts::PlaceRoot::Expression(expression) => {
++                    // Image bytes can outlive the invocation. A reference to
++                    // the temporary descriptor which names them cannot inherit
++                    // that lifetime; unknown leaf geometry supplies no exemption.
++                    let result_points_to_carrier = result_carriers
++                        .as_ref()
++                        .and_then(|carriers| {
++                            let path = facts.borrow.owner_segments.span_or_empty(loan.owner_path);
++                            carriers.iter().find(|(owner, _)| owner.as_slice() == path)
++                        })
++                        .and_then(|(_, reference)| validation::reference_shell(program, *reference))
++                        .is_none_or(|shell| {
++                            validation::reference_shell(program, shell.referee).is_some()
++                        });
+                     let is_view = validation::expression_type_reference_in_state(
+                         program,
+                         state.symbol,
+@@ -64,7 +79,8 @@ pub(super) fn check_view_return_escape(
+                             program.expression_table.expression(expression),
+                             typed_trees::expression::ExpressionNode::String(_)
+                         );
+-                    if (is_view || image_literal)
++                    if !result_points_to_carrier
++                        && (is_view || image_literal)
+                         && super::persistent::is_state_independent_borrow_source(
+                             program,
+                             state,
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/persistent.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/persistent.rs
+index 544951484c9..8575dd0382f 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/persistent.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/persistent.rs
+@@ -1083,6 +1083,17 @@ pub(super) fn is_state_independent_borrow_source(
+             is_state_independent_borrow_source(program, state, cast.value, resolving)
+         }
+         typed_trees::expression::ExpressionNode::Borrow(borrow) => {
++            let borrows_carrier = validation::expression_type_reference_in_state(
++                program,
++                state.symbol,
++                state.statement_nodes.count() as usize,
++                expression,
++            )
++            .and_then(|reference| validation::reference_shell(program, reference))
++            .is_none_or(|shell| validation::reference_shell(program, shell.referee).is_some());
++            if borrows_carrier {
++                return false;
++            }
+             validation::expression_type_reference_in_state(
+                 program,
+                 state.symbol,

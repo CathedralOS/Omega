@@ -1,0 +1,122 @@
+diff --git a/omega-rust/psi/compilation/checking/src/borrow_contracts.rs b/omega-rust/psi/compilation/checking/src/borrow_contracts.rs
+index 617a7e7adf7..8189030648c 100644
+--- a/omega-rust/psi/compilation/checking/src/borrow_contracts.rs
++++ b/omega-rust/psi/compilation/checking/src/borrow_contracts.rs
+@@ -500,6 +500,22 @@ pub fn carried_reference_paths(
+     })
+ }
+ 
++/// Exact carrier of each physical result leaf. Borrowed backing and the
++/// descriptor which names it have different lifetimes, even when both are
++/// represented by reference shells. Consumers use this same declared frontier.
++pub fn carried_reference_types(
++    program: &dyn crate::CheckingInput,
++    type_reference: TypeReferenceHandle,
++) -> Option<Vec<(Vec<BorrowOwnerSegment>, TypeReferenceHandle)>> {
++    carried_lifetimes(program, type_reference).map(|leaves| {
++        leaves
++            .into_iter()
++            .filter(|leaf| !leaf.lifetime_only)
++            .map(|leaf| (leaf.owner_path, leaf.reference))
++            .collect()
++    })
++}
++
+ /// Borrow classification and projected paths share the complete frontier.
+ /// An unresolved structure is not evidence of absent loans. Consumers must
+ /// retain the obligation until admission supplies its complete instantiated
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/escape.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/escape.rs
+index b9fc1f8fd7d..50a8c269997 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/escape.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/escape.rs
+@@ -21,6 +21,8 @@ pub(super) fn check_view_return_escape(
+         ) else {
+             continue;
+         };
++        let result_carriers =
++            validation::borrow_contracts::carried_reference_types(program, state.return_type);
+         let mut reported: Vec<facts::PlaceRoot> = Vec::new();
+         for loan in facts
+             .borrow
+@@ -48,6 +50,19 @@ pub(super) fn check_view_return_escape(
+                     }
+                 }
+                 facts::PlaceRoot::Expression(expression) => {
++                    // Image bytes can outlive the invocation. A reference to
++                    // the temporary descriptor which names them cannot inherit
++                    // that lifetime; unknown leaf geometry supplies no exemption.
++                    let result_points_to_carrier = result_carriers
++                        .as_ref()
++                        .and_then(|carriers| {
++                            let path = facts.borrow.owner_segments.span_or_empty(loan.owner_path);
++                            carriers.iter().find(|(owner, _)| owner.as_slice() == path)
++                        })
++                        .and_then(|(_, reference)| validation::reference_shell(program, *reference))
++                        .is_none_or(|shell| {
++                            validation::reference_shell(program, shell.referee).is_some()
++                        });
+                     let is_view = validation::expression_type_reference_in_state(
+                         program,
+                         state.symbol,
+@@ -64,7 +79,8 @@ pub(super) fn check_view_return_escape(
+                             program.expression_table.expression(expression),
+                             typed_trees::expression::ExpressionNode::String(_)
+                         );
+-                    if (is_view || image_literal)
++                    if !result_points_to_carrier
++                        && (is_view || image_literal)
+                         && super::persistent::is_state_independent_borrow_source(
+                             program,
+                             state,
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/persistent.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/persistent.rs
+index 7f3fc19f14c..611e4cde3ca 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/persistent.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/persistent.rs
+@@ -1080,6 +1080,17 @@ pub(super) fn is_state_independent_borrow_source(
+             is_state_independent_borrow_source(program, state, cast.value, resolving)
+         }
+         typed_trees::expression::ExpressionNode::Borrow(borrow) => {
++            let borrows_carrier = validation::expression_type_reference_in_state(
++                program,
++                state.symbol,
++                state.statement_nodes.count() as usize,
++                expression,
++            )
++            .and_then(|reference| validation::reference_shell(program, reference))
++            .is_none_or(|shell| validation::reference_shell(program, shell.referee).is_some());
++            if borrows_carrier {
++                return false;
++            }
+             validation::expression_type_reference_in_state(
+                 program,
+                 state.symbol,
+diff --git a/omega-rust/psi/interpreter/terminal-interpreter/src/structural_operations.rs b/omega-rust/psi/interpreter/terminal-interpreter/src/structural_operations.rs
+index 0099ce87d13..ada1008fc6b 100644
+--- a/omega-rust/psi/interpreter/terminal-interpreter/src/structural_operations.rs
++++ b/omega-rust/psi/interpreter/terminal-interpreter/src/structural_operations.rs
+@@ -1905,7 +1905,24 @@ impl TerminalExecution<'_> {
+             })
+         {
+             let root = self.structural_values.get(&source).ok_or_else(malformed)?;
+-            let bytes = if StructuralRuntimePlace::from(root) == StructuralRuntimePlace::from(&leaf)
++            let bytes = if self
++                .program
++                .structural_types()
++                .get(&result.structural_type)
++                .is_some_and(|declaration| declaration.shape.is_shared_readable_byte_view())
++            {
++                // Shared descriptor storage has one authenticated lookup for
++                // roots, fields and indexed aggregate elements. Its home and
++                // backing permission survive independently of the copied slot.
++                self.shared_byte_descriptor(
++                    &StructuralArgument {
++                        place: source,
++                        path: copy_path.clone(),
++                        access: StructuralAccess::SharedBorrow,
++                    },
++                    &leaf,
++                )?
++            } else if StructuralRuntimePlace::from(root) == StructuralRuntimePlace::from(&leaf)
+                 && root.structural_type == leaf.structural_type
+             {
+                 let bytes = self

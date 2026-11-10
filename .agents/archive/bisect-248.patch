@@ -1,0 +1,55 @@
+diff --git a/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody.rs b/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody.rs
+index a1e3ac42676..af3450e352d 100644
+--- a/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody.rs
++++ b/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody.rs
+@@ -874,6 +874,14 @@ fn storage_projection(
+         .iter()
+         .rposition(|segment| *segment == StructuralPathSegment::Referent)
+     {
++        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
++            eprintln!(
++                "CHECKSITE storage-projection place={:?} carrier={:?} crossing={} prefix={:?} leafkeys={:?}",
++                source.place, carrier, crossing, &path[..crossing],
++                custody.leaves.keys().filter(|(place, _)| *place == source.place)
++                    .map(|(_, path)| path.clone()).collect::<Vec<_>>()
++            );
++        }
+         let leaf = custody.leaf(source.place, &path[..crossing])?;
+         let reference = leaf_type(types, carrier, &path[..crossing])?;
+         let StructuralTypeShape::Reference { referent, access } =
+@@ -2960,6 +2968,15 @@ pub(in crate::legalization) fn apply_terminator(
+     for (edge, actions) in operation.cleanup_rosters() {
+         let owned_transfer = operation.owned_transfer(edge);
+         let target = operation.successor_target(edge);
++        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
++            eprintln!(
++                "CHECKSITE terminator-edge machine={:?} edge={:?} target={:?} transfer={:?}",
++                function.machine,
++                edge,
++                target,
++                owned_transfer.map(|(_, bindings)| bindings.len())
++            );
++        }
+         if let Some(target) = target {
+             let mut exit = custody.clone();
+             if let Some((target, bindings)) = owned_transfer {
+diff --git a/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody/borrowed_arrivals.rs b/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody/borrowed_arrivals.rs
+index 02c66c1bd04..ffda9eaaeed 100644
+--- a/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody/borrowed_arrivals.rs
++++ b/omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody/borrowed_arrivals.rs
+@@ -139,6 +139,15 @@ pub(super) fn bind(
+         if !parameter.access.admits(binding.argument.access) {
+             return Err(invalid());
+         }
++        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
++            eprintln!(
++                "CHECKSITE bind-entry param={:?} arg={:?} argpath={:?} sources_contains={}",
++                parameter.place,
++                binding.argument.place,
++                binding.argument.path,
++                sources.contains_key(&parameter.place)
++            );
++        }
+         let captured = (|| {
+             let projection = storage_projection(function, before, types, &binding.argument)?;
+             if !projection.matches(

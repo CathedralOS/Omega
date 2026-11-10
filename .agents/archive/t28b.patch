@@ -1,0 +1,157 @@
+diff --git a/omega-rust/psi/interpreter/terminal-interpreter/src/execution.rs b/omega-rust/psi/interpreter/terminal-interpreter/src/execution.rs
+index 4b9fd2711a2..4dd784485c6 100644
+--- a/omega-rust/psi/interpreter/terminal-interpreter/src/execution.rs
++++ b/omega-rust/psi/interpreter/terminal-interpreter/src/execution.rs
+@@ -915,6 +915,7 @@ impl<'artifact> TerminalExecution<'artifact> {
+                     .and_then(|machine| machine.block(&self.current))
+                     .and_then(|block| block.operations.get(self.next_operation))
+                     .map(|operation| operation.id);
++                eprintln!("diagnostic operation: {:?}", self.program.machines().get(&self.current_machine).and_then(|machine| machine.block(&self.current)).and_then(|block| block.operations.get(self.next_operation)));
+                 TerminalInterpretError::ExecutionSite {
+                     machine: self.current_machine,
+                     block: self.current,
+diff --git a/omega-rust/psi/interpreter/terminal-interpreter/src/scalar_array.rs b/omega-rust/psi/interpreter/terminal-interpreter/src/scalar_array.rs
+index ae022c4d57f..72935c91e75 100644
+--- a/omega-rust/psi/interpreter/terminal-interpreter/src/scalar_array.rs
++++ b/omega-rust/psi/interpreter/terminal-interpreter/src/scalar_array.rs
+@@ -258,12 +258,14 @@ impl TerminalExecution<'_> {
+         elements: &[ValueId],
+     ) -> Result<(), TerminalInterpretError> {
+         let result = operation.result.structural().ok_or_else(malformed)?;
++        eprintln!("array diagnostic: place={:?} live={} retired={} structural={}", result.place, self.scalar_array_values.contains_key(&result.place), self.scalar_array_values.retains_retired(&result.place), self.structural_values.contains_key(&result.place));
+         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
+             self.program.structural_types().values(),
+             result.structural_type,
+         )
+         .ok_or_else(malformed)?;
+         // A cyclic traversal re-establishes the payload on each visit; block
++        eprintln!("array diagnostic: scalar={scalar_type:?} count={count} elements={:?}", elements.iter().map(|value| self.scalar_value(*value)).collect::<Vec<_>>());
+         // entry already retired the earlier visit's elements, so a value
+         // still at the place is a second live definition.
+         if result.multiplicity != StructuralMultiplicity::Unrestricted
+diff --git a/omega-rust/psi/interpreter/terminal-interpreter/src/structural_storage/retirement.rs b/omega-rust/psi/interpreter/terminal-interpreter/src/structural_storage/retirement.rs
+index 571b9a07177..3e9d98b85cf 100644
+--- a/omega-rust/psi/interpreter/terminal-interpreter/src/structural_storage/retirement.rs
++++ b/omega-rust/psi/interpreter/terminal-interpreter/src/structural_storage/retirement.rs
+@@ -321,12 +321,14 @@ impl TerminalExecution<'_> {
+             return;
+         }
+         let mut retained = RetainedStorage::default();
+-        for value in self.structural_values.values() {
++        for (place, value) in &self.structural_values {
+             retained.value(value);
++            eprintln!("retention current value {place:?}: {:?}", value);
+         }
+         for (place, backing) in &self.aggregate_argument_backings {
+             if self.structural_values.contains_key(place) {
+                 retained.aggregate_backing(backing);
++                eprintln!("retention current aggregate {place:?}: {:?}", retained.frame_arrays);
+             }
+         }
+         for occurrence in self.placed_view_occurrences.values() {
+@@ -335,28 +337,33 @@ impl TerminalExecution<'_> {
+         for (place, view) in &self.element_view_values {
+             if self.structural_values.contains_key(place) {
+                 view.retain_storage(&mut retained);
++                eprintln!("retention current view {place:?}: {:?}", retained.frame_arrays);
+             }
+         }
+         for (place, loan) in &self.primitive_loan_values {
+             if self.structural_values.contains_key(place) {
+                 retained.primitive_endpoint(&loan.storage.endpoint);
++                eprintln!("retention current primitive {place:?}: {:?}", retained.frame_arrays);
+             }
+         }
+         for (place, binding) in &self.byte_sequence_values {
+             if self.structural_values.contains_key(place) {
+                 retained.byte_binding(binding);
++                eprintln!("retention current bytes {place:?}: {:?}", retained.frame_arrays);
+             }
+         }
+         for original in &self.private_entry_ram {
+             retained.value(&original.allocation);
+         }
+         for frame in &self.call_stack {
+-            for value in frame.structural_values.values() {
++            for (place, value) in &frame.structural_values {
+                 retained.value(value);
++                eprintln!("retention saved value {place:?}: {:?}", value);
+             }
+             for (place, backing) in &frame.aggregate_argument_backings {
+                 if frame.structural_values.contains_key(place) {
+                     retained.aggregate_backing(backing);
++                    eprintln!("retention saved aggregate {place:?}: {:?}", retained.frame_arrays);
+                 }
+             }
+             for occurrence in frame.placed_view_occurrences.values() {
+@@ -365,16 +372,19 @@ impl TerminalExecution<'_> {
+             for (place, view) in &frame.element_view_values {
+                 if frame.structural_values.contains_key(place) {
+                     view.retain_storage(&mut retained);
++                    eprintln!("retention saved view {place:?}: {:?}", retained.frame_arrays);
+                 }
+             }
+             for (place, loan) in &frame.primitive_loan_values {
+                 if frame.structural_values.contains_key(place) {
+                     retained.primitive_endpoint(&loan.storage.endpoint);
++                    eprintln!("retention saved primitive {place:?}: {:?}", retained.frame_arrays);
+                 }
+             }
+             for (place, binding) in &frame.byte_sequence_values {
+                 if frame.structural_values.contains_key(place) {
+                     retained.byte_binding(binding);
++                    eprintln!("retention saved bytes {place:?}: {:?}", retained.frame_arrays);
+                 }
+             }
+             match &frame.result {
+@@ -384,6 +394,7 @@ impl TerminalExecution<'_> {
+                 } => {
+                     for backing in expected_reference_backings.iter().flatten() {
+                         backing.retain_storage(&mut retained);
++                        eprintln!("retention saved result: {:?}", retained.frame_arrays);
+                     }
+                 }
+                 SuspendedCallResult::NominalCleanups {
+@@ -402,6 +413,7 @@ impl TerminalExecution<'_> {
+         }
+         if let Some(bindings) = bindings {
+             bindings.retain_storage(&mut retained);
++            eprintln!("retention successor bindings: {:?}", retained.frame_arrays);
+         }
+         if let Some(TerminalExecutionResult::Structural(value)) = &self.result {
+             retained.value(&value.value);
+@@ -415,6 +427,7 @@ impl TerminalExecution<'_> {
+             for (carrier, reference) in super::cells(&self.reference_referents, region.root()) {
+                 if region.selected_suffix(carrier).is_some_and(<[_]>::is_empty) {
+                     retained.reference(reference);
++                    eprintln!("retention reference edge {carrier:?}: {:?}", retained.frame_arrays);
+                 }
+             }
+             // Index the same existing opaque identity, including byte cells
+@@ -428,22 +441,26 @@ impl TerminalExecution<'_> {
+             {
+                 if region.may_retain_field_parent(&field.parent) {
+                     retained.byte_binding(binding);
++                    eprintln!("retention field byte edge: {:?}", retained.frame_arrays);
+                 }
+             }
+             for (carrier, binding) in super::cells(&self.structural_byte_descriptors, region.root())
+             {
+                 if region.selected_suffix(carrier).is_some_and(<[_]>::is_empty) {
+                     retained.byte_binding(binding);
++                    eprintln!("retention byte edge {carrier:?}: {:?}", retained.frame_arrays);
+                 }
+             }
+             for (carrier, view) in super::cells(&self.structural_element_view_fields, region.root())
+             {
+                 if let Some(suffix) = region.selected_suffix(carrier) {
+                     view.retain_projection_storage(&mut retained, suffix);
++                    eprintln!("retention view edge {carrier:?}: {:?}", retained.frame_arrays);
+                 }
+             }
+         }
+         let current_depth = self.call_stack.len();
++        eprintln!("retention final depth={current_depth} frames={:?}", retained.frame_arrays);
+         self.scalar_array_values
+             .collect_retired(|place| retained.frame_arrays.contains(&(current_depth, place)));
+         for (depth, frame) in self.call_stack.iter_mut().enumerate() {

@@ -1,0 +1,247 @@
+diff --git a/omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs b/omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs
+index 4cb081e7c94..19d20612baf 100644
+--- a/omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs
++++ b/omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs
+@@ -656,18 +656,25 @@ pub fn settle_checked_providers(
+         }
+     }
+     selected_provider_plan_facts = selected_provider_plan_facts.with_assumed_bindings(assumptions);
+-    for row in selected_provider_plan_facts.assumed_bindings() {
++    for assumption in assumed_bindings {
++        let required_identity = identity(assumption.required)?;
+         let supplied = selected_provider_plan_facts
+-            .assumed_supplier_identity(&row.required)
++            .assumed_supplier_identity(&required_identity)
+             .map_err(|reason| vec![Diagnostic::error(reason)])?;
+-        if selected_provider_plan_facts
++        let (plan, row) = selected_provider_plan_facts
+             .selected_requirement_row(supplied)
+-            .is_none()
+-        {
+-            return Err(vec![Diagnostic::error(
++            .ok_or_else(|| vec![Diagnostic::error(
+                 "assumed binding has no selected complete supplied provider",
+-            )]);
+-        }
++            )])?;
++        build_time_evaluation::assumed_bindings::validate_result_qualification_authority(
++            checked, assumption, || {
++                if matches!(&row.binding, effects::ProviderBinding::CheckedAdapter { .. }) {
++                    Ok(Some(crate::exact_checked_adapter(context, plan, row)?.symbol))
++                } else {
++                    Ok(None)
++                }
++            },
++        ).map_err(|diagnostic| vec![diagnostic])?;
+     }
+     let mut component_plans = Vec::new();
+     for selected in &selected_provider_provenance {
+diff --git a/omega-rust/psi/compilation/checking/src/lib.rs b/omega-rust/psi/compilation/checking/src/lib.rs
+index 6554f9e6474..c2bd4d6a868 100644
+--- a/omega-rust/psi/compilation/checking/src/lib.rs
++++ b/omega-rust/psi/compilation/checking/src/lib.rs
+@@ -23,6 +23,9 @@ pub use machine_calls::attached_method_bounds::validate_selected_attached_method
+ pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
+ pub use machine_calls::{compiler_operations, contract_identities};
+ pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
++pub use proof_contracts::result_qualifications::{
++    authored_result_qualification_paths, checked_result_qualification_paths,
++};
+ pub use proof_contracts::qualification_evidence::{
+     BoundaryQualificationObligation, boundary_provider_qualification_obligations,
+ };
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts.rs b/omega-rust/psi/compilation/checking/src/proof_contracts.rs
+index c1a78dd6c98..53f040963ff 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts.rs
+@@ -27,6 +27,7 @@ pub(crate) mod proposition_entailment;
+ pub(crate) mod qualification_evidence;
+ pub(crate) mod quotients;
+ pub(crate) mod relevance;
++pub(crate) mod result_qualifications;
+ pub(crate) mod slice_ranking;
+ 
+ pub(crate) mod scalar_boundary_guarantees;
+diff --git a/omega-rust/psi/compilation/checking/terminal-installation/src/provider_installation.rs b/omega-rust/psi/compilation/checking/terminal-installation/src/provider_installation.rs
+index 3934fc2efe2..1b82b68d53f 100644
+--- a/omega-rust/psi/compilation/checking/terminal-installation/src/provider_installation.rs
++++ b/omega-rust/psi/compilation/checking/terminal-installation/src/provider_installation.rs
+@@ -7,6 +7,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralDomainId};
+ use std::collections::{BTreeMap, BTreeSet};
+ 
+ mod root_schemas;
++mod result_authority;
+ 
+ /// Omega-owned policy input naming one exact verified terminal provider row.
+ /// Selection is intentionally separate from terminal-Psi semantic bytes.
+@@ -275,6 +276,9 @@ pub enum AssumedBindingRejection {
+     IncompatibleRuntimeShape,
+     IncompatibleOperationalContract,
+     UnsupportedAssumedAuthority,
++    UnauthorizedResultQualification {
++        qualification: StructuralDomainId,
++    },
+     InvalidRootIntroductionSchema {
+         requirement: BoundaryMachineId,
+         argument_index: u32,
+@@ -551,6 +555,12 @@ fn admit_assumed_bindings(
+             supply_path.push(requirement);
+             requirement = next.supplied_requirement;
+         };
++        result_authority::admit_result_authority(
++            module,
++            required,
++            supplied,
++            module.machines.iter().find(|machine| machine.id == implementation).map(|machine| &machine.result),
++        ).map_err(reject)?;
+         admitted.push(AdmittedAssumedBinding {
+             required: assumption.required,
+             supplied_requirement: assumption.supplied_requirement,
+diff --git a/omega-rust/psi/compilation/compile-time/src/assumed_bindings.rs b/omega-rust/psi/compilation/compile-time/src/assumed_bindings.rs
+index daec96e6509..ba7308f16e3 100644
+--- a/omega-rust/psi/compilation/compile-time/src/assumed_bindings.rs
++++ b/omega-rust/psi/compilation/compile-time/src/assumed_bindings.rs
+@@ -6,6 +6,9 @@ use diagnostics::Diagnostic;
+ use language_semantics::declaration_selection::BuildOperation;
+ use symbols::SymbolHandle;
+ 
++mod result_authority;
++pub use result_authority::validate_result_qualification_authority;
++
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub struct AssumedBindingContract {
+     pub required: SymbolHandle,
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs
+index 24829a33982..87c8a594409 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs
+@@ -769,56 +769,21 @@ pub(crate) fn authored_result_qualification_domains(
+     machine: symbols::SymbolHandle,
+ ) -> Vec<language_semantics::SemanticDomainId> {
+     let mut qualifications = Vec::new();
+-    let Some(contract) = checked.facts.contract_plans.for_machine(machine) else {
+-        return qualifications;
+-    };
+-    for clause in contract.closed_scalar_values.ensures() {
+-        let Some(checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee {
+-            result_qualifications,
+-            ..
+-        }) = clause
+-        else {
+-            continue;
+-        };
+-        qualifications.extend(result_qualifications.iter().map(|row| row.domain));
+-    }
++    qualifications.extend(
++        validation::authored_result_qualification_paths(checked, machine)
++            .into_iter()
++            .map(|row| row.domain),
++    );
+     qualifications.sort_by_key(|domain| domain.0);
+     qualifications.dedup();
+     qualifications
+ }
+ 
+-fn authored_result_paths(
+-    checked: &CheckedTrees,
+-    machine: symbols::SymbolHandle,
+-) -> Vec<checked_trees::CheckedStructuralPathQualification> {
+-    let mut rows = Vec::new();
+-    let Some(contract) = checked.facts.contract_plans.for_machine(machine) else {
+-        return rows;
+-    };
+-    for clause in contract.closed_scalar_values.ensures() {
+-        let Some(checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee {
+-            result_qualifications,
+-            ..
+-        }) = clause
+-        else {
+-            continue;
+-        };
+-        rows.extend(result_qualifications.iter().cloned());
+-    }
+-    rows.sort_by(|left, right| {
+-        left.path
+-            .cmp(&right.path)
+-            .then(left.domain.0.cmp(&right.domain.0))
+-    });
+-    rows.dedup();
+-    rows
+-}
+-
+ pub(crate) fn authored_result_whole_domains(
+     checked: &CheckedTrees,
+     machine: symbols::SymbolHandle,
+ ) -> Vec<language_semantics::SemanticDomainId> {
+-    authored_result_paths(checked, machine)
++    validation::authored_result_qualification_paths(checked, machine)
+         .into_iter()
+         .filter(|row| row.path.is_empty())
+         .map(|row| row.domain)
+@@ -830,21 +795,11 @@ pub(crate) fn result_projected_qualifications(
+     machine: symbols::SymbolHandle,
+     return_type: checked_trees::types::TypeReferenceHandle,
+ ) -> Result<Vec<checked_trees::CheckedStructuralPathQualification>, LoweringError> {
+-    let mut rows =
+-        validation::structural_result_projected_qualifications(&checked.typed, return_type)
+-            .map_err(LoweringError::Unsupported)?;
+-    rows.extend(
+-        authored_result_paths(checked, machine)
+-            .into_iter()
+-            .filter(|row| !row.path.is_empty()),
+-    );
+-    rows.sort_by(|left, right| {
+-        left.path
+-            .cmp(&right.path)
+-            .then(left.domain.0.cmp(&right.domain.0))
+-    });
+-    rows.dedup();
+-    Ok(rows)
++    Ok(validation::checked_result_qualification_paths(checked, machine, return_type)
++        .map_err(LoweringError::Unsupported)?
++        .into_iter()
++        .filter(|row| !row.path.is_empty())
++        .collect())
+ }
+ 
+ pub(crate) fn lower_projected_qualifications(
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/boundary/declarations.rs b/omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/boundary/declarations.rs
+index 5a500317c36..b72872bccd0 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/boundary/declarations.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/boundary/declarations.rs
+@@ -67,17 +67,12 @@ impl BoundaryMachineResult {
+             (Self::Structural(expected), crate::TerminalMachineResult::Structural(result)) => {
+                 expected.structural_type == result.structural_type
+                     && expected.multiplicity == result.multiplicity
+-                    && result
+-                        .qualifications
+-                        .iter()
+-                        .all(|domain| expected.qualifications.contains(domain))
+                     && expected.qualifications.iter().all(|domain| {
+                         result.qualifications.contains(domain)
+                             || domains.iter().any(|declaration| {
+                                 declaration.id == *domain
+                                     && declaration.carrier == expected.structural_type
+-                                    && (declaration.establishment_routes.is_empty()
+-                                        || declaration.authorizes_boundary_requirement(requirement))
++                                    && declaration.permits_boundary_result_establishment(requirement)
+                             })
+                     })
+                     && expected
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/types/qualifications.rs b/omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/types/qualifications.rs
+index ea4eae58408..5a99666a1a9 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/types/qualifications.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/types/qualifications.rs
+@@ -43,6 +43,12 @@ pub struct StructuralDomainPredicate {
+ }
+ 
+ impl StructuralDomainDeclaration {
++    /// Issuer eligibility for a new whole boundary result membership. This
++    /// proves no predicate, returned custody, or descendant-path authority.
++    pub fn permits_boundary_result_establishment(&self, requirement: TerminalIdentityIndex) -> bool {
++        self.establishment_routes.is_empty() || self.authorizes_boundary_requirement(requirement)
++    }
++
+     /// Authorization belongs to this exact boundary requirement, not another
+     /// conformer or a private issuer whose value the provider merely forwards.
+     pub fn authorizes_boundary_requirement(&self, requirement: TerminalIdentityIndex) -> bool {

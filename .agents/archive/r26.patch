@@ -1,0 +1,441 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/contract_refinement.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/contract_refinement.rs
+index 6d494e3942e..10082cd8f7c 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/contract_refinement.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/contract_refinement.rs
+@@ -383,9 +383,9 @@ impl ContractFacts {
+         reference: TypeReferenceHandle,
+         identity: String,
+     ) {
+-        let Some(primitive) = program
+-            .primitive_type_reference(reference)
+-            .filter(|primitive| primitive.is_fixed_integer())
++        let Some((primitive, _)) =
++            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
++                .filter(|(primitive, _)| primitive.is_fixed_integer())
+         else {
+             return;
+         };
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/result_fields.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/result_fields.rs
+index 9a75a1edffa..9c1bd4c1574 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/result_fields.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/result_fields.rs
+@@ -160,15 +160,28 @@ impl ExitScalars<'_, '_> {
+                             selected,
+                             |value, carrier| {
+                                 let place = call_guarantees::direct_place(self.program, value)?;
+-                                let place = arithmetic::value_origin(
++                                let origin = arithmetic::value_origin(
+                                     self.program,
+                                     self.facts,
+                                     caller,
+                                     self.exit.statement_index,
+                                     self.call_frames?,
+-                                    place,
+-                                )?;
+-                                Some(arithmetic::atom(place, carrier))
++                                    place.clone(),
++                                );
++                                origin
++                                    .map(|place| arithmetic::atom(place, carrier))
++                                    .or_else(|| {
++                                        arithmetic::value_at_normal_return(
++                                            self.program,
++                                            self.facts,
++                                            caller,
++                                            self.exit.statement_index,
++                                            self.contexts,
++                                            self.call_frames?,
++                                            place,
++                                            carrier,
++                                        )
++                                    })
+                             },
+                         )?;
+                         return Some(value);
+@@ -213,6 +226,9 @@ impl ExitScalars<'_, '_> {
+                 Some(arithmetic::atom(place, primitive))
+             },
+         );
++        if std::env::var_os("OMEGA_DEBUG_STATEMENT_GUARANTEE").is_some() {
++            eprintln!("exit arithmetic goal constructed={goal:?}");
++        }
+         let goal = goal?;
+         Some(arithmetic::proves_at_exit(
+             self.program,
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs
+index 07474eb2e33..66f990e3762 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees.rs
+@@ -178,7 +178,14 @@ pub(crate) fn current_predicates(
+                 }
+                 let position = parameters.iter().position(|parameter| {
+                     binding.place.root == PlaceRoot::Symbol(parameter.symbol)
+-                })?;
++                });
++                if std::env::var_os("OMEGA_DEBUG_STATEMENT_GUARANTEE").is_some() {
++                    eprintln!(
++                        "guarantee binding={:?} parameter_position={position:?}",
++                        binding.place
++                    );
++                }
++                let position = position?;
+                 let actual = *arguments.get(position)?;
+                 let place = crate::semantic::facts::projected_argument_place(
+                     program,
+@@ -444,16 +451,21 @@ fn capture_preserved(
+         return false;
+     };
+     // A named path may retain its machine head while borrow facts name the
+-    // resolved entry. Normalize that exact declaration join on both sides;
+-    // signature/binder identities remain distinct and are never matched by shape.
+-    let entry = |target| {
+-        validation::call_target_state(program, target).map_or(target, |state| state.symbol)
++    // resolved entry. Normalize that exact declaration join on both sides.
++    // The borrow graph also records an evidence child's applied public
++    // requirement. Join that exact selected signature, never its spelling or
++    // carrier shape; distinct trait applications remain distinct identities.
++    let contract_target = |target| {
++        validation::selected_requirement_signature(program, target)
++            .map(|(_, signature)| signature.symbol)
++            .or_else(|| validation::call_target_state(program, target).map(|state| state.symbol))
++            .unwrap_or(target)
+     };
+-    let target = entry(supplied.site.target_symbol(program));
++    let target = contract_target(supplied.site.target_symbol(program));
+     let Some(call) = borrow.calls.span_or_empty(state.calls).iter().find(|call| {
+         call.statement_index == supplied.statement
+             && call.call_ordinal == supplied.ordinal
+-            && entry(call.target_symbol) == target
++            && contract_target(call.target_symbol) == target
+     }) else {
+         return false;
+     };
+@@ -859,6 +871,33 @@ fn stable_predicate_inputs(
+         &mut occurrences,
+     );
+     occurrences.into_iter().all(|occurrence| {
++        if std::env::var_os("OMEGA_DEBUG_STATEMENT_GUARANTEE").is_some() {
++            eprintln!(
++                "stable occurrence={} node={:?} immutable={} actual={:?}",
++                program.expression_table.display_name(occurrence),
++                program.expression_table.expression(occurrence),
++                static_operands::immutable(program, occurrence),
++                actual_projection(program, invocation, occurrence)
++            );
++            if let ExpressionNode::Member(member) = program.expression_table.expression(occurrence)
++            {
++                eprintln!(
++                    "stable member receiver={:?}, closed={}",
++                    program.expression_table.expression(member.receiver),
++                    program
++                        .closed_integer_value_in(occurrence, invocation.callable.owner_symbol())
++                        .is_some()
++                );
++                if let Callable::Requirement { signature } = invocation.callable {
++                    if let Some(application) = program.closed_requirement_application(signature.symbol) {
++                        eprintln!("closed requirement template={:?} trait={:?} arguments={:?} local={:?} application={:?}", application.template, application.declaring_trait, application.trait_arguments, application.local_arguments, application.application);
++                        for reference in application.trait_arguments {
++                            eprintln!("trait argument {:?} = {:?}", reference, program.type_reference_table.type_reference(*reference));
++                        }
++                    }
++                }
++            }
++        }
+         if let Some(result) = validation::reserved_result_place(program, occurrence) {
+             return result.machine_symbol == invocation.callable.owner_symbol();
+         }
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs
+index 6819322de22..219fd42d8ba 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/arithmetic.rs
+@@ -109,6 +109,9 @@ pub(in crate::checks) fn proves_at_exit(
+             })
+         })
+         .collect::<Vec<_>>();
++    if std::env::var_os("OMEGA_DEBUG_STATEMENT_GUARANTEE").is_some() {
++        eprintln!("exit arithmetic goal={goal:?} hypotheses={hypotheses:?}");
++    }
+     proves_bound(
+         program,
+         facts,
+@@ -404,16 +407,7 @@ pub(super) fn at_invocation(
+                     // Availability established this post-call proposition, not
+                     // equality to the entry value of the same storage. Keep an
+                     // opaque version until a consumer has exact return custody.
+-                    return Some(ScopedArithmeticValue::Atom {
+-                        identity: format!(
+-                            "\0call-guarantee:return:{:?}:{}:{}:{primitive:?}:{length}:{storage:?}",
+-                            invocation.caller_state, invocation.statement, invocation.ordinal,
+-                        ),
+-                        unsigned: matches!(
+-                            primitive,
+-                            typed_trees::unsigned_integer_primitive_pattern!()
+-                        ),
+-                    });
++                    return Some(normal_return_atom(invocation, primitive, length, &storage));
+                 }
+             }
+             let place = if matches!(place.root, facts::PlaceRoot::Expression(_)) {
+@@ -530,6 +524,135 @@ pub(in crate::checks) fn value_origin(
+     )
+ }
+ 
++fn normal_return_atom(
++    invocation: &Invocation<'_>,
++    primitive: PrimitiveType,
++    length: bool,
++    storage: &validation::CanonicalPlace,
++) -> ScopedArithmeticValue {
++    ScopedArithmeticValue::Atom {
++        identity: format!(
++            "\0call-guarantee:return:{:?}:{}:{}:{primitive:?}:{length}:{storage:?}",
++            invocation.caller_state, invocation.statement, invocation.ordinal,
++        ),
++        unsigned: matches!(
++            primitive,
++            typed_trees::unsigned_integer_primitive_pattern!()
++        ),
++    }
++}
++
++/// Join a returned observation to one authenticated, unmodified call output.
++pub(in crate::checks) fn value_at_normal_return(
++    program: &dyn ::validation::CheckingInput,
++    facts: &CheckFacts,
++    caller: &FlowStateFact,
++    statement: usize,
++    contexts: &[FactContextHandle],
++    frames: &validation::CallFrameResolver<'_>,
++    place: validation::CanonicalPlace,
++    primitive: PrimitiveType,
++) -> Option<ScopedArithmeticValue> {
++    let machine = program.machine_by_symbol(caller.machine_symbol)?;
++    let current = facts.flow.state_statement(caller, statement);
++    if std::env::var_os("OMEGA_DEBUG_STATEMENT_GUARANTEE").is_some() {
++        eprintln!(
++            "normal return query caller={:?} statement={statement} place={place:?} current_present={}",
++            caller.machine_symbol,
++            current.is_some()
++        );
++    }
++    let current = current?;
++    if !crate::flow::entry_origin_is_stable(
++        program,
++        &facts.flow.control,
++        current.completed_content_writes,
++        current.completed_content_unknown_write,
++        &place,
++    ) {
++        return None;
++    }
++    let mut found = None;
++    for guarantee in super::available(
++        program,
++        facts,
++        caller,
++        super::GuaranteeUse::StatementEntry(statement),
++        contexts,
++        frames,
++    ) {
++        let Some(writes) = guarantee.post_return_writes.as_deref() else {
++            continue;
++        };
++        let Some(call) = invocation_fact(facts, caller, &guarantee.invocation) else {
++            continue;
++        };
++        let mut occurrences = Vec::new();
++        crate::facts::contract_occurrences::append_expression_occurrences(
++            program,
++            guarantee.expression,
++            &mut occurrences,
++        );
++        for occurrence in occurrences {
++            let observed = guarantee
++                .invocation
++                .callable
++                .scalar_reference(program, occurrence)
++                .and_then(|reference| {
++                    validation::field_domains::readable_type_reference(program, reference)
++                })
++                .and_then(|reference| program.primitive_type_reference(reference));
++            if observed != Some(primitive) {
++                continue;
++            }
++            let Some(actual) = bound_place(program, &guarantee.invocation, occurrence) else {
++                continue;
++            };
++            if !matches!(actual.root, facts::PlaceRoot::Symbol(_)) {
++                continue;
++            }
++            let Some(storage) = crate::flow::rebase_exact_local_place(
++                program,
++                guarantee.invocation.caller_state,
++                guarantee.invocation.statement,
++                actual,
++                Some(frames),
++            ) else {
++                continue;
++            };
++            let written = writes
++                .iter()
++                .any(|write| ValueObservation::Contents.changed_by(program, &storage, write));
++            let matches = written
++                && crate::flow::value_origin_matches_call_return(
++                    program,
++                    &facts.flow,
++                    machine,
++                    caller,
++                    statement,
++                    place.clone(),
++                    call,
++                    &storage,
++                    frames,
++                );
++            if std::env::var_os("OMEGA_DEBUG_STATEMENT_GUARANTEE").is_some() {
++                eprintln!(
++                    "normal return candidate storage={storage:?} written={written} matches={matches}"
++                );
++            }
++            if !matches {
++                continue;
++            }
++            let value = normal_return_atom(&guarantee.invocation, primitive, false, &storage);
++            if found.as_ref().is_some_and(|prior| prior != &value) {
++                return None;
++            }
++            found = Some(value);
++        }
++    }
++    found
++}
++
+ pub(in crate::checks) fn observation_origin(
+     program: &dyn ::validation::CheckingInput,
+     facts: &CheckFacts,
+@@ -670,6 +793,15 @@ fn proposition_with_static_actuals(
+     static_actuals: &[ScopedArithmeticBinding],
+     value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
+ ) -> Option<ScopedArithmeticExpression> {
++    if std::env::var_os("OMEGA_DEBUG_STATEMENT_GUARANTEE").is_some() {
++        eprintln!(
++            "arithmetic proposition {} checked={} selected={} predicate={}",
++            program.expression_table.display_name(expression),
++            super::super::has_builtin_operators(program, &facts.operators, expression),
++            callable.builtin_meaning(program, expression),
++            predicate(program, &facts.operators, callable, expression)
++        );
++    }
+     if !super::super::has_builtin_operators(program, &facts.operators, expression)
+         || !callable.builtin_meaning(program, expression)
+         || !predicate(program, &facts.operators, callable, expression)
+@@ -752,6 +884,9 @@ fn bind_occurrences(
+         // formed inputs, not polynomial leaves of the integer result.
+         let Some(primitive) = callable
+             .scalar_reference(program, occurrence)
++            .and_then(|reference| {
++                validation::field_domains::readable_type_reference(program, reference)
++            })
+             .and_then(|reference| program.primitive_type_reference(reference))
+             .filter(|primitive| primitive.accepts_integer_literal())
+         else {
+@@ -901,6 +1036,9 @@ fn term(
+         ExpressionNode::Integer(_) => true,
+         ExpressionNode::Name(_) | ExpressionNode::Member(_) => callable
+             .scalar_reference(program, expression)
++            .and_then(|reference| {
++                validation::field_domains::readable_type_reference(program, reference)
++            })
+             .and_then(|reference| program.primitive_type_reference(reference))
+             .is_some_and(|primitive| primitive.accepts_integer_literal()),
+         ExpressionNode::Binary(binary)
+diff --git a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs
+index 2282da0e5d5..7db76dab354 100644
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/call_guarantees/availability.rs
+@@ -193,6 +193,28 @@ pub(in crate::checks) fn available<'program>(
+         {
+             continue;
+         }
++        if std::env::var_os("OMEGA_DEBUG_STATEMENT_GUARANTEE").is_some() {
++            let owns = owns_guarantee(program, &supplied, source, expression);
++            let stable =
++                owns && stable_predicate_inputs(program, facts, caller, &supplied, expression);
++            let captured = stable
++                && capture_preserved(
++                    program,
++                    &facts.operators,
++                    &facts.borrow,
++                    caller_machine,
++                    &supplied,
++                    expression,
++                    frames,
++                );
++            let builtin =
++                captured && builtin_predicate(program, &facts.operators, &supplied, expression);
++            eprintln!(
++                "guarantee caller={:?} at={statement_index}:{call_ordinal} expr={} owns={owns} stable={stable} captured={captured} builtin={builtin}",
++                caller.machine_symbol,
++                program.expression_table.display_name(expression)
++            );
++        }
+         if !owns_guarantee(program, &supplied, source, expression)
+             || !stable_predicate_inputs(program, facts, caller, &supplied, expression)
+             || !capture_preserved(
+diff --git a/omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/commitments.rs b/omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/commitments.rs
+index 508a737d80b..6ddc10e344f 100644
+--- a/omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/commitments.rs
++++ b/omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/commitments.rs
+@@ -260,11 +260,11 @@ pub struct CapturedMachineState {
+ 
+ /// One requirement call resolved through an exact closed static conformance.
+ ///
+-/// Monomorphization rewrites the executable target to `realization_state`, but
+-/// the public erased contract remains owned by `declaring_trait` and
+-/// `requirement`.  Keeping both identities on the call prevents later proof
+-/// lowering from mistaking satisfier-local evidence for public witness
+-/// identity.
++/// Initial row selection names `realization_state`; closing captured and
++/// invocation binders can subsequently rewrite the call's executable target.
++/// These row identities stay unchanged, and the public erased contract remains
++/// owned by `declaring_trait` and `requirement`. Keeping those identities apart
++/// prevents proof lowering from treating private evidence as public authority.
+ #[derive(Debug, Clone, Default, PartialEq, Eq)]
+ pub struct StaticRequirementDispatch {
+     /// Direct selections retain their exact authored occurrence. Evidence-bound
+diff --git a/omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/expressions_and_value_calls/call_evaluation.rs b/omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/expressions_and_value_calls/call_evaluation.rs
+index c21cf5fde77..58eb3627e68 100644
+--- a/omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/expressions_and_value_calls/call_evaluation.rs
++++ b/omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/expressions_and_value_calls/call_evaluation.rs
+@@ -34,12 +34,11 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
+             return Ok(value);
+         }
+ 
+-        // Static conformance dispatch rewrote this call's target: the checker
+-        // recorded the exact realization state on the call itself, so it
+-        // executes before any receiver-carried adapter or name resolution.
+-        if let Some(dispatch) = &call.static_requirement_dispatch {
++        // The dispatch retains the selected source row; preparation closes
++        // its captured and invocation binders on the executable call target.
++        if call.static_requirement_dispatch.is_some() {
+             let value = self.run_selected_realization(
+-                dispatch.realization_state,
++                call.target_symbol,
+                 self.program
+                     .expression_table
+                     .expression_handles(call.arguments),
+diff --git a/omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/statements_and_calls.rs b/omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/statements_and_calls.rs
+index cb17a708fba..0745a6ab359 100644
+--- a/omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/statements_and_calls.rs
++++ b/omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/statements_and_calls.rs
+@@ -245,9 +245,9 @@ impl<'program> Evaluator<'program> {
+         call: &TableCall,
+         frame: &mut Frame,
+     ) -> EvalResult<Value> {
+-        if let Some(dispatch) = &call.static_requirement_dispatch {
++        if call.static_requirement_dispatch.is_some() {
+             return self.run_selected_realization(
+-                dispatch.realization_state,
++                call.target_symbol,
+                 self.program
+                     .statement_table
+                     .expression_handles(call.arguments),
