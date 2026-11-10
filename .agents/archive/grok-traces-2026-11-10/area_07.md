@@ -13,8 +13,13 @@ Paths below are under `omega-rust/`. `BTE/` is `psi/compilation/build-time-evalu
 | 5a | BTE/const_generic_expressions.rs:1814-1821 | UNDECIDED | An operator selection in a callee body is not recorded. Whether that body then applies an authored overload was not followed. |
 | 5b | BTE/const_generic_expressions.rs:1837-1866 | UNDECIDED | Selection kinds other than call, operator, or resolved const are ignored. Whether one can disagree with the node was not followed. |
 | 5c | BTE/const_generic_expressions.rs:1349-1361 | CLOSED | The early success is only for a toolchain `reflect.omg` helper whose transition stays inside that same machine. |
+| 6 | BTE/const_generic_expressions.rs:2689-2695, 5680-5686 | CLOSED | Those seven tokens are not operator spellings, so no authored overload can be declared. |
+| 7 | BTE/const_initializers.rs:940-942 | UNDECIDED | A primitive destination skips the carrier match. Whether the later probe rejects a non-primitive result was not read. |
+| 8 | BTE/const_initializers.rs:2188-2191, 2238-2240 | UNDECIDED | Replay is skipped when the walker finds no call and no float. The walker does not enter a saved subject. |
+| 9 | BTE/const_initializers.rs:3288, 3323 | UNDECIDED | The target-observation helpers keep only scalar destinations. Where an aggregate observation is evaluated was not read. |
+| 10 | BTE/syntax_probes.rs:652-661 | CLOSED | Both constructors of the source context pass a source map, so the drop branch is not taken. |
 
-Entries 6 onward are not written yet.
+Entries 11 onward are not written yet.
 
 ## 1. `BTE/evaluation_accounting.rs:499-501, 525-527`
 
@@ -116,16 +121,68 @@ A user transition with no authored occurrence does not take this success. Digest
 
 Not read: the bodies of those five helpers, and the three callers above the call.
 
+## 6. `BTE/const_generic_expressions.rs:2689-2695, 5680-5686`
+
+`EvaluationContext::require_operator` (`const_generic_expressions.rs:2660-2696`, read through the early return) and `has_builtin` (`:2644-2658`, read). In the `Closed` context, `has_builtin` is unconditionally true. `require_operator` returns `Ok(())` for and, or, bitwise and, bitwise or, bitwise xor, shift left, and shift right (`:2689-2695`) before the overload test that the arithmetic spellings take (`:2697` onward, the start read). `evaluate_integer_endpoint` (`:5665-5688`, read) passes `|_| true` into anonymous evaluation, so that path does not consult an overload either.
+
+An authored overload of those tokens cannot be parsed. `OperatorSpelling::from_symbol` accepts only `+ - * / % == != < <= > >= [] [..]` (`psi/foundation/language-core/src/lib.rs:289-305`, read). `parse_operator_spelling` rejects anything else (`S01/declarations.rs:2017-2026`, read). Search `parse_operator_spelling\(`: 4 hits, the definition and three callers, all in `S01/declarations.rs` (`:1608`, `:1957`, `:2779`). The machine-declaration caller was opened (`:1601-1609`). The other two callers were not opened; they receive the same error from `parse_operator_spelling`.
+
+Digest is right that this pass does not check an overload. The overload it left open cannot be written.
+
+Not read: the numeric table that computes each builtin result.
+
+## 7. `BTE/const_initializers.rs:940-942`
+
+`require_expression_carrier` (`const_initializers.rs:915-942`, read through the primitive return). Search `require_expression_carrier\(`: definition `:915` and calls `:843`, `:899`, `:929`, `:973`, `:1011`, all in this file. Opened: `owned_argument_probe` (`:824-845`) and `evaluate_owned_argument` (`:791-822`). The recursive calls at `:929`, `:973`, and `:1011` were not opened past the call.
+
+A call is not subject to this early return. `evaluate_owned_argument` checks `result_carriers_match` and returns an error on a mismatch (`:800-806`) before it builds a probe. A non-call expression whose destination is a primitive returns `Ok(())` here without looking at the expression (`:940-942`), and the probe is then run by `evaluate_const_evaluable_machine_symbol_for_invocation` (`machine_execution.rs:4186-4200`, the wrapper read; the measured body was not).
+
+What I could not determine: whether that invocation rejects a result that is not the primitive. What would decide it is the result check inside `evaluate_const_evaluable_invocation_measured`.
+
+Digest is right that the carrier check succeeds for any expression into a primitive.
+
+## 8. `BTE/const_initializers.rs:2188-2191, 2238-2240`
+
+`replay::validate` (`const_initializers.rs:2077-2191`, read through the skip). `initializer_contains_call` (`const_generic_expressions.rs:6532-6537`, read) calls `contains_call` (`:699-712`, read), which walks `expression_children` (`:773-859`, read in full). The match has no wildcard. A `Call` node sets the flag. Nested calls in arguments, binary operands, casts, members, indexes, arrays, struct fields, and match arms are visited. `SavedSubject` adds no children (`:795`).
+
+The skip continues when that walk finds no call and `contains_floating_component` is false (`:2188-2191`). I did not read `contains_floating_component` or the float arm at `:2164-2186`. `validate_replay_roots` (`:2495-2524`, read) checks that the declaration's initializer handles still match; it is not reached on the skip. `validate_constant_literal_fields` has already run for every declaration in the loop (`:2123-2128`).
+
+Line `:2238-2240` was not the same skip when I opened the file; the float and call split is the block above. I did not re-find a second skip at `:2238`.
+
+What I could not determine: whether a call can sit only behind a `SavedSubject`, so the walk reports no call and replay is skipped. What would decide it is the meaning of `SavedSubject` and whether an initializer root can be one.
+
+Digest's inference holds for every call the walker can see. It is not confirmed for a saved subject.
+
+## 9. `BTE/const_initializers.rs:3288, 3323`
+
+`target_observations::retain_entries` (`:3278-3308`, read in full) and the start of `settle` (`:3310-3329`, read). Both keep a declaration only when `scalar_probe_destination` returns `Some` (`const_generic_expressions.rs:6059-6074`, read): an exact probe destination or `f32`/`f64`. An aggregate destination is `None` and is not given an evaluation entry.
+
+A second loop refuses to demand a declaration whose `pending_target_observation` is set (`const_initializers.rs:3910-3914`, read). `has_pending_target_observations` (`const_evaluation.rs:3872-3890`, read) makes `evaluate_or_defer` defer (`lib.rs:643`, read earlier). The flag is also mentioned in a dependency-cycle message (`const_initializers.rs:4544-4548`, read).
+
+What I could not determine: whether an aggregate with that flag is evaluated by the assignments at `:3786` and `:3868`, which I did not read, or left unevaluated and then accepted. What would decide it is those two assignments and the consumer of a const that still has the flag and no value after deferral ends.
+
+Digest is right that these two helpers do not handle an aggregate.
+
+## 10. `BTE/syntax_probes.rs:652-661`
+
+`normalization_request` (`syntax_probes.rs:645-665`, read in full). When `sources` is `None`, `top_level_bindings` becomes empty and `retained_base` becomes `None` (`:652-661`). Search `normalization_request\(`: definition `:645` and three callers in this file (`:535`, `:556`, `:575`), all opened: `normalize_type_aliases`, `normalize_generic_data`, `normalize_initializer_probe_data`.
+
+Each passes `context.sources` or a `sources` cloned from it. `desugar_access_views` sets `let sources = context.sources.clone()` (`layouts.rs:3450-3454`, read). Search `BuildTimeSources \{`: 2 hits, both in `psi-compiler/src/source_compilation.rs`, both read. Both set `sources: Some(...)` (`:799` and `:1141`). `evaluate_extension` clones that context (`lib.rs:312-326`, read). No assignment in this crate sets the field back to `None`.
+
+The drop runs only for a missing source map, and every constructed source context has one. Digest is right about the branch. It is not taken for a program that enters pre-resolution.
+
+Not read: every test that builds a `ResolutionRequest` with `sources: None` outside this struct.
+
 ## Counts so far
 
 | verdict | count |
 | --- | --- |
 | REACHABLE | 1 |
-| CLOSED | 3 |
-| UNDECIDED | 3 |
+| CLOSED | 5 |
+| UNDECIDED | 6 |
 
-Entries not reached: 6 through 61 (the remaining digest bullets). Sub-sites 5a and 5b are counted above; 5c is the third closed row.
+Entries not reached: 11 through 61 (the remaining digest bullets). Sub-sites 5a and 5b are counted above.
 
 ## What I did not read
 
-Stage 01, stage 02 except the symbol assignment and the zero-gate setter named above, stage 03 except `lower_named_type_reference`, stage 04 except `preparation.rs:415-437`, and the rest of build-time evaluation outside the functions named in sections 1–5. No compiler was built or run.
+Stage 00, stage 01 except `parse_operator_spelling` and the machine-declaration caller, stage 02 except the symbol assignment and the zero-gate setter, stage 03 except `lower_named_type_reference`, stage 04 except `preparation.rs:415-437`, and build-time evaluation outside the functions named in sections 1–10. `evaluate_const_evaluable_invocation_measured`, `SavedSubject`, and the target-observation assignments at `const_initializers.rs:3786` and `:3868` were not read. No compiler was built or run.
