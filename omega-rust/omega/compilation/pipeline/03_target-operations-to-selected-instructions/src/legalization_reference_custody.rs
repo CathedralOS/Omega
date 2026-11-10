@@ -7133,6 +7133,30 @@ fn borrowed_sources(
     std::sync::Arc::new(sources)
 }
 
+// Keep each target's possible source blocks in their original order. A join
+// must inspect every matching edge row, but unrelated blocks cannot add arrivals.
+// Unknown targets remain errors at the existing edge lookup, not during setup.
+fn arrival_sources(
+    function: &PsiOptimizationFunction,
+    positions: &BTreeMap<BlockId, usize>,
+) -> Vec<Vec<usize>> {
+    let mut sources = vec![Vec::new(); function.blocks.len()];
+    for (source_position, block) in function.blocks.iter().enumerate() {
+        let Some(terminator) = block.nodes.last() else {
+            continue;
+        };
+        for edge in &terminator.successors {
+            if let Some(&target_position) = positions.get(&edge.target) {
+                let incoming = &mut sources[target_position];
+                if incoming.last() != Some(&source_position) {
+                    incoming.push(source_position);
+                }
+            }
+        }
+    }
+    sources
+}
+
 pub(crate) fn block_entry_states(
     function: &PsiOptimizationFunction,
     native: &target_operations::TargetOperationPlan,
@@ -7224,6 +7248,7 @@ pub(crate) fn block_entry_states(
     let mut pending = VecDeque::from([entry_position]);
     let mut queued = vec![false; blocks.len()];
     queued[entry_position] = true;
+    let incoming_sources = arrival_sources(function, &positions);
     let mut final_arrivals = vec![Vec::new(); blocks.len()];
     let mut deferred = BTreeSet::new();
     let mut failures = BTreeMap::new();
@@ -7308,12 +7333,12 @@ pub(crate) fn block_entry_states(
             .map(|(_, target, _)| *target)
             .collect();
         for target in targets {
-            let incoming = final_arrivals
+            let target_position = *positions.get(&target).ok_or_else(|| invalid())?;
+            let incoming = incoming_sources[target_position]
                 .iter()
-                .flatten()
+                .flat_map(|source| &final_arrivals[*source])
                 .filter(|(_, candidate, _)| *candidate == target)
                 .map(|(_, _, arrival)| arrival.clone());
-            let target_position = *positions.get(&target).ok_or_else(|| invalid())?;
             let Some(complete) = resident_joins::merge(function, target, types, incoming)? else {
                 deferred.insert(target);
                 pending.retain(|position| *position != target_position);
@@ -7354,7 +7379,11 @@ pub(crate) fn block_entry_states(
     if entries.len() != blocks.len() || !deferred.is_empty() {
         return Err(invalid());
     }
-    for block in blocks.iter().filter(|block| block.id != function.entry) {
+    for (target_position, block) in blocks
+        .iter()
+        .enumerate()
+        .filter(|(_, block)| block.id != function.entry)
+    {
         if impossible_context
             .descriptor_backing
             .flow
@@ -7363,9 +7392,9 @@ pub(crate) fn block_entry_states(
         {
             continue;
         }
-        let arrivals = final_arrivals
+        let arrivals = incoming_sources[target_position]
             .iter()
-            .flatten()
+            .flat_map(|source| &final_arrivals[*source])
             .filter(|(_, target, _)| *target == block.id)
             .map(|(_, _, arrival)| arrival.clone());
         let complete =
