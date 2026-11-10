@@ -349,6 +349,48 @@ The carry-label place, the arena place and the `places.rs` item share one
 mechanism: they decide that two values are the same by comparing their
 spelling. Each is closed today only by the check that stands behind it.
 
+A review of the automated accept-on-unknown trace named nine more candidates.
+Each was run with `omega --check` at `10d773ae305` on 2026-11-10. None
+accepts an invalid program. Two of them really do miss on unknown input and
+are covered only by a check in another file:
+
+- **Extent search budget.** The inline-extent search gives up after 4096 steps
+  and reports "no runtime extent" (`value_custody_core.rs:9551`). A data type
+  that holds a generic doubled ten or more levels deep, beside
+  `[u8; Count]` with a runtime `Count`, loses the "runtime value ... for an
+  inline fixed-array extent" diagnostic. At depth 9 the diagnostic is still
+  reported. The program is still rejected by the cleanup-disposition check
+  (`flow.rs:10785`). With a const extent, the same deep type is accepted, so
+  that rejection depends on the runtime extent, not on the depth.
+- **Transition handback.** The scalar-loan handback check skips
+  `CallSite::TransitionNamed` (`contract_entailment.rs:21217`). Lending
+  `&mut target.count` to a nested or top-level machine through `transition`
+  still reaches the same check and is rejected (`:21352`). A callee that
+  `ensures slot == 0` is accepted. No transition shape reaching `:21217`
+  was found.
+
+The other seven are closed:
+
+- Field signedness from the first machine (`proof/src/checker.rs:5446`).
+  This cannot be written, because a `self` receiver in a machine body is
+  rejected by the parser (`expressions.rs:1728`).
+- Assembly that raises a rank before recursion. Rejected by the ranking check
+  (`checks_termination.rs:8113`). The same assembly writing another local is
+  accepted.
+- A live crash beside a return. A partial dispatch is rejected as
+  fall-through (`equality_and_exhaustiveness.rs:984`), and an arm cannot be
+  `crash` (parse error, "expected `->`").
+- A reference local lending a restricted field, including one chosen in a
+  `match`. Rejected at `contract_entailment.rs:21352`.
+- A guard on one local reused for a same-spelled call initializer of another.
+  Rejected by the call `requires` check (`checks_contracts_calls.rs:3508`).
+  Guarding the second local itself is accepted.
+- The binding-observation retry. A read through a view after a write to its
+  owner is rejected by the borrow-conflict check (`checks_borrows.rs:4709`).
+- Atoms keyed on `Debug` text (`contract_entailment.rs:58147`). Settled by
+  reading. Each `Debug` impl omits only the fields that semantic equality
+  ignores, so two terms that are not equal never print the same text.
+
 Must-reject programs the corpus lacks, none under `facts/`: knowledge that
 survives a pause; a write through a partly overlapping window; a linear value
 consumed on a loop back-edge; a copied scalar whose source a later operand
