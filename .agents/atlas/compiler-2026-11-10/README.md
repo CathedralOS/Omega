@@ -107,3 +107,8 @@ outside users of anything documented as shared, and for the `stated` / `traced` 
 - `second_pass_ranges.tsv`: second-pass number, original unit, path, first line, last line, line count.
 - `records/`: 113 first-pass records and 31 second-pass records.
 - `digests/`: 15 area digests.
+- `boundaries/`: three notes written after the digests, one per stretch of the
+  pipeline, on what each stage hands the next, what is trusted, what is checked
+  and whether the check is independent. Each claim is marked as opened in the
+  code or taken from a record. They correct two digest claims: PE output is
+  partly re-read, and program-entry binding works for hosted targets.
