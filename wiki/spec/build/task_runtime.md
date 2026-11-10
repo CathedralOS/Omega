@@ -23,7 +23,7 @@ Selection does not grant ambient authority.
 
 | Relationship | Responsibility |
 | --- | --- |
-| Runtime custody | Execution, park/wake, cancellation under the pinned provider contract. |
+| Execution custody | The unique right to run and resume the activation: a runtime under its pinned provider contract, or source holding the linear execution claim. |
 | Physical storage | Accountable backing and lifetime for activation state. |
 | `Task<T>` ownership | Linear right and obligation to observe, cancel-request, transfer, or settle that activation. |
 
@@ -139,8 +139,9 @@ claim. Reuse requires a fresh activation/lease era, not replay of old evidence.
 
 [Terminal suspension](../terminal-psi/calls_and_outcomes.md#suspension) owns the
 incomplete call and its exact live frontier. Parking establishes no result or
-cleanup edge; resumption continues that same invocation. The parked continuation
-is compiler/provider-owned, not an addressable field of `Task<T>`.
+cleanup edge; resumption continues that same invocation. The parked frames are
+compiler-owned and never an addressable field of `Task<T>`; the right to resume
+them is the [execution claim](#owned-activations-and-typed-replies).
 
 Cancellation is cooperative and arrives through ordinary outcomes at declared
 wait/safe points. Requesting it cannot dispose a parked continuation or unwind
@@ -184,6 +185,70 @@ Cancellation conformance, inline completion, and stack reservation are separate
 operation/resource facts, not fields of a universal runtime behavior lattice.
 The runtime must implement the cancellation request contract exposed by `Task`;
 that does not promise every task eventually observes the request.
+
+## Owned activations and typed replies
+
+Named decision: `owned-activations`, settled 2026-11-09;
+[the design draft](../../drafts/designs/owned_activations.md) records the
+stages. Source may hold unique execution custody over an activation as a linear
+claim. Generators, schedulers and tasks are libraries over it. Fixed nonmoving
+stacks, `suspends`, `blocks` and their call-site markers keep their meanings;
+there is no `yield` keyword, yielding contract clause or generator-colored
+machine.
+
+An activation is prepared from an exact entry machine and its arguments, its
+checked stack plan, and explicitly supplied compatible backing. Preparation runs
+nothing, and a failed preparation returns every argument and resource it did not
+take into custody. Backing stays fixed while the activation is live, including
+while suspended; moving the claim moves no stack. The compiler supplies plan
+checking and control transfer; allocation, pooling and capacity are library
+policy.
+
+Stepping a ready activation runs it until it returns or actually parks. It
+yields either the result with the backing obligations settled, or custody of the
+suspended activation with its pending protocol. There is no compiler-known
+yielded outcome, and the running state and a usable claim never coexist. Stepping
+does not park the caller. Its reach includes the child operations that may run,
+blocking and crash routes are preserved, storage and loans stay accounted while
+parked, and termination needs evidence that the resumption reaches an actual
+stop. The lowest-level park always hands control to the execution owner; a
+higher-level wait that completes immediately does not invoke it. This is a
+compiler-recognized activation boundary, not an ordinary wrapper.
+
+A park point retains its exact suspension occurrence, the live activation with
+its ownership and loan state, the published request, and the contract a reply
+must satisfy. Resuming requires the suspended activation together with the
+matching admissible reply; the pairing is checked, and a mismatched or stale
+reply returns both unchanged. No operation turns an arbitrary value into
+readiness. A reply means what its park contract says: a notification to recheck
+authorizes re-inspection, and only a completed outcome with its custody evidence
+establishes completion. An early reply cannot start concurrent execution, and a
+wait protocol subscribes before concluding it is pending or rechecks after
+subscribing.
+
+Payloads travel through typed endpoints the protocol owns. Receiving produces
+the item and a one-shot capability to answer that exact publication, so no type
+is recovered from an opaque pause; a scheduler handles pending packages through
+their checked callable fields under [`some`](../language/some_packages.md). A
+generator is a rendezvous library: its `emit` is an ordinary suspending operation
+on a typed endpoint, and its consumer answers continue or stop. Stop is handled
+by the producer's normal control flow and cleanup. A suspended activation is
+never discarded; a protocol without a stop reply is drained or its obligation
+transferred, and closing may itself suspend. `Task<T>` remains the separate
+observation and settlement claim and grants no execution custody.
+
+The foundation above preserves existing loans, borrowed inputs and carry demands
+across suspension and supports owned or copied items. Two extensions follow
+independently. A suspension lease hands a reference into paused local storage to
+the consumer, exposing only the published payload and blocking acknowledgment
+while reborrows live. A pause-protocol contract names the protocol and scoped
+endpoint through which a machine may park; it is published and may be inferred,
+because parking is bounded by the endpoints a machine holds, and it supports
+per-step progress, where each requested step reaches a stop. Until it exists, a
+manual generator interface keeps an other-pending-work outcome and a general
+`next` may suspend. Compiler-backed activation declarations and the basic
+rendezvous and generator library live in core; executors, pools and host wait
+adapters are packages.
 
 ## Library and foreign providers
 

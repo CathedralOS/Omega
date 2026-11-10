@@ -6072,31 +6072,6 @@ pub(crate) mod attached_unit {
                                 staged_structural_arguments[operation][argument] = Some(captured);
                                 continue;
                             }
-                            Step::Endpoint {
-                                operation,
-                                argument,
-                            } => {
-                                let count = source_count.ok_or(LoweringError::Unsupported(
-                                    "structural endpoint operand has no source prefix",
-                                ))?;
-                                self.evaluation.window_endpoints(
-                                    identities,
-                                    self.checked,
-                                    self.machine,
-                                    self.state,
-                                    &planned[operation],
-                                    argument,
-                                    count,
-                                    self.values,
-                                    self.next_value,
-                                    self.next_block,
-                                    self.next_edge,
-                                    self.operations,
-                                    self.calls,
-                                    self.environment,
-                                )?;
-                                continue;
-                            }
                             Step::Subslice { operation, ordinal } => {
                                 let count = source_count.ok_or(LoweringError::Unsupported(
                                     "structural range operand has no source prefix",

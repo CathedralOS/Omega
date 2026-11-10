@@ -721,6 +721,11 @@ pub(crate) mod conformance_scopes {
             application: &crate::ClosedConformanceApplication,
             lexical_owner: symbols::SymbolHandle,
         ) -> Option<crate::type_identity::NormalizedTypeIdentity> {
+            let lexical_owner = if application.trait_scope.supplying_owner().is_valid() {
+                application.trait_scope.scope(self)?.argument_owner
+            } else {
+                lexical_owner
+            };
             let selected = crate::expression::StaticMachineArgument {
                 symbol: application.declaration,
                 application: Some(Box::new(crate::expression::StaticSymbolApplication {
@@ -802,11 +807,90 @@ pub(crate) mod conformance_scopes {
             self.prepare_closed_conformance_scope(site, application, selected)
         }
 
+        pub fn conformance_selection_region_supplier(
+            &self,
+            application: StaticMachineApplicationHandle,
+        ) -> Result<symbols::SymbolHandle, &'static str> {
+            if !application.is_valid() {
+                return Err("implementation selection lost its source application");
+            }
+            let source = self.static_machine_application(application);
+            let Some(selection) = &source.conformance_selection else {
+                return Ok(source.lexical_owner);
+            };
+            let selected = self
+                .static_machine_application_arguments(application)
+                .get(selection.operand_ordinal as usize)
+                .ok_or("implementation selection lost its exact operand")?;
+            self.static_operand_region_supplier(selected, source.lexical_owner)
+        }
+
+        fn closed_conformance_region_supplier(
+            &self,
+            site: ClosedConformanceApplicationSite,
+            binding_application: StaticMachineApplicationHandle,
+            selected: &ClosedConformanceApplication,
+        ) -> Result<symbols::SymbolHandle, &'static str> {
+            use crate::static_applications::StaticMachineBindingValue;
+
+            let ClosedConformanceApplicationSite::Invocation {
+                specialization,
+                application: ordinal,
+            } = site
+            else {
+                return self.conformance_selection_region_supplier(binding_application);
+            };
+            let receipt = self
+                .machine_specializations
+                .get(specialization)
+                .ok_or("implementation capture lost its specialization receipt")?;
+            let source = self.static_machine_application(binding_application);
+            if receipt.binding_application != binding_application
+                || source.binding_declaration != receipt.template
+                || receipt.conformance_applications.get(ordinal) != Some(selected)
+                || receipt.conformance_arguments.get(ordinal) != Some(&selected.declaration)
+            {
+                return Err("implementation capture changed its retained specialization");
+            }
+            let parameter = self
+                .machine_by_symbol(receipt.template)
+                .and_then(|template| template.conformance_bounds.get(ordinal))
+                .ok_or("implementation capture lost its exact declaration parameter")?;
+            let mut bindings = self
+                .static_machine_application_bindings(binding_application)
+                .iter()
+                .filter(|binding| binding.parameter == parameter.binder);
+            let binding = bindings
+                .next()
+                .ok_or("implementation capture lost its exact supplied binding")?;
+            let StaticMachineBindingValue::Conformance(operand) = &binding.value else {
+                return Err("implementation capture changed its supplied operand role");
+            };
+            let configured = operand.application.as_deref();
+            if bindings.next().is_some()
+                || operand.symbol != selected.declaration
+                || configured.map_or(&[][..], |application| application.arguments.as_ref())
+                    != selected.arguments.as_ref()
+                || !configured
+                    .map_or(&[][..], |application| {
+                        application.lifetime_arguments.as_ref()
+                    })
+                    .iter()
+                    .map(|lifetime| lifetime.as_str())
+                    .eq(selected.lifetime_arguments.iter().map(String::as_str))
+            {
+                return Err("implementation capture changed its complete selected tuple");
+            }
+            // The instance header owns the call. Its captured implementation
+            // keeps the region supplier of the exact original operand.
+            self.static_operand_region_supplier(operand, source.lexical_owner)
+        }
+
         fn prepare_closed_conformance_scope(
             &mut self,
             site: ClosedConformanceApplicationSite,
             binding_application: StaticMachineApplicationHandle,
-            application: ClosedConformanceApplication,
+            mut application: ClosedConformanceApplication,
         ) -> Result<(), String> {
             if !binding_application.is_valid() {
                 return Err(
@@ -817,10 +901,12 @@ pub(crate) mod conformance_scopes {
             let owner = self
                 .static_machine_application(binding_application)
                 .lexical_owner;
+            let supplier =
+                self.closed_conformance_region_supplier(site, binding_application, &application)?;
             let arguments = application
                 .arguments
                 .iter()
-                .map(|argument| self.static_operand_type_reference_in_scope(argument, owner))
+                .map(|argument| self.static_operand_type_reference_in_scope(argument, supplier))
                 .collect::<Result<Vec<_>, _>>()?;
             let lifetimes = application
                 .lifetime_arguments
@@ -850,7 +936,7 @@ pub(crate) mod conformance_scopes {
                 self,
                 declaration,
                 TraitApplicationArguments {
-                    lexical_owner: owner,
+                    lexical_owner: supplier,
                     enclosing_data_applications: &[],
                     arguments: &arguments,
                     lifetimes: &lifetimes,
@@ -858,11 +944,25 @@ pub(crate) mod conformance_scopes {
             )
             .ok_or("closed implementation application lost its complete source telescope")?;
             let scope = scope.environment().retain(self)?;
+            application.trait_scope = scope;
             self.closed_conformance_application_at_mut(site)
                 .ok_or("closed implementation application lost its occurrence")?
                 .trait_scope = scope;
             self.prepare_realization_contracts(&application, owner, scope)
-                .map_err(str::to_owned)?;
+                .map_err(|reason| {
+                    format!(
+                        "{reason}: selected={}, call_owner={}, region_supplier={}, lifetimes={:?}, captures={:?}, site={site:?}",
+                        self.symbols.display_path(application.declaration, "::"),
+                        self.symbols.display_path(owner, "::"),
+                        self.symbols.display_path(supplier, "::"),
+                        application.lifetime_arguments,
+                        application
+                            .arguments
+                            .iter()
+                            .map(crate::expression::StaticMachineArgument::display_name)
+                            .collect::<Vec<_>>(),
+                    )
+                })?;
             Ok(())
         }
     }
@@ -1285,6 +1385,7 @@ pub(crate) mod domain_scopes {
 pub(crate) mod machine_instances {
     use crate::{
         TypedTrees,
+        static_applications::{StaticMachineBinding, StaticMachineLifetimeBinding},
         typed_trees::{CapturedMachineApplication, MachineSpecialization},
     };
     use symbols::SymbolHandle;
@@ -1293,6 +1394,13 @@ pub(crate) mod machine_instances {
     pub enum MachineInstantiation<'program> {
         Specialization(&'program MachineSpecialization),
         Capture(&'program CapturedMachineApplication),
+    }
+
+    pub struct EnclosingInvocationFrame<'program> {
+        pub declaration: SymbolHandle,
+        pub argument_owner: SymbolHandle,
+        pub bindings: &'program [StaticMachineBinding],
+        pub lifetimes: Vec<StaticMachineLifetimeBinding>,
     }
     impl MachineInstantiation<'_> {
         pub fn template(self) -> SymbolHandle {
@@ -1309,6 +1417,94 @@ pub(crate) mod machine_instances {
         }
     }
     impl TypedTrees {
+        /// Read enclosing applications from their exact instance receipts, from
+        /// the immediate caller out to the original supplying declaration.
+        pub fn enclosing_invocation_frames(
+            &self,
+            mut owner: SymbolHandle,
+        ) -> Result<Vec<EnclosingInvocationFrame<'_>>, &'static str> {
+            let mut frames = Vec::new();
+            let mut visited = Vec::new();
+            while owner.is_valid() {
+                if visited.contains(&owner) {
+                    return Err("enclosing invocation applications contain a cycle");
+                }
+                visited.push(owner);
+                let Some(receipt) = self.machine_instantiation(owner)? else {
+                    break;
+                };
+                let (application, declaration, argument_owner, lifetimes) = match receipt {
+                    MachineInstantiation::Specialization(receipt) => {
+                        let application = receipt.binding_application;
+                        if !application.is_valid() {
+                            return Err("enclosing specialization lost its binding application");
+                        }
+                        let source = self.static_machine_application(application);
+                        (
+                            application,
+                            receipt.template,
+                            source.lexical_owner,
+                            self.static_application_lifetimes_for_declaration(
+                                application,
+                                receipt.template,
+                            )?
+                            .into_owned(),
+                        )
+                    }
+                    MachineInstantiation::Capture(receipt) => {
+                        let application = receipt.binding_application;
+                        let selected = &receipt.conformance_application;
+                        let scope = selected
+                            .trait_scope
+                            .scope(self)
+                            .ok_or("enclosing capture lost its supplying scope")?;
+                        let declaration = self
+                            .conformance_by_symbol(selected.declaration)
+                            .ok_or("enclosing capture lost its implementation declaration")?;
+                        if !application.is_valid()
+                            || scope.declaration.symbol != selected.trait_definition
+                            || declaration.lifetime_parameters.len()
+                                != selected.lifetime_arguments.len()
+                        {
+                            return Err("enclosing capture changed its complete application");
+                        }
+                        let lifetimes = declaration
+                            .lifetime_parameters
+                            .iter()
+                            .zip(&selected.lifetime_arguments)
+                            .map(|(parameter, argument)| StaticMachineLifetimeBinding {
+                                parameter: parameter.clone(),
+                                argument: crate::name::Identifier::generated(argument),
+                            })
+                            .collect();
+                        (
+                            application,
+                            selected.declaration,
+                            scope.argument_owner,
+                            lifetimes,
+                        )
+                    }
+                };
+                let source = self.static_machine_application(application);
+                if source.binding_declaration != declaration || !argument_owner.is_valid() {
+                    return Err("enclosing invocation changed its declaration or supplier");
+                }
+                frames.push(EnclosingInvocationFrame {
+                    declaration,
+                    argument_owner,
+                    bindings: self.static_machine_application_bindings(application),
+                    lifetimes,
+                });
+                // Inferred instances without an authored outer application
+                // retain themselves as the terminal supplying owner.
+                if source.lexical_owner == owner {
+                    break;
+                }
+                owner = source.lexical_owner;
+            }
+            Ok(frames)
+        }
+
         pub fn machine_instantiation(
             &self,
             instance: SymbolHandle,
@@ -2550,8 +2746,9 @@ pub(crate) mod namespaces {
     impl CallableApplication {
         pub(crate) fn namespace_symbols(
             &self,
-            program: &TypedTrees,
+            program: &mut TypedTrees,
             binder: SymbolHandle,
+            expressions: &[crate::expression::ExpressionHandle],
         ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, &'static str> {
             let selected = if let Some((_, argument)) = self
                 .static_arguments
@@ -2570,7 +2767,62 @@ pub(crate) mod namespaces {
             } else {
                 return Ok(Vec::new());
             };
-            program.selected_implementation_namespace_symbols(binder, &selected)
+            if !selected.names_implementation(&program.symbols) {
+                return Err("applied requirement namespace needs an implementation operand");
+            }
+            if selected.application.is_none() {
+                return program.selected_implementation_namespace_symbols(binder, &selected);
+            }
+            let owner = program.symbols.get(binder).parent;
+            let mut calls = Vec::new();
+            for handle in expressions {
+                let Some(call) = program.expression_table.call_node(*handle) else {
+                    continue;
+                };
+                if !program
+                    .expression_table
+                    .name_path_node(call.receiver)
+                    .is_some_and(|path| path.head_symbol == binder)
+                {
+                    continue;
+                }
+                program
+                    .evidence_bound_requirement(owner, binder, call.target_symbol)
+                    .map_err(|_| "applied namespace call lost its source bound")?
+                    .ok_or("applied namespace call lost its exact requirement")?;
+                calls.push((*handle, call.receiver));
+            }
+            calls.sort_unstable_by_key(|(_, receiver)| {
+                (receiver.arena_index(), receiver.generation())
+            });
+            if calls.is_empty() || expressions.iter().any(|handle| {
+                matches!(program.expression_table.expression(*handle), crate::expression::ExpressionNode::Name(path) if path.head_symbol == binder)
+                    && calls.binary_search_by_key(&(handle.arena_index(), handle.generation()), |(_, receiver)| (receiver.arena_index(), receiver.generation())).is_err()
+            }) {
+                return Err("applied namespace needs a complete qualified call");
+            }
+            let qualifier = if selected.type_reference.is_valid() {
+                selected.type_reference
+            } else {
+                let owner = self
+                    .trait_region_application
+                    .as_ref()
+                    .map_or(self.static_argument_owner, |(scope, _)| {
+                        scope.argument_owner()
+                    });
+                program.static_operand_type_reference_in_scope(&selected, owner)?
+            };
+            // Keep the complete selected operand on each call. Psi04's ordinary
+            // qualified-selection owner checks its application and public row.
+            for (handle, _) in calls {
+                let crate::expression::ExpressionNode::Call(call) =
+                    program.expression_table.expression_mut(handle)
+                else {
+                    unreachable!();
+                };
+                call.requirement_application = qualifier;
+            }
+            program.implementation_namespace_symbols(binder, selected.symbol)
         }
     }
 
@@ -2589,7 +2841,16 @@ pub(crate) mod namespaces {
                     "applied requirement namespace needs its complete selected application",
                 );
             }
-            let mut symbols = vec![(binder, selected.symbol)];
+            self.implementation_namespace_symbols(binder, selected.symbol)
+        }
+
+        fn implementation_namespace_symbols(
+            &self,
+            binder: SymbolHandle,
+            selected: SymbolHandle,
+        ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, &'static str> {
+            let program = self;
+            let mut symbols = vec![(binder, selected)];
             let owner = program.symbols.get(binder).parent;
             for child in program.symbols.child_handles(binder).into_iter().flatten() {
                 if program.symbols.get(child).kind != SymbolKind::State {
@@ -2600,7 +2861,7 @@ pub(crate) mod namespaces {
                     .map_err(|_| "applied requirement namespace lost its authored bound")?
                     .ok_or("applied requirement namespace lost its requirement")?;
                 let mut candidates = Vec::new();
-                if let Some(conformance) = program.conformance_by_symbol(selected.symbol) {
+                if let Some(conformance) = program.conformance_by_symbol(selected) {
                     candidates.extend(
                         conformance
                             .rows
@@ -2612,15 +2873,15 @@ pub(crate) mod namespaces {
                             .map(|row| row.requirement),
                     );
                 } else {
-                    let selected_owner = program.symbols.get(selected.symbol).parent;
+                    let selected_owner = program.symbols.get(selected).parent;
                     for target in program
                         .symbols
-                        .child_handles(selected.symbol)
+                        .child_handles(selected)
                         .into_iter()
                         .flatten()
                     {
                         if let Some(bound) = program
-                            .evidence_bound_requirement(selected_owner, selected.symbol, target)
+                            .evidence_bound_requirement(selected_owner, selected, target)
                             .map_err(|_| "selected namespace lost its authored bound")?
                             && bound.signature.symbol == requirement.signature.symbol
                             && bound.application.declaration.symbol
@@ -3205,7 +3466,7 @@ pub(crate) mod payloads {
                             == symbols::SymbolKind::ConformanceParameter
                         && !symbols.iter().any(|(source, _)| *source == binder)
                     {
-                        symbols.extend(self.namespace_symbols(program, binder)?);
+                        symbols.extend(self.namespace_symbols(program, binder, &rows)?);
                     }
                 }
             }
@@ -3771,6 +4032,30 @@ pub(crate) mod requirement_instances {
                 == Some(application.trait_application_identity)
         }
 
+        pub fn requirement_contract_scopes_match(
+            &self,
+            left: &crate::trait_definition::AppliedTraitScope<'_>,
+            right: &crate::trait_definition::AppliedTraitScope<'_>,
+        ) -> bool {
+            left.callable_contract_key(self)
+                .zip(right.callable_contract_key(self))
+                .is_some_and(|(left, right)| left == right)
+        }
+
+        pub fn requirement_application_matches_contract_scope<'program>(
+            &'program self,
+            requirement: SymbolHandle,
+            scope: &crate::trait_definition::AppliedTraitScope<'program>,
+        ) -> bool {
+            self.requirement_application_matches_scope(requirement, scope)
+                && self
+                    .closed_requirement_application(requirement)
+                    .and_then(|application| application.trait_scope.scope(self))
+                    .is_some_and(|retained| {
+                        self.requirement_contract_scopes_match(&retained, scope)
+                    })
+        }
+
         pub fn requirement_realization_specialization(
             &self,
             requirement: SymbolHandle,
@@ -3956,6 +4241,8 @@ pub(crate) mod requirement_instances {
                 .scope(self)
                 .ok_or("closed requirement lost its declaring trait scope")?;
             let declaring_trait = receiving_scope.declaration.symbol;
+            let refinements =
+                receiving_scope.callable_refinement_clauses(self, self.symbols.name(template));
             self.require_receiving_trait_operands(&receiving_scope)?;
             self.require_owned_application_operands(
                 &local_arguments
@@ -3985,6 +4272,10 @@ pub(crate) mod requirement_instances {
             if let Some(existing) = self.closed_requirement_applications().find(|existing| {
                 existing.declaring_trait == declaring_trait
                     && existing.template == template
+                    && self.requirement_application_matches_contract_scope(
+                        existing.signature.symbol,
+                        &receiving_scope,
+                    )
                     && existing.trait_application_identity == trait_application_identity
                     && existing.portable_trait_application_identity
                         == portable_trait_application_identity
@@ -4059,11 +4350,12 @@ pub(crate) mod requirement_instances {
             }) {
                 return Ok(existing.signature.symbol);
             }
-            let declared = self
+            let mut declared = self
                 .trait_machine_signature(template)
                 .filter(|(owner, _)| owner.symbol == declaring_trait)
                 .map(|(_, signature)| signature.clone())
                 .ok_or("closed requirement lost its authored signature")?;
+            self.apply_callable_refinements(&mut declared, &refinements)?;
             let outer_parameters = self
                 .trait_definition_by_symbol(declaring_trait)
                 .map(|owner| self.trait_type_parameters(owner).to_vec())
@@ -4176,6 +4468,59 @@ pub(crate) mod selected_operands {
     use crate::{TypedTrees, expression, types};
 
     impl TypedTrees {
+        pub fn static_operand_region_supplier(
+            &self,
+            selected: &expression::StaticMachineArgument,
+            lexical_owner: symbols::SymbolHandle,
+        ) -> Result<symbols::SymbolHandle, &'static str> {
+            use crate::type_identity::{IndexIdentityArgument, applied_index_identity};
+
+            let reference = selected.type_reference;
+            if !reference.is_valid() {
+                return Ok(lexical_owner);
+            }
+            if !self.contains_type_reference(reference) {
+                return Err("static operand lost its retained source type");
+            }
+            let supplier = self.type_reference_table.operand_lifetime_owner(reference);
+            if !supplier.is_valid() {
+                if !self
+                    .type_reference_table
+                    .operand_lifetimes(reference)
+                    .is_empty()
+                    || !matches!(
+                        self.type_reference_table.operand_origin(reference),
+                        types::TypeOperandOrigin::Lexical
+                    )
+                {
+                    return Err("captured static operand lost its supplying region owner");
+                }
+                return Ok(lexical_owner);
+            }
+
+            // A copied call can use lifetimes from the declaration that supplied
+            // its selected implementation. Check that the retained selection
+            // still matches before resolving those lifetimes there.
+            let mut explicit = selected.clone();
+            explicit.type_reference = Default::default();
+            let retained = applied_index_identity(
+                self,
+                IndexIdentityArgument::StaticArgument(selected),
+                supplier,
+                &[],
+            );
+            let supplied = applied_index_identity(
+                self,
+                IndexIdentityArgument::StaticArgument(&explicit),
+                supplier,
+                &[],
+            );
+            if retained.is_none() || retained != supplied {
+                return Err("static operand changed its retained selected application");
+            }
+            Ok(supplier)
+        }
+
         pub fn static_operand_from_type_reference(
             &self,
             reference: types::TypeReferenceHandle,
@@ -5768,6 +6113,115 @@ pub(crate) mod trait_scopes {
     use symbols::SymbolHandle;
 
     impl TypedTrees {
+        /// The selected map authenticates execution; the caller's evidence
+        /// bound supplies the public contract, including its refinements.
+        pub fn selected_requirement_contract_scope<'program>(
+            &'program self,
+            owner: SymbolHandle,
+            dispatch: &crate::StaticRequirementDispatch,
+        ) -> Result<AppliedTraitScope<'program>, &'static str> {
+            use crate::static_applications::StaticMachineBindingValue;
+            use crate::trait_definition::TraitApplicationArguments;
+
+            let applications = self.selected_conformance_applications(
+                owner,
+                dispatch.selection_application,
+                dispatch.evidence_parameter,
+                dispatch.requirement,
+                dispatch.application_report_fingerprint,
+                dispatch.application_commitment,
+            );
+            let [application] = applications.as_slice() else {
+                return Err("selected contract has no unique supplying map application");
+            };
+            let selected = application
+                .trait_scope
+                .scope(self)
+                .and_then(|scope| scope.declaring_scope(self, dispatch.declaring_trait))
+                .ok_or("selected contract lost its declaring map scope")?;
+            if !dispatch.evidence_parameter.is_valid() {
+                return Ok(selected);
+            }
+            let mut receipts = self
+                .machine_specializations
+                .iter()
+                .filter(|receipt| receipt.instance == owner);
+            let receipt = receipts
+                .next()
+                .ok_or("selected contract lost its supplying specialization")?;
+            if receipts.next().is_some() || !receipt.binding_application.is_valid() {
+                return Err("selected contract has an ambiguous supplying specialization");
+            }
+            let source = self.static_machine_application(receipt.binding_application);
+            if source.binding_declaration != receipt.template {
+                return Err("selected contract changed its supplying declaration");
+            }
+            let mut bounds = self
+                .callable_conformance_bounds(receipt.template)
+                .ok_or("selected contract lost its authored evidence bounds")?
+                .iter()
+                .filter(|bound| bound.binder == dispatch.evidence_parameter);
+            let bound = bounds
+                .next()
+                .ok_or("selected contract lost its exact evidence binder")?;
+            if bounds.next().is_some()
+                || !matches!(
+                    self.specialization_binding(receipt, bound.binder),
+                    Some(StaticMachineBindingValue::Conformance(_))
+                )
+            {
+                return Err("selected contract has no unique implementation binding");
+            }
+            let declaration = self
+                .trait_definition_by_symbol(bound.trait_symbol)
+                .ok_or("selected contract lost its bound declaration")?;
+            let root = AppliedTraitScope::new(
+                self,
+                declaration,
+                TraitApplicationArguments {
+                    lexical_owner: receipt.template,
+                    enclosing_data_applications: &[],
+                    arguments: &bound.arguments,
+                    lifetimes: &bound.lifetime_arguments,
+                },
+            )
+            .ok_or("selected contract cannot form its complete evidence bound")?;
+            let arguments = self
+                .static_machine_application_bindings(receipt.binding_application)
+                .iter()
+                .filter_map(|binding| {
+                    let reference = match &binding.value {
+                        StaticMachineBindingValue::Type(reference)
+                        | StaticMachineBindingValue::Const(reference) => *reference,
+                        StaticMachineBindingValue::Machine(argument)
+                        | StaticMachineBindingValue::Conformance(argument) => {
+                            argument.type_reference
+                        }
+                        StaticMachineBindingValue::RuntimeValue { .. } => return None,
+                    };
+                    Some((binding.parameter, reference))
+                })
+                .collect::<Vec<_>>();
+            let lifetimes = self.static_application_lifetimes_for_declaration(
+                receipt.binding_application,
+                receipt.template,
+            )?;
+            let required = root
+                .under_invocation(
+                    self,
+                    receipt.template,
+                    source.lexical_owner,
+                    &arguments,
+                    &lifetimes,
+                )
+                .and_then(|scope| scope.declaring_scope(self, dispatch.declaring_trait))
+                .ok_or("selected contract lost its complete invocation scope")?;
+            if !required.same_application(self, &selected) {
+                return Err("selected map disagrees with its supplying evidence bound");
+            }
+            Ok(required)
+        }
+
         pub fn requirement_call_signature(
             &self,
             lexical_owner: SymbolHandle,
@@ -5790,21 +6244,35 @@ pub(crate) mod trait_scopes {
             if let Some(signature) = self.resolve_named_conformance_call_signature(call).ok()? {
                 return Some(signature);
             }
-            if let Some(signature) = self.requirement_call_signature(lexical_owner, call) {
-                return Some(signature);
-            }
-            if call.requirement_application.is_valid() || call.static_requirement_dispatch.is_some()
+            if !call.is_ordinary_positional_call()
+                || call.requirement_application.is_valid()
+                || call.exact_coercion_target.is_valid()
+                || call.build_selection.is_valid()
+                || call.operational_acknowledgement.acknowledges_suspend
+                || call.operational_acknowledgement.acknowledges_block
+                || self
+                    .closed_requirement_application(call.target_symbol)
+                    .is_some_and(|application| !application.local_arguments.is_empty())
             {
-                return None;
+                return self.requirement_call_signature(lexical_owner, call);
             }
-            let (declaration, declared) = self.trait_machine_signature(call.target_symbol)?;
-            let scope = supplying_scope
+            let requirement = self
+                .closed_requirement_application(call.target_symbol)
+                .map_or(call.target_symbol, |application| application.template);
+            let Some((declaration, declared)) = self.trait_machine_signature(requirement) else {
+                return self.requirement_call_signature(lexical_owner, call);
+            };
+            let Some(scope) = supplying_scope
                 .scope(self)?
-                .declaring_scope(self, declaration.symbol)?;
+                .declaring_scope(self, declaration.symbol)
+            else {
+                return self.requirement_call_signature(lexical_owner, call);
+            };
+            // A copied call can still name the original member. Use the contract
+            // and result type from the trait application supplying it. The member
+            // keeps its declared lifetimes for ordinary call checking.
             self.applied_callable_signature(&scope, declared.symbol)
-                .filter(|signature| {
-                    signature.type_parameters.is_empty() && signature.lifetime_parameters.is_empty()
-                })
+                .filter(|signature| signature.type_parameters.is_empty())
         }
 
         /// The same logical view with the reason its exact source cannot supply it.
@@ -5984,21 +6452,8 @@ pub(crate) mod trait_scopes {
                 .trait_machine_signature(target)
                 .ok_or("public view has no source requirement declaration")?;
             if let Some(dispatch) = dispatch {
-                let applications = self.selected_conformance_applications(
-                    lexical_owner,
-                    dispatch.selection_application,
-                    dispatch.evidence_parameter,
-                    dispatch.requirement,
-                    dispatch.application_report_fingerprint,
-                    dispatch.application_commitment,
-                );
-                let [application] = applications.as_slice() else {
-                    return Err("selected public view has no unique supplying map application");
-                };
-                let scope = application
-                    .trait_scope
-                    .scope(self)
-                    .ok_or("selected public view has no retained trait scope")?
+                let scope = self
+                    .selected_requirement_contract_scope(lexical_owner, dispatch)?
                     .declaring_scope(self, declaration.symbol)
                     .ok_or("selected public view has no declaring trait scope")?;
                 return self
@@ -6146,13 +6601,9 @@ pub(crate) mod trait_scopes {
             requirement: SymbolHandle,
         ) -> Option<&signature::StateSignature> {
             if let Some(closed) = self.closed_requirement_application(requirement)
-                && application
-                    .callable_refinement_clauses(self, closed.signature.name.as_str())
-                    .is_empty()
+                && self.requirement_application_matches_contract_scope(requirement, application)
             {
-                return self
-                    .requirement_application_matches_scope(requirement, application)
-                    .then_some(closed.signature);
+                return Some(closed.signature);
             }
             let (owner, identity) = application.callable_contract_key(self)?;
             self.applied_callable_signatures
@@ -6186,7 +6637,24 @@ pub(crate) mod trait_scopes {
         pub fn prepare_applied_callable_signatures_reporting_change(
             &mut self,
         ) -> Result<(Vec<signature::StateSignature>, bool), &'static str> {
-            let roots = self.applied_trait_roots();
+            let invocation_scopes = self.refinement_invocation_scopes()?;
+            let mut roots = self.applied_trait_roots();
+            roots.extend(
+                invocation_scopes
+                    .iter()
+                    .filter_map(|scope| scope.scope(self)),
+            );
+            let mut bound_roots = Vec::new();
+            for root in &roots {
+                root.visit(self, &mut |scope| {
+                    for bound in &scope.declaration.conformance_bounds {
+                        if let Some(bound) = scope.bound_scope(self, bound.binder) {
+                            bound_roots.push(bound);
+                        }
+                    }
+                });
+            }
+            roots.extend(bound_roots);
             let mut pending = Vec::new();
             for scope in roots {
                 scope.visit(self, &mut |scope| {
@@ -6207,6 +6675,10 @@ pub(crate) mod trait_scopes {
                             for closed in self.closed_requirement_applications().filter(|closed| {
                                 closed.template == signature.symbol
                                     && self.requirement_application_matches_scope(
+                                        closed.signature.symbol,
+                                        scope,
+                                    )
+                                    && !self.requirement_application_matches_contract_scope(
                                         closed.signature.symbol,
                                         scope,
                                     )
@@ -6317,6 +6789,110 @@ pub(crate) mod trait_scopes {
                 }
             }
             Ok((produced, wrote))
+        }
+
+        fn refinement_invocation_scopes(
+            &mut self,
+        ) -> Result<Vec<crate::trait_definition::TraitApplicationEnvironment>, &'static str>
+        {
+            use crate::static_applications::StaticMachineBindingValue;
+            use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+            let occurrences = crate::references::collect_program_application_occurrences(self);
+            let mut scopes = Vec::new();
+            for invocation in occurrences.conformance_applications {
+                let record = self.static_machine_application(invocation).clone();
+                let Some(machine) = self.machine_by_symbol(record.binding_declaration) else {
+                    continue;
+                };
+                let bounds = machine
+                    .conformance_bounds
+                    .iter()
+                    .filter(|bound| {
+                        self.trait_definition_by_symbol(bound.trait_symbol)
+                            .is_some_and(|declaration| {
+                                declaration
+                                    .refinement_clauses
+                                    .iter()
+                                    .any(|clause| !clause.signature.contracts.is_empty())
+                            })
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if bounds.is_empty() {
+                    continue;
+                }
+                let mut bindings = self
+                    .static_machine_application_bindings(invocation)
+                    .to_vec();
+                let mut arguments = Vec::with_capacity(bindings.len());
+                let mut retained_types = false;
+                for binding in &mut bindings {
+                    let actual = match &mut binding.value {
+                        StaticMachineBindingValue::Type(reference)
+                        | StaticMachineBindingValue::Const(reference) => *reference,
+                        StaticMachineBindingValue::Machine(argument) => {
+                            if !argument.type_reference.is_valid() {
+                                argument.type_reference = self
+                                    .static_operand_type_reference_in_scope(
+                                        argument,
+                                        record.lexical_owner,
+                                    )?;
+                                retained_types = true;
+                            }
+                            argument.type_reference
+                        }
+                        StaticMachineBindingValue::Conformance(argument) => {
+                            if !argument.type_reference.is_valid() {
+                                return Err(
+                                    "refinement invocation lost its retained implementation operand",
+                                );
+                            }
+                            argument.type_reference
+                        }
+                        StaticMachineBindingValue::RuntimeValue { .. } => {
+                            return Err(
+                                "refinement postcondition invocation has an unresolved value argument",
+                            );
+                        }
+                    };
+                    arguments.push((binding.parameter, actual));
+                }
+                if retained_types {
+                    self.expression_table
+                        .set_static_machine_application_bindings(invocation, &bindings);
+                }
+                let lifetimes = self.static_application_lifetimes_for_declaration(
+                    invocation,
+                    record.binding_declaration,
+                )?;
+                for bound in bounds {
+                    let declaration = self
+                        .trait_definition_by_symbol(bound.trait_symbol)
+                        .ok_or("refinement invocation lost its bound declaration")?;
+                    let scope = AppliedTraitScope::new(
+                        self,
+                        declaration,
+                        TraitApplicationArguments {
+                            lexical_owner: record.binding_declaration,
+                            enclosing_data_applications: &[],
+                            arguments: &bound.arguments,
+                            lifetimes: &bound.lifetime_arguments,
+                        },
+                    )
+                    .and_then(|scope| {
+                        scope.under_invocation(
+                            self,
+                            record.binding_declaration,
+                            record.lexical_owner,
+                            &arguments,
+                            &lifetimes,
+                        )
+                    })
+                    .ok_or("refinement invocation lost its complete bound scope")?;
+                    scopes.push(scope.environment());
+                }
+            }
+            Ok(scopes)
         }
 
         pub fn materialize_trait_application_arguments(
@@ -6934,6 +7510,86 @@ impl CallableApplication {
 }
 
 impl TypedTrees {
+    pub(crate) fn apply_refinement_postconditions(
+        &mut self,
+        receiving: &mut signature::StateSignature,
+        declared: &signature::StateSignature,
+        environment: &crate::trait_definition::TraitApplicationEnvironment,
+    ) -> Result<(), &'static str> {
+        let parameters = self.state_signature_parameters(declared);
+        let actual_parameters = self.state_signature_parameters(receiving);
+        let type_parameters = self.state_signature_type_parameters(declared);
+        let actual_types = self.state_signature_type_parameters(receiving);
+        if parameters.len() != actual_parameters.len()
+            || type_parameters.len() != actual_types.len()
+            || declared.lifetime_parameters.len() != receiving.lifetime_parameters.len()
+        {
+            return Err("refinement postcondition lost its inherited callable telescope");
+        }
+        let symbols = std::iter::once((declared.symbol, receiving.symbol))
+            .chain(
+                parameters
+                    .iter()
+                    .zip(actual_parameters)
+                    .map(|(formal, actual)| (formal.symbol, actual.symbol)),
+            )
+            .chain(
+                type_parameters
+                    .iter()
+                    .zip(actual_types)
+                    .map(|(formal, actual)| (formal.symbol, actual.symbol)),
+            )
+            .collect();
+        let source_binders = parameters
+            .iter()
+            .map(|parameter| (parameter.name.clone(), parameter.symbol))
+            .chain(
+                type_parameters
+                    .iter()
+                    .map(|parameter| (parameter.name.clone(), parameter.symbol)),
+            )
+            .collect();
+        let lifetimes = declared
+            .lifetime_parameters
+            .iter()
+            .zip(&receiving.lifetime_parameters)
+            .enumerate()
+            .map(|(ordinal, (parameter, argument))| CallableLifetimeBinding {
+                parameter: parameter.clone(),
+                argument: argument.clone(),
+                region: crate::type_identity::LifetimeParameterIdentity {
+                    declaration: receiving.symbol,
+                    ordinal,
+                },
+                origin: CallableLifetimeOrigin::Rigid,
+            })
+            .collect();
+        let mut application = self.materialize_trait_application(environment)?;
+        application.region_scope = declared.symbol;
+        application.trait_region_application =
+            Some((environment.clone(), environment.frame_count()));
+        application.static_argument_owner = environment.argument_owner();
+        application.symbols = symbols;
+        application.source_binders = source_binders;
+        application.lifetimes = lifetimes;
+        let contracts = self.state_signature_contracts(receiving).to_vec();
+        let additions = self.state_signature_contracts(declared).to_vec();
+        receiving.contracts = Default::default();
+        for contract in contracts {
+            self.signature_contracts
+                .append_to_span(&mut receiving.contracts, contract);
+        }
+        for mut contract in additions {
+            if contract.kind != signature::SignatureContractKind::Ensures {
+                return Err("refinement postconditions cannot add caller obligations");
+            }
+            contract.facts = application.facts(self, contract.facts)?;
+            self.signature_contracts
+                .append_to_span(&mut receiving.contracts, contract);
+        }
+        Ok(())
+    }
+
     pub fn apply_callable_result_type(
         &mut self,
         original: types::TypeReferenceHandle,

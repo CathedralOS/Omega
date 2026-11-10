@@ -2531,7 +2531,7 @@ pub(crate) mod structural_reference_input {
         .then_some((offset, bytes))
     }
 
-    pub(crate) struct ProjectedByteField {
+    pub struct ProjectedByteField {
         pub length_offset: u32,
         pub descriptor_offset: Option<u32>,
         pub capacity: Option<u64>,
@@ -2539,7 +2539,7 @@ pub(crate) mod structural_reference_input {
         pub pointer_slots: Vec<PointerSlot>,
     }
 
-    pub(crate) fn projected_byte_field(
+    pub fn projected_byte_field(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         field: StructuralFieldId,

@@ -250,20 +250,32 @@ fn arm(root: &Path, remote: &str, number: u64, expected: &str) -> Result<Value, 
     pull_request(root, remote, number)
 }
 
+/// The subcommand and the index of its first argument. `AGENTS.md` and the
+/// workflow skills spell landing as `cargo xtask land <pr> --expected-head <sha>`,
+/// so a leading pull request number selects `land` and is itself the first
+/// argument.
+fn subcommand_and_first_argument(args: &[String]) -> (&str, usize) {
+    match args.first() {
+        Some(first) if first.parse::<u64>().is_ok() => ("land", 0),
+        Some(first) => (first.as_str(), 1),
+        None => ("", 0),
+    }
+}
+
 pub fn run(args: &[String]) -> Result<(), u8> {
     if args.is_empty() || matches!(args[0].as_str(), "-h" | "--help") {
         println!(
-            "usage: cargo xtask land <status|enqueue|wait|land> [pr] [--expected-head <sha>] [--wait-seconds <secs>]"
+            "usage: cargo xtask land <pr> --expected-head <sha>
+       cargo xtask land <status|enqueue|wait|land> [pr] [--expected-head <sha>] [--wait-seconds <secs>]"
         );
         return Ok(());
     }
-    let sub = args[0].as_str();
+    let (sub, mut i) = subcommand_and_first_argument(args);
     let mut pr_number: Option<u64> = None;
     let mut expected_head: Option<String> = None;
     let mut wait_seconds: Option<u64> = None;
     let mut remote = "origin".to_owned();
 
-    let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
             "--expected-head" => {
@@ -354,5 +366,23 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             eprintln!("landing: {e}");
             Err(1)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::subcommand_and_first_argument;
+
+    // The documented `land <pr> --expected-head <sha>` form and the explicit
+    // subcommand forms must reach the same parser position for the number.
+    #[test]
+    fn a_leading_pull_request_number_selects_land() {
+        let args = |words: &[&str]| words.iter().map(|w| (*w).to_owned()).collect::<Vec<_>>();
+        let documented = args(&["2236", "--expected-head", "abc"]);
+        assert_eq!(subcommand_and_first_argument(&documented), ("land", 0));
+        let explicit = args(&["land", "2236", "--expected-head", "abc"]);
+        assert_eq!(subcommand_and_first_argument(&explicit), ("land", 1));
+        let status = args(&["status"]);
+        assert_eq!(subcommand_and_first_argument(&status), ("status", 1));
     }
 }

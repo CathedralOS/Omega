@@ -135,9 +135,12 @@ materialized without a checked computation or realization. The
 distinction; no new domain atom or runtime provider search stands in for it.
 
 Runtime integer/address values enter mathematical integer arithmetic through the
-total `embed` projection, retaining exact carrier range. Policy erasure with
-`as` instead selects Exact carrier arithmetic and retains representability
-obligations. Trapping arithmetic does not form a proof term. Floats project to
+total `embed` projection, retaining exact carrier range. Removing a policy
+domain with `as` instead leaves Exact carrier arithmetic and retains
+representability obligations. Trapping arithmetic, including the `!`
+[policy operators](../language/numeric_values.md#policy-operators), does not
+form a proof term; the normal return of a `!` operation establishes that its
+result equals the exact mathematical result. Floats project to
 [FloatMeaning](../terminal-psi/mathematical_values.md#floatmeaning), preserving
 signed zero, infinity, and NaN rather than pretending every float is rational.
 
@@ -158,8 +161,8 @@ It is not silently read as Exact or mathematical arithmetic.
 Exact operations discharge representability before formation. Wrapping and
 Saturating discharge primitive definedness not resolved by their overflow policy,
 such as a nonzero divisor. A term cannot use the condition containing that same
-term to justify its own formation. Explicit policy erasure or `embed` selects
-the intended total reading; the two are not equivalent.
+term to justify its own formation. Removing the policy domain with a cast or
+`embed` selects the intended total reading; the two are not equivalent.
 
 Integer/address embedding is injective within its exact source carrier and
 preserves that carrier's range. It neither mutates the source nor creates runtime

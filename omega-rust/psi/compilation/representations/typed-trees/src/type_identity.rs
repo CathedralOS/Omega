@@ -6813,6 +6813,23 @@ pub fn portable_applied_index_identity(
     )
 }
 
+pub fn portable_applied_index_identity_in_region_scope(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_index_identity(
+        program,
+        argument,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::PackageQualified,
+        resolved_lifetimes,
+    )
+}
+
 fn qualified_applied_index_identity(
     program: &TypedTrees,
     argument: IndexIdentityArgument<'_>,

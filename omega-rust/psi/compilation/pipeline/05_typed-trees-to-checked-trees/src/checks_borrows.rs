@@ -11009,30 +11009,10 @@ mod place_access {
         {
             return None;
         }
-        let mut pending = Vec::new();
-        for source in facts
-            .flow
-            .control
-            .calls
-            .span(state.calls)?
-            .iter()
-            .filter(|source| source.statement_index == call.statement_index)
-        {
-            pending.extend(source.operands.handles());
-        }
-        for statement in facts.flow.control.statements.span(state.statements)? {
-            if statement.statement_index == call.statement_index {
-                pending.extend(
-                    facts
-                        .flow
-                        .control
-                        .value_observations
-                        .span(statement.value_observations)?
-                        .iter()
-                        .map(|observation| observation.receiver),
-                );
-            }
-        }
+        // The call retains its completed operand trees, including constructed
+        // children and evaluated backing. Other observations in this statement
+        // belong to their own evaluation cuts and cannot supply this call's loan.
+        let mut pending = source.operands.handles().collect::<Vec<_>>();
         let mut visited = Vec::new();
         let mut selected = Handle::invalid();
         while let Some(handle) = pending.pop() {

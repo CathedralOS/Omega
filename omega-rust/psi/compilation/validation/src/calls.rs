@@ -134,6 +134,13 @@ pub(crate) mod closed_dispatch {
             {
                 return Err("selected public contract belongs to a different trait application");
             }
+            let public_scope = program.selected_requirement_contract_scope(owner, dispatch)?;
+            if !program.requirement_application_matches_contract_scope(
+                dispatch.contract_signature,
+                &public_scope,
+            ) {
+                return Err("selected public contract differs from its supplying evidence bound");
+            }
         }
         let requirement = dispatch.requirement;
         let Some(application_trait) =
@@ -4603,7 +4610,9 @@ pub(crate) mod type_arguments {
                             program, *expression, &parameter.kind, owner,
                         ))
                 });
-            let actual = if const_expression {
+            // This query projects Type/Const substitutions from a complete
+            // static tuple. Implementation source references remain evidence.
+            let actual = if const_expression || selected.names_implementation(&program.symbols) {
                 None
             } else if selected.type_reference.is_valid() {
                 Some(selected.type_reference)

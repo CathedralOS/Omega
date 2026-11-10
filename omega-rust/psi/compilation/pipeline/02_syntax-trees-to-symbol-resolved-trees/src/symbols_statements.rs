@@ -557,6 +557,7 @@ fn assign_machine_references(
                 data_definitions,
                 type_aliases,
                 conformances,
+                traits,
                 machines,
                 ..
             },
@@ -623,6 +624,7 @@ fn assign_machine_references(
             data_definitions,
             type_aliases,
             conformances,
+            traits,
             operand_owners: &tables.types.operand_lifetime_owners,
             data_members,
             data_type_parameters,

@@ -38,7 +38,7 @@ mod components {
         use crate::checks::termination::progress::fact_subjects::fact_subject;
         use crate::checks::termination::progress::machine_summaries::ProgressSummaries;
         use crate::checks::termination::progress::machine_summaries::{
-            call_argument_places, selected_call_summary,
+            call_argument_places, flow_call_public_signature, selected_call_summary,
         };
         use checked_trees::FlowFacts;
         use facts::FactPlan;
@@ -61,6 +61,7 @@ mod components {
         pub(super) struct ComponentProjectionGeometry {
             parameter_count: usize,
             maximum_prefix_length: usize,
+            maximum_public_seed_length: usize,
             external_call_targets: Vec<SymbolHandle>,
         }
 
@@ -73,6 +74,7 @@ mod components {
         ) -> Option<ComponentProjectionGeometry> {
             let mut parameter_count = 0usize;
             let mut maximum_prefix_length = 0usize;
+            let mut maximum_public_seed_length = 0usize;
             let mut external_call_targets = Vec::new();
             for machine in program
                 .machines()
@@ -90,6 +92,22 @@ mod components {
                     .map(|state| ((), state))
                 {
                     for call in flow.control.calls.span_or_empty(state.calls) {
+                        let public = flow_call_public_signature(
+                            program,
+                            machine.symbol,
+                            state.state_symbol,
+                            call,
+                        )
+                        .ok()?;
+                        if let Some(signature) = public
+                            && let TerminationGuarantee::Terminates { premises } =
+                                &signature.termination_guarantee
+                        {
+                            for premise in premises {
+                                maximum_public_seed_length = maximum_public_seed_length
+                                    .max(premise.subject.projections.len());
+                            }
+                        }
                         let private_component_call = program
                             .machine_by_symbol(call.target_symbol)
                             .or_else(|| {
@@ -108,8 +126,9 @@ mod components {
                                 call.target_symbol,
                             );
                         }
-                        if let Some(parameters) =
-                            call_target_parameters(program, call.target_symbol)
+                        if let Some(parameters) = public
+                            .map(|signature| program.state_signature_parameters(signature))
+                            .or_else(|| call_target_parameters(program, call.target_symbol))
                         {
                             for parameter in parameters {
                                 if let Some(places) = call_argument_places(
@@ -149,6 +168,7 @@ mod components {
             Some(ComponentProjectionGeometry {
                 parameter_count,
                 maximum_prefix_length,
+                maximum_public_seed_length,
                 external_call_targets,
             })
         }
@@ -160,7 +180,8 @@ mod components {
             summaries: &ProgressSummaries<'_>,
         ) -> Option<usize> {
             let geometry = geometry?;
-            let mut maximum_seed_length = maximum_fact_projection_length;
+            let mut maximum_seed_length =
+                maximum_fact_projection_length.max(geometry.maximum_public_seed_length);
             for &target_symbol in &geometry.external_call_targets {
                 if let Some(selected) = selected_call_summary(program, target_symbol, summaries)
                     && let TerminationGuarantee::Terminates { premises } = selected.guarantee
@@ -1146,7 +1167,13 @@ mod machine_summaries {
                 if local_state_transition_target(program, machine, state_flow, call).is_some() {
                     continue;
                 }
-                let selected = selected_call_summary(program, call.target_symbol, summaries)?;
+                let (selected, parameters) = selected_flow_call_summary(
+                    program,
+                    machine.symbol,
+                    state_flow.state_symbol,
+                    call,
+                    summaries,
+                )?;
                 let TerminationGuarantee::Terminates {
                     premises: callee_premises,
                 } = selected.guarantee
@@ -1159,7 +1186,7 @@ mod machine_summaries {
                         machine,
                         state_flow,
                         call,
-                        call_target_parameters(program, call.target_symbol)?,
+                        parameters?,
                         callee_premise.subject.root,
                         &callee_premise.subject.projections,
                         call_frames,
@@ -1376,6 +1403,154 @@ mod machine_summaries {
         pub(crate) guarantee: &'a TerminationGuarantee,
     }
 
+    pub(crate) fn flow_call_public_signature<'a>(
+        program: &'a dyn ::validation::CheckingInput,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        call: &FlowCallFact,
+    ) -> Result<Option<&'a typed_trees::signature::StateSignature>, &'static str> {
+        let site = find_call_site(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            call.call_ordinal,
+        )
+        .ok_or("checked progress call lost its exact source occurrence")?;
+        let target = site.target_symbol(program);
+        let selected_application = match site {
+            validation::CallSite::Expression { call, .. } => {
+                call.requirement_application.is_valid()
+            }
+            _ => false,
+        };
+        let evidence_member = target.is_valid() && {
+            let parent = program.symbols.get(target).parent;
+            parent.is_valid()
+                && program.symbols.get(parent).kind == symbols::SymbolKind::ConformanceParameter
+        };
+        if site.static_requirement_dispatch().is_none()
+            && !selected_application
+            && !evidence_member
+            && validation::selected_requirement_signature(program, target).is_none()
+        {
+            return Ok(None);
+        }
+        validation::resolve_requirement_contract(program, machine, &site)
+            .map(|(_, signature)| Some(signature))
+    }
+
+    fn selected_flow_call_summary<'a>(
+        program: &'a dyn ::validation::CheckingInput,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        call: &FlowCallFact,
+        summaries: &ProgressSummaries<'a>,
+    ) -> Option<(
+        SelectedCallProgress<'a>,
+        Option<&'a [typed_trees::signature::StateParameter]>,
+    )> {
+        // The flow target may be the bare requirement. Its exact source call
+        // retains the selected bound and the corresponding premise parameters.
+        if let Some(signature) = flow_call_public_signature(program, machine, state, call).ok()? {
+            return Some((
+                SelectedCallProgress {
+                    guarantee: &signature.termination_guarantee,
+                },
+                Some(program.state_signature_parameters(signature)),
+            ));
+        }
+        Some((
+            selected_call_summary(program, call.target_symbol, summaries)?,
+            call_target_parameters(program, call.target_symbol),
+        ))
+    }
+
+    pub(crate) fn missing_call_guarantee_context(
+        program: &dyn ::validation::CheckingInput,
+        flow: &FlowFacts,
+        cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
+        machine: &typed_trees::machine::Machine,
+        summaries: &[CheckedProgressSummary],
+    ) -> String {
+        let summaries = ProgressSummaries::new(summaries, &[], &[]);
+        for state in flow.control.machine_states(machine.symbol) {
+            for call in flow.control.calls.span_or_empty(state.calls) {
+                if local_state_transition_target(program, machine, state, call).is_some() {
+                    continue;
+                }
+                let guarantee = selected_flow_call_summary(
+                    program,
+                    machine.symbol,
+                    state.state_symbol,
+                    call,
+                    &summaries,
+                )
+                .map(|(selected, _)| selected.guarantee);
+                if matches!(guarantee, Some(TerminationGuarantee::Terminates { .. })) {
+                    continue;
+                }
+                let name = |symbol: SymbolHandle| {
+                    if symbol.is_valid() {
+                        program.symbols.display_path(symbol, "::")
+                    } else {
+                        "<none>".to_owned()
+                    }
+                };
+                let public = find_call_site(
+                    program,
+                    machine.symbol,
+                    state.state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                .map(|site| {
+                    let target = name(site.target_symbol(program));
+                    let contract = site
+                        .static_requirement_dispatch()
+                        .map(|dispatch| name(dispatch.contract_symbol()))
+                        .unwrap_or_else(|| "<none>".to_owned());
+                    match validation::resolve_requirement_contract(program, machine.symbol, &site) {
+                        Ok((declaration, signature)) => format!(
+                            "source target `{target}`, selected contract `{contract}`, public requirement `{}::{}` {:?}",
+                            declaration.name, signature.name, signature.termination_guarantee,
+                        ),
+                        Err(reason) => format!(
+                            "source target `{target}`, selected contract `{contract}`: {reason}"
+                        ),
+                    }
+                })
+                .unwrap_or_else(|| "the source call occurrence is unavailable".to_owned());
+                return format!(
+                    "state `{}` statement {} call {} targets `{}` through `{}`, summary {guarantee:?}; {public}",
+                    name(state.state_symbol),
+                    call.statement_index,
+                    call.call_ordinal,
+                    name(call.target_symbol),
+                    name(call.receiver_symbol),
+                );
+            }
+        }
+        for (_, dependency) in cleanup_dependencies
+            .iter()
+            .filter(|(_, dependency)| dependency.caller_machine == machine.symbol)
+        {
+            let guarantee = selected_call_summary(program, dependency.target_machine, &summaries)
+                .map(|selected| selected.guarantee);
+            if !matches!(guarantee,
+                Some(TerminationGuarantee::Terminates { premises }) if premises.is_empty())
+            {
+                return format!(
+                    "cleanup target `{}` has summary {guarantee:?}",
+                    program
+                        .symbols
+                        .display_path(dependency.target_machine, "::"),
+                );
+            }
+        }
+        "the missing guarantee is not attached to a nonlocal flow call".to_owned()
+    }
+
     static CLOSED_VALUE_TERMINATION: TerminationGuarantee = TerminationGuarantee::Terminates {
         premises: Vec::new(),
     };
@@ -1397,9 +1572,10 @@ mod machine_summaries {
                 guarantee: &signature.termination_guarantee,
             });
         }
-        if let Some(signature) = program
-            .trait_machine_signature(target_symbol)
-            .map(|(_, signature)| signature)
+        // Use the same applied public view as the call's premise parameters,
+        // including guarantees strengthened by its exact conformance bound.
+        if let Some((_, signature)) =
+            validation::selected_requirement_signature(program, target_symbol)
         {
             return Some(SelectedCallProgress {
                 guarantee: &signature.termination_guarantee,
@@ -4227,9 +4403,16 @@ pub(crate) fn analyze_checked_progress(
             premises: checked_premises,
         } = &checked.guarantee
         else {
+            let context = machine_summaries::missing_call_guarantee_context(
+                program,
+                flow,
+                cleanup_dependencies,
+                machine,
+                &summaries,
+            );
             diagnostics.push(Diagnostic::error(format!(
-                "cannot prove published termination for machine `{}`: its checked body reaches an operation without a usable termination guarantee",
-                machine.name
+                "cannot prove published termination for machine `{}`: its checked body reaches an operation without a usable termination guarantee; {context}",
+                machine.name,
             )));
             continue;
         };

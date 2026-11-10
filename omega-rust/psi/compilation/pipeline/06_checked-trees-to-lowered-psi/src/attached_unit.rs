@@ -11907,38 +11907,6 @@ pub(crate) mod inner {
                         self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                         return Ok(());
                     }
-                    argument_schedule::Step::Endpoint {
-                        operation,
-                        argument,
-                    } => {
-                        let source_value_count =
-                            self.retained_scalar_prefix
-                                .ok_or(LoweringError::Unsupported(
-                                    "endpoint staging has no source prefix",
-                                ))?;
-                        {
-                            let (mut environment, emission) =
-                                self.frame(source_value_count).split();
-                            emission.evaluation.window_endpoints(
-                                identities,
-                                checked,
-                                plan.machine,
-                                plan.state,
-                                &plan.operations[operation],
-                                argument,
-                                source_value_count,
-                                emission.values,
-                                emission.next_value,
-                                emission.next_block,
-                                emission.next_edge,
-                                emission.operations,
-                                emission.calls,
-                                &mut environment,
-                            )
-                        }?;
-                        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-                        return Ok(());
-                    }
                     argument_schedule::Step::Subslice { operation, ordinal } => {
                         let source_value_count =
                             self.retained_scalar_prefix

@@ -5803,8 +5803,7 @@ pass/ownership/runtime_captured_selector_call_exit built 1904ms exit:0 @5f668826
 pass/ownership/runtime_captured_selector_partial_cleanup_exit rejected 3956ms @5f668826adf3+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "selection pass-through of partially moved roots requires retained residual frontier correspondence", gap: None })
 pass/ownership/runtime_carried_loan_field_replacement_exit built 20262ms exit:42 @5f668826adf3+wt
-pass/ownership/runtime_case_alternative_custody_exit incomplete 6936ms regressed-from:built+exit:0 @5f668826adf3+wt
-	`apply` has no executable body: this compiler does not lower its declaration of it yet (reference result has no complete captured origin paths)
+pass/ownership/runtime_case_alternative_custody_exit built 7535ms exit:0 @3f8e7fdb2b6f
 pass/ownership/runtime_complete_array_reference_store_exit built 4024ms exit:0 @5f668826adf3+wt
 pass/ownership/runtime_computed_selector_snapshot_window_exit built 3997ms exit:0 @5f668826adf3+wt
 pass/ownership/runtime_declared_linear_local_assignment_exit built 21977ms exit:70 @5f668826adf3+wt

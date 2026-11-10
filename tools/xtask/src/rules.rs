@@ -8,6 +8,7 @@
 //! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, `facts/` freeze, raw measurements limit,
 //!   existing `expected.txt` diagnostic pins)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
+//! - Compiler-lane PR `Gate:` line, checked against the corpus ledger diff
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -33,6 +34,18 @@ const TASK_BOARDS: &[&str] = &[
     "OWNER_QUESTIONS.md",
 ];
 const GOLDEN: &str = "tests/omega/corpus_outcomes.txt";
+const CORPUS_LEDGERS: &str = "tests/omega/corpus_*.txt";
+const GATE_LANES: &[&str] = &[
+    "psi", "omega", "backend", "compiler", "build", "packages", "library",
+];
+const RELEASE_GATES: &[&str] = &[
+    "RC-REPOSITORY",
+    "RC-SOURCE-SEMANTICS",
+    "RC-BUILD-AND-PACKAGES",
+    "RC-NATIVE-MATRIX",
+    "RC-DIAGNOSTICS",
+    "RC-REPRESENTATIVE-PROGRAMS",
+];
 const FIXTURE_TIERS: &[&str] = &["tests/omega/pass/", "tests/omega/fail/", "tests/omega/run/"];
 const FACTS_ROOT: &str = "samples/cli/facts/";
 const MEASUREMENTS_ROOT: &str = "wiki/drafts/measurements/";
@@ -1032,6 +1045,83 @@ pub fn provenance_violations(body: &str) -> Vec<String> {
     )]
 }
 
+// Mirrors `xtask corpus --list-pinned-regressions`, so a PR's claim and the
+// pinned-regression list agree on which ledger rows count as red.
+fn ledger_row_is_red(row: &str) -> Option<bool> {
+    let tokens: Vec<&str> = row.split_whitespace().collect();
+    let (name, status) = (*tokens.first()?, *tokens.get(1)?);
+    let flags = &tokens[2..];
+    if name.starts_with("fail/") {
+        Some(status != "rejected" || flags.contains(&"unexpected"))
+    } else if name.starts_with("pass/") || name.starts_with("run/") {
+        let native_rejection = status == "rejected"
+            && flags.contains(&"expected")
+            && flags.contains(&"native-rejection:match");
+        let green = matches!(status, "checked" | "built") || native_rejection;
+        Some(!green || flags.iter().any(|flag| flag.starts_with("regressed-from:")))
+    } else {
+        None
+    }
+}
+
+/// Net change in red rows across the corpus ledgers in a `git diff -U0`.
+pub fn ledger_red_row_delta(diff: &str) -> i64 {
+    let count = |prefix: char, header: &str| {
+        diff.lines()
+            .filter(|line| line.starts_with(prefix) && !line.starts_with(header))
+            .filter(|line| !line[1..].starts_with(['\t', ' ', '#']))
+            .filter(|line| ledger_row_is_red(&line[1..]) == Some(true))
+            .count() as i64
+    };
+    count('+', "+++") - count('-', "---")
+}
+
+/// A compiler-lane PR names the release gate it serves and its red-row change.
+/// The change comes from the ledger diff, so it cannot be claimed without being
+/// recorded. Work that moves no row must say what it unlocks.
+pub fn gate_movement_violations(title: &str, body: &str, ledger_delta: i64) -> Vec<String> {
+    let lane = title.split(':').next().unwrap_or("").trim();
+    if !GATE_LANES.contains(&lane) {
+        return Vec::new();
+    }
+    const FORM: &str = "`Gate: <RC-NAME> | red rows: <change>`, with `| unlocks: <what>` when no row turns green (AGENTS.md 'Explain the change')";
+    let Some(line) = body.lines().find_map(|line| line.strip_prefix("Gate: ")) else {
+        return vec![format!("{lane} pull request description has no {FORM}")];
+    };
+    let fields: Vec<&str> = line.split('|').map(str::trim).collect();
+    let mut violations = Vec::new();
+    if !RELEASE_GATES.contains(&fields[0]) {
+        violations.push(format!(
+            "`Gate:` names `{}`, not one of {}",
+            fields[0],
+            RELEASE_GATES.join(", ")
+        ));
+    }
+    let claimed = fields
+        .get(1)
+        .and_then(|field| field.strip_prefix("red rows:"))
+        .and_then(|value| value.trim().parse::<i64>().ok());
+    let Some(claimed) = claimed else {
+        violations.push(format!("`Gate:` line is not of the form {FORM}"));
+        return violations;
+    };
+    if claimed != ledger_delta {
+        violations.push(format!(
+            "`Gate:` claims {claimed} red rows but the corpus ledger diff shows {ledger_delta}; record the outcomes or correct the line"
+        ));
+    }
+    let unlocks = fields
+        .get(2)
+        .and_then(|field| field.strip_prefix("unlocks:"))
+        .is_some_and(|what| !what.trim().is_empty());
+    if claimed >= 0 && !unlocks {
+        violations.push(format!(
+            "`Gate:` turns no row green, so it must say what it unlocks: {FORM}"
+        ));
+    }
+    violations
+}
+
 // --- TASKS.md board check ---
 
 fn is_tasks_item_line(line: &str) -> bool {
@@ -1763,6 +1853,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     };
 
     // Diff checks against `base_rev`
+    // An unreadable diff leaves 0, so a claimed movement fails closed.
+    let ledger_delta = git(
+        &root,
+        &["diff", "-U0", &base_rev, "HEAD", "--", CORPUS_LEDGERS],
+    )
+    .map_or(0, |diff| ledger_red_row_delta(&diff));
     if let Ok(diff_out) = git(
         &root,
         &["diff", "--name-status", "--no-renames", &base_rev, "HEAD"],
@@ -1824,13 +1920,16 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         .unwrap_or_else(|_| show_git_file(&root, "HEAD", TASKS_BOARD));
     violations.extend(tasks_board_violations(&head_tasks));
 
-    if let Some(t) = title {
+    if let Some(t) = &title {
         let agents_text = fs::read_to_string(root.join("AGENTS.md")).unwrap_or_default();
-        violations.extend(subject_violations(&t, &lanes(&agents_text)));
+        violations.extend(subject_violations(t, &lanes(&agents_text)));
     }
     if let Some(bf) = body_file {
         let body = fs::read_to_string(&bf).unwrap_or_default();
         violations.extend(provenance_violations(&body));
+        if let Some(t) = &title {
+            violations.extend(gate_movement_violations(t, &body, ledger_delta));
+        }
     }
 
     for v in &violations {
@@ -1978,5 +2077,27 @@ mod tests {
         assert!(provenance_violations("Summary\n\nAgent: Antigravity | Model: Gemini 3.1 Pro | Effort: high | Tokens: 1.2M in (1.1M cached), 24k out | Steps: 12 | Time: 8m | Steers: 0\n").is_empty());
         assert!(provenance_violations("Summary\n\nAgent: Antigravity, main-rs\n").is_empty());
         assert!(!provenance_violations("Summary without agent line\n").is_empty());
+    }
+
+    #[test]
+    fn gate_line_must_match_the_ledger_diff() {
+        // One fixture turns green, a second stays red under a new stamp, and a
+        // diagnostic line under a row is ignored.
+        let diff = "+++ b/l\n-pass/a/x rejected 1ms\n+pass/a/x checked 1ms\n-pass/a/y rejected 1ms\n+pass/a/y rejected 2ms\n-\tcannot prove\n";
+        assert_eq!(ledger_red_row_delta(diff), -1);
+        let check = |body, delta| gate_movement_violations("psi: fix", body, delta);
+        assert!(check("Gate: RC-SOURCE-SEMANTICS | red rows: -1\n", -1).is_empty());
+        assert!(!check("Gate: RC-SOURCE-SEMANTICS | red rows: -5\n", -1).is_empty());
+        assert!(!check("Gate: RC-MADE-UP | red rows: -1\n", -1).is_empty());
+        assert!(!check("Gate: RC-NATIVE-MATRIX | red rows: 0\n", 0).is_empty());
+        assert!(
+            check(
+                "Gate: RC-NATIVE-MATRIX | red rows: 0 | unlocks: pass/a/x\n",
+                0
+            )
+            .is_empty()
+        );
+        assert!(!check("No gate line\n", 0).is_empty());
+        assert!(gate_movement_violations("docs: explain", "No gate line\n", 0).is_empty());
     }
 }

@@ -109,7 +109,7 @@ mod body_completion {
             these associations from spelling would capture fresh invocation binders.
         */
         pub(super) supplied_operand_owners: Vec<(ItemHandle, OperandLifetimeOwnerHandle)>,
-        pub(super) conformance_inputs: Vec<(ItemHandle, usize)>,
+        pub(super) declaration_inputs: Vec<(ItemHandle, super::operand_owners::DeclarationInput)>,
         pub(super) selection: ConstantSelection<'static>,
         pub(super) sources: Option<Arc<source::SourceMap>>,
         pub(super) bindings: Vec<symbols::SourceScopedTopLevelBinding>,
@@ -131,7 +131,7 @@ mod body_completion {
                 pending,
                 pending_type_inputs,
                 supplied_operand_owners,
-                conformance_inputs,
+                declaration_inputs,
                 selection,
                 sources,
                 bindings,
@@ -149,7 +149,7 @@ mod body_completion {
                     .all(|(left, right)| left.same_syntax(right, &syntax.text, &other.syntax.text))
                 && pending_type_inputs == &other.pending_type_inputs
                 && supplied_operand_owners == &other.supplied_operand_owners
-                && conformance_inputs == &other.conformance_inputs
+                && declaration_inputs == &other.declaration_inputs
                 && selection == &other.selection
                 && sources == &other.sources
                 && bindings == &other.bindings
@@ -376,7 +376,7 @@ mod body_completion {
             super::finish_resolution(&mut lowerer, &self.syntax, &[], selected)?;
             let hoist_counter = lowerer.hoist_counter;
             self.supplied_operand_owners = take(&mut lowerer.supplied_operand_owners);
-            self.conformance_inputs = take(&mut lowerer.conformance_inputs);
+            self.declaration_inputs = take(&mut lowerer.declaration_inputs);
             self.pending.append(&mut lowerer.pending_machine_bodies);
             self.equation_sources = lowerer.equation_sources.take().map(|mut links| {
                 links.expressions.clear();
@@ -405,7 +405,7 @@ mod body_completion {
             let mut lowerer = Lowerer::new(self.sources.clone(), self.bindings.clone());
             lowerer.seed_resolved_base(Arc::clone(&self.trees))?;
             lowerer.supplied_operand_owners = self.supplied_operand_owners.clone();
-            lowerer.conformance_inputs = self.conformance_inputs.clone();
+            lowerer.declaration_inputs = self.declaration_inputs.clone();
             lowerer.constant_selection = Some(self.selection.clone());
             lowerer.hoist_counter = self.hoist_counter;
             lowerer.const_resolution_mode = self.const_resolution_mode;
@@ -1217,7 +1217,10 @@ pub(crate) mod lowerer {
         pub(crate) pending_type_inputs: Vec<super::type_inputs::LoweredTypeInputs>,
         pub(crate) supplied_operand_owners:
             Vec<(syntax_trees::item::ItemHandle, OperandLifetimeOwnerHandle)>,
-        pub(crate) conformance_inputs: Vec<(syntax_trees::item::ItemHandle, usize)>,
+        pub(crate) declaration_inputs: Vec<(
+            syntax_trees::item::ItemHandle,
+            super::operand_owners::DeclarationInput,
+        )>,
         pub(crate) encountered_pending_type_arguments:
             Vec<syntax_trees::types::TypeReferenceHandle>,
         pub(crate) equation_sources: Option<crate::preparation::machine_equations::SourceLinks>,
@@ -1412,7 +1415,7 @@ pub(crate) mod lowerer {
                 pending_machine_bodies: Vec::new(),
                 pending_type_inputs: Vec::new(),
                 supplied_operand_owners: Vec::new(),
-                conformance_inputs: Vec::new(),
+                declaration_inputs: Vec::new(),
                 encountered_pending_type_arguments: Vec::new(),
                 equation_sources: None,
                 const_resolution_mode: ConstResolutionMode::Complete,
@@ -1747,8 +1750,8 @@ pub(crate) mod lowerer {
 pub(crate) mod operand_owners {
     /*
         Translate copied operand custody at the declaration-allocation boundary.
-        Syntax roots identify supplying implementations before symbols exist. Each
-        produced conformance records that exact input and its allocation coordinate;
+        Syntax roots identify supplying declarations before symbols exist. Each
+        produced trait or conformance records that input and its allocation coordinate;
         no name, source span or matching type shape reconstructs the association.
     */
 
@@ -1756,6 +1759,24 @@ pub(crate) mod operand_owners {
     use diagnostics::Diagnostic;
     use symbol_resolved_trees::types::{OperandLifetimeOwner, OperandLifetimeOwnerHandle};
     use syntax_trees::item::ItemHandle;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub(crate) enum DeclarationInput {
+        Conformance(usize),
+        Trait(usize),
+    }
+
+    impl DeclarationInput {
+        fn symbol(
+            self,
+            program: &symbol_resolved_trees::SymbolResolvedTrees,
+        ) -> symbols::SymbolHandle {
+            match self {
+                Self::Conformance(ordinal) => program.conformances[ordinal].symbol,
+                Self::Trait(ordinal) => program.traits[ordinal].symbol,
+            }
+        }
+    }
 
     pub(crate) fn retain(lowerer: &mut Lowerer, input: ItemHandle) -> OperandLifetimeOwnerHandle {
         if !input.is_valid() {
@@ -1769,10 +1790,10 @@ pub(crate) mod operand_owners {
             return *owner;
         }
         let declaration = lowerer
-            .conformance_inputs
+            .declaration_inputs
             .iter()
             .find(|(known, _)| *known == input)
-            .map(|(_, ordinal)| lowerer.symbol_resolved_trees.conformances[*ordinal].symbol)
+            .map(|(_, declaration)| declaration.symbol(&lowerer.symbol_resolved_trees))
             .unwrap_or_default();
         let owner = lowerer
             .symbol_resolved_trees
@@ -1790,13 +1811,13 @@ pub(crate) mod operand_owners {
     */
     pub(crate) fn bindings(
         lowerer: &Lowerer,
-    ) -> Result<Vec<(OperandLifetimeOwnerHandle, usize)>, Vec<Diagnostic>> {
+    ) -> Result<Vec<(OperandLifetimeOwnerHandle, DeclarationInput)>, Vec<Diagnostic>> {
         lowerer
             .supplied_operand_owners
             .iter()
             .map(|(input, owner)| {
                 let (_, ordinal) = lowerer
-                    .conformance_inputs
+                    .declaration_inputs
                     .iter()
                     .find(|(known, _)| known == input)
                     .ok_or_else(|| {
@@ -1815,10 +1836,10 @@ pub(crate) mod operand_owners {
     */
     pub(crate) fn bind_program(
         program: &mut symbol_resolved_trees::SymbolResolvedTrees,
-        bindings: &[(OperandLifetimeOwnerHandle, usize)],
+        bindings: &[(OperandLifetimeOwnerHandle, DeclarationInput)],
     ) -> Result<(), Vec<Diagnostic>> {
         for &(owner, ordinal) in bindings {
-            let declaration = program.conformances[ordinal].symbol;
+            let declaration = ordinal.symbol(program);
             if !declaration.is_valid() {
                 return Err(vec![Diagnostic::error(
                     "supplied operand has an unbound declaration owner",
@@ -2169,14 +2190,14 @@ fn index_deferred(
         sources
     });
     let supplied_operand_owners = take(&mut lowerer.supplied_operand_owners);
-    let conformance_inputs = take(&mut lowerer.conformance_inputs);
+    let declaration_inputs = take(&mut lowerer.declaration_inputs);
     Ok(DeferredResolvedFrontier {
         syntax: Arc::new(syntax),
         trees: Arc::new(lowerer.into_trees()),
         pending,
         pending_type_inputs,
         supplied_operand_owners,
-        conformance_inputs,
+        declaration_inputs,
         selection,
         sources,
         bindings,

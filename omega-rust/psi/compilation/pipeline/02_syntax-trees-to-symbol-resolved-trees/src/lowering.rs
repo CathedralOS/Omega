@@ -1774,14 +1774,24 @@ pub(crate) mod item {
         let inputs = crate::resolution::type_inputs::TypeInputScope::new(lowerer);
         let item = syntax_trees.root_item(declaration);
         let conformance_ordinal = lowerer.symbol_resolved_trees.conformances.len();
+        let trait_ordinal = lowerer.symbol_resolved_trees.traits.len();
         let data_ordinal = lowerer.symbol_resolved_trees.data_definitions.len();
         lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
             lower_item_with_exposure(lowerer, syntax_trees, item)
         })?;
-        if matches!(item, Item::Conformance(_)) {
-            lowerer
-                .conformance_inputs
-                .push((declaration, conformance_ordinal));
+        let input = match item {
+            Item::Conformance(_) => Some(
+                crate::resolution::operand_owners::DeclarationInput::Conformance(
+                    conformance_ordinal,
+                ),
+            ),
+            Item::Trait(_) => Some(crate::resolution::operand_owners::DeclarationInput::Trait(
+                trait_ordinal,
+            )),
+            _ => None,
+        };
+        if let Some(input) = input {
+            lowerer.declaration_inputs.push((declaration, input));
         }
         if matches!(item, Item::Data(_))
             && let Some(sources) = &mut lowerer.equation_sources

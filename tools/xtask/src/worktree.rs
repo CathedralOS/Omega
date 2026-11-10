@@ -17,7 +17,9 @@
 //! - `cargo xtask worktree release [worker-N]` — reset a finished slot to `origin/main`
 //!   and clear its topic while keeping its warm `target/` cache.
 //! - `cargo xtask worktree clean` — reset idle `worker-N` slots and remove legacy
-//!   non-pool worktrees, orphaned directories, and stray log files in parallel.
+//!   non-pool worktrees, orphaned directories, and stray log files in parallel. It
+//!   also prunes registrations whose checkout directory is gone; the other
+//!   subcommands skip those with a notice instead of failing.
 //!
 //! Several sessions share this pool, and a reset (`checkout --detach origin/main` plus
 //! `clean -fd`) or a removal destroys whatever a worktree holds. So nothing is reset,
@@ -357,6 +359,42 @@ fn reset_slot_to_main(worktree_path: &Path) -> bool {
     checkout_ok && clean_ok
 }
 
+/// One record of `git worktree list --porcelain`.
+#[derive(Debug, PartialEq)]
+struct ListedWorktree {
+    path: PathBuf,
+    head: String,
+    locked: bool,
+    /// Git reports the checkout directory as missing, so `git worktree prune`
+    /// would drop this registration.
+    prunable: bool,
+}
+
+/// Split porcelain output into its records. Each record starts at a `worktree`
+/// line; `locked` and `prunable` may carry a reason after the keyword.
+fn parse_worktree_list(text: &str) -> Vec<ListedWorktree> {
+    let mut records: Vec<ListedWorktree> = Vec::new();
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("worktree ") {
+            records.push(ListedWorktree {
+                path: PathBuf::from(rest.trim()),
+                head: String::new(),
+                locked: false,
+                prunable: false,
+            });
+        } else if let Some(current) = records.last_mut() {
+            if let Some(rest) = line.strip_prefix("HEAD ") {
+                current.head = rest.trim().to_owned();
+            } else if line.starts_with("locked") {
+                current.locked = true;
+            } else if line.starts_with("prunable") {
+                current.prunable = true;
+            }
+        }
+    }
+    records
+}
+
 fn list_worktrees(main_root: &Path) -> Result<Vec<WorktreeInfo>, String> {
     let open_prs = open_pr_commits(main_root);
     let main_oid = rev_parse(main_root, "origin/main").unwrap_or_default();
@@ -374,61 +412,47 @@ fn list_worktrees(main_root: &Path) -> Result<Vec<WorktreeInfo>, String> {
     }
     let text = String::from_utf8_lossy(&out.stdout);
     let mut result = Vec::new();
-    let mut cur_path: Option<PathBuf> = None;
-    let mut cur_head = String::new();
-    let mut cur_locked = false;
-
-    let flush = |path: Option<PathBuf>,
-                 head: &str,
-                 locked: bool,
-                 out_vec: &mut Vec<WorktreeInfo>|
-     -> Result<(), String> {
-        let Some(p) = path else {
-            return Ok(());
-        };
-        if p == main_root {
-            return Ok(());
+    for listed in parse_worktree_list(&text) {
+        if listed.path == main_root {
+            continue;
         }
-        let name = p
+        // A session's scratch directory can vanish with the session, leaving Git a
+        // registration whose checkout is gone. It holds no work and has no Git
+        // directory to read a topic from, so it is not a pool member; failing here
+        // would stop every session from acquiring a slot until someone pruned it.
+        if listed.prunable {
+            eprintln!(
+                "worktree: ignoring `{}`: its directory is gone (`cargo xtask worktree clean` prunes it)",
+                listed.path.display()
+            );
+            continue;
+        }
+        let name = listed
+            .path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("")
             .to_owned();
         let slot_index = worker_slot_index(&name);
         // Git keeps this directory's name when the checkout is moved.
-        let git_dir = worktree_git_dir(&p)?;
+        let git_dir = worktree_git_dir(&listed.path)?;
         let topic = read_topic(&git_dir)?;
-        let at_main = !head.is_empty() && head == main_oid;
-        let open_pr = open_prs.contains(head);
-        let has_warm_target = p.join("target/debug").is_dir();
-        out_vec.push(WorktreeInfo {
-            path: p,
+        let at_main = !listed.head.is_empty() && listed.head == main_oid;
+        let open_pr = open_prs.contains(&listed.head);
+        let has_warm_target = listed.path.join("target/debug").is_dir();
+        result.push(WorktreeInfo {
+            path: listed.path,
             git_dir,
             name,
             slot_index,
             topic,
-            head: head.to_owned(),
-            locked,
+            head: listed.head,
+            locked: listed.locked,
             at_main,
             open_pr,
             has_warm_target,
         });
-        Ok(())
-    };
-
-    for line in text.lines() {
-        if let Some(rest) = line.strip_prefix("worktree ") {
-            flush(cur_path.take(), &cur_head, cur_locked, &mut result)?;
-            cur_path = Some(PathBuf::from(rest.trim()));
-            cur_head.clear();
-            cur_locked = false;
-        } else if let Some(rest) = line.strip_prefix("HEAD ") {
-            cur_head = rest.trim().to_owned();
-        } else if line.starts_with("locked") {
-            cur_locked = true;
-        }
     }
-    flush(cur_path.take(), &cur_head, cur_locked, &mut result)?;
     result.sort_by_key(|w| {
         (
             w.slot_index.is_none(),
@@ -717,6 +741,16 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             }
             let _pool = lock_pool(&main_root).map_err(report_error)?;
 
+            // Git only prunes a registration whose checkout directory is missing and
+            // that is not locked, so this can never discard work.
+            if !dry_run {
+                let _ = Command::new("git")
+                    .args(["worktree", "prune"])
+                    .current_dir(&main_root)
+                    .stdin(Stdio::null())
+                    .status();
+            }
+
             let items = list_worktrees(&main_root).map_err(report_error)?;
             let mut to_delete_dirs: Vec<(String, PathBuf)> = Vec::new();
             let mut reset_slots = 0usize;
@@ -883,7 +917,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::{lock_pool_at, read_topic, reset_refusal, worktree_git_dir, write_topic};
+    use super::{
+        ListedWorktree, lock_pool_at, parse_worktree_list, read_topic, reset_refusal,
+        worktree_git_dir, write_topic,
+    };
     use std::fs;
     use std::path::Path;
     use std::process::{Command, Stdio};
@@ -1014,6 +1051,41 @@ mod tests {
         let broken = lock_pool_at(&path, Duration::ZERO, Duration::from_millis(10)).unwrap();
         drop(broken);
         assert!(!path.exists());
+    }
+
+    // A registration whose checkout directory is gone is reported as prunable, so
+    // listing can skip it instead of failing on its missing Git directory.
+    #[test]
+    fn listing_marks_a_registration_whose_directory_is_gone() {
+        let text = concat!(
+            "worktree C:/repo\n",
+            "HEAD aaa\n",
+            "branch refs/heads/main\n",
+            "\n",
+            "worktree C:/repo/.agents/worktree/worker-1\n",
+            "HEAD bbb\n",
+            "detached\n",
+            "locked in use\n",
+            "\n",
+            "worktree C:/Temp/session/scratchpad/wt-self\n",
+            "HEAD ccc\n",
+            "detached\n",
+            "prunable gitdir file points to non-existent location\n",
+        );
+        let listed = |path: &str, head: &str, locked, prunable| ListedWorktree {
+            path: path.into(),
+            head: head.to_owned(),
+            locked,
+            prunable,
+        };
+        assert_eq!(
+            parse_worktree_list(text),
+            [
+                listed("C:/repo", "aaa", false, false),
+                listed("C:/repo/.agents/worktree/worker-1", "bbb", true, false),
+                listed("C:/Temp/session/scratchpad/wt-self", "ccc", false, true),
+            ]
+        );
     }
 
     // Every way a worktree can hold work blocks a reset; only an empty one passes.

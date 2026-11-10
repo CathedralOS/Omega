@@ -72,7 +72,8 @@ data Slot {
 }
 ```
 
-Constructing `Found` proves the range. In a `Found { index }` arm, the caller
+Constructing `Found` takes an index cast with `as +TableIndex`, and that cast
+proves the range. In a `Found { index }` arm, the caller
 can use that bound when indexing a sixteen-entry collection. Ordinary borrow
 and indexing requirements still apply.
 
@@ -134,9 +135,9 @@ This declaration permits Abort for the machine. A guarded crash clause can
 narrow that permission to particular input conditions; a caller that rules out
 those conditions can rule out the crash. Omitting a cause forbids it.
 
-A clause describes permitted behavior. To get trapping arithmetic, select the
-Trapping operation; adding a crash clause to Exact arithmetic does not change
-its meaning. See [guarded crashes](../spec/language/effects.md#guarded-crashes).
+A clause describes permitted behavior. To get trapping arithmetic, write a
+trapping operator such as `+!` or operate on a `Trapping` value; adding a crash
+clause to Exact arithmetic does not change its meaning. See [guarded crashes](../spec/language/effects.md#guarded-crashes).
 
 ## Plan recovery separately
 

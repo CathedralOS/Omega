@@ -14467,14 +14467,14 @@ mod source {
         };
         use semantic_vocabulary::ScalarType;
         use target_operations::{TargetFunction, TargetUnitOperation};
-        use terminal_psi::{StructuralArgument, live_field_by_id};
+        use terminal_psi::StructuralArgument;
 
         #[cfg(test)]
         mod tests {
             use super::super::requires_graph_storage_replay;
             use super::{
-                indexed_store_retained, replacement_footprints_retained, replacement_retained,
-                retained,
+                indexed_read_footprint_retained, indexed_store_retained,
+                replacement_footprints_retained, replacement_retained, retained,
             };
             use crate::object::object_artifact::test_support::structural_declaration;
             use abstract_operations::{
@@ -16290,6 +16290,131 @@ mod source {
                 }
             }
 
+            #[test]
+            fn byte_field_read_replays_reference_and_descriptor_loads() {
+                use selected_instructions::{
+                    SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
+                    SelectedMemoryAccessRole,
+                };
+                use semantic_vocabulary::ObligationId;
+                use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
+
+                let scalar =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+                let (mut function, mut target) = field_fixture(scalar);
+                let root = function.structural_parameters[0].structural_type;
+                let reference = StructuralTypeId::new(2).unwrap();
+                let frame = StructuralTypeId::new(3).unwrap();
+                let frame_identity = terminal_psi::TerminalIdentityIndex(12);
+                let output = StructuralFieldId::new(2).unwrap();
+                let mut frame_shape = packed_record_field(
+                    StructuralFieldId::new(3).unwrap(),
+                    terminal_psi::TerminalIdentityIndex(13),
+                    StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                );
+                let StructuralTypeShape::Record { fields, .. } = &mut frame_shape else {
+                    unreachable!();
+                };
+                fields.push(StructuralFieldDeclaration {
+                    inline_carrier: None,
+                    storage: None,
+                    id: output,
+                    identity: terminal_psi::TerminalIdentityIndex(14),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::ByteSequence(
+                        ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::SharedBorrow),
+                        },
+                    ),
+                });
+                target.graph.structural_types = vec![
+                    structural_declaration(
+                        root,
+                        terminal_psi::TerminalIdentityIndex(15),
+                        packed_record_field(
+                            StructuralFieldId::new(1).unwrap(),
+                            frame_identity,
+                            StructuralFieldType::Structural(reference),
+                        ),
+                    ),
+                    structural_declaration(
+                        reference,
+                        terminal_psi::TerminalIdentityIndex(16),
+                        StructuralTypeShape::Reference {
+                            referent: frame,
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    ),
+                    structural_declaration(
+                        frame,
+                        terminal_psi::TerminalIdentityIndex(17),
+                        frame_shape,
+                    ),
+                ]
+                .into();
+                let operation = OperationId::new(1).unwrap();
+                let index = ValueId::new(2).unwrap();
+                let length = ValueId::new(3).unwrap();
+                let obligation = ObligationId::new(1).unwrap();
+                let source = function.structural_parameters[0].place;
+                function.operations[0] = AbstractOperation::StructuralByteSequenceFieldRead {
+                    psi_operation: operation,
+                    result: AbstractResult {
+                        value: ValueId::new(1).unwrap(),
+                        scalar_type: scalar,
+                    },
+                    source,
+                    path: vec![
+                        StructuralPathSegment::Field(frame_identity),
+                        StructuralPathSegment::Referent,
+                    ],
+                    field: output,
+                    index,
+                    length,
+                    obligation,
+                };
+                let access = |instruction, byte_offset, byte_count, role| SelectedMemoryAccess {
+                    instruction: SelectedInstructionId(instruction),
+                    origin: SelectedMemoryAccessOrigin::Operation(operation),
+                    place: source,
+                    byte_offset,
+                    byte_count,
+                    role,
+                };
+                let accesses = vec![
+                    access(0, 0, 8, SelectedMemoryAccessRole::ReadPlace),
+                    access(1, 8, 8, SelectedMemoryAccessRole::ReadPlace),
+                    access(2, 8, 1, SelectedMemoryAccessRole::ReadByteSequence {
+                        index, length, obligation,
+                        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(b"byte bound"),
+                    }),
+                ];
+                let retains = |accesses: &[SelectedMemoryAccess]| {
+                    indexed_read_footprint_retained(
+                        &function,
+                        &target,
+                        &function.operations[0],
+                        accesses,
+                    )
+                };
+                assert!(retains(&accesses));
+                assert!(!retains(&accesses[1..]), "the reference load must survive");
+                let mut missing_descriptor = accesses.clone();
+                missing_descriptor.remove(1);
+                assert!(
+                    !retains(&missing_descriptor),
+                    "the descriptor load must survive"
+                );
+                let mut wrong_offset = accesses.clone();
+                wrong_offset[0].byte_offset = 8;
+                assert!(
+                    !retains(&wrong_offset),
+                    "a different pointer slot is not the reference"
+                );
+            }
+
             fn owned_field_fixture(
                 scalar_type: ScalarType,
                 multiplicity: StructuralMultiplicity,
@@ -17015,68 +17140,6 @@ mod source {
             })
         }
 
-        fn reads_through_descriptor(
-            function: &AbstractFunction,
-            operation: &AbstractOperation,
-            target: &TargetFunction,
-        ) -> bool {
-            let AbstractOperation::StructuralByteSequenceFieldRead {
-                source,
-                path,
-                field,
-                ..
-            } = operation
-            else {
-                return false;
-            };
-            field_root_type(function, *source).is_some_and(|root| {
-                matches!(
-                    field_carrier(target, root, path, *field),
-                    Some(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })
-                )
-            })
-        }
-
-        fn field_carrier(
-            target: &TargetFunction,
-            root: semantic_vocabulary::StructuralTypeId,
-            path: &[terminal_psi::StructuralPathSegment],
-            field: semantic_vocabulary::StructuralFieldId,
-        ) -> Option<terminal_psi::ByteSequenceCarrier> {
-            let mut carrier = root;
-            for segment in path {
-                let declaration =
-                    terminal_psi::find_structural_type(&target.graph.structural_types, carrier)?;
-                carrier = match (segment, &declaration.shape) {
-                    (
-                        terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
-                        terminal_psi::StructuralTypeShape::FixedArray { element, .. }
-                        | terminal_psi::StructuralTypeShape::ElementView { element, .. },
-                    ) => *element,
-                    (
-                        terminal_psi::StructuralPathSegment::Referent,
-                        terminal_psi::StructuralTypeShape::Reference { referent, .. },
-                    ) => *referent,
-                    _ => {
-                        terminal_semantics::runtime_structural_path_tip(
-                            target.graph.structural_types.iter(),
-                            carrier,
-                            std::slice::from_ref(segment),
-                        )?
-                        .id
-                    }
-                };
-            }
-            let terminal_psi::StructuralTypeShape::Record { fields, .. } =
-                &terminal_psi::find_structural_type(&target.graph.structural_types, carrier)?.shape
-            else {
-                return None;
-            };
-            live_field_by_id(fields, field)?
-                .field_type
-                .byte_sequence_carrier()
-        }
-
         pub(super) fn indexed_read_footprint_retained(
             function: &AbstractFunction,
             target: &TargetFunction,
@@ -17090,6 +17153,7 @@ mod source {
                 psi_operation,
                 source,
                 path,
+                field,
                 index,
                 length,
                 obligation,
@@ -17098,52 +17162,92 @@ mod source {
             else {
                 return false;
             };
+            let Some(root) = field_root_type(function, *source) else {
+                return false;
+            };
+            let Some(geometry) = target_operations_to_selected_instructions::projected_byte_field(
+                root,
+                path,
+                *field,
+                &target.graph.structural_types,
+            ) else {
+                return false;
+            };
+            let selectors = path
+                .iter()
+                .filter_map(|segment| segment.runtime_index())
+                .collect::<Vec<_>>();
+            if selectors.len() != geometry.elements.len() {
+                return false;
+            }
             let effects = accesses
                 .iter()
                 .filter(|access| access.origin == Origin::Operation(*psi_operation))
                 .collect::<Vec<_>>();
             let mut cursor = effects.as_slice();
-            let mut consumed_backing = false;
-            if loads_backing_pointer(function, target, *source, path)
-                && let Some((backing, rest)) = cursor.split_first()
-                && backing.place == *source
-                && backing.byte_count == 8
-                && backing.role == Role::ReadPlace
-            {
-                cursor = rest;
-                consumed_backing = matches!(
-                    path.first(),
-                    Some(terminal_psi::StructuralPathSegment::Referent)
-                );
+            let mut slots = geometry.pointer_slots.as_slice();
+            // Selection may already hold a root view's backing in a register.
+            // Its optional descriptor load is separate from nested crossings.
+            if terminal_psi::find_structural_type(&target.graph.structural_types, root).is_some_and(
+                |declaration| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ElementView { .. }
+                    )
+                },
+            ) {
+                if let Some(first) = slots.first() {
+                    if first.byte_offset != 0 || first.indices != (0..0) || first.scalar_descriptor
+                    {
+                        return false;
+                    }
+                    slots = &slots[1..];
+                }
+                if let Some((backing, rest)) = cursor.split_first()
+                    && backing.place == *source
+                    && backing.byte_offset == 0
+                    && backing.byte_count == 8
+                    && backing.role == Role::ReadPlace
+                {
+                    cursor = rest;
+                }
             }
-            if reads_through_descriptor(function, operation, target) {
-                let count = path
-                    .iter()
-                    .filter_map(|segment| segment.runtime_index())
-                    .count()
-                    .max(1);
+            // Use the selector's exact projection regions: a descriptor field
+            // can require reference loads before its own backing-pointer load.
+            let mut first_leaf_index = 0;
+            for slot in slots {
+                if slot.scalar_descriptor || slot.indices.start != first_leaf_index {
+                    return false;
+                }
+                let Some(indices) = selectors.get(slot.indices.clone()) else {
+                    return false;
+                };
+                let count = indices.len().max(1);
                 if cursor.len() < count
-                    || !projected_field_rows(&cursor[..count], path, *source, false)
+                    || !projected_selector_rows(&cursor[..count], indices, *source, false)
+                    || cursor[..count]
+                        .iter()
+                        .any(|read| read.byte_offset != slot.byte_offset)
                 {
                     return false;
                 }
                 cursor = &cursor[count..];
-            } else {
-                let hops = path
-                    .iter()
-                    .filter(|segment| {
-                        matches!(segment, terminal_psi::StructuralPathSegment::Referent)
-                    })
-                    .count()
-                    .saturating_sub(usize::from(consumed_backing));
-                if cursor.len() < hops
-                    || !cursor[..hops].iter().all(|hop| {
-                        hop.place == *source && hop.byte_count == 8 && hop.role == Role::ReadPlace
-                    })
+                first_leaf_index = slot.indices.end;
+            }
+            if let Some(offset) = geometry.descriptor_offset {
+                let Some(indices) = selectors.get(first_leaf_index..) else {
+                    return false;
+                };
+                let count = indices.len().max(1);
+                if cursor.len() < count
+                    || !projected_selector_rows(&cursor[..count], indices, *source, false)
+                    || cursor[..count]
+                        .iter()
+                        .any(|read| read.byte_offset != offset)
                 {
                     return false;
                 }
-                cursor = &cursor[hops..];
+                cursor = &cursor[count..];
             }
             if !cursor.is_empty()
                 && cursor.iter().all(|read| {
@@ -17166,7 +17270,14 @@ mod source {
             let [read] = cursor else {
                 return false;
             };
+            let Some(payload_offset) = geometry
+                .descriptor_offset
+                .or_else(|| geometry.length_offset.checked_add(8))
+            else {
+                return false;
+            };
             read.place == *source
+                && read.byte_offset == payload_offset
                 && read.byte_count == 1
                 && matches!(read.role, Role::ReadByteSequence { index: actual_index, length: actual_length, obligation: actual_obligation, .. }
                     if actual_index == *index && actual_length == *length && actual_obligation == *obligation)
@@ -17178,11 +17289,23 @@ mod source {
             place: semantic_vocabulary::PlaceId,
             writing: bool,
         ) -> bool {
-            use selected_instructions::SelectedMemoryAccessRole as Role;
             let selectors = path
                 .iter()
                 .filter_map(|segment| segment.runtime_index())
                 .collect::<Vec<_>>();
+            projected_selector_rows(rows, &selectors, place, writing)
+        }
+
+        fn projected_selector_rows(
+            rows: &[&selected_instructions::SelectedMemoryAccess],
+            selectors: &[(
+                semantic_vocabulary::ValueId,
+                semantic_vocabulary::ObligationId,
+            )],
+            place: semantic_vocabulary::PlaceId,
+            writing: bool,
+        ) -> bool {
+            use selected_instructions::SelectedMemoryAccessRole as Role;
             let Some(first) = rows.first() else {
                 return false;
             };
@@ -17205,7 +17328,7 @@ mod source {
                     };
             }
             rows.iter()
-                .zip(selectors)
+                .zip(selectors.iter().copied())
                 .all(|(row, (index, obligation))| match (writing, row.role) {
                     (
                         false,

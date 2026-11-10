@@ -175,6 +175,10 @@ land at the selected explicit parameter; an implicit receiver does not shift tha
 pairing. Anonymous fixed-integer expressions retain exact rational intermediates
 until landing requires an integral, in-range value.
 
+Landing selects a carrier and never a domain. A literal bound for a qualified
+destination is cast like any other value, as in `5 as +Km`, under
+[literals and expected types](domains.md#literals-and-expected-types).
+
 Decimal literals and wholly anonymous arithmetic denote exact rationals.
 Anonymous integer-literal division is rational division, not truncation:
 the destination checks or rounds the completed value, never selects its
@@ -229,7 +233,8 @@ arithmetic, then prove final integrality, representability and the target's
 ordinary predicate and authority obligations. Fractional intermediates inside
 that operand are acknowledged; the cast neither truncates nor retroactively
 types them. It cannot repair division by zero, a fractional final value or an
-out-of-range result. Qualified integer destinations obey the same rule.
+out-of-range result. A carrier cast that also adds domains, such as
+`as u32 +Small`, obeys the same rule.
 
 ```omega
 let implicit: u32 = (5 / 2) * 2;          // Reject: explicit landing required.
@@ -279,13 +284,16 @@ route there. A proved overflow in an already-landed Trapping operation is still
 a runtime trap, not an Exact-style compile error; a demanded semantic-evaluation
 result separately requires [invocation admission](evaluation.md#invocation-admission).
 
-Policy selection and erasure are explicit and change future operations, not
-existing payloads. An implicitly bare binding cannot erase Wrapping meaning.
-After explicit same-carrier erasure, Exact operations act on the actual stored
+Adding and removing a policy domain are written [domain casts](domains.md#domain-casts)
+and change future operations, not existing payloads. A bare binding cannot
+receive a Wrapping value without `as -Wrapping`.
+After that removal, Exact operations act on the actual stored
 value, not a mathematical pre-wrap result. A machine naming no arithmetic policy
 publishes Exact; a caller-selectable policy must occur in its contract. The
 generic spelling for that choice remains unsettled. Omission does not choose a
-weaker policy, and incompatible policies do not mix implicitly.
+weaker policy, and incompatible policies do not mix implicitly. A
+[policy operator](#policy-operators) selects its policy for that one operation
+and leaves its operands and result unqualified.
 
 ### Integer equality and order
 
@@ -314,8 +322,10 @@ comparison itself is total for admitted integer operands; forming either operand
 still owes its own operation and validity obligations. Already-typed operands
 retain their types; anonymous operands keep the existing literal-landing rules.
 This adds neither implicit arithmetic widening nor conversion at assignments,
-arguments, or returns. It does not erase qualifications, override a selected
-domain/user operation, or grant mixed float, address, or Boolean comparisons.
+arguments, or returns. It applies to unqualified operands under the
+[operand rule](domains.md#operands): a qualified operand uses a comparison
+declared for its exact type or is cast first. It does not override a selected
+domain/user operation or grant mixed float, address, or Boolean comparisons.
 Arithmetic policies govern computation of the operands, not a reinterpretation
 of their resulting values when builtin integer comparison is selected.
 
@@ -336,8 +346,9 @@ Exact, Wrapping, Saturating, and Trapping are distinct operation policies.
 Wrapping reduces representable-range overflow modulo the selected carrier;
 Saturating clamps it to carrier bounds; Trapping uses the primitive's exact
 crash predicate. An overflow policy does not invent a result for undefined
-operands such as an integer zero divisor. Any number of value qualifications
-may compose, but at most one arithmetic policy governs an operation.
+operands such as an integer zero divisor. A type may carry any number of value
+qualifications but at most one arithmetic policy. Which operator a qualified
+operand selects follows [exact operator matching](domains.md#semantic-roles-and-operators).
 
 Trapping's language contract is settled — the executable operation owns its
 crash site under the primitive's exact predicate. Terminal carries it as one
@@ -351,6 +362,86 @@ signed `MIN / -1` (including `MIN % -1`), and a shift count outside
 `0..width`; a conversion traps when the value is not representable.
 Checking, verification, interpretation, and realization preserve the
 operation's exact denotation, cause, and path-conditioned site.
+
+### Policy operators
+
+Named decision: `operation-arithmetic-policy`, settled 2026-11-09. A policy can
+be chosen at one operation instead of on a binding's type. Each integer
+arithmetic and shift operator has three suffixed forms, and the bare operator
+stays Exact:
+
+- Wrapping: `+%`, `-%`, `*%`, `/%`, `%%`, `<<%`, `>>%`
+- Saturating: `+|`, `-|`, `*|`, `/|`, `%|`, `<<|`, `>>|`
+- Trapping: `+!`, `-!`, `*!`, `/!`, `%!`, `<<!`, `>>!`
+
+```omega
+let next: u64 = cursor +! width;   // traps when the sum leaves u64
+let mixed: u32 = hash *% 31;       // reduces modulo 2^32
+let raised: u8 = level +| step;    // clamps to 0..=255
+```
+
+A suffixed operator applies its policy's rule for that primitive at that node:
+the overflow rule above, the [quotient and remainder](#integer-quotient-and-remainder)
+rule and the [shift-count](#shift-counts) rule. It has no other meaning, and no
+binding's qualification selects or changes it. `a +% b` on two `u32` values is
+exactly what `+` means for two `u32 in Wrapping` operands, and likewise for
+every form.
+
+Both operands have the same fixed-integer carrier under the Exact operator's
+operand rules; a shift's count keeps its own. At least one operand must already
+be integer-typed and the other lands to that carrier. A wholly anonymous tree
+rejects, because it has no carrier to wrap, clamp or trap at. Both operands are
+unqualified, as for every builtin operator under the
+[operand rule](domains.md#operands). A suffixed operator neither consults nor
+strips a domain, so an operand carrying any domain is first cast, as in
+`(distance as -Km) +% step`. The
+result is the bare carrier with no policy qualification, so the next operation
+is Exact unless it names a policy itself.
+
+A `%` or `|` form is total over its overflow case and adds no crash site. Like
+its policy, it does not license a zero divisor, and a `|` shift still owes the
+Exact count proof.
+
+A `!` form is a Trapping operation. It is its own `Trap` site under the
+primitive's predicate above, including a zero divisor and an out-of-range shift
+count, and it contributes that route to its machine's
+[crash contract](effects.md#guarded-crashes) like any other Trapping operation.
+Path facts that disprove the predicate remove the route. On normal return the
+result equals the exact mathematical result of the unsuffixed operation, and
+that equality is an established fact about the result.
+
+The suffixed forms are compiler-owned integer primitives. A `machine`
+declaration cannot bind one, floats have no suffixed forms, and no
+compound-assignment spelling is introduced.
+[Operator declarations](expressions.md#operator-declarations) owns their lexical
+rules.
+
+#### Policy domains
+
+`Wrapping`, `Saturating` and `Trapping` remain qualifications for a value whose
+every operation should use one policy. They are `omega::core` domains, not
+separately specified arithmetic. For each fixed integer carrier, core declares
+each unsuffixed arithmetic operator for two operands carrying the domain and
+for one such operand with a plain operand of the same carrier, so
+`counter + 1` needs no cast. The operator is the corresponding suffixed
+operation on the operands with the domain removed, and its result carries the
+same domain. Core declares the comparisons for the same operand shapes; they
+compare the stored values and return `bool`. `Trapping`'s operators publish
+`crashes Trap`. Their role and the float policy rows are unchanged.
+
+These are ordinary declarations under
+[exact operator matching](domains.md#semantic-roles-and-operators). An operand
+that also carries another domain, such as `u32 in Km & Wrapping`, matches none
+of them. A policy domain is added and removed only by a
+[domain cast](domains.md#domain-casts), like every other domain.
+
+Use a suffixed operator when one operation needs a policy. A qualified binding
+makes every later operation on it use that policy, and `as -Wrapping` removes
+the domain before Exact use. A `Trapping` qualification in particular says nothing about the
+value it qualifies: a returned Trapping result is the exact value.
+
+Compiler and library support is pending **OPERATION-ARITHMETIC-POLICY** in
+[TASKS.md](../../../TASKS.md).
 
 ### Integer quotient and remainder
 
@@ -385,6 +476,12 @@ both return remainder zero. Neither policy licenses a zero divisor. The
 mathematical equation does not itself prove the safety of its authored machine
 intermediates or replace overflow-policy behavior.
 
+The [policy operators](#policy-operators) follow these rows. `/%` and `%%`
+return `MIN` and zero for signed `MIN` by `-1`, and `/|` and `%|` return `MAX`
+and zero; all four still owe a nonzero-divisor proof. On an unsigned carrier,
+where no quotient is unrepresentable, they therefore equal `/` and `%`. `/!`
+and `%!` trap on a zero divisor and on signed `MIN / -1` or `MIN % -1`.
+
 A separately named Euclidean modulo operation remains deferred with no selected
 spelling. There is no context-selected second meaning of `%`, or anonymous
 Euclidean-remainder warning: the untyped operation rejects.
@@ -401,6 +498,11 @@ Euclidean-remainder warning: the untyped operation rejects.
 Exact left-shift result representability is a separate obligation. Hardware
 masking cannot discharge the Exact count proof or silently change its meaning.
 
+The suffixed shifts take the matching row: `<<%` and `>>%` reduce the count,
+`<<|` and `>>|` keep the Exact count proof, and `<<!` and `>>!` trap on an
+out-of-range count. A right shift cannot overflow its value, so `>>|` means the
+same as `>>`; it exists to keep the suffix set uniform.
+
 Integer bitwise AND, OR, XOR, and complement preserve their signed/unsigned
 carrier and are total at its width; complement includes the full two's-complement
 width of a signed carrier. They do not acquire Boolean bounds. Bitwise operations
@@ -408,7 +510,7 @@ themselves add no overflow-policy requirement; nested and surrounding arithmetic
 its obligations. Boolean negation likewise does not skip validation of operands.
 Evaluating interval endpoints alone is not a sound bound for AND, OR, or XOR.
 
-Total proof-term formation, `embed`, policy erasure, and FloatMeaning are owned by
+Total proof-term formation, `embed`, policy removal, and FloatMeaning are owned by
 [mathematical proof contracts](../proofs/contracts.md#mathematical-values-and-quantification).
 Portable operation questions and checked certificate rules are owned by
 [integer certificates](../terminal-psi/integer_certificates.md).
@@ -523,8 +625,9 @@ Float-to-integer conversion rounds toward zero; a fractional part is lossy,
 not itself failure. Its unqualified result requires finite input and a
 representable truncated value. `Trapping` traps on failed conversion;
 `Saturating` clamps to integer bounds and maps NaN to zero. `Wrapping` has no
-float-to-integer candidate. The returned policy remains qualified until
-explicit same-carrier `as` erasure selects Exact for later arithmetic.
+float-to-integer candidate. The returned value keeps its policy domain until
+a cast such as `as -Trapping` removes it; later arithmetic on the bare carrier
+is Exact.
 
 Selection follows the general [result-domain overload rule](domains.md#result-domain-overloads).
 Predicate-only facts do not dispatch; they remain obligations after selecting

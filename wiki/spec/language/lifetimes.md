@@ -94,7 +94,7 @@ those loans a second time. The store installs the replacement's loans and closes
 the exact place's restoration obligation, without ending the enclosing exclusive
 loan prematurely.
 Replacing one field neither preserves its former source nor releases a sibling's
-loans. Same-carrier casts and explicit erasure of non-owning qualifications
+loans. Domain-only casts, including removal of non-owning qualifications,
 preserve source places and access. [Representation recasts](../layouts/recasts.md)
 instead require the complete validated footprint and overlap judgment.
 
