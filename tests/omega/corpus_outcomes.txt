@@ -6250,74 +6250,107 @@ fail/facts/boundary_provider_call_through_target_body_rejected rejected 1183ms e
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
-fail/facts/bounded_activation_claim_split_through_call_result_rejected rejected 11025ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_claim_split_through_call_result_rejected rejected 15403ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
-fail/facts/bounded_activation_claim_split_through_const_name_rejected rejected 10839ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_claim_split_through_const_name_rejected rejected 18735ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
-fail/facts/bounded_activation_claim_split_through_field_rejected rejected 12975ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_claim_split_through_field_rejected rejected 17244ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
-fail/facts/bounded_activation_claim_split_through_local_rejected rejected 11021ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_claim_split_through_local_rejected rejected 17223ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
-fail/facts/bounded_activation_claim_split_through_match_join_rejected rejected 11203ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_claim_split_through_match_join_rejected rejected 17304ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
-fail/facts/bounded_activation_claim_split_through_other_machine_rejected rejected 10248ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_claim_split_through_other_machine_rejected rejected 16434ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
-fail/facts/bounded_activation_claim_split_through_other_state_rejected rejected 10572ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_claim_split_through_other_state_rejected rejected 15842ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
-fail/facts/bounded_activation_claim_split_through_parameter_rejected rejected 12389ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_claim_split_through_parameter_rejected rejected 16616ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
-fail/facts/bounded_activation_claim_split_through_target_body_rejected rejected 10506ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_claim_split_through_target_body_rejected rejected 17035ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
-fail/facts/bounded_activation_escape_rejected rejected 8572ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_escape_rejected rejected 17589ms expected @77558cbd0be7
 	activation claim cannot escape its owning activation through return from escape state escape::entry at statement 1
-fail/facts/bounded_activation_extent_composition_rejected rejected 10441ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_extent_composition_rejected rejected 16772ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation co-live bound leaves closed stack demand open")))
-fail/facts/bounded_activation_release_order_rejected rejected 12098ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_release_order_rejected rejected 15164ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claims must release in reverse establishment order in their owning activation")))
-fail/facts/bounded_activation_stale_loan_rejected rejected 9117ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_stale_loan_rejected rejected 16083ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
+	state `release` receives `owner` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `release` receives `owner` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 reads `owner` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `owner` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/bounded_activation_through_call_result_rejected rejected 9186ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_through_call_result_rejected rejected 15429ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_const_name_rejected rejected 11038ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_through_const_name_rejected rejected 15195ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_field_rejected rejected 9595ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_through_field_rejected rejected 14258ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `holder.claim` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `holder.claim` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `holder.claim` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `holder.claim` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_local_rejected rejected 10084ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_through_local_rejected rejected 15241ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_match_join_rejected rejected 7718ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_through_match_join_rejected rejected 15659ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_other_machine_rejected rejected 7511ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_through_other_machine_rejected rejected 17025ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_other_state_rejected rejected 8163ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_through_other_state_rejected rejected 15691ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_parameter_rejected rejected 8116ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_through_parameter_rejected rejected 15441ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_target_body_rejected rejected 8440ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_through_target_body_rejected rejected 10695ms expected @77558cbd0be7
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives an owned value while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 3 reads `live` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_wrong_activation_rejected rejected 9943ms expected @f4ab0b6f79e3
+fail/facts/bounded_activation_wrong_activation_rejected rejected 12208ms expected @77558cbd0be7
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
 fail/facts/bounded_products_through_call_result_rejected rejected 1505ms expected @ccdb99ca2214
 	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
@@ -22036,41 +22069,41 @@ pass/facts/boundary_zero_origin_through_other_machine_exit checked 4323ms check-
 pass/facts/boundary_zero_origin_through_other_state_exit checked 3952ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/boundary_zero_origin_through_parameter_exit checked 3871ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/boundary_zero_origin_through_target_body_exit checked 38605ms check-target:macos_arm64 @b9580c0cab21+wt
-pass/facts/bounded_activation_claim_split_through_call_result_exit checked 16852ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_claim_split_through_const_name_exit checked 16813ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_claim_split_through_field_exit checked 26728ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @f4ab0b6f79e3
-pass/facts/bounded_activation_claim_split_through_local_exit checked 26373ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @f4ab0b6f79e3
-pass/facts/bounded_activation_claim_split_through_match_join_exit checked 13292ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_claim_split_through_other_machine_exit checked 12584ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_claim_split_through_other_state_exit checked 13357ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_claim_split_through_parameter_exit checked 12774ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_claim_split_through_target_body_exit checked 14180ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_cleanup_crossing_exit checked 14108ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_cleanup_pure_exit checked 13965ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_computed_bound_exit checked 13517ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_extent_composition_exit checked 13038ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_field_transport_exit checked 13142ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_generic_bound_exit checked 13958ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_generic_holder_transfer_exit checked 13611ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_generic_nested_holder_transfer_exit checked 13580ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_main_exit checked 13665ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_multiple_bounds_exit checked 25399ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @f4ab0b6f79e3
-pass/facts/bounded_activation_named_attempt_exit checked 12652ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_named_bound_exit checked 13799ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_nested_lifo_exit checked 14746ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_page_bound_exit checked 13455ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_parameter_committed_exit checked 14030ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_through_call_result_exit checked 13982ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_through_const_name_exit checked 14970ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_through_field_exit checked 14644ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_through_local_exit checked 13567ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_through_match_join_exit checked 13528ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_through_other_machine_exit checked 12919ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_through_other_state_exit checked 12643ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_through_parameter_exit checked 14047ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_through_target_body_exit checked 14298ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_unsigned_max_request_exit checked 12318ms check-target:macos_arm64 @f4ab0b6f79e3
-pass/facts/bounded_activation_zero_bound_exit checked 25810ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @f4ab0b6f79e3
+pass/facts/bounded_activation_claim_split_through_call_result_exit checked 19789ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_const_name_exit checked 19856ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_field_exit checked 38509ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_local_exit checked 38515ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_match_join_exit checked 18762ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_other_machine_exit checked 18924ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_other_state_exit checked 20293ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_parameter_exit checked 18839ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_claim_split_through_target_body_exit checked 20866ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_cleanup_crossing_exit checked 20333ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_cleanup_pure_exit checked 21394ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_computed_bound_exit checked 18359ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_extent_composition_exit checked 19293ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_field_transport_exit checked 18886ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_generic_bound_exit checked 16107ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_generic_holder_transfer_exit checked 18493ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_generic_nested_holder_transfer_exit checked 18581ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_main_exit checked 19849ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_multiple_bounds_exit checked 34516ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @77558cbd0be7
+pass/facts/bounded_activation_named_attempt_exit checked 16729ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_named_bound_exit checked 18948ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_nested_lifo_exit checked 17793ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_page_bound_exit checked 16629ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_parameter_committed_exit checked 19455ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_through_call_result_exit checked 18857ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_through_const_name_exit checked 19116ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_through_field_exit checked 16921ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_through_local_exit checked 20789ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_through_match_join_exit checked 18606ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_through_other_machine_exit checked 18884ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_through_other_state_exit checked 18861ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_through_parameter_exit checked 20208ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_through_target_body_exit checked 17243ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_unsigned_max_request_exit checked 19686ms check-target:macos_arm64 @77558cbd0be7
+pass/facts/bounded_activation_zero_bound_exit checked 37953ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @77558cbd0be7
 pass/facts/bounded_products_through_call_result_exit checked 3372ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_products_through_const_name_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_products_through_field_exit checked 6772ms check-target:macos_arm64 @911f6617ba9e

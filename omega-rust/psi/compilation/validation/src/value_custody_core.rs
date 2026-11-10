@@ -483,6 +483,19 @@ pub mod activation_storage {
         ) && program.primitive_type_reference(reference) == Some(expected)
     }
 
+    /// The sealed `toolchain::ActivationClaim` declaration itself: opaque,
+    /// linear and fieldless, exactly as the activation storage contract
+    /// requires of its claim.
+    pub fn is_toolchain_activation_claim(
+        program: &dyn CheckingInput,
+        data: &DataDefinition,
+    ) -> bool {
+        data.supply_mode == DataSupplyMode::BoundaryOpaque
+            && data.properties.multiplicity == Multiplicity::Linear
+            && program.data_members(data).is_empty()
+            && sealed(program, data.symbol, "toolchain::ActivationClaim")
+    }
+
     pub fn activation_claim_byte_carrier(
         program: &dyn CheckingInput,
         symbol: SymbolHandle,
@@ -10552,8 +10565,15 @@ pub mod storage_contents {
                 .collect::<Vec<_>>();
             (data, substitutions)
         };
+        // An opaque declaration's empty field roster says nothing about hidden
+        // references. The sealed toolchain activation claim is the exception:
+        // its backing is activation-local, and the activation storage contract
+        // owns every loan of it, so no caller place hides behind the claim.
         if requirement == ContentsRequirement::BorrowFree
             && data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+            && !crate::value_custody::activation_storage::is_toolchain_activation_claim(
+                program, data,
+            )
         {
             return false;
         }
