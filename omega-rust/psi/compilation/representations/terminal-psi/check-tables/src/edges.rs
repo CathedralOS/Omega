@@ -113,17 +113,19 @@ pub enum Actual {
 /// are independent contract axes." Termination and the result relation are
 /// the remaining authored axes; each field keeps its own algebra and no field
 /// is derived from another.
+///
+/// The entry `requires` and the normal-return guarantees (`ensures`) are not
+/// copied here. They live once, in clause order over the callee's formals, in
+/// the callee's `MachineContract` in the lowered module, and a clause's
+/// identity is its machine and position: the identity `CallRequirement` and
+/// `Justification::CalleeGuarantee` already use. A `PropositionId` would need
+/// a module proposition table that Terminal Psi does not have.
+/// calls_and_outcomes.md: guarantees "apply only on normal return; external
+/// exit neither establishes them nor necessarily violates them."
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Summary {
     /// Whether callers outside this body's verification unit may use it.
     pub basis: SummaryBasis,
-    /// Entry `requires` clauses in clause order, over the callee's formals.
-    pub requires: Vec<PropositionId>,
-    /// Normal-return guarantees (`ensures`) in clause order. They hold only on
-    /// normal return: calls_and_outcomes.md: "They apply only on normal
-    /// return; external exit neither establishes them nor necessarily
-    /// violates them."
-    pub result_relation: Vec<PropositionId>,
     /// effects.md: "`reaches A + B` | Bounds service reach by the named
     /// boundary services and their boundary parents." Join is set union.
     pub reach: MaySet<ServiceId>,

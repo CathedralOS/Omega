@@ -5,8 +5,6 @@ proof-bearing scalar elision, and scalar representation views.
 
 pub(crate) mod proof_bearing_scalar {
 
-    use std::collections::BTreeMap;
-
     use numerics::{
         arithmetic::ArithmeticDomain,
         integer_policy::{
@@ -22,7 +20,7 @@ pub(crate) mod proof_bearing_scalar {
     use crate::{
         OperationSemanticError, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
         ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
-        ScalarLeafResultShape, ScalarLeafSchema, ScalarLeafWorkPolicy,
+        ScalarLeafResultShape, ScalarLeafSchema, ScalarLeafWorkPolicy, ValueTypes,
     };
 
     pub(crate) mod canonical_goal {
@@ -1553,7 +1551,7 @@ pub(crate) mod proof_bearing_scalar {
         schema: ProofBearingScalarLeafSchema,
         inputs: ProofBearingInputs,
         result_type: IntegerType,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<(ScalarTerm, Option<IntegerType>, Vec<ScalarTerm>), OperationSemanticError> {
         let invalid = || OperationSemanticError::DenotationShapeMismatch(tag);
         let built = match (schema.operands, schema.denotation, inputs) {
@@ -1664,7 +1662,7 @@ pub(crate) mod proof_bearing_scalar {
 
     pub fn proof_bearing_scalar_leaf_semantics(
         operation: &Operation,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<Option<ProofBearingScalarLeafSemantics>, OperationSemanticError> {
         let Some(row) = proof_bearing_scalar_semantic_row(&operation.kind)? else {
             return Ok(None);
@@ -3358,6 +3356,25 @@ pub(crate) mod scalar_leaf_semantics {
         Boolean(bool),
     }
 
+    /// The scalar type of each value the scalar-leaf semantics reads. A
+    /// caller that holds value types in a dense table passes the table; it
+    /// need not build a map keyed by value identity to ask.
+    pub trait ValueTypes {
+        fn value_type(&self, value: ValueId) -> Option<ScalarType>;
+    }
+
+    impl ValueTypes for BTreeMap<ValueId, ScalarType> {
+        fn value_type(&self, value: ValueId) -> Option<ScalarType> {
+            self.get(&value).copied()
+        }
+    }
+
+    impl ValueTypes for semantic_vocabulary::IdTable<ValueId, ScalarType> {
+        fn value_type(&self, value: ValueId) -> Option<ScalarType> {
+            self.get(value).copied()
+        }
+    }
+
     pub fn constant_goal_free_scalar_leaf(
         operation: &Operation,
         literals: &BTreeMap<ValueId, ScalarLeafLiteral>,
@@ -3539,11 +3556,10 @@ pub(crate) mod scalar_leaf_semantics {
 
     pub(crate) fn value_term(
         value: ValueId,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<ScalarTerm, OperationSemanticError> {
         value_types
-            .get(&value)
-            .copied()
+            .value_type(value)
             .map(|scalar_type| ScalarTerm::value(value, scalar_type))
             .ok_or(OperationSemanticError::UnknownValue(value))
     }
@@ -3574,12 +3590,11 @@ pub(crate) mod scalar_leaf_semantics {
         schema: GoalFreeScalarLeafSchema,
         inputs: ScalarLeafInputs,
         result_type: ScalarType,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<(), OperationSemanticError> {
         let type_of = |value: ValueId| {
             value_types
-                .get(&value)
-                .copied()
+                .value_type(value)
                 .ok_or(OperationSemanticError::UnknownValue(value))
         };
         let valid = match (schema.operands, inputs) {
@@ -3632,7 +3647,7 @@ pub(crate) mod scalar_leaf_semantics {
         schema: GoalFreeScalarLeafSchema,
         inputs: ScalarLeafInputs,
         result_type: ScalarType,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<ScalarTerm, OperationSemanticError> {
         let term = |value| value_term(value, value_types);
         let invalid = || OperationSemanticError::DenotationShapeMismatch(tag);
@@ -3777,7 +3792,7 @@ pub(crate) mod scalar_leaf_semantics {
 
     pub fn goal_free_scalar_leaf_semantics(
         operation: &Operation,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<Option<GoalFreeScalarLeafSemantics>, OperationSemanticError> {
         let row = operation_semantic_row(&operation.kind)?;
         let Some(schema) = row.goal_free_scalar_leaf else {
