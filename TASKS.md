@@ -93,6 +93,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **SUBSTITUTABLE-SERVICES.** Add the two-wrapper provider fixture and a clock ops bridge per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
 
+- **ACTIVATION-STORAGE-PLANS.** Implement [storage plans](wiki/drafts/designs/activation_storage_plans.md).
+
 - **OWNED-CLEANUP.** Implement [by-value cleanup](wiki/drafts/designs/owned_cleanup.md).
 
 - **OPEN-CALLABLE-CONTRACTS.** Close [callable contracts](wiki/drafts/designs/open_callable_contracts.md) at runtime and boundary positions.

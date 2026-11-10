@@ -1,12 +1,14 @@
 # Task activation and lifecycle
 
 A selected `TaskRuntime` boundary provider executes an ordinary named machine
-as a distinct activation. `TaskRuntime::start<WorkResult, Job, Worker::run>(job)`
-and `TaskRuntime::try_start<WorkResult, Job, Worker::run>(job)` are boundary
+as a distinct activation.
+`TaskRuntime::start<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(job)`
+and the matching `TaskRuntime::try_start` are boundary
 requirements invoked by path like any other; there is no receiver value, and
 the provider behind them is a build selection. The machine argument is a
 compile-time machine symbol, not capture inference or a runtime function
-value. A direct `Worker::run(job)` remains an ordinary call. There is no bare spawn, implicit detach, future
+value. The last argument is the compile-time
+[storage plan](#storage-plans) selected for the new activation. A direct `Worker::run(job)` remains an ordinary call. There is no bare spawn, implicit detach, future
 transformation, or privileged supervisor. [Call acknowledgements](../language/effects.md#call-site-acknowledgements)
 describe only what the start/control operation may do to its caller.
 
@@ -37,25 +39,135 @@ lifetime or embed an outcome, but does not settle the returned linear claim.
 
 The compiler monomorphizes the machine argument and derives an activation
 description retaining exact machine contract/entry, argument/outcome layouts,
-target calling plan, whole-call-graph WCSU `StackPlan<M>`, canonical suspension
+target calling plan, the selected storage plan with its whole-call-graph WCSU
+`StackPlan<M>`, canonical suspension
 crossings with live carry demands, activation-wide CPU/thread preservation,
 and cancellation/operational behavior required by the selected start operation.
 Planning is a generated artifact, not an implicit representation-identical cast.
 
-Each local activation receives one fixed nonmoving stack and retains it while
-parked. Direct suspension allocates no separate continuation buffer. Final frame
+### Storage plans
+
+Named decision: `activation-storage-plans`, settled 2026-11-10. An activation
+is an unfinished machine invocation with unique execution custody. Suspension
+preserves its incomplete calls, control state, live values, claims, loans,
+pending operations and cleanup obligations without establishing a result or
+committing a return edge. How that state is stored is a checked storage plan,
+not part of what suspension means.
+
+A plan provides three things and proves they suffice:
+
+| Part | Holds | Lifetime |
+| --- | --- | --- |
+| Retained backing | Everything that must survive a park | The whole activation, including while parked |
+| Execution backing | Call frames and temporaries of a running segment that do not survive a park | One execution lease |
+| Transition storage | Entry, saving, restoring and switching overlap | The transition |
+
+The plan also establishes every address, CPU, thread and lifetime preservation
+the activation requires. Its capacity is covered by provisioned resources
+before execution can need it, so ordinary calls and suspension acquire no
+storage-exhaustion outcome under any plan. An object whose address must survive
+a park is given its retained home before that address is exposed; relocating it
+at the park is too late.
+
+The plan is selected where the activation is created, by a compile-time
+`ActivationStorage` argument:
+
+```omega
+machine serve(request: Request) -> Reply suspends { ... }
+
+let a = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Fixed>(move first);
+let b = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Split>(move second);
+```
+
+- The machine being run does not choose. No machine declaration, `suspends`
+  clause, package or component carries a storage mode, and one entry machine
+  may be started under either plan.
+- The selection is a static argument, and the compiler lowers the activation's
+  code for it. A provider cannot change the plan of code that was not lowered
+  for it, and nothing reselects it at run time.
+- It holds for the activation's whole life. Ordinary calls run within the
+  current activation's plan. Moving or resuming the activation keeps its plan,
+  and a receiving executor must support it.
+- It is not inherited. An activation started from inside another names its own
+  plan at its own start.
+- A machine that starts activations on behalf of its caller takes the plan as
+  an ordinary static parameter, `<const Storage: ActivationStorage>`, and
+  passes it on, so the caller keeps the choice.
+- A selection the toolchain, provider or supplied backing cannot realize
+  rejects at build or admission. One plan is never substituted for another.
+- Capacity is whole-program. The build sums the retained demand of every
+  admitted activation and sizes shared execution backing for the deepest
+  activation that may borrow it. It accounts; it does not choose.
+
+#### `Fixed`
+
+The activation receives one fixed nonmoving stack and retains it while parked.
+Retained backing is that whole stack, and execution uses the same stack, so
+there is no separate execution lease. Direct suspension allocates no separate
+continuation buffer. Final frame
 and spill demand, alignment, entry overhead, and live call chains feed WCSU;
 a numeric fit alone supplies no `StackLease`. Before execution the provider
-must establish backing satisfying the exact plan. Ordinary calls acquire no
-new spill-exhaustion route. Remote execution provisions the equivalent in its
+must establish backing satisfying the exact plan. Remote execution provisions
+the equivalent in its
 execution domain; inline execution still has an accountable stack provision.
-Alternate lowered representations are not runtime-selectable modes of this plan.
-Omega accepts that per-activation capacity cost for one machine kind with ordinary
-call-chain suspension, stable addresses for loans and outstanding operations,
-and stack-capacity admission before execution.
+Nonmoving frames preserve addresses relied on by live loans and outstanding
+operations across suspension. The cost is the full worst-case stack for every
+live activation, including every parked one.
 
-The provider must guarantee usable backing for the full stack plan throughout
-the activation, including while parked. Its contract states the reservation and
+#### `Split`
+
+Retained backing holds every frame and place that can be live across a park
+and every object whose address must survive one. Execution backing is borrowed
+from the execution owner for call chains that complete without parking, and
+may serve another activation once the lease ends. The lease ends only when the
+running segment has returned control and every surviving dependency has a
+retained home or has ended.
+
+A realization may be conservative. Retaining the whole frame of every machine
+that can park is valid; placing only the state live at a park in retained
+backing is a refinement within the same plan. Reported retained demand is the
+demand of the realization actually chosen, with its return information,
+alignment, descriptor and transition overhead, never an estimate of live
+values.
+
+Shared execution backing is counted by resident execution, not by worker.
+Synchronous reentry, stepping a child activation, a nested interrupt or
+external-entry adapter and a blocking native call each keep an execution
+segment live, and the plan covers the complete permitted nesting under the
+[entry-stack](../resources/entry_stacks.md#domains-and-epochs) composition
+rules. A ready activation waiting for execution backing is a scheduling state,
+not an allocation failure inside a call.
+
+Native code with no published resumption interface keeps its actual call state
+valid. Such a boundary keeps a fixed segment for that call, uses an accounted
+adapter, or rejects the selection; `suspends` alone does not make an opaque
+native frame reconstructible. Checked Psi can be lowered under either plan, and
+a separately compiled component publishes its retained and execution demand
+with its calling and resumption contract.
+
+#### Stopped states
+
+Only source suspension may release execution backing:
+
+| Event | Storage consequence |
+| --- | --- |
+| Source suspension | The plan preserves the incomplete call and its frontier. Execution backing is released when nothing surviving depends on it. |
+| Interpreter budget pause | The paused interpreter state is preserved as it stands, including temporaries that exist at no source suspension point. |
+| Architectural preemption | The native execution state stays resident unless a separate valid mechanism preserves it elsewhere. |
+
+A realization maps every stopped state it supports to enough retained control
+and data to resume the same computation exactly once: which call is incomplete,
+where each caller continues, pending request and reply identity, whether an
+external effect has happened, and the cleanup position. An internal parked
+indication from a lowered call is not a source return. It establishes no
+result, runs no return cleanup and settles no argument.
+
+### Backing guarantee
+
+The provider must guarantee usable backing for the plan's retained part
+throughout the activation, including while parked, and for its execution part
+whenever the activation runs. Under `Fixed` that is the full stack plan
+throughout. Its contract states the reservation and
 physical-commitment policy; deferred commitment must preserve that guarantee.
 Reserving an address range alone does not establish sufficient backing.
 Guaranteed backing whose pages become resident on first touch is a permitted
@@ -63,8 +175,7 @@ hosted policy: it changes residency, never the plan or the bound, and a serviced
 fault inside the plan is an implementation event, not an outcome. A
 persistently inaccessible region beyond the plan defends against a false
 foreign premise; it is not a growth mechanism, and reaching it is governed by
-the provider's declared containment policy. Nonmoving frames preserve addresses
-relied on by live loans and outstanding operations across suspension.
+the provider's declared containment policy.
 
 Target/provider selection and physical plans remain in the
 [build-owned companion](../terminal-psi/product.md#build-owned-companion), not
@@ -178,7 +289,8 @@ checks cannot be weakened by runtime selection. A runtime establishes each
 required CPU/thread preservation axis by checked construction or exact admitted
 receipt; portable activations demand neither. A host able to migrate outside
 semantic points must establish activation-wide preservation when possible live
-values need it. Address stability follows from the nonmoving lease, not a freely
+values need it. Address stability follows from the selected plan's retained
+homes, which under `Fixed` is the nonmoving lease, not a freely
 asserted runtime property. Provider identity and evidence travel with the task.
 
 Cancellation conformance, inline completion, and stack reservation are separate
@@ -191,16 +303,21 @@ that does not promise every task eventually observes the request.
 Named decision: `owned-activations`, settled 2026-11-09;
 [the design draft](../../drafts/designs/owned_activations.md) records the
 stages. Source may hold unique execution custody over an activation as a linear
-claim. Generators, schedulers and tasks are libraries over it. Fixed nonmoving
-stacks, `suspends`, `blocks` and their call-site markers keep their meanings;
+claim. Generators, schedulers and tasks are libraries over it.
+[Storage plans](#storage-plans), `suspends`, `blocks` and their call-site
+markers keep their meanings;
 there is no `yield` keyword, yielding contract clause or generator-colored
 machine.
 
 An activation is prepared from an exact entry machine and its arguments, its
-checked stack plan, and explicitly supplied compatible backing. Preparation runs
+checked storage plan, which carries the `ActivationStorage` selection, and
+explicitly supplied compatible retained backing. Preparation runs
 nothing, and a failed preparation returns every argument and resource it did not
-take into custody. Backing stays fixed while the activation is live, including
-while suspended; moving the claim moves no stack. The compiler supplies plan
+take into custody. Retained backing stays fixed while the activation is live,
+including while suspended; moving the claim moves no storage. Stepping requires
+the plan's execution backing through the step operation's resource contract:
+under `Fixed` the retained stack is all of it, and under `Split` the caller
+supplies it or invokes a runtime that holds it. The compiler supplies plan
 checking and control transfer; allocation, pooling and capacity are library
 policy.
 

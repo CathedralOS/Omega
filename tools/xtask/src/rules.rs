@@ -56,7 +56,7 @@ const MAX_NEW_OMG_FILES: isize = 6;
 const SUBJECT_LIMIT: usize = 85;
 const TASKS_BOARD: &str = "TASKS.md";
 const TASKS_LINE_LIMIT: usize = 240;
-const TASKS_CHAR_LIMIT: usize = 26_500;
+const TASKS_CHAR_LIMIT: usize = 27_000;
 const AGENT_NAMES: &[&str] = &[
     "Claude Code",
     "Codex",
