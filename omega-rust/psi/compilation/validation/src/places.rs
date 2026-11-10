@@ -4958,7 +4958,16 @@ pub(crate) mod declared_carriers {
                 let right = program
                     .type_reference_table
                     .type_reference_handles(*right_arguments);
-                left_symbol == right_symbol
+                // Reused declarations can retain different symbol handles for
+                // the same nominal owner. Its canonical identity retains source
+                // ownership and instantiated schema identity; arguments still
+                // compare recursively in their original substitution scopes.
+                let same_owner = left_symbol == right_symbol
+                    || program
+                        .normalized_nominal_type_identity(*left_symbol)
+                        .zip(program.normalized_nominal_type_identity(*right_symbol))
+                        .is_some_and(|(left, right)| left.is_valid() && left == right);
+                same_owner
                     && left.len() == right.len()
                     && left
                         .iter()
