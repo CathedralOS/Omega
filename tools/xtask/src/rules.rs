@@ -1727,7 +1727,7 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
             "key, one overlap relation and one formal-to-actual map",
             "(wiki/drafts/designs/fact_transport.md).",
         ],
-        advice: "Facts travel on one place key, one overlap relation and one formal-to-actual map (wiki/drafts/designs/fact_transport.md): call validation::storage_path_relations::place_relation or convert to facts::Place at the boundary instead of adding another comparison, rebaser or path type.",
+        advice: "Do not add another place comparison, rebaser or path type. The checker on the lowered form names places by terminal_check_tables::ExactPlaceId (wiki/drafts/designs/check_on_lowered_form.md); existing tree-level code keeps using validation::storage_path_relations::canonical_place_segments_may_overlap until it is replaced.",
     },
 ];
 
