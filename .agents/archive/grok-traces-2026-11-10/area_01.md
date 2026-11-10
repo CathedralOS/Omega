@@ -31,12 +31,19 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 | 23 | pp/provider_planning/provenance_replay.rs:357-391 | CLOSED | A demanded boundary whose intrinsic execution is missing is rejected. `settle` does not itself reject the unknown machine. |
 | 24 | pp/provider_planning/provenance_replay.rs:175-176 | UNDECIDED | A missing trait or signature text is interned as `""` with no check in `mint_plan_row_identity`. Whether a demand can match that empty text was not settled. |
 | 25 | pp/provider_planning/provenance_replay/adapter_conformance.rs:232 | UNDECIDED | The provider-row join is skipped when `provider_type` is empty. One caller rejects that emptiness first. The selected-facts caller does not, and I did not read its admission check. |
+| 26 | pp/provider_planning/provider_rows.rs:250-255 | UNDECIDED | A missing machine or a machine with a body produces no leaf and no error in this function. Whether a later stage rejects that row was not settled. |
+| 27 | pp/provider_planning/source_provider_selections.rs:51-55, :134-137 | REACHABLE | A build-time use and a nongeneric boundary use with no selected plan are dropped, not reported. |
+| 28 | pp/provider_settlement.rs:263-265 | REACHABLE | Completion-role validation runs only when semantic-role discovery is on. A compile with that flag off is not checked here. |
+| 29 | pp/provider_settlement/assumed_bindings.rs:51 | REACHABLE | Two assumed-bound requirements with no calling rows pass the calling check. Source signatures were still compared. |
+| 30 | pp/provider_settlement/completion.rs:30-33 | REACHABLE | A realization that is not authored gets an empty leaf list and is not path-reviewed. |
 
 `orch/` is `omega/build-system/orchestration/src/`. `ba/` is `omega/compilation/backend/artifacts/boundary-applications/src/`. `cd/` is `omega/compilation/backend/artifacts/component-description/src/`. `nc/` is `omega/compilation/native-compiler/src/`. `pa/` is `omega/compilation/realization/provider-admission/src/`. `whr/` is `pa/provider_admission/terminal_authority_review/`.
 
 `pp/` is `omega/compilation/realization/provider-planning/src/`.
 
-Entries 26 onward are not written yet.
+`ps/` is `omega/compilation/realization/provider-selection/src/`.
+
+Entries 31 onward are not written yet.
 
 ## 1. `comp/product_execution.rs:473-491`
 
@@ -351,4 +358,60 @@ Verdict UNDECIDED. What would decide it: the constructor of `SelectedProviderPla
 Digest: right about the local skip.
 
 Not read: `from_selected_plans`. `product_boundary.rs` and the two test hits were not read past the search count.
+
+## 26. `pp/provider_planning/provider_rows.rs:250-255`
+
+`capture_direct_declarations` (read `:213-255`). Only `CompilerIntrinsic`, `Import`, `Syscall`, `VtableField`, and `TableFunction` are considered (`:220-228`). A missing machine, including the `_` arm (`:249-251`), `continue`s. A machine with `body_is_present` `continue`s (`:253-255`). Neither arm returns `Err`.
+
+I did not read `CapturedProviderRows::capture` or the later use of a `None` slot. The function itself accepts the row by omitting the leaf.
+
+Verdict UNDECIDED. What would decide it: whether `produce_direct_boundary_leaves` or the external-binding extractor requires a leaf for that row.
+
+Digest: right about the missing error.
+
+Not read: `attach_physical_rows` and `external_binding_rows.rs` after the row is built.
+
+## 27. `pp/provider_planning/source_provider_selections.rs:51-55` and `:134-137`
+
+I did not read `selected_use_plan` and `selected_requirement_plan` in full. I read two consumers of their `None`.
+
+`SelectedConstantEvaluation::prepare` continues when `selected_requirement_plan` is `None` (`bs/admission/selected_constants.rs:80-83`, read). `derive_checked_expression_operator_application_realization` returns `Ok(None)` when `selected_use_plan` is `None` (`sd/selected_dispatch/operator_adapter/application_realization.rs:197-203`, read). That is success with no realization row.
+
+A build-time operator use, and a nongeneric boundary application, whose requirement matches no selected plan are not reported by these callers.
+
+Digest: right that consumers treat `None` as not selected. Wrong if it claimed every `None` is reported. These two are not.
+
+Not read: the bodies of `selected_use_plan` and `selected_requirement_plan`, and `compiler_intrinsics.rs`.
+
+## 28. `pp/provider_settlement.rs:263-265`
+
+Inside `settle_checked_providers` (read `:263-265`). `completion_roles.validate` runs only when `package_inputs` is `Some` and `semantic_role_discovery` is true. `validate` (`semantic_roles.rs:98-107`, read) also skips a `None` role. I did not grep other callers of `validate` in this session beyond this site.
+
+A compile that is not in discovery mode does not run this role compare. A Console exit whose selected body does not reach one external exit leaf is not checked here.
+
+Digest: right.
+
+Not read: `PackageCompilationInputs::semantic_role_discovery` and `prepare_source_completion`.
+
+## 29. `pp/provider_settlement/assumed_bindings.rs:51`
+
+`validate_calling` (read `:38-68`). `source_compatibility?` runs first (`:43`). The calling match is `(None, None) => true` (`:51`). One side present is false (`:56-57`). The only caller I read is the loop `assumption.validate_calling(...)?` (`provider_settlement.rs:276-278`). Search was not repeated; that loop is the settlement use.
+
+Two assumed-bound requirements that have no calling rows pass, and settlement continues. The source-signature check still ran. The calling layout did not.
+
+Digest: right. It does not mention that source compatibility still runs.
+
+Not read: `source_compatibility` after its call. The `?` is what I used.
+
+## 30. `pp/provider_settlement/completion.rs:30-33`
+
+`capture` (read `:18-58`). `realization.authored()` returning `None` pushes an empty leaf list and `continue`s. An external completion with an authored realization is passed to `checked_completion`. A `BuildNative` or any other non-authored realization is not.
+
+I did not search for a `Toolchain` constructor. The empty list is what this function returns for every non-authored arm. Settlement unwraps that list (`provider_settlement.rs:257`, the `review.completion?` I read in the completion-role loop). No second path walk was in the lines I read.
+
+A native Build provider selected for an external-completion requirement is not path-reviewed here.
+
+Digest: right about the empty list. I did not confirm that `Toolchain` is ever constructed.
+
+Not read: `checked_completion` after `:58`.
 
