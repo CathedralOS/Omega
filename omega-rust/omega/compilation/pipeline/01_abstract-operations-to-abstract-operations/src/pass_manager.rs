@@ -560,7 +560,9 @@ pub(crate) mod execution {
         );
         for (rule, count) in &rules {
             let hex: String = rule.iter().map(|byte| format!("{byte:02x}")).collect();
-            census.push_str(&format!("accepted_obligation_rewrite rule={hex} commits={count}\n"));
+            census.push_str(&format!(
+                "accepted_obligation_rewrite rule={hex} commits={count}\n"
+            ));
         }
         census
     }

@@ -184,7 +184,8 @@ before variants are added. Route one is:
   product with evidence the kernel checked. Reading says none do: Omega 00
   records every operation obligation in a unit as accepted, with no evidence
   attached. The census turns that reading into a number that route one must
-  move.
+  move. [The first count](#census-of-evidence) confirms it: of 814 obligations the
+  product accepted, none carried evidence.
 - **Subset.** Machines whose bodies use scalar locals, assignment, builtin
   arithmetic and comparison, direct calls with `requires` and `ensures`,
   `transition` arms and returns. No references, records, loops or generics.
@@ -209,6 +210,73 @@ before variants are added. Route one is:
 Only after route one passes do further construct families move: records and
 fields; references, loans and windows; loops and recursive components;
 runtime callables; generics.
+
+### Census of evidence
+
+No obligation in this slice was backed by evidence the proof kernel checked,
+at either end of the pipeline. The product accepted 814 operation obligations
+in 99 compiled programs, and every accepted fact had a zero proof-bundle
+fingerprint. In Psi 05 no bounded-type obligation reached a certificate. Route
+one starts from zero.
+
+An obligation counts as evidence-backed only when `proof_admission` decided it
+again from a certificate or derivation. Setting `OMEGA_PROOF_MEASUREMENTS`
+prints the counts. They are taken over the 591 fixtures in
+`tests/omega/pass/{arithmetic,calls,contracts,ranges}`, compiled but not run,
+on `omega-linux` at `e29e947fbed`. 227 fixtures reached Omega 00; 364 stop
+earlier because they select no program entry, and 2 were killed.
+
+Operation obligations Omega 00 accepted, by the Terminal operation that owns
+them. None has evidence; none has a reconstructed goal.
+
+| Kind | Accepted |
+| --- | ---: |
+| `PrimitiveScalarRead` | 294 |
+| `ExactIntegerSubtract` | 132 |
+| `ExactIntegerAdd` | 84 |
+| `ByteSequenceSubslice` | 58 |
+| `ExactIntegerMultiply` | 42 |
+| integer divide and remainder, all policies | 94 |
+| `WriteOnlyPrimitiveStore` (range) | 18 |
+| `IntegerExactCast` | 18 |
+| exact shifts | 20 |
+| `ByteSequenceWrite` | 12 |
+| other (8 kinds) | 42 |
+| **Total** | **814** |
+
+Proof-plan obligations in Psi 05, by route:
+
+| Kind | Route | Count |
+| --- | --- | ---: |
+| bounded call argument | no certificate attempted | 10,349 |
+| bounded state return | no certificate attempted | 6,589 |
+| bounded assignment | no certificate attempted | 4,275 |
+| bounded initializer | no certificate attempted | 2,483 |
+| guarded transition | not decided by the checker | 218,765 |
+| bounded value | not decided by the checker | 58,921 |
+
+What the numbers do not say:
+
+- **Why no certificate was attempted.** The certificate builder needs a
+  `ProofConstraint::IntegerRange`. This slice's types use arithmetic domains
+  such as `u64 in Trapping`, which do not produce one. Where those obligations
+  are actually decided was not traced.
+- **Which obligations a checker decided.** Psi 06 records the obligations a
+  checker decided (`source_checked_obligations`), but nothing reads that list.
+  It never reaches the product, so Omega 00 accepts decided and undecided
+  obligations alike, and the census cannot separate them without carrying
+  the list forward.
+- **Call `requires`.** These obligations travel on the call and never become
+  accepted facts. The count covers every machine in each module, the library
+  included, so it measures the module, not the program.
+- **Library code.** Psi 05 counts include every proof plan a compile checks,
+  library packages among them.
+- **Check removal.** No Omega 01 rewrite consumed an accepted fact, because
+  none ran: these compiles select no optimizations, and no selection means no
+  pass step. Builds that do select optimizations were not measured. Omega 03
+  selects unguarded instructions for these facts, but the facts sit in about
+  25 instruction, call and edge shapes with no shared accessor, so those sites
+  were not counted.
 
 ## What must be closed regardless
 
