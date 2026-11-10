@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Owned cleanup consumers](designs/owned_cleanup.md): the machine selected
+  with `dropped by` takes its subject by value, and a consuming pattern in the
+  type's own package is what takes such a value apart; delete when the board
+  item lands.
 - [Case projection type](designs/case_projection_type.md): `Data::case` names
   the case-only view that `case as name` binds, so a helper can accept it
   behind a reference; delete when the board item lands.

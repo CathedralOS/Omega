@@ -438,7 +438,7 @@ data Guard<T> dropped by release_guard<T> {
 ```
 
 These separate examples show selection, not a complete resource implementation.
-The selected machine has an explicit mutable reference parameter for the carrier
+The selected machine takes the carrier by value as its one parameter
 and must meet the [cleanup contract](ownership.md#consumers-and-cleanup).
 Name resolution is exact: no overload guessing, trait/satisfier discovery, or
 lookup by the name `drop`. This clause introduces no `Drop` trait or boundary
