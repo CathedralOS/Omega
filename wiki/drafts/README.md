@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Translation coordinate spaces](designs/translation_coordinate_space.md): an
+  installed mapping splits under the existing interval algebra by projecting
+  each contiguous run into a space indexed by its offset; includes the
+  implementation limits observed; delete when the canary passes.
 - [Owned cleanup consumers](designs/owned_cleanup.md): the machine selected
   with `dropped by` takes its subject by value, and a consuming pattern in the
   type's own package is what takes such a value apart; delete when the board
