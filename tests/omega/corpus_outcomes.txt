@@ -3484,6 +3484,10 @@ fail/contracts/overwritten_requirement_cannot_rule_out_branch rejected 2011ms ex
 	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/contracts/primitive_float_equality_not_reflexive rejected 6594ms expected @ceec2d4e7d8b
 	cannot prove ensures contract for exit from wrong_reflexivity at statement 0: result == value
+fail/contracts/private_arrival_field_case rejected 3664ms expected @3cc4d80d3988
+	machine `read_field` state `entry` statement 0: cannot prove selected case for payload access `r.slot.value`: captured source `r.slot::Present.value` has no live case evidence: the current source does not select its required case
+fail/contracts/private_arrival_open_callable_case rejected 3807ms expected @3cc4d80d3988
+	machine `read_root` state `entry` statement 0: cannot prove selected case for payload access `s.value`: captured source `s::Present.value` has no live case evidence: the current source does not select its required case
 fail/contracts/private_counter_callable_input_alternatives rejected 7939ms expected @edd05427fd02
 	cannot prove requires contract for call require_zero from zero_or_one: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call require_zero from zero_or_any: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -20750,6 +20754,7 @@ pass/contracts/nested_case_guarantee_disjunction_exit checked 16442ms check-targ
 pass/contracts/normal_return_contextual_call_arguments_exit checked 7019ms check-target:macos_arm64 @25bbaead8c14+wt
 pass/contracts/opaque_call_preserves_model checked 4237ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/policy_field_ensures checked 3562ms @ccdb99ca2214
+pass/contracts/private_arrival_cases_exit checked 4374ms check-target:macos_arm64 @3cc4d80d3988
 pass/contracts/proof_fact_indexed_domain_application checked 11823ms @089c0a150e63
 pass/contracts/range_requires_discharge checked 3350ms @ccdb99ca2214
 pass/contracts/recurrent_call_prefix_preserves_model checked 3269ms check-target:macos_arm64 @ccdb99ca2214
