@@ -4,7 +4,8 @@ Start a task when work should run in another activation. Keep its handle, do
 other work, then finish it to obtain the outcome:
 
 ```omega
-let task: Task<WorkResult> = TaskRuntime::start<WorkResult, Job, Worker::run>(move job);
+let task: Task<WorkResult> =
+    TaskRuntime::start<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(move job);
 
 do_other_work();
 
@@ -28,7 +29,7 @@ The selected runtime provides task creation. `start<M>` requires enough
 resources to start `M`; `try_start<M>` can report a dynamic refusal:
 
 ```omega
-transition TaskRuntime::try_start<WorkResult, Job, Worker::run>(move job) {
+transition TaskRuntime::try_start<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(move job) {
     StartOutcome::Started { task } -> keep(move task)
     StartOutcome::Rejected { arguments, reason } -> recover(move arguments, reason)
 }
@@ -37,6 +38,10 @@ transition TaskRuntime::try_start<WorkResult, Job, Worker::run>(move job) {
 On rejection, the caller receives the moved arguments and reservations back,
 or their contract accounts for transfer to another owner. A static mismatch,
 such as an incompatible runtime contract, is a compile error.
+
+The last argument says how the new task's storage is laid out. `Fixed` gives
+it one stack of its own. [Choose where a task's frames live](#choose-where-a-tasks-frames-live)
+explains the alternative.
 
 ## Finish or transfer the task handle
 
@@ -215,7 +220,8 @@ account for queued payloads, including linear values that still need a consumer.
 
 ## Choose a stack budget
 
-Each task activation gets a fixed, nonmoving stack sized for its call graph.
+Under `ActivationStorage::Fixed`, each task activation gets a fixed, nonmoving
+stack sized for its call graph.
 It retains the stack while parked, preserving addresses used by live borrows
 and external operations. Moving the task handle leaves that stack in place.
 
@@ -235,6 +241,49 @@ compiler cannot check. Whether the plan's pages are resident up front or arrive
 on first touch is the provider's policy underneath the guarantee; the bound
 does not move either way.
 
+### Choose where a task's frames live
+
+A waiting task has to keep whatever it will need when it wakes. It does not
+have to keep the room it used for calls that have already returned. The
+storage argument at the start site chooses between the two layouts:
+
+```text
+Fixed                                  Split
+
+task A: [ whole stack ........ ]       task A: [ kept frames ]--+
+task B: [ whole stack ........ ]       task B: [ kept frames ]--+--> worker stack
+task C: [ whole stack ........ ]       task C: [ kept frames ]--+    (borrowed while running)
+```
+
+```omega
+machine serve(request: Request) -> Reply suspends { ... }
+
+let a = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Fixed>(move first);
+let b = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Split>(move second);
+```
+
+`serve` is the same machine in both and never mentions storage. Under `Split`,
+each task keeps only the frames and places that can be live across a wait, and
+calls that finish without waiting run on storage borrowed from the worker.
+Anything whose address must survive a wait, such as a buffer lent to pending
+I/O, lives in the kept part from the start. With `N` tasks, `K` workers, kept
+size `R` and worst running depth `W`, the cost is about `N R + K W` in place
+of `N` times the whole stack.
+
+`Fixed` is simpler and has no stack switch on calls; it is the right choice
+when the tasks and their stacks fit. A build that cannot realize the plan you
+asked for rejects; it never quietly substitutes the other one.
+
+A library that starts tasks for you should pass the choice through instead of
+fixing it:
+
+```omega
+machine accept_loop<const Storage: ActivationStorage>(listener: &mut Listener) suspends {
+    ...
+    TaskRuntime::start<Reply, Request, serve, Storage>(move request);
+}
+```
+
 ### Decide what scales with what
 
 A task per activity is the simplest shape and the right one whenever the
@@ -246,6 +295,7 @@ actually large, because the fix differs:
 | Nothing; the plans fit | One task per activity, ordinary suspending calls |
 | A big temporary buffer used by few activities at once | Ordinary tasks that lease a workspace from a bounded pool around the expensive phase |
 | One phase with deep call frames | Ordinary tasks that hand that phase to a separately provisioned worker and park while awaiting it |
+| Call depth that is only needed between waits, across many tasks | The same tasks started with `ActivationStorage::Split` |
 | Too many incomplete activities to park each one | Persistent operation records advanced by bounded workers, as in the next section |
 
 The first two fixes keep the connection as an ordinary suspending task and
@@ -328,7 +378,7 @@ machine drain(generator: Generator<u32>) suspends {
 }
 ```
 
-Each `next` runs `announce` on its own fixed stack until it emits or returns,
+Each `next` runs `announce` on its own activation storage until it emits or returns,
 then control comes back to `drain` with the item and the generator to continue.
 The generator is linear. Finish it, answer an item with stop so the producer runs
 its cleanup, or move it to another owner; a paused activation is never dropped.

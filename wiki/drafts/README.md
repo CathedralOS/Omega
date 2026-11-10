@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Activation storage plans](designs/activation_storage_plans.md): suspension
+  preserves the unfinished computation and its storage layout is a
+  compile-time `ActivationStorage` argument at the start site, `Fixed` or
+  `Split`; delete when the board item lands.
 - [Translation coordinate spaces](designs/translation_coordinate_space.md): an
   installed mapping splits under the existing interval algebra by projecting
   each contiguous run into a space indexed by its offset; includes the
