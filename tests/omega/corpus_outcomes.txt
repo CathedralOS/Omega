@@ -25541,8 +25541,7 @@ pass/filesystem/runtime_posix_borrowed_directory_link_exit checked 38791ms check
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 34017ms check-target:macos_arm64 @ccdb99ca2214
 pass/filesystem/runtime_posix_native_storage_bounds_exit checked 36884ms check-target:macos_arm64 @ccdb99ca2214
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 177727ms check-target:macos_arm64 @37b1bacc63e5
-pass/filesystem/windows_external_async_handle_exit rejected 230432ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @e1cfe02f1a9b
-	runtime indexed construction has no exact substituted field telescope
+pass/filesystem/windows_external_async_handle_exit checked 191597ms check-target:windows_x86_64 @33e6abe29195
 pass/filesystem/windows_lock_has_empty_reach checked 48399ms @ccdb99ca2214
 pass/filesystem/windows_namespace_rename_exit checked 310804ms check-target:windows_x86_64 @e1cfe02f1a9b
 pass/filesystem/windows_native_create_write_close_exit checked 327777ms check-target:windows_x86_64 @e1cfe02f1a9b
