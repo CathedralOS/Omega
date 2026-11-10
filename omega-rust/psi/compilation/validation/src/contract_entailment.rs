@@ -81890,10 +81890,29 @@ pub(crate) mod structural_judgment {
                     }
                     StructuralTerm::IntegerEmbedding { reference, value } => {
                         let value = self.resolve_with_at(*value, depth + 1, purpose);
-                        return StructuralTerm::IntegerEmbedding {
+                        let resolved = StructuralTerm::IntegerEmbedding {
                             reference,
                             value: Box::new(value),
                         };
+                        // Equation intake records an embedding as a rewrite side
+                        // (`width == buckets.len as u64` stores `embed(len) -> width`),
+                        // so this arm consults the table like its siblings. The
+                        // scalar replacement names the same mathematical value, so
+                        // it stays under this embedding rather than leaving the
+                        // integer sort.
+                        if let Some((_, replacement)) = self.rewrites.find(&resolved) {
+                            term = match replacement.semantic_value() {
+                                StructuralTerm::IntegerEmbedding { .. }
+                                | StructuralTerm::Integer(_)
+                                | StructuralTerm::MathematicalBinary { .. } => replacement.clone(),
+                                _ => StructuralTerm::IntegerEmbedding {
+                                    reference,
+                                    value: Box::new(replacement.clone()),
+                                },
+                            };
+                            continue;
+                        }
+                        return resolved;
                     }
                     predicate @ (StructuralTerm::MathematicalBinary { .. }
                     | StructuralTerm::LogicalNot { .. }) => {
