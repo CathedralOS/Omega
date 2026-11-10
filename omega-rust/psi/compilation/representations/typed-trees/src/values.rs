@@ -2115,6 +2115,7 @@ pub mod expression {
                             member_symbols,
                             head_symbol: path.head_symbol,
                             symbol: path.symbol,
+                            reserved_result_of: path.reserved_result_of,
                         }))
                     }
                     ExpressionNode::Range(range) => {
@@ -2740,6 +2741,7 @@ pub mod expression {
                             member_symbols,
                             head_symbol: path.head_symbol(),
                             symbol: path.symbol(),
+                            reserved_result_of: SymbolHandle::invalid(),
                         }))
                     }
                     Expression::Range(range) => {
@@ -4476,6 +4478,15 @@ pub mod expression {
         pub member_symbols: HandleSpan<SymbolHandle>,
         pub head_symbol: SymbolHandle,
         pub symbol: SymbolHandle,
+        /// The callable whose reserved `result` this name denotes, or invalid
+        /// when it denotes no result. Stage 02 sets it once, where it decides a
+        /// contract name is the reserved result occurrence
+        /// (`wiki/spec/terminal-psi/calls_and_outcomes.md`: "The reserved
+        /// result occurrence belongs to its contract owner, not any local or
+        /// parameter spelled `result`"), so a later reader takes the result
+        /// by this identity instead of comparing the spelling. `symbol` stays
+        /// invalid, as before, so readers of the spelling route are unchanged.
+        pub reserved_result_of: SymbolHandle,
     }
 
     impl TableNamePath {
@@ -4490,6 +4501,7 @@ pub mod expression {
                 member_symbols,
                 head_symbol,
                 symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }
         }
 

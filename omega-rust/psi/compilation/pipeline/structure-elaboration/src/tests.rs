@@ -3,7 +3,7 @@
 
 use semantic_vocabulary::{
     BlockId, IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, Proposition,
-    PsiSemanticId, ScalarType, ValueId,
+    PsiSemanticId, ScalarTerm, ScalarType, ValueId,
 };
 use terminal_check_tables::edges::Destination;
 use terminal_check_tables::obligations::ObligationKind;
@@ -478,5 +478,57 @@ fn a_value_machine_that_falls_off_its_end_is_refused() {
     assert_eq!(
         refusal.reason,
         terminal_check_tables::RefusalReason::Unsupported
+    );
+}
+
+/// `ensures result == 7` on `machine(x: u32) -> u32`: the result
+/// pseudo-value is value 2, right after the formal, with its own row; the
+/// clause names it and every exit owes the guarantee.
+#[test]
+fn ensures_over_result_name_the_result_pseudo_value() {
+    let result = ScalarTerm::Value {
+        id: id(2),
+        scalar_type: u32_type(),
+    };
+    let seven = ScalarTerm::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+        value: IntegerValue::Unsigned(7),
+    };
+    let clause = Proposition::Equal(result, seven);
+    let body = Body {
+        slots: vec![u32_type()],
+        statements: vec![returns(integer(7))],
+    };
+    let (machine, tables) = lower(
+        body,
+        vec![Signature {
+            ensures: vec![clause.clone()],
+            ..signature(vec![u32_type()], Some(u32_type()))
+        }],
+    );
+    let terminal_psi::TerminalMachineResult::Scalar(declared) = machine.result else {
+        panic!("a scalar machine")
+    };
+    assert_eq!(declared.id, id::<ValueId>(2));
+    let row = tables.values.get(declared.id).unwrap();
+    assert_eq!(
+        (row.origin, row.scalar_type),
+        (ValueOrigin::MachineResult, u32_type())
+    );
+    let [contract] = machine.contract.ensures.as_slice() else {
+        panic!("one clause")
+    };
+    assert_eq!(contract.proposition, clause);
+    assert_eq!(
+        tables.obligations.get(contract.obligation).unwrap().kind,
+        ObligationKind::NormalGuarantee {
+            exit: id(1),
+            clause: 0
+        }
+    );
+    // The literal 7 is the first body value, after the result.
+    assert_eq!(
+        tables.values.get(id(3)).unwrap().origin,
+        ValueOrigin::Operation(id(1))
     );
 }
