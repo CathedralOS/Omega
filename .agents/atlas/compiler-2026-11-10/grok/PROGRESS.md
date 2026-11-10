@@ -24,4 +24,4 @@ Launch refusals:
 
 Running agent ids are in `state/inflight.tsv`.
 
-Returned and not yet copied onto the branch (text is in the coordinator transcript): `b1_001`, `b1_002`, `b1_003`, `b1_004`, `b1_005`, `b1_006`, `C0001`, `C0002`, `unit_001`. Each of those returns ended with its completion line.
+Returned and not yet copied onto the branch (text is in the coordinator transcript): `b1_001`, `b1_002`, `b1_003`, `b1_004`, `b1_006`, `C0001`, `C0002`, `unit_001`. Each of those returns ended with its completion line.
