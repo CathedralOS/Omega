@@ -2333,6 +2333,10 @@ mod regions {
             Ordinary normal-return writes through a borrowed resident preserve its
             captured owner's qualifications. A nonresident content write can retain
             only an existing content-independent theory on the same descriptor.
+            A runtime element selection may name a concrete incoming row: its content
+            write leaves that row's descriptor unchanged whether selected or not. This
+            conditional preservation is not selector equality or a new membership;
+            fields, cases, roots and all other coordinates must still correspond.
             This retains an existing fact at that exact owner: it neither issues a
             qualification nor restores content observations. Borrowed-content
             checking must still restore every hole.
@@ -2378,7 +2382,27 @@ mod regions {
                 semantic.places.get(place),
             )
             .is_some_and(|place| {
-                if place.segments != owner.segments {
+                let same_segments = place.segments == owner.segments;
+                let selected_descriptor = matches!(self, Self::NonresidentContent { .. })
+                    && place.segments.len() == owner.segments.len()
+                    && place.segments.iter().chain(&owner.segments).all(|segment| {
+                        match *segment {
+                            facts::PlaceSegment::Index { expression } =>
+                                program.expression_table.expression_is_valid(expression)
+                                    && program.expression_table.range_node(expression).is_none(),
+                            facts::PlaceSegment::OpaqueRange => false,
+                            _ => !validation::storage_path_relations::place_segment_has_unresolved_identity(*segment),
+                        }
+                    })
+                    && place.segments.iter().zip(&owner.segments).all(|(left, right)| {
+                        validation::storage_path_relations::canonical_place_segments_equal(program, *left, *right)
+                            || (matches!(left, facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. })
+                                && matches!(right, facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. })
+                                && validation::storage_path_relations::canonical_place_segments_may_overlap(
+                                    program, std::slice::from_ref(left), std::slice::from_ref(right),
+                                ))
+                    });
+                if !same_segments && !selected_descriptor {
                     return false;
                 }
                 place.root == owner.root || matches!((place.root, owner.root),

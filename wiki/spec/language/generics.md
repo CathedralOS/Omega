@@ -38,7 +38,8 @@ remove a binder kind that its checked implementation may use.
 boundary trait Sorting {
     machine sort<T, Order satisfies Ordering<T>>(
         items: &mut [T]
-    );
+    )
+        crashes none;
 }
 ```
 

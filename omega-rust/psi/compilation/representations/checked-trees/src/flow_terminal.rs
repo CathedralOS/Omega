@@ -28,10 +28,103 @@ pub(crate) mod affine_cleanup_plans {
         pub actions: arena::Arena<CheckedNormalCleanupAction>,
         pub normal_exit_regions: arena::Arena<super::CheckedUnitStructuralArgumentPlan>,
         pub reference_owner_cleanups: arena::Arena<CheckedReferenceOwnerCleanup>,
+        pub partitions: arena::Arena<CheckedCleanupPartitionPlan>,
+        pub partition_nodes: arena::Arena<CheckedCleanupPartitionNode>,
+        pub partition_steps: arena::Arena<CheckedCleanupPartitionStep>,
+        pub partition_arms: arena::Arena<CheckedCleanupPartitionArm>,
+        pub partition_refs: arena::Arena<CheckedCleanupPartitionRef>,
+    }
+
+    /// Keep the proof that these cleanup actions finish this specific value.
+    /// The tree records which case-specific and shared actions must complete
+    /// before its branches join. The disposition identifies its exact source,
+    /// completion, storage version and excluded transfers.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CheckedCleanupPartitionPlan {
+        pub disposition: arena::Handle<crate::ContextualCleanupDisposition>,
+        pub source: CheckedUnitStructuralArgumentSourcePlan,
+        pub path: arena::HandleSpan<CheckedUnitStructuralPathSegment>,
+        pub type_identity: TypeIdentityId,
+        pub root: arena::Handle<CheckedCleanupPartitionNode>,
+        pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
+    }
+
+    impl Default for CheckedCleanupPartitionPlan {
+        fn default() -> Self {
+            Self {
+                disposition: Default::default(),
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    value_dependency: None,
+                    expression: arena::Handle::invalid(),
+                    logical_root_type_identity: None,
+                },
+                path: Default::default(),
+                type_identity: Default::default(),
+                root: Default::default(),
+                actions: Default::default(),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CheckedCleanupPartitionRef {
+        pub partition: arena::Handle<CheckedCleanupPartitionPlan>,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CheckedCleanupPartitionLeaf {
+        pub partition: arena::Handle<CheckedCleanupPartitionPlan>,
+        pub ordinal: u32,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CheckedCleanupPartitionStep {
+        pub node: arena::Handle<CheckedCleanupPartitionNode>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub enum CheckedCleanupPartitionNode {
+        Scope {
+            path: arena::HandleSpan<CheckedUnitStructuralPathSegment>,
+            type_identity: TypeIdentityId,
+            conditions: arena::HandleSpan<CheckedCleanupCaseCondition>,
+            steps: arena::HandleSpan<CheckedCleanupPartitionStep>,
+        },
+        Leaf {
+            ordinal: u32,
+        },
+        Cases {
+            path: arena::HandleSpan<CheckedUnitStructuralPathSegment>,
+            type_identity: TypeIdentityId,
+            arms: arena::HandleSpan<CheckedCleanupPartitionArm>,
+            common: arena::HandleSpan<CheckedCleanupPartitionStep>,
+        },
+    }
+
+    impl Default for CheckedCleanupPartitionNode {
+        fn default() -> Self {
+            Self::Leaf { ordinal: 0 }
+        }
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CheckedCleanupPartitionArm {
+        pub case_identity: CheckedMemberIdentity,
+        pub reachability: CheckedCleanupCaseReachability,
+        pub steps: arena::HandleSpan<CheckedCleanupPartitionStep>,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub enum CheckedCleanupCaseReachability {
+        #[default]
+        Runtime,
+        Selected,
+        Inactive,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedReferenceOwnerCleanup {
+        pub partitions: arena::HandleSpan<CheckedCleanupPartitionRef>,
         pub disposition: arena::Handle<crate::ContextualCleanupDisposition>,
         pub owner: super::CheckedUnitStructuralArgumentPlan,
         pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
@@ -138,6 +231,7 @@ pub(crate) mod affine_cleanup_plans {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedValueCompletionPlan {
+        pub partitions: arena::HandleSpan<CheckedCleanupPartitionRef>,
         pub machine: SymbolHandle,
         pub state: SymbolHandle,
         pub statement_index: u32,
@@ -154,15 +248,26 @@ pub(crate) mod affine_cleanup_plans {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedUnitPartialAffineDiscardPlan {
+        pub partition_leaf: CheckedCleanupPartitionLeaf,
         pub source: CheckedUnitStructuralArgumentSourcePlan,
         pub path: Vec<CheckedUnitStructuralPathSegment>,
         pub type_identity: TypeIdentityId,
         pub case_conditions: arena::HandleSpan<CheckedCleanupCaseCondition>,
     }
 
+    impl CheckedUnitPartialAffineDiscardPlan {
+        fn same_effect(&self, other: &Self) -> bool {
+            self.source == other.source
+                && self.path == other.path
+                && self.type_identity == other.type_identity
+                && self.case_conditions == other.case_conditions
+        }
+    }
+
     impl Default for CheckedUnitPartialAffineDiscardPlan {
         fn default() -> Self {
             Self {
+                partition_leaf: Default::default(),
                 source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                     value_dependency: None,
                     expression: arena::Handle::invalid(),
@@ -227,6 +332,7 @@ pub(crate) mod affine_cleanup_plans {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedUnitNominalAffineCleanupPlan {
+        pub partition_leaf: CheckedCleanupPartitionLeaf,
         pub consumed_claims: Vec<language_semantics::PermissionClaimIdentity>,
         pub source: CheckedUnitStructuralArgumentSourcePlan,
         pub path: Vec<CheckedUnitStructuralPathSegment>,
@@ -235,6 +341,20 @@ pub(crate) mod affine_cleanup_plans {
         pub cleanup_state: SymbolHandle,
         pub cleanup_contract_report_fingerprint: u64,
         pub case_conditions: arena::HandleSpan<CheckedCleanupCaseCondition>,
+    }
+
+    impl CheckedUnitNominalAffineCleanupPlan {
+        fn same_effect(&self, other: &Self) -> bool {
+            self.consumed_claims == other.consumed_claims
+                && self.source == other.source
+                && self.path == other.path
+                && self.type_identity == other.type_identity
+                && self.cleanup_machine == other.cleanup_machine
+                && self.cleanup_state == other.cleanup_state
+                && self.cleanup_contract_report_fingerprint
+                    == other.cleanup_contract_report_fingerprint
+                && self.case_conditions == other.case_conditions
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -283,6 +403,24 @@ pub(crate) mod affine_cleanup_plans {
     }
 
     impl CheckedNormalCleanupAction {
+        /// Compare the original action when locating its existing call schedule.
+        /// Full record equality also compares the retained partition association.
+        pub fn same_effect(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Self::Discard(left), Self::Discard(right)) => left.same_effect(right),
+                (Self::InvokeNominal(left), Self::InvokeNominal(right)) => left.same_effect(right),
+                _ => self == other,
+            }
+        }
+
+        pub fn partition_leaf(&self) -> CheckedCleanupPartitionLeaf {
+            match self {
+                Self::Discard(discard) => discard.partition_leaf,
+                Self::InvokeNominal(cleanup) => cleanup.partition_leaf,
+                Self::RetireHome { .. } => Default::default(),
+            }
+        }
+
         pub fn case_conditions(&self) -> arena::HandleSpan<CheckedCleanupCaseCondition> {
             match self {
                 Self::Discard(discard) => discard.case_conditions,
@@ -347,6 +485,7 @@ pub(crate) mod affine_cleanup_plans {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedNormalExitCleanupPlan {
+        pub partitions: arena::HandleSpan<CheckedCleanupPartitionRef>,
         pub selected_regions: arena::HandleSpan<super::CheckedUnitStructuralArgumentPlan>,
         pub exit: crate::FlowClaimJoinExit,
         pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
@@ -366,6 +505,7 @@ pub(crate) mod affine_cleanup_plans {
         Value {
             computation: crate::CheckedScalarComputationHandle,
             actions: arena::HandleSpan<CheckedNormalCleanupAction>,
+            partitions: arena::HandleSpan<CheckedCleanupPartitionRef>,
         },
         Dispatch {
             computation: crate::CheckedScalarComputationHandle,
@@ -378,6 +518,7 @@ pub(crate) mod affine_cleanup_plans {
             Self::Value {
                 computation: Default::default(),
                 actions: Default::default(),
+                partitions: Default::default(),
             }
         }
     }
@@ -2431,7 +2572,9 @@ pub(crate) use crate::flow_terminal_units::unit_effect_plans;
 pub(crate) use crate::flow_terminal_units::unit_plans;
 
 pub use affine_cleanup_plans::{
-    CheckedCleanupCaseCondition, CheckedCleanupControlPlans,
+    CheckedCleanupCaseCondition, CheckedCleanupCaseReachability, CheckedCleanupControlPlans,
+    CheckedCleanupPartitionArm, CheckedCleanupPartitionLeaf, CheckedCleanupPartitionNode,
+    CheckedCleanupPartitionPlan, CheckedCleanupPartitionRef, CheckedCleanupPartitionStep,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
     CheckedNormalCleanupAction, CheckedNormalCompletion, CheckedNormalExitCleanupPlan,
     CheckedNormalExitCleanups, CheckedNormalResultArm, CheckedNormalResultCompletion,

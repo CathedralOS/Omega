@@ -7984,10 +7984,16 @@ pub(crate) mod write_frames {
                 parameter.symbol.is_valid()
                     && match binders {
                         SignatureBinders::Monomorphic => false,
+                        // A machine binder selects code the callee may run, never
+                        // the storage type of a parameter, so the write footprint
+                        // read from the parameter list is the same for every
+                        // machine bound to it.
                         SignatureBinders::AppliedStorageParameters => {
                             matches!(
                                 parameter.kind,
-                                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                                TypeParameterKind::Type
+                                    | TypeParameterKind::Const { .. }
+                                    | TypeParameterKind::Machine { .. }
                             )
                         }
                         SignatureBinders::CallBinders => true,
@@ -22973,8 +22979,17 @@ pub(crate) mod write_frames {
         ) -> Option<symbols::SymbolHandle> {
             let assignment = statement.as_assignment()?;
             let target = FrameSourcePlace::from_expression(program, assignment.target);
+            // Only a `mut` parameter can be rebound. Without this check a write to
+            // a non-`mut` reference parameter moved to a generated mutable local
+            // and the assignment's own mutability rule never saw the parameter.
+            let declared_mut = program
+                .machine_states(machine)
+                .iter()
+                .flat_map(|state| program.state_parameters(state))
+                .any(|parameter| parameter.symbol == target.root && parameter.is_mutable);
             (target.root.is_valid()
                 && program.symbols.get(target.root).kind == SymbolKind::Parameter
+                && declared_mut
                 && replaces_binding(program, machine, statement)?)
             .then_some(target.root)
         }
@@ -39457,6 +39472,12 @@ pub(crate) mod write_frames {
                     (TypeParameterKind::Type, StaticMachineBindingValue::Type(actual))
                     | (TypeParameterKind::Const { .. }, StaticMachineBindingValue::Const(actual)) => {
                         *actual
+                    }
+                    // The application must still bind a machine here, but that
+                    // machine names no type a parameter could be written through,
+                    // so it contributes no storage binding.
+                    (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(_)) => {
+                        continue;
                     }
                     _ => return None,
                 };

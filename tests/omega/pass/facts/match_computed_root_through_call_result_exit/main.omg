@@ -10,7 +10,9 @@ requires counter == 0
     0
 }
 
-machine select<'a>(chosen: &'a mut [i64; 2], other: &'a mut [i64; 2], visits: &mut u64) -> &'a mut i64 {
+machine select<'a>(chosen: &'a mut [i64; 2], other: &'a mut [i64; 2], visits: &mut u64) -> &'a mut i64
+requires visits == 0
+{
     match chosen[compute(visits)] {
         17 -> &mut chosen[0]
         _ -> &mut other[0]

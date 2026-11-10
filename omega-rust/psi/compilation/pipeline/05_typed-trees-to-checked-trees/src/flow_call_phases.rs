@@ -1124,6 +1124,27 @@ mod invalidation {
                     contributions,
                 })
             });
+        if ::validation::trace_flags::call_write_trace() {
+            match writes.as_deref() {
+                Some(writes) => {
+                    for (ordinal, contribution) in writes.contributions.iter().enumerate() {
+                        eprintln!(
+                            "CALLWRITE contribution machine={} state={} statement={} call={} writer={ordinal} write={:?} observations={:?}",
+                            machine.name,
+                            state.name,
+                            borrow_call.statement_index,
+                            borrow_call.call_ordinal,
+                            contribution.write,
+                            contribution.observations,
+                        );
+                    }
+                }
+                None => eprintln!(
+                    "CALLWRITE contribution machine={} state={} statement={} call={} incomplete",
+                    machine.name, state.name, borrow_call.statement_index, borrow_call.call_ordinal,
+                ),
+            }
+        }
         build
             .call_sites
             .entry(occurrence)
@@ -1229,6 +1250,13 @@ mod invalidation {
             };
         }
         let invalidations_start = build.invalidations.events.frontier();
+        // Bound membership diagnostics per invocation; the complete writer roster is
+        // traced when prepared. Tracing never changes which contributions are checked.
+        let trace_rows = std::cell::Cell::new(if ::validation::trace_flags::call_write_trace() {
+            8usize
+        } else {
+            0
+        });
         let post_contexts = match writes {
             None => HandleSpan::empty(),
             Some(writes) => crate::flow::domain::filter_contexts_after_mutations(
@@ -1244,11 +1272,25 @@ mod invalidation {
                 },
                 |plan, fact, place| {
                     writes.contributions.iter().find_map(|contribution| {
-                        if contribution
+                        let preserved = contribution
                             .write
                             .region
-                            .preserves_owner_qualification(program, plan, fact, place)
+                            .preserves_owner_qualification(program, plan, fact, place);
+                        if trace_rows.get() > 0
+                            && let facts::FactPayload::DomainMembership { domain_symbol, semantic_domain, .. }
+                                | facts::FactPayload::ContractDomainMembership { domain_symbol, semantic_domain, .. } = fact.payload
                         {
+                            trace_rows.set(trace_rows.get() - 1);
+                            eprintln!(
+                                "CALLWRITE qualification statement={} call={} domain={domain_symbol:?} instance={semantic_domain:?} content_independent={} place={:?} segments={:?} region={:?} preserved={preserved}",
+                                borrow_call.statement_index, borrow_call.call_ordinal,
+                                crate::flow::domain::qualification_is_content_independent(program, domain_symbol),
+                                plan.places.get(place).root,
+                                plan.place_segments.span_or_empty(plan.places.get(place).segments),
+                                contribution.write.region,
+                            );
+                        }
+                        if preserved {
                             return None;
                         }
                         crate::flow::domain::matching_mutation_for_fact_place(

@@ -9467,6 +9467,51 @@ mod temporary_results {
             }
         }
 
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum ReceivingStorage {
+            Place(facts::PlaceHandle),
+            EvaluatedTarget(arena::Handle<checked_trees::FlowOperandFact>),
+        }
+
+        fn receiving_storage(
+            facts: checked_trees::CheckFactsRef<'_>,
+            row: &checked_trees::FlowStatementFact,
+            state: symbols::SymbolHandle,
+            statement: usize,
+            evaluation: checked_trees::FlowPermissionEvaluation,
+        ) -> Option<ReceivingStorage> {
+            if facts.semantic.places.is_valid(row.stored_destination) {
+                return Some(ReceivingStorage::Place(row.stored_destination));
+            }
+            if !facts.flow.control.operands.is_valid(row.store_target) {
+                return None;
+            }
+            let target = facts.flow.control.operands.get(row.store_target);
+            if target.state_symbol != state
+                || target.statement_index != statement
+                || target.evaluation != evaluation
+                || !target.expression.is_valid()
+            {
+                return None;
+            }
+            let referents = facts
+                .flow
+                .control
+                .operand_referents
+                .span(target.referents)?;
+            (!referents.is_empty()
+                && referents.iter().all(|referent| {
+                    referent.root.is_valid()
+                        && facts
+                            .flow
+                            .control
+                            .operand_referent_segments
+                            .span(referent.segments)
+                            .is_some()
+                }))
+            .then_some(ReceivingStorage::EvaluatedTarget(row.store_target))
+        }
+
         /*
             A retained store receives the actual completed value, including when its
             destination is borrowed storage with no caller-owned claim slot. Named
@@ -9502,16 +9547,23 @@ mod temporary_results {
                     .filter(|row| {
                         row.statement_index == statement
                             && facts.flow.control.operands.is_valid(row.stored_value)
-                            && facts.semantic.places.is_valid(row.stored_destination)
                     })
                 {
+                    // An evaluated destination can select one of several places.
+                    // Receiving the RHS does not require publishing a value-map
+                    // entry for every possible destination.
+                    let Some(destination) =
+                        receiving_storage(facts.view(), row, state, statement, evaluation)
+                    else {
+                        continue;
+                    };
                     let value = facts.flow.control.operands.get(row.stored_value);
                     if value.state_symbol != state || value.statement_index != statement {
                         return Err(diagnostics::Diagnostic::error(
                             "stored owner has a different completion coordinate",
                         ));
                     }
-                    let source = (value.expression, row.stored_destination);
+                    let source = (value.expression, destination);
                     crate::shared::collections::push_unique(&mut sources, source);
                 }
             }

@@ -83,7 +83,8 @@ an implementation parameter supplied by the caller:
 boundary trait Sorting {
     machine sort<T, Order satisfies Ordering<T>>(
         items: &mut [T]
-    );
+    )
+        crashes none;
 }
 ```
 

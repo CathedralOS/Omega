@@ -113,6 +113,7 @@ pub mod values {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct CheckedScalarComputationTemporaryCleanup {
+            pub partitions: HandleSpan<crate::CheckedCleanupPartitionRef>,
             pub argument_ordinal: Option<u32>,
             pub operand: Handle<crate::FlowOperandFact>,
             pub owner: crate::CheckedStructuralValueHandle,

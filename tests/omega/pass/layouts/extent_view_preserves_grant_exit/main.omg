@@ -13,6 +13,42 @@ boundary trait NativeAllocation {
 }
 data Roots { before:u64; storage:Extent in Granted; after:u64; }
 
+// Each slot owns its original descriptor. A write through one selected external
+// view must leave the qualifications of both descriptors available on return.
+data Slot { case Empty; case Held(storage:Extent in Granted); }
+data ArrayRoots { before:u64; slots:[Slot;2]; after:u64; }
+
+machine exchange_slot(slot:&mut Slot,value:u64)->u64 crashes Trap {
+ transition slot in Slot::Held {
+  true -> held(slot,value)
+  _ -> bad()
+ }
+ machine held(slot:&mut Slot,value:u64)->u64
+ requires slot in Slot::Held
+ { exchange(&mut slot.storage,value) }
+ machine bad()->u64 { crash Trap; }
+}
+
+machine exchange_selected(roots:&mut ArrayRoots,next:u64,value:u64)->u64
+requires next < 2
+crashes Trap
+{ exchange_slot(&mut roots.slots[next],value) }
+
+machine observe_slot(slot:&Slot)->bool crashes Trap {
+ transition slot in Slot::Held {
+  true -> held(slot)
+  _ -> false
+ }
+ machine held(slot:&Slot)->bool
+ requires slot in Slot::Held
+ { observe(&slot.storage) }
+}
+
+machine observe_selected(roots:&ArrayRoots,next:u64)->bool
+requires next < 2
+crashes Trap
+{ observe_slot(&roots.slots[next]) }
+
 machine seed(storage:&mut Extent in Granted) crashes Trap {
  transition Access::view_extent_mut<WordPlacement,Words,TestMemory>(storage) {
   AccessOutcome::Ready { view } -> initialize(view)
@@ -82,11 +118,35 @@ machine main() crashes Trap {
   let second:u64=exchange(&mut roots.storage,97);
   let contents:bool=observe(&roots.storage);
   transition first==41 && second==73 && contents && roots.before==991 && roots.after==997 && roots.storage.base==address && roots.storage.length==24 {
-   true -> finish(roots)
+   true -> arrays(roots)
    false -> bad()
   }
  }
- machine finish(roots:Roots) { ProcessExit::exit_process(0); }
+ machine arrays(original:Roots) {
+  let first_address:addr=NativeAllocation::allocate(3,8);
+  let second_address:addr=NativeAllocation::allocate(3,8);
+  transition first_address!=0 && second_address!=0 {
+   true -> allocated(original,first_address,second_address)
+   _ -> bad()
+  }
+  machine allocated(original:Roots,first_address:addr,second_address:addr) {
+   let mut first:Extent in Granted=ExtentRootProvider::grant(Extent {base:first_address,length:24});
+   let mut second:Extent in Granted=ExtentRootProvider::grant(Extent {base:second_address,length:24});
+   seed(&mut first);
+   seed(&mut second);
+   let mut roots:ArrayRoots=ArrayRoots {before:881,slots:[Slot::Held {storage:first},Slot::Held {storage:second}],after:887};
+   let first_previous:u64=exchange_selected(&mut roots,1,73);
+   let second_previous:u64=exchange_selected(&mut roots,0,97);
+   let third_previous:u64=exchange_selected(&mut roots,1,97);
+   let first_contents:bool=observe_selected(&roots,0);
+   let second_contents:bool=observe_selected(&roots,1);
+   transition first_previous==41 && second_previous==41 && third_previous==73 && first_contents && second_contents && roots.before==881 && roots.after==887 {
+    true -> finish(original,roots)
+    _ -> bad()
+   }
+  }
+ }
+ machine finish(roots:Roots,array_roots:ArrayRoots) { ProcessExit::exit_process(0); }
  machine bad() { crash Trap; }
 }
 

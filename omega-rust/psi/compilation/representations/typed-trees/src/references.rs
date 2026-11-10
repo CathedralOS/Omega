@@ -82,82 +82,7 @@ pub(crate) mod source_occurrences {
                 let mut roots = SourceCalls::default();
                 visit_program(self, &mut roots);
                 for (expression, owner) in roots.expressions {
-                    let Some(mut call) = self.expression_table.call_node(expression).cloned()
-                    else {
-                        continue;
-                    };
-                    let original_arguments = call.machine_arguments.clone();
-                    self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
-                    // An ordinary call still has a source application when its
-                    // static tuple is empty. Result evidence needs that exact
-                    // declaration and lexical owner too.
-                    let declaration = (!call.static_machine_parameter.is_valid()
-                        && !call.requirement_application.is_valid()
-                        && call.static_requirement_dispatch.is_none())
-                    .then(|| direct_declaration(self, call.target_symbol))
-                    .flatten();
-                    if call.authored_machine_application.is_valid() {
-                        let application = call.authored_machine_application;
-                        let retained = self
-                            .expression_table
-                            .static_machine_application_mut(application);
-                        if !retained.lexical_owner.is_valid() {
-                            retained.lexical_owner = owner;
-                        }
-                        if !retained.binding_declaration.is_valid()
-                            && let Some(declaration) = declaration
-                        {
-                            retained.binding_declaration = declaration;
-                        }
-                        self.retain_application_operand_sources(
-                            application,
-                            &original_arguments,
-                            &call.machine_arguments,
-                        )?;
-                        let ExpressionNode::Call(destination) =
-                            self.expression_table.expression_mut(expression)
-                        else {
-                            unreachable!("retaining operand sources does not replace its call");
-                        };
-                        destination.machine_arguments = call.machine_arguments;
-                        continue;
-                    }
-                    let namespace = self
-                        .expression_table
-                        .name_path_node(call.receiver)
-                        .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-                    if call.machine_arguments.is_empty()
-                        && !has_region_telescope(self, call.target_symbol)
-                        && !implementation_namespace(self, namespace)
-                        && declaration.is_none()
-                    {
-                        continue;
-                    }
-                    let application = self.expression_table.retain_static_machine_application(
-                        call.target_symbol,
-                        call.target,
-                        &call.machine_arguments,
-                    );
-                    let retained = self
-                        .expression_table
-                        .static_machine_application_mut(application);
-                    retained.lexical_owner = owner;
-                    if let Some(declaration) = declaration {
-                        retained.binding_declaration = declaration;
-                    }
-                    self.retain_application_operand_sources(
-                        application,
-                        &original_arguments,
-                        &call.machine_arguments,
-                    )?;
-                    let arguments = call.machine_arguments;
-                    let ExpressionNode::Call(call) =
-                        self.expression_table.expression_mut(expression)
-                    else {
-                        unreachable!("retaining a source application does not replace its call");
-                    };
-                    call.authored_machine_application = application;
-                    call.machine_arguments = arguments;
+                    self.retain_call_static_argument_context(expression, owner)?;
                 }
                 let statement_calls = self
                     .machines()
@@ -221,6 +146,95 @@ pub(crate) mod source_occurrences {
                     call.authored_machine_application = application;
                     call.machine_arguments = arguments;
                 }
+                Ok(())
+            }
+
+            /// Gives the call at `expression` the source application an
+            /// authored call has: its target, its static arguments and the
+            /// declaration `owner` whose names those arguments use.
+            ///
+            /// The program-wide pass above runs once. A stage that turns an
+            /// expression into a call afterwards uses this for that call, so
+            /// its result is judged like the same call written by hand.
+            pub fn retain_call_static_argument_context(
+                &mut self,
+                expression: crate::expression::ExpressionHandle,
+                owner: SymbolHandle,
+            ) -> Result<(), &'static str> {
+                let Some(mut call) = self.expression_table.call_node(expression).cloned() else {
+                    return Ok(());
+                };
+                let original_arguments = call.machine_arguments.clone();
+                self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
+                // An ordinary call still has a source application when its
+                // static tuple is empty. Result evidence needs that exact
+                // declaration and lexical owner too.
+                let declaration = (!call.static_machine_parameter.is_valid()
+                    && !call.requirement_application.is_valid()
+                    && call.static_requirement_dispatch.is_none())
+                .then(|| direct_declaration(self, call.target_symbol))
+                .flatten();
+                if call.authored_machine_application.is_valid() {
+                    let application = call.authored_machine_application;
+                    let retained = self
+                        .expression_table
+                        .static_machine_application_mut(application);
+                    if !retained.lexical_owner.is_valid() {
+                        retained.lexical_owner = owner;
+                    }
+                    if !retained.binding_declaration.is_valid()
+                        && let Some(declaration) = declaration
+                    {
+                        retained.binding_declaration = declaration;
+                    }
+                    self.retain_application_operand_sources(
+                        application,
+                        &original_arguments,
+                        &call.machine_arguments,
+                    )?;
+                    let ExpressionNode::Call(destination) =
+                        self.expression_table.expression_mut(expression)
+                    else {
+                        unreachable!("retaining operand sources does not replace its call");
+                    };
+                    destination.machine_arguments = call.machine_arguments;
+                    return Ok(());
+                }
+                let namespace = self
+                    .expression_table
+                    .name_path_node(call.receiver)
+                    .map_or_else(SymbolHandle::invalid, |path| path.symbol);
+                if call.machine_arguments.is_empty()
+                    && !has_region_telescope(self, call.target_symbol)
+                    && !implementation_namespace(self, namespace)
+                    && declaration.is_none()
+                {
+                    return Ok(());
+                }
+                let application = self.expression_table.retain_static_machine_application(
+                    call.target_symbol,
+                    call.target,
+                    &call.machine_arguments,
+                );
+                let retained = self
+                    .expression_table
+                    .static_machine_application_mut(application);
+                retained.lexical_owner = owner;
+                if let Some(declaration) = declaration {
+                    retained.binding_declaration = declaration;
+                }
+                self.retain_application_operand_sources(
+                    application,
+                    &original_arguments,
+                    &call.machine_arguments,
+                )?;
+                let arguments = call.machine_arguments;
+                let ExpressionNode::Call(call) = self.expression_table.expression_mut(expression)
+                else {
+                    unreachable!("retaining a source application does not replace its call");
+                };
+                call.authored_machine_application = application;
+                call.machine_arguments = arguments;
                 Ok(())
             }
 

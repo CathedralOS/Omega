@@ -222,9 +222,11 @@ mbx xtask corpus --record --filter <fixtures> < /dev/null
 # Run focused sample native + Psi gate:
 mbx xtask sample-gate --filter <sample_path> < /dev/null
 
-# Run repository rules, formatting, and boundary gates:
+# Run repository rules, formatting, lint, and boundary gates. CI fails a landing on
+# any Clippy warning, so lint every crate you touched before you push:
 mbx xtask check-rules --base origin/main --title "<lane>: <subject>"
 mbx xtask fmt --check
+mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
 
@@ -236,7 +238,9 @@ machine. Before the first build on a host you share with its owner or with
 other agents, apply the [host build budget](tools/build_slot.md): cap the total
 load of all agents so the machine never reaches 100%, run at the lowest
 operating-system priority on a workstation its owner is using, and write the
-budget into every worker prompt.
+budget into every worker prompt. On the test VMs, run one heavy job per machine
+and never change the settings of a job that is already running; the remote shim
+refuses a second build or corpus run while one is active.
 
 ## The Psi/Omega firewall
 

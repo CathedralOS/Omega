@@ -1,7 +1,9 @@
 # Fact transport
 
-Proposal, not ratified. Evidence measured on `main` at `d10c04d34d6`
-(2026-11-09). No compiler change or fixture outcome is claimed here.
+Evidence measured on `main` at `d10c04d34d6` (2026-11-09). No compiler change
+or fixture outcome is claimed here. The design section below is superseded by
+[check on the lowered form](check_on_lowered_form.md), which lists what this
+record got wrong; the evidence sections still stand.
 
 The Psi checker keeps forgetting what it already proved when a value moves:
 through a call, out of a field, past a write, into a case arm, around a loop or

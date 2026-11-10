@@ -1,0 +1,28 @@
+// A boundary requirement that takes a callback machine can write only what its
+// parameters reach, whichever machine the caller forwards to it. With an exclusive
+// reference argument it may write the cell, so what the caller proved about the
+// cell is gone after the call.
+public boundary trait Read {}
+public boundary trait Handler {
+    machine read() -> u64 reaches Read;
+}
+
+public boundary trait Registry {
+    machine register<machine Callback>(cell: &mut u64) -> u64
+    requires machine Callback satisfies Handler::read;
+    reaches
+    invokes Handler;
+}
+
+machine positive(cell: &u64) -> u64 requires cell > 0 { cell }
+
+machine caller<machine Selected>(value: u64) -> u64
+requires machine Selected satisfies Handler::read;
+requires value > 0
+reaches Registry + Read
+invokes Registry
+{
+    let mut cell: u64 = value;
+    let atom: u64 = Registry::register<Selected>(&mut cell);
+    positive(&cell)
+}

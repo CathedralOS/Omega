@@ -148,6 +148,17 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Owned cleanup consumers](designs/owned_cleanup.md): the machine selected
+  with `dropped by` takes its subject by value, and a consuming pattern in the
+  type's own package is what takes such a value apart; delete when the board
+  item lands.
+- [Case projection type](designs/case_projection_type.md): `Data::case` names
+  the case-only view that `case as name` binds, so a helper can accept it
+  behind a reference; delete when the board item lands.
+- [Open callable contracts](designs/open_callable_contracts.md): an omitted
+  `reaches` or `crashes` is open in every callable contract, and runtime
+  callable types and boundary requirements must write both; delete when the
+  board item lands.
 - [Named domain casts](designs/named_domain_casts.md): a type gains or loses
   a domain only through `as =Keep -Remove +Add`, which accounts for every
   attached domain; implicit weakening, annotation-attached domains and
@@ -188,10 +199,17 @@ Dated cost and failure evidence, superseded by a later run.
   execution custody, stepping, typed park and reply, and generators and tasks
   as libraries, in three stages; delete when the board item lands.
 
-- [Fact transport](designs/fact_transport.md): proposal, not ratified. One
-  place key, one overlap relation, one fact environment and one transport
-  operation per place, replacing the per-fact-kind carriers behind 202
-  "preserve / carry" PRs since 2026-11-01.
+- [Check on the lowered form](designs/check_on_lowered_form.md): architecture
+  decision. Elaborate typed trees to unsealed Terminal Psi by structure alone,
+  then check on that form, replacing Psi 05, validation and Psi 06 after one
+  proven route.
+
+- [What each stage may trust](designs/stage_trust.md): architecture decision
+  for every hand-off from source to executable. A fact without checked
+  evidence keeps its runtime check; "validated" means an independent check.
+
+- [Fact transport](designs/fact_transport.md): the evidence behind that
+  decision. Its design section is superseded; see the corrections there.
 
 - [Conditional callback carry](designs/conditional_callback_carry.md):
   migration and acceptance for one generic resource helper across synchronous

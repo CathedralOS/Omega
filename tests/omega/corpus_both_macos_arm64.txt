@@ -36,6 +36,7 @@ pass/borrows/opaque_incoming_nested_projected_array_result_exit built 11777ms ex
 pass/borrows/recast_suspension_branch_cleanup_exit built 5473ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
 pass/borrows/returned_slice_record_reference_custody_exit built 2464ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
 pass/borrows/runtime_byte_case_partial_cleanup_exit built 5746ms exit:0 interpreter-exit:0 interpreter:agrees @b31668d9a31f
+pass/borrows/runtime_indexed_scalar_descriptor_call built 2592ms exit:0 interpreter-exit:0 interpreter:agrees @fefef5f2c8a7
 pass/borrows/runtime_nested_byte_field_capture_exit built 1142ms exit:0 interpreter-exit:0 interpreter:agrees @cc9fb68fb407
 pass/borrows/runtime_reference_result_alias_case_payload_exit built 7010ms exit:0 interpreter-exit:0 interpreter:agrees @00e93f641615+wt
 pass/borrows/runtime_reference_result_case_payload_exit built 6928ms exit:0 interpreter-exit:0 interpreter:agrees @00e93f641615+wt
@@ -107,8 +108,10 @@ pass/calls/native_code_layout_uncalled_cycle_exit built 6601ms exit:0 interprete
 pass/calls/requires_machine_explicit_operational_closers_exit built 1338ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
 pass/calls/returned_nested_record_disjoint_field_move_exit built 1382ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
 pass/calls/returned_nested_record_newer_child_exit built 1292ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/calls/runtime_composed_index_case_pool_transition_exit built 97058ms exit:0 interpreter-exit:0 interpreter:agrees @0d7ffb4708e0
 pass/calls/runtime_guarded_reference_return_crash built 6701ms exit:signal signal:5 stdout:match stderr:match interpreter:trapped interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
 pass/calls/runtime_guarded_reference_return_machine_crash built 6678ms exit:signal signal:5 stdout:match stderr:match interpreter:trapped interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
+pass/calls/runtime_indexed_case_pool_transition_exit built 94221ms exit:0 interpreter-exit:0 interpreter:agrees @ca144d83595b
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit built 1389ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/calls/runtime_owned_state_scalar_field_store_exit built 13934ms exit:70 interpreter-exit:70 interpreter:agrees @33b180036351
 pass/calls/static_machine_required_input_crash_refinement_exit built 1270ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
@@ -122,6 +125,7 @@ pass/collections/element_view_indexed_read built 90352ms exit:181 interpreter-ex
 pass/collections/runtime_owned_array_projection_snapshot_exit built 5859ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @27c558b731f4
 pass/collections/runtime_vec_u32_growth_exit built 28025ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/collections/runtime_whole_array_value_copy_exit built 5604ms exit:70 interpreter-exit:70 interpreter:agrees @27c558b731f4
+pass/collections/typed_run_relocation_exit built 20075ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @96c6b89f7ad7
 pass/comptime/const_joint_ranked_call_component built 2540ms exit:0 interpreter-exit:0 interpreter:agrees @6416b0fdfbe3
 pass/constants/target_layout_derived_alignment_exit built 2709ms exit:0 interpreter-exit:0 interpreter:agrees @d6c89b306726
 pass/constants/target_layout_derived_ground_guarantee_exit built 2285ms exit:0 interpreter-exit:0 interpreter:agrees @d6c89b306726
@@ -1793,7 +1797,7 @@ pass/float/guarded_float_transition_range_exit built 7890ms exit:0 interpreter-e
 pass/float/hydrostatic_load_format_exit built 71812ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @0d0998b4be90
 pass/float/literal_indexed_float_field_read_exit built 74176ms exit:70 interpreter-exit:70 interpreter:agrees @0d0998b4be90
 pass/float/live_division_operand_across_call_exit built 4277ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
-pass/float/live_float_parameter_across_call_exit built 2865ms exit:0 interpreter-exit:0 interpreter:agrees @6c822102aed4
+pass/float/live_float_parameter_across_call_exit built 2595ms native-cpu-state-controls:match exit:0 interpreter-exit:0 interpreter:agrees @fefef5f2c8a7
 pass/float/local_after_float_call_store_exit built 74380ms exit:70 interpreter-exit:70 interpreter:agrees @0d0998b4be90
 pass/float/module_imported_policy_conversion_family_exit built 77502ms exit:2 interpreter-exit:2 interpreter:agrees @0d0998b4be90
 pass/float/named_constant_materialization_exit rejected 71115ms interpreter:unchecked @0d0998b4be90
@@ -1883,7 +1887,7 @@ pass/inline_asm/asm_memory_transfer_compile built 5618ms exit:0 interpreter-exit
 pass/inline_asm/asm_system_register_scalar_variants_compile incomplete 4039ms @0d0998b4be90
 	`read_thread` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `read_thread::entry`
 pass/layouts/authored_layout_query_names_exit built 5442ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
-pass/layouts/extent_view_preserves_grant_exit built 21859ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
+pass/layouts/extent_view_preserves_grant_exit built 7630ms exit:0 interpreter-exit:0 interpreter:agrees @b790c20c9878
 pass/layouts/fixed_layout_closed_requirement_policy_exit built 2844ms exit:0 interpreter-exit:0 interpreter:agrees @2ba727eefb59+wt
 pass/layouts/fixed_layout_computed_const_policy_exit built 2440ms exit:0 interpreter-exit:0 interpreter:agrees @2ba727eefb59+wt
 pass/layouts/fixed_layout_finite_dynamic_policy_exit built 2163ms exit:0 interpreter-exit:0 interpreter:agrees @2ba727eefb59+wt

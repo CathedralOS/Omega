@@ -3847,6 +3847,7 @@ mod reference_retirement {
                         return None;
                     };
                     completed.push(CheckedReferenceOwnerCleanup {
+                        partitions: Default::default(),
                         disposition: owner.disposition,
                         owner: CheckedUnitStructuralArgumentPlan {
                             projection_evaluations: Default::default(),
@@ -4128,7 +4129,6 @@ mod reference_retirement {
         use crate::borrow::owner_path_from_place_segments;
         use crate::borrow::place_path_covers_owner;
         use crate::execution::terminal_unit::types::dense_structural_parameter_index;
-        use crate::execution::terminal_unit::types::structural_parameter_candidate;
 
         fn storage_source(
             program: &dyn validation::CheckingInput,
@@ -4162,12 +4162,14 @@ mod reference_retirement {
             match source {
                 SourcePlan::StructuralLocal { symbol }
                 | SourcePlan::StructuralLocalBorrow { symbol, .. } => Some(*symbol),
-                SourcePlan::Parameter { parameter_index } => program
-                    .state_parameters(state)
-                    .iter()
-                    .filter(|parameter| structural_parameter_candidate(program, parameter))
-                    .nth(*parameter_index as usize)
-                    .map(|parameter| parameter.symbol),
+                SourcePlan::Parameter { parameter_index } => {
+                    validation::reference_result_custody::origin_formal(
+                        program,
+                        program.state_parameters(state),
+                        *parameter_index,
+                    )
+                    .map(|(_, parameter)| parameter.symbol)
+                }
                 _ => None,
             }
         }
@@ -7102,10 +7104,12 @@ mod result_consumption {
             }
             retired.push(result.binding_ordinal);
             pending.push(OperationPlan::ContinuationCleanup {
+                partitions: Default::default(),
                 selected_regions: Vec::new(),
                 boundary: CheckedUnitCleanupBoundary::StatementEntry { statement_index },
                 cleanup_actions: vec![CheckedNormalCleanupAction::Discard(
                     CheckedUnitPartialAffineDiscardPlan {
+partition_leaf: Default::default(),
                         source:
                             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                 binding_ordinal: result.binding_ordinal,
@@ -8406,10 +8410,12 @@ mod statement_call {
             operations.push(operation);
             if result.multiplicity == Multiplicity::Affine && !reference_result {
                 operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    partitions: Default::default(),
                     selected_regions: Vec::new(),
                     boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
                     cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
                         CheckedUnitPartialAffineDiscardPlan {
+                            partition_leaf: Default::default(),
                             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                 binding_ordinal: result.binding_ordinal,
                             },

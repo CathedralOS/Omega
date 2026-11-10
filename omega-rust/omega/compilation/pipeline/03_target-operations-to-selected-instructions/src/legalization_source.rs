@@ -777,7 +777,7 @@ pub(crate) mod scalar_graph {
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
             use scalar_graph_input::structural_case::{
-                membership_layout, structural_transport_layout,
+                membership_layout, source_result, structural_transport_layout,
             };
             use semantic_vocabulary::ScalarType;
 
@@ -808,8 +808,14 @@ pub(crate) mod scalar_graph {
                 if result.scalar_type != ScalarType::Boolean {
                     return Err(Error::custody());
                 }
-                let (case_tag, tag_byte_offset, elements) =
-                    membership_layout(optimized, *source, path, *case, plan)?;
+                let (case_tag, tag_byte_offset, elements) = membership_layout(
+                    optimized,
+                    *source,
+                    path,
+                    *case,
+                    plan,
+                    source_result(optimized, *source),
+                )?;
                 let indices = o!(optimized => unit => *psi_operation => &elements)?;
                 Ok(LegalizedScalarInstructionKind::StructuralCaseMembership {
                     source: *source,
@@ -2614,14 +2620,15 @@ pub(crate) mod scalar_graph {
         };
         pub(crate) fn project(
             node: &optimization_unit::OptimizationNode,
-            function: &optimization_unit::PsiOptimizationFunction,
+            function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             plan: &AbstractOperationPlan,
             native: &target_operations::TargetOperationPlan,
             unit: &optimization_unit::PsiOptimizationUnit,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
+            let function = function_inputs.function();
             let cleanup_calls = scalar_graph_input::cleanup_calls::expected(
                 &node.operation,
-                function,
+                function_inputs,
                 native,
                 plan,
                 unit,
@@ -2986,6 +2993,7 @@ pub(crate) mod scalar_graph {
         if optimized.blocks.len() != target.graph.blocks.len() {
             return Err(Error::custody());
         }
+        let function_inputs = crate::legalization_function_inputs::FunctionInputs::new(optimized);
         let blocks = optimized
             .blocks
             .iter()
@@ -3031,7 +3039,7 @@ pub(crate) mod scalar_graph {
                     parameters: block.parameters.clone(),
                     structural_parameters: block.structural_parameters.clone(),
                     instructions,
-                    terminator: terminator::project(last, optimized, plan, native, unit)?,
+                    terminator: terminator::project(last, &function_inputs, plan, native, unit)?,
                 })
             })
             .collect::<Result<Vec<_>, LegalizationError>>()?;

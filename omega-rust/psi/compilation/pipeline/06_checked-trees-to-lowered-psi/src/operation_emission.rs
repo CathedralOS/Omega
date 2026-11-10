@@ -1207,6 +1207,8 @@ pub(crate) mod buffer {
         pub(crate) arrival_claims: Vec<(PlaceId, Vec<terminal_psi::StructuralResultClaimBinding>)>,
         pub(crate) block_entry_claims: Vec<terminal_psi::EntryClaim>,
         pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
+        pub(crate) completed_cleanup_frontiers:
+            Vec<crate::emission::selected_continuations::CompletedCleanupFrontier>,
         pub(crate) selected_cleanup_groups:
             Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
         pub(crate) invocation_completion: Option<PendingInvocationCompletion>,
@@ -1585,6 +1587,7 @@ pub(crate) mod buffer {
                 claim_introductions: Vec::new(),
                 claim_edge_bindings: Vec::new(),
                 selected_cleanup_groups: Vec::new(),
+                completed_cleanup_frontiers: Vec::new(),
             }
         }
 

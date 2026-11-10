@@ -234,7 +234,8 @@ a trait declares a requirement for an implementation to satisfy:
 public boundary trait InterruptCompletion {
     machine complete(acknowledgement: InterruptAcknowledgement)
     reaches PortIo
-    requires acknowledgement in InterruptAcknowledgement::Pending;
+    requires acknowledgement in InterruptAcknowledgement::Pending
+    crashes none;
 }
 ```
 

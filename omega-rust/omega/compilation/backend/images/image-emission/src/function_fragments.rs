@@ -297,21 +297,30 @@ mod attribution {
         rows: &[SemanticCodeAttribution],
     ) -> Result<(), Error> {
         let ordinals = build_ordinal_index(source);
-        for (index, row) in rows.iter().enumerate() {
+        let physical = PhysicalSpans::prepare(fragment);
+        let attributed = AttributionRows::new(rows);
+        let mut previous_ends = std::collections::BTreeMap::new();
+        for row in rows {
             if lookup_ordinal(&ordinals, row.site)? != row.operation_ordinal
-                || rows[..index].iter().any(|previous| {
-                    previous.site == row.site
-                        && previous
-                            .code_offset
-                            .checked_add(previous.byte_count)
-                            .is_none_or(|end| end >= row.code_offset)
-                })
-                || !interval_is_exact(fragment, row)?
+                || previous_ends
+                    .get(&row.site)
+                    .is_some_and(|end| *end >= row.code_offset)
+                || !match &physical {
+                    Some(physical) => physical.interval_is_exact(row)?,
+                    None => interval_is_exact(fragment, row)?,
+                }
             {
                 return Err(Error::Mismatch(
                     "object semantic interval differs from its physical spans",
                 ));
             }
+            // Only accepted rows enter this prefix; their interval ends are finite.
+            previous_ends.insert(
+                row.site,
+                row.code_offset
+                    .checked_add(row.byte_count)
+                    .ok_or(Error::Overflow)?,
+            );
         }
         if !strictly_increasing(rows, |row| (row.operation_ordinal, row.code_offset)) {
             return Err(Error::Mismatch(
@@ -320,9 +329,8 @@ mod attribution {
         }
         for instruction in fragment.instructions() {
             let present = |site, offset, length| {
-                rows.iter().any(|row| {
-                    row.site == site
-                        && row.code_offset <= offset
+                attributed.at(site).iter().any(|row| {
+                    row.code_offset <= offset
                         && offset.checked_add(length).is_some_and(|end| {
                             row.code_offset
                                 .checked_add(row.byte_count)
@@ -425,9 +433,11 @@ mod attribution {
                 {
                     continue;
                 }
-                if !rows.iter().any(|row| {
-                    row.site == SemanticCodeSite::Edge(edge)
-                        && (supports(instruction, row.site, row.code_offset, row.byte_count)
+                if !attributed
+                    .at(SemanticCodeSite::Edge(edge))
+                    .iter()
+                    .any(|row| {
+                        supports(instruction, row.site, row.code_offset, row.byte_count)
                             || (supports(
                                 instruction,
                                 row.site,
@@ -437,13 +447,177 @@ mod attribution {
                                 && row
                                     .code_offset
                                     .checked_add(row.byte_count)
-                                    .is_some_and(|end| instruction_end <= end)))
-                }) {
+                                    .is_some_and(|end| instruction_end <= end))
+                    })
+                {
                     return Err(Error::Mismatch("object omits an attributed control edge"));
                 }
             }
         }
         Ok(())
+    }
+
+    struct AttributionRows<'inputs> {
+        rows: Vec<&'inputs SemanticCodeAttribution>,
+    }
+
+    impl<'inputs> AttributionRows<'inputs> {
+        fn new(rows: &'inputs [SemanticCodeAttribution]) -> Self {
+            let mut rows: Vec<_> = rows.iter().collect();
+            rows.sort_by_key(|row| row.site);
+            Self { rows }
+        }
+
+        fn at(&self, site: SemanticCodeSite) -> &[&'inputs SemanticCodeAttribution] {
+            let first = self.rows.partition_point(|row| row.site < site);
+            let count = self.rows[first..].partition_point(|row| row.site == site);
+            &self.rows[first..first + count]
+        }
+    }
+
+    struct PhysicalSpan<'inputs> {
+        instruction: &'inputs machine_code::FunctionFragmentInstructionSpan,
+        start: usize,
+        end: usize,
+    }
+
+    struct PhysicalSpans<'inputs> {
+        spans: Vec<PhysicalSpan<'inputs>>,
+        possible_sites: Vec<(SemanticCodeSite, usize)>,
+    }
+
+    // Canonical physical spans let interval checks visit only overlapping bytes.
+    // Other input shapes retain the original full scan and its error order.
+    impl<'inputs> PhysicalSpans<'inputs> {
+        fn prepare(fragment: &'inputs FunctionFragment) -> Option<Self> {
+            let mut spans = Vec::new();
+            let mut possible_sites = Vec::new();
+            let mut previous_end = 0;
+            for instruction in fragment.instructions() {
+                let start = host(instruction.offset).ok()?;
+                let end = start.checked_add(instruction.bytes.len())?;
+                if start < previous_end {
+                    return None;
+                }
+                previous_end = end;
+                let position = spans.len();
+                let mut record = |site| possible_sites.push((site, position));
+                for operation in &instruction.provenance.operations {
+                    record(SemanticCodeSite::Operation(*operation));
+                }
+                for edge in &instruction.provenance.edges {
+                    record(SemanticCodeSite::Edge(*edge));
+                }
+                match &instruction.control {
+                    Control::Crash { psi_edge, .. } => record(SemanticCodeSite::Edge(*psi_edge)),
+                    Control::HostedExitProcess { completion_edge } => {
+                        record(SemanticCodeSite::Edge(*completion_edge));
+                    }
+                    Control::Return { psi_return_edge } => {
+                        record(SemanticCodeSite::Edge(*psi_return_edge));
+                    }
+                    Control::Jump { successor } => {
+                        if let Some(edge) = successor.psi_edge {
+                            record(SemanticCodeSite::Edge(edge));
+                        }
+                    }
+                    Control::ConditionalBranch {
+                        when_taken,
+                        when_fallthrough,
+                        ..
+                    } => {
+                        for successor in [when_taken, when_fallthrough] {
+                            if let Some(edge) = successor.psi_edge {
+                                record(SemanticCodeSite::Edge(edge));
+                            }
+                        }
+                    }
+                    Control::InternalCall { owner, .. } => {
+                        if let Some(edge) = owner.edge() {
+                            record(SemanticCodeSite::Edge(edge));
+                        }
+                    }
+                    Control::NormalizedForeignCall {
+                        invocation_site, ..
+                    } => {
+                        if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) =
+                            invocation_site
+                        {
+                            record(SemanticCodeSite::Edge(*edge));
+                        }
+                    }
+                    Control::OperationTrap { .. } | Control::None => {}
+                }
+                spans.push(PhysicalSpan {
+                    instruction,
+                    start,
+                    end,
+                });
+            }
+            possible_sites.sort_by_key(|(site, _)| *site);
+            Some(Self {
+                spans,
+                possible_sites,
+            })
+        }
+
+        fn interval_is_exact(&self, row: &SemanticCodeAttribution) -> Result<bool, Error> {
+            if row.byte_count == 0 {
+                let first = self
+                    .possible_sites
+                    .partition_point(|(site, _)| *site < row.site);
+                return Ok(self.possible_sites[first..]
+                    .iter()
+                    .take_while(|(site, _)| *site == row.site)
+                    .any(|(_, position)| {
+                        supports(
+                            self.spans[*position].instruction,
+                            row.site,
+                            row.code_offset,
+                            0,
+                        )
+                    }));
+            }
+            let end = row
+                .code_offset
+                .checked_add(row.byte_count)
+                .ok_or(Error::Overflow)?;
+            let range = overlap_range(&self.spans, row.code_offset, end, |span| {
+                (span.start, span.end)
+            });
+            let mut minimum = usize::MAX;
+            let mut maximum = 0;
+            let mut covered = 0usize;
+            let mut found = false;
+            for span in &self.spans[range] {
+                if !supports(
+                    span.instruction,
+                    row.site,
+                    span.start,
+                    span.instruction.bytes.len(),
+                ) {
+                    return Ok(false);
+                }
+                found = true;
+                minimum = minimum.min(span.start);
+                maximum = maximum.max(span.end);
+                covered = covered
+                    .checked_add(span.instruction.bytes.len())
+                    .ok_or(Error::Overflow)?;
+            }
+            Ok(found && minimum == row.code_offset && maximum == end && covered == row.byte_count)
+        }
+    }
+
+    fn overlap_range<T>(
+        spans: &[T],
+        start: usize,
+        end: usize,
+        bounds: impl Fn(&T) -> (usize, usize),
+    ) -> std::ops::Range<usize> {
+        let first = spans.partition_point(|span| bounds(span).1 <= start);
+        let last = spans.partition_point(|span| bounds(span).0 < end);
+        first..last
     }
 
     fn supports(
@@ -541,6 +715,42 @@ mod attribution {
             }
         }
         Ok(found && minimum == row.code_offset && maximum == end && covered == row.byte_count)
+    }
+
+    #[cfg(test)]
+    mod interval_ranges {
+        use super::overlap_range;
+
+        #[test]
+        fn ordered_interval_ranges_match_direct_membership() {
+            let spans = [
+                (0usize, 0usize),
+                (0, 2),
+                (2, 2),
+                (2, 2),
+                (4, 7),
+                (7, 7),
+                (9, 10),
+            ];
+            for start in 0..=11 {
+                for end in start + 1..=12 {
+                    let expected: Vec<_> = spans
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, (span_start, span_end))| {
+                            *span_end > start && *span_start < end
+                        })
+                        .map(|(position, _)| position)
+                        .collect();
+                    let actual: Vec<_> = overlap_range(&spans, start, end, |span| *span).collect();
+                    assert_eq!(actual, expected, "range {start}..{end}");
+                }
+            }
+            assert_eq!(
+                overlap_range(&[] as &[(usize, usize)], 1, 2, |span| *span),
+                0..0
+            );
+        }
     }
 
     #[cfg(test)]
@@ -9852,6 +10062,7 @@ mod source {
             source: &AbstractOperation,
             target: &TargetFunction,
             selected: &SelectedFunction,
+            addresses: &mut super::placed_reference::AddressReplay<'_>,
         ) -> bool {
             let graph = &target.graph;
             match source {
@@ -9908,7 +10119,8 @@ mod source {
                         && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
                 }
                 AbstractOperation::StructuralCaseMembership { psi_operation, result, source, path, case } => {
-                    let mut observations = graph.operations().filter_map(|row| match row {
+                    let target_rows = addresses.case_operations(*psi_operation);
+                    let mut observations = target_rows.into_iter().filter_map(|row| match row {
                         TargetUnitOperation::StructuralCaseMembership { psi_operation: retained, result: retained_result, source: retained_source, path: retained_path, case: retained_case, tag_byte_offset, .. }
                             if retained == psi_operation && retained_result == result && retained_source == source && retained_path == path && retained_case == case => Some(*tag_byte_offset),
                         _ => None,
@@ -9916,14 +10128,20 @@ mod source {
                     let Some(tag_byte_offset) = observations.next() else { return false; };
                     result.scalar_type == semantic_vocabulary::ScalarType::Boolean
                         && observations.next().is_none()
-                        && selected.instructions().filter(|row|
+                        && {
+                        let instructions = addresses.operation_instructions(*psi_operation);
+                        instructions.into_iter().filter(|row|
                             row.provenance.operations == [*psi_operation] && row.provenance.values == [result.value]
                                 && match row.kind {
-                                    selected_instructions::SelectedInstructionKind::Load32 { byte_offset } => byte_offset == tag_byte_offset,
+                                    selected_instructions::SelectedInstructionKind::Load32 { .. } =>
+                                        super::placed_reference::case_tag_load_matches(
+                                            *psi_operation, *source, path, tag_byte_offset, row, addresses,
+                                        ).is_some(),
                                     selected_instructions::SelectedInstructionKind::ZeroExtendU32 => path.is_empty() && tag_byte_offset == 0,
                                     _ => false,
                                 }
                         ).count() == 1
+                        }
                 }
                 AbstractOperation::EstablishNativeCodeLayout { psi_operation, result, machine } => {
                     graph.operations().filter(|row| matches!(row,
@@ -12195,29 +12413,49 @@ mod source {
             producer: selected_instructions::SelectedInstructionId,
             consumer: selected_instructions::SelectedInstructionId,
         ) -> bool {
-            let producer_block = selected
-                .blocks
-                .iter()
-                .find(|block| block.instruction_index(producer).is_some());
-            let consumer_block = selected
-                .blocks
-                .iter()
-                .find(|block| block.instruction_index(consumer).is_some());
-            let (Some(producer_block), Some(consumer_block)) = (producer_block, consumer_block)
+            let producer = selected.blocks.iter().find_map(|block| {
+                block
+                    .instruction_index(producer)
+                    .map(|position| (block.id, position))
+            });
+            let consumer = selected.blocks.iter().find_map(|block| {
+                block
+                    .instruction_index(consumer)
+                    .map(|position| (block.id, position))
+            });
+            let (
+                Some((producer_block, producer_position)),
+                Some((consumer_block, consumer_position)),
+            ) = (producer, consumer)
             else {
                 return false;
             };
-            if producer_block.id == consumer_block.id {
-                return producer_block.instruction_index(producer)
-                    < consumer_block.instruction_index(consumer);
+            precedes_blocks(
+                selected,
+                producer_block,
+                producer_position,
+                consumer_block,
+                consumer_position,
+            )
+        }
+
+        fn precedes_blocks(
+            selected: &SelectedFunction,
+            producer_block: selected_instructions::SelectedBlockId,
+            producer_position: usize,
+            consumer_block: selected_instructions::SelectedBlockId,
+            consumer_position: usize,
+        ) -> bool {
+            if producer_block == consumer_block {
+                return producer_position < consumer_position;
             }
             let mut pending = vec![selected.entry_block];
             let mut visited = Vec::new();
             while let Some(block) = pending.pop() {
-                if block == producer_block.id || visited.contains(&block) {
+                if block == producer_block || visited.contains(&block) {
                     continue;
                 }
-                if block == consumer_block.id {
+                if block == consumer_block {
                     return false;
                 }
                 visited.push(block);
@@ -12233,11 +12471,167 @@ mod source {
             true
         }
 
+        #[derive(Clone, Copy)]
+        enum DefinitionOccurrence<'a> {
+            Missing,
+            Unique(&'a SelectedInstruction),
+            Repeated,
+        }
+
+        // Address checks distinguish ordinary output candidates from all defining
+        // rows. Retain both input associations while checking each use afresh.
+        struct SelectedAddressInputs<'a> {
+            selected: &'a SelectedFunction,
+            definitions: Vec<DefinitionOccurrence<'a>>,
+            ordinary_outputs: Vec<Vec<&'a SelectedInstruction>>,
+            operation_instructions: Vec<(OperationId, &'a SelectedInstruction)>,
+            locations: Vec<(selected_instructions::SelectedInstructionId, usize, usize)>,
+        }
+
+        impl<'a> SelectedAddressInputs<'a> {
+            fn new(selected: &'a SelectedFunction) -> Self {
+                let mut definitions =
+                    vec![DefinitionOccurrence::Missing; selected.virtual_registers.len()];
+                let mut ordinary_outputs = vec![Vec::new(); selected.virtual_registers.len()];
+                let mut last_defining_row = vec![None; selected.virtual_registers.len()];
+                let mut operation_instructions = Vec::new();
+                let mut locations = Vec::new();
+                let rows =
+                    selected
+                        .blocks
+                        .iter()
+                        .enumerate()
+                        .flat_map(|(block_position, block)| {
+                            block
+                                .instructions
+                                .iter()
+                                .enumerate()
+                                .map(move |(position, row)| (row, Some((block_position, position))))
+                                .chain(std::iter::once((
+                                    selected_instructions::terminator_instruction(
+                                        &block.terminator,
+                                    ),
+                                    None,
+                                )))
+                        });
+                for (ordinal, (row, location)) in rows.enumerate() {
+                    if let Some((block, position)) = location {
+                        locations.push((row.id, block, position));
+                        if let [operation] = row.provenance.operations.as_slice() {
+                            operation_instructions.push((*operation, row));
+                        }
+                    }
+                    if location.is_some()
+                        && let Some(register) = address_output(row)
+                        && let Some(outputs) = ordinary_outputs.get_mut(register.0 as usize)
+                    {
+                        outputs.push(row);
+                    }
+                    for operand in &row.operands {
+                        if !matches!(
+                            operand.access,
+                            RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+                        ) {
+                            continue;
+                        }
+                        let position = operand.virtual_register.0 as usize;
+                        let Some(last) = last_defining_row.get_mut(position) else {
+                            continue;
+                        };
+                        // The old predicate counted an instruction once even when
+                        // more than one of its operands defines this register.
+                        if *last == Some(ordinal) {
+                            continue;
+                        }
+                        *last = Some(ordinal);
+                        definitions[position] = match definitions[position] {
+                            DefinitionOccurrence::Missing => DefinitionOccurrence::Unique(row),
+                            _ => DefinitionOccurrence::Repeated,
+                        };
+                    }
+                }
+                operation_instructions.sort_by_key(|(operation, _)| *operation);
+                locations.sort_by_key(|(instruction, _, _)| *instruction);
+                Self {
+                    selected,
+                    definitions,
+                    ordinary_outputs,
+                    operation_instructions,
+                    locations,
+                }
+            }
+
+            fn occurrence(&self, register: VirtualRegisterId) -> Option<DefinitionOccurrence<'a>> {
+                self.definitions.get(register.0 as usize).copied()
+            }
+
+            fn precedes(
+                &self,
+                producer: selected_instructions::SelectedInstructionId,
+                consumer: selected_instructions::SelectedInstructionId,
+            ) -> bool {
+                let selected = self.selected;
+                let location = |instruction| {
+                    let position = self
+                        .locations
+                        .partition_point(|(id, _, _)| *id < instruction);
+                    self.locations
+                        .get(position)
+                        .filter(|(id, _, _)| *id == instruction)
+                        .map(|(_, block, position)| (*block, *position))
+                };
+                let (
+                    Some((producer_block, producer_position)),
+                    Some((consumer_block, consumer_position)),
+                ) = (location(producer), location(consumer))
+                else {
+                    return false;
+                };
+                precedes_blocks(
+                    selected,
+                    selected.blocks[producer_block].id,
+                    producer_position,
+                    selected.blocks[consumer_block].id,
+                    consumer_position,
+                )
+            }
+
+            fn unique(&self, register: VirtualRegisterId) -> Option<&'a SelectedInstruction> {
+                match self.occurrence(register)? {
+                    DefinitionOccurrence::Unique(row) => Some(row),
+                    _ => None,
+                }
+            }
+        }
+
+        fn address_output(row: &SelectedInstruction) -> Option<VirtualRegisterId> {
+            let output = match row.kind {
+                SelectedInstructionKind::FrameAddress { .. }
+                | SelectedInstructionKind::MaterializeI64 { .. } => 0,
+                SelectedInstructionKind::AddressOffset { .. }
+                | SelectedInstructionKind::Load64 { .. }
+                | SelectedInstructionKind::CopyI64 => 1,
+                SelectedInstructionKind::ByteViewAddress
+                | SelectedInstructionKind::WrappingMultiplyI64 => 2,
+                _ => return None,
+            };
+            operand(row, output)
+        }
+
         pub(super) fn source_value(
             selected: &SelectedFunction,
             register: VirtualRegisterId,
             consumer: &SelectedInstruction,
         ) -> Option<ValueId> {
+            let origin = selected.virtual_register(register)?.origin;
+            if !matches!(
+                origin,
+                VirtualRegisterOrigin::EntryParameter { .. }
+                    | VirtualRegisterOrigin::BlockParameter { .. }
+                    | VirtualRegisterOrigin::InstructionResult { .. }
+            ) {
+                return None;
+            }
             let mut definitions = all_instructions(selected).filter(|row| {
                 row.operands.iter().any(|operand| {
                     operand.virtual_register == register
@@ -12247,77 +12641,85 @@ mod source {
                         )
                 })
             });
-            match selected.virtual_register(register)?.origin {
-                VirtualRegisterOrigin::EntryParameter { source_value, .. }
-                    if definitions.next().is_none() =>
+            let occurrence = match (definitions.next(), definitions.next()) {
+                (None, _) => DefinitionOccurrence::Missing,
+                (Some(row), None) => DefinitionOccurrence::Unique(row),
+                _ => DefinitionOccurrence::Repeated,
+            };
+            resolved_source_value(
+                selected,
+                origin,
+                consumer,
+                occurrence,
+                |producer, consumer| precedes(selected, producer, consumer),
+            )
+        }
+
+        fn resolved_source_value(
+            selected: &SelectedFunction,
+            origin: VirtualRegisterOrigin,
+            consumer: &SelectedInstruction,
+            definition: DefinitionOccurrence<'_>,
+            comes_before: impl FnOnce(
+                selected_instructions::SelectedInstructionId,
+                selected_instructions::SelectedInstructionId,
+            ) -> bool,
+        ) -> Option<ValueId> {
+            match (origin, definition) {
+                (
+                    VirtualRegisterOrigin::EntryParameter { source_value, .. },
+                    DefinitionOccurrence::Missing,
+                ) => Some(source_value),
+                (
+                    VirtualRegisterOrigin::BlockParameter {
+                        source_value,
+                        block,
+                        ..
+                    },
+                    DefinitionOccurrence::Missing,
+                ) if selected
+                    .block(block)?
+                    .instruction_index(consumer.id)
+                    .is_some() =>
                 {
                     Some(source_value)
                 }
-                VirtualRegisterOrigin::BlockParameter {
-                    source_value,
-                    block,
-                    ..
-                } if definitions.next().is_none()
-                    && selected
-                        .block(block)?
-                        .instruction_index(consumer.id)
-                        .is_some() =>
-                {
-                    Some(source_value)
-                }
-                VirtualRegisterOrigin::InstructionResult {
-                    instruction,
-                    source_value,
-                } if definitions.next()?.id == instruction
-                    && definitions.next().is_none()
-                    && precedes(selected, instruction, consumer.id) =>
-                {
+                (
+                    VirtualRegisterOrigin::InstructionResult {
+                        instruction,
+                        source_value,
+                    },
+                    DefinitionOccurrence::Unique(row),
+                ) if row.id == instruction && comes_before(instruction, consumer.id) => {
                     Some(source_value)
                 }
                 _ => None,
             }
         }
 
-        fn definition(
-            selected: &SelectedFunction,
+        fn definition<'a>(
+            selected: &'a SelectedFunction,
+            inputs: &SelectedAddressInputs<'a>,
             operation: OperationId,
             register: VirtualRegisterId,
-        ) -> Option<&SelectedInstruction> {
-            let mut rows = selected.instructions().filter(|row| {
-                if !row.provenance.operations.contains(&operation)
-                    && !matches!(
-                        row.kind,
-                        SelectedInstructionKind::FrameAddress { .. }
-                            | SelectedInstructionKind::CopyI64
-                    )
-                {
-                    return false;
-                }
-                let output = match row.kind {
-                    SelectedInstructionKind::FrameAddress { .. }
-                    | SelectedInstructionKind::MaterializeI64 { .. } => 0,
-                    SelectedInstructionKind::AddressOffset { .. }
-                    | SelectedInstructionKind::Load64 { .. }
-                    | SelectedInstructionKind::CopyI64 => 1,
-                    SelectedInstructionKind::ByteViewAddress
-                    | SelectedInstructionKind::WrappingMultiplyI64 => 2,
-                    _ => return false,
-                };
-                operand(row, output) == Some(register)
-            });
+        ) -> Option<&'a SelectedInstruction> {
+            let mut rows = inputs
+                .ordinary_outputs
+                .get(register.0 as usize)?
+                .iter()
+                .copied()
+                .filter(|row| {
+                    row.provenance.operations.contains(&operation)
+                        || matches!(
+                            row.kind,
+                            SelectedInstructionKind::FrameAddress { .. }
+                                | SelectedInstructionKind::CopyI64
+                        )
+                });
             let (Some(row), None) = (rows.next(), rows.next()) else {
                 return None;
             };
-            let mut definitions = all_instructions(selected).filter(|instruction| {
-                instruction.operands.iter().any(|operand| {
-                    operand.virtual_register == register
-                        && matches!(
-                            operand.access,
-                            RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                        )
-                })
-            });
-            if definitions.next()?.id != row.id || definitions.next().is_some() {
+            if inputs.unique(register)?.id != row.id {
                 return None;
             }
             match selected.virtual_register(register)?.origin {
@@ -12332,19 +12734,27 @@ mod source {
 
         fn scaled_index(
             selected: &SelectedFunction,
+            inputs: &SelectedAddressInputs<'_>,
             operation: OperationId,
             register: VirtualRegisterId,
             consumer: &SelectedInstruction,
         ) -> Option<(ValueId, u64)> {
-            let row = definition(selected, operation, register)?;
+            let row = definition(selected, inputs, operation, register)?;
             if row.kind != SelectedInstructionKind::WrappingMultiplyI64
-                || !precedes(selected, row.id, consumer.id)
+                || !inputs.precedes(row.id, consumer.id)
             {
                 return None;
             }
-            let value = source_value(selected, operand(row, 0)?, row)?;
-            let stride = definition(selected, operation, operand(row, 1)?)?;
-            if !precedes(selected, stride.id, row.id) {
+            let value_register = operand(row, 0)?;
+            let value = resolved_source_value(
+                selected,
+                selected.virtual_register(value_register)?.origin,
+                row,
+                inputs.occurrence(value_register)?,
+                |producer, consumer| inputs.precedes(producer, consumer),
+            )?;
+            let stride = definition(selected, inputs, operation, operand(row, 1)?)?;
+            if !inputs.precedes(stride.id, row.id) {
                 return None;
             }
             let SelectedInstructionKind::MaterializeI64 {
@@ -12356,9 +12766,50 @@ mod source {
             Some((value, stride.try_into().ok()?))
         }
 
+        fn operation_rows<T>(
+            rows: &[(OperationId, T)],
+            operation: OperationId,
+        ) -> &[(OperationId, T)] {
+            let first = rows.partition_point(|(id, _)| *id < operation);
+            let end = rows.partition_point(|(id, _)| *id <= operation);
+            &rows[first..end]
+        }
+
+        struct AddressInputs<'a> {
+            selected: SelectedAddressInputs<'a>,
+            homes: super::structural_homes::HomeInputs<'a>,
+            case_operations: Vec<(OperationId, &'a TargetUnitOperation)>,
+        }
+
+        impl<'a> AddressInputs<'a> {
+            fn new(target: &'a TargetFunction, selected: &'a SelectedFunction) -> Self {
+                let mut case_operations: Vec<_> = target
+                    .graph
+                    .operations()
+                    .filter_map(|row| {
+                        if let TargetUnitOperation::StructuralCaseMembership {
+                            psi_operation, ..
+                        } = row
+                        {
+                            Some((*psi_operation, row))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                case_operations.sort_by_key(|(operation, _)| *operation);
+                Self {
+                    selected: SelectedAddressInputs::new(selected),
+                    homes: super::structural_homes::HomeInputs::new(target, selected),
+                    case_operations,
+                }
+            }
+        }
+
         pub(super) struct AddressReplay<'a> {
             target: &'a TargetFunction,
             selected: &'a SelectedFunction,
+            inputs: Option<AddressInputs<'a>>,
             spills: Option<super::spill_values::SpillValues<'a>>,
             failure: Option<&'static str>,
         }
@@ -12367,10 +12818,38 @@ mod source {
                 Self {
                     target,
                     selected,
+                    inputs: None,
                     spills: None,
                     failure: None,
                 }
             }
+            fn inputs(&mut self) -> &AddressInputs<'a> {
+                let target = self.target;
+                let selected = self.selected;
+                self.inputs
+                    .get_or_insert_with(|| AddressInputs::new(target, selected))
+            }
+
+            pub(super) fn operation_instructions(
+                &mut self,
+                operation: OperationId,
+            ) -> Vec<&'a SelectedInstruction> {
+                operation_rows(&self.inputs().selected.operation_instructions, operation)
+                    .iter()
+                    .map(|(_, row)| *row)
+                    .collect()
+            }
+
+            pub(super) fn case_operations(
+                &mut self,
+                operation: OperationId,
+            ) -> Vec<&'a TargetUnitOperation> {
+                operation_rows(&self.inputs().case_operations, operation)
+                    .iter()
+                    .map(|(_, row)| *row)
+                    .collect()
+            }
+
             fn at(
                 &mut self,
                 operation: OperationId,
@@ -12414,15 +12893,10 @@ mod source {
                         .get(parameter_index)?;
                     if parameter.semantic.place != place
                         || parameter.semantic.access == terminal_psi::StructuralAccess::Owned
-                        || all_instructions(selected).any(|instruction| {
-                            instruction.operands.iter().any(|operand| {
-                                operand.virtual_register == register
-                                    && matches!(
-                                        operand.access,
-                                        RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                                    )
-                            })
-                        })
+                        || !matches!(
+                            self.inputs().selected.occurrence(register)?,
+                            DefinitionOccurrence::Missing
+                        )
                     {
                         return None;
                     }
@@ -12433,15 +12907,21 @@ mod source {
                         indices: Vec::new(),
                     });
                 }
-                if let Some(address) = block_entry_pointer(target, selected, register, consumer) {
+                if let Some(address) = block_entry_pointer(
+                    target,
+                    selected,
+                    &self.inputs().selected,
+                    register,
+                    consumer,
+                ) {
                     return Some(address);
                 }
-                if let Some(load) = unique_definition(selected, register)
+                if let Some(load) = self.inputs().selected.unique(register)
                     && load.kind == (SelectedInstructionKind::Load64 { byte_offset: 0 })
                     && load.provenance == Default::default()
                 {
                     let pointer = operand(load, 0)?;
-                    if let Some(frame) = unique_definition(selected, pointer)
+                    if let Some(frame) = self.inputs().selected.unique(pointer)
                         && let SelectedInstructionKind::FrameAddress {
                             slot:
                                 FrameStorageSlotId::Local(
@@ -12458,8 +12938,8 @@ mod source {
                                     instruction: frame.id,
                                     register: stored,
                                 })
-                            || !precedes(selected, frame.id, load.id)
-                            || !precedes(selected, load.id, consumer.id)
+                            || !self.inputs().selected.precedes(frame.id, load.id)
+                            || !self.inputs().selected.precedes(load.id, consumer.id)
                             || !matches!(selected.virtual_register(register)?.origin,
                             VirtualRegisterOrigin::AbiTransport { instruction, .. }
                             | VirtualRegisterOrigin::StructuralObservation { instruction, .. }
@@ -12489,8 +12969,8 @@ mod source {
                         return self.address(operation, operand(writer, 0)?, remaining - 1, writer);
                     }
                 }
-                let row = definition(selected, operation, register)?;
-                if !precedes(selected, row.id, consumer.id) {
+                let row = definition(selected, &self.inputs().selected, operation, register)?;
+                if !self.inputs().selected.precedes(row.id, consumer.id) {
                     return None;
                 }
                 match row.kind {
@@ -12527,6 +13007,7 @@ mod source {
                             self.address(operation, operand(row, 0)?, remaining - 1, row)?;
                         result.indices.push(scaled_index(
                             selected,
+                            &self.inputs().selected,
                             operation,
                             operand(row, 1)?,
                             row,
@@ -12553,7 +13034,7 @@ mod source {
                 .proves(target.machine, result.place, source, correspondence)
                 .ok()?;
             let types = &target.graph.structural_types;
-            let (base, root) = address_root(target, selected, source)?;
+            let (base, root) = address_root(&addresses.inputs().homes, source.place)?;
             let mut destinations = selected
                 .local_storage_slots
                 .iter()
@@ -12662,12 +13143,11 @@ mod source {
         }
 
         fn address_root(
-            target: &TargetFunction,
-            selected: &SelectedFunction,
-            source: &StructuralArgument,
+            homes: &super::structural_homes::HomeInputs<'_>,
+            place: PlaceId,
         ) -> Option<(Address, semantic_vocabulary::StructuralTypeId)> {
-            use super::structural_homes::{SourceHome, resolve};
-            let (root, home) = resolve(target, selected, source.place).ok()?;
+            use super::structural_homes::SourceHome;
+            let (root, home) = homes.resolve(place).ok()?;
             let (base, loads) = match home {
                 SourceHome::Allocation { slot, indirect } => (
                     AddressBase::Allocation(slot),
@@ -12692,41 +13172,23 @@ mod source {
             ))
         }
 
-        fn unique_definition(
-            selected: &SelectedFunction,
-            register: VirtualRegisterId,
-        ) -> Option<&SelectedInstruction> {
-            let mut definitions = all_instructions(selected).filter(|row| {
-                row.operands.iter().any(|operand| {
-                    operand.virtual_register == register
-                        && matches!(
-                            operand.access,
-                            RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                        )
-                })
-            });
-            let (Some(row), None) = (definitions.next(), definitions.next()) else {
-                return None;
-            };
-            Some(row)
-        }
-
         fn block_entry_pointer(
             target: &TargetFunction,
             selected: &SelectedFunction,
+            inputs: &SelectedAddressInputs<'_>,
             register: VirtualRegisterId,
             consumer: &SelectedInstruction,
         ) -> Option<Address> {
-            let load = unique_definition(selected, register)?;
+            let load = inputs.unique(register)?;
             if load.kind != (SelectedInstructionKind::Load64 { byte_offset: 0 })
                 || load.provenance != Default::default()
                 || operand(load, 1) != Some(register)
-                || !precedes(selected, load.id, consumer.id)
+                || !inputs.precedes(load.id, consumer.id)
             {
                 return None;
             }
             let pointer = operand(load, 0)?;
-            let frame = unique_definition(selected, pointer)?;
+            let frame = inputs.unique(pointer)?;
             let SelectedInstructionKind::FrameAddress {
                 slot:
                     FrameStorageSlotId::Local(
@@ -12740,7 +13202,7 @@ mod source {
             if !super::structural_homes::thin_address_join(target, slot)?
                 || frame.provenance != Default::default()
                 || operand(frame, 0) != Some(pointer)
-                || !precedes(selected, frame.id, load.id)
+                || !inputs.precedes(frame.id, load.id)
             {
                 return None;
             }
@@ -12846,6 +13308,56 @@ mod source {
             })
         }
 
+        // A large tag displacement may move from the load into an earlier pointer
+        // adjustment. Check the resulting address against the same exact field
+        // or element, including reference crossings and runtime index values.
+        pub(super) fn case_tag_load_matches(
+            operation: OperationId,
+            place: PlaceId,
+            path: &[terminal_psi::StructuralPathSegment],
+            byte_offset: u32,
+            load: &SelectedInstruction,
+            addresses: &mut AddressReplay<'_>,
+        ) -> Option<()> {
+            addresses.failure = None;
+            let SelectedInstructionKind::Load32 {
+                byte_offset: displacement,
+            } = load.kind
+            else {
+                return None;
+            };
+            let target = addresses.target;
+            let (base, root) = address_root(&addresses.inputs().homes, place)?;
+            let geometry =
+                target_operations_to_selected_instructions::reference_formation_geometry(
+                    root,
+                    path,
+                    &target.graph.structural_types,
+                )?;
+            if !geometry.readable
+                || geometry.byte_offset != byte_offset
+                || geometry
+                    .pointer_slots
+                    .iter()
+                    .any(|slot| slot.scalar_descriptor)
+            {
+                return None;
+            }
+            let layout = crate::object::object_artifact::replay::structural::condition_layout::replay_structural_sum_layout(
+                geometry.selected.as_structural()?,
+                &target.graph.structural_types,
+            )?;
+            if layout.tag_byte_offset != 0
+                || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
+            {
+                return None;
+            }
+            let expected = geometry_address(base, &geometry, false)?;
+            let mut actual = addresses.at(operation, operand(load, 0)?, load)?;
+            actual.offset = actual.offset.checked_add(u64::from(displacement))?;
+            (actual == expected).then_some(())
+        }
+
         pub(super) fn borrowed_address_matches(
             operation: OperationId,
             source: &StructuralArgument,
@@ -12856,7 +13368,7 @@ mod source {
             addresses.failure = None;
             let target = addresses.target;
             let selected = addresses.selected;
-            let (base, root) = address_root(target, selected, source).ok_or_else(|| {
+            let (base, root) = address_root(&addresses.inputs().homes, source.place).ok_or_else(|| {
                 format!("borrowed pointer {:?} for {:?} has no unique source home; parameter={:?}; allocation={:?}", register, source,
                     target.graph.parameters.iter().find(|row| row.place == source.place),
                     selected.local_storage_slots.iter().find(|row| row.id.structural_place() == Some(source.place)))
@@ -17672,12 +18184,89 @@ mod source {
             BorrowedFormal(PlaceId),
         }
 
+        pub(super) struct HomeInputs<'a> {
+            target: &'a TargetFunction,
+            roots: Vec<(PlaceId, Option<LocalStorageSlotId>, StructuralTypeId)>,
+            allocations: Vec<(PlaceId, &'a selected_instructions::SelectedLocalStorageSlot)>,
+        }
+
+        impl<'a> HomeInputs<'a> {
+            pub(super) fn new(target: &'a TargetFunction, selected: &'a SelectedFunction) -> Self {
+                let mut roots: Vec<_> = target
+                    .graph
+                    .operations()
+                    .filter_map(|row| {
+                        row.structural_result_home().map(|(producer, home)| {
+                            (
+                                home.place(),
+                                Some(LocalStorageSlotId::Structural {
+                                    operation: producer,
+                                    place: home.place(),
+                                }),
+                                home.structural_type(),
+                            )
+                        })
+                    })
+                    .chain(target.graph.parameters.iter().map(|row| {
+                        (
+                            row.place,
+                            (row.access == terminal_psi::StructuralAccess::Owned).then_some(
+                                LocalStorageSlotId::StructuralParameter { place: row.place },
+                            ),
+                            row.structural_type,
+                        )
+                    }))
+                    .chain(target.graph.blocks.iter().flat_map(|block| {
+                        block.structural_parameters.iter().map(|row| {
+                            (
+                                row.place,
+                                Some(LocalStorageSlotId::StructuralBlockParameter {
+                                    block: block.block,
+                                    place: row.place,
+                                }),
+                                row.structural_type,
+                            )
+                        })
+                    }))
+                    .collect();
+                roots.sort_by_key(|(place, _, _)| *place);
+                let mut allocations: Vec<_> = selected
+                    .local_storage_slots
+                    .iter()
+                    .filter_map(|slot| slot.id.structural_place().map(|place| (place, slot)))
+                    .collect();
+                allocations.sort_by_key(|(place, _)| *place);
+                Self {
+                    target,
+                    roots,
+                    allocations,
+                }
+            }
+
+            pub(super) fn resolve(
+                &self,
+                place: PlaceId,
+            ) -> Result<(StructuralTypeId, SourceHome), &'static str> {
+                let first = self.roots.partition_point(|(id, _, _)| *id < place);
+                let end = self.roots.partition_point(|(id, _, _)| *id <= place);
+                let roots = self.roots[first..end]
+                    .iter()
+                    .map(|(_, producer, ty)| (*producer, *ty));
+                let first = self.allocations.partition_point(|(id, _)| *id < place);
+                let end = self.allocations.partition_point(|(id, _)| *id <= place);
+                let allocations = self.allocations[first..end]
+                    .iter()
+                    .map(|(_, allocation)| *allocation);
+                resolve_candidates(self.target, place, roots, allocations)
+            }
+        }
+
         pub(super) fn resolve(
             target: &TargetFunction,
             selected: &SelectedFunction,
             place: PlaceId,
         ) -> Result<(StructuralTypeId, SourceHome), &'static str> {
-            let mut roots = target
+            let roots = target
                 .graph
                 .operations()
                 .filter_map(|row| {
@@ -17722,16 +18311,25 @@ mod source {
                             )
                         })
                 }));
+            let allocations = selected
+                .local_storage_slots
+                .iter()
+                .filter(|slot| slot.id.structural_place() == Some(place));
+            resolve_candidates(target, place, roots, allocations)
+        }
+
+        fn resolve_candidates<'a>(
+            target: &TargetFunction,
+            place: PlaceId,
+            mut roots: impl Iterator<Item = (Option<LocalStorageSlotId>, StructuralTypeId)>,
+            mut allocations: impl Iterator<Item = &'a selected_instructions::SelectedLocalStorageSlot>,
+        ) -> Result<(StructuralTypeId, SourceHome), &'static str> {
             let (producer, root) = roots
                 .next()
                 .ok_or("source place has no declaration or result home")?;
             if roots.next().is_some() {
                 return Err("source place has multiple declarations or result homes");
             }
-            let mut allocations = selected
-                .local_storage_slots
-                .iter()
-                .filter(|slot| slot.id.structural_place() == Some(place));
             let allocation = allocations.next();
             if allocations.next().is_some() {
                 return Err("source place has multiple allocated homes");
@@ -18225,7 +18823,7 @@ mod source {
                         result: AbstractStructuralCallResult::Structural { .. },
                         ..
                     }
-                    | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),
+                    | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected, &mut addresses),
                     AbstractOperation::EstablishPrimitiveLocal { .. }
                     | AbstractOperation::PrimitiveLocalStore { .. } => {
                         super::structural::primitive_operation_retained(abstracted, selected, operation)

@@ -145,9 +145,25 @@ cast, put parentheses around a cast before doing arithmetic on it:
 
 Owned claims need consumption or transfer, not a cast, and access restrictions
 remain attached to governed storage even when its displayed type omits the
-domain. Through a mutable reference a cast can remove only predicate-only
-domains, and their conditions must hold again before the loan ends. See
-[domain casts](../spec/language/domains.md#domain-casts).
+domain.
+
+The same cast works on a reference, so a helper can take a plainer view of
+your value. Through `&mut` you may remove a domain only if you could add it
+back yourself, because that is what happens when the loan ends:
+
+```omega
+machine reset(n: &mut i32) ensures n == 1 { n = 1; }
+
+let mut trip: i32 in Km & Positive = 5 as +Km +Positive;
+reset(&mut trip as -Km -Positive);
+```
+
+Afterwards `trip` is `i32 in Km & Positive` again without another cast. `Km`
+comes back for free. `Positive` must be proved for the new contents, here by
+`reset`'s guarantee; if the helper proves nothing, repair the value yourself
+before using it. A domain with an authorized establishment route cannot be
+removed this way outside that route, since you could not add it back. See
+[domain casts](../spec/language/domains.md#mutable-views).
 
 ## Defaults and zero
 

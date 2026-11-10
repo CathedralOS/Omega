@@ -302,9 +302,11 @@ required on the returning branch.
 
 ## Nominal cleanup
 
-The exact independently declared static cleanup target is a compiler-owned edge
-dependency with an explicit mutable value parameter, not a data-owned method,
-source-selectable call or static-machine value. Legacy `T::drop` attachment and
+The exact independently declared static cleanup target is an ordinary static
+machine whose one parameter takes the subject by value under
+[`owned-cleanup-consumer`](../language/ownership.md#consumers-and-cleanup). It
+is not a data-owned method. The cleanup edge retains it as an exact dependency
+and transfers the subject's ownership to it. Legacy `T::drop` attachment and
 name discovery are not accepted. Source
 [`dropped by` composition](../language/domains.md#domain-selected-automatic-cleanup)
 supplies the unique owner-authorized machine application and retained qualified
@@ -325,12 +327,22 @@ no call; executable cleanup belongs to its edge/action ordinal and runs before
 teardown. The [normal cleanup contract](calls_and_outcomes.md#normal-cleanup)
 owns sequential execution and suspension.
 
-A parent invocation retains its intact subject while its checked descendant
-disposal partition remains pending. That retention is explicit action data,
+A nominal invocation is an ordinary owned-call transfer of its exact subject
+to the target, with the same argument correspondence, claim rebasing, carry
+and outcome accounting as a source call, and it does not relocate a subject
+whose carry forbids relocation. The subject keeps its nominal disposition
+inside the target until an authorized consuming decomposition retires it and
+partitions the subject into component claims. A verifier re-establishes that
+authorization from the retained declaration-package identity or the exact
+cleanup selection, and re-derives the partition; a producer-supplied marker is
+not evidence. Obligations held independently of the nominal disposition
+continue through the resulting claims. The transfer is explicit action data,
 not inferred from the next action on the same edge: selected child cleanup may
-cross ordinary control blocks. A leaf invocation consumes its exact region.
-Neither retention nor case selection settles child claims or retires a home;
-the complete disposal partition must finish before explicit home retirement.
+cross ordinary control blocks. Neither the transfer nor case selection settles
+child claims or retires a home; the complete disposal partition must finish
+before explicit home retirement. Budget exhaustion inside a begun invocation
+resumes that invocation without transferring the subject or charging a
+committed action again.
 
 Cleanup prerequisites must already be proved locally or authored in `requires`;
 analysis cannot add a new caller demand. When the hook's value parameter is

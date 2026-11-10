@@ -16,7 +16,9 @@ type object.
 data Reader<'a, some S> {
     state: &'a mut S;
     read: machine(state: &mut S, output: &mut [u8]) -> u64
-        ensures result <= output.len;
+        ensures result <= output.len
+        reaches none
+        crashes none;
 }
 ```
 
@@ -158,7 +160,11 @@ is any stored operation taking the owner by value. There is no terminal-consumer
 spelling, and a package may offer several, such as `run` and `cancel`. Owning
 packages are `[linear]`. Packing preserves the hidden state's resident custody,
 contained loans, zero-sized obligations, storage claims, carry demands and code
-dependencies, and storing a consuming operation admits no automatic cleanup. A
+dependencies, and storing a consuming operation admits no automatic cleanup by
+itself. The package's owner may select an ordinary cleanup machine with
+`dropped by` that takes the package apart with a consuming pattern, opens its
+witness and calls a stored consuming operation on the hidden owner; its eligibility is checked from that operation's callable
+contract, and the package stays `[linear]`. A
 pending or failure outcome returns the remaining ownership as a package exposing
 only the operations valid in that state, under
 [consumers and cleanup](ownership.md#consumers-and-cleanup).

@@ -1817,10 +1817,11 @@ pub(crate) mod contextual_cleanup {
                 place: &CanonicalPlace,
             ) -> Option<ScalarValue> {
                 if self.opaque_write
-                    || self
-                        .writes
-                        .iter()
-                        .any(|write| overlaps(program, place, write))
+                    || self.writes.iter().any(|write| {
+                        ::validation::storage_path_relations::canonical_places_may_overlap(
+                            program, place, write,
+                        )
+                    })
                 {
                     return None;
                 }
@@ -1835,10 +1836,13 @@ pub(crate) mod contextual_cleanup {
             ) -> bool {
                 !self.opaque_write
                     && predicate.bindings.iter().all(|binding| {
-                        !self
-                            .writes
-                            .iter()
-                            .any(|write| overlaps(program, &binding.place, write))
+                        !self.writes.iter().any(|write| {
+                            ::validation::storage_path_relations::canonical_places_may_overlap(
+                                program,
+                                &binding.place,
+                                write,
+                            )
+                        })
                     })
             }
 
@@ -1897,9 +1901,13 @@ pub(crate) mod contextual_cleanup {
                     });
                     self.guarantees.retain(|predicate| {
                         predicate.bindings.iter().all(|binding| {
-                            !writes
-                                .iter()
-                                .any(|write| overlaps(program, &binding.place, write))
+                            !writes.iter().any(|write| {
+                                ::validation::storage_path_relations::canonical_places_may_overlap(
+                                    program,
+                                    &binding.place,
+                                    write,
+                                )
+                            })
                         })
                     });
                     self.writes.extend(writes);
@@ -2043,19 +2051,6 @@ pub(crate) mod contextual_cleanup {
                 root: place.root,
                 segments,
             })
-        }
-
-        fn overlaps(
-            program: &dyn ::validation::CheckingInput,
-            left: &CanonicalPlace,
-            right: &CanonicalPlace,
-        ) -> bool {
-            left.root == right.root
-                && flow::canonical_place_segments_may_overlap(
-                    program,
-                    &left.segments,
-                    &right.segments,
-                )
         }
 
         #[derive(Clone)]

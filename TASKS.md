@@ -89,6 +89,14 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
 
+- **CASE-TYPE.** Implement the [case projection type](wiki/drafts/designs/case_projection_type.md).
+
+- **SUBSTITUTABLE-SERVICES.** Add the two-wrapper provider fixture and a clock ops bridge per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
+
+- **OWNED-CLEANUP.** Implement [by-value cleanup](wiki/drafts/designs/owned_cleanup.md).
+
+- **OPEN-CALLABLE-CONTRACTS.** Close [callable contracts](wiki/drafts/designs/open_callable_contracts.md) at runtime and boundary positions.
+
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.
   - Add the crash row (public omission means none, private inference, requirement deferral, `crashes none` enforcement, per-cause routes) and the termination row (binder premises on authored `terminates`).

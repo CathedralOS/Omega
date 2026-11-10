@@ -74,6 +74,7 @@ use terminal_psi::{
 pub(crate) use optimization_core::codec_bytes;
 
 mod construction;
+mod dominance;
 mod graph;
 mod identity;
 mod ledger;
@@ -89,6 +90,7 @@ pub use construction::{
     OptimizationUnitBuildError, operation_definition, operation_ownership, operation_uses,
     reconstruct_psi_optimization_function_seed, reconstruct_psi_optimization_unit_seed,
 };
+pub use dominance::{DominatorSet, DominatorSets};
 pub use graph::{
     CycleComponentEdge, CycleComponentId, EffectLink, OptimizationBlock, OptimizationEdge,
     OptimizationFact, OptimizationNode, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,

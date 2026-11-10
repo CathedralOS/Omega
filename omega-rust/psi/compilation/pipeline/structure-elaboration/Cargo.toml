@@ -1,0 +1,25 @@
+[package]
+name = "structure-elaboration"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "structure_elaboration"
+path = "src/lib.rs"
+
+# Reads frozen typed trees (Psi 04 output) and writes unsealed Terminal Psi
+# plus the check tables. It must never depend on Psi 05, validation, Psi 06 or
+# checked trees: it proves nothing and reads no checker fact.
+[dependencies]
+arena = { path = "../../../foundation/arena" }
+language-core = { path = "../../../foundation/language-core" }
+language-semantics = { path = "../../../foundation/language-semantics" }
+numerics = { path = "../../../foundation/numerics" }
+semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
+source = { path = "../../../foundation/source" }
+symbols = { path = "../../../foundation/symbols" }
+terminal-check-tables = { path = "../../representations/terminal-psi/check-tables" }
+terminal-codec = { path = "../../representations/terminal-psi/codec" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+typed-trees = { path = "../../representations/typed-trees" }

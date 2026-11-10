@@ -719,6 +719,7 @@ pub(crate) mod affine_cleanup {
         }
 
         pub(crate) fn complete(
+            completed_cleanup_frontiers: &[super::super::selected_continuations::CompletedCleanupFrontier],
             parameters: &[StructuralParameterDeclaration],
             local_places: &[StructuralPlaceDeclaration],
             entry: BlockId,
@@ -726,6 +727,9 @@ pub(crate) mod affine_cleanup {
             types: &[StructuralTypeDeclaration],
             extractions: &[(OperationId, StructuralArgument)],
         ) -> Result<(), LoweringError> {
+            let completions = super::super::selected_continuations::CleanupCompletionIndex::new(
+                completed_cleanup_frontiers,
+            )?;
             let copied_roots = copied_operand_roots(parameters, blocks);
             if partitioned_roots(blocks, extractions, &copied_roots).is_empty() {
                 return Ok(());
@@ -755,6 +759,17 @@ pub(crate) mod affine_cleanup {
             let mut incoming = vec![None; blocks.len()];
             let entry = block_position(blocks, entry)?;
             incoming[entry] = Some(Vec::new());
+            // Keep each saved frontier through every possible join comparison.
+            // Once its block is processed and no predecessor can arrive again,
+            // its paths are scratch storage with no remaining reader.
+            let mut key_lifetimes =
+                super::super::selected_continuations::IncomingKeyLifetimes::for_emitted_blocks(
+                    blocks,
+                );
+            if let Some(lifetimes) = &mut key_lifetimes {
+                lifetimes.discover(entry);
+                lifetimes.close_unused_roots();
+            }
             let mut ready = VecDeque::from([entry]);
             let mut completed = blocks
                 .iter()
@@ -823,6 +838,7 @@ pub(crate) mod affine_cleanup {
                 let mut successors = Vec::new();
                 match &mut completed[position] {
                     Terminator::Jump {
+                        edge,
                         target,
                         structural_arguments,
                         cleanup_actions,
@@ -832,7 +848,7 @@ pub(crate) mod affine_cleanup {
                             transfer(&mut frontier, argument, &copied_roots)?;
                         }
                         complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
-                        successors.push((*target, frontier));
+                        successors.push((*edge, *target, frontier));
                     }
                     Terminator::Conditional {
                         when_true,
@@ -850,7 +866,7 @@ pub(crate) mod affine_cleanup {
                                 &roots,
                                 types,
                             )?;
-                            successors.push((edge.target, branch));
+                            successors.push((edge.edge, edge.target, branch));
                         }
                     }
                     Terminator::StructuralCase {
@@ -874,7 +890,7 @@ pub(crate) mod affine_cleanup {
                                 &roots,
                                 types,
                             )?;
-                            successors.push((edge.target, branch));
+                            successors.push((edge.edge, edge.target, branch));
                         }
                     }
                     terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
@@ -902,7 +918,10 @@ pub(crate) mod affine_cleanup {
                     }
                     Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
                 }
-                for (target, mut outgoing) in successors {
+                for (edge, target, mut outgoing) in successors {
+                    for completion in completions.at(edge) {
+                        normalize_completed_frontier(&mut outgoing, completion);
+                    }
                     let target = block_position(blocks, target)?;
                     outgoing.retain(|root| {
                         !blocks[target]
@@ -918,9 +937,18 @@ pub(crate) mod affine_cleanup {
                         }
                         Some(_) => {}
                         None => {
+                            if let Some(lifetimes) = &mut key_lifetimes {
+                                lifetimes.discover(target);
+                            }
                             incoming[target] = Some(outgoing);
                             ready.push_back(target);
                         }
+                    }
+                }
+                if let Some(lifetimes) = &mut key_lifetimes {
+                    // Finish all outgoing comparisons before closing this source.
+                    for closed in lifetimes.processed(position) {
+                        incoming[closed] = None;
                     }
                 }
             }
@@ -1125,6 +1153,43 @@ pub(crate) mod affine_cleanup {
             Ok(())
         }
 
+        fn normalize_completed_frontier(
+            frontier: &mut Frontier,
+            completion: &super::super::selected_continuations::CompletedCleanupFrontier,
+        ) {
+            use super::super::selected_continuations::CompletedCleanupKind;
+            let selected = &completion.region;
+            let paths = match &completion.kind {
+                CompletedCleanupKind::Value => vec![selected.path.clone()],
+                CompletedCleanupKind::CasePayloads(cases) => cases
+                    .iter()
+                    .map(|case| {
+                        let mut path = selected.path.clone();
+                        path.push(StructuralPathSegment::Case(*case));
+                        path
+                    })
+                    .collect(),
+            };
+            let position = frontier
+                .iter()
+                .position(|root| root.place == selected.place)
+                .unwrap_or_else(|| {
+                    frontier.push(MovedRoot {
+                        place: selected.place,
+                        paths: BTreeSet::new(),
+                    });
+                    frontier.len() - 1
+                });
+            let root = &mut frontier[position];
+            for path in paths {
+                if !root.paths.iter().any(|earlier| path.starts_with(earlier)) {
+                    root.paths.retain(|earlier| !earlier.starts_with(&path));
+                    root.paths.insert(path);
+                }
+            }
+            frontier.sort_by_key(|root| root.place);
+        }
+
         fn restore_path(frontier: &mut Frontier, place: PlaceId, path: &[StructuralPathSegment]) {
             let Some(position) = frontier.iter().position(|root| root.place == place) else {
                 return;
@@ -1304,6 +1369,7 @@ pub(crate) mod affine_cleanup {
     }
 
     pub(crate) fn complete(
+        completed_cleanup_frontiers: &[super::selected_continuations::CompletedCleanupFrontier],
         parameters: &[StructuralParameterDeclaration],
         entry_parameters: &[StructuralParameterDeclaration],
         no_code_types: &[semantic_vocabulary::StructuralTypeId],
@@ -1325,6 +1391,7 @@ pub(crate) mod affine_cleanup {
             &extractions,
         )?;
         projected_transfers::complete(
+            completed_cleanup_frontiers,
             entry_parameters,
             local_places,
             entry,
@@ -4731,7 +4798,9 @@ pub(crate) mod continuation_specialization {
         value_id,
     };
     use lowered_psi::{LoweredSelectedComparisonOccurrence, LoweredSourceCallOccurrence};
-    use semantic_vocabulary::{BlockId, EdgeId, ObligationId, StructuralPlaceKind};
+    use semantic_vocabulary::{
+        BlockId, ClaimId, EdgeId, ObligationId, OperationId, PlaceId, StructuralPlaceKind, ValueId,
+    };
     use terminal_psi::{
         ScalarBlockInvariant, ScalarQualificationCoercion, StructuralTypeDeclaration,
         TerminalMachine,
@@ -4974,6 +5043,204 @@ pub(crate) mod continuation_specialization {
         use semantic_vocabulary::{ClaimId, EdgeId, ObligationId, OperationId, PlaceId, ValueId};
         use terminal_psi::{Block, OperationKind, OperationResult, TerminalMachine};
 
+        // Ordinals refer to one immutable, sorted roster of complete typed IDs.
+        // Store only nonempty 64-bit words; no identity value is approximated.
+        #[derive(Clone, Default, PartialEq, Eq)]
+        struct InputWords(Vec<(usize, u64)>);
+
+        impl InputWords {
+            fn insert(&mut self, ordinal: usize) {
+                let word = ordinal / 64;
+                let bit = 1_u64 << (ordinal % 64);
+                match self
+                    .0
+                    .binary_search_by_key(&word, |(position, _)| *position)
+                {
+                    Ok(position) => self.0[position].1 |= bit,
+                    Err(position) => self.0.insert(position, (word, bit)),
+                }
+            }
+
+            fn contains(&self, ordinal: usize) -> bool {
+                self.0
+                    .binary_search_by_key(&(ordinal / 64), |(position, _)| *position)
+                    .is_ok_and(|position| self.0[position].1 & (1_u64 << (ordinal % 64)) != 0)
+            }
+
+            fn remove(&mut self, ordinal: usize) {
+                if let Ok(position) = self
+                    .0
+                    .binary_search_by_key(&(ordinal / 64), |(position, _)| *position)
+                {
+                    self.0[position].1 &= !(1_u64 << (ordinal % 64));
+                    if self.0[position].1 == 0 {
+                        self.0.remove(position);
+                    }
+                }
+            }
+
+            fn union(&mut self, other: &Self) {
+                if other.0.is_empty() {
+                    return;
+                }
+                if self.0.is_empty() {
+                    self.0.clone_from(&other.0);
+                    return;
+                }
+                let mut combined = Vec::with_capacity(self.0.len() + other.0.len());
+                let mut left_position = 0;
+                let mut right_position = 0;
+                while left_position < self.0.len() && right_position < other.0.len() {
+                    let left = self.0[left_position];
+                    let right = other.0[right_position];
+                    match left.0.cmp(&right.0) {
+                        std::cmp::Ordering::Less => {
+                            combined.push(left);
+                            left_position += 1;
+                        }
+                        std::cmp::Ordering::Greater => {
+                            combined.push(right);
+                            right_position += 1;
+                        }
+                        std::cmp::Ordering::Equal => {
+                            combined.push((left.0, left.1 | right.1));
+                            left_position += 1;
+                            right_position += 1;
+                        }
+                    }
+                }
+                combined.extend_from_slice(&self.0[left_position..]);
+                combined.extend_from_slice(&other.0[right_position..]);
+                self.0 = combined;
+            }
+
+            fn subtract(&mut self, other: &Self) {
+                self.0.retain_mut(|(word, bits)| {
+                    if let Ok(position) = other
+                        .0
+                        .binary_search_by_key(word, |(position, _)| *position)
+                    {
+                        *bits &= !other.0[position].1;
+                    }
+                    *bits != 0
+                });
+            }
+
+            fn iter(&self) -> impl Iterator<Item = usize> + '_ {
+                self.0.iter().flat_map(|(word, bits)| {
+                    let word = *word;
+                    let mut remaining = *bits;
+                    std::iter::from_fn(move || {
+                        if remaining == 0 {
+                            return None;
+                        }
+                        let bit = remaining.trailing_zeros() as usize;
+                        remaining &= remaining - 1;
+                        Some(word * 64 + bit)
+                    })
+                })
+            }
+        }
+
+        fn encode<T: Ord>(identities: &[T], roster: &[T]) -> Result<InputWords, LoweringError> {
+            let mut words = InputWords::default();
+            for identity in identities {
+                words.insert(roster.binary_search(identity).map_err(|_| {
+                    LoweringError::MissingDependencyRosterEntry {
+                        identity_kind: std::any::type_name::<T>(),
+                        role: "input or definition",
+                    }
+                })?);
+            }
+            Ok(words)
+        }
+
+        #[derive(Clone, Default, PartialEq, Eq)]
+        struct PackedInputs {
+            values: InputWords,
+            places: InputWords,
+            operations: InputWords,
+            claims: InputWords,
+            obligations: InputWords,
+        }
+
+        impl PackedInputs {
+            fn uses(uses: &IdentityUses, roster: &IdentityUses) -> Result<Self, LoweringError> {
+                Ok(Self {
+                    values: encode(&uses.values, &roster.values)?,
+                    places: encode(&uses.places, &roster.places)?,
+                    operations: encode(&uses.operations, &roster.operations)?,
+                    claims: encode(&uses.claims, &roster.claims)?,
+                    obligations: encode(&uses.obligations, &roster.obligations)?,
+                })
+            }
+
+            fn definitions(
+                definitions: &Definitions,
+                roster: &IdentityUses,
+            ) -> Result<Self, LoweringError> {
+                Ok(Self {
+                    values: encode(&definitions.values, &roster.values)?,
+                    places: encode(&definitions.places, &roster.places)?,
+                    operations: encode(&definitions.operations, &roster.operations)?,
+                    claims: encode(&definitions.claims, &roster.claims)?,
+                    obligations: encode(&definitions.obligations, &roster.obligations)?,
+                })
+            }
+
+            fn remove_definitions(&mut self, definitions: &Self) {
+                self.values.subtract(&definitions.values);
+                self.places.subtract(&definitions.places);
+                self.operations.subtract(&definitions.operations);
+                self.claims.subtract(&definitions.claims);
+                self.obligations.subtract(&definitions.obligations);
+            }
+        }
+
+        pub(crate) struct LiveInputs {
+            roster: IdentityUses,
+            continuations: Vec<PackedInputs>,
+        }
+
+        impl LiveInputs {
+            pub(crate) fn values(&self, continuation: usize) -> impl Iterator<Item = ValueId> + '_ {
+                self.continuations[continuation]
+                    .values
+                    .iter()
+                    .map(|ordinal| self.roster.values[ordinal])
+            }
+            pub(crate) fn places(&self, continuation: usize) -> impl Iterator<Item = PlaceId> + '_ {
+                self.continuations[continuation]
+                    .places
+                    .iter()
+                    .map(|ordinal| self.roster.places[ordinal])
+            }
+            pub(crate) fn operations(
+                &self,
+                continuation: usize,
+            ) -> impl Iterator<Item = OperationId> + '_ {
+                self.continuations[continuation]
+                    .operations
+                    .iter()
+                    .map(|ordinal| self.roster.operations[ordinal])
+            }
+            pub(crate) fn claims(&self, continuation: usize) -> impl Iterator<Item = ClaimId> + '_ {
+                self.continuations[continuation]
+                    .claims
+                    .iter()
+                    .map(|ordinal| self.roster.claims[ordinal])
+            }
+            pub(crate) fn obligations(
+                &self,
+                continuation: usize,
+            ) -> impl Iterator<Item = ObligationId> + '_ {
+                self.continuations[continuation]
+                    .obligations
+                    .iter()
+                    .map(|ordinal| self.roster.obligations[ordinal])
+            }
+        }
+
         pub(crate) struct Definitions {
             pub(crate) values: Vec<ValueId>,
             pub(crate) places: Vec<PlaceId>,
@@ -5088,7 +5355,39 @@ pub(crate) mod continuation_specialization {
             topology: &Specialization,
             definitions: &[Definitions],
             rows: &CompanionRows<'_>,
+        ) -> Result<LiveInputs, LoweringError> {
+            let observed = observe_local_inputs(machine, definitions, rows)?;
+            let roster = input_roster(&observed, definitions, rows.claim_edge_bindings);
+            let local = observed
+                .iter()
+                .map(|uses| PackedInputs::uses(uses, &roster))
+                .collect::<Result<Vec<_>, _>>()?;
+            drop(observed);
+            let defined = definitions
+                .iter()
+                .map(|defined| PackedInputs::definitions(defined, &roster))
+                .collect::<Result<Vec<_>, _>>()?;
+            let continuations = solve_live_inputs(
+                topology,
+                &local,
+                &defined,
+                &roster,
+                rows.claim_edge_bindings,
+            )?;
+            Ok(LiveInputs {
+                roster,
+                continuations,
+            })
+        }
+
+        fn observe_local_inputs(
+            machine: &TerminalMachine,
+            definitions: &[Definitions],
+            rows: &CompanionRows<'_>,
         ) -> Result<Vec<IdentityUses>, LoweringError> {
+            let completions = super::super::selected_continuations::CleanupCompletionIndex::new(
+                rows.completed_cleanup_frontiers,
+            )?;
             let local =
                 machine
                     .blocks
@@ -5097,6 +5396,11 @@ pub(crate) mod continuation_specialization {
                     .map(|(block, definitions)| {
                         let mut namespace = observer();
                         namespace.block(&mut block.clone())?;
+                        for edge in &definitions.edges {
+                            for completion in completions.at(*edge) {
+                                namespace.argument(&mut completion.region.clone());
+                            }
+                        }
                         for call in
                             rows.source_calls
                                 .iter()
@@ -5154,48 +5458,144 @@ pub(crate) mod continuation_specialization {
                         Ok(uses)
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
+            Ok(local)
+        }
+
+        fn input_roster(
+            local: &[IdentityUses],
+            definitions: &[Definitions],
+            bindings: &[crate::emission::claim_bindings::ClaimEdgeBinding],
+        ) -> IdentityUses {
+            let mut roster = IdentityUses::default();
+            for uses in local {
+                roster.values.extend_from_slice(&uses.values);
+                roster.places.extend_from_slice(&uses.places);
+                roster.operations.extend_from_slice(&uses.operations);
+                roster.claims.extend_from_slice(&uses.claims);
+                roster.obligations.extend_from_slice(&uses.obligations);
+            }
+            for defined in definitions {
+                roster.values.extend_from_slice(&defined.values);
+                roster.places.extend_from_slice(&defined.places);
+                roster.operations.extend_from_slice(&defined.operations);
+                roster.claims.extend_from_slice(&defined.claims);
+                roster.obligations.extend_from_slice(&defined.obligations);
+            }
+            // A substitution source can be absent from every local observation.
+            // Collect it without validating or demanding the binding.
+            for binding in bindings {
+                roster.claims.extend([binding.destination, binding.source]);
+            }
+            normalize_uses(&mut roster);
+            roster
+        }
+
+        fn solve_live_inputs(
+            topology: &Specialization,
+            local: &[PackedInputs],
+            definitions: &[PackedInputs],
+            roster: &IdentityUses,
+            bindings: &[crate::emission::claim_bindings::ClaimEdgeBinding],
+        ) -> Result<Vec<PackedInputs>, LoweringError> {
+            let mut bindings = bindings.iter().collect::<Vec<_>>();
+            bindings.sort_by_key(|binding| (binding.edge, binding.destination));
             let mut live = topology
                 .continuations
                 .iter()
                 .map(|continuation| local[continuation.original_block].clone())
                 .collect::<Vec<_>>();
+            let mut predecessors = vec![Vec::new(); topology.continuations.len()];
+            for (position, continuation) in topology.continuations.iter().enumerate() {
+                for (_, successor) in &continuation.successors {
+                    predecessors[*successor].push(position);
+                }
+            }
+            for sources in &mut predecessors {
+                sources.sort_unstable();
+                sources.dedup();
+            }
+            let mut current = vec![true; live.len()];
+            let mut next = vec![false; live.len()];
             loop {
-                let mut changed = false;
+                let mut deferred = false;
                 for position in (0..topology.continuations.len()).rev() {
+                    if !std::mem::replace(&mut current[position], false) {
+                        continue;
+                    }
                     let continuation = &topology.continuations[position];
                     let mut incoming = local[continuation.original_block].clone();
                     for (edge, successor) in &continuation.successors {
-                        incoming.values.extend_from_slice(&live[*successor].values);
-                        incoming.places.extend_from_slice(&live[*successor].places);
-                        incoming
-                            .operations
-                            .extend_from_slice(&live[*successor].operations);
-                        for claim in &live[*successor].claims {
-                            let mut bindings = rows.claim_edge_bindings.iter().filter(|binding| {
-                                binding.edge == *edge && binding.destination == *claim
-                            });
-                            let source = bindings.next().map_or(*claim, |binding| binding.source);
-                            if bindings.next().is_some() {
-                                return Err(LoweringError::Unsupported(
-                                    "continuation edge repeats a claim binding",
-                                ));
-                            }
-                            incoming.claims.push(source);
+                        let source = &live[*successor];
+                        incoming.values.union(&source.values);
+                        incoming.places.union(&source.places);
+                        incoming.operations.union(&source.operations);
+                        incoming.obligations.union(&source.obligations);
+                        let first = bindings.partition_point(|binding| binding.edge < *edge);
+                        let last = bindings.partition_point(|binding| binding.edge <= *edge);
+                        let mut remaining = &bindings[first..last];
+                        if remaining.is_empty() {
+                            incoming.claims.union(&source.claims);
+                            continue;
                         }
-                        incoming
-                            .obligations
-                            .extend_from_slice(&live[*successor].obligations);
+                        let mut translated = source.claims.clone();
+                        let mut receiving = InputWords::default();
+                        while let Some(binding) = remaining.first() {
+                            let count = remaining
+                                .iter()
+                                .take_while(|candidate| {
+                                    candidate.destination == binding.destination
+                                })
+                                .count();
+                            let destination = roster
+                                .claims
+                                .binary_search(&binding.destination)
+                                .map_err(|_| LoweringError::MissingDependencyRosterEntry {
+                                    identity_kind: "claim",
+                                    role: "edge binding destination",
+                                })?;
+                            if source.claims.contains(destination) {
+                                if count != 1 {
+                                    return Err(LoweringError::Unsupported(
+                                        "continuation edge repeats a claim binding",
+                                    ));
+                                }
+                                translated.remove(destination);
+                                receiving.insert(
+                                    roster.claims.binary_search(&binding.source).map_err(|_| {
+                                        LoweringError::MissingDependencyRosterEntry {
+                                            identity_kind: "claim",
+                                            role: "edge binding source",
+                                        }
+                                    })?,
+                                );
+                            }
+                            remaining = &remaining[count..];
+                        }
+                        // Resolve every source from the unmodified successor set.
+                        // Appending it after all destination removals is simultaneous,
+                        // so one binding never chases another binding on this edge.
+                        translated.union(&receiving);
+                        incoming.claims.union(&translated);
                     }
-                    definitions[continuation.original_block].remove_from(&mut incoming);
-                    normalize_uses(&mut incoming);
+                    incoming.remove_definitions(&definitions[continuation.original_block]);
                     if live[position] != incoming {
                         live[position] = incoming;
-                        changed = true;
+                        for predecessor in &predecessors[position] {
+                            if *predecessor < position {
+                                current[*predecessor] = true;
+                            } else {
+                                next[*predecessor] = true;
+                                deferred = true;
+                            }
+                        }
                     }
                 }
-                if !changed {
+                if !deferred {
                     return Ok(live);
                 }
+                // Preserve the old reverse-sweep order. A self-loop or an already
+                // visited predecessor remains pending for the following sweep.
+                std::mem::swap(&mut current, &mut next);
             }
         }
 
@@ -5218,10 +5618,66 @@ pub(crate) mod continuation_specialization {
             normalize(&mut uses.claims);
             normalize(&mut uses.obligations);
         }
+
+        #[cfg(test)]
+        mod input_word_tests {
+            use super::InputWords;
+            use std::collections::BTreeSet;
+
+            #[test]
+            fn sparse_words_match_ordered_set_algebra_without_expanded_rows() {
+                let left = [8191, 64, 0, 4095, 63, 64];
+                let right = [8191, 1, 4096, 65];
+                let mut words = InputWords::default();
+                for ordinal in left {
+                    words.insert(ordinal);
+                }
+                let mut other = InputWords::default();
+                for ordinal in right {
+                    other.insert(ordinal);
+                }
+                let mut expected = left.into_iter().chain(right).collect::<BTreeSet<_>>();
+                words.union(&other);
+                assert_eq!(
+                    words.iter().collect::<Vec<_>>(),
+                    expected.iter().copied().collect::<Vec<_>>()
+                );
+                words.remove(63);
+                expected.remove(&63);
+                words.subtract(&other);
+                expected.retain(|ordinal| !right.contains(ordinal));
+                assert_eq!(
+                    words.iter().collect::<Vec<_>>(),
+                    expected.iter().copied().collect::<Vec<_>>()
+                );
+                assert!(words.contains(64) && !words.contains(8191));
+                assert!(words.0.iter().all(|(_, bits)| *bits != 0));
+                assert!(words.0.windows(2).all(|pair| pair[0].0 < pair[1].0));
+
+                let mut wide = InputWords::default();
+                for ordinal in (0..8192).rev() {
+                    wide.insert(ordinal);
+                }
+                assert!(wide.iter().eq(0..8192));
+                assert_eq!(wide.0.len(), 128);
+                let mut first_word = InputWords::default();
+                for ordinal in 0..64 {
+                    first_word.insert(ordinal);
+                }
+                wide.subtract(&first_word);
+                assert!(wide.iter().eq(64..8192));
+                assert_eq!(wide.0.len(), 127);
+                eprintln!(
+                    "8192 ordered identity ordinals use 128 nonzero words; union, removal, subtraction and ascending iteration match an independent ordered-set oracle"
+                );
+            }
+        }
     }
     use dependencies::Definitions;
 
     pub(crate) struct CompanionRows<'a> {
+        pub(crate) completed_cleanup_frontiers:
+            &'a mut Vec<super::selected_continuations::CompletedCleanupFrontier>,
         pub(crate) source_returns:
             &'a mut Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
         pub(crate) continuation_value_uses: &'a [(BlockId, semantic_vocabulary::ValueId)],
@@ -5265,6 +5721,7 @@ pub(crate) mod continuation_specialization {
             &machine.blocks,
             types,
             groups,
+            rows.completed_cleanup_frontiers,
             !rows.claim_edge_bindings.is_empty(),
         )?
         else {
@@ -5314,7 +5771,14 @@ pub(crate) mod continuation_specialization {
                 "continuation claim namespace exceeds u64",
             ))?;
         let mut instantiated = vec![false; machine.blocks.len()];
-        let incoming = captured_namespace(&mut IdentityMap::default(), &live[topology.entry]);
+        let incoming = captured_namespace(
+            &mut IdentityMap::default(),
+            live.values(topology.entry),
+            live.places(topology.entry),
+            live.operations(topology.entry),
+            live.claims(topology.entry),
+            live.obligations(topology.entry),
+        );
         let mut instances = vec![new_instance(
             topology.entry,
             incoming,
@@ -5344,7 +5808,14 @@ pub(crate) mod continuation_specialization {
                         .retain(|(name, _)| *name != destination);
                     incoming_namespace.claims.push((destination, source));
                 }
-                let incoming = captured_namespace(&mut incoming_namespace, &live[*target]);
+                let incoming = captured_namespace(
+                    &mut incoming_namespace,
+                    live.values(*target),
+                    live.places(*target),
+                    live.operations(*target),
+                    live.claims(*target),
+                    live.obligations(*target),
+                );
                 let target_instance = if let Some(existing) =
                     instances.iter().position(|instance| {
                         instance.continuation == *target && instance.incoming == incoming
@@ -5422,6 +5893,18 @@ pub(crate) mod continuation_specialization {
                 block_entry_claims.push(claim);
             }
         }
+        let originals = std::mem::take(rows.completed_cleanup_frontiers);
+        let completions = super::selected_continuations::CleanupCompletionIndex::new(&originals)?;
+        for instance in &mut instances {
+            for (original, _) in instance.namespace.edges.clone() {
+                for completion in completions.at(original) {
+                    let mut completion = completion.clone();
+                    completion.edge = instance.namespace.edge(original);
+                    instance.namespace.argument(&mut completion.region);
+                    rows.completed_cleanup_frontiers.push(completion);
+                }
+            }
+        }
         places.sort_by_key(|place| place.id);
         let mut literal_ordinal = 0;
         for place in &mut places {
@@ -5446,32 +5929,37 @@ pub(crate) mod continuation_specialization {
             .collect())
     }
 
-    fn captured_namespace(namespace: &mut IdentityMap, live: &IdentityUses) -> IdentityMap {
+    fn captured_namespace(
+        namespace: &mut IdentityMap,
+        values: impl IntoIterator<Item = ValueId>,
+        places: impl IntoIterator<Item = PlaceId>,
+        operations: impl IntoIterator<Item = OperationId>,
+        claims: impl IntoIterator<Item = ClaimId>,
+        obligations: impl IntoIterator<Item = ObligationId>,
+    ) -> IdentityMap {
         IdentityMap {
-            values: live
-                .values
-                .iter()
-                .map(|original| (*original, namespace.value(*original)))
+            values: values
+                .into_iter()
+                .map(|original| (original, namespace.value(original)))
                 .collect(),
-            places: live
-                .places
-                .iter()
-                .map(|original| (*original, namespace.place(*original)))
+            places: places
+                .into_iter()
+                .map(|original| (original, namespace.place(original)))
                 .collect(),
-            inherited_operations: live
-                .operations
-                .iter()
-                .map(|original| (*original, namespace.operation(*original)))
+            inherited_operations: operations
+                .into_iter()
+                .map(|original| (original, namespace.operation(original)))
                 .collect(),
-            claims: live
-                .claims
-                .iter()
-                .map(|original| (*original, namespace.claim(*original)))
+            // Missing claim mappings mean unchanged. Observe every claim before
+            // filtering so the exact dependency read is retained.
+            claims: claims
+                .into_iter()
+                .map(|original| (original, namespace.claim(original)))
+                .filter(|(original, mapped)| original != mapped)
                 .collect(),
-            obligations: live
-                .obligations
-                .iter()
-                .map(|original| (*original, namespace.obligation(*original)))
+            obligations: obligations
+                .into_iter()
+                .map(|original| (original, namespace.obligation(original)))
                 .collect(),
             ..IdentityMap::default()
         }
@@ -5566,5 +6054,116 @@ pub(crate) mod continuation_specialization {
             namespace,
             successors: Vec::new(),
         })
+    }
+
+    #[cfg(test)]
+    mod captured_claim_tests {
+        use super::*;
+        use semantic_vocabulary::ClaimId;
+
+        fn capture_all_claim_pairs(
+            namespace: &mut IdentityMap,
+            live: &IdentityUses,
+        ) -> IdentityMap {
+            IdentityMap {
+                claims: live
+                    .claims
+                    .iter()
+                    .map(|original| (*original, namespace.claim(*original)))
+                    .collect(),
+                ..IdentityMap::default()
+            }
+        }
+
+        fn captured_namespace(namespace: &mut IdentityMap, live: &IdentityUses) -> IdentityMap {
+            super::captured_namespace(
+                namespace,
+                live.values.iter().copied(),
+                live.places.iter().copied(),
+                live.operations.iter().copied(),
+                live.claims.iter().copied(),
+                live.obligations.iter().copied(),
+            )
+        }
+
+        #[test]
+        fn captured_claims_keep_renames_and_observations_without_identity_rows() {
+            let id = |value| ClaimId::new(value).unwrap();
+            let live = IdentityUses {
+                claims: vec![id(3), id(1), id(2)],
+                ..IdentityUses::default()
+            };
+            let source = IdentityMap {
+                // Last-match identity overrides the earlier rename for claim 1.
+                claims: vec![
+                    (id(1), id(8)),
+                    (id(1), id(1)),
+                    (id(2), id(6)),
+                    (id(3), id(7)),
+                ],
+                ..IdentityMap::default()
+            };
+            let mut different = source.clone();
+            different.claims.push((id(2), id(9)));
+            let mut outside = source.clone();
+            outside.claims.push((id(99), id(9)));
+            let sources = [IdentityMap::default(), source.clone(), different, outside];
+            let mut full = Vec::new();
+            let mut sparse = Vec::new();
+            for mut namespace in sources {
+                full.push(capture_all_claim_pairs(&mut namespace.clone(), &live));
+                sparse.push(captured_namespace(&mut namespace, &live));
+            }
+            assert_eq!(sparse[1].claims, vec![(id(3), id(7)), (id(2), id(6))]);
+            for left_position in 0..full.len() {
+                for right_position in 0..full.len() {
+                    // Comparison is within one fixed continuation/live roster.
+                    assert_eq!(
+                        full[left_position] == full[right_position],
+                        sparse[left_position] == sparse[right_position],
+                    );
+                }
+                for original in [id(1), id(2), id(3), id(99)] {
+                    assert_eq!(
+                        full[left_position].claim(original),
+                        sparse[left_position].claim(original),
+                    );
+                }
+            }
+            // Edge substitutions may explicitly restore identity after a rename.
+            // Capture must resolve that final substitution before omitting it.
+            let mut full_reset = full[1].clone();
+            let mut sparse_reset = sparse[1].clone();
+            for namespace in [&mut full_reset, &mut sparse_reset] {
+                namespace.claims.retain(|(original, _)| *original != id(2));
+                namespace.claims.push((id(2), id(2)));
+            }
+            let mut reset = captured_namespace(&mut sparse_reset, &live);
+            let mut full_reset = capture_all_claim_pairs(&mut full_reset, &live);
+            assert_eq!(reset.claims, vec![(id(3), id(7))]);
+            for original in &live.claims {
+                assert_eq!(reset.claim(*original), full_reset.claim(*original));
+            }
+            let wide = IdentityUses {
+                claims: (1..=8192).map(id).collect(),
+                ..IdentityUses::default()
+            };
+            let mut observed = IdentityMap {
+                observed: Some(IdentityUses::default()),
+                ..IdentityMap::default()
+            };
+            let captured = captured_namespace(&mut observed, &wide);
+            assert!(captured.claims.is_empty());
+            assert_eq!(observed.observed.unwrap().claims, wide.claims);
+            assert_eq!(
+                capture_all_claim_pairs(&mut IdentityMap::default(), &wide)
+                    .claims
+                    .len(),
+                8192
+            );
+            eprintln!(
+                "8192 unchanged live claims retain 0 input pairs instead of 8192; ordered renames, last-match resets, lookup observations and fixed-roster comparison classes match the full-row oracle"
+            );
+        }
     }
 }

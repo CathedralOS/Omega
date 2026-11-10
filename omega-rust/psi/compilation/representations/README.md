@@ -36,8 +36,9 @@ packages support the route above; none is an additional program stage.
 
 Terminal Psi also owns a family of independent companion packages: `codec/`
 for canonical artifacts, `semantics/` for operation judgments, `verification/`
-for receiving checks, and `work/` with `work/certification/` for logical costs
-and bounds. These are contracts over the same Terminal program, not additional
+for receiving checks, `work/` with `work/certification/` for logical costs
+and bounds, and [`check-tables/`](terminal-psi/check-tables/README.md) for the
+tables of the checker that runs on the lowered form. These are contracts over the same Terminal program, not additional
 IR stages. Their manifests preserve the representation-to-checker dependency
 boundary.
 

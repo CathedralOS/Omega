@@ -2606,10 +2606,11 @@ mod origins {
                     )?,
                     _ => Vec::new(),
                 };
-                if writes
-                    .iter()
-                    .any(|write| places_may_overlap(program, demanded, write))
-                {
+                if writes.iter().any(|write| {
+                    ::validation::storage_path_relations::canonical_places_may_overlap(
+                        program, demanded, write,
+                    )
+                }) {
                     return None;
                 }
                 let writes = flow::frame_storage_writes(
@@ -2620,10 +2621,11 @@ mod origins {
                     &frames.statement_value_write_frame(callee, statement),
                     Some(frames),
                 )?;
-                if writes
-                    .iter()
-                    .any(|write| places_may_overlap(program, demanded, write))
-                {
+                if writes.iter().any(|write| {
+                    ::validation::storage_path_relations::canonical_places_may_overlap(
+                        program, demanded, write,
+                    )
+                }) {
                     return None;
                 }
             }
@@ -3384,10 +3386,11 @@ mod origins {
                             &frames.may_write_frame(machine, call_statement),
                             Some(frames),
                         )?;
-                        if writes
-                            .iter()
-                            .any(|write| places_may_overlap(program, &slot, write))
-                        {
+                        if writes.iter().any(|write| {
+                            ::validation::storage_path_relations::canonical_places_may_overlap(
+                                program, &slot, write,
+                            )
+                        }) {
                             return None;
                         }
                         None
@@ -3578,11 +3581,11 @@ mod origins {
                 &frames.statement_value_write_frame(machine, statement),
                 Some(frames),
             )?;
-            Some(
-                writes
-                    .iter()
-                    .any(|write| places_may_overlap(program, slot, write)),
-            )
+            Some(writes.iter().any(|write| {
+                ::validation::storage_path_relations::canonical_places_may_overlap(
+                    program, slot, write,
+                )
+            }))
         }
     }
     mod reference_bounds {
@@ -3605,19 +3608,6 @@ mod origins {
         use typed_trees::machine::Machine;
         use typed_trees::statement::StatementNode;
         use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-        pub(super) fn places_may_overlap(
-            program: &dyn ::validation::CheckingInput,
-            left: &CanonicalPlace,
-            right: &CanonicalPlace,
-        ) -> bool {
-            (left.root) == (right.root)
-                && flow::canonical_place_segments_may_overlap(
-                    program,
-                    &left.segments,
-                    &right.segments,
-                )
-        }
 
         /*
             A callee reads a frozen input but cannot change which storage it names:
@@ -3740,11 +3730,11 @@ mod origins {
                 statement,
                 Some(frames),
             )?;
-            Some(
-                writes
-                    .iter()
-                    .all(|write| !places_may_overlap(program, slot, write)),
-            )
+            Some(writes.iter().all(|write| {
+                !::validation::storage_path_relations::canonical_places_may_overlap(
+                    program, slot, write,
+                )
+            }))
         }
 
         pub(super) fn exclusive_reference_root_place<Resolve>(
@@ -3849,7 +3839,9 @@ mod origins {
                             }
                             return None;
                         }
-                        if places_may_overlap(program, &slot, &target) {
+                        if ::validation::storage_path_relations::canonical_places_may_overlap(
+                            program, &slot, &target,
+                        ) {
                             return None;
                         }
                     }
@@ -3873,10 +3865,11 @@ mod origins {
                             &frames.may_write_frame(machine, call_statement),
                             Some(frames),
                         )?;
-                        if writes
-                            .iter()
-                            .any(|write| places_may_overlap(program, &slot, write))
-                        {
+                        if writes.iter().any(|write| {
+                            ::validation::storage_path_relations::canonical_places_may_overlap(
+                                program, &slot, write,
+                            )
+                        }) {
                             return None;
                         }
                     }

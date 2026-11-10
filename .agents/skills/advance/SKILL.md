@@ -129,6 +129,7 @@ that photograph: a different object, and a green check on it is not done.
    ```bash
    # In a compiler lane, PR_BODY also carries the `Gate:` line from AGENTS.md.
    cargo xtask provenance  # append this model-audit line to the commit and PR_BODY
+   mbx clippy -p <crate> --all-targets -- -D warnings  # each Rust crate you touched
    git push origin HEAD:refs/heads/work/<lane>-<topic>
    cargo xtask check-rules --base origin/main --title "<title>" --body-file PR_BODY
    gh pr create --draft --title "<title>" --body-file PR_BODY

@@ -36,7 +36,8 @@ The normalized callable contract includes service reach, synchronous invocation,
 mutation summary, capability demand, suspension, blocking, failure, termination,
 quantitative resources and guarded crash routes. Calls check those obligations
 against current argument versions, not facts frozen at construction.
-Its service ceiling is finite; omission in a runtime callable type means empty.
+Its service and crash ceilings are finite and authored; a runtime callable
+type states both, with `reaches none` and `crashes none` for empty.
 Resolve static callback and conformance-member reach dependencies before
 constructing the closed callable. An unresolved open row cannot become a
 runtime callable ceiling.

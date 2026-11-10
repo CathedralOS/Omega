@@ -38,6 +38,22 @@ mod actions {
         CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
     };
 
+    pub(super) struct DispositionActions {
+        pub actions: Vec<CleanupAction>,
+        pub partition: arena::Handle<checked_trees::CheckedCleanupPartitionPlan>,
+    }
+
+    pub(super) fn partition_refs(
+        control: &mut checked_trees::CheckedCleanupControlPlans,
+        partitions: impl IntoIterator<Item = arena::Handle<checked_trees::CheckedCleanupPartitionPlan>>,
+    ) -> arena::HandleSpan<checked_trees::CheckedCleanupPartitionRef> {
+        control.partition_refs.insert_many(
+            partitions
+                .into_iter()
+                .map(|partition| checked_trees::CheckedCleanupPartitionRef { partition }),
+        )
+    }
+
     /*
         The surrounding dying-owner selection, not a selected subtree path, owns
         home retirement. Resolve that original home independently of each disposed
@@ -176,7 +192,7 @@ mod actions {
         disposition_handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
         source: SourcePlan,
         place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
-    ) -> Result<Vec<CleanupAction>, &'static str> {
+    ) -> Result<DispositionActions, &'static str> {
         disposition_actions_at(
             program,
             facts,
@@ -200,7 +216,7 @@ mod actions {
         source: SourcePlan,
         place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
         completed_result: Option<&crate::flow::CompletedCleanupResult<'_>>,
-    ) -> Result<Vec<CleanupAction>, &'static str> {
+    ) -> Result<DispositionActions, &'static str> {
         let disposition = facts
             .contextual_cleanup
             .dispositions
@@ -276,6 +292,31 @@ mod actions {
             .ok_or("cleanup cannot lower its disposed path")?
             .path
         };
+        if case_reachability(&place.segments)
+            .ok_or("cleanup cannot establish its carrier case reachability")?
+            == validation::CleanupCaseReachability::Inactive
+        {
+            if !selected.is_empty() {
+                return Err("inactive cleanup carrier still has selected hooks");
+            }
+            let nodes = [validation::CleanupPartitionNode::Scope {
+                path: Vec::new(),
+                type_identity,
+                conditions: Vec::new(),
+                steps: Vec::new(),
+            }];
+            let mut actions = Vec::new();
+            let partition = retain_partition(
+                shapes,
+                disposition_handle,
+                source,
+                &path,
+                type_identity,
+                &nodes,
+                &mut actions,
+            )?;
+            return Ok(DispositionActions { actions, partition });
+        }
         let mut moved = Vec::new();
         for removed in facts
             .contextual_cleanup
@@ -314,9 +355,26 @@ mod actions {
                 continue;
             };
             if relative_segments.is_empty() {
-                return (removed.root == disposition.root && selected.is_empty())
-                    .then(Vec::new)
-                    .ok_or("cleanup whole-region exclusion does not identify an empty owner");
+                if removed.root != disposition.root || !selected.is_empty() {
+                    return Err("cleanup whole-region exclusion does not identify an empty owner");
+                }
+                let nodes = [validation::CleanupPartitionNode::Scope {
+                    path: Vec::new(),
+                    type_identity,
+                    conditions: Vec::new(),
+                    steps: Vec::new(),
+                }];
+                let mut actions = Vec::new();
+                let partition = retain_partition(
+                    shapes,
+                    disposition_handle,
+                    source,
+                    &path,
+                    type_identity,
+                    &nodes,
+                    &mut actions,
+                )?;
+                return Ok(DispositionActions { actions, partition });
             }
             let ProjectedArgumentPath {
                 storage_type: reference,
@@ -441,16 +499,28 @@ mod actions {
                 crate::shared::collections::push_unique(&mut partition_paths, selected_path);
             }
         }
-        let residuals = if moved.is_empty() && hooks.is_empty() && partition_paths.is_empty() {
-            vec![validation::CaseSelectedCleanupRegion {
-                disposition: CheckedUnitPartialAffineDiscardPlan {
-                    source: source.clone(),
-                    path: Vec::new(),
-                    type_identity,
-                    case_conditions: Default::default(),
-                },
-                conditions: Vec::new(),
-            }]
+        let partition = if moved.is_empty() && hooks.is_empty() && partition_paths.is_empty() {
+            validation::CaseSelectedCleanupPartition {
+                regions: vec![validation::CaseSelectedCleanupRegion {
+                    disposition: CheckedUnitPartialAffineDiscardPlan {
+                        partition_leaf: Default::default(),
+                        source: source.clone(),
+                        path: Vec::new(),
+                        type_identity,
+                        case_conditions: Default::default(),
+                    },
+                    conditions: Vec::new(),
+                }],
+                nodes: vec![
+                    validation::CleanupPartitionNode::Scope {
+                        path: Vec::new(),
+                        type_identity,
+                        conditions: Vec::new(),
+                        steps: vec![1],
+                    },
+                    validation::CleanupPartitionNode::Leaf { region_ordinal: 0 },
+                ],
+            }
         } else {
             let moved = moved
                 .iter()
@@ -466,7 +536,7 @@ mod actions {
                 .iter()
                 .map(|(identity, plan)| (*identity, plan))
                 .collect();
-            validation::reconstruct_case_selected_regions(
+            validation::reconstruct_case_selected_cleanup_partition(
                 &types,
                 &source,
                 type_identity,
@@ -491,7 +561,8 @@ mod actions {
         };
         hooks.sort_unstable_by(|left, right| left.path.cmp(&right.path));
         let mut selected_hooks = 0;
-        let actions = residuals
+        let mut actions = partition
+            .regions
             .into_iter()
             .map(|region| {
                 let conditions = region
@@ -526,7 +597,168 @@ mod actions {
         if selected_hooks != hooks.len() {
             return Err("cleanup region partition did not select every hook");
         }
-        Ok(actions)
+        let partition = retain_partition(
+            shapes,
+            disposition_handle,
+            source,
+            &path,
+            type_identity,
+            &partition.nodes,
+            &mut actions,
+        )?;
+        Ok(DispositionActions { actions, partition })
+    }
+
+    fn retain_partition(
+        shapes: &mut ShapeCollector<'_>,
+        disposition: arena::Handle<checked_trees::ContextualCleanupDisposition>,
+        source: SourcePlan,
+        prefix: &[checked_trees::CheckedUnitStructuralPathSegment],
+        type_identity: typed_trees::type_identity::TypeIdentityId,
+        nodes: &[validation::CleanupPartitionNode],
+        actions: &mut [CleanupAction],
+    ) -> Result<arena::Handle<checked_trees::CheckedCleanupPartitionPlan>, &'static str> {
+        use checked_trees::{CheckedCleanupPartitionNode as Node, CheckedCleanupPartitionPlan};
+        if !matches!(nodes.first(), Some(validation::CleanupPartitionNode::Scope { path, type_identity: root_type, conditions, .. }) if path.is_empty() && *root_type == type_identity && conditions.is_empty())
+        {
+            return Err("cleanup partition has no exact root scope");
+        }
+        let control = &mut shapes.cleanup_control;
+        let handles = nodes
+            .iter()
+            .map(|_| control.partition_nodes.insert(Node::default()))
+            .collect::<Vec<_>>();
+        let mut covered = vec![false; actions.len()];
+        for (position, node) in nodes.iter().enumerate() {
+            let retained = match node {
+                validation::CleanupPartitionNode::Scope {
+                    path,
+                    type_identity,
+                    conditions,
+                    steps,
+                } => Node::Scope {
+                    path: control
+                        .paths
+                        .insert_many(prefix.iter().chain(path).cloned()),
+                    type_identity: *type_identity,
+                    conditions: partition_conditions(control, prefix, conditions),
+                    steps: partition_steps(control, &handles, steps)?,
+                },
+                validation::CleanupPartitionNode::Leaf { region_ordinal } => {
+                    let visited = covered
+                        .get_mut(*region_ordinal)
+                        .ok_or("cleanup partition leaf exceeds its authorized action span")?;
+                    if std::mem::replace(visited, true) {
+                        return Err("cleanup partition repeats an authorized action leaf");
+                    }
+                    Node::Leaf {
+                        ordinal: u32::try_from(*region_ordinal)
+                            .map_err(|_| "cleanup partition action ordinal exceeds u32")?,
+                    }
+                }
+                validation::CleanupPartitionNode::Cases {
+                    path,
+                    type_identity,
+                    arms,
+                    common,
+                } => {
+                    let arms = arms
+                        .iter()
+                        .map(|arm| {
+                            Ok(checked_trees::CheckedCleanupPartitionArm {
+                                case_identity: arm.case_identity.clone(),
+                                reachability: match arm.reachability {
+                                    validation::CleanupCaseReachability::Inactive => {
+                                        checked_trees::CheckedCleanupCaseReachability::Inactive
+                                    }
+                                    validation::CleanupCaseReachability::Selected => {
+                                        checked_trees::CheckedCleanupCaseReachability::Selected
+                                    }
+                                    validation::CleanupCaseReachability::Runtime => {
+                                        checked_trees::CheckedCleanupCaseReachability::Runtime
+                                    }
+                                },
+                                steps: partition_steps(control, &handles, &arm.steps)?,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, &'static str>>()?;
+                    Node::Cases {
+                        path: control
+                            .paths
+                            .insert_many(prefix.iter().chain(path).cloned()),
+                        type_identity: *type_identity,
+                        arms: control.partition_arms.insert_many(arms),
+                        common: partition_steps(control, &handles, common)?,
+                    }
+                }
+            };
+            *control.partition_nodes.get_mut(handles[position]) = retained;
+        }
+        if covered.iter().any(|visited| !visited) {
+            return Err("cleanup partition omits an authorized action leaf");
+        }
+        let path = control.paths.insert_many(prefix.iter().cloned());
+        let owner = control.partitions.insert(CheckedCleanupPartitionPlan {
+            disposition,
+            source,
+            path,
+            type_identity,
+            root: handles[0],
+            actions: Default::default(),
+        });
+        for (position, action) in actions.iter_mut().enumerate() {
+            let leaf = checked_trees::CheckedCleanupPartitionLeaf {
+                partition: owner,
+                ordinal: u32::try_from(position)
+                    .map_err(|_| "cleanup partition action ordinal exceeds u32")?,
+            };
+            match action {
+                CleanupAction::Discard(discard) => discard.partition_leaf = leaf,
+                CleanupAction::InvokeNominal(cleanup) => cleanup.partition_leaf = leaf,
+                CleanupAction::RetireHome { .. } => {
+                    return Err("cleanup partition includes a separate home retirement");
+                }
+            }
+        }
+        let retained_actions = control.actions.insert_many(actions.iter().cloned());
+        control.partitions.get_mut(owner).actions = retained_actions;
+        Ok(owner)
+    }
+
+    fn partition_steps(
+        control: &mut checked_trees::CheckedCleanupControlPlans,
+        nodes: &[arena::Handle<checked_trees::CheckedCleanupPartitionNode>],
+        steps: &[usize],
+    ) -> Result<arena::HandleSpan<checked_trees::CheckedCleanupPartitionStep>, &'static str> {
+        let rows = steps
+            .iter()
+            .map(|position| {
+                Ok(checked_trees::CheckedCleanupPartitionStep {
+                    node: *nodes
+                        .get(*position)
+                        .ok_or("cleanup partition child exceeds its owner node roster")?,
+                })
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        Ok(control.partition_steps.insert_many(rows))
+    }
+
+    fn partition_conditions(
+        control: &mut checked_trees::CheckedCleanupControlPlans,
+        prefix: &[checked_trees::CheckedUnitStructuralPathSegment],
+        conditions: &[validation::CleanupCaseCondition],
+    ) -> arena::HandleSpan<checked_trees::CheckedCleanupCaseCondition> {
+        let rows = conditions
+            .iter()
+            .map(|condition| checked_trees::CheckedCleanupCaseCondition {
+                path: control
+                    .paths
+                    .insert_many(prefix.iter().chain(&condition.path).cloned()),
+                type_identity: condition.type_identity,
+                case_identity: condition.case_identity.clone(),
+            })
+            .collect::<Vec<_>>();
+        control.conditions.insert_many(rows)
     }
 
     /*
@@ -677,6 +909,7 @@ mod actions {
             return None;
         }
         Some(CheckedUnitNominalAffineCleanupPlan {
+            partition_leaf: Default::default(),
             consumed_claims: Vec::new(),
             source,
             path,
@@ -1141,6 +1374,7 @@ pub(super) mod anonymous {
         }
         if !cleanup_actions.is_empty() {
             completions.push(OperationPlan::ContinuationCleanup {
+                partitions: Default::default(),
                 selected_regions: Vec::new(),
                 boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
                 cleanup_actions,
@@ -1301,6 +1535,7 @@ mod descriptor_retirement {
             language_semantics::Multiplicity::Affine => {
                 Some(vec![checked_trees::CheckedNormalCleanupAction::Discard(
                     checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                        partition_leaf: Default::default(),
                         source,
                         path: Vec::new(),
                         type_identity: validation::structural_type_identity(
@@ -1779,6 +2014,7 @@ pub(super) mod normal_edges {
 
     /* Mutable construction scratch; only the shared cleanup arena is published. */
     struct NormalExitConstruction {
+        partitions: Vec<arena::Handle<checked_trees::CheckedCleanupPartitionPlan>>,
         exit: checked_trees::FlowClaimJoinExit,
         selected_regions: Vec<checked_trees::CheckedUnitStructuralArgumentPlan>,
         actions: Vec<checked_trees::CheckedNormalCleanupAction>,
@@ -1797,6 +2033,7 @@ pub(super) mod normal_edges {
                 exit: row.exit,
                 selected_regions: owner.normal_exit_regions.insert_many(row.selected_regions),
                 actions: owner.actions.insert_many(row.actions),
+                partitions: super::actions::partition_refs(owner, row.partitions),
                 result_completion: row.result_completion,
             })
             .collect::<Vec<_>>();
@@ -2067,6 +2304,7 @@ pub(super) mod normal_edges {
                 result_completion
             };
             rows.push(NormalExitConstruction {
+                partitions: Vec::new(),
                 exit,
                 // Every returning value leaf installs this roster. Its absence
                 // means every retained leaf was declaration-proven NoNormal.
@@ -2202,6 +2440,10 @@ pub(super) mod normal_edges {
                 checked_trees::CheckedNormalResultCompletion::Value {
                     computation,
                     actions: shapes.cleanup_control.actions.insert_many(row.actions),
+                    partitions: super::actions::partition_refs(
+                        &mut shapes.cleanup_control,
+                        row.partitions,
+                    ),
                 }
             };
         active.remove(&key);
@@ -2239,6 +2481,7 @@ pub(super) mod normal_edges {
             .copied()
             .filter(|exit| selected_exit.is_none_or(|selected| selected == *exit))
             .map(|exit| NormalExitConstruction {
+                partitions: Vec::new(),
                 exit,
                 selected_regions: Vec::new(),
                 actions: Vec::new(),
@@ -2349,7 +2592,8 @@ pub(super) mod normal_edges {
                     .ok_or("normal cleanup cannot realize its selected region")?;
                     crate::shared::collections::push_unique(&mut row.selected_regions, region);
                 }
-                row.actions.extend(actions);
+                row.partitions.push(actions.partition);
+                row.actions.extend(actions.actions);
             } else {
                 if ::validation::trace_flags::check_sites() {
                     eprintln!(
@@ -2669,6 +2913,7 @@ mod replacements {
                 Some(validation::CanonicalPlace { root, segments })
             });
             let mut actions = Vec::new();
+            let mut partitions = Vec::new();
             let mut selected_regions = Vec::new();
             let mut selected_disposition = false;
             let captured_path = destination
@@ -2783,6 +3028,7 @@ mod replacements {
                 }
                 Some(CheckedNormalCleanupAction::Discard(
                     checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                        partition_leaf: Default::default(),
                         source: old_value.source.clone(),
                         path: old_value.path.clone(),
                         type_identity: old_value.type_identity,
@@ -2867,17 +3113,31 @@ mod replacements {
                     }
                     crate::shared::collections::push_unique(&mut selected_regions, region);
                 }
+                // Bind the complete checked subtree directly to the saved old value.
+                // Its cleanup paths and conditions then keep the same coordinates as
+                // the existing displaced actions, without losing the partition tree.
+                let captured_path = displaced
+                    .then(|| path.strip_prefix(destination.path.as_slice()))
+                    .flatten();
+                let captured_partition = captured_path.is_some();
                 let selected_actions = super::actions::disposition_actions(
                     program,
                     facts,
                     targets,
                     shapes,
                     disposition_handle,
-                    source.clone(),
-                    replaced.then_some(destination.path.as_slice()),
+                    if captured_partition {
+                        old_value.source.clone()
+                    } else {
+                        source.clone()
+                    },
+                    captured_path.or_else(|| replaced.then_some(destination.path.as_slice())),
                 )?;
                 selected_disposition = true;
-                for mut action in selected_actions {
+                if path.starts_with(&destination.path) {
+                    partitions.push(selected_actions.partition);
+                }
+                for mut action in selected_actions.actions {
                     let action_path = match &action {
                         CheckedNormalCleanupAction::Discard(action) => &action.path,
                         CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
@@ -2885,7 +3145,7 @@ mod replacements {
                             return Err("replacement cannot retire a home at its destination");
                         }
                     };
-                    if !action_path.starts_with(&destination.path) {
+                    if !captured_partition && !action_path.starts_with(&destination.path) {
                         if !destination.path.starts_with(action_path) {
                             continue;
                         }
@@ -2894,6 +3154,7 @@ mod replacements {
                         };
                         action = CheckedNormalCleanupAction::Discard(
                             checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                                partition_leaf: Default::default(),
                                 source: source.clone(),
                                 path: destination.path.clone(),
                                 type_identity: destination.type_identity,
@@ -2901,7 +3162,7 @@ mod replacements {
                             },
                         );
                     }
-                    if displaced {
+                    if displaced && !captured_partition {
                         let conditions = shapes
                             .cleanup_control
                             .conditions
@@ -2938,6 +3199,17 @@ mod replacements {
                             .ok_or("displaced action path escapes its destination")?
                             .to_vec();
                         *source = old_value.source.clone();
+                    }
+                    if !path.starts_with(&destination.path) {
+                        match &mut action {
+                            CheckedNormalCleanupAction::Discard(row) => {
+                                row.partition_leaf = Default::default()
+                            }
+                            CheckedNormalCleanupAction::InvokeNominal(row) => {
+                                row.partition_leaf = Default::default()
+                            }
+                            CheckedNormalCleanupAction::RetireHome { .. } => {}
+                        }
                     }
                     actions.push(action);
                 }
@@ -2978,6 +3250,7 @@ mod replacements {
                 );
             }
             Ok(super::temporary_actions::SelectedActions {
+                partitions: super::actions::partition_refs(&mut shapes.cleanup_control, partitions),
                 actions,
                 selected_regions,
             })
@@ -3034,8 +3307,8 @@ pub(in crate::execution::terminal_unit) mod retained_owners {
     use super::actions::disposition_actions as selected_regions;
     use crate::execution::terminal_unit::types::ShapeCollector;
     use checked_trees::{
-        CheckFacts, CheckedNormalCleanupAction, CheckedUnitCallCoordinate,
-        CheckedUnitCallableEntry, CheckedUnitStructuralArgumentSourcePlan,
+        CheckFacts, CheckedUnitCallCoordinate, CheckedUnitCallableEntry,
+        CheckedUnitStructuralArgumentSourcePlan,
     };
     use language_semantics::PermissionEventSource;
     use symbols::SymbolHandle;
@@ -3049,9 +3322,10 @@ pub(in crate::execution::terminal_unit) mod retained_owners {
         target: SymbolHandle,
         root: facts::PlaceRoot,
         source: CheckedUnitStructuralArgumentSourcePlan,
-    ) -> Result<Vec<CheckedNormalCleanupAction>, &'static str> {
+    ) -> Result<super::temporary_actions::SelectedActions, &'static str> {
         let machine = super::owning_cleanup_machine(program, state);
         let mut actions = Vec::new();
+        let mut partitions = Vec::new();
         let mut retirement = None;
         for disposition_handle in facts
             .contextual_cleanup
@@ -3074,7 +3348,7 @@ pub(in crate::execution::terminal_unit) mod retained_owners {
                         .ok_or("retained owner home retirement cannot be formed")?,
                 );
             }
-            actions.extend(selected_regions(
+            let selected = selected_regions(
                 program,
                 facts,
                 targets,
@@ -3082,12 +3356,18 @@ pub(in crate::execution::terminal_unit) mod retained_owners {
                 disposition_handle,
                 source.clone(),
                 None,
-            )?);
+            )?;
+            partitions.push(selected.partition);
+            actions.extend(selected.actions);
         }
         if let Some(retirement) = retirement {
             super::actions::finish_home(&mut actions, retirement);
         }
-        Ok(actions)
+        Ok(super::temporary_actions::SelectedActions {
+            actions,
+            partitions: super::actions::partition_refs(&mut shapes.cleanup_control, partitions),
+            selected_regions: Vec::new(),
+        })
     }
 
     pub(in crate::execution::terminal_unit) fn dependency_dispositions(
@@ -3134,7 +3414,7 @@ pub(in crate::execution::terminal_unit) mod retained_owners {
         shapes: &mut ShapeCollector<'_>,
         disposition: arena::Handle<checked_trees::ContextualCleanupDisposition>,
         source: CheckedUnitStructuralArgumentSourcePlan,
-    ) -> Result<Vec<CheckedNormalCleanupAction>, &'static str> {
+    ) -> Result<super::temporary_actions::SelectedActions, &'static str> {
         let row = facts.contextual_cleanup.dispositions.get(disposition);
         let PermissionEventSource::Call {
             statement_index,
@@ -3414,6 +3694,7 @@ pub(super) mod temporary_actions {
     }
 
     pub(in crate::execution::terminal_unit) struct SelectedActions {
+        pub partitions: arena::HandleSpan<checked_trees::CheckedCleanupPartitionRef>,
         pub actions: Vec<CheckedNormalCleanupAction>,
         pub selected_regions: Vec<checked_trees::CheckedUnitStructuralArgumentPlan>,
     }
@@ -3581,21 +3862,23 @@ pub(super) mod temporary_actions {
                             owner.disposition,
                             owner.owner.source,
                         )?;
-                        if actions.is_empty() {
+                        if actions.actions.is_empty() && actions.partitions.is_empty() {
                             return Err(
                                 "release reference owner group selected no cleanup actions",
                             );
                         }
-                        let actions = shapes.cleanup_control.actions.insert_many(actions);
+                        let partitions = actions.partitions;
+                        let actions = shapes.cleanup_control.actions.insert_many(actions.actions);
                         let handle = owner_cleanups.handle_at(
                             u32::try_from(ordinal)
                                 .map_err(|_| "release owner ordinal exceeds u32")?,
                         );
-                        shapes
+                        let owner = shapes
                             .cleanup_control
                             .reference_owner_cleanups
-                            .get_mut(handle)
-                            .actions = actions;
+                            .get_mut(handle);
+                        owner.actions = actions;
+                        owner.partitions = partitions;
                     }
                     continue;
                 }
@@ -3763,6 +4046,7 @@ pub(super) mod temporary_actions {
                 .ok_or("call-boundary consumer has no invocation coordinate")?;
             let mut sources = Vec::new();
             let mut completed = Vec::new();
+            let mut partitions = Vec::new();
             for action in cleanup_actions {
                 let source = action.source();
                 if sources.contains(source) {
@@ -3874,7 +4158,7 @@ pub(super) mod temporary_actions {
                 }) {
                     continue;
                 }
-                completed.extend(selected_actions(
+                let selected = selected_actions(
                     program,
                     facts,
                     targets,
@@ -3884,9 +4168,19 @@ pub(super) mod temporary_actions {
                     consumer.target_symbol,
                     root.ok_or("contextual cleanup source has no place root")?,
                     source.clone(),
-                )?);
+                )?;
+                partitions.extend(
+                    shapes
+                        .cleanup_control
+                        .partition_refs
+                        .span_or_empty(selected.partitions)
+                        .iter()
+                        .map(|row| row.partition),
+                );
+                completed.extend(selected.actions);
             }
             Ok(SelectedActions {
+                partitions: super::actions::partition_refs(&mut shapes.cleanup_control, partitions),
                 actions: completed,
                 selected_regions: Vec::new(),
             })
@@ -3922,6 +4216,7 @@ pub(super) mod temporary_actions {
             let CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 cleanup_actions,
                 selected_regions,
+                partitions,
                 ..
             } = operations
                 .get_mut(position)
@@ -3929,6 +4224,7 @@ pub(super) mod temporary_actions {
             else {
                 return Err("cleanup continuation position is not a continuation boundary");
             };
+            *partitions = actions.partitions;
             *cleanup_actions = actions.actions;
             *selected_regions = actions.selected_regions;
         }
@@ -4375,7 +4671,11 @@ pub(super) mod temporary_actions {
                                 operand.argument_ordinal,
                                 operand.operand,
                                 root.root,
-                                selected,
+                                SelectedActions {
+                                    actions: selected,
+                                    partitions: Default::default(),
+                                    selected_regions: Vec::new(),
+                                },
                             ));
                         }
                     }
@@ -4442,7 +4742,8 @@ pub(super) mod temporary_actions {
                             argument_ordinal,
                             operand,
                             owner,
-                            actions: actions.insert_many(selected),
+                            partitions: selected.partitions,
+                            actions: actions.insert_many(selected.actions),
                         }
                     });
             let checked_trees::CheckedScalarComputationKind::Call {
@@ -4491,6 +4792,7 @@ pub(super) mod temporary_actions {
     ) -> Result<(), String> {
         struct Completion {
             plan: checked_trees::CheckedValueCompletionPlan,
+            partitions: Vec<arena::Handle<checked_trees::CheckedCleanupPartitionPlan>>,
             actions: Vec<CheckedNormalCleanupAction>,
             retirements: Vec<CheckedNormalCleanupAction>,
         }
@@ -4550,15 +4852,18 @@ pub(super) mod temporary_actions {
                             state: disposition.state,
                             statement_index,
                             expression: disposition.completion,
+                            partitions: Default::default(),
                             actions: Default::default(),
                         },
+                        partitions: Vec::new(),
                         actions: Vec::new(),
                         retirements: Vec::new(),
                     });
                     completions.len() - 1
                 });
             let completion = &mut completions[position];
-            completion.actions.extend(selected);
+            completion.partitions.push(selected.partition);
+            completion.actions.extend(selected.actions);
             if !completion
                 .retirements
                 .iter()
@@ -4574,6 +4879,8 @@ pub(super) mod temporary_actions {
             if completion.actions.is_empty() {
                 return Err("value completion has no disposition or retirement actions".into());
             }
+            completion.plan.partitions =
+                super::actions::partition_refs(&mut shapes.cleanup_control, completion.partitions);
             completion.plan.actions = shapes
                 .cleanup_control
                 .actions

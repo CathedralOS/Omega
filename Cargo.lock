@@ -538,10 +538,12 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "source",
+ "structure-elaboration",
  "symbols",
  "target",
  "target-operations",
  "task-plans",
+ "terminal-check-tables",
  "terminal-codec",
  "terminal-installation",
  "terminal-interpreter",
@@ -2421,6 +2423,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "structure-elaboration"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "semantic-vocabulary",
+ "source",
+ "symbols",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-psi",
+ "typed-trees",
+]
+
+[[package]]
 name = "symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
@@ -2587,6 +2606,14 @@ dependencies = [
  "source-audit",
  "target",
  "terminal-psi",
+]
+
+[[package]]
+name = "terminal-check-tables"
+version = "0.1.0"
+dependencies = [
+ "language-core",
+ "semantic-vocabulary",
 ]
 
 [[package]]

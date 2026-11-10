@@ -136,44 +136,166 @@ pub(crate) mod block_order {
                     .collect::<Result<Vec<_>, _>>()?,
             );
         }
-        let mut visited = vec![false; source.blocks.len()];
+        ordered_blocks(&outgoing, entry).ok_or(SelectedInstructionError::custody())
+    }
+
+    // Keep the existing preference for the lowest ready block. Cycles still use
+    // the first unselected block in the authored depth-first fallback order.
+    fn ordered_blocks(outgoing: &[Vec<usize>], entry: usize) -> Option<Vec<usize>> {
+        let mut remaining = vec![0usize; outgoing.len()];
+        for targets in outgoing {
+            for target in targets {
+                *remaining.get_mut(*target)? += 1;
+            }
+        }
+        let mut visited = vec![false; outgoing.len()];
         let mut pending = vec![(entry, false)];
-        let mut postorder = Vec::new();
+        let mut postorder = Vec::with_capacity(outgoing.len());
         while let Some((block, expanded)) = pending.pop() {
             if expanded {
                 postorder.push(block);
                 continue;
             }
-            if visited[block] {
+            if *visited.get(block)? {
                 continue;
             }
             visited[block] = true;
             pending.push((block, true));
             pending.extend(outgoing[block].iter().rev().map(|target| (*target, false)));
         }
-        if postorder.len() != source.blocks.len() {
-            return Err(SelectedInstructionError::custody());
+        if postorder.len() != outgoing.len() {
+            return None;
         }
         postorder.reverse();
-        let mut order = vec![entry];
-        while order.len() < source.blocks.len() {
-            let next = (0..source.blocks.len())
-                .find(|index| {
-                    !order.contains(index)
-                        && outgoing.iter().enumerate().all(|(predecessor, targets)| {
-                            !targets.contains(index) || order.contains(&predecessor)
-                        })
-                })
-                .or_else(|| {
-                    postorder
-                        .iter()
-                        .copied()
-                        .find(|index| !order.contains(index))
-                })
-                .ok_or(SelectedInstructionError::custody())?;
+        let mut ready: std::collections::BTreeSet<_> = remaining
+            .iter()
+            .enumerate()
+            .filter_map(|(block, count)| (*count == 0).then_some(block))
+            .collect();
+        let mut selected = vec![false; outgoing.len()];
+        let mut order = Vec::with_capacity(outgoing.len());
+        let mut fallback_position = 0;
+        let mut next = entry;
+        loop {
+            selected[next] = true;
+            ready.remove(&next);
             order.push(next);
+            // Count and retire parallel edges together. A predecessor is done
+            // only after all of its outgoing edges have been accounted for.
+            for target in &outgoing[next] {
+                remaining[*target] -= 1;
+                if remaining[*target] == 0 && !selected[*target] {
+                    ready.insert(*target);
+                }
+            }
+            if order.len() == outgoing.len() {
+                return Some(order);
+            }
+            next = if let Some(block) = ready.first() {
+                *block
+            } else {
+                while selected[*postorder.get(fallback_position)?] {
+                    fallback_position += 1;
+                }
+                postorder[fallback_position]
+            };
         }
-        Ok(order)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::ordered_blocks;
+
+        fn original_order(outgoing: &[Vec<usize>], entry: usize) -> Option<Vec<usize>> {
+            let mut visited = vec![false; outgoing.len()];
+            let mut pending = vec![(entry, false)];
+            let mut postorder = Vec::new();
+            while let Some((block, expanded)) = pending.pop() {
+                if expanded {
+                    postorder.push(block);
+                    continue;
+                }
+                if *visited.get(block)? {
+                    continue;
+                }
+                visited[block] = true;
+                pending.push((block, true));
+                pending.extend(outgoing[block].iter().rev().map(|target| (*target, false)));
+            }
+            if postorder.len() != outgoing.len() {
+                return None;
+            }
+            postorder.reverse();
+            let mut order = vec![entry];
+            while order.len() < outgoing.len() {
+                let next = (0..outgoing.len())
+                    .find(|index| {
+                        !order.contains(index)
+                            && outgoing.iter().enumerate().all(|(predecessor, targets)| {
+                                !targets.contains(index) || order.contains(&predecessor)
+                            })
+                    })
+                    .or_else(|| {
+                        postorder
+                            .iter()
+                            .copied()
+                            .find(|index| !order.contains(index))
+                    })?;
+                order.push(next);
+            }
+            Some(order)
+        }
+
+        #[test]
+        fn ready_blocks_match_original_order_for_all_small_graphs() {
+            for count in 1..=4 {
+                for edges in 0u32..(1 << (count * count)) {
+                    let mut outgoing = vec![Vec::new(); count];
+                    for (from, targets) in outgoing.iter_mut().enumerate() {
+                        for to in 0..count {
+                            if edges & (1 << (from * count + to)) != 0 {
+                                targets.push(to);
+                            }
+                        }
+                    }
+                    for entry in 0..count {
+                        assert_eq!(
+                            ordered_blocks(&outgoing, entry),
+                            original_order(&outgoing, entry),
+                            "entry={entry}, outgoing={outgoing:?}"
+                        );
+                    }
+                    for targets in &mut outgoing {
+                        targets.reverse();
+                        if let Some(first) = targets.first().copied() {
+                            targets.push(first);
+                        }
+                    }
+                    for entry in 0..count {
+                        assert_eq!(
+                            ordered_blocks(&outgoing, entry),
+                            original_order(&outgoing, entry),
+                            "entry={entry}, outgoing={outgoing:?}"
+                        );
+                    }
+                }
+            }
+            assert_eq!(ordered_blocks(&[], 0), None);
+            assert_eq!(ordered_blocks(&[vec![1]], 0), None);
+            assert_eq!(ordered_blocks(&[vec![]], 1), None);
+        }
+
+        #[test]
+        fn ready_blocks_preserve_a_long_reverse_chain() {
+            let count: usize = 8192;
+            let outgoing: Vec<_> = (0..count)
+                .map(|position| position.checked_sub(1).into_iter().collect())
+                .collect();
+            assert_eq!(
+                ordered_blocks(&outgoing, count - 1),
+                Some((0..count).rev().collect())
+            );
+        }
     }
 }
 pub(crate) use crate::selection_inputs::byte_concatenation_input;

@@ -21,7 +21,8 @@ Boundary traits supply identities that may be named in `reaches`; declaring or
 calling one does not implicitly add its identity. A boundary call contributes
 its requirement's explicit reach ceiling, with boundary-parent closure. Every
 boundary-trait machine requirement must declare that ceiling, using `reaches none`
-when it permits no services. A memberless service-identity trait has no operation
+when it permits no services, and must likewise write `crashes` under
+[open callable contracts](#open-callable-contracts). A memberless service-identity trait has no operation
 requiring an annotation. Ordinary traits are not service
 identities. A wake operation may reach a scheduler without suspending.
 Mutation through ordinary borrows adds no service identity;
@@ -81,9 +82,9 @@ machine requirements, and members called through conformance evidence binders.
 | Context | Omitted `reaches` | Authored clause |
 | --- | --- | --- |
 | Checked body, including public APIs | Infer from checked calls. | Bound the derived reach. |
-| Bodyless non-boundary requirement | Defer to the selected implementation's published reach. | Bound admitted implementations; `reaches none` requires empty reach. |
-| Boundary requirement | Reject the missing declaration. | Publish a stable ceiling across providers. |
-| Runtime callable type | Empty reach. | Publish a fixed finite ceiling. |
+| Bodyless non-boundary requirement | Open: defer to the selected implementation's published reach. | Bound admitted implementations; `reaches none` requires empty reach. |
+| Boundary requirement | Reject the open contract. | Publish a stable ceiling across providers. |
+| Runtime callable type | Reject the open contract. | Publish a fixed finite ceiling; `reaches none` states empty reach. |
 
 Every public machine publishes its checked summary, including unresolved static
 dependencies on generic interfaces. A requirement relying on service-free
@@ -93,6 +94,51 @@ reach. The callable shape and all other contract axes retain their own rules.
 No `reaches _` spelling is introduced on originating requirements; the existing
 [transparent-refinement form](conformances.md#transparent-refinements) retains
 its inherited constraints.
+
+### Open callable contracts
+
+Named decision: `open-callable-contracts`, settled 2026-11-09. It subsumes
+`explicit-callable-reach`. A callable contract is the signature and clauses of
+a `requires machine` requirement, a trait member or a callable type. It has one
+meaning wherever it is written:
+
+| Omitted clause | Meaning in a callable contract |
+| --- | --- |
+| `reaches` | Open. No service bound is authored; the selected operation's published reach is retained as a dependency. |
+| `crashes` | Open. No crash bound is authored; the selected operation's published guarded crash routes are retained. |
+| `suspends`, `blocks` | Does not suspend; does not block. |
+| `terminates` | No termination promise. |
+
+A contract that omits `reaches` or `crashes` is open. An open contract admits
+only a selection made at compile time, where its dependency is resolved by
+substituting the selected operation's published contract. A closed position
+needs both clauses written, with `none` for empty:
+
+- a runtime callable type, whether it is a field, parameter, result, local or
+  container element;
+- a boundary requirement, which publishes one stable interface across
+  providers.
+
+An open contract in a closed position rejects, and the diagnostic names the
+missing clause. Openness belongs to the contract. No position reinterprets an
+omitted clause as empty, so a signature copied from a requirement into a field
+type cannot change from "whatever the selection does" to "nothing" without the
+author writing `reaches none` or `crashes none`. Checking a statically known
+selection against an explicitly closed destination is ordinary
+[contract refinement](machines.md#substitution).
+
+```omega
+data CounterOps {
+    clear: machine(counter: &mut Counter) reaches none crashes none terminates;
+    value: machine(counter: &Counter) -> u64 reaches none crashes none terminates;
+}
+```
+
+A checked machine definition is not a callable contract and keeps the rules
+below: its body infers reach, a private body may infer the other axes, and a
+public body with no `crashes` clause promises none. Implementation is tracked
+by `OPEN-CALLABLE-CONTRACTS`; see the
+[design record](../../drafts/designs/open_callable_contracts.md).
 
 ### Implementation boundaries and capability identities
 
@@ -109,7 +155,8 @@ in an operation's row, including the containing trait itself:
 ```omega
 boundary trait MotorControl {
     machine set_speed(speed: u32)
-        reaches MotorControl;
+        reaches MotorControl
+        crashes none;
 }
 ```
 
@@ -123,12 +170,13 @@ marks them critical. Audit registration changes presentation and acceptance,
 not reach, inheritance, authority or attenuation.
 
 Suspension, blocking, and crashes retain their independent rules. On published
-surfaces omitted `suspends` means never parks, omitted `blocks` means never
-blocks a worker, and omitted `crashes` means no crash route, exactly as
-`crashes none`. Private checked bodies may omit any of the three to request
-inference. On a bodyless non-boundary requirement omitted `crashes` defers to
-the selected implementation, and `crashes none` admits only crash-free
-selections. Suspension and blocking are authored on published surfaces because
+surfaces omitted `suspends` means never parks and omitted `blocks` means never
+blocks a worker. On a public checked body omitted `crashes` means no crash
+route, exactly as `crashes none`. Private checked bodies may omit any of the
+three to request inference. On a bodyless non-boundary requirement omitted
+`crashes` defers to the selected implementation, and `crashes none` admits only
+crash-free selections. A boundary requirement and a runtime callable type must
+write the clause under [open callable contracts](#open-callable-contracts). Suspension and blocking are authored on published surfaces because
 their call-site markers are checked against a known bound. Crashes are authored
 there because a trap needs no additional authority and no marker, so inference
 would let a helper edit widen a public contract to a domain-ending outcome
@@ -371,8 +419,9 @@ requirement: a body cannot reach beyond the authority it holds, and an
 authored ceiling remains available for a narrower promise. An explicit empty value, `reaches none`, `crashes none`,
 `suspends false` or `blocks false`, promises the empty value and rejects any
 body or selection that violates it. Boundary requirements and runtime callable
-types author every axis; they have no body to infer from and no static
-selection to defer to.
+types have no body to infer from and no static selection to defer to, so they
+write `reaches` and `crashes` and take the published-surface defaults for the
+other axes.
 
 The axes exchange facts without sharing an algebra. A disproved crash route may
 use the facts a preceding callback's requirement establishes; a false suspension
