@@ -1173,10 +1173,11 @@ pub(crate) mod control_flow {
         graph: &TargetControlGraph,
         abstracted: &AbstractFunction,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
-        native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        descriptor_inputs: &crate::legalization_descriptor_inputs::DescriptorInputs<'_>,
     ) -> Result<crate::legalization::scalar_graph_input::BlockEntryCustody, LegalizationError> {
+        let native = descriptor_inputs.native();
+        let plan = descriptor_inputs.plan();
+        let unit = descriptor_inputs.unit();
         let optimized = function_inputs.function();
         if (function.attachment != optimized.attachment
             || function.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
@@ -1241,7 +1242,7 @@ pub(crate) mod control_flow {
             }
             _ => return Err(LegalizationError::custody()),
         }
-        let block_entries = block_entry_states(optimized, native, plan, unit)?;
+        let block_entries = block_entry_states(optimized, descriptor_inputs)?;
         let source_inputs = sources::SourceInputs::new(graph, optimized);
         for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
             let body_len = block
@@ -6902,10 +6903,10 @@ pub(crate) fn validate_target(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
     function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    descriptor_inputs: &crate::legalization_descriptor_inputs::DescriptorInputs<'_>,
 ) -> Result<crate::legalization::scalar_graph_input::BlockEntryCustody, LegalizationError> {
+    let native = descriptor_inputs.native();
+    let plan = descriptor_inputs.plan();
     let optimized = function_inputs.function();
     crate::legalization::scalar_graph_input::hosted_scalar::validate_normal_call_completions(
         native, optimized, plan,
@@ -6946,9 +6947,7 @@ pub(crate) fn validate_target(
         &target.graph,
         abstracted,
         function_inputs,
-        native,
-        plan,
-        unit,
+        descriptor_inputs,
     )
 }
 

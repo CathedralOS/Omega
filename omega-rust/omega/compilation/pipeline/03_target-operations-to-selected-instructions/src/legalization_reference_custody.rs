@@ -999,10 +999,7 @@ pub(crate) mod carrier_reads {
 use carrier_reads::CarrierStorageRead;
 pub(crate) mod descriptor_backing {
     use super::*;
-    use optimization_unit_semantics::descriptor_results::{
-        captured_scalar_ordering, optimized_catalog_graph,
-    };
-    use std::borrow::Cow;
+    use optimization_unit_semantics::descriptor_results::captured_scalar_ordering;
     use terminal_semantics::borrowed_storage::{Projection, Region};
     use terminal_semantics::descriptor_lifetimes::{DescriptorPosition, descriptor_path};
     use terminal_semantics::descriptor_results::{
@@ -1052,10 +1049,10 @@ pub(crate) mod descriptor_backing {
 
     pub(crate) fn prepare(
         function: &PsiOptimizationFunction,
-        native: &target_operations::TargetOperationPlan,
-        plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        descriptor_inputs: &crate::legalization_descriptor_inputs::DescriptorInputs<'_>,
     ) -> Result<Observations, LegalizationError> {
+        let plan = descriptor_inputs.plan();
+        let unit = descriptor_inputs.unit();
         let types = &plan.structural_types[..];
         if !function
             .structural_parameters
@@ -1075,22 +1072,7 @@ pub(crate) mod descriptor_backing {
         {
             return Ok(Observations::default());
         }
-        let graph = optimized_catalog_graph(
-            &unit.functions,
-            &unit.boundary_machines,
-            types,
-            &unit.dynamic_dispatch,
-            |caller, node| {
-                crate::legalization::scalar_graph_input::call_origin::selected_boundary_operation(
-                    node, caller, native, plan,
-                )
-                .ok()
-                .map(|selected| match selected {
-                    Some((operation, _)) => Cow::Owned(operation),
-                    None => Cow::Borrowed(&node.operation),
-                })
-            },
-        );
+        let graph = descriptor_inputs.views();
         let mut observations = Observations::default();
         let functions = unit
             .functions
@@ -1101,7 +1083,7 @@ pub(crate) mod descriptor_backing {
         let Some(graph) = graph else {
             return Ok(observations);
         };
-        let current = descriptor_machine(&graph, function.machine).ok_or_else(|| invalid())?;
+        let current = descriptor_machine(graph, function.machine).ok_or_else(|| invalid())?;
         observations.borrowed_live = borrowed_arrivals::live_coordinates(function);
         let conditions = current
             .case_successors
@@ -1116,7 +1098,7 @@ pub(crate) mod descriptor_backing {
             .collect::<BTreeMap<_, _>>()
             .into_values()
             .collect::<Vec<_>>();
-        let mut analysis = DescriptorAnalysis::new(types, &graph);
+        let mut analysis = DescriptorAnalysis::new(types, graph);
         observations.flow = analysis.flow_feasibility(function.machine);
         for block in &function.blocks {
             for (node_index, node) in block.nodes.iter().enumerate() {
@@ -2817,7 +2799,6 @@ pub(crate) mod retirements {
 pub(crate) mod stored_calls {
     use super::*;
     use semantic_vocabulary::{BoundaryMachineId, MachineId};
-    use std::borrow::Cow;
     use terminal_semantics::descriptor_lifetimes::descriptor_path;
     use terminal_semantics::descriptor_results::{
         DescriptorAnalysis, DescriptorSlotKind, DescriptorStoredOrigin,
@@ -2894,10 +2875,10 @@ pub(crate) mod stored_calls {
     }
 
     pub(crate) fn prepare(
-        native: &target_operations::TargetOperationPlan,
-        plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        descriptor_inputs: &crate::legalization_descriptor_inputs::DescriptorInputs<'_>,
     ) -> Effects {
+        let plan = descriptor_inputs.plan();
+        let unit = descriptor_inputs.unit();
         let types = &plan.structural_types;
         let candidates = unit
             .functions
@@ -2918,66 +2899,12 @@ pub(crate) mod stored_calls {
                 .map(|function| (function.machine, None))
                 .collect(),
         };
-        let Some(graph) =
-            optimization_unit_semantics::descriptor_results::optimized_reference_catalog_graph_with_boundary_preservation(
-                &unit.functions,
-                &unit.boundary_machines,
-                types,
-            &unit.dynamic_dispatch,
-                |caller, node| {
-                    crate::legalization::scalar_graph_input::call_origin::selected_boundary_operation(node, caller, native, plan)
-                        .ok()
-                        .map(|selected| match selected {
-                            Some((operation, _)) => Cow::Owned(operation),
-                            None => Cow::Borrowed(&node.operation),
-                        })
-                },
-                |caller, node| {
-                    let AbstractOperation::BoundaryCall {
-                        psi_operation,
-                        boundary,
-                        arguments,
-                        structural_arguments,
-                        completion_claim_sources,
-                        completion_receipts,
-                        ..
-                    } = &node.operation
-                    else {
-                        return false;
-                    };
-                    if !completion_claim_sources.is_empty() || !completion_receipts.is_empty() {
-                        return false;
-                    }
-                    let Ok(Some(target_operations::TargetUnitOperation::NormalizedForeignCall {
-                        boundary: selected_boundary,
-                        binding,
-                        ..
-                    })) = crate::legalization::scalar_graph_input::normalized_foreign::row(native, caller.machine, *psi_operation)
-                    else {
-                        return false;
-                    };
-                    let mut declarations = unit.boundary_machines.iter()
-                        .filter(|declaration| declaration.id == *boundary);
-                    let Some(declaration) = declarations.next() else { return false; };
-                    *selected_boundary == *boundary
-                        && declarations.next().is_none()
-                        && arguments.len() == declaration.scalar_parameters.len()
-                        && structural_arguments.len() == declaration.structural_parameters.len()
-                        && structural_arguments.iter().zip(&declaration.structural_parameters)
-                            .all(|(actual, formal)| actual.access == formal.access)
-                        && target_operations::descriptor_input_guard(
-                            declaration, binding, types,
-                            |buffer| native.borrowed_storage_layouts.iter()
-                                .find(|layout| layout.structural_type == buffer),
-                        ).is_ok_and(|guard| guard.is_some())
-                },
-            )
-        else {
+        let Some(graph) = descriptor_inputs.references() else {
             return effects;
         };
         effects.reference_catalog_available = true;
-        let mut analysis = DescriptorAnalysis::with_reference_slots(types, &graph);
-        for machine in &graph {
+        let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
+        for machine in graph {
             effects
                 .observations
                 .insert(machine.id, analysis.source_observations(machine.id));
@@ -7135,10 +7062,9 @@ fn borrowed_sources(
 
 pub(crate) fn block_entry_states(
     function: &PsiOptimizationFunction,
-    native: &target_operations::TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    descriptor_inputs: &crate::legalization_descriptor_inputs::DescriptorInputs<'_>,
 ) -> Result<BTreeMap<BlockId, Custody>, LegalizationError> {
+    let plan = descriptor_inputs.plan();
     let types = &plan.structural_types[..];
     let blocks = &function.blocks;
     let positions: BTreeMap<BlockId, usize> = blocks
@@ -7151,7 +7077,7 @@ pub(crate) fn block_entry_states(
         return Err(invalid());
     }
     let descriptor_backing =
-        std::sync::Arc::new(descriptor_backing::prepare(function, native, plan, unit)?);
+        std::sync::Arc::new(descriptor_backing::prepare(function, descriptor_inputs)?);
     let mut predecessors: BTreeMap<_, BTreeSet<_>> = blocks
         .iter()
         .map(|block| (block.id, BTreeSet::new()))
@@ -7213,7 +7139,7 @@ pub(crate) fn block_entry_states(
         }
     }
     initial.descriptor_backing = descriptor_backing;
-    initial.stored_calls = std::sync::Arc::new(stored_calls::prepare(native, plan, unit));
+    initial.stored_calls = std::sync::Arc::new(stored_calls::prepare(descriptor_inputs));
     let impossible_context = Custody {
         descriptor_backing: initial.descriptor_backing.clone(),
         stored_calls: initial.stored_calls.clone(),

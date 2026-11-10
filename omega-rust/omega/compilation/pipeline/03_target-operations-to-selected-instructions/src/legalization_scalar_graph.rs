@@ -8689,10 +8689,11 @@ pub(crate) fn match_input(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    descriptor_inputs: &crate::legalization_descriptor_inputs::DescriptorInputs<'_>,
 ) -> Result<(), LegalizationError> {
+    let native = descriptor_inputs.native();
+    let plan = descriptor_inputs.plan();
+    let unit = descriptor_inputs.unit();
     primitive_locals::validate(optimized, &unit.structural_types)?;
     let call_plan = if aggregate_results::uses(optimized) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
@@ -8965,7 +8966,7 @@ pub(crate) fn match_input(
             }
         }
     }
-    validate_target(target, abstracted, &function_inputs, native, plan, unit).map(|_| ())
+    validate_target(target, abstracted, &function_inputs, descriptor_inputs).map(|_| ())
 }
 pub(crate) fn callee_plan(
     callee: impl Into<abstract_operations::AbstractCallTarget>,
