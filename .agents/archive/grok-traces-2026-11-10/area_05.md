@@ -21,6 +21,11 @@ This file is updated as entries are decided. Entries not listed in the table are
 | 13 | `current_ownership.rs:1620` | CLOSED | A missing or empty target fails validation, so the dropped edge never accepts a unit. |
 | 14 | `current_ownership.rs:2207` | UNDECIDED | Non-owned sources skip owner liveness; the earlier transfer check was not finished. |
 | 15 | `current_ownership.rs:2202` | CLOSED | Same equal-length check as entry 12. |
+| 16 | `current_ownership.rs:2467` | CLOSED | The three zips use the same slices as the length check in entry 12. |
+| 17 | `current_ownership.rs:3156` | CLOSED | The always-true case test demands every case, so a type that owes a claim is kept and rejected. |
+| 18 | `current_ownership.rs:3490` | CLOSED | Empty blocks are rejected before this ordinal is computed. |
+| 19 | `current_ownership.rs:6461` | UNDECIDED | The wildcard was not compared with the descriptor-loan operation list. |
+| 20 | `current_ownership.rs:5824` | UNDECIDED | One caller rechecks live references; the other four callers were not read. |
 
 ## 1. `candidates.rs:1581-1586`
 
@@ -178,15 +183,65 @@ Searches: the zip is the `for` at `:2202`. Caller of `check_edge(` — `:8711` o
 
 Read: `check_edge` (`:2183-2202`) and the call (`:8711-8718`). The destination is `blocks[&edge.target].structural_parameters`. `structural_transfers::validate` compares `edge.structural_bindings.len()` with that same parameter list (`unit_validation.rs:9045`) before ownership runs (`:9593`, `:9660`). The zip does not drop a binding.
 
+## 16. `current_ownership.rs:2467`, `:2556`, `:2589`
+
+**CLOSED.** The digest's "count check covers only claims" is a different test. It does not make the zip drop bindings.
+
+Searches: the three zips are inside `consume_edge_sources` (`:2467`, `:2554-2556`, `:2589`). Caller: `:8772` only. `bound.len() != transferred.len()` — `:2642`.
+
+Read: the three loops (`:2467-2470`, `:2553-2566`, `:2588-2594`) and the call (`:8772-8779`). `bindings` is `edge.structural_bindings` and the parameters are `blocks[&edge.target].structural_parameters`. `structural_transfers::validate` requires those lengths to be equal (`unit_validation.rs:9045`) before this pass (`:9593`, `:9660`). The claim-count test at `:2642` runs after the zips and compares transferred claims with rebound claims. It does not see a binding the zip dropped, because the lengths already match.
+
+The digest's line `:2554` is the `.zip` line's predecessor; the zip token is on `:2556`.
+
+## 17. `current_ownership.rs:3156-3173`
+
+**CLOSED.** The digest's program is not accepted when the type owes a claim.
+
+Searches: `validate_return_cleanup_actions` — definition `:3136`. `fn validate_owned_claim_frontier` — `structural.rs:876`.
+
+Read in full: the `retain` closure and the nonempty rejection (`current_ownership.rs:3156-3181`), and `validate_owned_claim_frontier` (`structural.rs:876-1001`). Did not read `selected_children`.
+
+A linear place with no partial path and no claim is removed only when the kernel returns `Ok` (`:3163-3171`). The membership closure is `|_, _| true`, so a sum admits every case (`structural.rs:981-986`). A case payload that owns a linear claim then fails with "owned value has no exact live nominal claim" (`:931-934`). `is_err` keeps the place, and a nonempty owed set is `CurrentCleanupMismatch` (`current_ownership.rs:3174-3181`). A type that owes nothing under every case returns `Ok` and is removed. That return does not leave a claim outstanding.
+
+## 18. `current_ownership.rs:3490` and `:3582`
+
+**CLOSED.**
+
+Searches: `saturating_sub(1)` in this file — `:3490` and `:3582`, both inside cleanup. `EmptyBlock` — `unit_validation.rs:5681`.
+
+Read: both ordinal expressions (`current_ownership.rs:3488-3491` and `:3580-3583`) and the empty-block rejection (`unit_validation.rs:5679-5685`). `validate_function` runs that rejection at control-flow validation (`:9594`) before ownership (`:9660`). A block that reaches these lines has at least one node, so `len.saturating_sub(1)` is `len - 1`. An empty block never gets ordinal 0 from this expression in an accepted unit.
+
+## 19. `current_ownership.rs:6461`
+
+**UNDECIDED.**
+
+Searches: `fn apply_operation` — definition `:5995`. The `_ => {}` is the last arm of its match (`:6461`).
+
+Read: the tail of the match from `:6414` through `:6462`, and descriptor observations around `:1368-1399`. Did not read the arms from `:5995` to `:6414`, and did not compare that list with the operations named at `:1368-1406`.
+
+What would decide it: read the match from `:5995` and the operation list in the descriptor-loan observer. If every operation that can read through a suspended referent is in an arm of `apply_operation`, or is rejected by `check_operation` (`:2145`) before this function runs, the wildcard is harmless. If one such operation is in neither, the digest's program is accepted.
+
+## 20. `current_ownership.rs:5824-5826`
+
+**UNDECIDED.**
+
+Searches: `discard_subtree(` — definition `:5816`, calls `:2707`, `:3500`, `:4946`, and through `discard_owned` at `:2518`, `:3471`, `:5813`.
+
+Read in full: `discard_subtree`'s opening (`:5816-5826`) and the caller at `:2514-2525`. Did not read the callers at `:2707`, `:3471`, `:3500`, or `:4946`.
+
+At `:2518` the no-op is followed by a test that any live reference still borrowing the source is `CurrentCleanupMismatch` (`:2519-2524`). A missing contract does not hide a live borrow on that path.
+
+What would decide it: those four unread callers. If each either rejects a missing contract first or checks that no live reference remains, this `Ok(())` is harmless.
+
 ## Counts so far
 
 | Verdict | Count |
 | --- | --- |
 | REACHABLE | 0 |
-| CLOSED | 11 |
-| UNDECIDED | 4 |
+| CLOSED | 14 |
+| UNDECIDED | 6 |
 
-Entries not reached: 16 through 120.
+Entries not reached: 21 through 120.
 
 ## What I did not read
 
@@ -196,7 +251,9 @@ Entries not reached: 16 through 120.
 - The rest of `adapt` after `descriptor_results.rs:1292`, including every `return None` (entry 9).
 - `canonical_storage` (entry 10).
 - `structural_transfers::validate` after `unit_validation.rs:9207` (entry 14).
-- Entries 16 through 120.
+- `apply_operation` from `current_ownership.rs:5995` to `:6414`, and the descriptor-loan operation list at `:1368-1406` (entry 19).
+- `discard_subtree` callers at `:2707`, `:3471`, `:3500`, and `:4946` (entry 20).
+- Entries 21 through 120.
 - Subagent drafts: nothing from them is copied here.
 
-Pushed through entry 10 as `5093f5033b35c0ed02590d5762396026fa4ee63c`. The final SHA is written on the last push.
+Pushed through entry 15 as `1257527861f7cc7ec55ea7d8767eab752a69d1d5`. The final SHA is written on the last push.
