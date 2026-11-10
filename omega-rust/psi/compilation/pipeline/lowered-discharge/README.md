@@ -89,7 +89,7 @@ obligation into a `terminal_codec::ObligationEvidenceSeal`: the obligation's
 machine and identity, its goal, the hypotheses and the certificate, and a
 SHA-256 fingerprint over their canonical encoding. Only that kind becomes an
 accepted fact in Omega 00. The caller hands the seals to Omega 00 with
-`VerifiedPsiOptimizationInput::with_evidence_seals`.
+`lower_module_with_evidence`, the only way to attach them.
 
 Omega 00 checks each seal before it fills the fact's
 `proof_bundle_fingerprint`: the fingerprint matches the seal's parts, the
