@@ -46,6 +46,19 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 | 38 | ps/bodies/target_bodies.rs:76-80 | REACHABLE | No entry, or an entry with no explicit body for this target, leaves the frontier empty, and an empty refusal list returns success. |
 | 39 | ps/publication.rs:494-497, :503-506 | UNDECIDED | A machine with no callable declaration, and an operation with no demand record, are skipped. Whether that machine is still executed was not settled. |
 | 40 | sd/compiler_intrinsic.rs:136-138 | CLOSED | `Unsupported` is stored as a missing execution, and a demanded boundary rejects a missing execution. |
+| 41 | sd/intrinsic_review.rs:353-365 | UNDECIDED | No accepted binding returns `None` and that `None` is passed to `settle`. I did not read `settle`'s result when both bindings are `None`. |
+| 42 | sd/numeric_provider.rs:82 | CLOSED | Both-absent is the equality. The next line still requires a checked numeric meaning. |
+| 43 | sd/provider_binding.rs:214-218, :252 | UNDECIDED | A missing Filesystem, Time, or entry binding is skipped and this function still returns success. Whether a later stage requires the binding was not settled. |
+| 44 | sd/selected_dispatch/operator_adapter/application_realization.rs:189-196 | REACHABLE | No authored selection returns success with no row, and the caller drops that `None` and can still succeed. |
+| 45 | sd/selected_execution.rs:88-91 | CLOSED | Both producers call `validate_terminal_authority_permissions` before the binding exists. Empty text that is not one exact method is already an error. |
+| 46 | ous/access_references.rs:71-107 | UNDECIDED | `borrowed_view_formation` returns `None` on any failed match. The callers of that `None` were not read. |
+| 47 | comp/product_boundary.rs:8-14 | CLOSED | `assert_absent` is a source-text test. It does not accept or reject a user program. |
+| 48 | csup/boundary_fields.rs:138-140, :203-205 | CLOSED | Both callers discard `Ok` and only propagate `Err`, so `Ok(None)` does not admit a call. |
+| 49 | csup/closed_trait_applications.rs:54-57 | UNDECIDED | An empty coordinate list keeps each adapter unchanged. Whether that list can be empty for a plan that still has closed applications was not settled. |
+
+`ous/` is `omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/`. `csup/` is `omega/compilation/compiler/tests/support/checked_interpreter_dispatch/boundary_dispatch/`. Entry 49 is `adapter_rows/closed_trait_applications.rs` under that directory, not the directory itself.
+
+Entries not reached: none.
 
 `orch/` is `omega/build-system/orchestration/src/`. `ba/` is `omega/compilation/backend/artifacts/boundary-applications/src/`. `cd/` is `omega/compilation/backend/artifacts/component-description/src/`. `nc/` is `omega/compilation/native-compiler/src/`. `pa/` is `omega/compilation/realization/provider-admission/src/`. `whr/` is `pa/provider_admission/terminal_authority_review/`.
 
@@ -55,7 +68,125 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 
 `sd/` is `omega/compilation/realization/selected-dispatch/src/`.
 
-Entries 41 onward are not written yet.
+## 41. `sd/intrinsic_review.rs:353-365`
+
+`accepted` inside `produce_direct_boundary_leaves` (read `:353-373` and the `settle` call at `:387-395`). No binding for the role returns `Ok(None)` (`:354-356`). A binding whose symbol and plan digest match no selected provider also returns `Ok(None)` (`:359-364`). That `Option` is passed to `declaration.settle` (`:389-393`). The leaf is `DirectBoundaryExecution::Intrinsic(closed)` (`:395`).
+
+I did not read the rest of `settle` after the hosted `for` loop, so I do not know what it returns when both binding options are `None`. A demanded `CompilerIntrinsic` with a `None` execution slot is rejected at `boundary.rs:109-111` (read), but that slot is `row_executions`, not this leaf's `closed` value. I did not connect the two.
+
+Verdict UNDECIDED. What would decide it: `settle`'s return after the hosted loop when `console` and `process_exit` are both `None`, and whether a leaf of `Intrinsic(None)` is demanded.
+
+Digest: right that `settle` is called with `None`. Incomplete: `Ok(None)` is also the missing public-plan match at `:363-364`.
+
+Not read: `settle` after `:319`.
+
+## 42. `sd/numeric_provider.rs:82`
+
+`NumericProviderSelection::execution` (read `:70-96`). The error at `:82-86` is `candidate != custody || candidate.1 != Some(realization) || candidate.2 != provider`. `provider` is `None` when `self.provider` is `None` (`:74-81`). Both sides `None` makes `candidate.2 != provider` false. The function then requires `candidate.0` (`:89-91`, "numeric provider has no checked meaning").
+
+Both-absent does not skip the meaning check. A candidate with no meaning is `Err`.
+
+Digest: misleading. The line is an equality, not an acceptance of a provider-less candidate with no meaning.
+
+Not read: callers of `execution` past `compiler_intrinsic.rs:120-122`, which propagates the `Result`.
+
+## 43. `sd/provider_binding.rs:214-218` and `:252`
+
+`prepare_selected_execution` (read `:214-274`). `accepted_binding` is `None` when package inputs are absent or the role has no binding (`:214-218`). The loop pushes Filesystem, Time, and the entry role only inside `if let Some(binding)` (`:247-257`). The function then returns `Ok(SelectedExecution)` (`:258`).
+
+I did not read a later requirement that those roles be present. A compilation that omits them still gets `Ok` from this function. Whether a program that uses the filesystem host service is rejected afterwards was not read.
+
+Verdict UNDECIDED. What would decide it: a search of `FilesystemHostService` consumers after `SelectedExecution` is built.
+
+Digest: right about the skip.
+
+Not read: `semantic_bindings.rs`.
+
+## 44. `sd/selected_dispatch/operator_adapter/application_realization.rs:189-196`
+
+`derive_checked_expression_operator_application_realization` (read `:178-203`) returns `Ok(None)` when `has_exact_authored_selection` is false (`:189-196`), and also when `selected_use_plan` is `None` (`:197-203`). `derive_checked_nongeneric_operator_application_realizations` (read `:84-104`) drops `Ok(None)` (`:96`) and returns `Ok(rows)` when there is no `Err` (`:100-101`).
+
+A canonical-empty boundary-operator application with one resolved authored use and no matching authored declaration selection produces no realization row, and this collector still succeeds.
+
+Digest: right.
+
+Not read: `boundary_policy/validation.rs`. This collector does not require one row per application.
+
+## 45. `sd/selected_execution.rs:88-91`
+
+`terminal_authority_permissions` (read `:75-98`) re-interns missing identity text as `""` (`:88-91`).
+
+Both producers of `ResolvedAcceptedSemanticBinding` call `validate_terminal_authority_permissions` first. I read `intrinsic_review.rs:86-90` and `:286-297`. `validate_terminal_authority_permissions` (`:409-433`, read) uses the same `unwrap_or_default` and returns `Err` unless that text equals exactly one schema method (`:426-431`). The struct fields used at `:87-89` are filled only after that `?`.
+
+An empty identity that does not name exactly one method never becomes a binding. The re-intern keeps text the validator already accepted, including `""` only when exactly one method's identity text is empty.
+
+Digest: wrong that this is open for a path that skips the validator. I found no producer that skips it. I did not read a third constructor; the two sites above are the `ResolvedAcceptedSemanticBinding {` constructions I read.
+
+Not read: consumers that only read the returned permission list.
+
+## 46. `ous/access_references.rs:71-107`
+
+`borrowed_view_formation` (read `:63-119`). A missing declaration, a non-`View` placement, a non-structural result, a type mismatch, a missing lifecycle plan, a vacant or resident slot, a missing reference slot, or a schema, policy, or placement mismatch returns `None` (`:71-107`).
+
+Search `borrowed_view_formation\(` was reported as 4 hits by a parallel reader. I did not read those callers. I am not using that count as a trace.
+
+Verdict UNDECIDED. What would decide it: the three call sites and whether each `None` becomes an error.
+
+Digest: right that any mismatch returns `None`.
+
+Not read: the callers.
+
+## 47. `comp/product_boundary.rs:8-14`
+
+`assert_absent` (read `:8-14`) asserts that source text does not contain a substring. It is a `#[test]` helper. I read the function and the file starts with a comment that these are tests (`:1-6`). I did not read every test body.
+
+A renamed call with the same behavior fails the substring test and the test stays green. That does not accept a user program. Compilation does not call `assert_absent`.
+
+Digest: right that a renamed equivalent call evades the guard, and right that it is a test.
+
+Not read: the test bodies past the helper.
+
+## 48. `csup/.../boundary_fields.rs:138-140` and `:203-205`
+
+I did not re-read `resolve_adapter_call` in this pass. I read both callers in `boundary_dispatch.rs:257-267` and `:284-294`. Each is `resolve_adapter_call(...).map_err(|error| vec![error])?;`. The `Ok` value is not bound. `Ok(None)` and `Ok(Some(_))` both continue. Only `Err` stops the oracle.
+
+`Ok(None)` does not admit a call at these call sites.
+
+Digest: if it treated `Ok(None)` as accepting a call, that is wrong for these callers.
+
+Not read: the body of `resolve_adapter_call` in this pass. The digest and the caller lines are what this verdict uses. The caller lines were read.
+
+## 49. `csup/.../adapter_rows/closed_trait_applications.rs:54-57`
+
+`project` (read `:49-57`). When `coordinates` is empty, each adapter is pushed unchanged and the loop continues. I did not read the rest of `project` after `:57`, and I did not read how `specialized_requirement_rows` is filled.
+
+Verdict UNDECIDED. What would decide it: whether an empty coordinate list means there is nothing to project, or a checked-adapter plan that still has closed applications.
+
+Digest: the pass-through is what those lines do. The file is test-interpreter support. I read the branch, not the module header.
+
+Not read: `closed_trait_applications.rs` after `:57`, and `adapter_rows.rs` around the call.
+
+## Counts
+
+| Verdict | Count |
+| --- | --- |
+| REACHABLE | 14 |
+| CLOSED | 17 |
+| UNDECIDED | 18 |
+
+49 entries. None were left unwritten.
+
+REACHABLE: 1, 8, 16, 27, 28, 29, 30, 31, 32, 34, 35, 37, 38, 44.
+
+CLOSED: 4, 5, 6, 9, 10, 13, 15, 18, 19, 22, 23, 36, 40, 42, 45, 47, 48.
+
+UNDECIDED: 2, 3, 7, 11, 12, 14, 17, 20, 21, 24, 25, 26, 33, 39, 41, 43, 46, 49.
+
+## What I did not read
+
+I did not build, compile, or run the compiler. I did not read the Omega sources under `source/`, the tests except the call sites named above, or the wiki. Each entry's "Not read" lines are the functions I stopped before. The parallel notes I was given were not copied in as verdicts unless the section says I read the lines. Entry 48 names the callers I read and says the body of `resolve_adapter_call` was not re-read in the last pass.
+
+The trace commit that contains entries 1-49, before the sentence that records its SHA, is filled in by the following commit.
 
 ## 1. `comp/product_execution.rs:473-491`
 
