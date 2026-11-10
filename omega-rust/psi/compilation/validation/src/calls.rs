@@ -7984,10 +7984,16 @@ pub(crate) mod write_frames {
                 parameter.symbol.is_valid()
                     && match binders {
                         SignatureBinders::Monomorphic => false,
+                        // A machine binder selects code the callee may run, never
+                        // the storage type of a parameter, so the write footprint
+                        // read from the parameter list is the same for every
+                        // machine bound to it.
                         SignatureBinders::AppliedStorageParameters => {
                             matches!(
                                 parameter.kind,
-                                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                                TypeParameterKind::Type
+                                    | TypeParameterKind::Const { .. }
+                                    | TypeParameterKind::Machine { .. }
                             )
                         }
                         SignatureBinders::CallBinders => true,
@@ -22205,8 +22211,17 @@ pub(crate) mod write_frames {
         ) -> Option<symbols::SymbolHandle> {
             let assignment = statement.as_assignment()?;
             let target = FrameSourcePlace::from_expression(program, assignment.target);
+            // Only a `mut` parameter can be rebound. Without this check a write to
+            // a non-`mut` reference parameter moved to a generated mutable local
+            // and the assignment's own mutability rule never saw the parameter.
+            let declared_mut = program
+                .machine_states(machine)
+                .iter()
+                .flat_map(|state| program.state_parameters(state))
+                .any(|parameter| parameter.symbol == target.root && parameter.is_mutable);
             (target.root.is_valid()
                 && program.symbols.get(target.root).kind == SymbolKind::Parameter
+                && declared_mut
                 && replaces_binding(program, machine, statement)?)
             .then_some(target.root)
         }
@@ -38616,6 +38631,12 @@ pub(crate) mod write_frames {
                     | (TypeParameterKind::Const { .. }, StaticMachineBindingValue::Const(actual)) => {
                         *actual
                     }
+                    // The application must still bind a machine here, but that
+                    // machine names no type a parameter could be written through,
+                    // so it contributes no storage binding.
+                    (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(_)) => {
+                        continue;
+                    }
                     _ => return None,
                 };
                 if !program.type_reference_table.contains_type_reference(actual)
@@ -40367,6 +40388,20 @@ fn validate_value_call_arguments(
     call: &typed_trees::expression::TableCallExpression,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
+    // A value call enters the callee machine at its entry state, and a machine
+    // without an authored entry name carries the generated state name `entry`,
+    // which the caller never wrote. Diagnostics name the call target by the
+    // machine the caller named: its last path segment for the short label (the
+    // entry state's own name for a method such as `Stack::pop`), and its full
+    // name as the argument scope. A generic specialization reports the authored
+    // machine it was cloned from, not its generated `$specialized$` name.
+    let authored_callee = program.symbols.authored_origin(callee_machine.symbol);
+    let callee_scope = if authored_callee == callee_machine.symbol {
+        callee_machine.name.as_str()
+    } else {
+        program.symbols.name(authored_callee)
+    };
+    let callee_label = callee_scope.rsplit("::").next().unwrap_or(callee_scope);
     let site = CallSite::Expression { expression, call };
     let parameters = match argument_correspondence::executable_parameters(
         program,
@@ -40376,8 +40411,7 @@ fn validate_value_call_arguments(
         Ok(parameters) => parameters,
         Err(reason) => {
             diagnostics.push(Diagnostic::error(format!(
-                "call `{}` has an invalid argument correspondence: {reason}",
-                callee_state.name,
+                "call `{callee_label}` has an invalid argument correspondence: {reason}",
             )));
             return;
         }
@@ -40402,7 +40436,7 @@ fn validate_value_call_arguments(
         );
     }
     if report_callable_argument_count_mismatch(
-        callee_state.name.as_str(),
+        callee_label,
         parameters.len(),
         arguments,
         diagnostics,
@@ -40423,8 +40457,7 @@ fn validate_value_call_arguments(
             arguments,
         ) else {
             diagnostics.push(Diagnostic::error(format!(
-                "call `{}` has an invalid static type argument correspondence",
-                callee_state.name
+                "call `{callee_label}` has an invalid static type argument correspondence"
             )));
             return;
         };
@@ -40452,8 +40485,8 @@ fn validate_value_call_arguments(
         Some(current_state),
         value_environment,
         arguments,
-        callee_state.name.as_str(),
-        &format!("{}::{}", callee_machine.name, callee_state.name),
+        callee_label,
+        callee_scope,
         &parameters,
         prior_statements,
         selected_float_operation_retains_argument_policy(program, callee_machine.symbol),

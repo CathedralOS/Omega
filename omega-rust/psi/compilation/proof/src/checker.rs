@@ -2612,6 +2612,7 @@ mod certificate {
             program
                 .expression_table
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left,
                     operator,
                     right,

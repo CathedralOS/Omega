@@ -1,1 +1,1 @@
-argument `right` for state `entry` expects `T`
+argument `right` for state `pair` expects `T`

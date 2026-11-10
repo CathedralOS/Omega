@@ -155,9 +155,11 @@ extent, refuses while any retained foreign argument pins the old range, and
 installs replacement backing only over identical geometry with no wider
 rights under a new mapping era.
 
-Owned virtual-to-physical decomposition requires the joint correspondence
-algebra specified by [related content](content_custody.md#independent-and-related-content).
-Independent interval/quantity conservation cannot preserve that association.
+Owned virtual-to-physical decomposition carries the association in conserved
+content under [related content](content_custody.md#independent-and-related-content):
+a mapping that is a union of translations projects each contiguous run into a
+coordinate space indexed by its two address spaces and its exact offset. Independent interval/quantity
+conservation of the two address ranges cannot preserve that association.
 
 Page tables, translation policy, activation, shootdowns, and teardown belong
 to OS/provider packages. Omega owns the general authority and checking rules,

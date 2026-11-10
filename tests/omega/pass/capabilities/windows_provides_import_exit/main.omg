@@ -1,8 +1,7 @@
-// EXTERNAL-LEAF import, END TO END on hosted windows_x86_64 (extern brief §12,
-// hosted-consumption rung 2): a bodyless satisfying machine binds the boundary
-// requirement through the typed compile-time producer `beeper_binding`, whose
-// evaluated `ForeignBinding::DllImport { import: DllImport::PeByName { library:
-// "msvcrt.dll", export: "abs" } }` value normalizes to the exact PE import
+// Build-owned native import, END TO END on hosted windows_x86_64: build.omg
+// binds the boundary requirement `Beeper::beep` directly to the typed locator
+// `ForeignBinding::DllImport { import: DllImport::PeByName { library:
+// "msvcrt.dll", export: "abs" } }`, which normalizes to the exact PE import
 // locator at provider selection -- raw foreign bytes stay data, never ambient
 // lookup strings. The call rides the GENERAL value-returning Win64 import
 // encoder with the import table naming the BINDING's DLL (msvcrt.dll, never
@@ -11,20 +10,9 @@
 // discipline throughout (main.v arg, main.m result): host-call operands that
 // are frame LOCALS fail under multi-dispatch selection (the parked
 // pending/host/host_local_operand_dual_dispatch face -- catalog ops too).
-// NATIVE-ONLY: the interpreter has no provider for authored bindings.
-use omega::language::core::external_binding;
 use omega_language_std::console;
 public boundary trait Beeper { machine beep(value: i32) -> i32 reaches; }
 data Main { m: i32; v: i32; }
-windows_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "msvcrt.dll",
-            export: "abs",
-        },
-    }
-}
-machine beeper_abs(value: i32) -> i32 satisfies Beeper::beep via beeper_binding();
 machine Main::main(main: &mut Main) reaches Beeper + Console {
     main.v = 0 - 42;
     main.m = Beeper::beep(main.v);

@@ -918,6 +918,7 @@ pub mod bound_expression_meaning {
                     return None;
                 };
                 let comparison = typed_trees::expression::TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     operator: operation,
                     left: *left,
                     right: *right,
@@ -1618,6 +1619,7 @@ pub mod bound_expression_meaning {
                         continue;
                     }
                     let membership = typed_trees::expression::TableBinaryExpression {
+                        policy: binary.policy,
                         left: binary.left,
                         operator: binary.operator,
                         right: binary.right,

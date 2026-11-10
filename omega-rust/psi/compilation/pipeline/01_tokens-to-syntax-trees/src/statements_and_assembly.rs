@@ -143,6 +143,7 @@ pub(crate) mod statements {
             let value = match update {
                 AtomicUpdate::Fetch { operand, operator } => {
                     exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: result,
                         operator,
                         right: operand,
@@ -156,6 +157,7 @@ pub(crate) mod statements {
                     let prior_for_subtract = result_reference(syntax_trees, &binding.name);
                     let difference =
                         exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: replacement,
                             operator: BinaryOperator::Subtract,
                             right: prior_for_subtract,
@@ -163,17 +165,20 @@ pub(crate) mod statements {
                     let prior_for_compare = result_reference(syntax_trees, &binding.name);
                     let comparison =
                         exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: prior_for_compare,
                             operator: BinaryOperator::Equal,
                             right: expected,
                         }));
                     let replacement_delta =
                         exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: comparison,
                             operator: BinaryOperator::Multiply,
                             right: difference,
                         }));
                     exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: result,
                         operator: BinaryOperator::Add,
                         right: replacement_delta,
@@ -704,6 +709,7 @@ pub(crate) mod statements {
                     trees
                         .expressions
                         .insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left,
                             operator,
                             right,
@@ -723,6 +729,7 @@ pub(crate) mod statements {
                     trees
                         .expressions
                         .insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: destination,
                             operator: BinaryOperator::Equal,
                             right: zero,
@@ -825,6 +832,7 @@ pub(crate) mod statements {
                 trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left,
                         operator,
                         right,
@@ -2325,6 +2333,7 @@ pub(crate) mod statements {
                 let (right, input) = parse_expression_handle(syntax_trees, input)?;
                 let value =
                     exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: read_target,
                         operator,
                         right,

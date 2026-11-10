@@ -36,8 +36,11 @@ allocation-independent source estimate. Bind the composed demand to the exact
 physical realization. A separate provisioning judgment establishes usable backing.
 Runtime tail recursion lowers to iteration with no accumulated frames.
 
-For task activations, the [provider's backing contract](../build/task_runtime.md#activation-description-and-stack)
-guarantees the full plan throughout execution and parking. Reservation and
+For task activations, the [provider's backing contract](../build/task_runtime.md#backing-guarantee)
+guarantees the selected [storage plan](../build/task_runtime.md#storage-plans):
+its retained part throughout execution and parking, and its execution part
+whenever the activation runs. WCSU bounds each physical execution domain that
+uses a stack; retained and transition demand are accounted beside it. Reservation and
 physical commitment are provider policies beneath that guarantee; deferred
 commitment cannot introduce an otherwise unaccounted stack-exhaustion outcome.
 

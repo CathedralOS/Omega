@@ -538,10 +538,12 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "source",
+ "structure-elaboration",
  "symbols",
  "target",
  "target-operations",
  "task-plans",
+ "terminal-check-tables",
  "terminal-codec",
  "terminal-installation",
  "terminal-interpreter",
@@ -1165,6 +1167,19 @@ name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
+
+[[package]]
+name = "lowered-discharge"
+version = "0.1.0"
+dependencies = [
+ "proof-admission",
+ "semantic-vocabulary",
+ "structure-elaboration",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+]
 
 [[package]]
 name = "lowered-psi"
@@ -2421,6 +2436,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "structure-elaboration"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "semantic-vocabulary",
+ "source",
+ "symbols",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-psi",
+ "typed-trees",
+]
+
+[[package]]
 name = "symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
@@ -2685,6 +2717,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "layout-plans",
+ "lowered-discharge",
  "numerics",
  "optimization-core",
  "optimization-unit",
@@ -2697,6 +2730,7 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "source",
+ "structure-elaboration",
  "symbols",
  "target",
  "target-operations",

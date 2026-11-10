@@ -111,23 +111,38 @@ stale fact still rejects them.
    evidence. There is no fact hand-off, because the checker annotated the form
    that is emitted.
 
-Psi 00 through 04 and the Omega stages keep their structure. Psi 05,
-validation and Psi 06 are replaced. The current pipeline stays the shipping
-path until the replacement serves a construct family completely.
+Psi 00 through 04 and the Omega stages keep their pipeline structure. Psi 05,
+validation and Psi 06 are replaced. Because real programs (and the 7,309
+`facts/` fixtures, `samples/` and `source/library/`) combine construct families
+inside one machine and call graph, the shipping path switches per whole
+compilation closure rather than per construct family: when every reachable
+construct elaborates, the lowered-form checker's verdict (`Evidence` or a
+non-`Unsupported` `Refusal`) governs; when any reachable construct returns
+`RefusalReason::Unsupported`, the whole compilation falls back to Psi 05 and
+06. Psi 05, validation and Psi 06 are deleted once `Unsupported` reaches zero
+across the language.
 
-Two conditions on the parts that stay, both from the full read:
+Two standing rules on the parts that stay, both from the full read:
 
-- **Identity is fixed before elaboration.** Decisions keyed on a name or on
-  text are not confined to the replaced stages: Psi 02, 03 and 04, the typed
-  trees and build-time evaluation hold at least 451 of the 2,004 such places
-  the read counted, and in the typed trees two types are the same when their
-  text renderings are equal. The elaboration takes symbols and type identities
-  from the typed trees, and refuses where the typed trees offer only a
-  spelling. It never passes a spelling on as an identity.
+- **Identity is fixed upstream before elaboration.** Decisions keyed on a name
+  or on text are not confined to the replaced stages: Psi 02, 03 and 04, the
+  typed trees and build-time evaluation hold at least 451 of the 2,004 such
+  places the read counted, and in the typed trees two types are the same when
+  their text renderings are equal. Elaboration takes symbols and type
+  identities from the typed trees, refuses where the typed trees offer only a
+  spelling, and never passes a spelling on as an identity. Where a construct
+  reaches elaboration as a spelling or an invalid symbol (such as `result` in
+  `ensures`, or constants that build-time evaluation wrote back as generated
+  names), the lane repairs the stage in Psi 02 through 04 or build-time
+  evaluation that lost the identity rather than matching text in elaboration.
 - **Omega's own checks are not counted as independent.** Its stages mostly
   check a result with a second hand-written derivation or with the same
-  builder. This record does not change Omega and does not lean on those checks
-  to catch a defect in the new checker.
+  builder. This record does not change what Omega trusts, removes or guards.
+  The back half trusts the checker, as the specification says; the checker
+  earns that by accepting only what the proof kernel verified and rejecting
+  the rest at compile time ([What each stage may trust](stage_trust.md), rule
+  2). It does not lean on
+  those checks to catch a defect in the new checker.
 
 Much of the receiving side exists. `terminal-psi/semantics` (51,352 lines)
 already defines "judgments, operational analyses, and structural/scalar
@@ -187,11 +202,34 @@ before variants are added. Route one is:
   move. [The first count](#census-of-evidence) confirms it: of 814 obligations the
   product accepted, none carried evidence.
 - **Subset.** Machines whose bodies use scalar locals, assignment, builtin
-  arithmetic and comparison, direct calls with `requires` and `ensures`,
-  `transition` arms and returns. No references, records, loops or generics.
-- **Build.** Structure-only elaboration of that subset to unsealed Terminal
-  Psi; obligation reconstruction; discharge by the existing arithmetic engine
-  with its hypotheses read from Terminal values instead of source shapes.
+  arithmetic and comparison, direct calls with `requires` and `ensures`
+  (including clauses that name `result`), `transition` arms with branch-guard
+  hypotheses, explicit `crash` statements with `crashes` contracts, and
+  returns. No references, records, loops or generics. Excluding `crashes` and
+  `result` in the initial elaboration probe (`#2286`) left only 16 non-empty
+  corpus programs (1,556 `pass/` and 153 `run/` fixtures refused on `contract
+  crashes` alone), which is too small a sample to judge the gate.
+- **Build.** Shared dense-identity tables (`terminal-check-tables`, `#2279`);
+  structure-only elaboration of the subset to unsealed Terminal Psi
+  (`structure-elaboration`, `#2286`); obligation reconstruction and discharge
+  by one prover (`lowered-discharge`, `#2293`) that states goals over Terminal
+  values and emits certificates verified by `proof/admission` rather than
+  threading `validation`'s source-shaped arithmetic engine. Before the gate
+  closes, the prover must also prove relations and affine bounds between two
+  values (`i < len`, `count <= cap`), not bounds against constants alone, and
+  report `Unproved` obligations by cause so later lanes never add a second
+  route. In the tables, `NormalGuarantee` stays one obligation per `(return
+  edge, clause)`, and a clause on `MachineContract::ensures` is sealed iff
+  every `Destination::Return` edge has a kernel-accepted proof for it
+  (vacuously true when there are zero normal return edges). Discharged
+  certificates travel in memory beside `TerminalModule` within one compile so
+  Omega 00 can fill `AcceptedObligationFact::proof_bundle_fingerprint` without
+  changing what the back half trusts, removes or guards; an artifact re-read
+  from bytes (including a compiler-storage cache read) has no in-memory
+  evidence, which is explicit and neither an error nor filled from an earlier
+  build (see [What each stage may trust](stage_trust.md)). An obligation the
+  prover cannot discharge is a compile error for the program, never a slower
+  guarded form.
 - **Oracle.** Every corpus program inside the subset is checked by both
   routes. A disagreement is a defect in one of them and is classified, not
   averaged. The must-reject programs listed below guard the cases where the
@@ -204,12 +242,32 @@ before variants are added. Route one is:
   routes that can prove one kind of obligation (one; a call's `requires` has
   about twenty today, tried in order).
 - **Stop rule.** If the route is not clearly smaller than what it replaces,
-  or cannot reach agreement on the subset, the replacement stops and this
-  record is withdrawn in favor of migrating in place.
+  cannot reach agreement on the widened subset, or cannot prove two-value
+  relations through its single certificate route, the replacement stops and
+  this record is withdrawn in favor of migrating in place.
 
-Only after route one passes do further construct families move: records and
-fields; references, loans and windows; loops and recursive components;
-runtime callables; generics.
+After route one passes its gate, `structure-elaboration` is split into per-family
+modules and the remaining construct families run in two dependency-ordered
+groups rather than ten simultaneous sessions:
+
+1. **Places foundation first:** records, fields, cases, constants and
+   expressions, so `ExactPlaceId` projections, structural roots and the forward
+   write log (`places`, `roots`, `writes`, all empty in the scalar spine) are
+   built once.
+2. **First parallel group (five lanes):** references, loans, windows, ownership
+   and cleanup; calls and callee summaries; loops, recursion and termination;
+   integers, floats, casts and domains; proofs, evidence and quotients.
+3. **Second parallel group (four composite lanes, plus smaller corpus
+   families):** slices, collections, indices and text; generics and traits;
+   Build-selected targets and providers; multi-state machines, suspension,
+   atomics and assembly; alongside `layouts`, `modules`, `host`, `filesystem`
+   and `capabilities`.
+
+Each lane proves agreement between both checkers across all corpus rows whose
+constructs lie within the union of landed families, and the whole-compilation
+router switches those programs automatically while falling back to Psi 05 and
+06 on any `RefusalReason::Unsupported`. Psi 05, validation and Psi 06 are
+deleted together once `Unsupported` reaches zero.
 
 ### Census of evidence
 
@@ -349,6 +407,48 @@ The carry-label place, the arena place and the `places.rs` item share one
 mechanism: they decide that two values are the same by comparing their
 spelling. Each is closed today only by the check that stands behind it.
 
+A review of the automated accept-on-unknown trace named nine more candidates.
+Each was run with `omega --check` at `10d773ae305` on 2026-11-10. None
+accepts an invalid program. Two of them really do miss on unknown input and
+are covered only by a check in another file:
+
+- **Extent search budget.** The inline-extent search gives up after 4096 steps
+  and reports "no runtime extent" (`value_custody_core.rs:9551`). A data type
+  that holds a generic doubled ten or more levels deep, beside
+  `[u8; Count]` with a runtime `Count`, loses the "runtime value ... for an
+  inline fixed-array extent" diagnostic. At depth 9 the diagnostic is still
+  reported. The program is still rejected by the cleanup-disposition check
+  (`flow.rs:10785`). With a const extent, the same deep type is accepted, so
+  that rejection depends on the runtime extent, not on the depth.
+- **Transition handback.** The scalar-loan handback check skips
+  `CallSite::TransitionNamed` (`contract_entailment.rs:21217`). Lending
+  `&mut target.count` to a nested or top-level machine through `transition`
+  still reaches the same check and is rejected (`:21352`). A callee that
+  `ensures slot == 0` is accepted. No transition shape reaching `:21217`
+  was found.
+
+The other seven are closed:
+
+- Field signedness from the first machine (`proof/src/checker.rs:5446`).
+  This cannot be written, because a `self` receiver in a machine body is
+  rejected by the parser (`expressions.rs:1728`).
+- Assembly that raises a rank before recursion. Rejected by the ranking check
+  (`checks_termination.rs:8113`). The same assembly writing another local is
+  accepted.
+- A live crash beside a return. A partial dispatch is rejected as
+  fall-through (`equality_and_exhaustiveness.rs:984`), and an arm cannot be
+  `crash` (parse error, "expected `->`").
+- A reference local lending a restricted field, including one chosen in a
+  `match`. Rejected at `contract_entailment.rs:21352`.
+- A guard on one local reused for a same-spelled call initializer of another.
+  Rejected by the call `requires` check (`checks_contracts_calls.rs:3508`).
+  Guarding the second local itself is accepted.
+- The binding-observation retry. A read through a view after a write to its
+  owner is rejected by the borrow-conflict check (`checks_borrows.rs:4709`).
+- Atoms keyed on `Debug` text (`contract_entailment.rs:58147`). Settled by
+  reading. Each `Debug` impl omits only the fields that semantic equality
+  ignores, so two terms that are not equal never print the same text.
+
 Must-reject programs the corpus lacks, none under `facts/`: knowledge that
 survives a pause; a write through a partly overlapping window; a linear value
 consumed on a loop back-edge; a copied scalar whose source a later operand
@@ -358,27 +458,55 @@ overwrites; a rank premise across a pause.
 
 - **Generic bodies.** Terminal Psi is "concrete, and post-instantiation", and
   the specification requires a generic body to be valid for every admitted
-  selection. Either the checked form admits unresolved binders, or templates
-  keep a tree-level check. Unresolved.
+  selection. The generics lane will first test elaborating uninstantiated
+  generic bodies into the same unsealed `CheckTables` form with placeholder
+  (rigid) type, constant and machine parameters checked once against their
+  declared requirements and never encoded to `PSITERM\0` bytes, while concrete
+  specializations emit concrete modules; keeping a tree-level check is the
+  fallback only if that fails.
 - **Evidence coverage.** Validation's automation "does not emit kernel
   evidence for every accepted obligation". How much of it can emit evidence
-  the admission kernel accepts is not measured. The read narrowed what the
-  kernel sees today: integer range proofs have a certificate path the kernel
-  decides again and an older interval path it never sees
-  (`proof/src/checker.rs`), and the kernel's front end records an assumption
-  when it cannot build a derivation (reader-reported, `bounded_denotation.rs`).
-- **Identity of a type on the lowered form.** Terminal Psi compares identities
-  by text within one identity table (reader-reported). Whether that is a sound
-  key for the new checker's tables, or the checker needs dense ids resolved
-  once at elaboration, is not decided.
+  the admission kernel accepts is not measured across the full language yet;
+  for the scalar spine, `#2293` emits certificates directly into
+  `proof/admission` rather than reusing `validation`. Integer range proofs in
+  the current pipeline have a certificate path the kernel decides again and an
+  older interval path it never sees (`proof/src/checker.rs`). Correction to an
+  earlier reader-reported note here: in `proof/admission/src/bounded_denotation.rs`
+  (`:8476-8556`, `:8640-8652`), the kernel front end checks the rule instance
+  semantically (`integer_bound_rules`) before `rule_instance` mints a
+  placeholder rule-axiom term in the core denotation; it is not an unchecked
+  acceptance. Missing evidence never keeps a runtime guard in native code: the
+  checker rejects what it cannot prove, and the back half trusts what the
+  checker accepted.
+- **Identity of a type on the lowered form.** Terminal Psi compares nominal
+  identities by text within `TerminalIdentityIndex` (`terminal-psi/src/identity.rs:22`),
+  and names record fields in `StructuralPathSegment::Field` by that index.
+  Decided in `#2279` and `#2286`: `terminal-check-tables` mints dense
+  `IdTable` identities and resolves fields once at elaboration to
+  `StructuralFieldId`, and `structure-elaboration` classifies builtin scalars
+  through `SymbolTable::builtin_type_atom` on the resolved root symbol rather
+  than by spelling.
 - **Diagnostics.** Errors must name source constructs. `LoweredSourceCustody`
-  carries source-to-Terminal correspondence today; whether it is enough for
-  every diagnostic is not checked.
+  covers call occurrences only and depends on `checked-trees`, so `#2286`
+  carries per-machine `MachineSources` over dense identities with explicit
+  `Unpositioned` reasons; whether that suffices for every diagnostic across the
+  remaining families is checked as each lane lands.
 - **Size.** That the replacement is far smaller than 792,000 lines is the
-  premise of this record and is unmeasured until route one.
-- **Reuse of checked results.** `generics.md` requires checked derivations to
-  be carried through specialization; `validation_subjects.md` says "No result
-  is reused". That is an owner question.
+  premise of this record and is unmeasured until route one's gate.
+- **Reuse of checked results.** [`generics.md`](../../spec/language/generics.md#closed-applications-and-canonical-identity)
+  requires checked derivations to be carried through specialization without
+  re-searching under a consumer's smaller discovery budget;
+  [`validation_subjects.md`](../../spec/build/validation_subjects.md#what-this-rule-does-not-do)
+  says "No result is reused". Recorded for the owner as
+  `specialization-certificate-reuse` in
+  [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md), together with the
+  reading to confirm (carry certificates through specialization and re-verify
+  them in `proof/admission` in each consumer without re-searching). Read in
+  context the two clauses agree: the validation chapter's own account of a
+  check is "a lemma with valid evidence", and "a generic body under its
+  requirements", which also points to checking a generic body once. A test of
+  re-verifying a saved proof, including stale and misplaced ones, is planned
+  in `lowered-discharge` before anything is built on it.
 
 ## Corrections to fact transport
 

@@ -63171,6 +63171,7 @@ pub(crate) mod structural_judgment {
                         }));
                     let joined = program.expression_table.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left,
                             operator: BinaryOperator::And,
                             right,
@@ -63178,6 +63179,7 @@ pub(crate) mod structural_judgment {
                     ));
                     let repeated = program.expression_table.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: joined,
                             operator: BinaryOperator::Or,
                             right: joined,
@@ -83989,10 +83991,11 @@ pub(crate) mod structural_prefix {
                     }
                     current = enclosing_declaration(program, current);
                 }
-                root.or_else(|| {
-                    program.external_invocation_roots()?;
-                    seen.last().copied()
-                })
+                // A machine outside any enclosing machine has no root here on
+                // purpose. Its body is proved from its own `requires`, however
+                // few callers it has, so knowing every call site must not make
+                // their arguments facts of the body.
+                root
             }
 
             fn externally_invocable(program: &dyn CheckingInput, machine: &Machine) -> bool {
@@ -88891,6 +88894,19 @@ pub(crate) mod structural_terms {
         if integer(source) && integer(cast.target_type) {
             if !scalar_operand_is_observed(program, source, &value) {
                 return None;
+            }
+            // A cast to its own carrier and policy (`buckets.len as u64` with a
+            // `u64` length) denotes the same scalar. Wrapping it in an embedding
+            // gave `width == buckets.len as u64` a different term from the
+            // `buckets.len` in its sibling premises, so the equation never met
+            // them. Keep it the plain value, as the uncast spelling is.
+            let result =
+                crate::value_custody::expression_types::cast_result_type_reference(program, cast)?;
+            if program.primitive_type_reference(result) == program.primitive_type_reference(source)
+                && program.arithmetic_domain_for_type_reference(result)
+                    == program.arithmetic_domain_for_type_reference(source)
+            {
+                return Some(value);
             }
             return Some(StructuralTerm::ObservedValue {
                 observed_type: crate::value_custody::expression_types::cast_result_type_reference(

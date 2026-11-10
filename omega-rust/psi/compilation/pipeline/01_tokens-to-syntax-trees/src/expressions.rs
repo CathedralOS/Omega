@@ -310,6 +310,7 @@ pub(crate) mod membership {
                 ));
                 expression =
                     exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: expression,
                         operator,
                         right,
@@ -324,6 +325,7 @@ pub(crate) mod parse_expression {
     use crate::grammar::expressions::context::ExpressionContext;
     use crate::storage::tables::{exprs, exprs_of};
     use crate::tokens::token_cursor::{Input, ParseResult};
+    use numerics::arithmetic::ArithmeticDomain;
     use numerics::literals::IntegerLiteral;
     use syntax_trees::FloatSpelling;
     use syntax_trees::SyntaxTrees;
@@ -388,13 +390,18 @@ pub(crate) mod parse_expression {
         input: Input<'tokens, 'source>,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
         let outer_depth = input.depth();
-        let input = input.deepen()?;
+        let outer_constant = input.constant_position();
+        let input = input.with_constant_position(true).deepen()?;
         let (handle, rest) = parse_bitwise_or_expression_handle(
             syntax_trees,
             input,
             ExpressionContext::NoStructLiteral,
         )?;
-        Ok((handle, rest.with_depth(outer_depth)))
+        Ok((
+            handle,
+            rest.with_depth(outer_depth)
+                .with_constant_position(outer_constant),
+        ))
     }
 
     pub(crate) fn parse_expression_handle_in<'tokens, 'source>(
@@ -465,8 +472,113 @@ pub(crate) mod parse_expression {
                 (PunctuationKind::Asterisk, BinaryOperator::Multiply, 5),
                 (PunctuationKind::Slash, BinaryOperator::Divide, 5),
                 (PunctuationKind::Percent, BinaryOperator::Modulo, 5),
+                (PunctuationKind::PlusWrapping, BinaryOperator::Add, 4),
+                (PunctuationKind::PlusSaturating, BinaryOperator::Add, 4),
+                (PunctuationKind::PlusTrapping, BinaryOperator::Add, 4),
+                (PunctuationKind::MinusWrapping, BinaryOperator::Subtract, 4),
+                (
+                    PunctuationKind::MinusSaturating,
+                    BinaryOperator::Subtract,
+                    4,
+                ),
+                (PunctuationKind::MinusTrapping, BinaryOperator::Subtract, 4),
+                (
+                    PunctuationKind::AsteriskWrapping,
+                    BinaryOperator::Multiply,
+                    5,
+                ),
+                (
+                    PunctuationKind::AsteriskSaturating,
+                    BinaryOperator::Multiply,
+                    5,
+                ),
+                (
+                    PunctuationKind::AsteriskTrapping,
+                    BinaryOperator::Multiply,
+                    5,
+                ),
+                (PunctuationKind::SlashWrapping, BinaryOperator::Divide, 5),
+                (PunctuationKind::SlashSaturating, BinaryOperator::Divide, 5),
+                (PunctuationKind::SlashTrapping, BinaryOperator::Divide, 5),
+                (PunctuationKind::PercentWrapping, BinaryOperator::Modulo, 5),
+                (
+                    PunctuationKind::PercentSaturating,
+                    BinaryOperator::Modulo,
+                    5,
+                ),
+                (PunctuationKind::PercentTrapping, BinaryOperator::Modulo, 5),
+                (
+                    PunctuationKind::LessLessWrapping,
+                    BinaryOperator::ShiftLeft,
+                    3,
+                ),
+                (
+                    PunctuationKind::LessLessSaturating,
+                    BinaryOperator::ShiftLeft,
+                    3,
+                ),
+                (
+                    PunctuationKind::LessLessTrapping,
+                    BinaryOperator::ShiftLeft,
+                    3,
+                ),
             ],
         )
+    }
+
+    /// The policy a suffixed operator token selects. A suffixed form keeps
+    /// the precedence and associativity of its base operator, so the chain
+    /// table lists it beside that operator and this reads the suffix back.
+    fn punctuation_policy(punctuation: PunctuationKind) -> ArithmeticDomain {
+        match punctuation {
+            PunctuationKind::PlusWrapping
+            | PunctuationKind::MinusWrapping
+            | PunctuationKind::AsteriskWrapping
+            | PunctuationKind::SlashWrapping
+            | PunctuationKind::PercentWrapping
+            | PunctuationKind::LessLessWrapping => ArithmeticDomain::Wrapping,
+            PunctuationKind::PlusSaturating
+            | PunctuationKind::MinusSaturating
+            | PunctuationKind::AsteriskSaturating
+            | PunctuationKind::SlashSaturating
+            | PunctuationKind::PercentSaturating
+            | PunctuationKind::LessLessSaturating => ArithmeticDomain::Saturating,
+            PunctuationKind::PlusTrapping
+            | PunctuationKind::MinusTrapping
+            | PunctuationKind::AsteriskTrapping
+            | PunctuationKind::SlashTrapping
+            | PunctuationKind::PercentTrapping
+            | PunctuationKind::LessLessTrapping => ArithmeticDomain::Trapping,
+            _ => ArithmeticDomain::Exact,
+        }
+    }
+
+    /// Right shift has no suffixed token: `>>` stays one token so a nested
+    /// static argument list can close one `>` at a time. Its policy suffix is
+    /// the `%`, `|` or `!` written immediately after it, with no space, so
+    /// `a >>! b` traps while `a >> !b` shifts by a negation.
+    fn take_right_shift_policy<'tokens, 'source>(
+        shift: source::SourceSpan,
+        input: Input<'tokens, 'source>,
+    ) -> Result<(ArithmeticDomain, Input<'tokens, 'source>), crate::ParseError> {
+        for (punctuation, label, policy) in [
+            (PunctuationKind::Percent, "%", ArithmeticDomain::Wrapping),
+            (PunctuationKind::Pipe, "|", ArithmeticDomain::Saturating),
+            (
+                PunctuationKind::Exclamation,
+                "!",
+                ArithmeticDomain::Trapping,
+            ),
+        ] {
+            if !input.at_punctuation(punctuation) {
+                continue;
+            }
+            let suffix = input.current_source_span();
+            if suffix.source_id == shift.source_id && suffix.span.start == shift.span.end {
+                return Ok((policy, input.take_punctuation(punctuation, label)?));
+            }
+        }
+        Ok((ArithmeticDomain::Exact, input))
     }
 
     fn parse_binary_chain_handle<'tokens, 'source, const PRECEDENCE_LEVELS: usize>(
@@ -490,30 +602,56 @@ pub(crate) mod parse_expression {
             .copied()
         {
             while pending_count != 0 {
-                let (_, _, pending_precedence, _) = pending[pending_count - 1]
+                let (_, _, pending_precedence, _, _) = pending[pending_count - 1]
                     .as_ref()
                     .expect("pending operator");
                 if *pending_precedence < precedence {
                     break;
                 }
                 pending_count -= 1;
-                let (left, operator, _, span) =
+                let (left, operator, _, span, policy) =
                     pending[pending_count].take().expect("pending operator");
-                expression =
-                    insert_binary_expression(syntax_trees, left, operator, expression, span);
+                expression = insert_binary_expression(
+                    syntax_trees,
+                    left,
+                    operator,
+                    policy,
+                    expression,
+                    span,
+                );
             }
             let operator_span = input.current_source_span();
             input = input.take_punctuation(punctuation, punctuation_label(punctuation))?;
-            pending[pending_count] = Some((expression, operator, precedence, operator_span));
+            let mut policy = punctuation_policy(punctuation);
+            if punctuation == PunctuationKind::GreaterGreater {
+                (policy, input) = take_right_shift_policy(operator_span, input)?;
+            }
+            // A constant position is folded before any operand is typed, and
+            // folding a suffixed operator as the bare Exact one would drop
+            // its policy without a word. Reject it at the operator, however
+            // deeply the constant nests it.
+            if policy != ArithmeticDomain::Exact && input.constant_position() {
+                return Err(crate::ParseError::at_source_span(
+                    format!(
+                        "the policy operator `{}{}` is not available in a constant expression yet; use it in executable machine code",
+                        operator.display_name(),
+                        policy.operator_suffix(),
+                    ),
+                    operator_span,
+                ));
+            }
+            pending[pending_count] =
+                Some((expression, operator, precedence, operator_span, policy));
             pending_count += 1;
             (expression, input) = lower(syntax_trees, input, context)?;
         }
 
         while pending_count != 0 {
             pending_count -= 1;
-            let (left, operator, _, span) =
+            let (left, operator, _, span, policy) =
                 pending[pending_count].take().expect("pending operator");
-            expression = insert_binary_expression(syntax_trees, left, operator, expression, span);
+            expression =
+                insert_binary_expression(syntax_trees, left, operator, policy, expression, span);
         }
         Ok((expression, input))
     }
@@ -522,11 +660,13 @@ pub(crate) mod parse_expression {
         syntax_trees: &mut SyntaxTrees,
         left: ExpressionHandle,
         operator: BinaryOperator,
+        policy: ArithmeticDomain,
         right: ExpressionHandle,
         span: source::SourceSpan,
     ) -> ExpressionHandle {
         let expression =
             exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy,
                 left,
                 operator,
                 right,
@@ -703,6 +843,7 @@ pub(crate) mod parse_expression {
                             .expressions
                             .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
                         ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: zero,
                             operator: BinaryOperator::Subtract,
                             right: expression,
@@ -755,6 +896,24 @@ pub(crate) mod parse_expression {
             PunctuationKind::Asterisk => "*",
             PunctuationKind::Slash => "/",
             PunctuationKind::Percent => "%",
+            PunctuationKind::PlusWrapping => "+%",
+            PunctuationKind::PlusSaturating => "+|",
+            PunctuationKind::PlusTrapping => "+!",
+            PunctuationKind::MinusWrapping => "-%",
+            PunctuationKind::MinusSaturating => "-|",
+            PunctuationKind::MinusTrapping => "-!",
+            PunctuationKind::AsteriskWrapping => "*%",
+            PunctuationKind::AsteriskSaturating => "*|",
+            PunctuationKind::AsteriskTrapping => "*!",
+            PunctuationKind::SlashWrapping => "/%",
+            PunctuationKind::SlashSaturating => "/|",
+            PunctuationKind::SlashTrapping => "/!",
+            PunctuationKind::PercentWrapping => "%%",
+            PunctuationKind::PercentSaturating => "%|",
+            PunctuationKind::PercentTrapping => "%!",
+            PunctuationKind::LessLessWrapping => "<<%",
+            PunctuationKind::LessLessSaturating => "<<|",
+            PunctuationKind::LessLessTrapping => "<<!",
             _ => "?",
         }
     }

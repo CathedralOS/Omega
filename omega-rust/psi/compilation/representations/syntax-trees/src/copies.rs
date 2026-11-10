@@ -778,6 +778,7 @@ pub(crate) mod body_copies {
                     result_custody: atomic.result_custody,
                 }),
                 ExpressionNode::Binary(binary) => ExpressionNode::Binary(TableBinaryExpression {
+                    policy: binary.policy,
                     left: self.copy_expression_handle(other, binary.left),
                     operator: binary.operator,
                     right: self.copy_expression_handle(other, binary.right),

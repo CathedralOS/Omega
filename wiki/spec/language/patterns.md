@@ -202,7 +202,11 @@ access and custody obligations are discharged. They retain the same static
 arguments, domain facts and mutation-invalidation rules as dispatch bindings.
 
 Owned decomposition follows ordinary move/copy disposition and residual cleanup;
-it adds no implicit cloning or relaxed multiplicity. A field-value binding from
+it adds no implicit cloning or relaxed multiplicity. A complete consuming
+pattern on a subject with a selected nominal cleanup ends that wrapper without
+invoking the cleanup, and is accepted only in the carrier's owning package or
+its selected cleanup machine under
+[owned cleanup consumers](ownership.md#consumers-and-cleanup). A field-value binding from
 borrowed storage still needs ordinary copy eligibility. Non-copy fields require
 an otherwise-authorized explicit borrow or waiver, not an implicit field move.
 A case-view binding retains the source's borrow and backing lifetime rather than
