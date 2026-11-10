@@ -2207,10 +2207,23 @@ pub mod scalar_demand {
         Some((coordinates.blocks, coordinates.values))
     }
 
+    /// Blocks whose parameter lists a scalar qualification row depends on.
+    ///
+    /// A coercion row and a completion return row each bind one argument of a
+    /// jump to the parameter that receives it. The completion row names that
+    /// argument by position, so removing an earlier parameter of the receiving
+    /// block would leave the row pointing at a different argument, or at none.
+    /// Callers that drop or merge block parameters keep these blocks whole.
     pub fn qualification_parameter_blocks(
         module: &terminal_psi::TerminalModule,
     ) -> Option<Vec<(semantic_vocabulary::MachineId, BlockId)>> {
-        if module.scalar_qualifications.coercions.is_empty() {
+        let completions =
+            || {
+                module.scalar_qualifications.returns.iter().filter(|row| {
+                    matches!(row.site, terminal_psi::ScalarReturnSite::Completion { .. })
+                })
+            };
+        if module.scalar_qualifications.coercions.is_empty() && completions().next().is_none() {
             return Some(Vec::new());
         }
         let mut targets = Vec::new();
@@ -2239,6 +2252,12 @@ pub mod scalar_demand {
         }
         let mut protected = Vec::new();
         for row in &module.scalar_qualifications.coercions {
+            let position = targets
+                .binary_search_by_key(&(row.machine, row.edge), |(key, _)| *key)
+                .ok()?;
+            protected.push((row.machine, targets[position].1));
+        }
+        for row in completions() {
             let position = targets
                 .binary_search_by_key(&(row.machine, row.edge), |(key, _)| *key)
                 .ok()?;
