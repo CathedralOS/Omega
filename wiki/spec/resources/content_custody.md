@@ -84,6 +84,14 @@ would not be closed under residual difference. Address projections embed to
 proof integers before converting proven nonnegative endpoints to naturals;
 [extent geometry](extents.md) allows a one-past endpoint at the address bound.
 
+A coordinate space is an ordinary type argument. It may be an indexed type,
+including one indexed by a runtime value under
+[runtime index identity](../language/generics.md#runtime-index-identity-and-storage).
+Two applications name one space only when their indices have the same
+canonical value or are proved equal, and `separate` and `residual` across
+different spaces reject. The index is part of the projection's semantic
+interface identity like any other coordinate space.
+
 `CountedQuantity<Unit>` contains a proof-natural magnitude in one exact unit.
 It accounts for fungible units, not delivery to exactly that many destinations,
 claim identity, or placement in a fragmented heap. Equal quantities do not
@@ -212,13 +220,86 @@ does not alter the ABI carrier or authorize replacement claims.
 ## Independent and related content
 
 Independent content-bearing qualifications on one value conserve independently.
-If correspondence between quantities carries authority, they require one joint
-algebra: conserving virtual intervals and physical pages separately would allow
-children to exchange their backing assignments. A virtual-to-physical algebra
-must preserve associations in a compact canonical form with decidable
-containment, restriction, equality, and separation. Owned decomposition of such
-correspondence rejects until that algebra is specified; it cannot enumerate
-pages as a substitute for the required compact model.
+If correspondence between quantities carries authority, conserved content must
+carry the correspondence. Conserving virtual intervals and physical pages
+separately would allow children to exchange their backing assignments, and a
+contract that merely describes the exchange accurately would be accepted,
+because a guarantee is checked against its own body and not against the
+consumed parent. A relation stated only in `ensures` is therefore not enough.
+
+Named decision: `translation-coordinate-space`, settled 2026-11-10. A
+correspondence that is a translation is carried by the coordinate space. Within
+one virtual and one physical address space, a contiguous mapping from virtual
+address `v` to physical address `v + Delta` is the interval of its virtual
+addresses in a space indexed by those two address spaces and by `Delta`:
+
+```omega
+data Translated<Virtual, Physical, Delta: Int> { }
+
+data Mapping<Virtual, Physical, Delta: Int> [linear] {
+    virtual_base: u64;
+    length: u64;
+}
+
+machine Installed::content<Virtual, Physical, Delta: Int>(
+    mapping: &Mapping<Virtual, Physical, Delta>
+) -> IntervalSet<Translated<Virtual, Physical, Delta>>
+satisfies Content<
+    Mapping<Virtual, Physical, Delta>,
+    IntervalSet<Translated<Virtual, Physical, Delta>>
+>::project
+{
+    IntervalSet {
+        start: embed(mapping.virtual_base) as Nat,
+        end: (embed(mapping.virtual_base) + embed(mapping.length)) as Nat
+    }
+}
+```
+
+The names are illustrative. An interval `I` in that space denotes the relation
+of every `v` in `I` to `v + Delta`. A split conserves `Installed::content` in
+the parent's space, so both children keep the parent's `Delta`, and the
+relation they denote together is the parent's. A child given the other child's
+backing has two choices, and both reject. If it keeps the parent's `Delta`,
+the predicate tying its physical base to its virtual base fails. If it takes
+the `Delta` that describes its new backing, it is in a different space, and
+`separate` rejects it whatever its contract says. The existing interval algebra
+carries the association; no further algebra and no added trust in the mapping
+package is involved. The indexed content and the physical-base predicate are
+both required: an offset label with no tie to the actual backing proves
+nothing.
+
+`Delta` is the exact mathematical integer `embed(physical) - embed(virtual)`.
+For 64-bit addresses it ranges over the whole of `-(2^64 - 1)` to `2^64 - 1`,
+which no 64-bit signed carrier holds, so it is proof data and never a wrapped
+machine difference. Executable code that must retain or compare an offset
+stores an ordinary representation of it, such as a sign and a `u64` magnitude
+with one form of zero, with the equation relating that representation to the
+index. Virtual and physical range bounds remain separate obligations.
+
+The address-space identities are part of the space. Equal virtual intervals
+and equal offsets in two different address-space instances are different
+content and cannot stand in for each other. A surrounding type that already
+fixes both spaces need not repeat them as parameters, but their identity still
+takes part in the conserved content.
+
+The virtual range and the physical backing stay their own claims with their
+own conservation. A mapping made of several contiguous runs holds one such
+claim per run, each in its own space, so the description grows with the number
+of runs and not with the number of pages. A collection may own runs with
+different offsets; combining two of them into one translation claim requires
+an established common offset and the other compatibility conditions. Rights,
+installation evidence and release obligations remain ordinary linear data and
+domains under [mapping and reclamation](extents.md#mapping-and-reclamation). A
+split preserves the installed association; a remap changes it only through
+that lifecycle.
+
+This decision establishes the translation construction only. Any other
+correspondence needs a specified compact content representation with decidable
+containment, restriction, equality, and separation, and checked operations
+that preserve its association and custody. Owned decomposition of such a
+correspondence rejects until that is specified; it cannot enumerate pages as a
+substitute for the required compact model.
 
 Algebra values and denominators are pure proof data, not authority. Equal
 denominators allow arithmetic but do not by themselves establish compatible

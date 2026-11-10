@@ -3973,6 +3973,105 @@ pub(crate) mod expression_stack {
         assert_eq!(parsed.display_expression_name(root.right), "c");
     }
 
+    /// A suffix chooses the policy of one operation and nothing else: every
+    /// suffixed form parses as its base operator with that operator's
+    /// precedence. A suffixed token's span covers its suffix; `>>` reads its
+    /// suffix from the next token, so its span stays the two `>`.
+    #[test]
+    fn policy_suffixes_keep_the_base_operator_and_record_its_policy() {
+        use numerics::arithmetic::ArithmeticDomain::{Exact, Saturating, Trapping, Wrapping};
+        let source = "a +% b *| c -! d /% e %| f <<! g >>% h >>| i >>! j >> k + l";
+        let (parsed, _) = parse_expression(source);
+        let actual: Vec<_> = parsed
+            .expressions
+            .iter_expressions()
+            .filter_map(|(handle, expression)| {
+                let ExpressionNode::Binary(binary) = expression else {
+                    return None;
+                };
+                let span = parsed.expressions.source_span(handle).span;
+                Some((
+                    binary.operator,
+                    binary.policy,
+                    &source[span.start..span.end],
+                ))
+            })
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                (BinaryOperator::Multiply, Saturating, "*|"),
+                (BinaryOperator::Add, Wrapping, "+%"),
+                (BinaryOperator::Divide, Wrapping, "/%"),
+                (BinaryOperator::Modulo, Saturating, "%|"),
+                (BinaryOperator::Subtract, Trapping, "-!"),
+                (BinaryOperator::ShiftLeft, Trapping, "<<!"),
+                (BinaryOperator::ShiftRight, Wrapping, ">>"),
+                (BinaryOperator::ShiftRight, Saturating, ">>"),
+                (BinaryOperator::ShiftRight, Trapping, ">>"),
+                (BinaryOperator::Add, Exact, "+"),
+                (BinaryOperator::ShiftRight, Exact, ">>"),
+            ]
+        );
+    }
+
+    /// Lexing takes the longest operator, so only a space keeps a logical
+    /// negation apart from a trapping suffix; `>>` reads its suffix from the
+    /// adjacent token for the same reason.
+    #[test]
+    fn a_space_separates_a_negated_operand_from_a_trapping_suffix() {
+        use numerics::arithmetic::ArithmeticDomain::{Exact, Trapping};
+        for (source, policy, negated) in [
+            ("a +!b", Trapping, false),
+            ("a + !b", Exact, true),
+            ("a >>!b", Trapping, false),
+            ("a >> !b", Exact, true),
+        ] {
+            let (parsed, root) = parse_expression(source);
+            let ExpressionNode::Binary(binary) = parsed.expressions.expression(root) else {
+                panic!("binary root in `{source}`");
+            };
+            assert_eq!(binary.policy, policy, "{source}");
+            assert_eq!(
+                matches!(
+                    parsed.expressions.expression(binary.right),
+                    ExpressionNode::Unary(_)
+                ),
+                negated,
+                "{source}"
+            );
+        }
+    }
+
+    /// A constant is folded before any operand is typed, so a suffixed
+    /// operator rejects at its own token wherever the initializer nests it.
+    #[test]
+    fn a_constant_initializer_rejects_a_nested_policy_suffix() {
+        for source in [
+            "const WRAPPED: u32 = BASE +% BASE;",
+            "const TABLE: [u32; 2] = [1 +% 2, 3];",
+            "const CALLED: u32 = scale(BASE *| 2);",
+            "const SHIFTED: u32 = (BASE >>! 1);",
+            "data Buffer { bytes: [u8; SIZE +% 1]; }",
+        ] {
+            let tokens = Lexer::new(source).tokenize().expect("tokenize constant");
+            let error = crate::parse_syntax_trees(&tokens).expect_err("constant must reject");
+            assert!(
+                error
+                    .message
+                    .contains("is not available in a constant expression yet"),
+                "{source}: {}",
+                error.message
+            );
+            let span = error.source_span.span;
+            assert!(
+                matches!(&source[span.start..span.end], "+%" | "*|" | ">>"),
+                "{source}: error points at `{}`",
+                &source[span.start..span.end]
+            );
+        }
+    }
+
     #[test]
     fn membership_remains_a_separate_operand_grammar() {
         let (parsed, _) = parse_expression("a + b in First & Second | Third == c || d");

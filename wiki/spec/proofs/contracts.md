@@ -480,7 +480,7 @@ arguments and results to the base through proved compatibility with no
 conversion:
 
 ```omega
-Reindexed<const A: u64, const B: u64, Base satisfies Ranked<Buffer<A>>>
+Reindexed<const A: u64, const B: u64, const Base: Ranked<Buffer<A>>>
 satisfies Ranked<Buffer<B>>
 requires A == B;
 {

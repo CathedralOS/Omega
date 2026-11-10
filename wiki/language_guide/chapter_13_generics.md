@@ -65,7 +65,7 @@ Operations on T need a contract. Given an `Equatable<T>` trait with an `equals`
 requirement, select its named implementation explicitly:
 
 ```omega
-machine equal<T, Equality satisfies Equatable<T>>(left: &T, right: &T) -> bool {
+machine equal<T, const Equality: Equatable<T>>(left: &T, right: &T) -> bool {
     Equality::equals(left, right)
 }
 ```
@@ -81,7 +81,7 @@ an implementation parameter supplied by the caller:
 
 ```omega
 boundary trait Sorting {
-    machine sort<T, Order satisfies Ordering<T>>(
+    machine sort<T, const Order: Ordering<T>>(
         items: &mut [T]
     )
         crashes none;
@@ -98,7 +98,7 @@ That static interface is not an unrestricted generic virtual method. For a
 runtime-selected implementation, parameters can instead belong to the trait:
 
 ```omega
-trait TypedSorter<T, Order satisfies Ordering<T>> {
+trait TypedSorter<T, const Order: Ordering<T>> {
     machine sort(items: &mut [T]);
 }
 ```
@@ -140,54 +140,46 @@ count type or an unspecified `UInt<Bits>` carrier family. See
 
 ## Machine parameters
 
-A static parameter can select a machine declaration:
+A static parameter can select a machine declaration. Its type is the callable
+contract the selection must satisfy:
 
 ```omega
-machine Deck::score<machine Key>(card: &Card) -> u64
-requires machine Key(card: &Card) -> u64;
-{
+machine Deck::score<const Key: machine(card: &Card) -> u64>(card: &Card) -> u64 {
     Key(card)
 }
 ```
 
 Calling `Deck::score<Card::power_key>(&card)` substitutes the selected symbol
-and produces a direct call in that specialization. The binder is not a hidden
-runtime function argument or inferred capture.
+and produces a direct call in that specialization. The parameter is not a
+hidden runtime function argument or inferred capture.
 
-The semicolon ends `Key`'s callable contract before the enclosing machine body.
-Its own `requires` or `ensures`, when present, belong before that terminator;
-clauses following it belong to the enclosing machine.
-
-Operational clauses stay inside that same callable until its declaration ends:
+`Key`'s own `requires`, `ensures` and operational clauses are written inside
+its type; clauses after the closing `>` and parameter list belong to the
+enclosing machine:
 
 ```omega
-requires machine Key(card: &Card) -> u64
+const Key: machine(card: &Card) -> u64
     suspends
     blocks
-    terminates;
+    terminates
 ```
 
-There are no semicolons between these clauses. The one after the last clause
-ends `Key`; it is not a termination-clause delimiter. Higher-order requirements
-retain one declaration terminator for each nested callable.
+One form, `const Name: Type`, covers every static parameter that carries code
+or a declaration:
 
-There are three distinct binder categories:
-
-| Binder | What the declaration provides |
+| Parameter type | What the declaration provides |
 | --- | --- |
-| Structural callable | An authored `requires machine Key(...)` contract. |
-| Nominal callable | One exact `requires machine Handler satisfies HookProcedure::call` requirement. |
-| Declaration identity | A trait's noncallable machine binder, used only to relate declaration identities. |
-
-An originating callback contract is explicit. A wrapper may omit its repeated
-clause when it forwards an explicitly kinded machine binder into an exact
-callee's required slot. The compiler publishes the inherited requirement for
-public and private wrappers alike. Direct calls such as `Step(item)` do not
-invent a requirement, and the current set of consumers cannot select one.
+| `machine(card: &Card) -> u64` | A structural callable with exactly this authored contract. |
+| `HookProcedure::call` | A nominal callable: a machine bound to that one requirement. |
+| `Ranked<T>` | An implementation; call its members as `Order::member(...)`. |
+| `reflect::CallableInfo` | A declaration identity. It relates declarations and is never invoked. |
+| `machine` | A callable whose exact type is [inferred](#forwarding-a-callback-contract) from where it is forwarded. |
 
 The nominal form retains the originating requirement's complete signature,
 conditions and operational/boundary contract without repeating it. A path with
-several overloads is not an exact selection.
+several overloads is not an exact selection. A parameter carries one nominal
+requirement; a machine that needs two takes two parameters or one
+implementation.
 
 ### Forwarding a callback contract
 
@@ -198,25 +190,25 @@ public trait ElementStep<T> {
     machine apply(item: &mut T) terminates;
 }
 
-public machine apply_one<T, F>(item: &mut T)
-requires machine F satisfies ElementStep<T>::apply;
+public machine apply_one<T, const F: ElementStep<T>::apply>(item: &mut T)
 terminates
 {
     F(item);
 }
 
-public machine visit_one<T, machine F>(item: &mut T)
+public machine visit_one<T, const F: machine>(item: &mut T)
 terminates
 {
     apply_one<T, F>(item);
 }
 ```
 
-The published contract for `visit_one` includes
-`requires machine F satisfies ElementStep<T>::apply;`. Forwarding `F` into
-`for_each<T, F>` works the same way. Multiple uses contribute all their
-requirements; the selected callback must satisfy every one. An explicit
-originating contract is not silently strengthened to repair an invalid body.
+The published contract for `visit_one` types `F` as
+`ElementStep<T>::apply`. Forwarding `F` into `for_each<T, F>` works the same
+way. Several structural uses combine, and the selection must satisfy all of
+them; uses that need two different nominal requirements reject and name both.
+A bare call such as `F(item)` does not supply a type, and an authored type is
+never strengthened to repair an invalid body.
 
 `ElementStep::apply` omits reach, so both helpers propagate the services of the
 selected step. A trait author can write `reaches none` to require service-free
@@ -225,22 +217,22 @@ steps instead. Forwarding keeps that choice. See
 for a complete example with an application-defined service.
 
 There is no trait lookup or implementation selection here: callers still name
-their chosen machine with its required nominal satisfaction edges. Public
-inferred requirements must obey visibility rules,
+their chosen machine, [bound to the nominal requirement](chapter_14_traits.md#binding-a-machine-to-a-requirement)
+when the type is nominal. Public inferred types must obey visibility rules,
 and changing a forwarding use can change the public contract and require
-rechecking consumers. Diagnostics show the inferred clause and its originating
-use. See [forwarded requirements](../spec/language/generics.md#forwarded-callback-requirements).
+rechecking consumers. Diagnostics show the inferred type and its originating
+use. See [inferred callable parameter types](../spec/language/generics.md#inferred-callable-parameter-types).
 
 ## Requirements on generic arguments
 
 Requirements can constrain static values or the behavior of selected operations.
 A required member belongs to a named trait and is supplied through an explicit
-conformance binder, not an anonymous `requires machine T::member(...)` declaration.
+implementation parameter, not an anonymous member declaration on a type.
 
 For example, assuming `Ranked` declares the required ordering operations:
 
 ```omega
-machine sort<Element, Order satisfies Ranked<Element>>(values: &mut [Element]) {
+machine sort<Element, const Order: Ranked<Element>>(values: &mut [Element]) {
     ... // implementation and proof omitted
 }
 
@@ -269,7 +261,7 @@ times, not permission to reinterpret runtime data as arbitrary type declarations
 Calls through explicitly selected evidence are static by default:
 
 ```omega
-machine Runner::tick<T, Increment satisfies Incrementable<T>>(subject: &mut T) {
+machine Runner::tick<T, const Increment: Incrementable<T>>(subject: &mut T) {
     Increment::increment(subject);
 }
 ```
@@ -521,7 +513,7 @@ Indexed<combine(A, B)>  ->  Indexed<combine(B, A)>
 
 Require a trait containing `combine` and its commutativity law, then have the
 caller supply a checked conformance. An ordinary binder such as
-`Algebra satisfies CommutativeCombine<Index>` supplies both the operation and
+`const Algebra: CommutativeCombine<Index>` supplies both the operation and
 the proof; `CommutativeCombine` is a library trait, not a compiler keyword.
 Reassociation needs an associativity law as well. Merely carrying an index
 requires neither law, and naming an operation `+` proves neither one.
@@ -563,7 +555,7 @@ domain<T, const Count: u8 in Wrapping> T::Indexed<Count>;
 
 machine remove_zero<
     const Count: u8 in Wrapping,
-    Arithmetic satisfies WrappingByteIndices
+    const Arithmetic: WrappingByteIndices
 >(
     value: u32 in Indexed<Count + 0>
 ) -> u32 in Indexed<Count> {
@@ -636,14 +628,14 @@ and [Build proof-work policy](../spec/build/configuration.md#proof-work-policy).
 
 ### Relating two index forms once
 
-When one library selected `Order satisfies Ranked<Buffer<A>>` and another
+When one library selected `const Order: Ranked<Buffer<A>>` and another
 requires `Ranked<Buffer<B>>`, with `A` and `B` provably equal but spelled
 differently, write the adapter once for the trait. A `requires` clause on the
 conformance declaration admits the application; inside its members the
 equality is a fact, so arguments pass to the base with no conversion:
 
 ```omega
-Reindexed<const A: u64, const B: u64, Base satisfies Ranked<Buffer<A>>>
+Reindexed<const A: u64, const B: u64, const Base: Ranked<Buffer<A>>>
 satisfies Ranked<Buffer<B>>
 requires A == B;
 {
@@ -659,7 +651,7 @@ requires A == B;
 machine bridge<
     const A: u64,
     const B: u64,
-    Order satisfies Ranked<Buffer<A>>
+    const Order: Ranked<Buffer<A>>
 >(
     items: &mut [Buffer<B>]
 )
@@ -680,12 +672,12 @@ from `Base`'s laws under the same equality. Nothing selects `Order` at
 A trait can retain a machine's identity without granting permission to call it:
 
 ```omega
-trait PrivateCallbackSlot<Layout, machine Requirement> { }
+trait PrivateCallbackSlot<Layout, const Requirement: reflect::CallableInfo> { }
 ```
 
-To invoke the argument, give it a callable contract. Contracts can themselves
-take machine parameters; every nested selection must satisfy its declared
-signature, effects, and guarantees.
+To invoke an argument, give it a callable type instead. Callable types can
+themselves take static parameters; every nested selection must satisfy its
+declared signature, effects, and guarantees.
 
 Proof libraries can also index a family by a generator machine, for example
 `CauchySeq<machine S>`. A theorem may relate sequences with different generators

@@ -1,0 +1,21 @@
+// Negative twin of `guarded_sum` in
+// run/arithmetic/policy_operators_match_policy_domains: the same trapping add
+// in a public machine, without the guard that rules the overflow out. A `!`
+// operation is its own Trap site, so a public machine that publishes no
+// `crashes Trap` route rejects.
+use omega_language_std::console;
+data Main { }
+
+public machine guarded_sum(left: u64, right: u64) -> u64 {
+    left +! right
+}
+
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    let guarded: u64 = guarded_sum(40, 2);
+    transition guarded == 42 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+}

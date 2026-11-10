@@ -192,6 +192,21 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
         bodies.push(body);
     }
     program.refuse_recursion()?;
+    let mut elaboration = lower_bodies(entry, &bodies, &program.signatures)?;
+    elaboration.machines = program.symbols;
+    Ok(elaboration)
+}
+
+/// Lowers closed bodies that were already read; `entry` is machine 1.
+/// `elaborate` reads typed trees and then calls this; a checker's tests call
+/// it directly to state scalar programs. It does not refuse recursion: the
+/// reader does that, so a caller passing bodies directly must not pass a
+/// cycle. `machines` is left empty: these bodies have no typed-tree machine.
+pub fn lower_bodies(
+    entry: MachineId,
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+) -> Checked<Elaboration> {
     let mut module = TerminalModule::for_entry(entry);
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
@@ -203,8 +218,8 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
                 Unserved::Machine("identity overflow"),
             )
         })?;
-        let body = terminal_check_tables::row(&bodies, id, id, Construct::Machine)?;
-        let lowered = lower::machine(id, body, &program.signatures)?;
+        let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
+        let lowered = lower::machine(id, body, signatures)?;
         module.machines.push(lowered.machine);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
@@ -213,7 +228,7 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
         module,
         tables,
         sources,
-        machines: program.symbols,
+        machines: IdTable::default(),
     })
 }
 

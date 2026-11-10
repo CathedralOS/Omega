@@ -1717,6 +1717,7 @@ pub(crate) mod product_operands {
                 operator,
                 right,
             } => Node::Binary(expr::TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 left: self.expression(left)?,
                 operator: binary(operator),
                 right: self.expression(right)?,

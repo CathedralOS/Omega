@@ -47,9 +47,9 @@ the realization replays against, not an allocator convention.
 While live, the claimed region is nonmoving like every activation resident —
 materialized addresses follow the frame's stable-address roster for the whole
 claim life. A claim live at a suspension crossing joins the suspension plan's
-live-claim roster with its exact storage role; parking retains the
-activation's storage, so the region and its contents survive suspension
-without duplication. A suspension-forbidden value held through the claim
+live-claim roster with its exact storage role; its region belongs to the
+[storage plan's](../build/task_runtime.md#storage-plans) retained backing, so
+the region and its contents survive suspension without duplication. A suspension-forbidden value held through the claim
 rejects the crossing as usual.
 
 Borrows over the claimed extent are ordinary loans. Splitting the claim obeys

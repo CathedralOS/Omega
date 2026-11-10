@@ -117,7 +117,7 @@ Simulated satisfies ClockOps<SimClock>
 
 data Entry { at: u64; }
 
-machine stamp<S, C satisfies ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
+machine stamp<S, const C: ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
     entry.at = C::now(clock);
 }
 ```
@@ -193,9 +193,7 @@ machine command_motor(speed: u32) {
     MotorControl::set_speed(speed);
 }
 
-public machine apply<machine F>(value: u32)
-requires machine F(value: u32);
-{
+public machine apply<const F: machine(value: u32)>(value: u32) {
     F(value);
 }
 
@@ -208,11 +206,11 @@ public machine start_motor() reaches MotorControl {
 `MotorControl`; another callback can contribute a different service or none.
 The application still selects a provider for the boundary operation.
 
-Omitting reach on a body means “derive it from my calls.” On a non-boundary
-callback requirement it means “derive it from the selected implementation.”
-Write `requires machine F(value: u32) reaches none;` to accept only
-service-free callbacks. The semicolon ends F's whole requirement; clauses after it belong
-to `apply`.
+Omitting reach on a body means “derive it from my calls.” On a static
+callable parameter's type it means “derive it from the selected implementation.”
+Write `const F: machine(value: u32) reaches none` to accept only
+service-free callbacks. Clauses inside the type belong to F; clauses after the
+parameter list belong to `apply`.
 
 The same propagation works through trait members and forwarded wrappers.
 A generic using an unrestricted F leaves its own reach inferred. Once F is
@@ -225,9 +223,7 @@ A traversal may permit a suspending callback while a particular use remains
 synchronous:
 
 ```omega
-public machine apply<machine F>(value: u32) -> u32
-requires machine F(value: u32) -> u32
-    suspends;
+public machine apply<const F: machine(value: u32) -> u32 suspends>(value: u32) -> u32
 suspends
 {
     suspend F(value)
@@ -411,13 +407,12 @@ boundary machine ApplicationWindow::dispatch(
 ```
 
 ```omega
-machine install<machine Handler>(
+machine install<const Handler: HookProcedure::call>(
     hook: HookKind,
     native callback procedure from Handler,
     module: ModuleHandle,
     thread: ThreadId,
-) -> Registration
-requires machine Handler satisfies HookProcedure::call;
+) -> Registration;
 
 install<ApplicationHook>(hook, module, thread)
 ```

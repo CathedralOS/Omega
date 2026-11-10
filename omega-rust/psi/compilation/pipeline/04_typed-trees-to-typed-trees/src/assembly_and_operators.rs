@@ -1048,6 +1048,7 @@ pub(crate) mod assembly_control {
                         let implication =
                             expressions_of_mut(program).insert(ExpressionNode::Binary(
                                 typed_trees::expression::TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: inverse_guard,
                                     operator: typed_trees::expression::BinaryOperator::Or,
                                     right: obligation,
@@ -2167,6 +2168,7 @@ pub(crate) mod operators {
                 .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
             let end =
                 expressions_of_mut(program).insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left: range.end,
                     operator: BinaryOperator::Add,
                     right: one,

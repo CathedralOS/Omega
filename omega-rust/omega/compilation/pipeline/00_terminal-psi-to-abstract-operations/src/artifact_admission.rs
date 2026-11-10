@@ -33,6 +33,9 @@ mod error {
         AccessViewEstablishmentQualificationCarrier(semantic_vocabulary::StructuralDomainId),
         AccessViewEstablishmentAliasing(u64),
         Lowering(LoweringError),
+        /// Evidence seals name a different module than the one being lowered,
+        /// for example seals from an earlier build.
+        EvidenceForAnotherModule,
     }
 
     diagnostics::debug_display!(ArtifactLoweringError);
@@ -496,6 +499,19 @@ mod native {
     }
 
     impl AdmittedNativeArtifact {
+        /// Attaches seals that name exactly this module's identity.
+        pub(crate) fn attach_evidence(
+            &mut self,
+            evidence: terminal_codec::EvidenceSeals,
+        ) -> Result<(), ArtifactLoweringError> {
+            if self.optimization_input.plan.psi != evidence.module {
+                return Err(ArtifactLoweringError::EvidenceForAnotherModule);
+            }
+            self.optimization_input.evidence =
+                crate::optimization::ObligationEvidence::InMemory(evidence.seals);
+            Ok(())
+        }
+
         pub fn plan(&self) -> &AbstractOperationPlan {
             self.optimization_input.plan()
         }
@@ -570,6 +586,7 @@ mod native {
                 selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::from(
                     Vec::new(),
                 ),
+                evidence: crate::optimization::ObligationEvidence::ReadFromBytes,
             },
         }
     }
@@ -1083,6 +1100,25 @@ pub fn lower_artifact(
     let module = terminal_codec::decode_module(sections.semantic_bytes)
         .map_err(ArtifactLoweringError::SemanticDecode)?;
     lower_decoded_artifact(&module)
+}
+
+/// Lowers an in-memory module, from the lowered-form route, with the evidence
+/// seals produced beside it. The module goes through the same canonical
+/// encoding and decoding as `lower_artifact`, so it is validated the same way;
+/// the seals are attached only when they name this module's identity. This is
+/// the only way an input gets seals: an input lowered from bytes has
+/// `ObligationEvidence::ReadFromBytes`.
+pub fn lower_module_with_evidence(
+    module: &terminal_psi::TerminalModule,
+    evidence: terminal_codec::EvidenceSeals,
+) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
+    let bytes =
+        terminal_codec::encode_module(module).map_err(ArtifactLoweringError::SemanticDecode)?;
+    let mut lowered = lower_artifact(ArtifactSections {
+        semantic_bytes: &bytes,
+    })?;
+    lowered.attach_evidence(evidence)?;
+    Ok(lowered)
 }
 
 pub(crate) fn lower_decoded_artifact(

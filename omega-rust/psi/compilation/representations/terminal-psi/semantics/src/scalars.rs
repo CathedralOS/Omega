@@ -5,8 +5,6 @@ proof-bearing scalar elision, and scalar representation views.
 
 pub(crate) mod proof_bearing_scalar {
 
-    use std::collections::BTreeMap;
-
     use numerics::{
         arithmetic::ArithmeticDomain,
         integer_policy::{
@@ -22,7 +20,7 @@ pub(crate) mod proof_bearing_scalar {
     use crate::{
         OperationSemanticError, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
         ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
-        ScalarLeafResultShape, ScalarLeafSchema, ScalarLeafWorkPolicy,
+        ScalarLeafResultShape, ScalarLeafSchema, ScalarLeafWorkPolicy, ValueTypes,
     };
 
     pub(crate) mod canonical_goal {
@@ -1553,7 +1551,7 @@ pub(crate) mod proof_bearing_scalar {
         schema: ProofBearingScalarLeafSchema,
         inputs: ProofBearingInputs,
         result_type: IntegerType,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<(ScalarTerm, Option<IntegerType>, Vec<ScalarTerm>), OperationSemanticError> {
         let invalid = || OperationSemanticError::DenotationShapeMismatch(tag);
         let built = match (schema.operands, schema.denotation, inputs) {
@@ -1664,7 +1662,7 @@ pub(crate) mod proof_bearing_scalar {
 
     pub fn proof_bearing_scalar_leaf_semantics(
         operation: &Operation,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<Option<ProofBearingScalarLeafSemantics>, OperationSemanticError> {
         let Some(row) = proof_bearing_scalar_semantic_row(&operation.kind)? else {
             return Ok(None);
@@ -2209,10 +2207,23 @@ pub mod scalar_demand {
         Some((coordinates.blocks, coordinates.values))
     }
 
+    /// Blocks whose parameter lists a scalar qualification row depends on.
+    ///
+    /// A coercion row and a completion return row each bind one argument of a
+    /// jump to the parameter that receives it. The completion row names that
+    /// argument by position, so removing an earlier parameter of the receiving
+    /// block would leave the row pointing at a different argument, or at none.
+    /// Callers that drop or merge block parameters keep these blocks whole.
     pub fn qualification_parameter_blocks(
         module: &terminal_psi::TerminalModule,
     ) -> Option<Vec<(semantic_vocabulary::MachineId, BlockId)>> {
-        if module.scalar_qualifications.coercions.is_empty() {
+        let completions =
+            || {
+                module.scalar_qualifications.returns.iter().filter(|row| {
+                    matches!(row.site, terminal_psi::ScalarReturnSite::Completion { .. })
+                })
+            };
+        if module.scalar_qualifications.coercions.is_empty() && completions().next().is_none() {
             return Some(Vec::new());
         }
         let mut targets = Vec::new();
@@ -2241,6 +2252,12 @@ pub mod scalar_demand {
         }
         let mut protected = Vec::new();
         for row in &module.scalar_qualifications.coercions {
+            let position = targets
+                .binary_search_by_key(&(row.machine, row.edge), |(key, _)| *key)
+                .ok()?;
+            protected.push((row.machine, targets[position].1));
+        }
+        for row in completions() {
             let position = targets
                 .binary_search_by_key(&(row.machine, row.edge), |(key, _)| *key)
                 .ok()?;
@@ -3358,6 +3375,49 @@ pub(crate) mod scalar_leaf_semantics {
         Boolean(bool),
     }
 
+    /// The scalar type of each value the scalar-leaf semantics reads. A
+    /// caller that holds value types in a dense table passes the table; it
+    /// need not build a map keyed by value identity to ask.
+    pub trait ValueTypes {
+        fn value_type(&self, value: ValueId) -> Option<ScalarType>;
+    }
+
+    impl ValueTypes for BTreeMap<ValueId, ScalarType> {
+        fn value_type(&self, value: ValueId) -> Option<ScalarType> {
+            self.get(&value).copied()
+        }
+    }
+
+    impl ValueTypes for semantic_vocabulary::IdTable<ValueId, ScalarType> {
+        fn value_type(&self, value: ValueId) -> Option<ScalarType> {
+            self.get(value).copied()
+        }
+    }
+
+    /// Value types read from declarations whose identities need not be
+    /// dense, sorted once and searched by binary search.
+    pub struct SortedValueTypes(Vec<(ValueId, ScalarType)>);
+
+    impl SortedValueTypes {
+        /// `None` when one value is declared twice.
+        pub fn new(mut rows: Vec<(ValueId, ScalarType)>) -> Option<Self> {
+            rows.sort_unstable_by_key(|(value, _)| *value);
+            if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return None;
+            }
+            Some(Self(rows))
+        }
+    }
+
+    impl ValueTypes for SortedValueTypes {
+        fn value_type(&self, value: ValueId) -> Option<ScalarType> {
+            self.0
+                .binary_search_by_key(&value, |(row, _)| *row)
+                .ok()
+                .map(|position| self.0[position].1)
+        }
+    }
+
     pub fn constant_goal_free_scalar_leaf(
         operation: &Operation,
         literals: &BTreeMap<ValueId, ScalarLeafLiteral>,
@@ -3539,11 +3599,10 @@ pub(crate) mod scalar_leaf_semantics {
 
     pub(crate) fn value_term(
         value: ValueId,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<ScalarTerm, OperationSemanticError> {
         value_types
-            .get(&value)
-            .copied()
+            .value_type(value)
             .map(|scalar_type| ScalarTerm::value(value, scalar_type))
             .ok_or(OperationSemanticError::UnknownValue(value))
     }
@@ -3574,12 +3633,11 @@ pub(crate) mod scalar_leaf_semantics {
         schema: GoalFreeScalarLeafSchema,
         inputs: ScalarLeafInputs,
         result_type: ScalarType,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<(), OperationSemanticError> {
         let type_of = |value: ValueId| {
             value_types
-                .get(&value)
-                .copied()
+                .value_type(value)
                 .ok_or(OperationSemanticError::UnknownValue(value))
         };
         let valid = match (schema.operands, inputs) {
@@ -3632,7 +3690,7 @@ pub(crate) mod scalar_leaf_semantics {
         schema: GoalFreeScalarLeafSchema,
         inputs: ScalarLeafInputs,
         result_type: ScalarType,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<ScalarTerm, OperationSemanticError> {
         let term = |value| value_term(value, value_types);
         let invalid = || OperationSemanticError::DenotationShapeMismatch(tag);
@@ -3777,7 +3835,7 @@ pub(crate) mod scalar_leaf_semantics {
 
     pub fn goal_free_scalar_leaf_semantics(
         operation: &Operation,
-        value_types: &BTreeMap<ValueId, ScalarType>,
+        value_types: &dyn ValueTypes,
     ) -> Result<Option<GoalFreeScalarLeafSemantics>, OperationSemanticError> {
         let row = operation_semantic_row(&operation.kind)?;
         let Some(schema) = row.goal_free_scalar_leaf else {

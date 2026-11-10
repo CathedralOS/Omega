@@ -25,7 +25,7 @@ lookup is one index.
 | `obligations` | `ObligationId` | Claims, loans, windows and debts (conserved across edges) and proof questions (discharged at one site). |
 | `edges` | `EdgeId` | Source, destination, and the fate of every conserved obligation crossing the edge. |
 | `invocations` | `InvocationId` | The one entry operation of ordinary and terminal calls: callee, ordered actuals, one requirement obligation per callee clause. |
-| `summaries` (module) | `MachineId` | A callee's published contract, one term per axis: requires, result relation, reach, invokes, suspension, blocking, crash routes, termination. |
+| `summaries` (module) | `MachineId` | A callee's published contract, one term per axis: reach, invokes, suspension, blocking, crash routes, termination. Its `requires` and `ensures` are the callee's `MachineContract` in the lowered module, by clause position. |
 
 `ValueId`, `EdgeId`, `ObligationId`, `MachineId`, `BlockId`, `OperationId` and
 root `PlaceId` are the lowered form's own identities, so the checker and the
@@ -130,6 +130,15 @@ refused as `Unsupported`, never accepted by default.
   a read produced, so route one needs neither. The records-and-fields lane
   must choose one form before it adds knowledge about places; it must not keep
   both.
+- **Contract propositions have no table.** Terminal Psi keeps a machine's
+  `requires` and `ensures` inline in its `MachineContract`; its only
+  `PropositionId` table is named proposition declarations. `Summary`
+  therefore names no proposition: a callee clause is its machine and
+  position. Two places still assume a module proposition table: a
+  knowledge row's `proposition` (`lowered-discharge` mints its proposition
+  in lockstep with the row, in its own output) and `CrashRoute::guards`.
+  A body-derived result relation has no `MachineContract` slot; the lane
+  that publishes `SummaryBasis::BodyDerived` decides where it lives.
 - **No carry term in `Summary`.** The design record lists carry as a summary
   axis, but the specification defines carry on values, claims and suspension
   crossings, not as a callee's published term. The sentences found:

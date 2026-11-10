@@ -466,6 +466,7 @@ pub(crate) mod contracts {
                             );
                             chain_expression = exprs(syntax_trees).insert(ExpressionNode::Binary(
                                 TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: chain_expression,
                                     operator,
                                     right: membership,
@@ -603,6 +604,7 @@ pub(crate) mod contracts {
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator: BinaryOperator::GreaterOrEqual,
                         right: start,
@@ -611,6 +613,7 @@ pub(crate) mod contracts {
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator: if end_inclusive {
                             BinaryOperator::LessOrEqual
@@ -620,6 +623,7 @@ pub(crate) mod contracts {
                         right: end,
                     }));
             exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 left: lower,
                 operator: BinaryOperator::And,
                 right: upper,
@@ -1327,13 +1331,14 @@ pub(crate) mod contracts {
                 || input.at_punctuation(PunctuationKind::LeftBrace)
                 || input.at_contextual("requires")
                 || input.at_contextual("ensures")
-                || input.at_contextual("terminates")
-                || input.at_contextual("reaches")
-                || input.at_contextual("effects")
-                || input.at_contextual("invokes")
-                || input.at_contextual("suspends")
-                || input.at_contextual("blocks")
-                || input.at_contextual("crashes")
+                || ((input.at_contextual("terminates")
+                    || input.at_contextual("reaches")
+                    || input.at_contextual("effects")
+                    || input.at_contextual("invokes")
+                    || input.at_contextual("suspends")
+                    || input.at_contextual("blocks")
+                    || input.at_contextual("crashes"))
+                    && !input.clause_word_is_an_operand())
                 || input.tokens.is_empty()
         }
 
