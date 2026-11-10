@@ -88898,9 +88898,8 @@ pub(crate) mod structural_terms {
             // gave `width == buckets.len as u64` a different term from the
             // `buckets.len` in its sibling premises, so the equation never met
             // them. Keep it the plain value, as the uncast spelling is.
-            let result = crate::value_custody::expression_types::cast_result_type_reference(
-                program, cast,
-            )?;
+            let result =
+                crate::value_custody::expression_types::cast_result_type_reference(program, cast)?;
             if program.primitive_type_reference(result) == program.primitive_type_reference(source)
                 && program.arithmetic_domain_for_type_reference(result)
                     == program.arithmetic_domain_for_type_reference(source)
