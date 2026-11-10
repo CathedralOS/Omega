@@ -86,8 +86,82 @@ pub fn build_verified_psi_optimization_unit(
     optimization_unit::attach_verified_module_context(&mut seed, context.module())
         .map_err(VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine)?;
     let facts = source_checked_obligation_facts(&seed)?;
+    if std::env::var_os("OMEGA_PROOF_MEASUREMENTS").is_some() {
+        eprint!("{}", product_obligation_census(context.module(), &facts));
+    }
     let unit = optimization_unit::attach_accepted_obligation_facts(seed, facts)?;
     Ok(VerifiedPsiOptimizationUnit { input, unit })
+}
+
+/// The census that `wiki/drafts/designs/check_on_lowered_form.md` asks for
+/// before route one: how many obligations the product accepts, and how many of
+/// those carry evidence. It prints one line per kind of owning Terminal
+/// operation and reads only what this stage already built, so verdicts and
+/// artifacts are unchanged. "Evidence" means a nonzero proof-bundle
+/// fingerprint on the accepted fact; a reconstructed goal is counted apart
+/// because it states the obligation without proving it. A call's `requires`
+/// obligations travel on the call and never become accepted facts here, so
+/// they are counted as carried, with the callee's source-checked `requires`.
+fn product_obligation_census(
+    module: &terminal_psi::TerminalModule,
+    facts: &[AcceptedObligationFact],
+) -> String {
+    use semantic_vocabulary::{MachineId, OperationId};
+    use std::collections::BTreeMap;
+    let mut owners: Vec<((MachineId, OperationId), &'static str)> = Vec::new();
+    let mut carried_requires = 0usize;
+    let mut source_checked_requires = 0usize;
+    for machine in &module.machines {
+        source_checked_requires += machine.contract.source_checked_requires.len();
+        for block in &machine.blocks {
+            carried_requires += block
+                .boundary_invocations()
+                .map(|call| call.requirement_obligations.len())
+                .sum::<usize>();
+            for operation in &block.operations {
+                owners.push((
+                    (machine.id, operation.id),
+                    terminal_semantics::OperationSemanticTag::for_operation(&operation.kind).name(),
+                ));
+                carried_requires += match &operation.kind {
+                    terminal_psi::OperationKind::CallDynamic {
+                        requirement_obligations,
+                        ..
+                    } => requirement_obligations.len(),
+                    kind => kind
+                        .module_invocation()
+                        .map_or(0, |call| call.requirement_obligations.len()),
+                };
+            }
+        }
+    }
+    owners.sort_unstable();
+    // ponytail: string-keyed tally, measurement output only; never feeds a decision.
+    let mut kinds: BTreeMap<&'static str, [usize; 3]> = BTreeMap::new();
+    for fact in facts {
+        let kind = match fact.owner {
+            optimization_unit::PsiProvenance::Operation(operation) => owners
+                .binary_search_by_key(&(fact.machine, operation), |(key, _)| *key)
+                .map_or("unknown_operation", |found| owners[found].1),
+            optimization_unit::PsiProvenance::Edge(_) => "EdgeRuntimeIndex",
+        };
+        let row = kinds.entry(kind).or_default();
+        row[0] += 1;
+        row[1] += usize::from(fact.proof_bundle_fingerprint != [0; 32]);
+        row[2] += usize::from(!fact.proposition.is_empty());
+    }
+    let mut census = String::new();
+    for (kind, [accepted, evidence, goal]) in kinds {
+        census.push_str(&format!(
+            "product_obligation_census kind={kind} accepted={accepted} \
+             with_evidence={evidence} reconstructed_goal={goal}\n"
+        ));
+    }
+    census.push_str(&format!(
+        "product_obligation_census kind=CallRequires carried={carried_requires} \
+         accepted=0 with_evidence=0 callee_source_checked_requires={source_checked_requires}\n"
+    ));
+    census
 }
 
 fn source_checked_obligation_facts(
