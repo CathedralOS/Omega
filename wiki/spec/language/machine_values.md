@@ -16,8 +16,8 @@ by a `requires machine` requirement, without a declaration name:
 ```omega
 data Counter { value: u64; }
 data CounterOps {
-    clear: machine(counter: &mut Counter) terminates;
-    value: machine(counter: &Counter) -> u64 terminates;
+    clear: machine(counter: &mut Counter) reaches none terminates;
+    value: machine(counter: &Counter) -> u64 reaches none terminates;
 }
 
 machine clear(counter: &mut Counter) terminates { counter.value = 0; }
@@ -32,7 +32,9 @@ other ordinary containers. Parameter names in its contract bind that callable's
 formal arguments; `result` denotes its result. Lifetime binders and ordinary
 `requires`, `ensures`, reach, invocation, suspension, blocking, crash, progress,
 resource and custody contracts retain their meanings. Runtime callable service
-reach has a fixed finite ceiling: omission and `reaches none` both mean empty.
+reach has a fixed finite ceiling that the type must state: `reaches none` means
+empty, and a callable type with no `reaches` clause rejects under
+[explicit callable reach](effects.md#deferred-requirement-reach).
 The deferred omission rule for static requirements does not apply to callable
 types. Other axes retain their existing omission rules.
 

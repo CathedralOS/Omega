@@ -317,12 +317,12 @@ machine announce(out: &mut Emitter<u32>, job: Announcement) suspends {
 
 machine drain(generator: Generator<u32>) suspends {
     transition suspend Generator::next(move generator) {
-        Next::Item { value, generator } -> handle(value, move generator)
+        Next::Item { value, generator } -> suspend handle(value, move generator)
         Next::Finished -> done()
     }
     machine handle(value: u32, generator: Generator<u32>) suspends {
         use_value(value);
-        drain(move generator)
+        suspend drain(move generator)
     }
     machine done() {}
 }

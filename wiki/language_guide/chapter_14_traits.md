@@ -457,8 +457,8 @@ named machine in a field with the callable contract the consumer needs.
 ```omega
 data Counter { value: u64; }
 data CounterOps {
-    clear: machine(counter: &mut Counter) terminates;
-    value: machine(counter: &Counter) -> u64 terminates;
+    clear: machine(counter: &mut Counter) reaches none terminates;
+    value: machine(counter: &Counter) -> u64 reaches none terminates;
 }
 
 machine clear(counter: &mut Counter) terminates { counter.value = 0; }
@@ -468,6 +468,10 @@ machine inspect(operations: &CounterOps, counter: &Counter) -> u64 terminates {
     (operations.value)(counter)
 }
 ```
+
+A callable type always says which services its machines may reach.
+`reaches none` admits only service-free machines; leaving the clause out
+rejects, so a field never promises that by accident.
 
 Construct `CounterOps { clear: clear, value: value }` and pass it to `inspect`.
 Another record can choose other machines with the same contracts. A field may
@@ -491,7 +495,8 @@ matches its own state. This example reads from two small, unrelated sources:
 data Reader<'a, some S> {
     state: &'a mut S;
     read: machine(state: &mut S, output: &mut [u8]) -> u64
-        requires output.len > 0;
+        requires output.len > 0
+        reaches none;
 }
 
 data Constant { byte: u8; }
@@ -561,7 +566,7 @@ different state:
 ```omega
 data Job<P, R, some S> [linear] {
     state: Extent in Granted & Resident<P, S>;
-    run: machine(state: Extent in Granted & Resident<P, S>) -> R;
+    run: machine(state: Extent in Granted & Resident<P, S>) -> R reaches none;
 }
 ```
 

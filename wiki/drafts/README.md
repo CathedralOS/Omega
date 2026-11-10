@@ -148,6 +148,12 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Case projection type](designs/case_projection_type.md): `Data::case` names
+  the case-only view that `case as name` binds, so a helper can accept it
+  behind a reference; delete when the board item lands.
+- [Explicit callable reach](designs/explicit_callable_reach.md): a runtime
+  callable type states `reaches`, with `reaches none` for empty, instead of
+  meaning empty by omission; delete when the board item lands.
 - [Named domain casts](designs/named_domain_casts.md): a type gains or loses
   a domain only through `as =Keep -Remove +Add`, which accounts for every
   attached domain; implicit weakening, annotation-attached domains and
