@@ -71,7 +71,8 @@ return, not whether a return is eventually reached.
 ```omega
 boundary trait FiniteReader {
     machine read_all(out: &mut Vec<u8>) -> ReadResult
-        terminates;
+        terminates
+        crashes none;
 }
 ```
 

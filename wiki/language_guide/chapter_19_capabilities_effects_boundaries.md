@@ -11,7 +11,8 @@ This interface lets a reader fill a caller-owned buffer:
 boundary trait Readable {
     machine read(path: [u8]::Utf8, out: &mut Vec<u8>) -> ReadResult
     reaches Readable
-    suspends;
+    suspends
+    crashes none;
 }
 
 machine read_config(path: [u8]::Utf8, out: &mut Vec<u8>) -> ReadResult
@@ -27,8 +28,9 @@ are imported. `reaches Readable` records service use. `suspends` permits waiting
 and `suspend` marks that possibility at the call. The caller also supplies
 the input facts and runtime authority required by the selected API.
 
-A boundary requirement declares its reach explicitly. Use `reaches none` for
-an empty row. The trait name is added only when the declaration names it.
+A boundary requirement declares its reach and its crash routes explicitly. Use
+`reaches none` for an empty row and `crashes none` when it cannot crash; a
+missing clause rejects instead of meaning "none". The trait name is added only when the declaration names it.
 
 ## Select a provider
 
@@ -109,7 +111,7 @@ A reusable helper can accept callbacks using services defined by its clients:
 
 ```omega
 public boundary trait MotorControl {
-    machine set_speed(speed: u32) reaches MotorControl;
+    machine set_speed(speed: u32) reaches MotorControl crashes none;
 }
 
 machine command_motor(speed: u32) {
@@ -317,7 +319,8 @@ boundary trait WindowProcedure:
         message: u32,
         word: WParam,
         long: LParam,
-    ) -> LResult;
+    ) -> LResult
+    crashes none;
 }
 
 boundary machine ApplicationWindow::dispatch(
