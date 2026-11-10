@@ -9,8 +9,60 @@ use serde_json::Value;
 
 use crate::repo_root;
 
-const REQUIRED_CHECK: &str = "compiler-check";
+/// Every check branch protection requires before the merge queue takes a PR.
+/// Looking at only the first let `land` queue a PR whose second check had never
+/// run, and GitHub's refusal did not say why.
+const REQUIRED_CHECKS: &[&str] = &["compiler-check", "workspace-clippy"];
 const CHECK_POLL_SECONDS: u64 = 15;
+/// `land` waits this long for the merge, so "queued" is not read as "landed".
+const LAND_WAIT_SECONDS: u64 = 1800;
+
+/// The verdict for a commit from its check runs: `green`, `red`, `pending`
+/// (a required check is still running) or `missing` (one never started).
+fn required_checks_verdict(nodes: &[Value], head: &str) -> (String, String) {
+    let mut running = Vec::new();
+    let mut missing = Vec::new();
+    for required in REQUIRED_CHECKS {
+        let latest = nodes
+            .iter()
+            .filter(|n| {
+                n["__typename"].as_str() == Some("CheckRun") && n["name"].as_str() == Some(required)
+            })
+            .max_by_key(|n| n["startedAt"].as_str().unwrap_or(""));
+        let Some(run) = latest else {
+            missing.push(*required);
+            continue;
+        };
+        let status = run["status"].as_str().unwrap_or("");
+        if status != "COMPLETED" {
+            running.push(format!("{required} is {}", status.to_ascii_lowercase()));
+            continue;
+        }
+        let conclusion = run["conclusion"].as_str().unwrap_or("");
+        if conclusion != "SUCCESS" {
+            return (
+                "red".to_owned(),
+                format!("{required} concluded {}", conclusion.to_ascii_lowercase()),
+            );
+        }
+    }
+    if !missing.is_empty() {
+        return (
+            "missing".to_owned(),
+            format!(
+                "{} has not run on {head}. A check starts on a push to the PR branch; `workspace-clippy` does not start when only the base branch or the description is edited. If you pushed a moment ago, run this again in a minute; otherwise push the branch again.",
+                missing.join(" and ")
+            ),
+        );
+    }
+    if !running.is_empty() {
+        return ("pending".to_owned(), running.join("; "));
+    }
+    (
+        "green".to_owned(),
+        "every required check succeeded".to_owned(),
+    )
+}
 
 fn run_cmd(root: &Path, args: &[&str]) -> Result<String, String> {
     let out = Command::new(args[0])
@@ -122,46 +174,11 @@ fn head_check(root: &Path, remote: &str, head: &str) -> Result<(String, String),
             ("head", head, false),
         ],
     )?;
-    let Some(nodes) =
-        data["repository"]["object"]["statusCheckRollup"]["contexts"]["nodes"].as_array()
-    else {
-        return Ok((
-            "pending".to_owned(),
-            format!("{REQUIRED_CHECK} has not started"),
-        ));
-    };
-    let latest = nodes
-        .iter()
-        .filter(|n| {
-            n["__typename"].as_str() == Some("CheckRun")
-                && n["name"].as_str() == Some(REQUIRED_CHECK)
-        })
-        .max_by_key(|n| n["startedAt"].as_str().unwrap_or(""));
-    let Some(run) = latest else {
-        return Ok((
-            "pending".to_owned(),
-            format!("{REQUIRED_CHECK} has not started"),
-        ));
-    };
-    let status = run["status"].as_str().unwrap_or("");
-    if status != "COMPLETED" {
-        return Ok((
-            "pending".to_owned(),
-            format!("{REQUIRED_CHECK} is {}", status.to_ascii_lowercase()),
-        ));
-    }
-    let conclusion = run["conclusion"].as_str().unwrap_or("");
-    if conclusion == "SUCCESS" {
-        Ok(("green".to_owned(), format!("{REQUIRED_CHECK} succeeded")))
-    } else {
-        Ok((
-            "red".to_owned(),
-            format!(
-                "{REQUIRED_CHECK} concluded {}",
-                conclusion.to_ascii_lowercase()
-            ),
-        ))
-    }
+    let nodes = data["repository"]["object"]["statusCheckRollup"]["contexts"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    Ok(required_checks_verdict(&nodes, head))
 }
 
 fn validate_head(pr: &Value, expected: &str) -> Result<(), String> {
@@ -219,6 +236,10 @@ fn arm(root: &Path, remote: &str, number: u64, expected: &str) -> Result<Value, 
             "{description} on {expected}; inspect the failed run before changing source."
         ));
     }
+    // Arming auto-merge here would wait forever for a check nothing will start.
+    if verdict == "missing" {
+        return Err(description);
+    }
     if verdict == "pending" && !pr["autoMergeRequest"].is_null() {
         return Ok(pr);
     }
@@ -265,8 +286,16 @@ fn subcommand_and_first_argument(args: &[String]) -> (&str, usize) {
 pub fn run(args: &[String]) -> Result<(), u8> {
     if args.is_empty() || matches!(args[0].as_str(), "-h" | "--help") {
         println!(
-            "usage: cargo xtask land <pr> --expected-head <sha>
-       cargo xtask land <status|enqueue|wait|land> [pr] [--expected-head <sha>] [--wait-seconds <secs>]"
+            "usage: cargo xtask land <pr> --expected-head <sha> [--wait-seconds <secs>]
+         Marks the PR ready, queues it once every required check is green, waits
+         for the merge (default {LAND_WAIT_SECONDS} s) and names the merge commit.
+         Exit 2 means queued but not merged yet. `--wait-seconds 0` returns at once.
+       cargo xtask land status [pr]
+         Prints one PR, or the merge queue.
+       cargo xtask land wait <pr> --expected-head <sha> [--wait-seconds <secs>]
+         Waits for a PR that is already queued to merge. It does not wait for checks.
+       cargo xtask land enqueue <pr> --expected-head <sha>
+         Queues a PR whose checks are already green, without waiting."
         );
         return Ok(());
     }
@@ -331,7 +360,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 } else {
                     pull_request(&root, &remote, n)?
                 };
-                let secs = wait_seconds.unwrap_or(if sub == "land" { 0 } else { 60 });
+                let secs =
+                    wait_seconds.unwrap_or(if sub == "land" { LAND_WAIT_SECONDS } else { 60 });
                 if pr["state"].as_str() == Some("MERGED") || secs == 0 {
                     return Ok((pr, 0));
                 }
@@ -360,6 +390,29 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     match run_op() {
         Ok((val, code)) => {
             println!("{val}");
+            // The JSON above is for scripts. A person or an agent reads this
+            // line, and only a merge counts as landed.
+            if matches!(sub, "land" | "wait") {
+                let number = val["number"].as_u64().unwrap_or_default();
+                if val["state"].as_str() == Some("MERGED") {
+                    eprintln!(
+                        "landing: #{number} merged as {}",
+                        val["mergeCommit"]["oid"]
+                            .as_str()
+                            .unwrap_or("a commit GitHub did not report")
+                    );
+                } else {
+                    let queue = &val["mergeQueueEntry"];
+                    let place = if queue.is_null() {
+                        "not in the merge queue".to_owned()
+                    } else {
+                        format!("in the merge queue at position {}", queue["position"])
+                    };
+                    eprintln!(
+                        "landing: #{number} has NOT merged yet ({place}); do not report it as landed"
+                    );
+                }
+            }
             if code == 0 { Ok(()) } else { Err(code) }
         }
         Err(e) => {
@@ -371,7 +424,45 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::subcommand_and_first_argument;
+    use super::{required_checks_verdict, subcommand_and_first_argument};
+
+    // Branch protection requires both checks. A PR whose base was changed
+    // without a push has a green `compiler-check` and no `workspace-clippy`
+    // run at all, and that must not read as green.
+    #[test]
+    fn a_required_check_that_never_ran_is_missing_not_green() {
+        let run = |name: &str, status: &str, conclusion: &str| {
+            serde_json::json!({
+                "__typename": "CheckRun",
+                "name": name,
+                "status": status,
+                "conclusion": conclusion,
+                "startedAt": "2026-11-10T00:00:00Z",
+            })
+        };
+        let both = [
+            run("compiler-check", "COMPLETED", "SUCCESS"),
+            run("workspace-clippy", "COMPLETED", "SUCCESS"),
+        ];
+        assert_eq!(required_checks_verdict(&both, "abc").0, "green");
+
+        let (verdict, why) =
+            required_checks_verdict(&[run("compiler-check", "COMPLETED", "SUCCESS")], "abc");
+        assert_eq!(verdict, "missing");
+        assert!(why.contains("workspace-clippy has not run on abc"));
+
+        let running = [
+            run("compiler-check", "COMPLETED", "SUCCESS"),
+            run("workspace-clippy", "IN_PROGRESS", ""),
+        ];
+        assert_eq!(required_checks_verdict(&running, "abc").0, "pending");
+
+        let failed = [
+            run("compiler-check", "COMPLETED", "FAILURE"),
+            run("workspace-clippy", "COMPLETED", "SUCCESS"),
+        ];
+        assert_eq!(required_checks_verdict(&failed, "abc").0, "red");
+    }
 
     // The documented `land <pr> --expected-head <sha>` form and the explicit
     // subcommand forms must reach the same parser position for the number.
