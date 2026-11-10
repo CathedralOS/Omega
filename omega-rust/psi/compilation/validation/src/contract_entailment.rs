@@ -81890,29 +81890,10 @@ pub(crate) mod structural_judgment {
                     }
                     StructuralTerm::IntegerEmbedding { reference, value } => {
                         let value = self.resolve_with_at(*value, depth + 1, purpose);
-                        let resolved = StructuralTerm::IntegerEmbedding {
+                        return StructuralTerm::IntegerEmbedding {
                             reference,
                             value: Box::new(value),
                         };
-                        // Equation intake records an embedding as a rewrite side
-                        // (`width == buckets.len as u64` stores `embed(len) -> width`),
-                        // so this arm consults the table like its siblings. The
-                        // scalar replacement names the same mathematical value, so
-                        // it stays under this embedding rather than leaving the
-                        // integer sort.
-                        if let Some((_, replacement)) = self.rewrites.find(&resolved) {
-                            term = match replacement.semantic_value() {
-                                StructuralTerm::IntegerEmbedding { .. }
-                                | StructuralTerm::Integer(_)
-                                | StructuralTerm::MathematicalBinary { .. } => replacement.clone(),
-                                _ => StructuralTerm::IntegerEmbedding {
-                                    reference,
-                                    value: Box::new(replacement.clone()),
-                                },
-                            };
-                            continue;
-                        }
-                        return resolved;
                     }
                     predicate @ (StructuralTerm::MathematicalBinary { .. }
                     | StructuralTerm::LogicalNot { .. }) => {
@@ -88911,6 +88892,20 @@ pub(crate) mod structural_terms {
         if integer(source) && integer(cast.target_type) {
             if !scalar_operand_is_observed(program, source, &value) {
                 return None;
+            }
+            // A cast to its own carrier and policy (`buckets.len as u64` with a
+            // `u64` length) denotes the same scalar. Wrapping it in an embedding
+            // gave `width == buckets.len as u64` a different term from the
+            // `buckets.len` in its sibling premises, so the equation never met
+            // them. Keep it the plain value, as the uncast spelling is.
+            let result = crate::value_custody::expression_types::cast_result_type_reference(
+                program, cast,
+            )?;
+            if program.primitive_type_reference(result) == program.primitive_type_reference(source)
+                && program.arithmetic_domain_for_type_reference(result)
+                    == program.arithmetic_domain_for_type_reference(source)
+            {
+                return Some(value);
             }
             return Some(StructuralTerm::ObservedValue {
                 observed_type: crate::value_custody::expression_types::cast_result_type_reference(
