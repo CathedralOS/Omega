@@ -669,8 +669,18 @@ impl<'t> Program<'t> {
                         (TransitionGuardNode::Always, []) => None,
                         (TransitionGuardNode::When(guard), []) => Some(guard),
                         (TransitionGuardNode::Always, [pattern]) => Some(self.value_pattern(id, pattern)?),
-                        (TransitionGuardNode::When(_), [_]) => {
-                            return Err(refuse(id, Construct::Machine, Unserved::Transition("guard beside a pattern")));
+                        // The same expression handle as guard and as pattern
+                        // condition is one guard, evaluated once.
+                        (TransitionGuardNode::When(guard), [pattern]) => {
+                            let condition = self.value_pattern(id, pattern)?;
+                            if condition != guard {
+                                return Err(refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Transition("guard beside a different pattern condition"),
+                                ));
+                            }
+                            Some(guard)
                         }
                         (_, [_, _, ..]) => {
                             return Err(refuse(id, Construct::Machine, Unserved::Transition("tuple pattern")));
