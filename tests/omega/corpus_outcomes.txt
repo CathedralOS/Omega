@@ -14245,6 +14245,8 @@ fail/float/digit_separator_missing_exponent_rejected rejected 2ms expected @ccdb
 	tests/omega/fail/float/digit_separator_missing_exponent_rejected/main.omg:1:35: invalid float literal
 fail/float/digit_separator_unknown_suffix_rejected rejected 8ms expected @ccdb99ca2214
 	tests/omega/fail/float/digit_separator_unknown_suffix_rejected/main.omg:1:35: unknown float literal suffix
+fail/float/directed_fma_unsupported_target rejected 14730ms expected @03a7e97e20a3
+	canonical float operation `operator::F64::fused_multiply_add_toward_zero(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` has no realization on target `linux_x86_64`: x86-64 has no directed-rounding fused multiply-add realization
 fail/float/exact_format_conversion_requires_denotation rejected 2797ms expected @ccdb99ca2214
 	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `lossy_literal` state `entry` cannot prove Exact float-to-`f32` cast operand `0.1` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -16511,8 +16513,8 @@ fail/packages/indexed_contract_out_of_bounds rejected 718ms expected @5c5c178f82
 	cannot prove index `8` is within length 8
 fail/packages/retained_dependency_body_loan rejected 2879ms expected @ccdb99ca2214
 	statement 2 mutates `cell.value` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 6)
-fail/packages/rootless_numeric_provider_missing_satisfaction rejected 23534ms expected @6b1c338126fa
-	build selects provider `UnusedNumericProvider` for slot `operator::F32::negate(named(name(f32)))->named(name(f32))`, but no candidate exists in the loaded dependency closure
+fail/packages/rootless_numeric_provider_missing_satisfaction rejected 20665ms expected @03a7e97e20a3
+	build selects provider `UnusedNumericProvider` for canonical float operation `operator::F32::negate(named(name(f32)))->named(name(f32))`; canonical f32/f64 operations are realized by target `linux_x86_64`'s declared realization table, and Build programs and packages neither select nor override them -- call a named machine for a particular algorithm
 fail/packages/std_missing_dependency_rejected rejected 300ms expected @ccdb99ca2214
 	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (145ac3c645f4d6d28016570d3481be506c9727f8ff632d12f4346c545db6c00e) declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, "omega_language_std", ...)` in its build.omg to add that dependency edge for the product scope
 fail/packages/std_mount_path_rejected rejected 579ms expected @ccdb99ca2214
@@ -26743,8 +26745,8 @@ pass/ownership/zero_case_qualified_inventory checked 2188ms @ccdb99ca2214
 pass/packages/implementation_parent_review checked 3425ms @ccdb99ca2214
 pass/packages/indexed_contract_field_review checked 32146ms check-target:macos_arm64 @911f6617ba9e
 pass/packages/retained_dependency_bodies_exit checked 4034ms check-target:macos_arm64 @ccdb99ca2214
-pass/packages/rootless_numeric_provider_consumer checked 58345ms check-target:macos_arm64 @6b1c338126fa
-pass/packages/rootless_numeric_provider_review checked 40345ms @6b1c338126fa
+pass/packages/rootless_numeric_provider_consumer checked 23883ms check-target:macos_arm64 @03a7e97e20a3
+pass/packages/rootless_numeric_provider_review checked 14270ms @03a7e97e20a3
 pass/packages/runtime_attached_owner_crash_guard_scope_exit checked 3639ms check-target:macos_arm64 @ccdb99ca2214
 pass/packages/runtime_public_attached_owner_cleanup_exit checked 7678ms check-target:macos_arm64 @6c3dcb823e47
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 11779ms check-target:macos_arm64 @ccdb99ca2214
