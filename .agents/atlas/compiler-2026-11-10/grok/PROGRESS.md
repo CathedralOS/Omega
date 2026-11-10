@@ -1,10 +1,9 @@
 # Progress
 
-Updated after the first launch wave.
+Returned worker files were copied from the coordinator transcript onto this branch. Five Stream A workers are still running. Refused slices stay unstarted until a launch is accepted.
 
 Base: `8febfc42316bdcede60caa33ddd10a641f0dee8b`
 Branch: `work/grok-mega-2026-11-10`
-Head at list commit: `4ec72ea17fe6b7b4c053277c4c15b031a36ccad6`
 Draft PR: https://github.com/CathedralOS/Omega/pull/2282
 Worker model for every new worker: `composer-2.5` (fast mode off)
 Peak workers running at once: 40
@@ -15,14 +14,18 @@ Launch refusals:
 
 | Stream | Items | Done | Running | Failed |
 | --- | --- | --- | --- | --- |
-| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 3 | 20 | 0 |
-| B | 81 file ranges (B1 26, B2 55); merge files not started | 15 | 0 | 0 |
-| C | 117 chapter pieces from 103 files; lane merge not started | 0 | 0 | 0 |
-| D | 412 batches, 17263 programs; D2 not started | 1 | 0 | 0 |
-| E | 19 units, 591 files, 7 excluded | 0 | 0 | 0 |
+| A | 295 slices (1115 ACCEPT rows in 145 slices; 1076 other rows in 150 slices) | 66 | 5 | 0 |
+| B | 81 file ranges (B1 26, B2 55); merge files not started | 81 | 0 | 0 |
+| C | 117 chapter pieces from 103 files; lane merge not started | 2 | 0 | 0 |
+| D | 412 batches, 17263 programs; D2 not started | 2 | 0 | 0 |
+| E | 19 units, 591 files, 7 excluded | 2 | 0 | 0 |
 | F | 28 site files, 83 occurrences | 2 | 0 | 0 |
 | G | 120 shards, not started. G stays at most a quarter of the live worker count, and only when a slot is free | 0 | 0 | 0 |
 
-Running agent ids are in `state/inflight.tsv`.
+Running agent ids are in `state/inflight.tsv`: slices 0041, 0053, 0074, 0082, and 0087.
 
-Returned and not yet copied onto the branch (text is in the coordinator transcript): `b1_001` through `b1_004`, `b1_006`, `b1_011` through `b1_014`, `b1_016` through `b1_026`, `b2_002` through `b2_005`, `b2_007` through `b2_012`, `b2_014` through `b2_017`, `b2_019`, `b2_024`, `b2_025`, `batch_0001`, `C0001`, `C0002`, `unit_001`, `unit_002`. Each ended with its completion line. Copied this wave: `b2_054`. Selected-instruction literal folds do not evaluate add, divide, or remainder. A divisor of 1 becomes a copy. A zero dividend, or a wrapping remainder by 1 or by `u64::MAX`, becomes the constant 0. There is no shift rule. Signed minimum divided by minus one has no dedicated rule. Also returned with `SLICE COMPLETE`, not yet copied: `slice_0004` through `slice_0010`. `slice_0004` closes the missing-borrow-state skip (`A0029` `CLOSED`) because each flow state is built with its borrow row. `slice_0010` marks the index-check gate and empty-machine termination rows `REACHABLE`. `slice_0016` is `SLICE COMPLETE`. Latest `SLICE COMPLETE` batch, not yet copied: `slice_0011` through `slice_0015`, `slice_0017` through `slice_0031` except slices still running. Notable `REACHABLE` rows: `A0173` folds an empty membership predicate list to `Constant(true)`; `A0225` treats signed literal `-1` as a safe structural divisor (`*value != 0`); `A0176` drops boundary scalar ensures on a structural result and later validation accepts an empty `scalar_ensures` list. Arithmetic-domain slice `0044`: `A0335` is `CLOSED` (`signed_minimum` covers every signed fixed integer); `A0336` is `REACHABLE` (proof `Int` divide sets `signed_pair_excluded: true` without a minimum-divided-by-minus-one interval proof); `A0334` queues an `IntegerRangeObligation` and returns without a diagnostic. `A0383` treats unselected `+`, `-`, and `*` as wrapping polynomials when the selection list is empty. `A0384` keeps a narrowing integer cast without a width or range proof.
+`B/notes/b2_031.md` was returned without `QUESTION COMPLETE`. The note ends in the identity-patch table. Do not treat that range as finished.
+
+Stream B notes are on the branch, including the full worker text for `b2_038`, `b2_044`, and `b2_054`. Selected-instruction literal folds do not evaluate add, divide, or remainder. A divisor of 1 becomes a copy. A zero dividend, or a wrapping remainder by 1 or by `u64::MAX`, becomes the constant 0. There is no shift rule. Signed minimum divided by minus one has no dedicated rule.
+
+Newest copied ACCEPT slices through `slice_0071`, except 0041, 0053, 0055, 0056, and 0065. `slice_0048` is entirely `UNDECIDED` (late `calls.rs` ranges, no acceptance witness). Contradictory hypotheses make a logical-not fact `Proven` without judging the operand (`A0411`) and make `premises_prove` return true (`A0415`). `validate` can return `Ok` while exact-overflow errors sit only in `deferred_overflow` (`A0517`). A longer static write path is forced non-overlapping before the general overlap walk (`A0507`). User-written `&` and `<<` skip the spelled-builtin check (`A0524`).
